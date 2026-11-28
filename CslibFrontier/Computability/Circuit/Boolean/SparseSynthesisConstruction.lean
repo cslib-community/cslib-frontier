@@ -14,6 +14,7 @@ import CslibFrontier.Foundations.Combinatorics.FiniteCover
 import CslibFrontier.Foundations.Data.Fintype.AgreeOn
 import CslibFrontier.Probability.BitString.LinearHash.Collisions
 import CslibFrontier.Foundations.Data.BitString.Basic
+import CslibFrontier.Foundations.Data.Nat.BigOperators
 import CslibFrontier.Foundations.Data.BitString.Parity
 import Cslib.Computability.Circuit.Boolean.Synthesis
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
@@ -179,10 +180,8 @@ private theorem synthesis_table {B : Type*} [Fintype B] (pattern : B → Finset 
       cases t with
       | inl c =>
         have heq : test (.inl c) =
-            fun x => decide ((fun i => x (Fin.castAdd l i)) = (BitString.equivFin k).symm c) := by
-          funext x
-          exact Bool.eq_iff_iff.mpr (by
-            rw [decide_eq_true_iff, decide_eq_true_iff, Equiv.eq_symm_apply]; rfl)
+            fun x => decide ((fun i => x (Fin.castAdd l i)) = (BitString.equivFin k).symm c) :=
+          funext fun x => by simp [test, column, ← Equiv.eq_symm_apply]
         rw [heq]
         exact (synthesis_minterm _ _).mono Set.Subset.rfl Set.Subset.rfl (by omega)
       | inr r => exact (synthesis_minterm _ r).mono Set.Subset.rfl Set.Subset.rfl (by omega)
@@ -212,14 +211,6 @@ private theorem synthesis_table {B : Type*} [Fintype B] (pattern : B → Finset 
   simp only [sum_add_distrib, sum_const, card_univ, Fintype.card_fun, Fintype.card_bool,
     Fintype.card_fin, smul_eq_mul]
   ring
-
-/-- A sum of quotients is at most the quotient of the sum. -/
-private theorem sum_div_le_div_sum {ι : Type*} (s : Finset ι) (f : ι → ℕ) (K : ℕ) :
-    ∑ i ∈ s, f i / K ≤ (∑ i ∈ s, f i) / K := by
-  rcases Nat.eq_zero_or_pos K with rfl | hK
-  · simp
-  · exact (Nat.le_div_iff_mul_le hK).mpr
-      (sum_mul s _ K ▸ sum_le_sum fun i _ => Nat.div_mul_le_self _ _)
 
 end Table
 
@@ -324,7 +315,7 @@ private theorem complexity_indicator_le_sparseTableBound {k l : ℕ} (D : Finset
           sum_le_sum fun r _ => card_image_le.trans (card_range _).le
       _ ≤ #D / K + 2 ^ l := by
           rw [sum_add_distrib, ← sum_card_rowSupport D]
-          simpa using sum_div_le_div_sum univ (fun r => #(rowSupport D r)) K
+          simpa using Nat.sum_div_le_sum_div univ (fun r => #(rowSupport D r)) K
   simp only [Fintype.card_fun, Fintype.card_option, Fintype.card_fin, sparseTableBound]
   omega
 
@@ -446,7 +437,7 @@ private theorem exists_eqOn_complexity_le_partialTableBound {k l : ℕ}
             sum_le_sum fun r _ => card_image_le.trans (card_range _).le
         _ ≤ #D / J + 2 ^ l := by
             rw [sum_add_distrib, ← sum_card_rowSupport D]
-            simpa using sum_div_le_div_sum univ (fun r => #(rowSupport D r)) J
+            simpa using Nat.sum_div_le_sum_div univ (fun r => #(rowSupport D r)) J
     have hcard : Fintype.card (Fin (2 ^ k + 1) × Fin (2 ^ k + 1) × bank) * (2 ^ k + 1) ≤
         (2 ^ k + 1) ^ 3 * (2 * 2 ^ k + 1) * 2 ^ J := by
       simp only [Fintype.card_prod, Fintype.card_fin, Fintype.card_coe]
@@ -671,14 +662,10 @@ theorem complexityOn_le_partialBound {n : ℕ} (k l : ℕ) {J : ℕ} (D : Finset
   have hEc := (complexity_indicator_le_card_mul E).trans (Nat.add_le_add_right
     (Nat.mul_le_mul_right (2 * n + 2) ((Nat.le_div_iff_mul_le (Nat.two_pow_pos _)).mpr hE)) 1)
   have hcongr : Set.EqOn (single u) (single fun x => φ (linearMap H x) ^^ decide (x ∈ E))
-      (D : Set (BitString n)) := by
-    intro x hx
-    funext j
-    have hx : x ∈ D := hx
-    by_cases h : φ (linearMap H x) = u x
-    · simp [E, hx, h]
-    · simp only [single_apply, E, mem_filter, hx, true_and]
-      cases hu : u x <;> cases hv : φ (linearMap H x) <;> simp_all
+      (D : Set (BitString n)) := fun x hx => by
+    funext
+    simp only [single_apply, E, mem_filter, mem_coe.mp hx, true_and]
+    cases φ (linearMap H x) <;> cases u x <;> decide
   rw [complexityOn_congr hcongr]
   refine complexityOn_le_complexity.trans ((complexity_xor_le _ _).trans ?_)
   have hcomp : single (fun x => φ (linearMap H x)) = single φ ∘ linearMap H := rfl

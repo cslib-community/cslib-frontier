@@ -184,14 +184,11 @@ private theorem uniformOfFintype_map_counterWords (P : Params) {w count : ℕ}
           (randomFunctionOracle (nonceLen P) table (nonceWord P N)).take (width N)) =
       BitString.uniformList (∑ N ∈ Finset.range count, width N) := by
   have hinj : Function.Injective fun i : Fin count =>
-      BitString.ofList (nonceLen P) (nonceWord P i) := by
-    intro i j h
-    have hword : nonceWord P i = nonceWord P j := by
-      rw [← BitString.ofFn_ofList (length_nonceWord P i),
-        ← BitString.ofFn_ofList (length_nonceWord P j)]
-      exact congrArg List.ofFn h
-    exact Fin.ext (nonceWord_injOn P (Set.mem_Iic.mpr (by omega))
-      (Set.mem_Iic.mpr (by omega)) hword)
+      BitString.ofList (nonceLen P) (nonceWord P i) := fun i j h => by
+    refine Fin.ext (nonceWord_injOn P (Set.mem_Iic.mpr (by omega)) (Set.mem_Iic.mpr (by omega)) ?_)
+    rw [← BitString.ofFn_ofList (length_nonceWord P i),
+      ← BitString.ofFn_ofList (length_nonceWord P j)]
+    exact congrArg List.ofFn h
   have h := BitString.uniformOfFintype_map_readPrefixes ⟨_, hinj⟩ (fun i => width i)
     fun i => hwidth i i.isLt
   rw [Fin.sum_univ_eq_sum_range (fun N => width N) count] at h
@@ -200,9 +197,7 @@ private theorem uniformOfFintype_map_counterWords (P : Params) {w count : ℕ}
   funext table
   rw [List.flatMap_def]
   congr 1
-  apply List.ext_getElem (by simp)
-  intro i h₁ h₂
-  simp [randomFunctionOracle]
+  exact List.ext_getElem (by simp) fun _ _ _ => by simp [randomFunctionOracle]
 
 /-! ### Efficiency of reading the noise -/
 
@@ -224,37 +219,25 @@ theorem isOraclePPTOn_queryNoise {P : α → Params} {count : α → ℕ} {width
   have hstep : IsOraclePPTOn (encPair input S) S
       (fun pair : α × (ℕ × List Bool) => queryNoiseStep (P pair.1) (width pair.1) pair.2) := by
     unfold queryNoiseStep
-    have hreq : ComputableInPolyTime
-        (fun pair : α × (ℕ × List Bool) => nonceWord (P pair.1) pair.2.1) (encPair input S)
-        encBits :=
-      ComputableInPolyTime.nonceWord (hP.comp (ComputableInPolyTime.fst input S))
-        (by fun_prop)
-    have hlim : ComputableInPolyTime
-        (fun pair : α × (ℕ × List Bool) => width pair.1 pair.2.1) (encPair input S) encUnary :=
-      hwidth.comp (by fun_prop : ComputableInPolyTime
-        (fun pair : α × (ℕ × List Bool) => (pair.1, pair.2.1)) (encPair input S)
-        (encPair input encUnary))
-    have hpost : ComputableInPolyTime
+    exact (IsOraclePPTOn.query_take ()
+      (ComputableInPolyTime.nonceWord (hP.comp (ComputableInPolyTime.fst input S))
+        (by fun_prop : ComputableInPolyTime (fun pair : α × (ℕ × List Bool) => pair.2.1)
+          (encPair input S) encUnary))
+      (hwidth.comp (g := fun pair : α × (ℕ × List Bool) => (pair.1, pair.2.1))
+        (by fun_prop))).map_with
+      (by fun_prop : ComputableInPolyTime
         (fun p : (α × (ℕ × List Bool)) × List Bool => (p.1.2.1 + 1, p.1.2.2 ++ p.2))
-        (encPair (encPair input S) encBits) S := by fun_prop
-    exact (IsOraclePPTOn.query_take () hreq hlim).map_with hpost
-  have hgrowth : ∀ a (state : ℕ × List Bool),
-      ∀ next ∈ OracleComp.support (queryNoiseStep (P a) (width a) state),
-        (S next).length ≤ (S state).length + (2 * bound a + 4) := by
-    rintro a ⟨N, acc⟩ next hnext
-    unfold queryNoiseStep at hnext
-    obtain ⟨reply, hreply, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
-    obtain ⟨raw, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
-    have htake : (List.take (width a N) raw).length ≤ bound a := by
-      rw [List.length_take]
-      exact (min_le_left _ _).trans (hle a N)
-    simp only [S, length_encPair, encUnary_apply, List.length_replicate, encBits_apply,
-      List.length_append]
-    omega
-  have hpoly : PolyBounded (fun a => (input a).length) (fun a => 2 * bound a + 4) :=
-    ((PolyBounded.const 2).mul (ComputableInPolyTime.polyBounded hbound)).add (PolyBounded.const 4)
-  exact (IsOraclePPTOn.iterateWith_of_bounded_growth hcount (ComputableInPolyTime.const (0, []))
-    hstep hpoly hgrowth).map (ComputableInPolyTime.snd encUnary encBits)
+        (encPair (encPair input S) encBits) S)
+  refine (IsOraclePPTOn.iterateWith_of_bounded_growth hcount (.const (0, [])) hstep
+    (((PolyBounded.const 2).mul hbound.polyBounded).add (.const 4)) fun a ⟨N, acc⟩ next hnext =>
+      ?_).map (ComputableInPolyTime.snd encUnary encBits)
+  obtain ⟨reply, hreply, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
+  obtain ⟨raw, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
+  have htake : (List.take (width a N) raw).length ≤ bound a :=
+    (List.length_take ..).trans_le ((min_le_left _ _).trans (hle a N))
+  simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply,
+    List.length_append]
+  omega
 
 end PolyTime
 
@@ -332,11 +315,8 @@ private theorem isPPTOn_afterKeyPRF (hP : ComputableInPolyTime P encUnary encPar
   have hm : ComputableInPolyTime (fun z : ((ℕ × List Bool) × ChoiceOut (List Bool)) × List Bool =>
       if b then ChoiceOut.msg₁ z.1.2 else ChoiceOut.msg₀ z.1.2) H encBits := by
     cases b <;> fun_prop
-  have hpk : ComputableInPolyTime (fun z : ((ℕ × List Bool) × ChoiceOut (List Bool)) × List Bool =>
-      z.1.1.2) H encBits := by fun_prop
-  have hr : ComputableInPolyTime (fun z : ((ℕ × List Bool) × ChoiceOut (List Bool)) × List Bool =>
-      z.2) H encBits := by fun_prop
-  have hct := ComputableInPolyTime.encDetWord hPH hpk hm (ComputableInPolyTime.encNoise hPH hF hr)
+  have hct := ComputableInPolyTime.encDetWord hPH (pk := fun z => z.1.1.2) (by fun_prop) hm
+    (ComputableInPolyTime.encNoise hPH hF (r := fun z => z.2) (by fun_prop))
   exact hA.guess.preprocess (hκH.prod ((by fun_prop : ComputableInPolyTime
     (fun z : ((ℕ × List Bool) × ChoiceOut (List Bool)) × List Bool => ChoiceOut.state z.1.2) H
       encBits).prod hct))
@@ -352,33 +332,28 @@ theorem isOraclePPT_keyPRFReduction (hP : ComputableInPolyTime P encUnary encPar
   unfold keyPRFReduction
   let E := encPair encUnary encBits
   have hκ : ComputableInPolyTime (fun x : ℕ × List Bool => x.1) E encUnary := by fun_prop
-  have hmatrix := (isPPTOn_sampleMatrixResidues.preprocess ((hP.comp hκ).prod hκ)).isOraclePPTOn
-    (Operation := Unit)
-  refine hmatrix.bind_with ?_
+  refine ((isPPTOn_sampleMatrixResidues.preprocess ((hP.comp hκ).prod hκ)).isOraclePPTOn
+    (Operation := Unit)).bind_with ?_
   let E₁ := encPair E encMatrixResidues
   have hκ₁ : ComputableInPolyTime (fun y : (ℕ × List Bool) × List (List (List ℕ)) => y.1.1) E₁
       encUnary := by fun_prop
-  have hP₁ := hP.comp hκ₁
   have hw₁ : ComputableInPolyTime (fun y : (ℕ × List Bool) × List (List (List ℕ)) =>
       (P y.1.1).n * (2 * (P y.1.1).η₁)) E₁ encUnary := by fun_prop
-  have hquery := isOraclePPTOn_queryNoise (P := fun y => P y.1.1)
+  refine (isOraclePPTOn_queryNoise (P := fun y => P y.1.1)
     (count := fun y => 2 * (P y.1.1).k) (width := fun y _ => (P y.1.1).n * (2 * (P y.1.1).η₁))
-    hP₁ (by fun_prop) (hw₁.comp (ComputableInPolyTime.fst E₁ encUnary)) hw₁ fun _ _ => le_rfl
-  refine hquery.bind_with ?_
+    (hP.comp (g := fun y : (ℕ × List Bool) × List (List (List ℕ)) => y.1.1) hκ₁) (by fun_prop)
+    (hw₁.comp (g := Prod.fst) (ComputableInPolyTime.fst E₁ encUnary))
+    hw₁ fun _ _ => le_rfl).bind_with ?_
   let E₂ := encPair E₁ encBits
   have hκ₂ : ComputableInPolyTime
       (fun z : ((ℕ × List Bool) × List (List (List ℕ))) × List Bool => z.1.1.1) E₂ encUnary := by
     fun_prop
-  have hP₂ := hP.comp hκ₂
   have hL : ComputableInPolyTime (fun z : ((ℕ × List Bool) × List (List (List ℕ))) × List Bool =>
       (P z.1.1.1).k * ((P z.1.1.1).n * (2 * (P z.1.1.1).η₁))) E₂ encUnary := by fun_prop
   have hbits : ComputableInPolyTime
       (fun z : ((ℕ × List Bool) × List (List (List ℕ))) × List Bool => z.2) E₂ encBits := by
     fun_prop
-  have hM : ComputableInPolyTime
-      (fun z : ((ℕ × List Bool) × List (List (List ℕ))) × List Bool => z.1.2) E₂
-      encMatrixResidues := by fun_prop
-  have hkeys := ComputableInPolyTime.keyWords hP₂ hM
+  have hkeys := ComputableInPolyTime.keyWords (hP.comp hκ₂) (A := fun z => z.1.2) (by fun_prop)
     (ComputableInPolyTime.bitsTakeWithInput hbits hL)
     (ComputableInPolyTime.bitsDropWithInput hbits hL)
   exact ((isPPTOn_afterKeyPRF hP hF hA b).preprocess (hκ₂.prod hkeys.fst')).isOraclePPTOn
@@ -392,15 +367,12 @@ theorem isOraclePPT_encPRFReduction (hP : ComputableInPolyTime P encUnary encPar
   unfold encPRFReduction
   let E := encPair encUnary encBits
   have hκ : ComputableInPolyTime (fun x : ℕ × List Bool => x.1) E encUnary := by fun_prop
-  have hkeys := (isPPTOn_keyGenWord.preprocess ((hP.comp hκ).prod hκ)).isOraclePPTOn
-    (Operation := Unit)
-  refine hkeys.bind_with ?_
+  refine ((isPPTOn_keyGenWord.preprocess ((hP.comp hκ).prod hκ)).isOraclePPTOn
+    (Operation := Unit)).bind_with ?_
   let E₁ := encPair E (encPair encBits encBits)
-  have hκ₁ : ComputableInPolyTime (fun y : (ℕ × List Bool) × (List Bool × List Bool) => y.1.1) E₁
-      encUnary := by fun_prop
-  have hpk₁ : ComputableInPolyTime (fun y : (ℕ × List Bool) × (List Bool × List Bool) => y.2.1)
-      E₁ encBits := by fun_prop
-  refine ((hA.choose.on.preprocess (hκ₁.prod hpk₁)).isOraclePPTOn (Operation := Unit)).bind_with ?_
+  refine ((hA.choose.on.preprocess
+    (prepare := fun y : (ℕ × List Bool) × (List Bool × List Bool) => (y.1.1, y.2.1))
+    (by fun_prop)).isOraclePPTOn (Operation := Unit)).bind_with ?_
   let E₂ := encPair E₁ (Encryption.encChoiceOut encBits)
   have hκ₂ : ComputableInPolyTime
       (fun z : ((ℕ × List Bool) × (List Bool × List Bool)) × ChoiceOut (List Bool) => z.1.1.1) E₂
@@ -410,20 +382,18 @@ theorem isOraclePPT_encPRFReduction (hP : ComputableInPolyTime P encUnary encPar
       (fun z : ((ℕ × List Bool) × (List Bool × List Bool)) × ChoiceOut (List Bool) =>
         (kpke P).IsMessagePair z.1.1.1 z.1.2.1 (ChoiceOut.msg₀ z.2) (ChoiceOut.msg₁ z.2)) E₂
       encBool := by
-    simp only [WordPKE.IsMessagePair, kpke]
-    fun_prop
+        simp only [WordPKE.IsMessagePair, kpke]
+        fun_prop
   refine IsOraclePPTOn.cond hvalid ?_ (ComputableInPolyTime.const false).isOraclePPTOn
-  have hbound : ComputableInPolyTime
-      (fun z : ((ℕ × List Bool) × (List Bool × List Bool)) × ChoiceOut (List Bool) =>
-        (P z.1.1.1).n * (2 * (P z.1.1.1).η₁) + (P z.1.1.1).n * (2 * (P z.1.1.1).η₂)) E₂
-      encUnary := by fun_prop
-  have hquery := isOraclePPTOn_queryNoise (P := fun z => P z.1.1.1)
+  refine (isOraclePPTOn_queryNoise (P := fun z => P z.1.1.1)
     (count := fun z => 2 * (P z.1.1.1).k + 1) (width := fun z => encWidth (P z.1.1.1))
     hP₂ (by fun_prop) (ComputableInPolyTime.encWidth (hP₂.comp (ComputableInPolyTime.fst E₂ _))
-      (ComputableInPolyTime.snd E₂ encUnary)) hbound fun z N => by
-        unfold encWidth
-        split_ifs <;> omega
-  refine hquery.bind_with ?_
+      (ComputableInPolyTime.snd E₂ encUnary))
+    (bound := fun z => (P z.1.1.1).n * (2 * (P z.1.1.1).η₁) + (P z.1.1.1).n * (2 * (P z.1.1.1).η₂))
+    (by fun_prop)
+    fun _ _ => by
+      unfold encWidth
+      split_ifs <;> omega).bind_with ?_
   let E₃ := encPair E₂ encBits
   have hκ₃ : ComputableInPolyTime
       (fun z : (((ℕ × List Bool) × (List Bool × List Bool)) × ChoiceOut (List Bool)) × List Bool =>
@@ -432,13 +402,8 @@ theorem isOraclePPT_encPRFReduction (hP : ComputableInPolyTime P encUnary encPar
       (fun z : (((ℕ × List Bool) × (List Bool × List Bool)) × ChoiceOut (List Bool)) × List Bool =>
         if b then ChoiceOut.msg₁ z.1.2 else ChoiceOut.msg₀ z.1.2) E₃ encBits := by
     cases b <;> fun_prop
-  have hpk : ComputableInPolyTime
-      (fun z : (((ℕ × List Bool) × (List Bool × List Bool)) × ChoiceOut (List Bool)) × List Bool =>
-        z.1.1.2.1) E₃ encBits := by fun_prop
-  have hcoins : ComputableInPolyTime
-      (fun z : (((ℕ × List Bool) × (List Bool × List Bool)) × ChoiceOut (List Bool)) × List Bool =>
-        z.2) E₃ encBits := by fun_prop
-  have hct := ComputableInPolyTime.encDetWord (hP.comp hκ₃) hpk hm hcoins
+  have hct := ComputableInPolyTime.encDetWord (hP.comp hκ₃) (pk := fun z => z.1.1.2.1)
+    (by fun_prop) hm (coins := fun z => z.2) (by fun_prop)
   exact (hA.guess.preprocess (hκ₃.prod ((by fun_prop : ComputableInPolyTime
     (fun z : (((ℕ × List Bool) × (List Bool × List Bool)) × ChoiceOut (List Bool)) × List Bool =>
       ChoiceOut.state z.1.2) E₃ encBits).prod hct))).isOraclePPTOn
@@ -534,15 +499,13 @@ theorem eval_prfIdealGame_encPRFReduction (κ : ℕ) :
       · exact Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (le_max_left _ _))
       · exact Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (le_max_right _ _))
   have hsum : ∑ N ∈ Finset.range (2 * (P κ).k + 1), encWidth (P κ) N = coinLength (P κ) := by
-    have hw₁ : ∀ N ∈ Finset.range (P κ).k, encWidth (P κ) N = (P κ).n * (2 * (P κ).η₁) := by
-      intro N hN
+    have hw₁ (N) (hN : N ∈ Finset.range (P κ).k) : encWidth (P κ) N = (P κ).n * (2 * (P κ).η₁) := by
       have := Finset.mem_range.mp hN
       unfold encWidth
       split_ifs
       omega
-    have hw₂ : ∀ N ∈ Finset.range (P κ).k,
+    have hw₂ (N) (_ : N ∈ Finset.range (P κ).k) :
         encWidth (P κ) ((P κ).k + N) = (P κ).n * (2 * (P κ).η₂) := by
-      intro N _
       unfold encWidth
       split_ifs <;> omega
     have hlast : encWidth (P κ) (2 * (P κ).k) = (P κ).n * (2 * (P κ).η₂) := by

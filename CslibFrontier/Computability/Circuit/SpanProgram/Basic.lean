@@ -111,17 +111,8 @@ theorem accepts_iff_exists_vecMul (P : MonotoneSpanProgram F Party) (s : Finset 
       ∃ w : (i : s) → Fin (P.rowDim i.val) → F,
         ∑ i : s, Matrix.vecMul (w i) (P.matrix i.val) = P.target := by
   rw [Accepts, rowSpan, Submodule.mem_span_range_iff_exists_fun]
-  constructor
-  · rintro ⟨c, hc⟩
-    refine ⟨fun i r => c ⟨i, r⟩, ?_⟩
-    rw [Fintype.sum_sigma] at hc
-    simp_rw [Matrix.vecMul_eq_sum]
-    exact hc
-  · rintro ⟨w, hw⟩
-    refine ⟨fun p => w p.1 p.2, ?_⟩
-    rw [Fintype.sum_sigma]
-    simp_rw [← Matrix.vecMul_eq_sum]
-    exact hw
+  simp_rw [Fintype.sum_sigma, ← Matrix.vecMul_eq_sum]
+  exact ⟨fun ⟨c, hc⟩ => ⟨fun i r => c ⟨i, r⟩, hc⟩, fun ⟨w, hw⟩ => ⟨fun p => w p.1 p.2, hw⟩⟩
 
 /-- Sufficient certificate of non-acceptance: any column vector `v` with `v 0 = 1` in the right
 kernel of `P.matrix i` for all `i ∈ s` witnesses `¬ P.Accepts s`. -/

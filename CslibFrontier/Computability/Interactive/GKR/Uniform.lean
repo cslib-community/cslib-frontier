@@ -148,8 +148,7 @@ def subModNat (p a b : ℕ) : ℕ :=
   if p = 0 then 0 else (a % p + (p - b % p)) % p
 
 theorem subModNat_lt {p : ℕ} (hp : 0 < p) (a b : ℕ) : subModNat p a b < p := by
-  simp only [subModNat, hp.ne', ↓reduceIte]
-  exact Nat.mod_lt _ hp
+  simpa only [subModNat, hp.ne', ↓reduceIte] using Nat.mod_lt _ hp
 
 theorem natCast_subModNat {p : ℕ} [NeZero p] (a b : ℕ) :
     ((subModNat p a b : ℕ) : ZMod p) = (a : ZMod p) - (b : ZMod p) := by
@@ -171,10 +170,9 @@ theorem wiringPred_sumElim {R : Type*} [CommRing R] (C : LayeredCircuit) (g : Ga
     (a : Fin (C.width (i + 1)) → Bool) (b c : Fin (C.width i) → Bool) :
     C.wiringPred (R := R) g i (Sum.elim a (Sum.elim b c)) =
       if C.isWiring g i a b c then 1 else 0 := by
-  have ha : (Sum.elim a (Sum.elim b c) ∘ Sum.inl) = a := rfl
-  have hb : (Sum.elim a (Sum.elim b c) ∘ Sum.inr ∘ Sum.inl) = b := rfl
-  have hc : (Sum.elim a (Sum.elim b c) ∘ Sum.inr ∘ Sum.inr) = c := rfl
-  simp [wiringPred, isWiring, ha, hb, hc]
+  simp only [wiringPred, isWiring, ← Function.comp_assoc, Sum.elim_comp_inl, Sum.elim_comp_inr,
+    decide_eq_true_eq]
+  by_cases h : C.gate i a = g ∧ C.left i a = b ∧ C.right i a = c <;> simp [h]
 
 end LayeredCircuit
 
@@ -269,49 +267,30 @@ theorem of_neighbours
       ∀ a : Fin ((C ι).width (i + 1)) → Bool,
         rightAt ⟨ι, i, List.ofFn a⟩ = List.ofFn ((C ι).right i a)) :
     IsLogSpaceUniform encI C := by
+  open ComputableInLogSpace in
   refine ⟨hdepth, hwidth, ?_⟩
   let toGateQuery : WiringQuery I → GateQuery I := fun q => ⟨q.index, q.layer, q.outGate⟩
-  have hWqFields : ComputableInLogSpace
+  have hWq : ComputableInLogSpace
       (fun q : WiringQuery I =>
         (q.index, q.gate, q.layer, q.outGate, q.leftGate, q.rightGate))
       (encWiringQuery I encI) (encWiringQueryFields I encI) :=
-    ComputableInLogSpace.of_eq (encWiringQuery_apply I encI)
-  have hIdx : ComputableInLogSpace WiringQuery.index (encWiringQuery I encI) encI :=
-    ComputableInLogSpace.fst' hWqFields
-  have hRest1 := ComputableInLogSpace.snd' hWqFields
-  have hGate : ComputableInLogSpace WiringQuery.gate (encWiringQuery I encI) encGate :=
-    ComputableInLogSpace.fst' hRest1
-  have hRest2 := ComputableInLogSpace.snd' hRest1
-  have hLayer : ComputableInLogSpace WiringQuery.layer (encWiringQuery I encI) encUnary :=
-    ComputableInLogSpace.fst' hRest2
-  have hRest3 := ComputableInLogSpace.snd' hRest2
-  have hOut : ComputableInLogSpace WiringQuery.outGate (encWiringQuery I encI) encBits :=
-    ComputableInLogSpace.fst' hRest3
-  have hRest4 := ComputableInLogSpace.snd' hRest3
-  have hLeft : ComputableInLogSpace WiringQuery.leftGate (encWiringQuery I encI) encBits :=
-    ComputableInLogSpace.fst' hRest4
-  have hRight : ComputableInLogSpace WiringQuery.rightGate (encWiringQuery I encI) encBits :=
-    ComputableInLogSpace.snd' hRest4
+    of_eq (encWiringQuery_apply I encI)
+  have hRest2 := snd' (snd' hWq)
+  have hRest4 := snd' (snd' hRest2)
   have hToGq : ComputableInLogSpace toGateQuery (encWiringQuery I encI) (encGateQuery I encI) :=
-    (ComputableInLogSpace.pair hIdx (ComputableInLogSpace.pair hLayer hOut)).congr
+    (pair (fst' hWq) (pair (fst' hRest2) (fst' (snd' hRest2)))).congr
       fun q => (encGateQuery_apply I encI (toGateQuery q)).symm
   let decideWiring : WiringQuery I → Bool := fun q =>
     decide (gateAt (toGateQuery q) = q.gate) &&
       (decide (leftAt (toGateQuery q) = q.leftGate) &&
         decide (rightAt (toGateQuery q) = q.rightGate))
   have hDec : ComputableInLogSpace decideWiring (encWiringQuery I encI) encBool :=
-    ComputableInLogSpace.bool_and
-      (ComputableInLogSpace.equal (hgate.comp' hToGq) hGate)
-      (ComputableInLogSpace.bool_and
-        (ComputableInLogSpace.equal (hleft.comp' hToGq) hLeft)
-        (ComputableInLogSpace.equal (hright.comp' hToGq) hRight))
+    bool_and (equal (hgate.comp' hToGq) (fst' (snd' hWq)))
+      (bool_and (equal (hleft.comp' hToGq) (fst' hRest4))
+        (equal (hright.comp' hToGq) (snd' hRest4)))
   refine ⟨decideWiring, hDec, fun ι g i hi a b c => ?_⟩
-  simp only [decideWiring, toGateQuery, LayeredCircuit.isWiring, hgate_eq ι i hi a,
-    hleft_eq ι i hi a, hright_eq ι i hi a, List.ofFn_inj]
-  by_cases h1 : (C ι).gate i a = g <;>
-    by_cases h2 : (C ι).left i a = b <;>
-    by_cases h3 : (C ι).right i a = c <;>
-    simp [h1, h2, h3]
+  simp [decideWiring, toGateQuery, LayeredCircuit.isWiring, hgate_eq ι i hi a,
+    hleft_eq ι i hi a, hright_eq ι i hi a, ← Bool.decide_and]
 
 end LayeredCircuit.IsLogSpaceUniform
 
@@ -433,18 +412,12 @@ private theorem constWeight_mul_prod_varWeight {R : Type*} [CommRing R] {kOut : 
     simp [constWeight, varWeight, eval]
   | var idx neg =>
     by_cases h : idx < kOut
-    · simp only [constWeight, h, ↓reduceIte, one_mul, eval]
-      rw [Finset.prod_eq_single (⟨idx, h⟩ : Fin kOut)]
-      · simp [varWeight]
-      · intro j _ hj
-        have hne : idx ≠ j.val := fun heq => hj (Fin.ext heq.symm)
-        simp [varWeight, hne]
-      · simp
-    · have hprod : (∏ j : Fin kOut, varWeight (.var idx neg) j.val (a j) r) = 1 := by
-        refine Finset.prod_eq_one fun j _ => ?_
-        have hne : idx ≠ j.val := by have := j.isLt; omega
-        simp [varWeight, hne]
-      simp [constWeight, eval, h, hprod]
+    · rw [Finset.prod_eq_single (⟨idx, h⟩ : Fin kOut)
+        (fun j _ hj => by simp [varWeight, Fin.ext_iff.not.mp hj.symm]) (by simp)]
+      simp [constWeight, varWeight, eval, h]
+    · rw [Finset.prod_eq_one fun j _ => by
+        simp [varWeight, ne_of_gt (j.isLt.trans_le (not_lt.mp h))]]
+      simp [constWeight, eval, h]
 
 end WireLit
 
@@ -502,11 +475,10 @@ private theorem prod_maskWeight {R : Type*} [CommRing R] {kOut : ℕ} (cl : Wiri
   · rw [ite_eq_left h]
     simp only [matchesVec, List.all_eq_true, List.mem_finRange, true_implies] at h
     exact Finset.prod_eq_one fun j _ => by simp [maskWeight, -List.getD_eq_getElem?_getD, h j]
-  · rw [ite_eq_right h]
-    simp only [matchesVec, Bool.not_eq_true, List.all_eq_false] at h
-    obtain ⟨j, _, hj⟩ := h
-    exact Finset.prod_eq_zero (Finset.mem_univ j) (by
-      simp [maskWeight, -List.getD_eq_getElem?_getD, hj])
+  · obtain ⟨j, _, hj⟩ := List.all_eq_false.mp (Bool.eq_false_iff.mpr h)
+    rw [ite_eq_right h]
+    exact Finset.prod_eq_zero (Finset.mem_univ j)
+      (by simp [maskWeight, -List.getD_eq_getElem?_getD, hj])
 
 /-- Coordinate-`j` factor when `a j = b` in the factored MLE of `cl`. -/
 def bitTerm {R : Type*} [CommRing R] {kOut kIn : ℕ} (cl : WiringClause)
@@ -540,14 +512,10 @@ private theorem eval_indicatorPoly_lits {R : Type*} [CommRing R] {kOut kIn : ℕ
       (∏ ℓ : Fin kIn, (lits.getD ℓ.val (.const false)).constWeight kOut (y ℓ)) *
         ∏ j : Fin kOut, ∏ ℓ : Fin kIn,
           (lits.getD ℓ.val (.const false)).varWeight j.val (a j) (y ℓ) := by
-  have h1 : ∀ ℓ : Fin kIn,
-      (if (lits.getD ℓ.val (.const false)).eval a then y ℓ else 1 - y ℓ) =
-        (lits.getD ℓ.val (.const false)).constWeight kOut (y ℓ) *
-          ∏ j : Fin kOut, (lits.getD ℓ.val (.const false)).varWeight j.val (a j) (y ℓ) :=
-    fun ℓ => (WireLit.constWeight_mul_prod_varWeight _ a (y ℓ)).symm
   rw [eval_indicatorPoly_apply]
-  simp_rw [h1]
-  rw [Finset.prod_mul_distrib, Finset.prod_comm]
+  change (∏ ℓ : Fin kIn, WireLit.litFactor ((lits.getD ℓ.val (.const false)).eval a) (y ℓ)) = _
+  simp only [← WireLit.constWeight_mul_prod_varWeight, Finset.prod_mul_distrib]
+  rw [Finset.prod_comm]
 
 /-- **Single-clause factorization**: summing `χ_a(z) χ_{evalLeft a}(y) χ_{evalRight a}(w)` over all
 gates `a` matching `cl` equals the coordinate product `cl.evalFactor z y w`. -/
@@ -566,11 +534,7 @@ private theorem sum_matchesVec_eq_evalFactor {R : Type*} [CommRing R] {kOut kIn 
         else 0) =
       ((∏ ℓ : Fin kIn, (cl.leftLits.getD ℓ.val (.const false)).constWeight kOut (y ℓ)) *
         (∏ ℓ : Fin kIn, (cl.rightLits.getD ℓ.val (.const false)).constWeight kOut (w ℓ))) *
-        ∏ j : Fin kOut, cl.bitTerm z y w j (a j) := by
-    intro a
-    have hm := cl.prod_maskWeight (R := R) a
-    have hz : eval z (indicatorPoly a) = ∏ j : Fin kOut, WireLit.litFactor (a j) (z j) :=
-      eval_indicatorPoly_apply a z
+        ∏ j : Fin kOut, cl.bitTerm z y w j (a j) := fun a => by
     calc (if cl.matchesVec a then
             eval z (indicatorPoly a) * eval y (indicatorPoly (cl.evalLeft kIn a)) *
               eval w (indicatorPoly (cl.evalRight kIn a))
@@ -581,22 +545,12 @@ private theorem sum_matchesVec_eq_evalFactor {R : Type*} [CommRing R] {kOut kIn 
             split_ifs <;> ring
       _ = ((∏ ℓ : Fin kIn, (cl.leftLits.getD ℓ.val (.const false)).constWeight kOut (y ℓ)) *
             (∏ ℓ : Fin kIn, (cl.rightLits.getD ℓ.val (.const false)).constWeight kOut (w ℓ))) *
-            ((∏ j : Fin kOut, maskWeight (cl.mask.getD j.val none) (a j)) *
-              (∏ j : Fin kOut, WireLit.litFactor (a j) (z j)) *
-              ((∏ j : Fin kOut, ∏ ℓ : Fin kIn,
-                  (cl.leftLits.getD ℓ.val (.const false)).varWeight j.val (a j) (y ℓ)) *
-                (∏ j : Fin kOut, ∏ ℓ : Fin kIn,
-                  (cl.rightLits.getD ℓ.val (.const false)).varWeight j.val (a j) (w ℓ)))) := by
-            have hl : cl.evalLeft kIn a =
-                fun ℓ => (cl.leftLits.getD ℓ.val (.const false)).eval a := rfl
-            have hr : cl.evalRight kIn a =
-                fun ℓ => (cl.rightLits.getD ℓ.val (.const false)).eval a := rfl
-            rw [← hm, hz, hl, hr, eval_indicatorPoly_lits cl.leftLits y a,
-              eval_indicatorPoly_lits cl.rightLits w a]
+            ∏ j : Fin kOut, cl.bitTerm z y w j (a j) := by
+            rw [← cl.prod_maskWeight (R := R) a, eval_indicatorPoly_apply a z]
+            unfold evalLeft evalRight
+            rw [eval_indicatorPoly_lits cl.leftLits y a, eval_indicatorPoly_lits cl.rightLits w a]
+            simp only [bitTerm, WireLit.litFactor, Finset.prod_mul_distrib]
             ring
-      _ = _ := by
-            congr 1
-            simp only [bitTerm, Finset.prod_mul_distrib]
   simp only [hterm, ← Finset.mul_sum, evalFactor, sum_prod_bool]
 
 end WiringClause
@@ -619,29 +573,6 @@ def LayeredCircuit.ofClauses (depth : ℕ) (width : ℕ → ℕ) (clauses : ℕ 
   right i a := ((clauses i).find? (fun cl => cl.matchesVec a)).elim (fun _ => false)
     (fun cl => cl.evalRight (width i) a)
 
-private theorem find?_eq_of_countP_eq_one {α : Type*} {p : α → Bool} :
-    ∀ {l : List α}, l.countP p = 1 → ∃ x ∈ l, l.find? p = some x ∧ p x = true ∧
-      ∀ y ∈ l, p y = true → y = x
-  | [], h => by simp at h
-  | x :: xs, h => by
-    rw [List.countP_cons] at h
-    by_cases hx : p x = true
-    · simp only [hx, ↓reduceIte] at h
-      have h0 : xs.countP p = 0 := by omega
-      rw [List.countP_eq_zero] at h0
-      refine ⟨x, List.mem_cons_self, by simp [List.find?, hx], hx, fun y hy hpy => ?_⟩
-      rcases List.mem_cons.mp hy with rfl | hmem
-      · rfl
-      · exact False.elim (by simpa [hpy] using h0 y hmem)
-    · simp only [hx, Bool.false_eq_true, ↓reduceIte, Nat.add_zero] at h
-      obtain ⟨y, hy, hfind, hpy, hunique⟩ := find?_eq_of_countP_eq_one h
-      have hx' : p x = false := Bool.eq_false_iff.mpr hx
-      refine ⟨y, List.mem_cons_of_mem x hy, by simp [List.find?, hx', hfind], hpy,
-        fun z hz hpz => ?_⟩
-      rcases List.mem_cons.mp hz with rfl | hmem
-      · exact False.elim (hx hpz)
-      · exact hunique z hmem hpz
-
 private theorem sum_list_of_unique {R : Type*} [AddCommMonoid R] {α : Type*}
     {p : α → Bool} (f : α → R) :
     ∀ {l : List α}, l.countP p = 1 → ∀ {x : α}, l.find? p = some x →
@@ -649,21 +580,14 @@ private theorem sum_list_of_unique {R : Type*} [AddCommMonoid R] {α : Type*}
   | [], h, _, _ => by simp at h
   | c :: cs, h, x, hfind => by
     rw [List.countP_cons] at h
-    by_cases hc : p c = true
-    · simp only [List.find?, hc] at hfind
-      obtain rfl := Option.some.inj hfind
-      simp only [hc, ↓reduceIte] at h
-      have h0 : cs.countP p = 0 := by omega
-      rw [List.countP_eq_zero] at h0
-      have hsum0 : (cs.map fun d => if p d then f d else 0).sum = 0 := by
-        refine List.sum_eq_zero fun r hr => ?_
-        obtain ⟨d, hd, rfl⟩ := List.mem_map.mp hr
-        simp [h0 d hd]
-      simp [hc, hsum0]
-    · have hc' : p c = false := Bool.eq_false_iff.mpr hc
-      simp only [List.find?, hc'] at hfind
-      simp only [hc, Bool.false_eq_true, ↓reduceIte, Nat.add_zero] at h
-      simp [hc', sum_list_of_unique f h hfind]
+    cases hc : p c
+    · simp only [List.find?, hc, Bool.false_eq_true, ↓reduceIte, Nat.add_zero] at h hfind
+      simp [hc, sum_list_of_unique f h hfind]
+    · simp only [List.find?, hc, Option.some.injEq, ↓reduceIte] at h hfind
+      subst hfind
+      have h0 := List.countP_eq_zero.mp (Nat.add_right_cancel h)
+      rw [List.map_cons, List.sum_cons, ite_eq_left hc, List.sum_eq_zero, add_zero]
+      simpa using fun d hd => by simp [h0 d hd]
 
 /-- **Product factorization of wiring multilinear extensions** for `LayeredCircuit.ofClauses`:
 when `clauses i` partitions `{0, 1}^{width (i + 1)}`, the multilinear extension of `wiringPred g i`
@@ -690,9 +614,10 @@ theorem eval_multilinearExtension_wiringPred_ofClauses {R : Type*} [CommRing R]
             eval z (indicatorPoly a) * eval y (indicatorPoly (cl.evalLeft (width i) a)) *
               eval w (indicatorPoly (cl.evalRight (width i) a))
           else 0
-        else 0).sum := by
-    intro a
-    obtain ⟨cl₀, _, hfind, _, _⟩ := find?_eq_of_countP_eq_one (hpart a)
+        else 0).sum := fun a => by
+    obtain ⟨cl₀, hfind⟩ := Option.ne_none_iff_exists'.mp
+      fun h0 : (clauses i).find? (fun cl => cl.matchesVec a) = none => by
+        linarith [hpart a, List.countP_eq_zero.mpr (List.find?_eq_none.mp h0)]
     have hsum := sum_list_of_unique
       (fun cl : WiringClause =>
         if cl.gate = g then
@@ -700,33 +625,20 @@ theorem eval_multilinearExtension_wiringPred_ofClauses {R : Type*} [CommRing R]
             eval w (indicatorPoly (cl.evalRight (width i) a))
         else 0)
       (hpart a) hfind
-    simp only [C, LayeredCircuit.ofClauses, hfind, Option.elim_some]
-    rw [← hsum]
-    congr 1
-    refine List.map_congr_left fun cl _ => ?_
-    by_cases hg : cl.gate = g <;> simp [hg]
+    simp only [C, LayeredCircuit.ofClauses, hfind, Option.elim_some, ← hsum]
+    exact congrArg List.sum
+      (List.map_congr_left fun cl _ => by by_cases hg : cl.gate = g <;> simp [hg])
   refine (Finset.sum_congr rfl fun a _ => hpoint a).trans ?_
-  have hcomm : ∀ l : List WiringClause,
-      (∑ a : Fin (width (i + 1)) → Bool,
-        (l.map fun cl =>
-          if cl.gate = g then
-            if cl.matchesVec a then
-              eval z (indicatorPoly a) * eval y (indicatorPoly (cl.evalLeft (width i) a)) *
-                eval w (indicatorPoly (cl.evalRight (width i) a))
-            else 0
-          else 0).sum) =
-      (l.map fun cl =>
-        if cl.gate = g then cl.evalFactor z y w else 0).sum := by
-    intro l
-    induction l with
-    | nil => simp
-    | cons cl cls ih =>
-      simp only [List.map_cons, List.sum_cons, Finset.sum_add_distrib, ih]
-      congr 1
-      by_cases hg : cl.gate = g
-      · simp only [hg, ↓reduceIte, WiringClause.sum_matchesVec_eq_evalFactor]
-      · simp [hg]
-  exact hcomm (clauses i)
+  dsimp only [C, LayeredCircuit.ofClauses]
+  generalize clauses i = l
+  induction l with
+  | nil => simp
+  | cons cl cls ih =>
+    simp only [List.map_cons, List.sum_cons, Finset.sum_add_distrib, ih]
+    by_cases hg : cl.gate = g
+    · simp only [hg, ↓reduceIte]
+      exact congrArg (· + _) (cl.sum_matchesVec_eq_evalFactor z y w)
+    · simp [hg]
 
 /-! ### Executable modular wiring-clause evaluator and polynomial-time certificate -/
 
@@ -736,9 +648,7 @@ def litFactorNat (p : ℕ) (b : Bool) (r : ℕ) : ℕ :=
 
 theorem natCast_litFactorNat {p : ℕ} [NeZero p] (b : Bool) (r : ℕ) :
     ((litFactorNat p b r : ℕ) : ZMod p) = WireLit.litFactor b (r : ZMod p) := by
-  cases b
-  · simp [litFactorNat, WireLit.litFactor, natCast_subModNat]
-  · simp [litFactorNat, WireLit.litFactor, ZMod.natCast_mod]
+  cases b <;> simp [litFactorNat, WireLit.litFactor, natCast_subModNat, ZMod.natCast_mod]
 
 /-- Natural representative of `WireLit.constWeight` modulo `p`. -/
 private def constWeightNat (p kOut : ℕ) (lit : WireLit) (r : ℕ) : ℕ :=
@@ -748,12 +658,8 @@ private def constWeightNat (p kOut : ℕ) (lit : WireLit) (r : ℕ) : ℕ :=
 
 private theorem natCast_constWeightNat {p : ℕ} [NeZero p] (kOut : ℕ) (lit : WireLit) (r : ℕ) :
     ((constWeightNat p kOut lit r : ℕ) : ZMod p) = lit.constWeight kOut (r : ZMod p) := by
-  cases lit <;> simp only [constWeightNat, encWireLit_elim, encWireLit_toSum, Sum.elim_inl,
-    Sum.elim_inr, WireLit.constWeight]
-  · exact natCast_litFactorNat _ _
-  · split_ifs
-    · simp
-    · exact natCast_litFactorNat _ _
+  cases lit <;> simp [constWeightNat, encWireLit_elim, encWireLit_toSum, WireLit.constWeight,
+    apply_ite (Nat.cast : ℕ → ZMod p), natCast_litFactorNat]
 
 /-- Natural representative of `WireLit.varWeight` modulo `p`. -/
 private def varWeightNat (p : ℕ) (lit : WireLit) (j : ℕ) (b : Bool) (r : ℕ) : ℕ :=
@@ -763,12 +669,8 @@ private def varWeightNat (p : ℕ) (lit : WireLit) (j : ℕ) (b : Bool) (r : ℕ
 
 private theorem natCast_varWeightNat {p : ℕ} [NeZero p] (lit : WireLit) (j : ℕ) (b : Bool) (r : ℕ) :
     ((varWeightNat p lit j b r : ℕ) : ZMod p) = lit.varWeight j b (r : ZMod p) := by
-  cases lit <;> simp only [varWeightNat, encWireLit_elim, encWireLit_toSum, Sum.elim_inl,
-    Sum.elim_inr, WireLit.varWeight]
-  · simp
-  · split_ifs
-    · exact natCast_litFactorNat _ _
-    · simp
+  cases lit <;> simp [varWeightNat, encWireLit_elim, encWireLit_toSum, WireLit.varWeight,
+    apply_ite (Nat.cast : ℕ → ZMod p), natCast_litFactorNat]
 
 /-- Natural representative of `WiringClause.maskWeight`. -/
 private def maskWeightNat (m : Option Bool) (b : Bool) : ℕ :=
@@ -776,8 +678,7 @@ private def maskWeightNat (m : Option Bool) (b : Bool) : ℕ :=
 
 private theorem natCast_maskWeightNat {p : ℕ} (m : Option Bool) (b : Bool) :
     ((maskWeightNat m b : ℕ) : ZMod p) = WiringClause.maskWeight m b := by
-  unfold maskWeightNat WiringClause.maskWeight
-  split_ifs <;> simp
+  simp [maskWeightNat, WiringClause.maskWeight, apply_ite (Nat.cast : ℕ → ZMod p)]
 
 /-- Modular coordinate-`j` bit term of a `WiringClause`. -/
 private def bitTermNat (p kIn : ℕ) (cl : WiringClause) (zs ys ws : List ℕ) (j : ℕ) (b : Bool) : ℕ :=
@@ -809,8 +710,7 @@ def evalClausesMod (p kOut kIn : ℕ) (g : Gate) (clauses : List WiringClause)
 private theorem evalClausesMod_lt {p : ℕ} (hp : 0 < p) (kOut kIn : ℕ) (g : Gate)
     (clauses : List WiringClause) (zs ys ws : List ℕ) :
     evalClausesMod p kOut kIn g clauses zs ys ws < p := by
-  simp only [evalClausesMod, hp.ne', ↓reduceIte]
-  exact Nat.mod_lt _ hp
+  simpa only [evalClausesMod, hp.ne', ↓reduceIte] using Nat.mod_lt _ hp
 
 private theorem natCast_evalClauseNat {p : ℕ} [NeZero p] (kOut kIn : ℕ) (cl : WiringClause)
     (zs ys ws : List ℕ) :
@@ -825,20 +725,11 @@ private theorem natCast_evalClauseNat {p : ℕ} [NeZero p] (kOut kIn : ℕ) (cl 
     simp only [List.toFinset_range, Nat.cast_prod, Finset.prod_range, natCast_maskWeightNat,
       natCast_litFactorNat, natCast_varWeightNat, vecOfList, WiringClause.bitTerm,
       List.getD_eq_getElem?_getD]
-  have hcoords : (∏ i : Fin kOut,
-      ((bitTermNat p kIn cl zs ys ws i.val false +
-        bitTermNat p kIn cl zs ys ws i.val true : ℕ) : ZMod p)) =
-      ∏ j : Fin kOut,
-        (cl.bitTerm (vecOfList p kOut zs) (vecOfList p kIn ys) (vecOfList p kIn ws) j false +
-          cl.bitTerm (vecOfList p kOut zs) (vecOfList p kIn ys) (vecOfList p kIn ws) j true) := by
-    refine Finset.prod_congr rfl fun j _ => ?_
-    rw [Nat.cast_add, hbit j false, hbit j true]
   simp only [evalClauseNat, ZMod.natCast_mod, Nat.cast_mul]
   rw [← List.prod_toFinset _ List.nodup_range, ← List.prod_toFinset _ List.nodup_range,
     ← List.prod_toFinset _ List.nodup_range]
   simp only [List.toFinset_range, Nat.cast_prod, Finset.prod_range, ZMod.natCast_mod,
-    natCast_constWeightNat, WiringClause.evalFactor, vecOfList]
-  rw [hcoords]
+    natCast_constWeightNat, WiringClause.evalFactor, vecOfList, Nat.cast_add, hbit]
 
 private theorem natCast_evalClausesMod {p : ℕ} [NeZero p] (kOut kIn : ℕ) (g : Gate)
     (clauses : List WiringClause) (zs ys ws : List ℕ) :
@@ -849,9 +740,8 @@ private theorem natCast_evalClausesMod {p : ℕ} [NeZero p] (kOut kIn : ℕ) (g 
         else 0).sum := by
   simp only [evalClausesMod, NeZero.ne p, ↓reduceIte, ZMod.natCast_mod, Nat.cast_list_sum,
     List.map_map]
-  congr 1
-  refine List.map_congr_left fun cl _ => ?_
-  by_cases hg : cl.gate = g <;> simp [hg, natCast_evalClauseNat]
+  exact congrArg List.sum (List.map_congr_left fun cl _ => by
+    by_cases hg : cl.gate = g <;> simp [hg, natCast_evalClauseNat])
 
 section PolyTime
 
@@ -864,12 +754,8 @@ theorem computableInPolyTime_subModNat {γ : Type} {encIn : γ ↪ List Bool} {p
     (hb : ComputableInPolyTime b encIn encNat) :
     ComputableInPolyTime (fun x => subModNat (p x) (a x) (b x)) encIn encNat := by
   unfold subModNat
-  have hp0 : ComputableInPolyTime (fun x => decide (p x = 0)) encIn encBool :=
-    decide_eq' hp (const 0)
-  have hbody : ComputableInPolyTime (fun x => (a x % p x + (p x - b x % p x)) % p x)
-      encIn encNat :=
-    binary_mod' (binary_add' (binary_mod' ha hp) (binary_sub' hp (binary_mod' hb hp))) hp
-  exact ite_decide hp0 (const 0) hbody
+  exact ite_decide (decide_eq' hp (const 0)) (const 0)
+    (binary_mod' (binary_add' (binary_mod' ha hp) (binary_sub' hp (binary_mod' hb hp))) hp)
 
 @[fun_prop]
 theorem computableInPolyTime_litFactorNat {γ : Type} {encIn : γ ↪ List Bool}
@@ -934,29 +820,23 @@ private lemma maskWeightNat_pt {γ : Type} {encIn : γ ↪ List Bool}
     {m : γ → Option Bool} {b : γ → Bool}
     (hm : ComputableInPolyTime m encIn (encOption encBool))
     (hb : ComputableInPolyTime b encIn encBool) :
-    ComputableInPolyTime (fun x => maskWeightNat (m x) (b x)) encIn encNat := by
-  have hfin : ComputableInPolyTime (fun q : Option Bool × Bool => maskWeightNat q.1 q.2)
-      (encPair (encOption encBool) encBool) encNat := of_finite _
-  exact hfin.comp (hm.prod hb)
+    ComputableInPolyTime (fun x => maskWeightNat (m x) (b x)) encIn encNat :=
+  (of_finite (fun q : Option Bool × Bool => maskWeightNat q.1 q.2)).comp (hm.prod hb)
 
 private lemma getD_wireLitList_pt {γ : Type} {encIn : γ ↪ List Bool}
     {xs : γ → List WireLit} {i : γ → ℕ}
     (hxs : ComputableInPolyTime xs encIn (encList encWireLit))
     (hi : ComputableInPolyTime i encIn encUnary) :
-    ComputableInPolyTime (fun x => (xs x).getD (i x) (.const false)) encIn encWireLit := by
-  have hget : ComputableInPolyTime (fun x => (xs x)[i x]?) encIn (encOption encWireLit) :=
-    getElem? hxs hi
-  exact (hget.optionGetDWithInput (const (.const false))).of_enc_eq fun x => by
-    rw [List.getD_eq_getElem?_getD]
+    ComputableInPolyTime (fun x => (xs x).getD (i x) (.const false)) encIn encWireLit :=
+  ((ComputableInPolyTime.getElem? hxs hi).optionGetDWithInput (const (.const false))).of_enc_eq
+    fun x => by rw [List.getD_eq_getElem?_getD]
 
 private lemma getOpt_mask_pt {γ : Type} {encIn : γ ↪ List Bool}
     {ms : γ → List (Option Bool)} {i : γ → ℕ}
     (hms : ComputableInPolyTime ms encIn encMask)
     (hi : ComputableInPolyTime i encIn encUnary) :
-    ComputableInPolyTime (fun x => ((ms x)[i x]?).getD none) encIn (encOption encBool) := by
-  have hget : ComputableInPolyTime (fun x => (ms x)[i x]?)
-      encIn (encOption (encOption encBool)) := getElem? hms hi
-  exact hget.optionGetDWithInput (const none)
+    ComputableInPolyTime (fun x => ((ms x)[i x]?).getD none) encIn (encOption encBool) :=
+  (ComputableInPolyTime.getElem? hms hi).optionGetDWithInput (const none)
 
 private lemma bitTermNat_pt {γ : Type} {encIn : γ ↪ List Bool}
     {p kIn j : γ → ℕ} {cl : γ → WiringClause} {zs ys ws : γ → List ℕ} {b : γ → Bool}
@@ -971,26 +851,23 @@ private lemma bitTermNat_pt {γ : Type} {encIn : γ ↪ List Bool}
     ComputableInPolyTime (fun x => bitTermNat (p x) (kIn x) (cl x) (zs x) (ys x) (ws x) (j x) (b x))
       encIn encNat := by
   unfold bitTermNat
-  have hmask := encWiringClause_mask_polyTime hcl
-  have hleft := encWiringClause_leftLits_polyTime hcl
-  have hright := encWiringClause_rightLits_polyTime hcl
-  have hm := maskWeightNat_pt (getOpt_mask_pt hmask hj) hb
+  have hm := maskWeightNat_pt (getOpt_mask_pt (encWiringClause_mask_polyTime hcl) hj) hb
   have hzf := computableInPolyTime_litFactorNat hp hb (listGetDWithInput hzs hj 0)
   have hrange : ComputableInPolyTime (fun x => List.range (kIn x)) encIn (encList encUnary) := by
     fun_prop
   have hlfMap := mapWith
     (varWeightNat_pt (hp.comp (fst _ _))
-      (getD_wireLitList_pt (hleft.comp (fst _ _)) (snd _ _))
+      (getD_wireLitList_pt ((encWiringClause_leftLits_polyTime hcl).comp (fst _ _)) (snd _ _))
       (hj.comp (fst _ _)) (hb.comp (fst _ _))
       (listGetDWithInput (hys.comp (fst _ _)) (snd _ _) 0)) id' hrange
   have hrfMap := mapWith
     (varWeightNat_pt (hp.comp (fst _ _))
-      (getD_wireLitList_pt (hright.comp (fst _ _)) (snd _ _))
+      (getD_wireLitList_pt ((encWiringClause_rightLits_polyTime hcl).comp (fst _ _)) (snd _ _))
       (hj.comp (fst _ _)) (hb.comp (fst _ _))
       (listGetDWithInput (hws.comp (fst _ _)) (snd _ _) 0)) id' hrange
-  have hlf := binary_mod' (binary_prod.comp hlfMap) hp
-  have hrf := binary_mod' (binary_prod.comp hrfMap) hp
-  exact binary_mod' (binary_mul' (binary_mul' hm hzf) (binary_mul' hlf hrf)) hp
+  exact binary_mod' (binary_mul' (binary_mul' hm hzf)
+    (binary_mul' (binary_mod' (binary_prod.comp hlfMap) hp)
+      (binary_mod' (binary_prod.comp hrfMap) hp))) hp
 
 private lemma evalClauseNat_pt {γ : Type} {encIn : γ ↪ List Bool}
     {p kOut kIn : γ → ℕ} {cl : γ → WiringClause} {zs ys ws : γ → List ℕ}
@@ -1004,19 +881,17 @@ private lemma evalClauseNat_pt {γ : Type} {encIn : γ ↪ List Bool}
     ComputableInPolyTime (fun x => evalClauseNat (p x) (kOut x) (kIn x) (cl x) (zs x) (ys x) (ws x))
       encIn encNat := by
   unfold evalClauseNat
-  have hleft := encWiringClause_leftLits_polyTime hcl
-  have hright := encWiringClause_rightLits_polyTime hcl
   have hrIn : ComputableInPolyTime (fun x => List.range (kIn x)) encIn (encList encUnary) := by
     fun_prop
   have hrOut : ComputableInPolyTime (fun x => List.range (kOut x)) encIn (encList encUnary) := by
     fun_prop
   have hlc := binary_mod' (binary_prod.comp (mapWith
     (constWeightNat_pt (hp.comp (fst _ _)) (hkOut.comp (fst _ _))
-      (getD_wireLitList_pt (hleft.comp (fst _ _)) (snd _ _))
+      (getD_wireLitList_pt ((encWiringClause_leftLits_polyTime hcl).comp (fst _ _)) (snd _ _))
       (listGetDWithInput (hys.comp (fst _ _)) (snd _ _) 0)) id' hrIn)) hp
   have hrc := binary_mod' (binary_prod.comp (mapWith
     (constWeightNat_pt (hp.comp (fst _ _)) (hkOut.comp (fst _ _))
-      (getD_wireLitList_pt (hright.comp (fst _ _)) (snd _ _))
+      (getD_wireLitList_pt ((encWiringClause_rightLits_polyTime hcl).comp (fst _ _)) (snd _ _))
       (listGetDWithInput (hws.comp (fst _ _)) (snd _ _) 0)) id' hrIn)) hp
   have hbitF := bitTermNat_pt (hp.comp (fst _ _)) (hkIn.comp (fst _ _)) (hcl.comp (fst _ _))
     (hzs.comp (fst _ _)) (hys.comp (fst _ _)) (hws.comp (fst _ _)) (snd _ _) (const false)
@@ -1043,23 +918,17 @@ theorem computableInPolyTime_evalClausesMod {γ : Type} {encIn : γ ↪ List Boo
       (fun x => evalClausesMod (p x) (kOut x) (kIn x) (g x) (clauses x) (zs x) (ys x) (ws x))
       encIn encNat := by
   unfold evalClausesMod
-  have hp0 : ComputableInPolyTime (fun x => decide (p x = 0)) encIn encBool :=
-    decide_eq' hp (const 0)
-  have hgateEq : ComputableInPolyTime
-      (fun q : γ × WiringClause => decide (q.2.gate = g q.1))
-      (encPair encIn encWiringClause) encBool :=
-    decide_eq' (encWiringClause_gate_polyTime (snd _ _)) (hg.comp (fst _ _))
   have hterm : ComputableInPolyTime
       (fun q : γ × WiringClause =>
         if decide (q.2.gate = g q.1) then
           evalClauseNat (p q.1) (kOut q.1) (kIn q.1) q.2 (zs q.1) (ys q.1) (ws q.1)
         else 0)
       (encPair encIn encWiringClause) encNat :=
-    ite' hgateEq
+    ite' (decide_eq' (encWiringClause_gate_polyTime (snd _ _)) (hg.comp (fst _ _)))
       (evalClauseNat_pt (hp.comp (fst _ _)) (hkOut.comp (fst _ _)) (hkIn.comp (fst _ _))
         (snd _ _) (hzs.comp (fst _ _)) (hys.comp (fst _ _)) (hws.comp (fst _ _)))
       (const 0)
-  exact ite_decide hp0 (const 0)
+  exact ite_decide (decide_eq' hp (const 0)) (const 0)
     (binary_mod' (binary_sum.comp (mapWith hterm id' hclauses)) hp)
 
 end PolyTime
@@ -1080,25 +949,21 @@ theorem hasPolyTimeWiringMLE_ofClauses {I : Type} {encI : I ↪ List Bool}
         q.gate (clauses q.index q.layer) q.z q.y q.w) where
   polyTime := by
     have hidx := encWiringMLEQuery_index_polyTime I encI ComputableInPolyTime.id'
-    have hgate := encWiringMLEQuery_gate_polyTime I encI ComputableInPolyTime.id'
     have hlayer := encWiringMLEQuery_layer_polyTime I encI ComputableInPolyTime.id'
-    have hmod := encWiringMLEQuery_modulus_polyTime I encI ComputableInPolyTime.id'
-    have hz := encWiringMLEQuery_z_polyTime I encI ComputableInPolyTime.id'
-    have hy := encWiringMLEQuery_y_polyTime I encI ComputableInPolyTime.id'
-    have hw := encWiringMLEQuery_w_polyTime I encI ComputableInPolyTime.id'
     have hlayerSucc : ComputableInPolyTime (fun q : WiringMLEQuery I => q.layer + 1)
         (encWiringMLEQuery I encI) encUnary := by fun_prop
-    exact computableInPolyTime_evalClausesMod hmod
+    exact computableInPolyTime_evalClausesMod
+      (encWiringMLEQuery_modulus_polyTime I encI .id')
       (hwidth.comp (hidx.prod hlayerSucc))
       (hwidth.comp (hidx.prod hlayer))
-      hgate
+      (encWiringMLEQuery_gate_polyTime I encI .id')
       (hclauses.comp (hidx.prod hlayer))
-      hz hy hw
+      (encWiringMLEQuery_z_polyTime I encI .id')
+      (encWiringMLEQuery_y_polyTime I encI .id')
+      (encWiringMLEQuery_w_polyTime I encI .id')
   lt_modulus q hp := evalClausesMod_lt hp _ _ _ _ _ _ _
-  eval_eq ι p _ g i hi zs ys ws := by
-    dsimp only
-    rw [natCast_evalClausesMod]
-    exact (eval_multilinearExtension_wiringPred_ofClauses (depth := depth ι) (hpart ι i hi) g
+  eval_eq ι p _ g i hi zs ys ws := (natCast_evalClausesMod _ _ g _ zs ys ws).trans
+    (eval_multilinearExtension_wiringPred_ofClauses (depth := depth ι) (hpart ι i hi) g
       (vecOfList p (width ι (i + 1)) zs) (vecOfList p (width ι i) ys)
       (vecOfList p (width ι i) ws)).symm
 
@@ -1167,11 +1032,8 @@ def powerSumCircuit (P : PowerSumParams) : LayeredCircuit :=
 
 private theorem clausesPartition_singleton_unmasked (kOut : ℕ) (g : Gate)
     (litsL litsR : List WireLit) :
-    ClausesPartition kOut [⟨g, [], litsL, litsR⟩] := by
-  intro a
-  have hm : (⟨g, [], litsL, litsR⟩ : WiringClause).matchesVec a = true := by
-    simp [WiringClause.matchesVec, WiringClause.matchOpt]
-  simp [hm]
+    ClausesPartition kOut [⟨g, [], litsL, litsR⟩] :=
+  fun _ => by simp [WiringClause.matchesVec, WiringClause.matchOpt]
 
 private theorem clausesPartition_powerSum (P : PowerSumParams) (i : ℕ) :
     ClausesPartition (P.width (i + 1)) (P.layerClauses i) := by
@@ -1198,22 +1060,17 @@ private theorem padOrTakeBits_ofFn {midWidth kMid inWidth : ℕ} (hk : kMid = mi
     simp only [padOrTakeBits, List.getElem_take, List.getElem_ofFn, List.getD_eq_getElem?_getD,
       List.getElem?_map, List.getElem?_range hℓ, Option.map_some, Option.getD_some]
     by_cases hm : ℓ < midWidth
-    · have hkℓ : ℓ < kMid := by omega
-      rw [List.getElem_append_left (by simp [hkℓ])]
-      simp [hm, hkℓ, WireLit.eval]
-    · have hnk : ¬ ℓ < kMid := by omega
-      rw [List.getElem_append_right (by simp; omega)]
+    · rw [List.getElem_append_left (by simp [hk, hm])]
+      simp [hm, hk, WireLit.eval]
+    · rw [List.getElem_append_right (by simp [hk]; omega)]
       simp [hm, WireLit.eval]
 
 private theorem powerSum_width_tree_succ (P : PowerSumParams) {i : ℕ}
     (hi : i < P.depth) (hsq : ¬ i ≤ P.sqDepth) :
     P.width i = P.width (i + 1) + 1 := by
   have hi_lt : i < 1 + P.sqDepth + P.midWidth := hi
-  have hne0 : i ≠ 0 := by omega
-  have hne1 : i + 1 ≠ 0 := Nat.succ_ne_zero i
-  have hgt1 : ¬ i + 1 ≤ 1 + P.sqDepth := by omega
-  simp only [PowerSumParams.width, hne0, hne1, hgt1, ↓reduceIte]
-  split_ifs with hle <;> omega
+  simp only [PowerSumParams.width, Nat.succ_ne_zero, ↓reduceIte]
+  split_ifs <;> omega
 
 private theorem listOfFn_eval_id {kOut kIn kRng : ℕ} (hk : kIn = kOut) (hrng : kRng = kOut)
     (a : Fin kOut → Bool) :
@@ -1224,11 +1081,7 @@ private theorem listOfFn_eval_id {kOut kIn kRng : ℕ} (hk : kIn = kOut) (hrng :
   apply List.ext_getElem (by simp [hk])
   intro ℓ h1 h2
   have hℓ : ℓ < kOut := by simpa only [List.length_ofFn] using h1
-  have hget : (((List.range kRng).map fun j => WireLit.var j false).getD ℓ (WireLit.const false)) =
-      WireLit.var ℓ false := by
-    rw [hrng, List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_range hℓ]
-    rfl
-  simp only [List.getElem_ofFn, hget, WireLit.eval, hℓ, ↓reduceDIte, Bool.bne_false]
+  simp [hrng, List.getD_eq_getElem?_getD, hℓ, WireLit.eval]
 
 private theorem listOfFn_eval_snoc {kOut kIn : ℕ} (hk : kIn = kOut + 1) (b : Bool)
     (a : Fin kOut → Bool) :
@@ -1240,96 +1093,67 @@ private theorem listOfFn_eval_snoc {kOut kIn : ℕ} (hk : kIn = kOut + 1) (b : B
   intro ℓ h1 h2
   have hℓ : ℓ < kIn := by simpa only [List.length_ofFn] using h2
   by_cases hlt : ℓ < kOut
-  · have hget : ((((List.range kOut).map fun j => WireLit.var j false) ++
-        [WireLit.const b]).getD ℓ (WireLit.const false)) = WireLit.var ℓ false := by
-      rw [List.getD_eq_getElem?_getD, List.getElem?_append_left (by simp [hlt]),
-        List.getElem?_map, List.getElem?_range hlt]
-      rfl
-    rw [List.getElem_append_left (by simp [hlt])]
-    simp only [List.getElem_ofFn, hget, WireLit.eval, hlt, ↓reduceDIte, Bool.bne_false]
-  · have heq : ℓ = kOut := by omega
-    have hlen : (List.ofFn a).length = kOut := List.length_ofFn
-    have hlenL : ((List.range kOut).map fun j => WireLit.var j false).length = kOut := by simp
-    have hget : ((((List.range kOut).map fun j => WireLit.var j false) ++
-        [WireLit.const b]).getD ℓ (WireLit.const false)) = WireLit.const b := by
-      rw [heq, List.getD_eq_getElem?_getD, List.getElem?_append_right (by omega), hlenL,
-        Nat.sub_self, List.getElem?_singleton]
-      rfl
-    have hlhs : (List.ofFn a ++ [b])[ℓ]'h1 = b := by
-      rw [List.getElem_append_right (by omega)]
-      simp [hlen, heq]
-    rw [hlhs, List.getElem_ofFn, hget, WireLit.eval]
+  · rw [List.getElem_append_left (by simp [hlt]), List.getElem_ofFn, List.getElem_ofFn,
+      List.getD_eq_getElem?_getD, List.getElem?_append_left (by simp [hlt]), List.getElem?_map,
+      List.getElem?_range hlt]
+    simp [WireLit.eval, hlt]
+  · obtain rfl : ℓ = kOut := by omega
+    rw [List.getElem_append_right (by simp), List.getElem_ofFn, List.getD_eq_getElem?_getD,
+      List.getElem?_append_right (by simp)]
+    simp [WireLit.eval]
 
 /-- **`powerSumCircuit` is log-space uniform.** -/
 theorem isLogSpaceUniform_powerSumCircuit :
     LayeredCircuit.IsLogSpaceUniform encPowerSumParams powerSumCircuit := by
+  open ComputableInLogSpace in
   have hPFields : ComputableInLogSpace
       (fun P : PowerSumParams => (P.inWidth, P.midWidth, P.sqDepth))
       encPowerSumParams encPowerSumParamsFields :=
-    ComputableInLogSpace.of_eq encPowerSumParams_apply
-  have hInW : ComputableInLogSpace PowerSumParams.inWidth encPowerSumParams encUnary :=
-    ComputableInLogSpace.fst' hPFields
-  have hMidW : ComputableInLogSpace PowerSumParams.midWidth encPowerSumParams encUnary :=
-    ComputableInLogSpace.fst' (ComputableInLogSpace.snd' hPFields)
-  have hSqD : ComputableInLogSpace PowerSumParams.sqDepth encPowerSumParams encUnary :=
-    ComputableInLogSpace.snd' (ComputableInLogSpace.snd' hPFields)
+    of_eq encPowerSumParams_apply
+  have hInW := fst' hPFields
+  have hMidW := fst' (snd' hPFields)
+  have hSqD := snd' (snd' hPFields)
   have hDepth : ComputableInLogSpace (fun P => (powerSumCircuit P).depth)
-      encPowerSumParams encUnary := by
-    change ComputableInLogSpace (fun P : PowerSumParams => 1 + P.sqDepth + P.midWidth)
-      encPowerSumParams encUnary
-    exact ComputableInLogSpace.unaryAdd
-      (ComputableInLogSpace.unaryAdd (ComputableInLogSpace.const 1) hSqD) hMidW
+      encPowerSumParams encUnary :=
+    unaryAdd (unaryAdd (const 1) hSqD) hMidW
   have hWidth : ComputableInLogSpace (fun q : PowerSumParams × ℕ => (powerSumCircuit q.1).width q.2)
       (encPair encPowerSumParams encUnary) encUnary := by
-    change ComputableInLogSpace (fun q : PowerSumParams × ℕ => q.1.width q.2)
-      (encPair encPowerSumParams encUnary) encUnary
+    change ComputableInLogSpace (fun q : PowerSumParams × ℕ => q.1.width q.2) _ _
     unfold PowerSumParams.width
-    have hP := ComputableInLogSpace.fst encPowerSumParams encUnary
-    have hi := ComputableInLogSpace.snd encPowerSumParams encUnary
-    have hInW' := hInW.comp' hP
+    have hP := fst encPowerSumParams encUnary
+    have hi := snd encPowerSumParams encUnary
     have hMidW' := hMidW.comp' hP
-    have h1Sq := ComputableInLogSpace.unaryAdd (ComputableInLogSpace.const 1) (hSqD.comp' hP)
-    exact ComputableInLogSpace.ite_decide
-      (ComputableInLogSpace.unaryEq hi (ComputableInLogSpace.const 0)) hInW'
-      (ComputableInLogSpace.ite_decide (ComputableInLogSpace.unaryLe hi h1Sq) hMidW'
-        (ComputableInLogSpace.unarySub hMidW' (ComputableInLogSpace.unarySub hi h1Sq)))
+    have h1Sq := unaryAdd (const 1) (hSqD.comp' hP)
+    exact ite_decide (unaryEq hi (const 0)) (hInW.comp' hP)
+      (ite_decide (unaryLe hi h1Sq) hMidW' (unarySub hMidW' (unarySub hi h1Sq)))
   have hGqFields : ComputableInLogSpace
       (fun q : GateQuery PowerSumParams => (q.index, q.layer, q.outGate))
       (encGateQuery PowerSumParams encPowerSumParams)
       (encGateQueryFields PowerSumParams encPowerSumParams) :=
-    ComputableInLogSpace.of_eq (encGateQuery_apply PowerSumParams encPowerSumParams)
-  have hqP := ComputableInLogSpace.fst' hGqFields
-  have hqI := ComputableInLogSpace.fst' (ComputableInLogSpace.snd' hGqFields)
-  have hqA := ComputableInLogSpace.snd' (ComputableInLogSpace.snd' hGqFields)
+    of_eq (encGateQuery_apply PowerSumParams encPowerSumParams)
+  have hqP := fst' hGqFields
+  have hqI := fst' (snd' hGqFields)
+  have hqA := snd' (snd' hGqFields)
   let gateAt : GateQuery PowerSumParams → Gate := fun q =>
     if q.layer = 0 then .add else if q.layer ≤ q.index.sqDepth then .mul else .add
   let sideAt (b : Bool) : GateQuery PowerSumParams → List Bool := fun q =>
     if q.layer = 0 then padOrTakeBits q.index.inWidth q.outGate
     else if q.layer ≤ q.index.sqDepth then q.outGate
     else q.outGate ++ [b]
-  have hCond0 := ComputableInLogSpace.unaryEq hqI (ComputableInLogSpace.const 0)
-  have hCondSq := ComputableInLogSpace.unaryLe hqI (hSqD.comp' hqP)
+  have hCond0 := unaryEq hqI (const 0)
+  have hCondSq := unaryLe hqI (hSqD.comp' hqP)
   have hPadTake : ComputableInLogSpace
       (fun q : GateQuery PowerSumParams => padOrTakeBits q.index.inWidth q.outGate)
-      (encGateQuery PowerSumParams encPowerSumParams) encBits := by
-    unfold padOrTakeBits
-    exact ComputableInLogSpace.bitsTake'
-      (ComputableInLogSpace.bitsAppend hqA
-        (ComputableInLogSpace.bitsReplicate (hInW.comp' hqP) (ComputableInLogSpace.const false)))
-      (hInW.comp' hqP)
+      (encGateQuery PowerSumParams encPowerSumParams) encBits :=
+    bitsTake' (bitsAppend hqA (bitsReplicate (hInW.comp' hqP) (const false))) (hInW.comp' hqP)
   have hGateAt : ComputableInLogSpace gateAt
       (encGateQuery PowerSumParams encPowerSumParams) encGate :=
-    ComputableInLogSpace.ite_decide hCond0 (ComputableInLogSpace.const Gate.add)
-      (ComputableInLogSpace.ite_decide hCondSq
-        (ComputableInLogSpace.const Gate.mul) (ComputableInLogSpace.const Gate.add))
+    ite_decide hCond0 (const Gate.add) (ite_decide hCondSq (const Gate.mul) (const Gate.add))
   have hSideAt : ∀ b, ComputableInLogSpace (sideAt b)
       (encGateQuery PowerSumParams encPowerSumParams) encBits := fun b =>
-    ComputableInLogSpace.ite_decide hCond0 hPadTake
-      (ComputableInLogSpace.ite_decide hCondSq hqA
-        (ComputableInLogSpace.bitsAppend hqA (ComputableInLogSpace.const [b])))
+    ite_decide hCond0 hPadTake (ite_decide hCondSq hqA (bitsAppend hqA (const [b])))
   have hmUnmasked : ∀ {k : ℕ} (g : Gate) (l1 l2 : List WireLit) (a : Fin k → Bool),
-      (⟨g, [], l1, l2⟩ : WiringClause).matchesVec a = true := by
-    intro k g l1 l2 a
+      (⟨g, [], l1, l2⟩ : WiringClause).matchesVec a = true := fun _ _ _ _ => by
     simp [WiringClause.matchesVec, WiringClause.matchOpt]
   have hSideEq : ∀ b (P : PowerSumParams) (i : ℕ), i < P.depth →
       ∀ a : Fin (P.width (i + 1)) → Bool,
@@ -1342,37 +1166,25 @@ theorem isLogSpaceUniform_powerSumCircuit :
     by_cases h0 : i = 0
     · subst h0
       have hw1 : P.width 1 = P.midWidth := by simp [PowerSumParams.width]
-      cases b
-      · simp only [↓reduceIte, List.find?_singleton, hmUnmasked, Option.elim_some]
-        exact padOrTakeBits_ofFn hw1 a
-      · simp only [↓reduceIte, List.find?_singleton, hmUnmasked, Option.elim_some]
+      cases b <;> simp only [↓reduceIte, List.find?_singleton, hmUnmasked, Option.elim_some] <;>
         exact padOrTakeBits_ofFn hw1 a
     · by_cases hsq : i ≤ P.sqDepth
-      · have hwi : P.width i = P.midWidth := by
-          simp [PowerSumParams.width, h0, show i ≤ 1 + P.sqDepth by omega]
-        have hwi1 : P.width (i + 1) = P.midWidth := by
-          simp [PowerSumParams.width, show i + 1 ≤ 1 + P.sqDepth by omega]
-        cases b
-        · simp only [h0, hsq, ↓reduceIte, List.find?_singleton, hmUnmasked, Option.elim_some]
-          exact listOfFn_eval_id (by omega) hwi1.symm a
-        · simp only [h0, hsq, ↓reduceIte, List.find?_singleton, hmUnmasked, Option.elim_some]
-          exact listOfFn_eval_id (by omega) hwi1.symm a
+      · have hwi : P.width i = P.midWidth := by simp [PowerSumParams.width, h0]; omega
+        have hwi1 : P.width (i + 1) = P.midWidth := by simp [PowerSumParams.width]; omega
+        cases b <;>
+          simp only [h0, hsq, ↓reduceIte, List.find?_singleton, hmUnmasked, Option.elim_some] <;>
+          exact listOfFn_eval_id (hwi.trans hwi1.symm) hwi1.symm a
       · have hrel := powerSum_width_tree_succ P hi hsq
-        cases b
-        · simp only [h0, hsq, ↓reduceIte, List.find?_singleton, hmUnmasked, Option.elim_some]
-          exact listOfFn_eval_snoc hrel false a
-        · simp only [h0, hsq, ↓reduceIte, List.find?_singleton, hmUnmasked, Option.elim_some]
-          exact listOfFn_eval_snoc hrel true a
-  refine LayeredCircuit.IsLogSpaceUniform.of_neighbours hDepth hWidth hGateAt
+        cases b <;>
+          simp only [h0, hsq, ↓reduceIte, List.find?_singleton, hmUnmasked, Option.elim_some] <;>
+          exact listOfFn_eval_snoc hrel _ a
+  exact LayeredCircuit.IsLogSpaceUniform.of_neighbours hDepth hWidth hGateAt
     (hSideAt false) (hSideAt true)
-    (fun P i hi => ?_) (fun P i hi a => hSideEq false P i hi a)
-    (fun P i hi a => hSideEq true P i hi a)
-  · dsimp only [powerSumCircuit, LayeredCircuit.ofClauses]
-    intro a
-    simp only [gateAt, PowerSumParams.layerClauses]
-    by_cases h0 : i = 0
-    · subst h0; simp [hmUnmasked]
-    · by_cases hsq : i ≤ P.sqDepth <;> simp [h0, hsq, hmUnmasked]
+    (fun P i _ a => by
+      dsimp only [powerSumCircuit, LayeredCircuit.ofClauses] at a ⊢
+      by_cases h0 : i = 0 <;> by_cases hsq : i ≤ P.sqDepth <;>
+        simp [gateAt, PowerSumParams.layerClauses, h0, hsq, hmUnmasked])
+    (fun P i hi a => hSideEq false P i hi a) (fun P i hi a => hSideEq true P i hi a)
 
 /-- Modular wiring-MLE evaluator for `powerSumCircuit`. -/
 def evalPowerSumWiring (q : WiringMLEQuery PowerSumParams) : ℕ :=
@@ -1390,61 +1202,34 @@ private lemma layerClauses_polyTime :
   have hSqD := encPowerSumParams_sqDepth_polyTime hP
   have hCond0 : ComputableInPolyTime (fun q : PowerSumParams × ℕ => decide (q.2 = 0))
       (encPair encPowerSumParams encUnary) encBool := by fun_prop
-  have hCondSq : ComputableInPolyTime (fun q : PowerSumParams × ℕ => decide (q.2 ≤ q.1.sqDepth))
-      (encPair encPowerSumParams encUnary) encBool := unary_le.comp (hi.prod hSqD)
+  have hCondSq := unary_le.comp (hi.prod hSqD)
   have hVarLit : ∀ {γ : Type} {e : γ ↪ List Bool} {j : γ → ℕ},
       ComputableInPolyTime j e encUnary →
       ComputableInPolyTime (fun x => WireLit.var (j x) false) e encWireLit := fun hj =>
     encWireLit_var_polyTime (unary_to_binary.comp hj) (const false)
-  have hBranch0 : ComputableInPolyTime
-      (fun q : PowerSumParams × ℕ =>
-        let lits := (List.range q.1.inWidth).map fun j =>
-          if j < q.1.midWidth then WireLit.var j false else WireLit.const false
-        ([⟨.add, [], lits, lits⟩] : List WiringClause))
-      (encPair encPowerSumParams encUnary) (encList encWiringClause) := by
-    have hr : ComputableInPolyTime (fun q : PowerSumParams × ℕ => List.range q.1.inWidth)
-        (encPair encPowerSumParams encUnary) (encList encUnary) := by fun_prop
-    have hlt : ComputableInPolyTime
-        (fun u : (PowerSumParams × ℕ) × ℕ => decide (u.2 < u.1.1.midWidth))
-        (encPair (encPair encPowerSumParams encUnary) encUnary) encBool :=
-      unary_lt.comp ((snd _ _).prod (hMidW.comp (fst _ _)))
-    have hlits := mapWith (ite_decide hlt (hVarLit (snd _ _)) (const (.const false))) id' hr
-    have hcl := encWiringClause_mk_polyTime (const Gate.add) (const []) hlits hlits
-    exact hcl.cons' (const [])
-  have hBranchSq : ComputableInPolyTime
-      (fun q : PowerSumParams × ℕ =>
-        let lits := (List.range q.1.midWidth).map fun j => WireLit.var j false
-        ([⟨.mul, [], lits, lits⟩] : List WiringClause))
-      (encPair encPowerSumParams encUnary) (encList encWiringClause) := by
-    have hr : ComputableInPolyTime (fun q : PowerSumParams × ℕ => List.range q.1.midWidth)
-        (encPair encPowerSumParams encUnary) (encList encUnary) := by fun_prop
-    have hlits := mapWith (hVarLit (snd _ _)) id' hr
-    have hcl := encWiringClause_mk_polyTime (const Gate.mul) (const []) hlits hlits
-    exact hcl.cons' (const [])
-  have hBranchTree : ComputableInPolyTime
-      (fun q : PowerSumParams × ℕ =>
-        let kOut := q.1.width (q.2 + 1)
-        let base := (List.range kOut).map fun j => WireLit.var j false
-        ([⟨.add, [], base ++ [.const false], base ++ [.const true]⟩] : List WiringClause))
-      (encPair encPowerSumParams encUnary) (encList encWiringClause) := by
-    have hi1 : ComputableInPolyTime (fun q : PowerSumParams × ℕ => q.2 + 1)
-        (encPair encPowerSumParams encUnary) encUnary := by fun_prop
-    have hkOut : ComputableInPolyTime (fun q : PowerSumParams × ℕ => q.1.width (q.2 + 1))
-        (encPair encPowerSumParams encUnary) encUnary :=
-      isLogSpaceUniform_powerSumCircuit.width_polyTime.comp (hP.prod hi1)
-    have hr : ComputableInPolyTime (fun q : PowerSumParams × ℕ => List.range (q.1.width (q.2 + 1)))
-        (encPair encPowerSumParams encUnary) (encList encUnary) :=
-      (by fun_prop : ComputableInPolyTime List.range encUnary (encList encUnary)).comp hkOut
-    have hbase : ComputableInPolyTime
-        (fun q : PowerSumParams × ℕ =>
-          (List.range (q.1.width (q.2 + 1))).map fun j => WireLit.var j false)
-        (encPair encPowerSumParams encUnary) (encList encWireLit) :=
-      mapWith (hVarLit (snd _ _)) id' hr
-    have hlL := hbase.listAppend' (const [WireLit.const false])
-    have hlR := hbase.listAppend' (const [WireLit.const true])
-    have hcl := encWiringClause_mk_polyTime (const Gate.add) (const []) hlL hlR
-    exact hcl.cons' (const [])
-  exact ite_decide hCond0 hBranch0 (ite_decide hCondSq hBranchSq hBranchTree)
+  have hSingle : ∀ {g : Gate} {lL lR : PowerSumParams × ℕ → List WireLit},
+      ComputableInPolyTime lL (encPair encPowerSumParams encUnary) (encList encWireLit) →
+      ComputableInPolyTime lR (encPair encPowerSumParams encUnary) (encList encWireLit) →
+      ComputableInPolyTime (fun q => ([⟨g, [], lL q, lR q⟩] : List WiringClause))
+        (encPair encPowerSumParams encUnary) (encList encWiringClause) := fun hlL hlR =>
+    (encWiringClause_mk_polyTime (const _) (const []) hlL hlR).cons' (const [])
+  have hr0 : ComputableInPolyTime (fun q : PowerSumParams × ℕ => List.range q.1.inWidth)
+      (encPair encPowerSumParams encUnary) (encList encUnary) := by fun_prop
+  have hlt := unary_lt.comp ((snd _ _).prod (hMidW.comp (fst _ _)))
+  have hlits0 := mapWith (ite_decide hlt (hVarLit (snd _ _)) (const (.const false))) id' hr0
+  have hrSq : ComputableInPolyTime (fun q : PowerSumParams × ℕ => List.range q.1.midWidth)
+      (encPair encPowerSumParams encUnary) (encList encUnary) := by fun_prop
+  have hlitsSq := mapWith (hVarLit (snd _ _)) id' hrSq
+  have hi1 : ComputableInPolyTime (fun q : PowerSumParams × ℕ => q.2 + 1)
+      (encPair encPowerSumParams encUnary) encUnary := by fun_prop
+  have hkOut := isLogSpaceUniform_powerSumCircuit.width_polyTime.comp (hP.prod hi1)
+  have hrTree :=
+    (by fun_prop : ComputableInPolyTime List.range encUnary (encList encUnary)).comp hkOut
+  have hbase := mapWith (hVarLit (snd _ _)) id' hrTree
+  exact ite_decide hCond0 (hSingle hlits0 hlits0)
+    (ite_decide hCondSq (hSingle hlitsSq hlitsSq)
+      (hSingle (hbase.listAppend' (const [WireLit.const false]))
+        (hbase.listAppend' (const [WireLit.const true]))))
 
 /-- **`powerSumCircuit` admits polynomial-time wiring MLE evaluation.** -/
 theorem hasPolyTimeWiringMLE_powerSumCircuit :

@@ -128,11 +128,9 @@ private theorem noAdjScanProg_spec {w m : ℕ} (args : NoAdjArgs) {adjL xs : Lis
   let adj := fun u v => decide (adjL.getD (u * m + v) 0 ≠ 0)
   let env : NoAdjEnv := ⟨args.numVerts, args.adjPtr, args.x⟩
   have hcost : memoryCost (noAdjScanProg args) s ≤ 2 * args.len := by
-    unfold noAdjScanProg
-    rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
-    have hle := memoryCost_iterate_le_of noAdjStep 2 env (fun _ _ => le_rfl)
+    rw [noAdjScanProg, memoryCost_bind', memoryCost_pure, Nat.add_zero]
+    exact memoryCost_iterate_le_of noAdjStep 2 env (fun _ _ => le_rfl)
       args.len ⟨args.ptr, args.mask, 1⟩ s
-    omega
   suffices ∀ ys cur curM ok, HoldsIn cur ys s → (∀ u ∈ ys, u < m) →
       (ok = 0 ∨ ok = 1) →
       (Memory.spec w).ValidHistory s
@@ -140,29 +138,18 @@ private theorem noAdjScanProg_spec {w m : ℕ} (args : NoAdjArgs) {adjL xs : Lis
       ((Memory.spec 0).clientResult s
         (iterate noAdjStep env ys.length ⟨cur, curM, ok⟩)).ok =
         if ok = 1 ∧ noAdjInst adj args.x ys curM = true then 1 else 0 by
-    have hrun := this xs args.ptr args.mask 1 hxs hxs_lt (.inr rfl)
-    rw [hlen] at hrun
-    refine ⟨?_, noAdjScanProg_state args s, ?_, hcost⟩
-    · unfold noAdjScanProg
-      exact validHistory_bind_step hrun.1 (validHistory_pure w _ _)
-    · unfold noAdjScanProg
-      rw [StateTransitionSpec.clientResult_bind]
-      change ((Memory.spec 0).clientResult s
-        (iterate noAdjStep env args.len ⟨args.ptr, args.mask, 1⟩)).ok = _
-      rw [hrun.2]
-      cases noAdjInst adj args.x xs args.mask <;> rfl
+    have hrun := hlen ▸ this xs args.ptr args.mask 1 hxs hxs_lt (.inr rfl)
+    refine ⟨validHistory_bind_step hrun.1 (validHistory_pure w _ _), noAdjScanProg_state args s,
+      ?_, hcost⟩
+    rw [noAdjScanProg, StateTransitionSpec.clientResult_bind]
+    exact hrun.2.trans (by cases noAdjInst adj args.x xs args.mask <;> rfl)
   intro ys
   induction ys with
   | nil =>
-    intro cur curM ok _ _ hok
-    have h0 : iterate noAdjStep env 0 ⟨cur, curM, ok⟩ = pure ⟨cur, curM, ok⟩ := rfl
-    simp only [List.length_nil, h0, noAdjInst]
-    refine ⟨validHistory_pure w s _, ?_⟩
-    rcases hok with rfl | rfl <;> rfl
+    rintro cur curM _ _ _ (rfl | rfl) <;> exact ⟨validHistory_pure w s _, rfl⟩
   | cons u rest ih =>
     intro cur curM ok hcur hus hok
-    rw [HoldsIn.cons_iff] at hcur
-    obtain ⟨hb, hmem_u, hrest⟩ := hcur
+    obtain ⟨hb, hmem_u, hrest⟩ := HoldsIn.cons_iff.mp hcur
     have hu_lt : u < m := hus u List.mem_cons_self
     have hidx_lt : args.x * m + u < adjL.length := by
       rw [hadj_len]
@@ -185,11 +172,10 @@ private theorem noAdjScanProg_spec {w m : ℕ} (args : NoAdjArgs) {adjL xs : Lis
       split_ifs <;> simp
     obtain ⟨hv_rest, hr_rest⟩ :=
       ih (cur + 1) (curM / 2) ok' hrest (fun v hv => hus v (List.mem_cons_of_mem u hv)) hok'
-    have hcur_lt : cur < s.frontier := by omega
     have hv_step : (Memory.spec w).ValidHistory s
         ((Memory.spec w).clientHistory s (noAdjStep (env, ⟨cur, curM, ok⟩))) := by
       dsimp only [noAdjStep, env]
-      refine validHistory_read_bind hcur_lt ?_
+      refine validHistory_read_bind (by omega) ?_
       rw [hmem_u]
       exact validHistory_read_bind hadj_addr_lt (validHistory_pure w s _)
     have hst_step : (Memory.spec 0).clientState s (noAdjStep (env, ⟨cur, curM, ok⟩)) = s := rfl
@@ -199,19 +185,24 @@ private theorem noAdjScanProg_spec {w m : ℕ} (args : NoAdjArgs) {adjL xs : Lis
       change (⟨cur + 1, curM / 2, _⟩ : NoAdjState) = _
       rw [hmem_u]
     simp only [List.length_cons]
-    change (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s
-          (noAdjStep (env, ⟨cur, curM, ok⟩) >>= iterate noAdjStep env rest.length)) ∧
-      ((Memory.spec 0).clientResult s
-        (noAdjStep (env, ⟨cur, curM, ok⟩) >>= iterate noAdjStep env rest.length)).ok = _
+    dsimp only [iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_⟩
     rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step, hr_rest]
     simp only [ok', entry, hadj_read, noAdjInst]
     rcases hok with rfl | rfl
     · simp
-    · by_cases hbit : curM % 2 = 1
-      · simp [hbit, adj, and_comm]
-      · simp [hbit]
+    · by_cases hbit : curM % 2 = 1 <;> simp [hbit, adj, and_comm]
+
+private theorem holdsIn_drop_step {m len j cur : ℕ} {xs : List ℕ} {t : Memory.State}
+    (hlen : xs.length = len) (hj : j + 1 ≤ len) (hxs_lt : ∀ u ∈ xs, u < m)
+    (hrem : HoldsIn cur (xs.drop (len - (j + 1))) t) :
+    t.mem cur < m ∧ HoldsIn (cur + 1) (xs.drop (len - j)) t := by
+  have hj_lt : len - (j + 1) < xs.length := by omega
+  have hdrop_eq : xs.drop (len - (j + 1)) = xs[len - (j + 1)] :: xs.drop (len - j) := by
+    rw [show len - j = (len - (j + 1)) + 1 by omega]
+    exact List.drop_eq_getElem_cons hj_lt
+  rw [hdrop_eq, HoldsIn.cons_iff] at hrem
+  exact ⟨hrem.2.1 ▸ hxs_lt _ (List.getElem_mem hj_lt), hrem.2.2⟩
 
 private theorem noAdjScanProg_realizes :
     Realizes .exact noAdjScanProg WordEncoding.encode WordEncoding.encode
@@ -236,28 +227,16 @@ private theorem noAdjScanProg_realizes :
       (fun j st t ⟨hj_le, hcur, hok, hadj_t, hrem⟩ => ?_)
       ⟨le_rfl, rfl, le_rfl, hadj_h, by simpa only [Nat.sub_self, List.drop_zero] using hxs_h⟩
     dsimp only [noAdjStep]
-    have hj_lt : d.len - (j + 1) < xs.length := by omega
-    have hdrop_eq : xs.drop (d.len - (j + 1)) =
-        xs[d.len - (j + 1)] :: xs.drop (d.len - j) := by
-      have hsub : d.len - j = (d.len - (j + 1)) + 1 := by omega
-      rw [hsub]
-      exact List.drop_eq_getElem_cons hj_lt
-    rw [hdrop_eq, HoldsIn.cons_iff] at hrem
-    obtain ⟨_, hmem_u, hrem_next⟩ := hrem
-    have hu_lt : t.mem st.cur < m := by
-      rw [hmem_u]
-      exact hxs_lt _ (List.getElem_mem hj_lt)
+    obtain ⟨hu_lt, hrem_next⟩ := holdsIn_drop_step hxs_len hj_le hxs_lt hrem
     have hprod_lt : d.x * m + t.mem st.cur < m * m := by
       calc d.x * m + t.mem st.cur < d.x * m + m := Nat.add_lt_add_left hu_lt _
         _ = (d.x + 1) * m := by rw [Nat.succ_mul]
         _ ≤ m * m := Nat.mul_le_mul_right m hx_lt
     have hcur_fit : Fits w (st.cur + 1) := hptr_fit.of_le (by omega)
-    have hmul_fit : Fits w (d.x * d.numVerts) := by
-      rw [hnv]; exact hadj_fit.of_le (by omega)
-    have hsum1_fit : Fits w (d.adjPtr + d.x * d.numVerts) := by
-      rw [hnv]; exact hadj_fit.of_le (by omega)
-    have hsum2_fit : Fits w (d.adjPtr + d.x * d.numVerts + t.mem st.cur) := by
-      rw [hnv]; exact hadj_fit.of_le (by omega)
+    have hmul_fit : Fits w (d.x * d.numVerts) := hnv ▸ hadj_fit.of_le (by omega)
+    have hsum1_fit : Fits w (d.adjPtr + d.x * d.numVerts) := hnv ▸ hadj_fit.of_le (by omega)
+    have hsum2_fit : Fits w (d.adjPtr + d.x * d.numVerts + t.mem st.cur) :=
+      hnv ▸ hadj_fit.of_le (by omega)
     have h2_ne : 2 ≠ 0 := by decide
     refine ⟨?_, Nat.le_of_succ_le hj_le, ?_, ?_, hadj_t, hrem_next⟩
     · repeat (first | split | assumption | refine And.intro ?_ ?_)
@@ -341,19 +320,34 @@ def indepBagProg (args : IndepBagArgs) : Memory.Prog ℕ := do
     ⟨args.bagPtr, args.bagLen, args.mask, 1⟩
   pure res.ok
 
+private theorem indepBagStep_eval (env : IndepBagEnv) (st : IndepBagState) (t : Memory.State) :
+    let na := if st.curM % 2 = 1 then
+      (Memory.spec 0).clientResult t
+        (noAdjScanProg ⟨env.numVerts, env.adjPtr, t.mem st.cur, st.cur + 1, st.remLen - 1,
+          st.curM / 2⟩)
+    else 1
+    (Memory.spec 0).clientState t (indepBagStep (env, st)) = t ∧
+    (Memory.spec 0).clientResult t (indepBagStep (env, st)) =
+      ⟨st.cur + 1, st.remLen - 1, st.curM / 2, if st.ok = 1 then na else 0⟩ := by
+  have hr_st (a : ℕ) : (Memory.spec 0).clientState t (Memory.read a) = t := rfl
+  have hr_res (a : ℕ) : (Memory.spec 0).clientResult t (Memory.read a) = t.mem a := rfl
+  unfold indepBagStep
+  rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind, hr_st, hr_res]
+  dsimp only
+  split
+  · rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
+      noAdjScanProg_state]
+    exact ⟨rfl, rfl⟩
+  · exact ⟨rfl, rfl⟩
+
 /-- `indepBagProg` is read-only and leaves memory unchanged. -/
 theorem indepBagProg_state (args : IndepBagArgs) (s : Memory.State) :
     (Memory.spec 0).clientState s (indepBagProg args) = s := by
   unfold indepBagProg
   rw [StateTransitionSpec.clientState_bind]
-  refine clientState_iterate_eq_of indepBagStep ⟨args.numVerts, args.adjPtr⟩
-    (fun st m => ?_) args.bagLen ⟨args.bagPtr, args.bagLen, args.mask, 1⟩ s
-  unfold indepBagStep
-  rw [StateTransitionSpec.clientState_bind]
-  dsimp only
-  split
-  · rw [StateTransitionSpec.clientState_bind, noAdjScanProg_state]; rfl
-  · rfl
+  exact clientState_iterate_eq_of indepBagStep ⟨args.numVerts, args.adjPtr⟩
+    (fun st m => (indepBagStep_eval _ st m).1) args.bagLen
+    ⟨args.bagPtr, args.bagLen, args.mask, 1⟩ s
 
 /-- Correctness and `bagLen * (2 * bagLen + 1)` memory-cost bound for `indepBagProg`. -/
 theorem indepBagProg_spec {w m : ℕ} (args : IndepBagArgs) {adjL xs : List ℕ}
@@ -380,36 +374,21 @@ theorem indepBagProg_spec {w m : ℕ} (args : IndepBagArgs) {adjL xs : List ℕ}
         (if ok = 1 ∧ indepInst adj ys curM = true then 1 else 0) ∧
       memoryCost (iterate indepBagStep env ys.length ⟨cur, ys.length, curM, ok⟩) s ≤
         ys.length * (2 * ys.length + 1) by
-    have hrun := this xs args.bagPtr args.mask 1 hxs hxs_lt (.inr rfl)
-    rw [hlen] at hrun
-    refine ⟨?_, indepBagProg_state args s, ?_, ?_⟩
-    · unfold indepBagProg
-      exact validHistory_bind_step hrun.1 (validHistory_pure w _ _)
-    · unfold indepBagProg
-      rw [StateTransitionSpec.clientResult_bind]
-      change ((Memory.spec 0).clientResult s
-        (iterate indepBagStep env args.bagLen ⟨args.bagPtr, args.bagLen, args.mask, 1⟩)).ok = _
-      rw [hrun.2.1]
-      cases indepInst adj xs args.mask <;> rfl
-    · unfold indepBagProg
-      rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
-      exact hrun.2.2
-  intro ys
-  induction ys with
+    have hrun := hlen ▸ this xs args.bagPtr args.mask 1 hxs hxs_lt (.inr rfl)
+    refine ⟨validHistory_bind_step hrun.1 (validHistory_pure w _ _), indepBagProg_state args s,
+      ?_, by simpa only [indepBagProg, memoryCost_bind', memoryCost_pure, Nat.add_zero] using
+        hrun.2.2⟩
+    rw [indepBagProg, StateTransitionSpec.clientResult_bind]
+    exact hrun.2.1.trans (by cases indepInst adj xs args.mask <;> rfl)
+  intro ys cur curM ok hcur hus hok
+  induction ys generalizing cur curM ok with
   | nil =>
-    intro cur curM ok _ _ hok
-    have h0 : iterate indepBagStep env 0 ⟨cur, 0, curM, ok⟩ = pure ⟨cur, 0, curM, ok⟩ := rfl
-    simp only [List.length_nil, h0, indepInst]
-    refine ⟨validHistory_pure w s _, ?_, by simp [memoryCost_pure]⟩
-    rcases hok with rfl | rfl <;> rfl
+    rcases hok with rfl | rfl <;>
+      exact ⟨validHistory_pure w s _, rfl, by simp [iterate, memoryCost_pure]⟩
   | cons u rest ih =>
-    intro cur curM ok hcur hus hok
-    rw [HoldsIn.cons_iff] at hcur
-    obtain ⟨hb, hmem_u, hrest⟩ := hcur
+    obtain ⟨hb, hmem_u, hrest⟩ := HoldsIn.cons_iff.mp hcur
     have hu_lt : u < m := hus u List.mem_cons_self
-    have hrest_lt : ∀ v ∈ rest, v < m :=
-      fun v hv => hus v (List.mem_cons_of_mem u hv)
-    have hcur_lt : cur < s.frontier := by omega
+    have hrest_lt : ∀ v ∈ rest, v < m := fun v hv => hus v (List.mem_cons_of_mem u hv)
     let naPure : ℕ :=
       if curM % 2 = 1 then
         if noAdjInst adj u rest (curM / 2) then 1 else 0
@@ -419,65 +398,41 @@ theorem indepBagProg_spec {w m : ℕ} (args : IndepBagArgs) {adjL xs : List ℕ}
       dsimp only [ok', naPure]
       split_ifs <;> simp
     obtain ⟨hv_rest, hr_rest, hc_rest⟩ := ih (cur + 1) (curM / 2) ok' hrest hrest_lt hok'
-    have hr_st (a : ℕ) : (Memory.spec 0).clientState s (Memory.read a) = s := rfl
-    have hr_res (a : ℕ) : (Memory.spec 0).clientResult s (Memory.read a) = s.mem a := rfl
     obtain ⟨hv_na, hst_na, hr_na, hc_na⟩ :=
       noAdjScanProg_spec (w := w)
         ⟨args.numVerts, args.adjPtr, u, cur + 1, rest.length, curM / 2⟩
         hadj hadj_len hnv hu_lt hrest rfl hrest_lt
     dsimp only at hr_na hc_na
+    simp only [List.length_cons]
+    obtain ⟨hst_step, hres_step⟩ := indepBagStep_eval env ⟨cur, rest.length + 1, curM, ok⟩ s
+    simp only [env, hmem_u, Nat.add_sub_cancel, hr_na] at hres_step
     have hv_step : (Memory.spec w).ValidHistory s
         ((Memory.spec w).clientHistory s
-          (indepBagStep (env, ⟨cur, (u :: rest).length, curM, ok⟩))) := by
+          (indepBagStep (env, ⟨cur, rest.length + 1, curM, ok⟩))) := by
       unfold indepBagStep
-      simp only [env, List.length_cons, Nat.add_sub_cancel]
-      refine validHistory_read_bind hcur_lt ?_
+      simp only [env, Nat.add_sub_cancel]
+      refine validHistory_read_bind (by omega) ?_
       rw [hmem_u]
       split
       · exact validHistory_bind_step hv_na (validHistory_pure w _ _)
-      · rw [pure_bind]; exact validHistory_pure w s _
-    have hst_step : (Memory.spec 0).clientState s
-        (indepBagStep (env, ⟨cur, (u :: rest).length, curM, ok⟩)) = s := by
-      unfold indepBagStep
-      rw [StateTransitionSpec.clientState_bind, hr_st, hr_res]
-      simp only [env, List.length_cons, Nat.add_sub_cancel]
-      split
-      · rw [StateTransitionSpec.clientState_bind, noAdjScanProg_state]; rfl
-      · rfl
-    have hres_step : (Memory.spec 0).clientResult s
-        (indepBagStep (env, ⟨cur, (u :: rest).length, curM, ok⟩)) =
-        ⟨cur + 1, rest.length, curM / 2, ok'⟩ := by
-      unfold indepBagStep
-      rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res, hmem_u]
-      simp only [env, List.length_cons, Nat.add_sub_cancel, ok', naPure]
-      split
-      · rw [StateTransitionSpec.clientResult_bind, hst_na, hr_na]; rfl
-      · rfl
-    have hc_step : memoryCost (indepBagStep (env, ⟨cur, (u :: rest).length, curM, ok⟩)) s ≤
+      · exact validHistory_pure w s _
+    have hc_step : memoryCost (indepBagStep (env, ⟨cur, rest.length + 1, curM, ok⟩)) s ≤
         2 * rest.length + 1 := by
       unfold indepBagStep
-      rw [memoryCost_bind', memoryCost_read, hr_st, hr_res, hmem_u]
-      simp only [env, List.length_cons, Nat.add_sub_cancel]
+      rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, hmem_u]
+      simp only [env, Nat.add_sub_cancel]
       split
       · rw [memoryCost_bind', hst_na, memoryCost_pure, Nat.add_zero]; omega
-      · rw [pure_bind, memoryCost_pure]; omega
-    have hiter_eq :
-        iterate indepBagStep env (u :: rest).length ⟨cur, (u :: rest).length, curM, ok⟩ =
-        (indepBagStep (env, ⟨cur, (u :: rest).length, curM, ok⟩) >>=
-          iterate indepBagStep env rest.length) := rfl
-    rw [hiter_eq]
+      · simp [memoryCost_pure]
+    dsimp only [iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_, ?_⟩
     · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step, hr_rest]
       dsimp only [ok', naPure, indepInst]
       rcases hok with rfl | rfl
       · simp
-      · by_cases hbit : curM % 2 = 1 <;>
-          by_cases hna : noAdjInst adj u rest (curM / 2) = true <;>
-          by_cases hind : indepInst adj rest (curM / 2) = true <;>
-          simp [hbit, hna, hind]
+      · by_cases hbit : curM % 2 = 1 <;> simp [hbit, and_comm]
     · rw [memoryCost_bind', hst_step, hres_step]
-      simp only [List.length_cons]
-      calc memoryCost (indepBagStep (env, ⟨cur, (u :: rest).length, curM, ok⟩)) s +
+      calc memoryCost (indepBagStep (env, ⟨cur, rest.length + 1, curM, ok⟩)) s +
             memoryCost
               (iterate indepBagStep env rest.length ⟨cur + 1, rest.length, curM / 2, ok'⟩) s
           ≤ (2 * rest.length + 1) + rest.length * (2 * rest.length + 1) :=
@@ -509,72 +464,30 @@ theorem indepBagProg_realizes :
       (fun j st t ⟨hj_le, hrem_eq, hcur, hok, hadj_t, hrem⟩ => ?_)
       ⟨le_rfl, rfl, rfl, le_rfl, hadj_h,
         by simpa only [Nat.sub_self, List.drop_zero] using hxs_h⟩
-    have hj_lt : d.bagLen - (j + 1) < xs.length := by omega
-    have hdrop_eq : xs.drop (d.bagLen - (j + 1)) =
-        xs[d.bagLen - (j + 1)] :: xs.drop (d.bagLen - j) := by
-      have hsub : d.bagLen - j = (d.bagLen - (j + 1)) + 1 := by omega
-      rw [hsub]
-      exact List.drop_eq_getElem_cons hj_lt
-    rw [hdrop_eq, HoldsIn.cons_iff] at hrem
-    obtain ⟨_, hmem_u, hrem_next⟩ := hrem
-    have hu_lt : t.mem st.cur < m := by
-      rw [hmem_u]
-      exact hxs_lt _ (List.getElem_mem hj_lt)
+    obtain ⟨hu_lt, hrem_next⟩ := holdsIn_drop_step hxs_len hj_le hxs_lt hrem
     have hcur_fit : Fits w (st.cur + 1) := hptr_fit.of_le (by omega)
     have hrem_ge1 : 1 ≤ st.remLen := by omega
     have htail_len : (xs.drop (d.bagLen - j)).length = st.remLen - 1 := by
       rw [List.length_drop]; omega
     have htail_lt : ∀ v ∈ xs.drop (d.bagLen - j), v < m :=
       fun v hv => hxs_lt v (List.mem_of_mem_drop hv)
-    have hnoAdj_safe : Fits w 2 ∧ ∃ m' adjL' xs',
-        adjL'.length = m' * m' ∧ d.numVerts = m' ∧ t.mem st.cur < m' ∧
-        HoldsIn d.adjPtr adjL' t ∧ HoldsIn (st.cur + 1) xs' t ∧ xs'.length = st.remLen - 1 ∧
-        (∀ u ∈ xs', u < m') ∧ Fits w (d.adjPtr + m' * m') ∧
-        Fits w ((st.cur + 1) + (st.remLen - 1)) :=
-      ⟨h2, m, adjL, xs.drop (d.bagLen - j), hadjL_len, hnv, hu_lt, hadj_t, hrem_next,
-        htail_len, htail_lt, hadj_fit, hptr_fit.of_le (by omega)⟩
-    have hst_body : (Memory.spec 0).clientState t
-        (indepBagStep (⟨d.numVerts, d.adjPtr⟩, st)) = t := by
-      unfold indepBagStep
-      rw [StateTransitionSpec.clientState_bind]
-      dsimp only
-      split
-      · rw [StateTransitionSpec.clientState_bind, noAdjScanProg_state]; rfl
-      · rfl
-    have hr_st (a : ℕ) : (Memory.spec 0).clientState t (Memory.read a) = t := rfl
-    have hr_res (a : ℕ) : (Memory.spec 0).clientResult t (Memory.read a) = t.mem a := rfl
-    refine ⟨?_, Nat.le_of_succ_le hj_le, ?_, ?_, ?_, ?_, ?_⟩
-    · repeat (first | split | exact hnoAdj_safe | assumption | refine And.intro ?_ ?_)
-    · unfold indepBagStep
-      rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res]
-      dsimp only
-      split <;> [rw [StateTransitionSpec.clientResult_bind, noAdjScanProg_state]; skip] <;>
-        (change st.remLen - 1 = j; omega)
-    · unfold indepBagStep
-      rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res]
-      dsimp only
-      split <;> [rw [StateTransitionSpec.clientResult_bind, noAdjScanProg_state]; skip] <;>
-        (change (st.cur + 1) + j = d.bagPtr + d.bagLen; omega)
-    · unfold indepBagStep
-      rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res]
-      dsimp only
-      split
-      · rw [StateTransitionSpec.clientResult_bind, noAdjScanProg_state]
-        have hr_na := (noAdjScanProg_spec (w := 0)
-          ⟨d.numVerts, d.adjPtr, t.mem st.cur, st.cur + 1, st.remLen - 1, st.curM / 2⟩
-          hadj_t hadjL_len hnv hu_lt hrem_next htail_len htail_lt).2.2.1
-        dsimp only at hr_na
-        rw [hr_na]
-        change (if st.ok = 1 then (if _ then 1 else 0) else 0) ≤ 1
-        split_ifs <;> omega
-      · change (if st.ok = 1 then 1 else 0) ≤ 1
-        split_ifs <;> omega
-    · rw [hst_body]; exact hadj_t
-    · rw [hst_body]
-      unfold indepBagStep
-      rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res]
-      dsimp only
-      split <;> [rw [StateTransitionSpec.clientResult_bind, noAdjScanProg_state]; skip] <;>
-        exact hrem_next
+    obtain ⟨hst_ev, hres_ev⟩ := indepBagStep_eval ⟨d.numVerts, d.adjPtr⟩ st t
+    have hr_na := (noAdjScanProg_spec (w := 0)
+      ⟨d.numVerts, d.adjPtr, t.mem st.cur, st.cur + 1, st.remLen - 1, st.curM / 2⟩
+      hadj_t hadjL_len hnv hu_lt hrem_next htail_len htail_lt).2.2.1
+    dsimp only at hr_na
+    refine ⟨?_, Nat.le_of_succ_le hj_le,
+      (congrArg IndepBagState.remLen hres_ev).trans (by rw [hrem_eq, Nat.add_sub_cancel]),
+      by simp only [hres_ev]; omega, ?_, hst_ev.symm ▸ hadj_t,
+      hst_ev.symm ▸ (congrArg IndepBagState.cur hres_ev).symm ▸ hrem_next⟩
+    · dsimp only
+      repeat (first
+        | split
+        | exact ⟨h2, m, adjL, xs.drop (d.bagLen - j), hadjL_len, hnv, hu_lt, hadj_t, hrem_next,
+            htail_len, htail_lt, hadj_fit, hptr_fit.of_le (by omega)⟩
+        | assumption
+        | refine And.intro ?_ ?_)
+    · simp only [hres_ev, hr_na]
+      split_ifs <;> omega
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

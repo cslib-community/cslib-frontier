@@ -114,23 +114,17 @@ def compl (G : Graph) : Graph :=
 /-- On the vertices of a graph, adjacency in the complement is non-adjacency in the graph. -/
 theorem compl_adj_iff {G : Graph} {u v : ℕ} (hu : u ∈ G.vertices) (hv : v ∈ G.vertices) :
     G.compl.toSimpleGraph.Adj u v ↔ u ≠ v ∧ ¬G.toSimpleGraph.Adj u v := by
-  have hedge : ∀ {a b}, (a, b) ∈ G.compl.edges ↔ a ∈ G.vertices ∧ b ∈ G.vertices ∧
-      (a ≠ b ∧ (a, b) ∉ G.edges ∧ (b, a) ∉ G.edges) := by
-    intro a b
+  have hedge {a b : ℕ} : (a, b) ∈ G.compl.edges ↔
+      a ∈ G.vertices ∧ b ∈ G.vertices ∧ a ≠ b ∧ (a, b) ∉ G.edges ∧ (b, a) ∉ G.edges := by
     simp only [compl, List.mem_flatMap, List.mem_map, List.mem_filter, decide_eq_true_eq,
-      Prod.mk.injEq]
-    constructor
-    · rintro ⟨a', ha', b', ⟨hb', hne⟩, rfl, rfl⟩
-      exact ⟨ha', hb', hne⟩
-    · rintro ⟨ha, hb, hne⟩
-      exact ⟨a, ha, b, ⟨hb, hne⟩, rfl, rfl⟩
+      Prod.mk.injEq, and_assoc]
+    exact ⟨fun ⟨_, ha, _, hb, h1, h2, h3, rfl, rfl⟩ => ⟨ha, hb, h1, h2, h3⟩,
+      fun ⟨ha, hb, h1, h2, h3⟩ => ⟨a, ha, b, hb, h1, h2, h3, rfl, rfl⟩⟩
   simp only [toSimpleGraph_adj, ne_eq, hedge]
-  constructor
-  · rintro ⟨huv, ⟨-, -, -, h₁, h₂⟩ | ⟨-, -, -, h₁, h₂⟩⟩
-    · exact ⟨huv, fun ⟨_, h⟩ => h.elim h₁ h₂⟩
-    · exact ⟨huv, fun ⟨_, h⟩ => h.elim h₂ h₁⟩
-  · rintro ⟨huv, h⟩
-    refine ⟨huv, Or.inl ⟨hu, hv, huv, fun h₁ => h ⟨huv, Or.inl h₁⟩, fun h₂ => h ⟨huv, Or.inr h₂⟩⟩⟩
+  exact ⟨fun ⟨huv, h⟩ => ⟨huv, fun ⟨_, he⟩ =>
+      h.elim (fun h => he.elim h.2.2.2.1 h.2.2.2.2) fun h => he.elim h.2.2.2.2 h.2.2.2.1⟩,
+    fun ⟨huv, h⟩ => ⟨huv, .inl ⟨hu, hv, huv, fun h₁ => h ⟨huv, .inl h₁⟩,
+      fun h₂ => h ⟨huv, .inr h₂⟩⟩⟩⟩
 
 /-- The induced graph of the complement is the complement of the induced graph. -/
 @[simp]
@@ -172,14 +166,12 @@ def verifier : CliqueInstance × List Bool → Bool :=
 /-- `Clique.verifier` verifies `Clique` with certificates as long as the encoded instance. -/
 theorem isVerifier :
     IsVerifier encCliqueInstance Polynomial.X verifier Clique := by
-  have h := Graph.isVerifier_verifySubset (rel := Graph.adjBool)
-    (P := fun G u v => G.toSimpleGraph.Adj u v)
-    (fun G u v _ => by rw [Graph.adjBool_eq_true_iff])
   intro x
-  have hx := h (x.graph, x.m)
-  simp only [Clique, Set.mem_ofPred_eq, SimpleGraph.isNClique_iff, SimpleGraph.IsClique, verifier]
-  rw [encCliqueInstance_apply]
-  exact hx
+  simp only [Clique, Set.mem_ofPred_eq, SimpleGraph.isNClique_iff, SimpleGraph.IsClique,
+    verifier, encCliqueInstance_apply]
+  exact Graph.isVerifier_verifySubset (rel := Graph.adjBool)
+    (P := fun G u v => G.toSimpleGraph.Adj u v)
+    (fun G u v _ => Graph.adjBool_eq_true_iff G u v) (x.graph, x.m)
 
 /-- The `Clique` verifier is polynomial-time. -/
 @[fun_prop]

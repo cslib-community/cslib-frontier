@@ -63,27 +63,25 @@ theorem abs_gaussianMass_normalized_sub_one_le (s : ℝ) (hs : 0 < s) (c : E) :
     (Real.fourierChar (-⟪c, (w : E)⟫) : ℂ)
   have hnorm (w : D) : ‖f w‖ = gaussianWeight (1 / s) (w : E) := by
     simp [f, Real.norm_of_nonneg (gaussianWeight_pos _ _).le]
-  have hsum : Summable f := by
-    apply summable_norm_iff.mp
+  have hsum : Summable f := summable_norm_iff.mp <| by
     simpa only [hnorm, sub_zero] using summable_gaussianWeight D (1 / s) (one_div_pos.mpr hs) 0
   have hsplit : (∑' w : D, f w) = 1 + ∑' w : ↥{w : D | w ≠ 0}, f w := by
     have h := hsum.sum_add_tsum_compl (s := {0})
-    have hset : (↑({0} : Finset D) : Set D)ᶜ = {w | w ≠ 0} := by ext w; simp
+    have hset : (↑({0} : Finset D) : Set D)ᶜ = {w | w ≠ 0} := Set.ext fun _ => by simp
     rw [hset] at h
     simpa [f, gaussianWeight] using h.symm
   have hcancel : (covolume L : ℂ) / (s : ℂ) ^ finrank ℝ E *
       ((s : ℂ) ^ finrank ℝ E / (covolume L : ℂ)) = 1 := by
-    have hc : (covolume L : ℂ) ≠ 0 := Complex.ofReal_ne_zero.mpr (covolume_pos L volume).ne'
-    have hsc : (s : ℂ) ≠ 0 := Complex.ofReal_ne_zero.mpr hs.ne'
+    have : (covolume L : ℂ) ≠ 0 := Complex.ofReal_ne_zero.mpr (covolume_pos L volume).ne'
+    have : (s : ℂ) ≠ 0 := Complex.ofReal_ne_zero.mpr hs.ne'
     field_simp
   rw [← Real.norm_eq_abs, ← Complex.norm_real]
   push_cast
   rw [gaussianMass_eq_tsum_dual L s hs c, ← mul_assoc, hcancel, one_mul]
   change ‖(∑' w : D, f w) - 1‖ ≤ gaussianMass D (1 / s) 0 - 1
-  rw [hsplit, add_sub_cancel_left, gaussianMass_zero_sub_one_eq_tsum D (1 / s)
-    (one_div_pos.mpr hs)]
-  have hn : Summable (fun w : ↥{w : D | w ≠ 0} ↦ ‖f w‖) := hsum.norm.subtype _
-  simpa only [hnorm] using norm_tsum_le_tsum_norm hn
+  rw [hsplit, add_sub_cancel_left, gaussianMass_zero_sub_one_eq_tsum D (1 / s) (one_div_pos.mpr hs)]
+  simpa only [hnorm] using
+    norm_tsum_le_tsum_norm (hsum.norm.subtype _ : Summable fun w : ↥{w : D | w ≠ 0} ↦ ‖f w‖)
 
 /-- A bound on the actual nonzero dual mass gives the Gaussian mass interval uniformly over
 all centers. For the source's translate `L + c`, use center `-c`. -/
@@ -97,13 +95,12 @@ theorem gaussianMass_mem_Icc_of_dual_mass_le (s : ℝ) (hs : 0 < s) (ε : ℝ)
   have hc := covolume_pos L volume
   have hp : 0 < s ^ finrank ℝ E := pow_pos hs _
   have heq : s ^ finrank ℝ E / covolume L *
-      (covolume L / s ^ finrank ℝ E * gaussianMass L s c) = gaussianMass L s c := by
-    field_simp
-  constructor
-  · have hh : 1 - ε ≤ covolume L / s ^ finrank ℝ E * gaussianMass L s c := by linarith [h.1]
-    simpa only [heq] using mul_le_mul_of_nonneg_left hh (div_pos hp hc).le
-  · have hh : covolume L / s ^ finrank ℝ E * gaussianMass L s c ≤ 1 + ε := by linarith [h.2]
-    simpa only [heq] using mul_le_mul_of_nonneg_left hh (div_pos hp hc).le
+      (covolume L / s ^ finrank ℝ E * gaussianMass L s c) = gaussianMass L s c := by field_simp
+  refine ⟨?_, ?_⟩
+  · rw [← heq]
+    exact mul_le_mul_of_nonneg_left (by linarith [h.1]) (div_pos hp hc).le
+  · rw [← heq]
+    exact mul_le_mul_of_nonneg_left (by linarith [h.2]) (div_pos hp hc).le
 
 /-- Smoothing-parameter conversion of `gaussianMass_mem_Icc_of_dual_mass_le`: shifted lattice
 Gaussian mass interval above the smoothing parameter ([Regev2009], Claim 3.8, p. 22). For the
@@ -123,24 +120,13 @@ private theorem gaussianMass_le_gaussianMass_zero_of_isZLattice
     (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
     (s : ℝ) (hs : 0 < s) (c : E) :
     gaussianMass L s c ≤ gaussianMass L s 0 := by
-  have h1 := (abs_le.mp (abs_gaussianMass_normalized_sub_one_le L s hs c)).2
-  have h2 : covolume L / s ^ finrank ℝ E * gaussianMass L s c ≤
-      gaussianMass (LinearMap.BilinForm.dualSubmodule (innerₗ E) L) (1 / s) 0 := by
-    linarith
   have h0 : gaussianMass L s 0 = s ^ finrank ℝ E / covolume L *
       gaussianMass (LinearMap.BilinForm.dualSubmodule (innerₗ E) L) (1 / s) 0 := by
     apply Complex.ofReal_injective
     simpa only [inner_zero_left, neg_zero, Real.fourierChar.map_zero_eq_one, Circle.coe_one,
       one_mul, mul_one, gaussianMass, sub_zero, Complex.ofReal_mul, Complex.ofReal_div,
       Complex.ofReal_pow, Complex.ofReal_tsum] using gaussianMass_eq_tsum_dual L s hs 0
-  have hc : 0 < covolume L := covolume_pos L volume
-  have hsp : 0 < s ^ finrank ℝ E := pow_pos hs _
-  have hmul := mul_le_mul_of_nonneg_left h2 (div_pos hsp hc).le
-  rw [← h0] at hmul
-  have hcancel : s ^ finrank ℝ E / covolume L *
-      (covolume L / s ^ finrank ℝ E * gaussianMass L s c) = gaussianMass L s c := by
-    field_simp
-  rwa [hcancel] at hmul
+  simpa [h0] using (gaussianMass_mem_Icc_of_dual_mass_le L s hs _ le_rfl c).2
 
 /-- Shifted lattice Gaussian mass is maximized at the origin ([MicciancioRegev2007], Lemma 2.9,
 p. 9 of the December 27, 2005 author's copy). Holds for every discrete `ℤ`-submodule `L` of a
@@ -155,52 +141,44 @@ theorem gaussianMass_le_gaussianMass_zero {E : Type*} [NormedAddCommGroup E]
   have hproj : gaussianMass L s c ≤ gaussianMass L s (cPar : E) := by
     refine Summable.tsum_le_tsum (fun z : L ↦ ?_)
       (summable_gaussianWeight L s hs c) (summable_gaussianWeight L s hs (cPar : E))
-    have hdiff : (z : E) - (cPar : E) ∈ V :=
-      V.sub_mem (Submodule.subset_span z.property) cPar.property
-    have horth : c - (cPar : E) ∈ Vᗮ := V.sub_starProjection_mem_orthogonal c
     have hinner : ⟪(z : E) - (cPar : E), c - (cPar : E)⟫ = 0 :=
-      (Submodule.mem_orthogonal V _).mp horth _ hdiff
+      (Submodule.mem_orthogonal V _).mp (V.sub_starProjection_mem_orthogonal c) _
+        (V.sub_mem (Submodule.subset_span z.2) cPar.2)
     have hsq : ‖(z : E) - (cPar : E)‖ ^ 2 ≤ ‖(z : E) - c‖ ^ 2 := by
-      have hdecomp : (z : E) - c = ((z : E) - (cPar : E)) - (c - (cPar : E)) :=
-        (sub_sub_sub_cancel_right (z : E) c (cPar : E)).symm
       have hsub : ‖(z : E) - c‖ ^ 2 =
           ‖(z : E) - (cPar : E)‖ ^ 2 + ‖c - (cPar : E)‖ ^ 2 := by
         calc
           ‖(z : E) - c‖ ^ 2 = ‖((z : E) - (cPar : E)) - (c - (cPar : E))‖ ^ 2 := by
-            rw [hdecomp]
+            rw [← sub_sub_sub_cancel_right (z : E) c (cPar : E)]
           _ = ‖(z : E) - (cPar : E)‖ ^ 2 - 2 * ⟪(z : E) - (cPar : E), c - (cPar : E)⟫ +
               ‖c - (cPar : E)‖ ^ 2 := norm_sub_sq_real _ _
           _ = ‖(z : E) - (cPar : E)‖ ^ 2 + ‖c - (cPar : E)‖ ^ 2 := by rw [hinner]; ring
       nlinarith [sq_nonneg ‖c - (cPar : E)‖]
-    apply Real.exp_le_exp.mpr
-    have hdiv : Real.pi * ‖(z : E) - (cPar : E)‖ ^ 2 / s ^ 2 ≤
-        Real.pi * ‖(z : E) - c‖ ^ 2 / s ^ 2 := by
-      gcongr
+    refine Real.exp_le_exp.mpr ?_
     simp only [neg_mul, neg_div]
-    exact neg_le_neg hdiv
+    gcongr
   let LV : Submodule ℤ V := L.comap (V.subtype.restrictScalars ℤ)
   let e : LV ≃ₜ L := {
-    toFun := fun x ↦ ⟨(x.val : E), x.property⟩
-    invFun := fun z ↦ ⟨⟨(z : E), Submodule.subset_span z.property⟩, z.property⟩
+    toFun := fun x ↦ ⟨(x.1 : E), x.2⟩
+    invFun := fun z ↦ ⟨⟨(z : E), Submodule.subset_span z.2⟩, z.2⟩
     left_inv := fun _ ↦ rfl
     right_inv := fun _ ↦ rfl
-    continuous_toFun := (continuous_subtypeVal.comp continuous_subtypeVal).subtype_mk _
-    continuous_invFun := (continuous_subtypeVal.subtype_mk _).subtype_mk _
+    continuous_toFun := (continuous_subtype_val.comp continuous_subtype_val).subtype_mk _
+    continuous_invFun := (continuous_subtype_val.subtype_mk _).subtype_mk _
   }
   have hLV_disc : DiscreteTopology LV := e.discreteTopology_iff.mpr inferInstance
   have hLV_lat : IsZLattice ℝ LV := ⟨by
     apply Submodule.map_injective_of_injective V.injective_subtype
-    rw [Submodule.map_span, Submodule.map_top, Submodule.range_subtype]
     have himg : (V.subtype '' (LV : Set V)) = (L : Set E) := by
       ext y
       refine ⟨?_, fun hy ↦ ⟨⟨y, Submodule.subset_span hy⟩, hy, rfl⟩⟩
-      rintro ⟨x, hx, rfl⟩
+      rintro ⟨_, hx, rfl⟩
       exact hx
-    rw [himg]⟩
+    rw [Submodule.map_span, Submodule.map_top, Submodule.range_subtype, himg]⟩
   have hmass_eq (y : V) : gaussianMass LV s y = gaussianMass L s (y : E) := by
     unfold gaussianMass
     rw [← e.toEquiv.tsum_eq (fun z : L ↦ gaussianWeight s ((z : E) - (y : E)))]
-    refine tsum_congr fun _ ↦ rfl
+    exact tsum_congr fun _ ↦ rfl
   have hborel : @BorelSpace V _ (borel V) := @BorelSpace.mk V _ (borel V) rfl
   calc
     gaussianMass L s c ≤ gaussianMass L s (cPar : E) := hproj

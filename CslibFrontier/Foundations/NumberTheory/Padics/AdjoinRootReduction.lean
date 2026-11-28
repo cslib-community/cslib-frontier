@@ -180,17 +180,14 @@ theorem reduction_toRat (o : AdjoinRoot f) :
       (Valuation.mem_integer_iff _ _).mpr (padicValuation_map_le_one hf hirr o)⟩ =
         map (Int.castRingHom (ZMod (p ^ n))) f _ dvd_rfl o := by
   obtain ⟨P, rfl⟩ := mk_surjective o
-  have hcoe : (integerEquiv hf hirr
-      (mk _ (P.map (Int.castRingHom (Rat.padicValuation p).integer))) :
-      AdjoinRoot (f.map (Int.castRingHom ℚ))) = map (Int.castRingHom ℚ) f _ dvd_rfl (mk f P) := by
-    rw [coe_integerEquiv, integerMap_mk, map_mk, Polynomial.map_map]
-    congr 2
   have hy : integerEquiv hf hirr (mk _ (P.map (Int.castRingHom (Rat.padicValuation p).integer))) =
       ⟨map (Int.castRingHom ℚ) f _ dvd_rfl (mk f P),
-        (Valuation.mem_integer_iff _ _).mpr (padicValuation_map_le_one hf hirr _)⟩ :=
-    Subtype.ext hcoe
-  rw [← hy, reduction_integerEquiv, integerReduction, map_mk, map_mk,
-    Polynomial.map_map]
+        (Valuation.mem_integer_iff _ _).mpr (padicValuation_map_le_one hf hirr _)⟩ := by
+    apply Subtype.ext
+    dsimp only
+    rw [coe_integerEquiv, integerMap_mk, map_mk, Polynomial.map_map]
+    congr 2
+  rw [← hy, reduction_integerEquiv, integerReduction, map_mk, map_mk, Polynomial.map_map]
   congr 2
   exact RingHom.ext_int _ _
 

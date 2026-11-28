@@ -174,10 +174,20 @@ def evalScopeIdx (args : EvalScopeArgs) : Memory.Prog ℕ := do
 private theorem evalScopeStep_state (env : EvalScopeEnv) (st : EvalScopeState) (s : Memory.State) :
     (Memory.spec 0).clientState s (evalScopeStep (env, st)) = s := by
   unfold evalScopeStep
-  rw [StateTransitionSpec.clientState_bind]
-  have h1 : (Memory.spec 0).clientState s (Memory.read st.cur) = s := rfl
-  have h2 : (Memory.spec 0).clientResult s (Memory.read st.cur) = s.mem st.cur := rfl
-  rw [h1, h2, StateTransitionSpec.clientState_bind]
+  rw [clientState_bind_read, StateTransitionSpec.clientState_bind]
+  split_ifs
+  · rfl
+  · rw [lookupAssign_state]; rfl
+
+private theorem evalScopeStep_result (env : EvalScopeEnv) (st : EvalScopeState)
+    (s : Memory.State) :
+    (Memory.spec 0).clientResult s (evalScopeStep (env, st)) =
+      ⟨st.cur + 1, st.acc + (if s.mem st.cur = env.x then env.a else
+        (Memory.spec 0).clientResult s
+          (lookupAssign ⟨env.dom, s.mem st.cur, env.outPtr, env.outLen, env.idx⟩)) * st.pow,
+        st.pow * env.dom⟩ := by
+  unfold evalScopeStep
+  rw [clientResult_bind_read, StateTransitionSpec.clientResult_bind]
   split_ifs
   · rfl
   · rw [lookupAssign_state]; rfl
@@ -196,9 +206,7 @@ theorem evalScopeIdx_cost (args : EvalScopeArgs) (s : Memory.State) :
     args.scopeLen ⟨args.scopePtr, 0, 1⟩ s
   unfold evalScopeStep
   dsimp only
-  have hr : (Memory.spec 0).clientState t (Memory.read st.cur) = t := rfl
-  have hres : (Memory.spec 0).clientResult t (Memory.read st.cur) = t.mem st.cur := rfl
-  rw [memoryCost_bind', memoryCost_read, hr, hres, memoryCost_bind']
+  rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, memoryCost_bind']
   split_ifs
   · rw [memoryCost_pure, memoryCost_pure]; omega
   · rw [lookupAssign_state, memoryCost_pure]
@@ -226,19 +234,12 @@ theorem evalScopeIdx_valid {w : ℕ} (args : EvalScopeArgs) {s : Memory.State}
     have hstep : (Memory.spec w).ValidHistory s
         ((Memory.spec w).clientHistory s (evalScopeStep (env, ⟨cur, acc, pow⟩))) := by
       unfold evalScopeStep
-      refine validHistory_read_bind hlt ?_
-      refine validHistory_bind_step ?_ (validHistory_pure w _ _)
+      refine validHistory_read_bind hlt (validHistory_bind_step ?_ (validHistory_pure w _ _))
       split_ifs
-      · exact validHistory_pure w s _
-      · exact lookupAssign_valid _ hout
+      exacts [validHistory_pure w s _, lookupAssign_valid _ hout]
     have hcur_next : ((Memory.spec 0).clientResult s
         (evalScopeStep (env, ⟨cur, acc, pow⟩))).cur = cur + 1 := by
-      unfold evalScopeStep
-      rw [StateTransitionSpec.clientResult_bind]
-      have h1 : (Memory.spec 0).clientState s (Memory.read cur) = s := rfl
-      have h2 : (Memory.spec 0).clientResult s (Memory.read cur) = s.mem cur := rfl
-      rw [h1, h2, StateTransitionSpec.clientResult_bind]
-      split_ifs <;> rfl
+      rw [evalScopeStep_result]
     change (Memory.spec w).ValidHistory s
       ((Memory.spec w).clientHistory s
         (evalScopeStep (env, ⟨cur, acc, pow⟩) >>= iterate evalScopeStep env len))
@@ -278,16 +279,13 @@ theorem evalScopeIdx_result {args : EvalScopeArgs} {outScope fScope : List ℕ}
     rw [StateTransitionSpec.clientResult_bind, evalScopeStep_state]
     have hstep_res : (Memory.spec 0).clientResult s (evalScopeStep (env, ⟨cur, acc, pow⟩)) =
         ⟨cur + 1, acc + σ v * pow, pow * args.dom⟩ := by
-      unfold evalScopeStep
-      rw [StateTransitionSpec.clientResult_bind]
-      have h1 : (Memory.spec 0).clientState s (Memory.read cur) = s := rfl
-      have h2 : (Memory.spec 0).clientResult s (Memory.read cur) = v := hhead
-      rw [h1, h2, StateTransitionSpec.clientResult_bind]
+      rw [evalScopeStep_result]
+      dsimp only
+      rw [hhead]
       by_cases hvx : v = args.x
-      · simp [env, σ, hvx]; rfl
+      · simp [env, σ, hvx]
       · simp only [env, σ, hvx, ↓reduceIte]
-        rw [lookupAssign_state, lookupAssign_result hout hout_len]
-        rfl
+        rw [lookupAssign_result hout hout_len]
     rw [hstep_res, ih (cur + 1) _ _ htail, List.map_cons, Nat.ofDigits_cons]
     ring
 
@@ -318,20 +316,10 @@ theorem evalScopeIdx_realizes :
           hpow_fit.of_le hb_a.2.2⟩
       · exact ⟨⟨hdom, h1, hout⟩, hsc.of_le (by omega),
           hpow_fit.of_le (hb_lk.1.le.trans hb_lk.2.2), hpow_fit.of_le hb_lk.2.2⟩
-    · unfold evalScopeStep
-      rw [StateTransitionSpec.clientResult_bind]
-      have hr1 : (Memory.spec 0).clientState t (Memory.read st.cur) = t := rfl
-      have hr2 : (Memory.spec 0).clientResult t (Memory.read st.cur) = t.mem st.cur := rfl
-      rw [hr1, hr2, StateTransitionSpec.clientResult_bind]
+    · rw [evalScopeStep_result]
+      dsimp only
       split_ifs
-      · change (st.cur + 1) + j = d.scopePtr + d.scopeLen ∧ st.acc + d.a * st.pow < st.pow * d.dom ∧
-          (st.pow * d.dom) * d.dom ^ j = d.dom ^ d.scopeLen
-        exact ⟨by omega, hb_a.1, hb_a.2.1⟩
-      · rw [lookupAssign_state]
-        change (st.cur + 1) + j = d.scopePtr + d.scopeLen ∧
-          st.acc + (Memory.spec 0).clientResult t (lookupAssign lkArgs) * st.pow < st.pow * d.dom ∧
-          (st.pow * d.dom) * d.dom ^ j = d.dom ^ d.scopeLen
-        exact ⟨by omega, hb_lk.1, hb_lk.2.1⟩
+      exacts [⟨by omega, hb_a.1, hb_a.2.1⟩, ⟨by omega, hb_lk.1, hb_lk.2.1⟩]
 
 /-! ### Multiplicative state-capacity budget (`stateCap`), `elimVarProg`, and `elimOrderLoop` -/
 
@@ -389,35 +377,16 @@ theorem stateCap_elimVar_le (d x : ℕ) (s : ElimState ℕ ℕ) :
   by_cases hx : x ∈ s.remaining
   · simp only [elimVar, hx, ↓reduceIte]
     split_ifs with hb
-    · unfold stateCap
-      dsimp only
-      calc max 1 (s.scalar * d) * (s.live.map capFactor).prod
-          ≤ (max 1 d * max 1 s.scalar) * (s.live.map capFactor).prod :=
-            Nat.mul_le_mul_right _ (max_one_mul_le s.scalar d)
-        _ = max 1 d * (max 1 s.scalar * (s.live.map capFactor).prod) := Nat.mul_assoc _ _ _
+    · exact (Nat.mul_le_mul_right _ (max_one_mul_le s.scalar d)).trans_eq (Nat.mul_assoc _ _ _)
     · unfold stateCap
       dsimp only
       simp only [List.map_cons, List.prod_cons]
       have hcap := capFactor_elimBucketTable d x (s.live.filter fun f => decide (x ∈ f.scope))
-      have hrest_eq : (s.live.filter fun f => decide (x ∉ f.scope)) =
-          (s.live.filter fun f => !decide (x ∈ f.scope)) := by
-        refine List.filter_congr fun f _ => ?_
-        simp
-      rw [hrest_eq]
       have hsplit :=
         ((List.filter_append_perm (fun f => decide (x ∈ f.scope)) s.live).map capFactor).prod_eq
       rw [List.map_append, List.prod_append] at hsplit
-      calc max 1 s.scalar *
-            (capFactor (elimBucketTable d x (s.live.filter fun f => decide (x ∈ f.scope))) *
-              ((s.live.filter fun f => !decide (x ∈ f.scope)).map capFactor).prod)
-          ≤ max 1 s.scalar *
-              ((max 1 d * ((s.live.filter fun f => decide (x ∈ f.scope)).map capFactor).prod) *
-                ((s.live.filter fun f => !decide (x ∈ f.scope)).map capFactor).prod) :=
-            Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ hcap)
-        _ = max 1 d * (max 1 s.scalar *
-              (((s.live.filter fun f => decide (x ∈ f.scope)).map capFactor).prod *
-                ((s.live.filter fun f => !decide (x ∈ f.scope)).map capFactor).prod)) := by ring
-        _ = max 1 d * (max 1 s.scalar * (s.live.map capFactor).prod) := by rw [hsplit]
+      rw [List.filter_congr fun _ _ => decide_not, ← hsplit]
+      exact (Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ hcap)).trans_eq (by ring)
   · simp only [elimVar, hx, ↓reduceIte]
     exact Nat.le_mul_of_pos_left _ (le_max_left 1 d)
 

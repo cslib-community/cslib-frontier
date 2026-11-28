@@ -49,11 +49,9 @@ private theorem inner_noise_eq_sum {n : ℕ} (S : Finset (Fin n)) (ω : Coins n)
   simp only [add_mul, sum_add_distrib, mul_add, mul_sum]
   rw [sum_comm (f := fun i j => y i * (upperNoise S ω j i * x j))]
   rw [← sum_add_distrib, Fintype.sum_prod_type]
-  apply sum_congr rfl
-  intro i hi
+  refine sum_congr rfl fun i _ => ?_
   rw [← sum_add_distrib]
-  apply sum_congr rfl
-  intro j hj
+  refine sum_congr rfl fun j _ => ?_
   by_cases h : i < j ∧ ¬(i ∈ S ∧ j ∈ S)
   · simp only [bilinearCoeff, upperNoise, h, true_and, not_false_eq_true, ite_true]
     ring
@@ -67,20 +65,20 @@ private theorem sum_bilinearCoeff_sq_le {n : ℕ} (S : Finset (Fin n))
     rw [Fintype.sum_prod_type]
     simp_rw [← mul_sum]
     rw [← sum_mul, ← EuclideanSpace.real_norm_sq_eq, ← EuclideanSpace.real_norm_sq_eq]
-  have hx2 : ‖x‖ ^ 2 ≤ 1 := by nlinarith [norm_nonneg x]
-  have hy2 : ‖y‖ ^ 2 ≤ 1 := by nlinarith [norm_nonneg y]
   have hxy : ‖x‖ ^ 2 * ‖y‖ ^ 2 ≤ 1 := by
-    simpa only [one_mul] using mul_le_mul hx2 hy2 (sq_nonneg ‖y‖) zero_le_one
+    simpa only [one_mul] using mul_le_mul
+      (by nlinarith [norm_nonneg x] : ‖x‖ ^ 2 ≤ 1)
+      (by nlinarith [norm_nonneg y] : ‖y‖ ^ 2 ≤ 1)
+      (sq_nonneg _) zero_le_one
   calc
     ∑ p, bilinearCoeff S x y p ^ 2 ≤
         ∑ p : Fin n × Fin n,
           (2 * ((x p.1) ^ 2 * (y p.2) ^ 2) + 2 * ((y p.1) ^ 2 * (x p.2) ^ 2)) := by
-      apply sum_le_sum
-      intro p hp
+      refine sum_le_sum fun p _ => ?_
       dsimp only [bilinearCoeff]
       split_ifs
       · nlinarith [sq_nonneg (x p.1 * y p.2 - x p.2 * y p.1)]
-      · norm_num only
+      · rw [zero_pow two_ne_zero]
         positivity
     _ = 2 * (‖x‖ ^ 2 * ‖y‖ ^ 2) + 2 * (‖y‖ ^ 2 * ‖x‖ ^ 2) := by
       rw [sum_add_distrib, ← mul_sum, ← mul_sum, hprod, hprod]
@@ -117,12 +115,9 @@ theorem dens_noise_opNorm_gt_le {n : ℕ} (S : Finset (Fin n)) :
     have hall : ∀ x ∈ s, ∀ y ∈ s,
         |inner ℝ (Matrix.toEuclideanCLM (𝕜 := ℝ) (noise S ω) x) y| ≤ 9 * sqrt n := by
       intro x hx y hy
-      have hxy : ω ∉ D x y := by
-        intro hxy
-        exact hnot (mem_biUnion.mpr ⟨x, hx, mem_biUnion.mpr ⟨y, hy, hxy⟩⟩)
-      have hlt : |inner ℝ (Matrix.toEuclideanCLM (𝕜 := ℝ) (noise S ω) x) y| < 9 * sqrt n := by
-        simpa only [D, mem_filter, mem_univ, true_and, not_le] using hxy
-      exact hlt.le
+      by_contra hgt
+      exact hnot (mem_biUnion.mpr ⟨x, hx, mem_biUnion.mpr ⟨y, hy,
+        mem_filter.mpr ⟨mem_univ _, le_of_not_ge hgt⟩⟩⟩)
     have hnorm := ContinuousLinearMap.opNorm_le_four_mul_of_halfNet
       (Matrix.toEuclideanCLM (𝕜 := ℝ) (noise S ω)) s s hnet hnet (by positivity) hall
     nlinarith
@@ -148,10 +143,9 @@ theorem dens_noise_opNorm_gt_le {n : ℕ} (S : Finset (Fin n)) :
     _ ≤ exp (4 * (n : ℝ)) * exp (4 * (n : ℝ)) *
         (2 * exp (-(81 * (n : ℝ)) / 8)) := by gcongr
     _ = 2 * exp (8 * (n : ℝ) - 81 * (n : ℝ) / 8) := by
-      rw [show exp (4 * (n : ℝ)) * exp (4 * (n : ℝ)) *
-          (2 * exp (-(81 * (n : ℝ)) / 8)) =
-          2 * (exp (4 * (n : ℝ)) * exp (4 * (n : ℝ)) *
-            exp (-(81 * (n : ℝ)) / 8)) by ring, ← exp_add, ← exp_add]
+      have hr : exp (4 * (n : ℝ)) * exp (4 * (n : ℝ)) * (2 * exp (-(81 * (n : ℝ)) / 8)) =
+          2 * (exp (4 * (n : ℝ)) * exp (4 * (n : ℝ)) * exp (-(81 * (n : ℝ)) / 8)) := by ring
+      rw [hr, ← exp_add, ← exp_add]
       congr 2
       ring
     _ ≤ 2 * exp (-(n : ℝ)) := by

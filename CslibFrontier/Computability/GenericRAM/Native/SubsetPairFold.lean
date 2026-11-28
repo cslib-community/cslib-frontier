@@ -186,17 +186,15 @@ private theorem pascalStep_iterate_spec (n k : ℕ) :
     refine ⟨by simp only [hstep, List.length_append, hlen, List.length_singleton], ?_, ?_⟩
     · rw [hstep, List.getD_append_right _ _ _ _ (by omega)]
       simp [hlen]
-    · simp only [hstep]; intro i hi
-      simp only [List.length_append, hlen, List.length_singleton] at hi
+    · intro i hi
+      simp only [hstep, List.length_append, hlen, List.length_singleton] at hi ⊢
       by_cases hik : i < k + 1
       · have hi_prev : i < prevRows.length := by omega
         simpa only [List.getElem_append_left hi_prev] using hrows i hi_prev
-      · have hik_eq : i = k + 1 := by omega
-        subst hik_eq
-        have hget : (prevRows ++ [nextRow])[k + 1]'(by simp [hlen]) = nextRow := by
-          rw [List.getElem_append_right (by omega)]; simp [hlen]
-        exact ⟨by rw [hget, hnext_len],
-          fun s hs => by simpa only [hget] using hnext_entry s (by simpa only [hget] using hs)⟩
+      · obtain rfl : i = k + 1 := by omega
+        have hle : prevRows.length ≤ k + 1 := by omega
+        simp only [List.getElem_append_right hle, hlen, Nat.sub_self, List.getElem_singleton]
+        exact ⟨hnext_len, hnext_entry⟩
 
 /-- `pascalTable n` has `n + 1` rows. -/
 @[simp] theorem length_pascalTable (n : ℕ) : (pascalTable n).length = n + 1 :=
@@ -416,12 +414,11 @@ private theorem pureScatter_injective {indE : List Bool} {m₁ m₂ : ℕ}
     cases b
     · simp only [pureScatter, Bool.false_eq_true, ↓reduceIte, List.cons.injEq, true_and] at heq
       simp only [List.count_cons_of_ne Bool.false_ne_true] at hm₁ hm₂; exact ih hm₁ hm₂ heq
-    · simp only [pureScatter, ↓reduceIte, List.cons.injEq] at heq
+    · simp only [pureScatter, ↓reduceIte, List.cons.injEq, Nat.testBit_zero,
+        decide_eq_decide] at heq
       simp only [List.count_cons_self, Nat.pow_succ] at hm₁ hm₂
-      have hdiv : m₁ / 2 = m₂ / 2 := ih (by omega) (by omega) heq.2
-      have hbit := heq.1; simp only [Nat.testBit_zero, decide_eq_decide] at hbit
-      have := Nat.mod_lt m₁ (by omega : 0 < 2); have := Nat.mod_lt m₂ (by omega : 0 < 2)
-      have := Nat.div_add_mod m₁ 2; have := Nat.div_add_mod m₂ 2; omega
+      have := ih (by omega) (by omega) heq.2
+      omega
 
 /-- Out-of-range indices `j ≥ subsetPairCount n q` return the empty-pair fallback. -/
 theorem unrankSubsetPair_of_le {n q j : ℕ} (hj : subsetPairCount n q ≤ j) :
@@ -604,19 +601,16 @@ theorem existsUnique_unrankSubsetPair (n q : ℕ) {E U : Finset (Fin n)}
           decide (Odd (E.card - U.card))) := by
   obtain ⟨j₀, hj₀, hunique⟩ :=
     (bijective_unrankValidSubsetPair n q).existsUnique ⟨(E, U), ⟨hE, hU⟩⟩
-  refine ⟨j₀.val, ⟨j₀.isLt, ?_⟩, fun j ⟨hj_lt, hj_eq⟩ => ?_⟩
-  · simp only [unrankValidSubsetPair, DecodedPair.indE, Subtype.mk.injEq, Prod.mk.injEq] at hj₀
-    refine Prod.ext ?_ (Prod.ext ?_ ?_)
-    · rw [← hj₀.1, ofFn_decide_mem_supportOfList (length_fst_unrankSubsetPair n q j₀.val)]
-    · change (unrankSubsetPair n q j₀.val).indU = _
-      rw [← hj₀.2, ofFn_decide_mem_supportOfList (length_snd_unrankSubsetPair n q j₀.val)]
-    · change (unrankSubsetPair n q j₀.val).negSign = _
-      rw [snd_snd_unrankSubsetPair_eq_decide_odd]
-      dsimp only [DecodedPair.indE]
-      rw [← card_supportOfList_of_length (length_fst_unrankSubsetPair n q j₀.val),
-        ← card_supportOfList_of_length (length_snd_unrankSubsetPair n q j₀.val), hj₀.1, hj₀.2]
-  · refine congrArg Fin.val (hunique ⟨j, hj_lt⟩ (Subtype.ext ?_))
-    simp only [unrankValidSubsetPair, DecodedPair.indE, DecodedPair.indU, DecodedPair.innerSign,
+  simp only [unrankValidSubsetPair, Subtype.mk.injEq, Prod.mk.injEq] at hj₀
+  have hE₀ := (hj₀.1 ▸ ofFn_decide_mem_supportOfList (length_fst_unrankSubsetPair n q j₀.val)).symm
+  have hU₀ := (hj₀.2 ▸ ofFn_decide_mem_supportOfList (length_snd_unrankSubsetPair n q j₀.val)).symm
+  refine ⟨j₀.val, ⟨j₀.isLt, Prod.ext hE₀ (Prod.ext hU₀ ?_)⟩, fun j ⟨hj_lt, hj_eq⟩ =>
+    congrArg Fin.val (hunique ⟨j, hj_lt⟩ (Subtype.ext ?_))⟩
+  · change (unrankSubsetPair n q j₀.val).negSign = _
+    rw [snd_snd_unrankSubsetPair_eq_decide_odd, DecodedPair.indE,
+      ← card_supportOfList_of_length (length_fst_unrankSubsetPair n q j₀.val),
+      ← card_supportOfList_of_length (length_snd_unrankSubsetPair n q j₀.val), hj₀.1, hj₀.2]
+  · simp only [unrankValidSubsetPair, DecodedPair.indE, DecodedPair.indU, DecodedPair.innerSign,
       hj_eq, supportOfList_ofFn_decide]
 
 /-! ## Section 3: Plain `ComputableInPolyTime` and `NativeCertificate` witnesses -/

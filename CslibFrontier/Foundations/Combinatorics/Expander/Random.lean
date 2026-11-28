@@ -70,14 +70,13 @@ private theorem card_filter_forall_eq_le (K : Finset V) (g : K → V)
     (hg : Function.Injective g) :
     #{σ : Perm V | ∀ v : K, σ v = g v} ≤ (Fintype.card V - #K)! := by
   let f : V → V := fun v ↦ if h : v ∈ K then g ⟨v, h⟩ else v
-  have hf : Set.InjOn f K := by
-    intro a ha b hb hab
+  have hf : Set.InjOn f K := fun a ha b hb hab ↦ by
     simp only [f, mem_coe.1 ha, mem_coe.1 hb, ↓reduceDIte] at hab
     exact congrArg Subtype.val (hg hab)
-  refine le_of_eq (Eq.trans ?_ (Perm.card_filter_forall_eq_of_injOn K f hf))
-  refine congrArg card (filter_congr fun σ _ ↦ ⟨fun h u hu ↦ ?_, fun h v ↦ ?_⟩)
+  refine le_of_eq ((congrArg card (filter_congr fun σ _ ↦ ⟨fun h u hu ↦ ?_, fun h v ↦ ?_⟩)).trans
+    (Perm.card_filter_forall_eq_of_injOn K f hf))
   · simpa only [f, hu, ↓reduceDIte] using h ⟨u, hu⟩
-  · simpa only [f, v.property, ↓reduceDIte] using h v v.property
+  · simpa only [f, v.2, ↓reduceDIte] using h v v.2
 
 /-- At most `s (s - 1) ⋯ (s - k + 1) (n - k)!` permutations of an `n`-element type map a
 `k`-element set `K` into an `s`-element set `S`: on `K` such a permutation is one of the
@@ -85,18 +84,16 @@ private theorem card_filter_forall_eq_le (K : Finset V) (g : K → V)
 private theorem card_filter_forall_mem_le (K S : Finset V) :
     #{σ : Perm V | ∀ v ∈ K, σ v ∈ S} ≤ (#S).descFactorial #K * (Fintype.card V - #K)! := by
   have h : ({σ : Perm V | ∀ v ∈ K, σ v ∈ S} : Finset (Perm V)) ⊆
-      (univ : Finset (K ↪ S)).biUnion fun g ↦ {σ : Perm V | ∀ v : K, σ v = g v} := by
-    intro σ hσ
-    rw [mem_filter] at hσ
-    exact mem_biUnion.2 ⟨⟨fun v ↦ ⟨σ v, hσ.2 v v.property⟩,
-      fun a b h ↦ Subtype.ext (σ.injective (congrArg Subtype.val h))⟩, mem_univ _,
+      (univ : Finset (K ↪ S)).biUnion fun g ↦ {σ : Perm V | ∀ v : K, σ v = g v} :=
+    fun σ hσ ↦ mem_biUnion.2 ⟨⟨fun v ↦ ⟨σ v, (mem_filter.1 hσ).2 v v.2⟩,
+      fun _ _ h ↦ Subtype.ext (σ.injective (congrArg Subtype.val h))⟩, mem_univ _,
       mem_filter.2 ⟨mem_univ _, fun _ ↦ rfl⟩⟩
   calc #{σ : Perm V | ∀ v ∈ K, σ v ∈ S}
       ≤ ∑ g : K ↪ S, #{σ : Perm V | ∀ v : K, σ v = g v} :=
         (card_le_card h).trans card_biUnion_le
     _ ≤ ∑ _g : K ↪ S, (Fintype.card V - #K)! :=
         sum_le_sum fun g _ ↦ card_filter_forall_eq_le K (fun v ↦ g v)
-          fun a b h ↦ g.injective (Subtype.ext h)
+          fun _ _ h ↦ g.injective (Subtype.ext h)
     _ = _ := by
         rw [sum_const, card_univ, Fintype.card_embedding_eq, Fintype.card_coe, Fintype.card_coe,
           smul_eq_mul]
@@ -124,10 +121,8 @@ private theorem choose_mul_two_pow_le (s k : ℕ) : s.choose k * 2 ^ k ≤ 3 ^ s
       _ ≤ ∑ m ∈ range (s + 1), 2 ^ m * 1 ^ (s - m) * s.choose m :=
         single_le_sum (f := fun m ↦ 2 ^ m * 1 ^ (s - m) * s.choose m) (fun _ _ ↦ Nat.zero_le _)
           (mem_range.2 (Nat.lt_succ_of_le hk))
-      _ = (2 + 1) ^ s := (add_pow 2 1 s).symm
-      _ = 3 ^ s := by norm_num
-  · rw [Nat.choose_eq_zero_of_lt hk, zero_mul]
-    exact Nat.zero_le _
+      _ = 3 ^ s := (add_pow 2 1 s).symm.trans (by norm_num)
+  · simp [Nat.choose_eq_zero_of_lt hk]
 
 /-- A uniformly random permutation of an `n`-element type keeps at least `k` points of an
 `s`-element set `S` inside `S` with probability at most `3^s (s / 2n)^k`. -/
@@ -152,7 +147,7 @@ end Count
 /-- For any natural number `s`, `s ^ s / s! ≤ 3 ^ s`. -/
 private theorem pow_div_factorial_le_three_pow (s : ℕ) : (s : ℝ) ^ s / s ! ≤ 3 ^ s :=
   (Real.pow_div_factorial_le_exp _ (Nat.cast_nonneg s) s).trans <| by
-    rw [← mul_one (s : ℝ), Real.exp_natCast_mul]
+    rw [← mul_one (s : ℝ), Real.exp_nat_mul]
     exact pow_le_pow_left₀ (Real.exp_pos 1).le (Real.exp_one_lt_d9.le.trans (by norm_num)) s
 
 /-- The arithmetic of the union bound: for `1 ≤ s`, `2 s ≤ n` and `9 s ≤ 10 k`, the `C(n, s)`
@@ -167,13 +162,11 @@ private theorem choose_mul_pow_le {n s k : ℕ} (hs : 0 < s) (hsn : 2 * s ≤ n)
   have hx4 : x ≤ 1 / 4 := by
     rw [hx, div_le_iff₀ (by positivity)]
     cast_linarith [hsn, hs]
-  have hchoose : (n.choose s : ℝ) ≤ (3 / (2 * x)) ^ s := by
-    have h3 := pow_div_factorial_le_three_pow s
+  have hchoose : (n.choose s : ℝ) ≤ (3 / (2 * x)) ^ s :=
     calc (n.choose s : ℝ) ≤ n ^ s / s ! := Nat.choose_le_pow_div s n
-      _ = (n / s) ^ s * (s ^ s / s !) := by
-        rw [div_pow]
-        field_simp
-      _ ≤ (n / s) ^ s * 3 ^ s := by gcongr
+      _ = (n / s) ^ s * (s ^ s / s !) := by rw [div_pow]; field_simp
+      _ ≤ (n / s) ^ s * 3 ^ s :=
+        mul_le_mul_of_nonneg_left (pow_div_factorial_le_three_pow s) (by positivity)
       _ = (3 / (2 * x)) ^ s := by
         rw [← mul_pow, hx]
         congr 1
@@ -182,6 +175,7 @@ private theorem choose_mul_pow_le {n s k : ℕ} (hs : 0 < s) (hsn : 2 * s ≤ n)
     rw [mul_pow, ← pow_mul, ← pow_mul, ← pow_mul, ← pow_mul, mul_comm s 30]
     exact mul_le_mul_of_nonneg_left (pow_le_pow_of_le_one hx0.le (by cast_linarith) (by omega))
       (by positivity)
+  have h4 : ((1 / 4 : ℝ) ^ s) ≤ 1 / 4 := pow_le_of_le_one (by norm_num) (by norm_num) hs.ne'
   calc (n.choose s : ℝ) * (3 ^ s * x ^ k) ^ 30
       ≤ (3 / (2 * x)) ^ s * ((3 ^ 30) ^ s * (x ^ 27) ^ s) := by gcongr
     _ = (3 ^ 31 * x ^ 26 / 2) ^ s := by
@@ -193,9 +187,7 @@ private theorem choose_mul_pow_le {n s k : ℕ} (hs : 0 < s) (hsn : 2 * s ≤ n)
         calc 3 ^ 31 * x ^ 26 / 2 ≤ 3 ^ 31 * (1 / 4) ^ 26 / 2 := by gcongr
           _ ≤ 1 / 8 := by norm_num
     _ = (1 / 2) ^ s * (1 / 4) ^ s := by rw [← mul_pow]; norm_num
-    _ ≤ (1 / 2) ^ s * (1 / 4) :=
-        mul_le_mul_of_nonneg_left (pow_le_of_le_one (by norm_num) (by norm_num) hs.ne')
-          (by positivity)
+    _ ≤ (1 / 2) ^ s * (1 / 4) := by gcongr
     _ = (1 / 2) ^ s / 4 := by ring
 
 variable {V : Type*} [Fintype V] [DecidableEq V]
@@ -214,11 +206,8 @@ private theorem card_filter_pow_le {S : Finset V} (hS : 0 < #S)
     exact_mod_cast card_filter_mul_pow_le S (k := k) (by omega)
   have h1 : (#{σ : Perm V | k ≤ #{v ∈ S | σ v ∈ S}} : ℝ) ≤
       n ! * (3 ^ #S * (#S / (2 * n)) ^ k) := by
-    have h2 : (0 : ℝ) < (2 * n) ^ k := by positivity
-    calc (#{σ : Perm V | k ≤ #{v ∈ S | σ v ∈ S}} : ℝ)
-        = #{σ : Perm V | k ≤ #{v ∈ S | σ v ∈ S}} * (2 * n) ^ k / (2 * n) ^ k := by field_simp
-      _ ≤ (3 : ℝ) ^ #S * (#S : ℝ) ^ k * (n ! : ℝ) / (2 * n) ^ k := by gcongr
-      _ = _ := by rw [div_pow]; ring
+    rw [div_pow, ← mul_div_assoc, ← mul_div_assoc, le_div_iff₀ (by positivity)]
+    linarith [hc]
   have hC : (0 : ℝ) < n.choose #S := Nat.cast_pos.2 (Nat.choose_pos (by omega))
   calc _ ≤ ((n ! : ℝ) * (3 ^ #S * (#S / (2 * n)) ^ k)) ^ 30 := by gcongr
     _ = (n ! : ℝ) ^ 30 * (3 ^ #S * (#S / (2 * n)) ^ k) ^ 30 := mul_pow _ _ _
@@ -234,26 +223,22 @@ private theorem sum_card_filter_pow_thirty_le :
       (#{τ : Perm V | #S - (#S - 1) / 10 ≤ #{v ∈ S | τ v ∈ S}} : ℝ) ^ 30 ≤
       ((Fintype.card V)! : ℝ) ^ 30 / 2 := by
   set n := Fintype.card V
-  set 𝒮 : Finset (Finset V) := {S | 0 < #S ∧ 2 * #S ≤ n}
-  calc _ ≤ ∑ S ∈ 𝒮, (n ! : ℝ) ^ 30 * ((1 / 2) ^ #S / 4 / n.choose #S) :=
-        sum_le_sum fun S hS ↦ card_filter_pow_le (mem_filter.1 hS).2.1 (mem_filter.1 hS).2.2
-    _ ≤ ∑ S : Finset V, (n ! : ℝ) ^ 30 * ((1 / 2) ^ #S / 4 / n.choose #S) :=
-        sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ ↦ by positivity
-    _ = ∑ m ∈ range (n + 1), (n ! : ℝ) ^ 30 / 4 * (1 / 2) ^ m := by
-        have := sum_powerset_apply_card
-          (fun m ↦ (n ! : ℝ) ^ 30 * ((1 / 2) ^ m / 4 / n.choose m)) (x := (univ : Finset V))
-        rw [← powerset_univ, this, card_univ]
+  calc _ ≤ ∑ S : Finset V, (n ! : ℝ) ^ 30 * ((1 / 2) ^ #S / 4 / n.choose #S) :=
+        (sum_le_sum fun S hS ↦ card_filter_pow_le (mem_filter.1 hS).2.1
+          (mem_filter.1 hS).2.2).trans
+          (sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ ↦ by positivity)
+    _ = (n ! : ℝ) ^ 30 / 4 * ∑ m ∈ range (n + 1), (1 / 2) ^ m := by
+        rw [← powerset_univ, sum_powerset_apply_card
+          (fun m ↦ (n ! : ℝ) ^ 30 * ((1 / 2) ^ m / 4 / n.choose m)), card_univ, mul_sum]
         refine sum_congr rfl fun m hm ↦ ?_
         have : (n.choose m : ℝ) ≠ 0 :=
           Nat.cast_ne_zero.2 (Nat.choose_pos (Nat.lt_succ_iff.1 (mem_range.1 hm))).ne'
         rw [nsmul_eq_mul]
         field_simp
         rfl
-    _ ≤ (n ! : ℝ) ^ 30 / 4 * 2 := by
-        rw [← mul_sum]
-        gcongr
-        exact sum_geometric_two_le _
-    _ = (n ! : ℝ) ^ 30 / 2 := by ring
+    _ ≤ (n ! : ℝ) ^ 30 / 2 := by
+        linarith [mul_le_mul_of_nonneg_left (sum_geometric_two_le (n + 1))
+          (by positivity : (0 : ℝ) ≤ (n ! : ℝ) ^ 30 / 4)]
 
 variable (V) in
 /-- **Random permutations move small sets**: there are thirty permutations of a finite type `V` such
@@ -273,10 +258,7 @@ theorem exists_perms_card_le_mul_card_filter_notMem :
       Fintype.piFinset fun _ ↦ {τ : Perm V | #S - (#S - 1) / 10 ≤ #{v ∈ S | τ v ∈ S}} := by
     intro σ _
     obtain ⟨S, hS, hσ⟩ := h σ
-    have hpos : 0 < #S := by
-      have := hσ 0
-      omega
-    refine mem_biUnion.2 ⟨S, mem_filter.2 ⟨mem_univ _, hpos, hS⟩,
+    refine mem_biUnion.2 ⟨S, mem_filter.2 ⟨mem_univ _, by have := hσ 0; omega, hS⟩,
       Fintype.mem_piFinset.2 fun i ↦ mem_filter.2 ⟨mem_univ _, ?_⟩⟩
     have := hσ i
     have := card_filter_add_card_filter_not (s := S) fun v ↦ σ i v ∈ S
@@ -287,8 +269,6 @@ theorem exists_perms_card_le_mul_card_filter_notMem :
     simp only [card_univ, Fintype.card_pi, Fintype.card_perm, prod_const, Fintype.card_fin,
       Fintype.card_piFinset] at this
     exact_mod_cast this
-  have hup := sum_card_filter_pow_thirty_le (V := V)
-  have : (0 : ℝ) < (n ! : ℝ) ^ 30 := by positivity
-  linarith
+  linarith [sum_card_filter_pow_thirty_le (V := V), (by positivity : (0 : ℝ) < (n ! : ℝ) ^ 30)]
 
 end Cslib

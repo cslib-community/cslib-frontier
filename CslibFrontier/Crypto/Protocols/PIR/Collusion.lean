@@ -121,16 +121,14 @@ theorem isTPrivate_iff (t : ℕ) :
 
 /-- Every scheme is `0`-private: the empty coalition sees the unique empty tuple. -/
 theorem isTPrivate_zero : P.IsTPrivate 0 := by
-  intro T hT i i'
-  have hEmpty : T = ∅ := Finset.card_eq_zero.mp (Nat.eq_zero_of_le_zero hT)
-  subst hEmpty
+  rintro T hT i i'
+  obtain rfl : T = ∅ := Finset.card_eq_zero.mp (Nat.eq_zero_of_le_zero hT)
   ext f
-  have hf : ∀ g : (∅ : Finset S) → Q, g = f :=
-    fun g => funext fun s => (Finset.notMem_empty s.val s.property).elim
-  have h1 := (ProbComp.eval (P.coalitionQuery ∅ i)).tsum_coe
-  have h2 := (ProbComp.eval (P.coalitionQuery ∅ i')).tsum_coe
-  rw [tsum_eq_single f fun g hg => (hg (hf g)).elim] at h1 h2
-  exact h1.trans h2.symm
+  have hf (g : (∅ : Finset S) → Q) : g = f := funext fun s => (Finset.notMem_empty s.1 s.2).elim
+  have hsum (j : ι) : ProbComp.eval (P.coalitionQuery ∅ j) f = 1 := by
+    simpa only [tsum_eq_single f fun g hg => (hg (hf g)).elim] using
+      (ProbComp.eval (P.coalitionQuery ∅ j)).tsum_coe
+  exact (hsum i).trans (hsum i').symm
 
 end CoalitionDefs
 
@@ -147,18 +145,13 @@ theorem IsTPrivate.mono {t₁ t₂ : ℕ} (hle : t₁ ≤ t₂) (h : P.IsTPrivat
 /-- `1`-privacy is exactly single-server `IsPrivate`. -/
 theorem isTPrivate_one_iff : P.IsTPrivate 1 ↔ P.IsPrivate := by
   rw [P.isPrivate_iff]
-  constructor
-  · intro h s i i'
-    have hsing := h {s} (by simp) i i'
-    have hproj (idx : ι) :
-        ProbComp.eval (P.serverQuery s idx) =
-          (ProbComp.eval (P.coalitionQuery {s} idx)).map
-            (fun f => f ⟨s, Finset.mem_singleton_self s⟩) := by
-      rw [P.eval_serverQuery, P.eval_coalitionQuery, PMF.map_comp]
-      rfl
-    rw [hproj i, hproj i', hsing]
-  · intro h T hT i i'
-    rcases Nat.le_one_iff_eq_zero_or_eq_one.mp hT with h0 | h1
+  refine ⟨fun h s i i' => ?_, fun h T hT i i' => ?_⟩
+  · have hproj (idx : ι) : ProbComp.eval (P.serverQuery s idx) =
+        (ProbComp.eval (P.coalitionQuery {s} idx)).map
+          (fun f => f ⟨s, Finset.mem_singleton_self s⟩) := by
+      rw [P.eval_serverQuery, P.eval_coalitionQuery, PMF.map_comp]; rfl
+    rw [hproj i, hproj i', h {s} (by simp) i i']
+  · rcases Nat.le_one_iff_eq_zero_or_eq_one.mp hT with h0 | h1
     · exact P.isTPrivate_zero T (by omega) i i'
     · obtain ⟨s, rfl⟩ := Finset.card_eq_one.mp h1
       have hlift (idx : ι) :
@@ -166,7 +159,7 @@ theorem isTPrivate_one_iff : P.IsTPrivate 1 ↔ P.IsPrivate := by
             (ProbComp.eval (P.serverQuery s idx)).map (fun q _ => q) := by
         rw [P.eval_coalitionQuery, P.eval_serverQuery, PMF.map_comp]
         congr 1
-        funext ⟨r, q⟩ ⟨u, hu⟩
+        funext ⟨_, q⟩ ⟨_, hu⟩
         simpa using congrArg q (Finset.mem_singleton.mp hu)
       rw [hlift i, hlift i', h s i i']
 
@@ -179,14 +172,11 @@ theorem IsTPrivate.eval_tupleQuery_eq {τ : Type} [Fintype τ] {t : ℕ}
     ProbComp.eval (P.tupleQuery servers i) = ProbComp.eval (P.tupleQuery servers i') := by
   classical
   let T : Finset S := Finset.univ.image servers
-  have hT : T.card ≤ t := Finset.card_image_le.trans (by simpa using hcard)
-  have hfactor (idx : ι) :
-      ProbComp.eval (P.tupleQuery servers idx) =
-        (ProbComp.eval (P.coalitionQuery T idx)).map
-          (fun f j => f ⟨servers j, Finset.mem_image_of_mem servers (Finset.mem_univ j)⟩) := by
-    rw [P.eval_tupleQuery, P.eval_coalitionQuery, PMF.map_comp]
-    rfl
-  rw [hfactor i, hfactor i', h T hT i i']
+  have hfactor (idx : ι) : ProbComp.eval (P.tupleQuery servers idx) =
+      (ProbComp.eval (P.coalitionQuery T idx)).map
+        (fun f j => f ⟨servers j, Finset.mem_image_of_mem servers (Finset.mem_univ j)⟩) := by
+    rw [P.eval_tupleQuery, P.eval_coalitionQuery, PMF.map_comp]; rfl
+  rw [hfactor i, hfactor i', h T (Finset.card_image_le.trans (by simpa using hcard)) i i']
 
 /-- `Finset`-based `t`-privacy is equivalent to the `t`-tuple definition of
 [CGKS, Section 2.2][ChorGoldreichKushilevitzSudan1998]. -/
@@ -194,29 +184,22 @@ theorem isTPrivate_iff_tuple {t : ℕ} :
     P.IsTPrivate t ↔
       ∀ (servers : Fin t → S) (i i' : ι),
         ProbComp.eval (P.tupleQuery servers i) = ProbComp.eval (P.tupleQuery servers i') := by
-  constructor
-  · intro h servers i i'
-    exact h.eval_tupleQuery_eq servers (by simp) i i'
-  · intro h T hT i i'
-    by_cases hne : T.Nonempty
-    · obtain ⟨s₀, hs₀⟩ := hne
-      classical
-      let e := T.equivFin
-      let servers : Fin t → S := fun k =>
-        if hk : k.val < T.card then (e.symm ⟨k.val, hk⟩).val else s₀
-      have hrecover (idx : ι) :
-          ProbComp.eval (P.coalitionQuery T idx) =
-            (ProbComp.eval (P.tupleQuery servers idx)).map
-              (fun f u => f ⟨(e u).val, (e u).isLt.trans_le hT⟩) := by
-        rw [P.eval_coalitionQuery, P.eval_tupleQuery, PMF.map_comp]
-        congr 1
-        funext rq u
-        change rq.2 u.val = rq.2 (servers ⟨(e u).val, (e u).isLt.trans_le hT⟩)
-        have hlt : (e u).val < T.card := (e u).isLt
-        simp only [servers, dite_eq_left hlt, Fin.eta, Equiv.symm_apply_apply]
-      rw [hrecover i, hrecover i', h servers i i']
-    · rw [Finset.not_nonempty_iff_eq_empty.mp hne]
-      exact P.isTPrivate_zero ∅ (by simp) i i'
+  refine ⟨fun h servers => h.eval_tupleQuery_eq servers (by simp), fun h T hT i i' => ?_⟩
+  rcases T.eq_empty_or_nonempty with rfl | ⟨s₀, _⟩
+  · exact P.isTPrivate_zero ∅ (by simp) i i'
+  · classical
+    let e := T.equivFin
+    let servers : Fin t → S := fun k =>
+      if hk : k.val < T.card then (e.symm ⟨k.val, hk⟩).1 else s₀
+    have hrecover (idx : ι) : ProbComp.eval (P.coalitionQuery T idx) =
+        (ProbComp.eval (P.tupleQuery servers idx)).map
+          (fun f u => f ⟨(e u).val, (e u).isLt.trans_le hT⟩) := by
+      rw [P.eval_coalitionQuery, P.eval_tupleQuery, PMF.map_comp]
+      congr 1
+      funext rq u
+      change rq.2 u.1 = rq.2 (servers ⟨(e u).val, (e u).isLt.trans_le hT⟩)
+      simp only [servers, dite_eq_left (e u).isLt, Fin.eta, Equiv.symm_apply_apply]
+    rw [hrecover i, hrecover i', h servers i i']
 
 /-- **`t`-privacy transfer.** If the queries that `P'` sends for `i` have the law of the queries
 that the `t`-private scheme `P` sends for `f i`, then `P'` is `t`-private. The retained states,
@@ -230,8 +213,7 @@ theorem IsTPrivate.of_query_eq {ι' R' A' β' : Type} {P' : Scheme ι' S R' Q A'
       ProbComp.eval (P'.coalitionQuery T i) = ProbComp.eval (P.coalitionQuery T (f i)) := by
     have hT := congrArg (PMF.map fun q (s : T) => q s) (hq i)
     simp only [ProbComp.eval_map, PMF.map_comp] at hT
-    rw [eval_coalitionQuery, eval_coalitionQuery]
-    exact hT
+    rwa [eval_coalitionQuery, eval_coalitionQuery]
   exact fun T hT i i' => by rw [hview, hview, h.eval_coalitionQuery_eq T hT]
 
 theorem IsTPrivate.rows (ρ : Type) {t : ℕ} (h : P.IsTPrivate t) : (P.rows ρ).IsTPrivate t :=
@@ -251,11 +233,9 @@ theorem not_isCorrect_of_isEmpty [IsEmpty S] [Nonempty ι] [Nontrivial β]
   obtain ⟨b₀, b₁, hne⟩ := exists_pair_ne β
   obtain ⟨⟨r₀, q₀⟩, h₀⟩ := (ProbComp.eval (P.query i₀)).support_nonempty
   have hb₀ := hcorrect.reconstruct_eq (fun _ => b₀) i₀ h₀
-  have hb₁ := hcorrect.reconstruct_eq (fun _ => b₁) i₀ h₀
-  have hans : (fun s => P.answer s (fun _ => b₀) (q₀ s)) =
-      (fun s => P.answer s (fun _ => b₁) (q₀ s)) := funext isEmptyElim
-  rw [hans] at hb₀
-  exact hne (hb₀.symm.trans hb₁)
+  rw [show (fun s => P.answer s (fun _ => b₀) (q₀ s)) =
+    (fun s => P.answer s (fun _ => b₁) (q₀ s)) from funext isEmptyElim] at hb₀
+  exact hne (hb₀.symm.trans (hcorrect.reconstruct_eq (fun _ => b₁) i₀ h₀))
 
 /-- When all servers can collude (`|S| ≤ t`), some joint query vector makes the combined server
 answers determine the entire database, generalizing `SingleServer.exists_injective_answer`. -/
@@ -265,18 +245,15 @@ theorem exists_injective_answers_of_card_le [Fintype S] [Nonempty ι] {t : ℕ}
   obtain ⟨i₀⟩ := ‹Nonempty ι›
   obtain ⟨⟨r₀, q₀⟩, h₀⟩ := (ProbComp.eval (P.query i₀)).support_nonempty
   refine ⟨q₀, fun x y hxy => funext fun i => ?_⟩
-  have huniv : (Finset.univ : Finset S).card ≤ t := by simpa using hcard
-  have hmem : (fun s : (Finset.univ : Finset S) => q₀ s.val) ∈
+  have hmem : (fun s : (Finset.univ : Finset S) => q₀ s.1) ∈
       (ProbComp.eval (P.coalitionQuery Finset.univ i)).support := by
-    rw [hprivate Finset.univ huniv i i₀, P.eval_coalitionQuery]
+    rw [hprivate Finset.univ (by simpa using hcard) i i₀, P.eval_coalitionQuery]
     exact (PMF.mem_support_map_iff _ _ _).2 ⟨(r₀, q₀), h₀, rfl⟩
   rw [P.eval_coalitionQuery] at hmem
   obtain ⟨⟨r, q⟩, hrq, hq⟩ := (PMF.mem_support_map_iff _ _ _).1 hmem
-  have hq_eq : q = q₀ := funext fun s => congrFun hq ⟨s, Finset.mem_univ s⟩
-  have hans : (fun s => P.answer s x (q s)) = fun s => P.answer s y (q s) := by
-    rw [hq_eq]
-    exact hxy
-  rw [← hcorrect.reconstruct_eq x i hrq, ← hcorrect.reconstruct_eq y i hrq, hans]
+  obtain rfl : q₀ = q := (funext fun s => congrFun hq ⟨s, Finset.mem_univ s⟩).symm
+  rw [← hcorrect.reconstruct_eq x i hrq, ← hcorrect.reconstruct_eq y i hrq]
+  exact congrArg (P.reconstruct i r) hxy
 
 /-- A correct `t`-private Boolean scheme with `|S| ≤ t` satisfies `2 ^ |ι| ≤ |A| ^ |S|`. -/
 theorem two_pow_card_le_card_answer_pow_of_card_le [Fintype S] [Nonempty ι] [Fintype ι] [Fintype A]
@@ -284,8 +261,7 @@ theorem two_pow_card_le_card_answer_pow_of_card_le [Fintype S] [Nonempty ι] [Fi
     (hcard : Fintype.card S ≤ t) : 2 ^ Fintype.card ι ≤ Fintype.card A ^ Fintype.card S := by
   classical
   obtain ⟨q, hq⟩ := exists_injective_answers_of_card_le hcorrect hprivate hcard
-  have h := Fintype.card_le_of_injective _ hq
-  rwa [Fintype.card_fun, Fintype.card_bool, Fintype.card_fun] at h
+  simpa only [Fintype.card_fun, Fintype.card_bool] using Fintype.card_le_of_injective _ hq
 
 /-- **Necessity of `t < |S|`** (generalizing
 [CGKS, Section 5.1, p. 14][ChorGoldreichKushilevitzSudan1998] from `k = 1` to full coalitions
@@ -296,26 +272,19 @@ theorem card_le_communication_of_card_le [Fintype S] [Fintype ι] [Fintype Q] [F
     {P : Scheme ι S R Q A} {t : ℕ} (hcorrect : P.IsCorrect) (hprivate : P.IsTPrivate t)
     (hcard : Fintype.card S ≤ t) : Fintype.card ι ≤ communication S Q A := by
   rcases isEmpty_or_nonempty ι with hι | hι
-  · rw [Fintype.card_eq_zero]
-    exact Nat.zero_le _
-  · rcases isEmpty_or_nonempty S with hS | ⟨s₀⟩
+  · simp
+  · rcases isEmpty_or_nonempty S with hS | ⟨_⟩
     · exact (not_isCorrect_of_isEmpty hcorrect).elim
-    · have hpow := two_pow_card_le_card_answer_pow_of_card_le hcorrect hprivate hcard
-      have hclog : Fintype.card A ≤ 2 ^ Nat.clog 2 (Fintype.card A) :=
-        Nat.le_pow_clog (by norm_num : 1 < 2) (Fintype.card A)
-      have hpow2 : 2 ^ Fintype.card ι ≤ 2 ^ (Fintype.card S * Nat.clog 2 (Fintype.card A)) := by
-        calc 2 ^ Fintype.card ι ≤ Fintype.card A ^ Fintype.card S := hpow
+    · have hpow2 : 2 ^ Fintype.card ι ≤ 2 ^ (Fintype.card S * Nat.clog 2 (Fintype.card A)) := by
+        calc 2 ^ Fintype.card ι ≤ Fintype.card A ^ Fintype.card S :=
+              two_pow_card_le_card_answer_pow_of_card_le hcorrect hprivate hcard
           _ ≤ (2 ^ Nat.clog 2 (Fintype.card A)) ^ Fintype.card S :=
-              Nat.pow_le_pow_left hclog _
+              Nat.pow_le_pow_left (Nat.le_pow_clog (by norm_num : 1 < 2) _) _
           _ = 2 ^ (Fintype.card S * Nat.clog 2 (Fintype.card A)) := by
               rw [← pow_mul, Nat.mul_comm]
-      have hle : Fintype.card ι ≤ Fintype.card S * Nat.clog 2 (Fintype.card A) := by
-        by_contra hlt
-        push Not at hlt
-        have := Nat.pow_lt_pow_right (by norm_num : 1 < 2) hlt
-        omega
       rw [communication_eq]
-      exact hle.trans (Nat.mul_le_mul_left _ (Nat.le_add_left _ _))
+      exact ((Nat.pow_le_pow_iff_right (by norm_num : 1 < 2)).mp hpow2).trans
+        (Nat.mul_le_mul_left _ (Nat.le_add_left _ _))
 
 end Scheme
 

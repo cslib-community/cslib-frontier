@@ -63,10 +63,7 @@ private theorem four_le_index {G : Type*} [Group G] [Finite G] {K J : Subgroup G
   have hJ2 := Subgroup.one_lt_index_of_ne_top hJ
   have hK0 : K.index ≠ 0 := Subgroup.index_ne_zero_of_finite
   have hr1 : K.relIndex J ≠ 1 := fun h => hJK (Subgroup.relIndex_eq_one.1 h)
-  have hr0 : K.relIndex J ≠ 0 := by
-    intro h
-    rw [h, zero_mul] at hmul
-    exact hK0 hmul.symm
+  have hr0 : K.relIndex J ≠ 0 := fun h => hK0 (by rw [← hmul, h, zero_mul])
   rw [← hmul]
   nlinarith [Nat.two_le_iff _ |>.2 ⟨hr0, hr1⟩]
 
@@ -79,6 +76,11 @@ private theorem four_mul_card_le_of_four_le_index {G : Type*} [Group G] {K : Sub
 private theorem unitsMap_neg_one {A n : ℕ} (h : A ∣ n) : unitsMap h (-1) = -1 :=
   Units.ext (by simp [unitsMap_def])
 
+private theorem pow_two_mul_eq_one {n m : ℕ} {a : (ZMod n)ˣ} (ha : a ∈ powEqOneOrNegOne n m) :
+    a ^ (2 * m) = 1 := by
+  rw [pow_mul']
+  rcases mem_powEqOneOrNegOne.1 ha with ha | ha <;> rw [ha] <;> simp
+
 /-- The Chinese remainder theorem for units, through `unitsMap`. -/
 private theorem exists_unitsMap_eq {A B : ℕ} (h : A.Coprime B) (u : (ZMod A)ˣ) (v : (ZMod B)ˣ) :
     ∃ c : (ZMod (A * B))ˣ, unitsMap (dvd_mul_right A B) c = u ∧
@@ -90,6 +92,20 @@ private theorem exists_unitsMap_eq {A B : ℕ} (h : A.Coprime B) (u : (ZMod A)ˣ
 private theorem units_neg_one_ne_one {A : ℕ} (hA : Odd A) (h1 : 1 < A) :
     (-1 : (ZMod A)ˣ) ≠ 1 := fun h =>
   neg_one_ne_one_of_odd hA h1 (by simpa using congrArg Units.val h)
+
+/-- A unit modulo `C D` that is `u` modulo `C`, where `u ^ m = -1`, and `1` modulo `D` has `m`-th
+power different from `±1`. -/
+private theorem not_mem_of_unitsMap_eq {C D m : ℕ} (hC : Odd C) (hD : Odd D) (hC1 : 1 < C)
+    (hD1 : 1 < D) {u : (ZMod C)ˣ} (hu : u ^ m = -1) {c : (ZMod (C * D))ˣ}
+    (hcC : unitsMap (dvd_mul_right C D) c = u) (hcD : unitsMap (dvd_mul_left D C) c = 1) :
+    c ∉ powEqOneOrNegOne (C * D) m := fun hc => by
+  rcases mem_powEqOneOrNegOne.1 hc with hc | hc
+  · have h' := congrArg (unitsMap (dvd_mul_right C D)) hc
+    rw [map_pow, hcC, hu, map_one] at h'
+    exact units_neg_one_ne_one hC hC1 h'
+  · have h' := congrArg (unitsMap (dvd_mul_left D C)) hc
+    rw [map_pow, hcD, one_pow, unitsMap_neg_one] at h'
+    exact units_neg_one_ne_one hD hD1 h'.symm
 
 /-- **The chain for a coprime splitting.** Let `n = A B` with `A, B > 1` odd and coprime, let
 `b ^ m = -1` for a unit `b` modulo `n`, and suppose that some unit modulo `A` or modulo `B` has
@@ -110,39 +126,23 @@ private theorem four_le_index_of_coprime {A B n m : ℕ} (hn : A * B = n) (hA : 
       unitsMap (dvd_mul_left B A) a ∈ powEqOneOrNegOne B m := fun a => Iff.rfl
   refine four_le_index (J := J) (fun a ha => ?_) (fun hle => ?_) (fun htop => ?_)
   · rw [hJ, mem_powEqOneOrNegOne, mem_powEqOneOrNegOne, ← map_pow, ← map_pow]
-    rcases mem_powEqOneOrNegOne.1 ha with ha | ha
-    · rw [ha, map_one, map_one]
-      exact ⟨Or.inl rfl, Or.inl rfl⟩
-    · rw [ha, unitsMap_neg_one, unitsMap_neg_one]
-      exact ⟨Or.inr rfl, Or.inr rfl⟩
+    rcases mem_powEqOneOrNegOne.1 ha with ha | ha <;> simp [ha, unitsMap_neg_one]
   · obtain ⟨c, hcA, hcB⟩ := exists_unitsMap_eq hAB (unitsMap (dvd_mul_right A B) b) 1
-    have hcJ : c ∈ J := by
-      rw [hJ, mem_powEqOneOrNegOne, mem_powEqOneOrNegOne, hcA, hcB, ← map_pow, hb,
-        unitsMap_neg_one, one_pow]
-      exact ⟨Or.inr rfl, Or.inl rfl⟩
-    rcases mem_powEqOneOrNegOne.1 (hle hcJ) with hc | hc
-    · have h' := congrArg (unitsMap (dvd_mul_right A B)) hc
-      rw [map_pow, hcA, ← map_pow, hb, unitsMap_neg_one, map_one] at h'
-      exact units_neg_one_ne_one hA hA1 h'
-    · have h' := congrArg (unitsMap (dvd_mul_left B A)) hc
-      rw [map_pow, hcB, one_pow, unitsMap_neg_one] at h'
-      exact units_neg_one_ne_one hB hB1 h'.symm
+    have hbA : unitsMap (dvd_mul_right A B) b ^ m = -1 := by rw [← map_pow, hb, unitsMap_neg_one]
+    refine not_mem_of_unitsMap_eq hA hB hA1 hB1 hbA hcA hcB (hle ?_)
+    simp [hJ, mem_powEqOneOrNegOne, hcA, hcB, hbA]
   · rcases hw with ⟨w, hw⟩ | ⟨w, hw⟩
     · obtain ⟨d, hdA, -⟩ := exists_unitsMap_eq hAB w 1
-      have hd : d ∈ J := by rw [htop]; exact Subgroup.mem_top d
-      exact hw (hdA ▸ ((hJ d).1 hd).1)
+      exact hw (hdA ▸ ((hJ d).1 (htop ▸ Subgroup.mem_top d)).1)
     · obtain ⟨d, -, hdB⟩ := exists_unitsMap_eq hAB 1 w
-      have hd : d ∈ J := by rw [htop]; exact Subgroup.mem_top d
-      exact hw (hdB ▸ ((hJ d).1 hd).2)
+      exact hw (hdB ▸ ((hJ d).1 (htop ▸ Subgroup.mem_top d)).2)
 
 /-- **The witness for a square factor.** If `p ^ 2 ∣ A ∣ n` for an odd prime `p` and
 `2 m ∣ n - 1`, the unit `1 + A / p` modulo `A` has `m`-th power different from `±1`. -/
 private theorem exists_not_mem_of_sq_dvd {A n m p : ℕ} (hp : p.Prime) (hp2 : p ≠ 2)
     (hpA : p ^ 2 ∣ A) (hAn : A ∣ n) (h1 : 1 < n) (hm : 2 * m ∣ n - 1) :
     ∃ w : (ZMod A)ˣ, w ∉ powEqOneOrNegOne A m := by
-  have hA0 : A ≠ 0 := by
-    rintro rfl
-    exact absurd (Nat.eq_zero_of_zero_dvd hAn) (by omega)
+  have hA0 : A ≠ 0 := ne_zero_of_dvd_ne_zero (by omega) hAn
   obtain ⟨c, hc1, hcn⟩ := exists_unit_pow_of_sq_dvd hp hp2 hA0 hpA
   refine ⟨c, fun hc => ?_⟩
   rcases mem_powEqOneOrNegOne.1 hc with hc | hc
@@ -158,13 +158,10 @@ private theorem eq_of_sub_one_dvd {p q : ℕ} (hp : 1 ≤ p) (hq : 1 ≤ q) (h1 
     (h2 : q - 1 ∣ p * q - 1) : p = q := by
   obtain ⟨p, rfl⟩ := Nat.exists_eq_add_of_le' hp
   obtain ⟨q, rfl⟩ := Nat.exists_eq_add_of_le' hq
-  rw [Nat.add_sub_cancel] at h1 h2
-  have he1 : (p + 1) * (q + 1) - 1 = p * (q + 1) + q := by
-    rw [show (p + 1) * (q + 1) = p * (q + 1) + q + 1 by ring, Nat.add_sub_cancel]
-  have he2 : (p + 1) * (q + 1) - 1 = q * (p + 1) + p := by
-    rw [show (p + 1) * (q + 1) = q * (p + 1) + p + 1 by ring, Nat.add_sub_cancel]
-  rw [he1] at h1
-  rw [he2] at h2
+  rw [Nat.add_sub_cancel,
+    Nat.sub_eq_of_eq_add (by ring : (p + 1) * (q + 1) = p * (q + 1) + q + 1)] at h1
+  rw [Nat.add_sub_cancel,
+    Nat.sub_eq_of_eq_add (by ring : (p + 1) * (q + 1) = q * (p + 1) + p + 1)] at h2
   have hpq : p ∣ q := (Nat.dvd_add_right (dvd_mul_right p (q + 1))).1 h1
   have hqp : q ∣ p := (Nat.dvd_add_right (dvd_mul_right q (p + 1))).1 h2
   rw [Nat.dvd_antisymm hpq hqp]
@@ -179,30 +176,11 @@ private theorem exists_not_mem_of_prime_mul_prime {p q m : ℕ} (hp : p.Prime) (
   have key : ∀ r : ℕ, r.Prime → (∀ w : (ZMod r)ˣ, w ∈ powEqOneOrNegOne r m) → r - 1 ∣ 2 * m := by
     intro r hr hall
     have : Fact r.Prime := ⟨hr⟩
-    have hexp : Monoid.exponent (ZMod r)ˣ ∣ 2 * m := by
-      refine Monoid.exponent_dvd_iff_forall_pow_eq_one.2 fun w => ?_
-      rw [pow_mul']
-      rcases mem_powEqOneOrNegOne.1 (hall w) with hw | hw <;> rw [hw] <;> simp
+    have hexp : Monoid.exponent (ZMod r)ˣ ∣ 2 * m :=
+      Monoid.exponent_dvd_iff_forall_pow_eq_one.2 fun w => pow_two_mul_eq_one (hall w)
     rwa [IsCyclic.exponent_eq_card, Nat.card_eq_fintype_card, ZMod.card_units] at hexp
   exact hpq (eq_of_sub_one_dvd hp.one_lt.le hq.one_lt.le ((key p hp h.1).trans hm)
     ((key q hq h.2).trans hm))
-
-/-- **The witness for a further splitting.** If `B = C D` with `C, D > 1` odd and coprime, and some
-unit `u` modulo `C` has `u ^ m = -1`, then the unit modulo `B` that is `u` modulo `C` and `1`
-modulo `D` has `m`-th power different from `±1`. -/
-private theorem exists_not_mem_of_eq_mul {B C D m : ℕ} (hB : C * D = B) (hC : Odd C) (hD : Odd D)
-    (hC1 : 1 < C) (hD1 : 1 < D) (hCD : C.Coprime D) {u : (ZMod C)ˣ} (hu : u ^ m = -1) :
-    ∃ w : (ZMod B)ˣ, w ∉ powEqOneOrNegOne B m := by
-  subst hB
-  obtain ⟨c, hcC, hcD⟩ := exists_unitsMap_eq hCD u 1
-  refine ⟨c, fun hc => ?_⟩
-  rcases mem_powEqOneOrNegOne.1 hc with hc | hc
-  · have h' := congrArg (unitsMap (dvd_mul_right C D)) hc
-    rw [map_pow, hcC, hu, map_one] at h'
-    exact units_neg_one_ne_one hC hC1 h'
-  · have h' := congrArg (unitsMap (dvd_mul_left D C)) hc
-    rw [map_pow, hcD, one_pow, unitsMap_neg_one] at h'
-    exact units_neg_one_ne_one hD hD1 h'.symm
 
 /-- **The prime-power count.** If `p ^ e ∣ n` for a prime `p` and `e ≥ 1`, and `2 m ∣ n - 1`, the
 units with `a ^ (2 m) = 1` have order coprime to `p`: an element of order `p` would give
@@ -239,10 +217,7 @@ theorem four_mul_card_powEqOneOrNegOne_le {n m : ℕ} [NeZero n] (hodd : Odd n) 
   rw [← ZMod.card_units_eq_totient, ← Nat.card_eq_fintype_card]
   set p := n.minFac with hpdef
   have hp : p.Prime := Nat.minFac_prime (by omega)
-  have hp2 : p ≠ 2 := by
-    intro h
-    have : 2 ∣ n := h ▸ Nat.minFac_dvd n
-    exact (Nat.not_even_iff_odd.2 hodd) (even_iff_two_dvd.2 this)
+  have hp2 : p ≠ 2 := hodd.ne_two_of_dvd_nat (Nat.minFac_dvd n)
   set e := n.factorization p with hedef
   have he : 1 ≤ e := hp.factorization_pos_of_dvd (NeZero.ne n) (Nat.minFac_dvd n)
   set B := ordCompl[p] n with hBdef
@@ -274,25 +249,22 @@ theorem four_mul_card_powEqOneOrNegOne_le {n m : ℕ} [NeZero n] (hodd : Odd n) 
       · -- `B = q ^ f D` with `D > 1`: split `B` further.
         right
         have hqfn : q ^ f ∣ n := ⟨D * p ^ e, by rw [← hn_eq, ← hB_eq]; ring⟩
-        exact exists_not_mem_of_eq_mul hB_eq hqodd.pow hDodd hqf1 hD1
-          (Nat.Coprime.pow_left f hqD) (u := unitsMap hqfn b) (by rw [← map_pow, hb,
-            unitsMap_neg_one])
-      · have hD : D = 1 := by
-          omega
+        subst hB_eq
+        obtain ⟨c, hcC, hcD⟩ := exists_unitsMap_eq (Nat.Coprime.pow_left f hqD) (unitsMap hqfn b) 1
+        exact ⟨c, not_mem_of_unitsMap_eq hqodd.pow hDodd hqf1 hD1
+          (by rw [← map_pow, hb, unitsMap_neg_one]) hcC hcD⟩
+      · have hD : D = 1 := by omega
         rcases Nat.lt_or_ge f 2 with hf2 | hf2
         · -- `n = p q` with distinct primes `p`, `q`: the Korselt witness.
           have hf1 : f = 1 := by omega
           have hBq : B = q := by rw [← hB_eq, hD, hf1, pow_one, mul_one]
           rw [he1, pow_one] at hn_eq ⊢
           rw [hBq] at hn_eq hpB ⊢
-          have hpq : p ≠ q := fun h => by
-            rw [h, Nat.coprime_self] at hpB
-            exact hq.one_lt.ne' hpB
+          have hpq : p ≠ q := fun h => hq.one_lt.ne' ((Nat.coprime_self q).1 (h ▸ hpB))
           exact exists_not_mem_of_prime_mul_prime hp hq hpq (hn_eq ▸ hm)
         · -- `q ^ 2 ∣ B`.
           right
-          exact exists_not_mem_of_sq_dvd hq
-            (fun h => (Nat.not_even_iff_odd.2 hqodd) (h ▸ even_two))
+          exact exists_not_mem_of_sq_dvd hq (hqodd.ne_two_of_dvd_nat dvd_rfl)
             ((Nat.pow_dvd_pow q hf2).trans ⟨D, hB_eq.symm⟩) ⟨p ^ e, by rw [← hn_eq, mul_comm]⟩
             h1 hm
     · -- `p ^ 2 ∣ p ^ e`.
@@ -309,27 +281,18 @@ theorem four_mul_card_powEqOneOrNegOne_le {n m : ℕ} [NeZero n] (hodd : Odd n) 
     have hp4 : 4 ≤ p ^ (e - 1) := by
       have hp3 : 3 ≤ p := by have := hp.two_le; omega
       rcases Nat.lt_or_ge e 3 with he3 | he3
-      · have he2' : e = 2 := by omega
-        rw [he2', show 2 - 1 = 1 from rfl, pow_one]
-        by_contra! h
-        have : p = 3 := by omega
-        exact h9 (by rw [← hn_eq, he2', this]; rfl)
+      · obtain rfl : e = 2 := by omega
+        have : p ≠ 3 := by rintro rfl; exact h9 (by rw [← hn_eq]; rfl)
+        rw [Nat.add_one_sub_one, pow_one]
+        omega
       · calc 4 ≤ 3 ^ 2 := by norm_num
           _ ≤ p ^ 2 := Nat.pow_le_pow_left hp3 2
           _ ≤ p ^ (e - 1) := Nat.pow_le_pow_right hp.pos (by omega)
     have hT : powEqOneOrNegOne n m ≤ (powMonoidHom (2 * m) : (ZMod n)ˣ →* (ZMod n)ˣ).ker :=
-      fun a ha => by
-        change a ^ (2 * m) = 1
-        rw [pow_mul']
-        rcases mem_powEqOneOrNegOne.1 ha with ha | ha <;> rw [ha] <;> simp
-    have hdvd := card_ker_mul_pow_dvd_totient hp he (hn_eq ▸ dvd_rfl) h1 hm
-    have hpos : 0 < n.totient := Nat.totient_pos.2 (by omega)
-    have hle := Nat.le_of_dvd hpos hdvd
-    rw [Nat.card_eq_fintype_card (α := (ZMod n)ˣ), ZMod.card_units_eq_totient]
-    calc 4 * Nat.card (powEqOneOrNegOne n m)
-        ≤ p ^ (e - 1) * Nat.card (powMonoidHom (2 * m) : (ZMod n)ˣ →* (ZMod n)ˣ).ker :=
-          Nat.mul_le_mul hp4 (Subgroup.card_le_of_le hT)
-      _ ≤ n.totient := by rw [mul_comm]; exact hle
+      fun a ha => MonoidHom.mem_ker.2 (pow_two_mul_eq_one ha)
+    rw [Nat.card_eq_fintype_card (α := (ZMod n)ˣ), ZMod.card_units_eq_totient, mul_comm]
+    exact (Nat.mul_le_mul (Subgroup.card_le_of_le hT) hp4).trans (Nat.le_of_dvd
+      (Nat.totient_pos.2 (by omega)) (card_ker_mul_pow_dvd_totient hp he (hn_eq ▸ dvd_rfl) h1 hm))
 
 /-- **The Rabin–Monier bound** [Rabin][Rabin1980] [Monier][Monier1980]: modulo an odd composite
 `n ≠ 9`, at most a quarter of the units are strong liars. For `n = 9` the strong liars are `±1`,

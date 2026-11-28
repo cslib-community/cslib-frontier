@@ -11,7 +11,6 @@ public import CslibFrontier.Algorithms.WordRAM.VariableElimination.Instance
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.ElimLoop
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.FinalProd
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.InitFactors
-import CslibFrontier.Computability.WordRAM.InputArray
 import CslibFrontier.Foundations.Data.List.FoldMax
 import CslibFrontier.Tactic.Realize
 import Mathlib.Algebra.Order.BigOperators.Group.List
@@ -37,12 +36,6 @@ open Cslib.Algorithms.Lean.CSP
 open Cslib.DataStructure
 open Cslib.WordRAM
 open Cslib.WordRAM.Realization
-
-private theorem holdsIn_stateInit (words : List ℕ) :
-    HoldsIn 1 words (Memory.State.init words) := by
-  refine ⟨by simp [Memory.State.init]; omega, fun i => ?_⟩
-  have h := Data.init_realizes_append (r := 0) [] words [] i
-  simpa [Memory.State.init] using h
 
 private theorem capFactor_le_maxEntry {inst : ElimInstance} {f : FactorTable ℕ ℕ}
     (hf : f ∈ inst.factors) :
@@ -72,7 +65,7 @@ private theorem stateCap_eliminateOrder_le (d : ℕ) :
             stateCap_eliminateOrder_le d xs (elimVar d x es)
         _ ≤ (max 1 d) ^ xs.length * (max 1 d * stateCap es) :=
             Nat.mul_le_mul_left _ (stateCap_elimVar_le d x es)
-        _ = (max 1 d) ^ xs.length * max 1 d * stateCap es := by ring
+        _ = (max 1 d) ^ xs.length * max 1 d * stateCap es := (Nat.mul_assoc ..).symm
 
 /-- Top-level Word-RAM memory program executing bucket elimination on `ElimInstance`. -/
 def runProg (_ : Unit) : Memory.Prog ℕ :=
@@ -97,21 +90,114 @@ private theorem decode_init_layout (inst : ElimInstance) :
         (inst.factors.flatMap encodeFactor) s₀ := by
   dsimp only
   have hall : HoldsIn 1 inst.encode (Memory.State.init inst.encode) :=
-    holdsIn_stateInit inst.encode
+    holdsIn_init inst.encode
   have henc : inst.encode = inst.domain :: inst.declared.length :: inst.order.length ::
       inst.factors.length ::
       (inst.declared ++ (inst.order ++ inst.factors.flatMap encodeFactor)) := by
     simp [ElimInstance.encode, List.append_assoc]
   nth_rw 1 [henc] at hall
-  obtain ⟨_, hm1, hr1⟩ := holdsIn_cons_shift hall
-  obtain ⟨_, hm2, hr2⟩ := holdsIn_cons_shift hr1
-  obtain ⟨_, hm3, hr3⟩ := holdsIn_cons_shift hr2
-  obtain ⟨h4_lt, hm4, hr4⟩ := holdsIn_cons_shift hr3
-  have h5 : 1 + 1 + 1 + 1 + 1 = 5 := rfl
-  rw [h5] at hr4
-  obtain ⟨hdecl, hr5⟩ := holdsIn_append_split hr4
-  obtain ⟨hord, hfac⟩ := holdsIn_append_split hr5
+  obtain ⟨_, hm1, hr1⟩ := hall.cons
+  obtain ⟨_, hm2, hr2⟩ := hr1.cons
+  obtain ⟨_, hm3, hr3⟩ := hr2.cons
+  obtain ⟨h4_lt, hm4, hr4⟩ := hr3.cons
+  change HoldsIn 5 _ _ at hr4
+  obtain ⟨hdecl, hr5⟩ := HoldsIn.append_iff.mp hr4
+  obtain ⟨hord, hfac⟩ := HoldsIn.append_iff.mp hr5
   exact ⟨by omega, hm1, hm2, hm3, hm4, hdecl, hord, hfac⟩
+
+/-- Word-size and capacity bounds on `inst` that feed `elimOrderLoop`'s precondition. -/
+private theorem runProg_bounds {w : ℕ} (inst : ElimInstance) (hw : Fits w inst.wordBound) :
+    let d := inst.domain
+    let W := maxJointScopeLen d inst.order inst.initState
+    let SW := max (maxScopeLen inst.factors) W
+    let B := (max 1 d) ^ inst.order.length * (max 1 inst.maxEntry) ^ inst.factors.length
+    Fits w 1 ∧ Fits w B ∧ Fits w ((max 1 d) ^ SW) ∧
+      (∀ f ∈ inst.initState.live, f.scope.length ≤ SW) ∧
+      (∀ st ∈ traceOrder d inst.order inst.initState, st.jointScopeVars ≤ W) ∧
+      (max 1 d) ^ inst.order.length * stateCap inst.initState ≤ B :=
+  ⟨hw.of_le (by unfold ElimInstance.wordBound; dsimp only; omega),
+    hw.of_le (by unfold ElimInstance.wordBound; dsimp only; omega),
+    hw.of_le (by unfold ElimInstance.wordBound; dsimp only; omega),
+    fun f hf => (each_mem_le_maxScopeLen f hf).trans (le_max_left _ _),
+    fun _ hst => mem_traceOrder_joint_le _ _ _ hst,
+    Nat.mul_le_mul_left _ (initState_stateCap_le inst)⟩
+
+/-- The `initFactors` stage of `runProg`, ending in `elimOrderLoop`'s memory precondition. -/
+private theorem runProg_init {w : ℕ} (inst : ElimInstance)
+    (hwf : Memory.WellFormed w (Memory.State.init inst.encode)) (hw : Fits w inst.wordBound) :
+    let s₀ := Memory.State.init inst.encode
+    let d := inst.domain
+    let R := inst.declared.length
+    let T := inst.order.length
+    let M := inst.factors.length
+    let W := maxJointScopeLen d inst.order inst.initState
+    let p := initFactors (5 + R + T, M)
+    let s₁ := (Memory.spec 0).clientState s₀ p
+    (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ p) ∧
+      memoryCost p s₀ ≤ 1 + 6 * M ∧ Memory.WellFormed w s₁ ∧ HoldsIn (5 + R) inst.order s₁ ∧
+      HoldsElimState ⟨1, (Memory.spec 0).clientResult s₀ p, M, 5, R⟩ inst.initState s₁ ∧
+      Fits w (s₁.frontier + T * stepMemDelta R M (max (maxScopeLen inst.factors) W) d W) := by
+  obtain ⟨-, -, -, -, -, hdecl, hord, hfac⟩ := decode_init_layout inst
+  have hfr : (Memory.State.init inst.encode).frontier = inst.encode.length + 1 := rfl
+  obtain ⟨hv, hfr₁, hpres, -, hholds, hcost⟩ := initFactors_spec hwf rfl hfac
+    (hw.of_le (by rw [hfr]; unfold ElimInstance.wordBound; dsimp only; omega))
+  refine ⟨hv, hcost, wellFormed_clientState hwf hv, hord.mono_frontier hpres,
+    ⟨by rw [hfr₁]; omega, rfl, rfl, rfl, hholds, hdecl.mono_frontier hpres⟩, hw.of_le ?_⟩
+  rw [hfr₁, hfr]
+  unfold ElimInstance.wordBound
+  dsimp only [stepMemDelta]
+  omega
+
+/-- The `elimOrderLoop` stage of `runProg`, ending in `finalResultProd`'s precondition. -/
+private theorem runProg_loop {w : ℕ} (inst : ElimInstance)
+    (hwf : Memory.WellFormed w (Memory.State.init inst.encode)) (hw : Fits w inst.wordBound) :
+    let s₀ := Memory.State.init inst.encode
+    let d := inst.domain
+    let R := inst.declared.length
+    let T := inst.order.length
+    let M := inst.factors.length
+    let W := maxJointScopeLen d inst.order inst.initState
+    let SW := max (maxScopeLen inst.factors) W
+    let p₁ := initFactors (5 + R + T, M)
+    let s₁ := (Memory.spec 0).clientState s₀ p₁
+    let p₂ := elimOrderLoop ⟨d, 5 + R, T, 1, (Memory.spec 0).clientResult s₀ p₁, M, 5, R⟩
+    let r := (Memory.spec 0).clientResult s₁ p₂
+    let es := eliminateOrder d inst.order inst.initState
+    (Memory.spec w).ValidHistory s₁ ((Memory.spec w).clientHistory s₁ p₂) ∧
+      memoryCost p₂ s₁ ≤ T * (1 + stepFixedCost R M SW d W) + (M + T) * stepBucketUnitCost SW d W ∧
+      r.scalar = es.scalar ∧ r.liveLen = es.live.length ∧
+      HoldsFactorList r.livePtr es.live ((Memory.spec 0).clientState s₁ p₂) ∧
+      stateCap es ≤ (max 1 d) ^ T * (max 1 inst.maxEntry) ^ M := by
+  obtain ⟨h1, hB, hpow, hSW, hW, hcap⟩ := runProg_bounds inst hw
+  obtain ⟨-, -, hwf₁, hord₁, hes₁, hfit⟩ := runProg_init inst hwf hw
+  obtain ⟨hv, -, -, ⟨-, hsc, hlen, -, hlive, -⟩, hcost⟩ := elimOrderLoop_spec
+    (args := ⟨_, _, _, 1, _, _, 5, _⟩) (R := inst.declared.length) (M := inst.factors.length)
+    hwf₁ hord₁ rfl hes₁ le_rfl le_rfl hSW hW (le_max_right _ _) hcap hB h1 hpow hfit
+  exact ⟨hv, hcost, hsc, hlen, hlive,
+    (stateCap_eliminateOrder_le inst.domain inst.order inst.initState).trans hcap⟩
+
+/-- The `finalResultProd` stage of `runProg`. -/
+private theorem runProg_final {w : ℕ} (inst : ElimInstance)
+    (hwf : Memory.WellFormed w (Memory.State.init inst.encode)) (hw : Fits w inst.wordBound) :
+    let s₀ := Memory.State.init inst.encode
+    let R := inst.declared.length
+    let T := inst.order.length
+    let M := inst.factors.length
+    let p₁ := initFactors (5 + R + T, M)
+    let s₁ := (Memory.spec 0).clientState s₀ p₁
+    let p₂ := elimOrderLoop ⟨inst.domain, 5 + R, T, 1, (Memory.spec 0).clientResult s₀ p₁, M, 5, R⟩
+    let r := (Memory.spec 0).clientResult s₁ p₂
+    let s₂ := (Memory.spec 0).clientState s₁ p₂
+    let p₃ := finalResultProd ⟨r.livePtr, r.liveLen, r.scalar⟩
+    (Memory.spec w).ValidHistory s₂ ((Memory.spec w).clientHistory s₂ p₃) ∧
+      (Memory.spec 0).clientResult s₂ p₃ = inst.result ∧ memoryCost p₃ s₂ ≤ 3 * M := by
+  intro s₀ R T M p₁ s₁ p₂ r s₂ p₃
+  obtain ⟨-, hB, -⟩ := runProg_bounds inst hw
+  obtain ⟨-, -, hsc, hlen, hlive, hcap⟩ := runProg_loop inst hwf hw
+  obtain ⟨hv, -, hres, hcost⟩ :=
+    finalResultProd_spec (args := ⟨r.livePtr, r.liveLen, r.scalar⟩) hB hcap hsc hlen hlive
+  exact ⟨hv, hres, hcost.trans
+    (Nat.mul_le_mul_left 3 (hlen.trans_le (liveLength_eliminateOrder_le _ _ _)))⟩
 
 theorem runProg_spec {w : ℕ} (inst : ElimInstance)
     (hin : InputFits w inst.encode) (hw : Fits w inst.wordBound) :
@@ -119,109 +205,29 @@ theorem runProg_spec {w : ℕ} (inst : ElimInstance)
     (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (runProg ())) ∧
       (Memory.spec 0).clientResult s₀ (runProg ()) = inst.result ∧
       memoryCost (runProg ()) s₀ ≤ inst.stepBound := by
+  have hwf : Memory.WellFormed w (Memory.State.init inst.encode) :=
+    Memory.wellFormed_init hin (hw.of_le (by unfold ElimInstance.wordBound; dsimp only; omega))
+  obtain ⟨h5, hm1, hm2, hm3, hm4, -, -, -⟩ := decode_init_layout inst
+  obtain ⟨hv₁, hcost₁, -⟩ := runProg_init inst hwf hw
+  obtain ⟨hv₂, hcost₂, -⟩ := runProg_loop inst hwf hw
+  obtain ⟨hv₃, hres, hcost₃⟩ := runProg_final inst hwf hw
   dsimp only
-  let s₀ := Memory.State.init inst.encode
-  have hf_init : Fits w (inst.encode.length + 1) :=
-    hw.of_le (by unfold ElimInstance.wordBound; dsimp only; omega)
-  have hwf₀ : Memory.WellFormed w s₀ := Memory.wellFormed_init hin hf_init
-  obtain ⟨hs0_5, hm1, hm2, hm3, hm4, hdecl₀, hord₀, hfac₀⟩ := decode_init_layout inst
-  change 5 ≤ s₀.frontier at hs0_5
-  let d := inst.domain
-  let R := inst.declared.length
-  let T := inst.order.length
-  let M := inst.factors.length
-  let W := maxJointScopeLen d inst.order inst.initState
-  let SW := max (maxScopeLen inst.factors) W
-  let B := (max 1 d) ^ T * (max 1 inst.maxEntry) ^ M
-  have h1 : Fits w 1 := hw.of_le (by unfold ElimInstance.wordBound; dsimp only; omega)
-  have hB : Fits w B := hw.of_le (by unfold ElimInstance.wordBound; dsimp only [B, d, T, M]; omega)
-  have hpowSW : Fits w ((max 1 d) ^ SW) :=
-    hw.of_le (by unfold ElimInstance.wordBound; dsimp only [d, W, SW]; omega)
-  have hs0_fr : s₀.frontier = inst.encode.length + 1 := rfl
-  have hfit_initF : Fits w (s₀.frontier + 4 * M) := hw.of_le (by
-    rw [hs0_fr]; unfold ElimInstance.wordBound; dsimp only [M]; omega)
-  have hif_spec := initFactors_spec (w := w) (rawPtr := 5 + R + T) (facLen := M)
-    hwf₀ rfl hfac₀ hfit_initF
-  dsimp only at hif_spec
-  generalize hs₁ : (Memory.spec 0).clientState s₀ (initFactors (5 + R + T, M)) = s₁ at hif_spec
-  generalize hlivePtr :
-    (Memory.spec 0).clientResult s₀ (initFactors (5 + R + T, M)) = livePtr at hif_spec
-  obtain ⟨hif_val, hif_fr, hif_pres, _, hif_holds, hif_cost⟩ := hif_spec
-  have hwf₁ : Memory.WellFormed w s₁ :=
-    by rw [← hs₁]; exact wellFormed_clientState hwf₀ hif_val
-  have hdecl₁ : HoldsIn 5 inst.declared s₁ := hdecl₀.mono_frontier hif_pres
-  have hord₁ : HoldsIn (5 + R) inst.order s₁ := hord₀.mono_frontier hif_pres
-  have hes₁ : HoldsElimState ⟨1, livePtr, M, 5, R⟩ inst.initState s₁ :=
-    ⟨by rw [hif_fr, hs0_fr]; omega, rfl, rfl, rfl, hif_holds, hdecl₁⟩
-  have hSW₀ : ∀ f ∈ inst.initState.live, f.scope.length ≤ SW :=
-    fun f hf => (each_mem_le_maxScopeLen f hf).trans (le_max_left _ _)
-  have hW₀ : ∀ st ∈ traceOrder d inst.order inst.initState, st.jointScopeVars ≤ W :=
-    fun _ hst => mem_traceOrder_joint_le d inst.order inst.initState hst
-  have hcap₀ : (max 1 d) ^ T * stateCap inst.initState ≤ B :=
-    Nat.mul_le_mul_left _ (initState_stateCap_le inst)
-  have hfit_loop : Fits w (s₁.frontier + T * stepMemDelta R M SW d W) := hw.of_le (by
-    rw [hif_fr, hs0_fr]
-    unfold ElimInstance.wordBound
-    dsimp only [d, R, T, M, W, SW, stepMemDelta]
-    omega)
-  let eoArgs : ElimOrderArgs := ⟨d, 5 + R, T, 1, livePtr, M, 5, R⟩
-  have heo_spec := elimOrderLoop_spec (w := w) (args := eoArgs) (R := R) (M := M)
-    hwf₁ hord₁ rfl hes₁ le_rfl le_rfl hSW₀ hW₀ (le_max_right _ _) hcap₀ hB h1 hpowSW hfit_loop
-  dsimp only at heo_spec
-  generalize hs₂ : (Memory.spec 0).clientState s₁ (elimOrderLoop eoArgs) = s₂ at heo_spec
-  generalize hfinalSt :
-    (Memory.spec 0).clientResult s₁ (elimOrderLoop eoArgs) = finalSt at heo_spec
-  obtain ⟨heo_val, _, _, heo_es, heo_cost⟩ := heo_spec
-  dsimp only [eoArgs] at heo_es heo_cost
-  let esFinal := eliminateOrder d inst.order inst.initState
-  have hcap_final : stateCap esFinal ≤ B :=
-    (stateCap_eliminateOrder_le d inst.order inst.initState).trans hcap₀
-  obtain ⟨_, hsc_f, hliveLen_f, _, hlive_f, _⟩ := heo_es
-  dsimp only at hsc_f hliveLen_f hlive_f
-  let fpArgs : FinalProdArgs := ⟨finalSt.livePtr, finalSt.liveLen, finalSt.scalar⟩
-  obtain ⟨hfp_val, _, hfp_res, hfp_cost⟩ :=
-    finalResultProd_spec (w := w) (args := fpArgs) hB hcap_final hsc_f hliveLen_f hlive_f
-  dsimp only [fpArgs] at hfp_cost
-  have hliveLen_le_M : finalSt.liveLen ≤ M := by
-    rw [hliveLen_f]
-    exact liveLength_eliminateOrder_le d inst.order inst.initState
-  have hr_st (addr : ℕ) : (Memory.spec 0).clientState s₀ (Memory.read addr) = s₀ := rfl
-  have hr_res (addr : ℕ) : (Memory.spec 0).clientResult s₀ (Memory.read addr) = s₀.mem addr := rfl
   unfold runProg
-  rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res, hm1,
-    StateTransitionSpec.clientResult_bind, hr_st, hr_res, hm2,
-    StateTransitionSpec.clientResult_bind, hr_st, hr_res, hm3,
-    StateTransitionSpec.clientResult_bind, hr_st, hr_res, hm4]
-  change (Memory.spec w).ValidHistory s₀ _ ∧
-    (Memory.spec 0).clientResult s₀
-      (initFactors (5 + R + T, M) >>= fun lp =>
-        elimOrderLoop ⟨d, 5 + R, T, 1, lp, M, 5, R⟩ >>= fun fs =>
-          finalResultProd ⟨fs.livePtr, fs.liveLen, fs.scalar⟩) = inst.result ∧ _
-  rw [StateTransitionSpec.clientResult_bind, hs₁, hlivePtr,
-    StateTransitionSpec.clientResult_bind, hs₂, hfinalSt, hfp_res]
+  rw [clientResult_bind_read, hm1, clientResult_bind_read, hm2, clientResult_bind_read, hm3,
+    clientResult_bind_read, hm4, StateTransitionSpec.clientResult_bind,
+    StateTransitionSpec.clientResult_bind, hres]
   refine ⟨?_, rfl, ?_⟩
-  · refine validHistory_read_bind (by omega) ?_
-    rw [hm1]
-    refine validHistory_read_bind (by omega) ?_
-    rw [hm2]
-    refine validHistory_read_bind (by omega) ?_
-    rw [hm3]
-    refine validHistory_read_bind (by omega) ?_
-    rw [hm4]
-    refine validHistory_bind_step hif_val ?_
-    rw [hs₁, hlivePtr]
-    refine validHistory_bind_step heo_val ?_
-    rw [hs₂, hfinalSt]
-    exact hfp_val
-  · rw [memoryCost_bind', memoryCost_read, hr_st, hr_res, hm1,
-      memoryCost_bind', memoryCost_read, hr_st, hr_res, hm2,
-      memoryCost_bind', memoryCost_read, hr_st, hr_res, hm3,
-      memoryCost_bind', memoryCost_read, hr_st, hr_res, hm4,
-      memoryCost_bind', hs₁, hlivePtr,
-      memoryCost_bind', hs₂, hfinalSt]
+  · refine validHistory_read_bind (by omega) (validHistory_read_bind (by omega)
+      (validHistory_read_bind (by omega) (validHistory_read_bind (by omega) ?_)))
+    rw [hm1, hm2, hm3, hm4]
+    exact validHistory_bind_step hv₁ (validHistory_bind_step hv₂ hv₃)
+  · rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, hm1,
+      memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, hm2,
+      memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, hm3,
+      memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, hm4,
+      memoryCost_bind', memoryCost_bind']
     unfold ElimInstance.stepBound
-    dsimp only [d, R, T, M, W, SW, stepFixedCost, stepBucketUnitCost]
-      at hif_cost heo_cost hfp_cost hliveLen_le_M ⊢
+    dsimp only [stepFixedCost, stepBucketUnitCost] at hcost₂ ⊢
     omega
 
 theorem runProg_realizes :
@@ -235,113 +241,27 @@ theorem runProg_realizes :
   unfold runProg
   realize [initFactors_realizes, elimOrderLoop_realizes, finalResultProd_realizes]
   all_goals
-    obtain ⟨inst, hs_eq, hin, hw⟩ := h
-    subst hs_eq
-    obtain ⟨hs0_5, hm1, hm2, hm3, hm4, hdecl₀, hord₀, hfac₀⟩ := decode_init_layout inst
+    obtain ⟨inst, rfl, hin, hw⟩ := h
+    obtain ⟨-, hm1, hm2, hm3, hm4, -, hord₀, hfac₀⟩ := decode_init_layout inst
     have hord_le : 5 + inst.declared.length + inst.order.length ≤ inst.encode.length + 1 :=
       hord₀.1
-  · exact hw.of_le (by unfold ElimInstance.wordBound; dsimp only; omega)
-  · exact hw.of_le (by unfold ElimInstance.wordBound; dsimp only; omega)
-  · exact hw.of_le (by unfold ElimInstance.wordBound; dsimp only; omega)
-  · exact hw.of_le (by unfold ElimInstance.wordBound; dsimp only; omega)
-  · exact hw.of_le (by unfold ElimInstance.wordBound; dsimp only; omega)
+  -- Word-size side conditions on literals and header fields.
+  any_goals exact hw.of_le (by unfold ElimInstance.wordBound; dsimp only; omega)
   · simp only [hm2, hm3, hm4]
     refine ⟨inst.factors,
       hw.of_le (by unfold ElimInstance.wordBound; dsimp only; omega), ?_, rfl, hfac₀⟩
     exact hw.of_le (by
       change inst.encode.length + 1 + 4 * inst.factors.length ≤ inst.wordBound
       unfold ElimInstance.wordBound; dsimp only; omega)
-  · rw [hm2]
-    exact hmem.frontier_fits.of_le (by have := hdecl₀.1; omega)
-  · exact hw.of_le (by unfold ElimInstance.wordBound; dsimp only; omega)
   · simp only [hm1, hm2, hm3, hm4]
-    let s₀ := Memory.State.init inst.encode
-    let d := inst.domain
-    let R := inst.declared.length
-    let T := inst.order.length
-    let M := inst.factors.length
-    let W := maxJointScopeLen d inst.order inst.initState
-    let SW := max (maxScopeLen inst.factors) W
-    let B := (max 1 d) ^ T * (max 1 inst.maxEntry) ^ M
-    have hfit_initF : Fits w (s₀.frontier + 4 * M) := hw.of_le (by
-      change inst.encode.length + 1 + 4 * M ≤ inst.wordBound
-      unfold ElimInstance.wordBound; dsimp only [M]; omega)
-    have hif_spec := initFactors_spec (w := w) (rawPtr := 5 + R + T) (facLen := M)
-      hmem rfl hfac₀ hfit_initF
-    dsimp only at hif_spec
-    obtain ⟨_, hif_fr, hif_pres, _, hif_holds, _⟩ := hif_spec
-    exact ⟨inst.order, inst.initState, R, M, SW, W, B,
-      hw.of_le (by unfold ElimInstance.wordBound; dsimp only; omega),
-      rfl,
-      hord₀.mono_frontier hif_pres,
-      ⟨by rw [hif_fr]; change 0 < inst.encode.length + 1 + 4 * M; omega,
-        rfl, rfl, rfl, hif_holds, hdecl₀.mono_frontier hif_pres⟩,
-      le_rfl, le_rfl,
-      fun f hf => (each_mem_le_maxScopeLen f hf).trans (le_max_left _ _),
-      fun _ hst => mem_traceOrder_joint_le d inst.order inst.initState hst,
-      le_max_right _ _,
-      Nat.mul_le_mul_left _ (initState_stateCap_le inst),
-      hw.of_le (by unfold ElimInstance.wordBound; dsimp only [B, d, T, M]; omega),
-      hw.of_le (by unfold ElimInstance.wordBound; dsimp only [d, W, SW]; omega),
-      hw.of_le (by
-        rw [hif_fr]
-        change inst.encode.length + 1 + 4 * M + T * stepMemDelta R M SW d W ≤ inst.wordBound
-        unfold ElimInstance.wordBound
-        dsimp only [d, R, T, M, W, SW, stepMemDelta]
-        omega)⟩
+    obtain ⟨h1, hB, hpow, hSW, hW, hcap⟩ := runProg_bounds inst hw
+    obtain ⟨-, -, -, hord₁, hes₁, hfit⟩ := runProg_init inst hmem hw
+    exact ⟨inst.order, inst.initState, inst.declared.length, inst.factors.length, _, _, _, h1,
+      rfl, hord₁, hes₁, le_rfl, le_rfl, hSW, hW, le_max_right _ _, hcap, hB, hpow, hfit⟩
   · simp only [hm1, hm2, hm3, hm4]
-    let s₀ := Memory.State.init inst.encode
-    let d := inst.domain
-    let R := inst.declared.length
-    let T := inst.order.length
-    let M := inst.factors.length
-    let W := maxJointScopeLen d inst.order inst.initState
-    let SW := max (maxScopeLen inst.factors) W
-    let B := (max 1 d) ^ T * (max 1 inst.maxEntry) ^ M
-    have hfit_initF : Fits w (s₀.frontier + 4 * M) := hw.of_le (by
-      change inst.encode.length + 1 + 4 * M ≤ inst.wordBound
-      unfold ElimInstance.wordBound; dsimp only [M]; omega)
-    have hif_spec := initFactors_spec (w := w) (rawPtr := 5 + R + T) (facLen := M)
-      hmem rfl hfac₀ hfit_initF
-    dsimp only at hif_spec
-    generalize hs₁ : (Memory.spec 0).clientState s₀ (initFactors (5 + R + T, M)) = s₁ at hif_spec
-    generalize hlivePtr :
-      (Memory.spec 0).clientResult s₀ (initFactors (5 + R + T, M)) = livePtr at hif_spec
-    obtain ⟨hif_val, hif_fr, hif_pres, _, hif_holds, _⟩ := hif_spec
-    have hwf₁ : Memory.WellFormed w s₁ :=
-      by rw [← hs₁]; exact wellFormed_clientState hmem hif_val
-    have hes₁ : HoldsElimState ⟨1, livePtr, M, 5, R⟩ inst.initState s₁ :=
-      ⟨by rw [hif_fr]; change 0 < inst.encode.length + 1 + 4 * M; omega,
-        rfl, rfl, rfl, hif_holds, hdecl₀.mono_frontier hif_pres⟩
-    have hcap₀ : (max 1 d) ^ T * stateCap inst.initState ≤ B :=
-      Nat.mul_le_mul_left _ (initState_stateCap_le inst)
-    let eoArgs : ElimOrderArgs := ⟨d, 5 + R, T, 1, livePtr, M, 5, R⟩
-    have heo_spec := elimOrderLoop_spec (w := w) (args := eoArgs) (R := R) (M := M) (SW := SW)
-      hwf₁ (hord₀.mono_frontier hif_pres) rfl hes₁ le_rfl le_rfl
-      (fun f hf => (each_mem_le_maxScopeLen f hf).trans (le_max_left _ _))
-      (fun _ hst => mem_traceOrder_joint_le d inst.order inst.initState hst)
-      (le_max_right _ _) hcap₀
-      (hw.of_le (by unfold ElimInstance.wordBound; dsimp only [B, d, T, M]; omega))
-      (hw.of_le (by unfold ElimInstance.wordBound; dsimp only; omega))
-      (hw.of_le (by unfold ElimInstance.wordBound; dsimp only [eoArgs, d, W, SW]; omega))
-      (hw.of_le (by
-        rw [hif_fr]
-        change inst.encode.length + 1 + 4 * M + T * stepMemDelta R M SW d W ≤ inst.wordBound
-        unfold ElimInstance.wordBound
-        dsimp only [d, R, T, M, W, SW, stepMemDelta]
-        omega))
-    dsimp only at heo_spec
-    obtain ⟨_, _, _, heo_es, _⟩ := heo_spec
-    obtain ⟨_, hsc_f, hliveLen_f, _, hlive_f, _⟩ := heo_es
-    dsimp only [eoArgs] at hsc_f hliveLen_f hlive_f
-    let esFinal := eliminateOrder d inst.order inst.initState
-    have hcap_final : esFinal.scalar * (esFinal.live.map capFactor).prod ≤ B :=
-      (Nat.mul_le_mul_right _ (le_max_right 1 esFinal.scalar)).trans
-        ((stateCap_eliminateOrder_le d inst.order inst.initState).trans hcap₀)
-    exact ⟨esFinal.live, B,
-      hw.of_le (by unfold ElimInstance.wordBound; dsimp only; omega),
-      hliveLen_f.symm, hlive_f,
-      by rw [hsc_f]; exact hcap_final,
-      hw.of_le (by unfold ElimInstance.wordBound; dsimp only [B, d, T, M]; omega)⟩
+    obtain ⟨-, hB, -⟩ := runProg_bounds inst hw
+    obtain ⟨-, -, hsc, hlen, hlive, hcap⟩ := runProg_loop inst hmem hw
+    exact ⟨_, _, hw.of_le (by unfold ElimInstance.wordBound; dsimp only; omega), hlen.symm, hlive,
+      by rw [hsc]; exact (Nat.mul_le_mul_right _ (le_max_right 1 _)).trans hcap, hB⟩
 
 end Cslib.Algorithms.WordRAM.VariableElimination

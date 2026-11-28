@@ -1551,21 +1551,8 @@ private theorem cond_gaussian_sum_le_prob_ge_one_third
   have ⟨hL2, hE⟩ := integral_norm_sum_smul_sq_discreteGaussian_le hn B hB hβ hr hε0 hε hdual
     centers z hz_norm hs
   have hMem : MemLp (fun Y : Fin m → intLattice B => ∑ i : Fin m,
-      (z i : ℝ) • ((Y i : EuclideanSpace ℝ (Fin n)) - centers i)) 2 P.toMeasure := by
-    have hfin (s : Finset (Fin m)) : MemLp (fun Y : Fin m → intLattice B =>
-        ∑ i ∈ s, (z i : ℝ) • ((Y i : EuclideanSpace ℝ (Fin n)) - centers i)) 2 P.toMeasure := by
-      classical
-      induction s using Finset.induction_on with
-      | empty => simp only [Finset.sum_empty]; exact MemLp.zero
-      | @insert a t ha ih =>
-        have heq : (fun Y : Fin m → intLattice B => ∑ i ∈ insert a t, (z i : ℝ) •
-            ((Y i : EuclideanSpace ℝ (Fin n)) - centers i)) =
-            (fun Y => (z a : ℝ) • ((Y a : EuclideanSpace ℝ (Fin n)) - centers a)) +
-              (fun Y => ∑ i ∈ t, (z i : ℝ) • ((Y i : EuclideanSpace ℝ (Fin n)) - centers i)) :=
-          funext fun Y => Finset.sum_insert ha
-        rw [heq]
-        exact ((hL2 a).const_smul (z a : ℝ)).add ih
-    exact hfin Finset.univ
+      (z i : ℝ) • ((Y i : EuclideanSpace ℝ (Fin n)) - centers i)) 2 P.toMeasure :=
+    memLp_finsetSum _ fun i _ => (hL2 i).const_smul (z i : ℝ)
   have hbad := (mul_meas_ge_le_integral_of_nonneg (ae_of_all _ fun Y => sq_nonneg _)
     ((memLp_two_iff_integrable_sq_norm hMem.aestronglyMeasurable).1 hMem) (r ^ 2)).trans hE
   have hbad_le : (P.toMeasure {Y | r ^ 2 ≤ ‖∑ i : Fin m, (z i : ℝ) •
@@ -1702,9 +1689,8 @@ private theorem idealIncGDDStep_eq_factor {n m q : ℕ} [NeZero q] (hn : 1 ≤ n
       (PMF.uniformOfFintype (Fin m → SublatticeQuot B S)).bind fun V =>
         (ProbComp.eval (F (combineMatrix B S q V C))).bind fun z => PMF.pure _) = _
   rw [PMF.bind_comm]
-  refine congrArg (PMF.bind (PMF.uniformOfFintype (Fin m → SublatticeQuot B S)))
-    (funext fun V => ?_)
-  exact PMF.bind_comm _ (ProbComp.eval (F (combineMatrix B S q V C))) _
+  exact congrArg (PMF.bind _) (funext fun V =>
+    PMF.bind_comm _ (ProbComp.eval (F (combineMatrix B S q V C))) _)
 
 private theorem idealJoint_good_prob_ge
     {n m q : ℕ} [NeZero q] (hm : 1 ≤ m) (B S : Matrix (Fin n) (Fin n) ℤ)

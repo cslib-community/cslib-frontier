@@ -138,9 +138,7 @@ theorem acceptProb_singleOracle_independent (P : ι → Prover Unit) (i₀ : ι)
       acceptProb p (P i₀) := by
   have h := congrArg (PMF.map Prod.fst)
     (run_singleOracle_independent P i₀ p (independent P).init)
-  have hcomp : Prod.fst ∘ Prod.map (id : Bool → Bool) (fun s' : (independent P).State => s' i₀) =
-      Prod.fst := rfl
-  simp only [PMF.map_comp, hcomp] at h
+  simp only [PMF.map_comp, Function.comp_def, Prod.map_fst, id_eq] at h
   exact congrFun (congrArg DFunLike.coe h) true
 
 end Prover
@@ -191,8 +189,7 @@ theorem IsInteractiveProof.isMultiproverProof_singleOracle (i₀ : ι)
     IsMultiproverProof (fun a => WordOracleComp.singleOracle i₀ (verifier a)) A c s where
   complete a ha := by
     obtain ⟨P₀, hP₀⟩ := h.complete a ha
-    refine ⟨fun _ => P₀, ?_⟩
-    rwa [Prover.acceptProb_singleOracle_independent]
+    exact ⟨fun _ => P₀, by rwa [Prover.acceptProb_singleOracle_independent]⟩
   sound a ha P := by
     rw [Prover.acceptProb_singleOracle_independent]
     exact h.sound a ha (P i₀)
@@ -223,16 +220,14 @@ def MIP (enc : α ↪ List Bool) : Set (Set α) :=
 theorem PolyTimeReducible.mem_MIP₂ {encA : α ↪ List Bool} {encB : β ↪ List Bool}
     {A : Set α} {B : Set β} (hred : PolyTimeReducible encA encB A B) (hB : B ∈ MIP₂ encB) :
     A ∈ MIP₂ encA := by
-  obtain ⟨f, hf, hAB⟩ := hred
-  obtain ⟨V, hV, hproof⟩ := hB
+  rcases hred, hB with ⟨⟨f, hf, hAB⟩, ⟨V, hV, hproof⟩⟩
   exact ⟨fun a => V (f a), hV.preprocess hf, hproof.comp hAB⟩
 
 /-- **`MIP` is closed under polynomial-time reductions.** -/
 theorem PolyTimeReducible.mem_MIP {encA : α ↪ List Bool} {encB : β ↪ List Bool}
     {A : Set α} {B : Set β} (hred : PolyTimeReducible encA encB A B) (hB : B ∈ MIP encB) :
     A ∈ MIP encA := by
-  obtain ⟨f, hf, hAB⟩ := hred
-  obtain ⟨p, V, hV, hproof⟩ := hB
+  rcases hred, hB with ⟨⟨f, hf, hAB⟩, ⟨p, V, hV, hproof⟩⟩
   exact ⟨p, fun a => V (f a), hV.preprocess hf, hproof.comp hAB⟩
 
 /-- **`IP ⊆ MIP₂`**: a single-prover interactive proof uses the first of two provers (`0 : Fin 2`)

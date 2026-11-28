@@ -37,14 +37,9 @@ private def matrixSeed (H : Xofs) (s : Level) (seed : FixedBytes 32) : FixedByte
 private theorem matrixSeed_bytes (H : Xofs) (s : Level) (seed : FixedBytes 32) :
     (matrixSeed H s seed).toList = (H.expandKeySeed s seed).take 32 := by
   have len : (H.expandKeySeed s seed).length = 128 := H.h256.length_read ..
-  let rho := (H.expandKeySeed s seed).take 32
-  have hr : rho.length = 32 := by simp [rho, len]
-  obtain ⟨r, eq⟩ := FixedBytes.exists_toList hr
-  change FixedBytes.toList (n := 32) (fun i => rho[i.val]!) = rho
-  rw [← eq]
-  congr 1
-  funext i
-  simp only [FixedBytes.toList, List.length_ofFn, getElem!_pos, i.isLt, List.getElem_ofFn]
+  refine List.ext_getElem (by simp [FixedBytes.toList, len]) fun i _ h2 => ?_
+  simp only [FixedBytes.toList, List.getElem_ofFn, matrixSeed,
+    getElem!_pos ((H.expandKeySeed s seed).take 32) i h2]
 
 private def expansionSeed (H : Xofs) (s : Level) (seed : FixedBytes 32) : FixedBytes 64 :=
   fun j => ((H.expandKeySeed s seed).drop 32)[j.val]!
@@ -52,13 +47,11 @@ private def expansionSeed (H : Xofs) (s : Level) (seed : FixedBytes 32) : FixedB
 private theorem expansionSeed_bytes (H : Xofs) (s : Level) (seed : FixedBytes 32) :
     (expansionSeed H s seed).toList = ((H.expandKeySeed s seed).drop 32).take 64 := by
   have len : (H.expandKeySeed s seed).length = 128 := H.h256.length_read ..
-  apply List.ext_getElem
-  · simp [len]
-  · intro i hi _
-    have small : i < 64 := by simpa using hi
-    have hd : i < ((H.expandKeySeed s seed).drop 32).length := by simp [len]; lia
-    simp only [FixedBytes.toList, List.getElem_ofFn, expansionSeed, List.getElem_take,
-      getElem!_pos ((H.expandKeySeed s seed).drop 32) i hd]
+  refine List.ext_getElem (by simp [len]) fun i _ h2 => ?_
+  have hd : i < ((H.expandKeySeed s seed).drop 32).length := by
+    simp only [List.length_take, List.length_drop, len] at h2 ⊢; omega
+  simp only [FixedBytes.toList, List.getElem_ofFn, expansionSeed, List.getElem_take,
+    getElem!_pos ((H.expandKeySeed s seed).drop 32) i hd]
 
 private def atTable {a b : ℕ} (base : Xofs) (T : Table a b) : Xofs :=
   {base with h256 := install base.h256 T}
@@ -73,41 +66,34 @@ private theorem read_off_slots {a b : ℕ} (s : Level) (base : Xofs) (seed : Fix
     (n : ℕ) :
     (atTable base (Function.extend (slots s base seed ha hb T) fresh T)).h256.read x n =
       (atTable base T).h256.read x n := by
-  apply read_eq_of_byteAt_eq
-  intro i hi
+  refine read_eq_of_byteAt_eq fun i _ => ?_
   simp only [atTable, byteAt_install]
   split
-  next h =>
-    apply Function.extend_apply'
-    rintro ⟨j, eq⟩
-    exact away j.1 (word_inj (hx := (length_nonceInput_bits _ _).le.trans ha) (hy := h.1)
-      (congrArg Prod.fst eq)).symm
-  next => rfl
+  · next h =>
+    exact Function.extend_apply' _ _ _ fun ⟨j, eq⟩ =>
+      away j.1 (word_inj (hx := (length_nonceInput_bits _ _).le.trans ha) (hy := h.1)
+        (congrArg Prod.fst eq)).symm
+  · rfl
 
 private theorem fixed_expansion {a b : ℕ} (s : Level) (base : Xofs) (seed : FixedBytes 32)
     (ha : 528 ≤ a) (hb : 481 ≤ b) (T : Table a b) (v : Nonce s × Fin 481 → Byte) :
     (atTable base (Function.extend (slots s base seed ha hb T) v T)).expandKeySeed s seed =
       (atTable base T).expandKeySeed s seed := by
-  apply read_off_slots
-  intro j h
+  refine read_off_slots s base seed ha hb T v _ (fun j h => ?_) _
   have len := congrArg List.length h
-  rw [length_keySeedInput] at len
-  change 272 = (Keccak.bytesToBitsLE (nonceInput _ _)).length at len
-  rw [length_nonceInput_bits] at len
-  contradiction
+  simp only [nonceWord, length_keySeedInput, length_nonceInput_bits] at len
+  nomatch len
 
 private theorem uniform_secret_resample {a b : ℕ} (s : Level) (base : Xofs)
     (seed : FixedBytes 32) (ha : 528 ≤ a) (hb : 481 ≤ b) {α : Type} (run : Xofs → PMF α) :
     ((PMF.uniformOfFintype (Table a b)).bind fun T =>
       (PMF.uniformOfFintype (Nonce s × Fin 481 → Byte)).bind fun v =>
         run (atTable base (Function.extend (slots s base seed ha hb T) v T))) =
-      (PMF.uniformOfFintype (Table a b)).bind fun T => run (atTable base T) := by
-  apply PMF.uniformOfFintype_bind_bind_adaptiveExtend (slots s base seed ha hb) _
-    (fun T => run (atTable base T))
-  intro T v
-  apply congrArg (fun r => secretPoint s r ha hb)
-  funext i
-  exact congrArg (fun l : List Byte => (l.drop 32)[i.val]!) (fixed_expansion s base seed ha hb T v)
+      (PMF.uniformOfFintype (Table a b)).bind fun T => run (atTable base T) :=
+  PMF.uniformOfFintype_bind_bind_adaptiveExtend (slots s base seed ha hb)
+    (fun T v => congrArg (secretPoint s · ha hb) (funext fun i =>
+      congrArg (fun l : List Byte => (l.drop 32)[i.val]!) (fixed_expansion s base seed ha hb T v)))
+    fun T => run (atTable base T)
 
 private noncomputable def atSeed {s : Level} (H : Xofs) (seed : FixedBytes 32)
     (run : PostKey s) : Game :=
@@ -180,22 +166,20 @@ private theorem patched_trial {a b : ℕ} (s : Level) (base : Xofs) (seed : Fixe
       observeViews true run (viewsAt s base seed ha hb T rows) := by
   let H := atTable base T
   let e := slots s base seed ha hb T
-  let J := atTable base (Function.extend e rows T)
   let r := expansionSeed H s seed
-  have val : J.expandS s r.toList = vectors s (rowPair s rows) := by
-    have read := expandS_install s r ha hb base (Function.extend e rows T)
+  have val : (atTable base (Function.extend e rows T)).expandS s r.toList =
+      vectors s (rowPair s rows) := by
     have get (p : Nonce s × Fin 481) :
         Function.extend e rows T (secretPoint s r ha hb p) = rows p :=
       e.injective.extend_apply rows T p
-    change (atTable base (Function.extend e rows T)).expandS s r.toList = _
-    unfold atTable
-    simpa only [get] using read
+    simpa only [atTable, get] using expandS_install s r ha hb base (Function.extend e rows T)
   unfold atSeed observeViews viewsAt
-  dsimp only
+  dsimp only [↓reduceIte]
   rw [fixed_expansion]
-  change observePair _ (J.expandS s (((H.expandKeySeed s seed).drop 32).take 64)) _ = _
-  rw [← expansionSeed_bytes, val]
-  exact (observe_generatedPair ..).symm
+  change observePair _ ((atTable base (Function.extend e rows T)).expandS s
+    (((H.expandKeySeed s seed).drop 32).take 64)) _ = _
+  rw [← expansionSeed_bytes, val, ← observe_generatedPair]
+  rfl
 
 private theorem shared_law {s : Level} (base : Xofs) {a b : ℕ}
     (ha : 528 ≤ a) (hb : 481 ≤ b) (run : PostKey s) :
@@ -203,28 +187,25 @@ private theorem shared_law {s : Level} (base : Xofs) {a b : ℕ}
       (base.sampleSecretExpansionViews s ha hb).bind (observeViews true run) := by
   let U := PMF.uniformOfFintype (Table a b)
   let S := PMF.uniformOfFintype (FixedBytes 32)
-  have atH (H : Xofs) : H.fullPairExperiment s (run H) = S.bind fun seed => atSeed H seed run :=
-    Xofs.fullPairExperiment_eq_expand ..
-  simp_rw [atH]
+  simp_rw [show ∀ H : Xofs, H.fullPairExperiment s (run H) = S.bind fun seed => atSeed H seed run
+    from fun _ => Xofs.fullPairExperiment_eq_expand ..]
   rw [independent_tables]
   simp only [Xofs.sampleSecretExpansionViews, PMF.bind_bind, PMF.bind_map, Function.comp_def]
-  let F (M T : Table a b) := atTable {base with h128 := install base.h128 M} T
-  change (U.bind fun T => U.bind fun M => S.bind fun seed => atSeed (F M T) seed run) =
+  change (U.bind fun T => U.bind fun M => S.bind fun seed =>
+      atSeed (atTable {base with h128 := install base.h128 M} T) seed run) =
     U.bind fun T => U.bind fun M => S.bind fun seed =>
       (PMF.uniformOfFintype (Nonce s × Fin 481 → Byte)).bind fun v =>
         observeViews true run (viewsAt s {base with h128 := install base.h128 M} seed ha hb T v)
   conv_lhs => rw [PMF.bind_comm U U]
   conv_rhs => rw [PMF.bind_comm U U]
-  apply congrArg (PMF.bind U ·)
-  funext M
+  refine congrArg (PMF.bind U ·) (funext fun M => ?_)
   conv_lhs => rw [PMF.bind_comm U S]
   conv_rhs => rw [PMF.bind_comm U S]
-  apply congrArg (PMF.bind S ·)
-  funext seed
+  refine congrArg (PMF.bind S ·) (funext fun seed => ?_)
   let B : Xofs := {base with h128 := install base.h128 M}
   change (U.bind fun T => atSeed (atTable B T) seed run) = _
-  exact (uniform_secret_resample s B seed ha hb (fun H => atSeed H seed run)).symm.trans (by
-    simp only [patched_trial, U, B])
+  exact (uniform_secret_resample s B seed ha hb fun H => atSeed H seed run).symm.trans
+    (by simp only [patched_trial, U, B])
 
 private theorem detached_at_seed {s : Level} (base : Xofs) {a b : ℕ} (ha : 528 ≤ a)
     (hb : 481 ≤ b) (H : Xofs) (seed : FixedBytes 32) (run : PostKey s) :
@@ -236,13 +217,11 @@ private theorem detached_at_seed {s : Level} (base : Xofs) {a b : ℕ} (ha : 528
       (PMF.uniformOfFintype (Nonce s × Fin 481 → Byte)).bind fun rows =>
         observePair A (vectors s (rowPair s rows)) finish := by
   intro ex A finish
-  let r := expansionSeed H s seed
-  have row := uniformPrefixes_secretRows base s r ha hb
-  have uniform := PMF.uniformOfFintype_bind_map
-    (fun x y => vectors s (x, y))
-  rw [uniform, ← PMF.uniformOfFintype_map_equiv (rowPair s), PMF.map_comp] at row
-  have eq := congrArg (PMF.bind · (fun v => observePair A v finish)) row
-  simpa only [PMF.bind_map, Function.comp_def, r, expansionSeed_bytes] using eq
+  have row := uniformPrefixes_secretRows base s (expansionSeed H s seed) ha hb
+  rw [PMF.uniformOfFintype_bind_map (fun x y => vectors s (x, y)),
+    ← PMF.uniformOfFintype_map_equiv (rowPair s), PMF.map_comp] at row
+  simpa only [PMF.bind_map, Function.comp_def, expansionSeed_bytes] using
+    congrArg (PMF.bind · fun v => observePair A v finish) row
 
 private theorem detached_law (C : QuantumSigningForger) (s : Level) (base : Xofs) {a b : ℕ}
     (ha : 528 ≤ a) (hb : 481 ≤ b) :
@@ -262,14 +241,11 @@ private theorem detached_law (C : QuantumSigningForger) (s : Level) (base : Xofs
             (run H (fun j => rho[j.val]!)) := by
     simp_rw [Xofs.fullPairExperiment_eq_expand, seed_keep]
     rw [PMF.bind_comm]
-    apply congrArg (PMF.bind S ·)
-    funext seed
-    let rs := ((H.expandKeySeed s seed).drop 32).take 64
-    have hr : rs.length = 64 := by
-      have len : (H.expandKeySeed s seed).length = 128 := H.h256.length_read ..
-      simp [rs, len]
-    change (R.bind fun G => observePair _ ((H.withExpandSStream G).expandS s rs) _) = _
-    simp_rw [separate_secret H _ s rs hr]
+    refine congrArg (PMF.bind S ·) (funext fun seed => ?_)
+    have len : (H.expandKeySeed s seed).length = 128 := H.h256.length_read ..
+    have hr : (((H.expandKeySeed s seed).drop 32).take 64).length = 64 := by simp [len]
+    change (R.bind fun G => observePair _ ((H.withExpandSStream G).expandS s _) _) = _
+    simp_rw [separate_secret H _ s _ hr]
     exact detached_at_seed base ha hb H seed run
   change (R.bind fun H => R.bind fun G => (H.withExpandSStream G).fullPairExperiment s (run H)) = _
   simp_rw [atH]
@@ -318,23 +294,17 @@ theorem SecretExpansionViews.agree_of_mem {base : Xofs} {s : Level} {a b : ℕ}
   obtain ⟨T, _, M, _, seed, _, rows, _, rfl⟩ := (by
     simpa only [Xofs.sampleSecretExpansionViews, PMF.mem_support_bind_iff,
       PMF.mem_support_map_iff] using hv)
-  constructor
+  refine ⟨rfl, fun x i apart => ?_⟩
+  change byteAt (install base.h256 (Function.extend _ rows T)) x i =
+    byteAt (install base.h256 T) x i
+  simp only [byteAt_install]
+  split
+  · next h =>
+    exact Function.extend_apply' _ _ _ fun ⟨p, hp⟩ => apart.elim
+      (fun late => Nat.not_lt.mpr late ((congrArg (·.2.val) hp : p.2.val = i) ▸ p.2.isLt))
+      (fun miss => miss (finSumFinEquiv p.1) (word_inj
+        (hx := (length_nonceInput_bits _ _).le.trans ha) (hy := h.1) (congrArg Prod.fst hp)).symm)
   · rfl
-  · intro x i apart
-    change byteAt (install base.h256 (Function.extend _ rows T)) x i =
-      byteAt (install base.h256 T) x i
-    simp only [byteAt_install]
-    split
-    next h =>
-      apply Function.extend_apply'
-      rintro ⟨p, hp⟩
-      rcases apart with late | miss
-      · have same : p.2.val = i := congrArg (fun v => v.2.val) hp
-        exact (Nat.not_lt.mpr late) (same ▸ p.2.isLt)
-      · apply miss (finSumFinEquiv p.1)
-        exact (word_inj (hx := (length_nonceInput_bits _ _).le.trans ha) (hy := h.1)
-          (congrArg Prod.fst hp)).symm
-    next => rfl
 
 /-- A pure-mode representative can coincide with a private expansion address only on the empty
 message and empty context. In that case the public-key hash must equal the private seed and the
@@ -344,25 +314,22 @@ theorem representativeInput_eq_nonceInput_iff (tr r : FixedBytes 64)
     representativeInput tr.toList (formatMessage msg ctx) =
         Keccak.bytesToBitsLE (nonceInput r.toList j.val) ↔
       tr = r ∧ ctx = [] ∧ msg = [] ∧ j = 0 := by
-  constructor
-  · intro eq
-    have len := congrArg List.length eq
-    rw [length_nonceInput_bits] at len
+  refine ⟨fun eq => ?_, ?_⟩
+  · have len := congrArg List.length eq
     have trLen : tr.toList.length = 64 := FixedBytes.length_toList tr
+    rw [length_nonceInput_bits] at len
     simp only [representativeInput, formatMessage, List.length_append,
       Keccak.length_bytesToBitsLE, trLen, List.length_cons] at len
     obtain rfl : ctx = [] := List.length_eq_zero_iff.mp (by lia)
     obtain rfl : msg = [] := List.length_eq_zero_iff.mp (by lia)
-    have bs : nonceInput tr.toList 0 = nonceInput r.toList j.val := by
-      apply Keccak.bytesToBitsLE_injective
-      apply Eq.trans _ eq
-      simp only [representativeInput, formatMessage, List.append_nil]
-      exact List.flatMap_append
+    have bs : nonceInput tr.toList 0 = nonceInput r.toList j.val :=
+      Keccak.bytesToBitsLE_injective (Eq.trans
+        (by simp only [representativeInput, formatMessage, List.append_nil]
+            exact List.flatMap_append) eq)
     have seeds := congrArg (List.take 64) bs
     simp only [nonceInput, List.take_left' (FixedBytes.length_toList _)] at seeds
     obtain rfl : tr = r := List.ofFn_inj.mp seeds
-    have count := eq_of_nonceInput_eq (by decide : 0 < 65536) j.isLt bs
-    exact ⟨rfl, rfl, rfl, Fin.ext count.symm⟩
+    exact ⟨rfl, rfl, rfl, Fin.ext (eq_of_nonceInput_eq (by decide : 0 < 65536) j.isLt bs).symm⟩
   · rintro ⟨rfl, rfl, rfl, rfl⟩
     simp only [representativeInput, formatMessage, List.append_nil]
     exact List.flatMap_append.symm
@@ -377,19 +344,10 @@ theorem SecretExpansionViews.representative_of_mem {base : Xofs} {s : Level} {a 
     (away : tr ≠ v.secretSeed ∨ ctx ≠ [] ∨ msg ≠ []) :
     v.shared.representativeFromTr tr.toList (formatMessage msg ctx) =
       v.background.representativeFromTr tr.toList (formatMessage msg ctx) := by
-  apply congrArg Keccak.bytesToBitsLE
-  apply read_eq_of_byteAt_eq
-  intro i _
-  apply (agree_of_mem hv).2 _ i
-  right
-  intro j hit
-  have bound : s.params.ℓ + s.params.k ≤ 65536 := by cases s <;> decide
-  let n := j.castLE bound
-  obtain ⟨htr, hc, hm, _⟩ :=
-    (representativeInput_eq_nonceInput_iff tr v.secretSeed ctx msg n).mp hit
-  rcases away with h | h | h
-  · exact h htr
-  · exact h hc
-  · exact h hm
+  refine congrArg Keccak.bytesToBitsLE (read_eq_of_byteAt_eq fun i _ =>
+    (agree_of_mem hv).2 _ i (Or.inr fun j hit => ?_))
+  obtain ⟨htr, hc, hm, _⟩ := (representativeInput_eq_nonceInput_iff tr v.secretSeed ctx msg
+    (j.castLE (by cases s <;> decide))).mp hit
+  exact away.elim (· htr) (·.elim (· hc) (· hm))
 
 end Cslib.Crypto.MLDSA.FIPS204

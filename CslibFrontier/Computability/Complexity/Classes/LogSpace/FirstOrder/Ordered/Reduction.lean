@@ -228,18 +228,11 @@ theorem mem_queryLanguage_encodedMap_iff (hk : 0 < k) (φ : (language L').Senten
     let _ := I.inputStructure (n := a.1)
     let _ : Fact (2 ≤ a.1 ^ k) := ⟨two_le_pow (n := a.1) hk⟩
     let _ := v'.decode (I.encodedMap v v' a)
-    refine ⟨fun ⟨_, hφ⟩ => ⟨ha, ?_⟩, fun ⟨_, hφ⟩ => ⟨⟨ha, hn⟩, ?_⟩⟩
-    · rw [I.realize_onSentence hk φ, ← StrongHomClass.realize_sentence (I.modelEquiv hk) φ,
-        StrongHomClass.realize_sentence (I.encodedModelEquiv v v' hk ha) φ]
-      exact hφ
-    · rw [← StrongHomClass.realize_sentence (I.encodedModelEquiv v v' hk ha) φ,
-        StrongHomClass.realize_sentence (I.modelEquiv hk) φ, ← I.realize_onSentence hk φ]
-      exact hφ
-  · refine iff_of_false ?_ ?_
-    · intro hm
-      exact h ((I.wellFormed_encodedMap_iff v v').mp hm.1)
-    · rintro ⟨ha, hn, _⟩
-      exact h ⟨ha, hn⟩
+    rw [I.realize_onSentence hk φ, ← StrongHomClass.realize_sentence (I.modelEquiv hk) φ,
+      StrongHomClass.realize_sentence (I.encodedModelEquiv v v' hk ha) φ]
+    exact ⟨fun ⟨_, hφ⟩ => ⟨ha, hφ⟩, fun ⟨_, hφ⟩ => ⟨⟨ha, hn⟩, hφ⟩⟩
+  · exact iff_of_false (fun hm => h ((I.wellFormed_encodedMap_iff v v').mp hm.1))
+      fun ⟨ha, hn, _⟩ => h ⟨ha, hn⟩
 
 /-- For positive tuple dimension, the canonical full-tuple encoded map is a logspace many-one
 reduction from the pulled-back ordered query language to the target ordered query language. -/

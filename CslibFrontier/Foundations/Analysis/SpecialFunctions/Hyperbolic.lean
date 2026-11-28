@@ -42,8 +42,7 @@ theorem sinh_le_mul_exp_half_sq {x : ℝ} (hx : 0 ≤ x) : sinh x ≤ x * exp (x
           Nat.two_pow_mul_factorial_le_factorial_two_mul _
       _ ≤ (2 * i + 1).factorial := Nat.factorial_le (Nat.le_succ _)
   have hpos : (0 : ℝ) < ((2 ^ i * i.factorial : ℕ) : ℝ) := by positivity
-  simp only [smul_eq_mul, div_pow]
-  rw [pow_succ, ← pow_mul]
+  rw [smul_eq_mul, div_pow, pow_succ, ← pow_mul]
   push_cast at hfac hpos ⊢
   rw [show x * ((i.factorial : ℝ)⁻¹ * (x ^ (2 * i) / 2 ^ i)) =
     x ^ (2 * i) * x / (2 ^ i * i.factorial) by field_simp]
@@ -52,14 +51,12 @@ theorem sinh_le_mul_exp_half_sq {x : ℝ} (hx : 0 ≤ x) : sinh x ≤ x * exp (x
 /-- `cosh s + m · sinh s ≤ exp (m s + s² / 2)` for `m, s ≥ 0`. -/
 theorem cosh_add_mul_sinh_le_exp {m s : ℝ} (hm : 0 ≤ m) (hs : 0 ≤ s) :
     cosh s + m * sinh s ≤ exp (m * s + s ^ 2 / 2) := by
-  calc cosh s + m * sinh s ≤ exp (s ^ 2 / 2) + m * (s * exp (s ^ 2 / 2)) := by
-        gcongr
-        · exact cosh_le_exp_half_sq s
-        · exact sinh_le_mul_exp_half_sq hs
+  calc cosh s + m * sinh s ≤ exp (s ^ 2 / 2) + m * (s * exp (s ^ 2 / 2)) :=
+        add_le_add (cosh_le_exp_half_sq s)
+          (mul_le_mul_of_nonneg_left (sinh_le_mul_exp_half_sq hs) hm)
     _ = (1 + m * s) * exp (s ^ 2 / 2) := by ring
-    _ ≤ exp (m * s) * exp (s ^ 2 / 2) := by
-        gcongr
-        linarith [add_one_le_exp (m * s)]
+    _ ≤ exp (m * s) * exp (s ^ 2 / 2) :=
+        mul_le_mul_of_nonneg_right (by linarith [add_one_le_exp (m * s)]) (exp_nonneg _)
     _ = exp (m * s + s ^ 2 / 2) := (exp_add _ _).symm
 
 /-- `sinh x ≤ x · cosh x` for `x ≥ 0`. -/
@@ -85,9 +82,7 @@ theorem tanh_le_self {x : ℝ} (hx : 0 ≤ x) : tanh x ≤ x := by
 
 /-- `tanh (x / 2) = (exp x - 1) / (exp x + 1)`. -/
 theorem tanh_half_eq_exp_sub_one_div (x : ℝ) : tanh (x / 2) = (exp x - 1) / (exp x + 1) := by
-  have h : exp x = exp (x / 2) * exp (x / 2) := by
-    rw [← exp_add]; ring_nf
-  have h0 : 0 < exp (x / 2) := exp_pos _
+  have h : exp x = exp (x / 2) * exp (x / 2) := by rw [← exp_add, add_halves]
   rw [tanh_eq_sinh_div_cosh, sinh_eq, cosh_eq, h, exp_neg]
   field_simp
 

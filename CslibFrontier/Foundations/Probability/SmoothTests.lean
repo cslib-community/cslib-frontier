@@ -118,8 +118,7 @@ theorem abs_integral_sub_integral_le_of_moments {μ ν : Measure ℝ} [IsProbabi
       ((integrable_abs_pow_of_memLp hm le_rfl).const_mul K) hR)
   have hT : ∫ s, T s ∂μ = ∫ s, T s ∂ν := by
     rw [(hTint hμ).2, (hTint hν).2]
-    refine sum_congr rfl fun j hj => ?_
-    rw [hmom j (Nat.lt_succ_iff.1 (mem_range.1 hj))]
+    exact sum_congr rfl fun j hj => by rw [hmom j (Nat.lt_succ_iff.1 (mem_range.1 hj))]
   rw [hsplit hμ, hsplit hν, hT, add_sub_add_left_eq_sub, mul_add]
   exact (abs_sub _ _).trans (add_le_add (hRle hμ) (hRle hν))
 
@@ -180,9 +179,8 @@ theorem abs_integral_comp_sub_le_of_lipschitzWith [IsProbabilityMeasure P]
     have hφ : ContDiff ℝ (k + 1 : ℕ) φ := contDiff_iterate_movingAverage hψ.continuous (k + 1)
     have hC (u : ℝ) : |iteratedDeriv (k + 1) φ u| ≤ 2 ^ k * K / t ^ k :=
       hψ.abs_iteratedDeriv_iterate_movingAverage_le ht (Nat.lt_succ_self k) u
-    have hM (u : ℝ) : |ψ u - φ u| ≤ (k + 1 : ℕ) * K * t := by
-      rw [abs_sub_comm]
-      exact hψ.abs_iterate_movingAverage_sub_le ht (k + 1) u
+    have hM (u : ℝ) : |ψ u - φ u| ≤ (k + 1 : ℕ) * K * t :=
+      (abs_sub_comm _ _).trans_le (hψ.abs_iterate_movingAverage_sub_le ht (k + 1) u)
     obtain ⟨hφX, hφY, hXY⟩ := h φ _ hφ hC
     have hX' := (integrable_and_abs_integral_sub_le hX hφ.continuous hψ.continuous hM hφX).2
     have hY' := (integrable_and_abs_integral_sub_le hY hφ.continuous hψ.continuous hM hφY).2
@@ -201,9 +199,9 @@ theorem abs_integral_comp_sub_le_of_lipschitzWith [IsProbabilityMeasure P]
   · refine le_of_forall_pos_le_add fun δ hδ => ?_
     have ht : 0 < δ / (2 * (k + 1) * K + 1) := by positivity
     refine (key _ ht).trans ?_
-    rw [zero_pow (by omega), mul_zero, add_zero, mul_zero, zero_add, mul_div_assoc']
-    rw [div_le_iff₀ (by positivity)]
-    nlinarith [K.property]
+    rw [zero_pow (by omega), mul_zero, add_zero, mul_zero, zero_add, mul_div_assoc',
+      div_le_iff₀ (by positivity)]
+    nlinarith [K.2]
   · refine (key τ hτ).trans_eq ?_
     field_simp
     ring

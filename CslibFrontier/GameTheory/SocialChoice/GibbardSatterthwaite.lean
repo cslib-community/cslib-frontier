@@ -124,18 +124,15 @@ not give `i` a better outcome. -/
 theorem isStrategyProof_iff [DecidableEq V] :
     f.IsStrategyProof ↔ ∀ (P : Profile V A) (i : V) (r : Ranking A),
       ¬ (P i).Prefers (f (Function.update P i r)) (f P) := by
-  constructor
-  · intro h P i r
-    exact h P _ i fun j hj => (Function.update_of_ne hj r P).symm
-  · intro h P Q i hPQ
-    have hQ : Q = Function.update P i (Q i) := by
-      funext j
-      by_cases hj : j = i
-      · subst hj
-        rw [Function.update_self]
-      · rw [Function.update_of_ne hj, hPQ j hj]
-    rw [hQ]
-    exact h P i (Q i)
+  refine ⟨fun h P i r => h P _ i fun j hj => (Function.update_of_ne hj r P).symm,
+    fun h P Q i hPQ => ?_⟩
+  have hQ : Q = Function.update P i (Q i) := funext fun (j : V) => by
+    by_cases hj : j = i
+    · subst hj
+      exact (Function.update_self j (Q j) P).symm
+    · rw [Function.update_of_ne hj, hPQ j hj]
+  rw [hQ]
+  exact h P i (Q i)
 
 /-- **Monotonicity for one voter** ([Nisan2007], Proposition 9.6): if voter `i` changes their
 report and every alternative ranked below `f P` by `i` stays below it, the outcome stays `f P`. -/
@@ -143,9 +140,8 @@ private theorem IsStrategyProof.apply_eq_of_single (hf : f.IsStrategyProof) {P Q
     {i : V} (hPQ : ∀ j, j ≠ i → P j = Q j)
     (h : ∀ y, (P i).Prefers (f P) y → (Q i).Prefers (f P) y) : f Q = f P := by
   by_contra hne
-  have h1 : (P i).Prefers (f P) (f Q) :=
-    (P i).prefers_of_not_prefers hne (hf P Q i hPQ)
-  exact hf Q P i (fun j hj => (hPQ j hj).symm) (h _ h1)
+  exact hf Q P i (fun j hj => (hPQ j hj).symm)
+    (h _ ((P i).prefers_of_not_prefers hne (hf P Q i hPQ)))
 
 /-- Apply Maskin monotonicity: if every alternative that some voter ranks below `f P` stays
 below `f P` for that voter in `Q`, then `f Q = f P`. -/
@@ -161,25 +157,18 @@ theorem IsStrategyProof.isMaskinMonotone [Finite V] (hf : f.IsStrategyProof) :
   classical
   intro P Q h
   have := Fintype.ofFinite V
-  let R : Finset V → Profile V A := fun s j => if j ∈ s then Q j else P j
-  have key : ∀ s, f (R s) = f P := by
-    intro s
+  let R (s : Finset V) : Profile V A := fun j => if j ∈ s then Q j else P j
+  have key (s : Finset V) : f (R s) = f P := by
     induction s using Finset.induction_on with
-    | empty =>
-      exact congrArg f (funext fun j => by simp only [R, Finset.notMem_empty, ite_false])
+    | empty => exact congrArg f (funext fun _ => by simp [R])
     | insert i s hi ih =>
-      refine (hf.apply_eq_of_single (P := R s) (Q := R (insert i s)) (i := i) (fun j hj => ?_)
-        fun y hy => ?_).trans ih
-      · simp only [R, Finset.mem_insert, hj, false_or]
-      · rw [ih] at hy ⊢
-        simp only [R, hi, ite_false] at hy
-        simp only [R, Finset.mem_insert, true_or, ite_true]
-        exact h i y hy
-  have hQ : R Finset.univ = Q := by
-    funext j
-    simp only [R, Finset.mem_univ, ite_true]
-  rw [← hQ]
-  exact key _
+      refine (hf.apply_eq_of_single (i := i)
+        (fun j hj => by simp only [R, Finset.mem_insert, hj, false_or]) fun y hy => ?_).trans ih
+      rw [ih] at hy ⊢
+      simp only [R, hi, ite_false, Finset.mem_insert, true_or, ite_true] at hy ⊢
+      exact h i y hy
+  have hQ : R Finset.univ = Q := funext fun _ => by simp [R]
+  simpa only [hQ] using key Finset.univ
 
 /-- **Maskin monotonicity implies strategy-proofness** ([MullerSatterthwaite1977]). Suppose
 voter `i` gains by reporting `Q i`, so that `i` ranks `f Q` above `f P`. Let `i` instead report
@@ -188,32 +177,21 @@ their true ranking with `f Q` and `f P` moved to the top. Monotonicity from `P` 
 theorem IsMaskinMonotone.isStrategyProof (hf : f.IsMaskinMonotone) : f.IsStrategyProof := by
   classical
   intro P Q i hPQ hman
-  have hne : f Q ≠ f P := (P i).ne_of_prefers hman
-  have hb : f Q ∈ ({f Q, f P} : Set A) := Set.mem_insert _ _
-  have ha : f P ∈ ({f Q, f P} : Set A) := Set.mem_insert_of_mem _ rfl
   let P' : Profile V A := Function.update P i ((P i).toTopSet {f Q, f P})
   have h1 : f P' = f P := hf.apply_eq fun j y hy => by
-    by_cases hj : j = i
-    · subst hj
-      simp only [P', Function.update_self]
-      exact ((P j).toTopSet_prefers_of_mem ha).2 (Or.inr hy)
-    · simp only [P', Function.update_of_ne hj]
-      exact hy
+    rcases eq_or_ne j i with rfl | hj
+    · simpa only [P', Function.update_self] using
+        ((P j).toTopSet_prefers_of_mem (Set.mem_insert_of_mem _ rfl)).2 (Or.inr hy)
+    · simpa only [P', Function.update_of_ne hj] using hy
   have h2 : f P' = f Q := hf.apply_eq fun j y hy => by
-    by_cases hj : j = i
-    · subst hj
-      simp only [P', Function.update_self]
-      rw [(P j).toTopSet_prefers_of_mem hb]
-      by_cases hy' : y ∈ ({f Q, f P} : Set A)
-      · right
-        simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hy'
-        rcases hy' with rfl | rfl
-        · exact absurd hy ((Q j).irrefl _)
-        · exact hman
-      · exact Or.inl hy'
-    · simp only [P', Function.update_of_ne hj, hPQ j hj]
-      exact hy
-  exact hne (h2.symm.trans h1)
+    rcases eq_or_ne j i with rfl | hj
+    · simp only [P', Function.update_self, (P j).toTopSet_prefers_of_mem (Set.mem_insert _ _),
+        Set.mem_insert_iff, Set.mem_singleton_iff, not_or]
+      rcases eq_or_ne y (f Q) with rfl | hneQ
+      · exact absurd hy ((Q j).irrefl _)
+      · exact (eq_or_ne y (f P)).elim (fun h => Or.inr (h ▸ hman)) fun hneP => Or.inl ⟨hneQ, hneP⟩
+    · simpa only [P', Function.update_of_ne hj, hPQ j hj] using hy
+  exact (P i).ne_of_prefers hman (h2.symm.trans h1)
 
 /-- With finitely many voters, strategy-proofness and Maskin monotonicity are equivalent
 ([MullerSatterthwaite1977]). -/
@@ -246,11 +224,9 @@ theorem IsMaskinMonotone.apply_ne (hf : f.IsMaskinMonotone) {a b : A}
     exact ((P i).toTopSet_prefers_of_mem hb).2 (Or.inr hy)
   -- But everyone now ranks `a` at the top.
   have h2 : f (P.toTopSet {a, b}) = a := hf.apply_eq_of_isTop ha fun i x hx => by
-    by_cases hxb : x = b
-    · subst hxb
-      exact ((P i).toTopSet_prefers_iff_of_mem (Set.mem_insert a _) hb).2 (h i)
-    · exact (P i).toTopSet_prefers_of_mem_of_notMem (Set.mem_insert a _) (by
-        simp only [Set.mem_insert_iff, Set.mem_singleton_iff, not_or]; exact ⟨hx, hxb⟩)
+    rcases eq_or_ne x b with rfl | hxb
+    · exact ((P i).toTopSet_prefers_iff_of_mem (Set.mem_insert a _) hb).2 (h i)
+    · exact (P i).toTopSet_prefers_of_mem_of_notMem (Set.mem_insert a _) (by simp [hx, hxb])
   exact hab (h2.symm.trans (h1.trans hPb))
 
 /-- **The claim** of [Nisan2007] (proof of Lemmas 9.10 and 9.11): if every voter moves the
@@ -265,15 +241,11 @@ theorem IsMaskinMonotone.apply_toTopSet_mem (hf : f.IsMaskinMonotone) {S : Set A
 moving `T` to the top. -/
 private theorem IsMaskinMonotone.apply_toTopSet_of_subset (hf : f.IsMaskinMonotone)
     {S T : Set A} (hTS : T ⊆ S) (P : Profile V A) (hT : f (P.toTopSet S) ∈ T) :
-    f (P.toTopSet T) = f (P.toTopSet S) := by
-  refine hf.apply_eq fun i y hy => ?_
-  change ((P i).toTopSet T).Prefers _ y
-  rw [(P i).toTopSet_prefers_of_mem hT]
-  change ((P i).toTopSet S).Prefers _ y at hy
-  rw [(P i).toTopSet_prefers_of_mem (hTS hT)] at hy
-  by_cases hyT : y ∈ T
-  · exact Or.inr (hy.resolve_left (not_not.2 (hTS hyT)))
-  · exact Or.inl hyT
+    f (P.toTopSet T) = f (P.toTopSet S) :=
+  hf.apply_eq fun i y hy => by
+    have hy' := ((P i).toTopSet_prefers_of_mem (hTS hT)).1 hy
+    exact ((P i).toTopSet_prefers_of_mem hT).2
+      ((em (y ∈ T)).symm.imp_right fun hyT => hy'.resolve_left fun h => h (hTS hyT))
 
 /-- If the outcome lies in `S`, it does not change when every voter moves `S` to the top. -/
 theorem IsMaskinMonotone.apply_toTopSet_of_mem (hf : f.IsMaskinMonotone)
@@ -288,13 +260,10 @@ theorem IsMaskinMonotone.apply_toTopSet_congr (hf : f.IsMaskinMonotone)
     f (Q.toTopSet S) = f (P.toTopSet S) := by
   have hm := hf.apply_toTopSet_mem haS ha P
   refine hf.apply_eq fun i y hy => ?_
-  change ((Q i).toTopSet S).Prefers _ y
-  change ((P i).toTopSet S).Prefers _ y at hy
-  rw [(Q i).toTopSet_prefers_of_mem hm]
-  rw [(P i).toTopSet_prefers_of_mem hm] at hy
-  by_cases hyS : y ∈ S
-  · exact Or.inr ((hPQ i _ y hm hyS).1 (hy.resolve_left (not_not.2 hyS)))
-  · exact Or.inl hyS
+  have hy' := ((P i).toTopSet_prefers_of_mem hm).1 hy
+  exact ((Q i).toTopSet_prefers_of_mem hm).2
+    ((em (y ∈ S)).symm.imp_right fun hyS =>
+      (hPQ i _ y hm hyS).1 (hy'.resolve_left fun h => h hyS))
 
 /-! ### The social welfare function induced by a strategy-proof rule -/
 
@@ -306,42 +275,34 @@ include hf
 /-- The outcome after every voter moves `a` and `b` to the top is `a` or `b`. -/
 theorem IsMaskinMonotone.apply_toTopSet_pair (P : Profile V A) {a b : A}
     (ha : a ∈ Set.range f) : f (P.toTopSet {a, b}) = a ∨ f (P.toTopSet {a, b}) = b := by
-  have := hf.apply_toTopSet_mem (Set.mem_insert a {b}) ha P
-  simpa only [Set.mem_insert_iff, Set.mem_singleton_iff] using this
+  simpa only [Set.mem_insert_iff, Set.mem_singleton_iff] using
+    hf.apply_toTopSet_mem (Set.mem_insert a {b}) ha P
 
 /-- Transitivity of the induced social ranking ([Nisan2007], proof of Lemma 9.10). -/
 theorem IsMaskinMonotone.apply_toTopSet_pair_trans (P : Profile V A) {a b c : A}
     (ha : a ∈ Set.range f) (hab : f (P.toTopSet {a, b}) = a)
     (hbc : f (P.toTopSet {b, c}) = b) : f (P.toTopSet {a, c}) = a := by
-  by_cases h₁ : a = b
-  · subst h₁; exact hbc
-  by_cases h₂ : b = c
-  · subst h₂; exact hab
-  by_cases h₃ : a = c
-  · subst h₃
-    have := hf.apply_toTopSet_mem (Set.mem_insert a {a}) ha P
-    simpa only [Set.pair_eq_singleton, Set.mem_singleton_iff] using this
-  have hm := hf.apply_toTopSet_mem (Set.mem_insert a {b, c}) ha P
-  have hsub : ∀ {x y : A}, x ∈ ({a, b, c} : Set A) → y ∈ ({a, b, c} : Set A) →
-      ({x, y} : Set A) ⊆ {a, b, c} := fun hx hy =>
-    Set.insert_subset hx (Set.singleton_subset_iff.2 hy)
-  have ha' : a ∈ ({a, b, c} : Set A) := Set.mem_insert a _
-  have hb' : b ∈ ({a, b, c} : Set A) := Set.mem_insert_of_mem a (Set.mem_insert b _)
-  have hc' : c ∈ ({a, b, c} : Set A) := Set.mem_insert_of_mem a (Set.mem_insert_of_mem b rfl)
-  simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hm
-  rcases hm with hx | hx | hx
-  · have hm : f (P.toTopSet {a, b, c}) ∈ ({a, c} : Set A) := by
-      rw [hx]; exact Set.mem_insert a {c}
-    rw [hf.apply_toTopSet_of_subset (hsub ha' hc') P hm, hx]
+  rcases eq_or_ne a b with rfl | h₁
+  · exact hbc
+  rcases eq_or_ne b c with rfl | h₂
+  · exact hab
+  rcases eq_or_ne a c with rfl | _
+  · simpa only [Set.pair_eq_singleton, Set.mem_singleton_iff] using
+      hf.apply_toTopSet_mem (Set.mem_insert a {a}) ha P
+  have hsub {x y : A} (hx : x ∈ ({a, b, c} : Set A)) (hy : y ∈ ({a, b, c} : Set A)) :
+      ({x, y} : Set A) ⊆ {a, b, c} := Set.insert_subset hx (Set.singleton_subset_iff.2 hy)
+  have ha' : a ∈ ({a, b, c} : Set A) := by simp
+  have hb' : b ∈ ({a, b, c} : Set A) := by simp
+  have hc' : c ∈ ({a, b, c} : Set A) := by simp
+  rcases (by simpa using hf.apply_toTopSet_mem ha' ha P :
+      f (P.toTopSet {a, b, c}) = a ∨ f (P.toTopSet {a, b, c}) = b ∨
+        f (P.toTopSet {a, b, c}) = c) with hx | hx | hx
+  · rw [hf.apply_toTopSet_of_subset (hsub ha' hc') P (by simp [hx]), hx]
   · -- The outcome on `{a, b, c}` is `b`, so it is also the outcome on `{a, b}`.
-    have hm : f (P.toTopSet {a, b, c}) ∈ ({a, b} : Set A) := by
-      rw [hx]; exact Set.mem_insert_of_mem a rfl
-    have := hf.apply_toTopSet_of_subset (hsub ha' hb') P hm
-    exact absurd (hab.symm.trans (this.trans hx)) h₁
-  · have hm : f (P.toTopSet {a, b, c}) ∈ ({b, c} : Set A) := by
-      rw [hx]; exact Set.mem_insert_of_mem b rfl
-    have := hf.apply_toTopSet_of_subset (hsub hb' hc') P hm
-    exact absurd (hbc.symm.trans (this.trans hx)) h₂
+    exact absurd (hab.symm.trans
+      ((hf.apply_toTopSet_of_subset (hsub ha' hb') P (by simp [hx])).trans hx)) h₁
+  · exact absurd (hbc.symm.trans
+      ((hf.apply_toTopSet_of_subset (hsub hb' hc') P (by simp [hx])).trans hx)) h₂
 
 /-- Every voter extends their ranking of the range of `f` to `A` with `Ranking.extend r₀`. -/
 private def extendProfile (r₀ : Ranking A) (P : Profile V (Set.range f)) : Profile V A :=
@@ -400,30 +361,27 @@ theorem isDictatorial_of_isMaskinMonotone [Finite V] (hf : f.IsMaskinMonotone)
   obtain ⟨r₀⟩ := Ranking.nonempty A
   obtain ⟨t, ht, ht3⟩ := Set.exists_subset_encard_eq h3
   obtain ⟨a, b, c, hab, hac, hbc, rfl⟩ := Set.encard_eq_three.1 ht3
-  have ha : a ∈ Set.range f := ht (Set.mem_insert a _)
-  have hb : b ∈ Set.range f := ht (Set.mem_insert_of_mem a (Set.mem_insert b _))
-  have hc : c ∈ Set.range f := ht (Set.mem_insert_of_mem a (Set.mem_insert_of_mem b rfl))
+  have ha : a ∈ Set.range f := ht (by simp)
+  have hb : b ∈ Set.range f := ht (by simp)
+  have hc : c ∈ Set.range f := ht (by simp)
   have : Nonempty V := by
-    by_contra hV
-    rw [not_nonempty_iff] at hV
+    by_contra! hV
     obtain ⟨P, rfl⟩ := ha
     obtain ⟨Q, rfl⟩ := hb
-    exact hab (congrArg f (funext fun i => isEmptyElim i))
+    exact hab (congrArg f (Subsingleton.elim P Q))
   obtain ⟨n, hn⟩ := (induced hf r₀).isDictatorial_of_isPareto_of_isIIA (isPareto_induced hf r₀)
     (isIIA_induced hf r₀) ⟨⟨a, ha⟩, ⟨b, hb⟩, ⟨c, hc⟩, fun h => hab (congrArg Subtype.val h),
       fun h => hac (congrArg Subtype.val h), fun h => hbc (congrArg Subtype.val h)⟩
-  refine ⟨n, fun P x hx hxP => (P n).prefers_of_not_prefers hxP fun hnx => ?_⟩
   -- Society, which follows `n`, ranks `x` above `f P` on the restriction of `P` to the range.
-  let P' : Profile V (Set.range f) := fun i => (P i).restrict (Set.range f)
-  have hsoc := hn P' ⟨x, hx⟩ ⟨f P, ⟨P, rfl⟩⟩ ((P n).restrict_prefers.2 hnx)
-  apply hsoc
-  change f ((extendProfile r₀ P').toTopSet {f P, x}) = f P
-  rw [hf.apply_toTopSet_congr (Set.mem_insert (f P) _) ⟨P, rfl⟩ (P := P)
-    (Q := extendProfile r₀ P') fun i y z hy hz => ?_]
+  refine ⟨n, fun P x hx hxP => (P n).prefers_of_not_prefers hxP fun hnx =>
+    hn (fun i => (P i).restrict (Set.range f)) ⟨x, hx⟩ ⟨f P, ⟨P, rfl⟩⟩
+      ((P n).restrict_prefers.2 hnx) ?_⟩
+  change f ((extendProfile r₀ _).toTopSet {f P, x}) = f P
+  rw [hf.apply_toTopSet_congr (Set.mem_insert (f P) _) ⟨P, rfl⟩ (P := P) fun i y z hy hz => ?_]
   · exact hf.apply_toTopSet_of_mem (Set.mem_insert _ _)
   · have hS : ({f P, x} : Set A) ⊆ Set.range f :=
       Set.insert_subset ⟨P, rfl⟩ (Set.singleton_subset_iff.2 hx)
-    exact ((r₀.extend_prefers_of_mem (P' i) (hS hy) (hS hz)).trans (P i).restrict_prefers).symm
+    exact ((r₀.extend_prefers_of_mem _ (hS hy) (hS hz)).trans (P i).restrict_prefers).symm
 
 /-- **The Gibbard–Satterthwaite theorem** ([Gibbard1973], [Satterthwaite1975]; [Nisan2007],
 Theorem 9.8): with finitely many voters, a strategy-proof social choice function whose range has
@@ -456,12 +414,9 @@ theorem isDictatorial_of_isStrategyProof_of_surjective [Finite V] (hf : f.IsStra
 
 /-- A dictatorship is onto. -/
 theorem surjective_dictatorship [Finite A] [Nonempty A] (i : V) :
-    Function.Surjective (dictatorship (V := V) (A := A) i) := by
-  intro a
-  obtain ⟨r⟩ := Ranking.nonempty A
-  refine ⟨fun _ => r.toTop a, ?_⟩
-  rw [dictatorship_apply]
-  exact ((r.toTop a).isTop_iff_eq_top.1 (r.isTop_toTop a)).symm
+    Function.Surjective (dictatorship (V := V) (A := A) i) := fun a =>
+  let ⟨r⟩ := Ranking.nonempty A
+  ⟨fun _ => r.toTop a, ((r.toTop a).isTop_iff_eq_top.1 (r.isTop_toTop a)).symm⟩
 
 theorem isDictator_dictatorship [Finite A] [Nonempty A] (i : V) :
     (dictatorship (V := V) (A := A) i).IsDictator i :=
@@ -471,13 +426,9 @@ theorem isDictator_dictatorship [Finite A] [Nonempty A] (i : V) :
 theorem IsDictator.isStrategyProof {i : V} (hi : f.IsDictator i) : f.IsStrategyProof := by
   intro P Q j hPQ h
   have hne : f Q ≠ f P := (P j).ne_of_prefers h
-  by_cases hj : j = i
-  · subst hj
-    exact (P j).asymm h (hi P (f Q) ⟨Q, rfl⟩ hne)
-  · have h1 := hi P (f Q) ⟨Q, rfl⟩ hne
-    have h2 := hi Q (f P) ⟨P, rfl⟩ (Ne.symm hne)
-    rw [← hPQ i (Ne.symm hj)] at h2
-    exact (P i).asymm h1 h2
+  rcases eq_or_ne j i with rfl | hj
+  · exact (P j).asymm h (hi P (f Q) ⟨Q, rfl⟩ hne)
+  · exact (P i).asymm (hi P (f Q) ⟨Q, rfl⟩ hne) (hPQ i hj.symm ▸ hi Q (f P) ⟨P, rfl⟩ hne.symm)
 
 /-- A dictatorship is strategy-proof. -/
 theorem isStrategyProof_dictatorship [Finite A] [Nonempty A] (i : V) :
@@ -489,26 +440,19 @@ theorem isStrategyProof_dictatorship [Finite A] [Nonempty A] (i : V) :
 theorem isDictator_iff_eq_dictatorship [Finite A] [Nonempty A] (hs : Function.Surjective f)
     {i : V} : f.IsDictator i ↔ f = dictatorship (A := A) i := by
   rw [isDictator_iff_of_surjective hs]
-  constructor
-  · intro h
-    funext P
-    rw [dictatorship_apply]
-    exact (P i).isTop_iff_eq_top.1 (h P)
-  · rintro rfl P
-    rw [dictatorship_apply]
-    exact (P i).isTop_top
+  refine ⟨fun h => funext fun P => (P i).isTop_iff_eq_top.1 (h P), ?_⟩
+  rintro rfl P
+  exact (P i).isTop_top
 
 /-- With finitely many voters and finitely many alternatives, at least three, the strategy-proof
 social choice functions onto `A` are exactly the dictatorships. -/
 theorem isStrategyProof_and_surjective_iff [Finite V] [Finite A] [Nonempty A]
     (h3 : ∃ a b c : A, a ≠ b ∧ a ≠ c ∧ b ≠ c) :
     f.IsStrategyProof ∧ Function.Surjective f ↔ ∃ i, f = dictatorship (A := A) i := by
-  constructor
-  · rintro ⟨hf, hs⟩
-    obtain ⟨i, hi⟩ := isDictatorial_of_isStrategyProof_of_surjective hf hs h3
-    exact ⟨i, (isDictator_iff_eq_dictatorship hs).1 hi⟩
-  · rintro ⟨i, rfl⟩
-    exact ⟨isStrategyProof_dictatorship i, surjective_dictatorship i⟩
+  refine ⟨fun ⟨hf, hs⟩ => ?_, fun ⟨i, h⟩ => h ▸ ⟨isStrategyProof_dictatorship i,
+    surjective_dictatorship i⟩⟩
+  obtain ⟨i, hi⟩ := isDictatorial_of_isStrategyProof_of_surjective hf hs h3
+  exact ⟨i, (isDictator_iff_eq_dictatorship hs).1 hi⟩
 
 end SocialChoiceFunction
 

@@ -56,7 +56,7 @@ theorem exists_pairComparison {n k d B M : ℕ}
   let m := Fintype.card V
   let e : Fin m ≃ V := (Fintype.equivFin V).symm
   let select : Fin m → Logic.PL.Literal (Fin n) := fun u =>
-    Sum.elim (fun v : I => (v.val, true)) (fun v : J => (v.val, false)) (e u)
+    Sum.elim (fun v : I => (v.1, true)) (fun v : J => (v.1, false)) (e u)
   let a : ℕ → Bool := fun w =>
     decide ((w : ZMod k) + si ≠ (Fintype.card J : ZMod k) + sj)
   have hm' : m ≤ M := by
@@ -71,14 +71,14 @@ theorem exists_pairComparison {n k d B M : ℕ}
   · rwa [AltFormula.size_mapInputs]
   rw [AltFormula.eval_mapInputs, he]
   let z : Fin m → Bool := fun u => Logic.PL.Literal.eval x (select u)
-  have hz : weight z = weight (Sum.elim (fun u : I => x u.val)
-      (fun u : J => !(x u.val))) := by
+  have hz : weight z = weight (Sum.elim (fun u : I => x u.1)
+      (fun u : J => !(x u.1))) := by
     rw [weight_eq_sum_toNat, weight_eq_sum_toNat]
     apply Fintype.sum_equiv e
     intro u
     dsimp [z, select]
     cases e u <;> simp [Logic.PL.Literal.eval]
-  have hw := weight_pair_not_add (fun u : I => x u.val) (fun u : J => x u.val)
+  have hw := weight_pair_not_add (fun u : I => x u.1) (fun u : J => x u.1)
   rw [← hz] at hw
   change weight z + blockWeight residueBlock x j =
     blockWeight residueBlock x i + Fintype.card J at hw
@@ -86,14 +86,9 @@ theorem exists_pairComparison {n k d B M : ℕ}
       (blockWeight residueBlock x i : ZMod k) + (Fintype.card J : ZMod k) := by
     simpa only [Nat.cast_add] using congrArg (fun r : ℕ => (r : ZMod k)) hw
   change decide ((weight z : ZMod k) + si ≠ (Fintype.card J : ZMod k) + sj) = _
-  congr 1
-  have heq : ((weight z : ZMod k) + si = (Fintype.card J : ZMod k) + sj) ↔
-      (blockWeight residueBlock x i : ZMod k) + si =
-        (blockWeight residueBlock x j : ZMod k) + sj := by
-    constructor <;> intro h
-    · linear_combination h - hcast
-    · linear_combination hcast + h
-  exact propext (not_congr heq)
+  refine decide_eq_decide.mpr (not_congr ⟨fun h => ?_, fun h => ?_⟩)
+  · linear_combination h - hcast
+  · linear_combination hcast + h
 
 
 open Finset
@@ -141,19 +136,12 @@ private theorem exists_test_altFormula {n d B M : ℕ} {ι : Type*} [Fintype ι]
     · intro x
       rw [AltFormula.eval_merge_and]
       simp only [he, shiftTest_iff_pairwise]
-      constructor
-      · intro h i
-        exact ⟨valid i, fun a b hab => h ⟨i, a, b⟩ hab⟩
-      · intro h p
-        exact (h p.1).2 p.2.1 p.2.2
+      exact ⟨fun h i => ⟨valid i, fun a b hab => h ⟨i, a, b⟩ hab⟩,
+        fun h p => (h p.1).2 p.2.1 p.2.2⟩
   · refine ⟨AltFormula.constant n d .and false,
-      (AltFormula.size_constant_le ..).trans (by omega), ?_⟩
-    intro x
+      (AltFormula.size_constant_le ..).trans (by omega), fun x => ?_⟩
     rw [AltFormula.eval_constant]
-    constructor
-    · intro h; exact Bool.noConfusion h
-    · intro h
-      exact (valid (fun i => (h i).1)).elim
+    exact iff_of_false Bool.false_ne_true fun h => valid fun i => (h i).1
 
 /-- Exact-weight circuits obtained by covering every valid input with modular
 tests and placing one OR above the test family. -/
@@ -173,11 +161,11 @@ theorem exists_exact_altFormula {n d B M : ℕ} {ι : Type*} [Fintype ι]
   have hcard : Fintype.card W ≤ 2 ^ n := by
     simpa [W] using Fintype.card_subtype_le (fun x : BitString n => weight x = t.val)
   have hw (x : W) (i : ι) :
-      (∑ a : ZMod (k i), (blockWeight residueBlock x.val a : ZMod (k i))) = t.val := by
-    rw [← Nat.cast_sum, sum_blockWeight (residueBlock (k := k i)) x.val, x.property]
+      (∑ a : ZMod (k i), (blockWeight residueBlock x.1 a : ZMod (k i))) = t.val := by
+    rw [← Nat.cast_sum, sum_blockWeight (residueBlock (k := k i)) x.1, x.2]
   have cover := exists_simultaneous_shiftTest_cover
     (G := fun i => ZMod (k i)) (fun i => (t.val : ZMod (k i)))
-    (fun x : W => fun i a => (blockWeight residueBlock x.val a : ZMod (k i))) n hcard hw
+    (fun x : W => fun i a => (blockWeight residueBlock x.1 a : ZMod (k i))) n hcard hw
   rw [show (∑ i, Fintype.card (ZMod (k i))) = ∑ i, k i by simp] at cover
   obtain ⟨tests, hcover⟩ := cover
   choose fs hs he using fun j => exists_test_altFormula k ih hm t.val (tests j)
@@ -186,12 +174,8 @@ theorem exists_exact_altFormula {n d B M : ℕ} {ι : Type*} [Fintype ι]
     exact Nat.add_le_add_left ((sum_le_sum fun j _ => hs j).trans_eq (by simp)) 1
   · intro x
     rw [AltFormula.eval_gate_or]
-    constructor
-    · rintro ⟨j, hj⟩
-      exact weight_eq_of_shiftTests k hc hn t x (tests j) ((he j x).1 hj)
-    · intro hx
-      obtain ⟨j, hj⟩ := hcover ⟨x, hx⟩
-      exact ⟨j, (he j x).2 hj⟩
+    exact ⟨fun ⟨j, hj⟩ => weight_eq_of_shiftTests k hc hn t x (tests j) ((he j x).1 hj),
+      fun hx => (hcover ⟨x, hx⟩).imp fun j hj => (he j x).2 hj⟩
 
 /-- The explicit finite recurrence for symmetric functions, in both output
 polarities. The constants in the asymptotic theorem are extracted from this
@@ -213,7 +197,7 @@ theorem exists_symmetric_altFormula_succ {n d B M : ℕ} {ι : Type*} [Fintype �
         (1 + (3 ^ (∑ i, k i) * (n + 1)) * (2 + (∑ i, (k i) ^ 2) * (B + 2))) ∧
       ∀ x, AltFormula.eval .or f x = a (weight x) := by
     let T := {t : Fin (n + 1) // a t.val = true}
-    choose fs hs he using fun t : T => exists_exact_altFormula k hc hn ih hm t.val
+    choose fs hs he using fun t : T => exists_exact_altFormula k hc hn ih hm t.1
     refine ⟨AltFormula.merge fs, ?_, ?_⟩
     · apply (AltFormula.size_merge_le fs).trans
       apply Nat.add_le_add_left
@@ -229,17 +213,9 @@ theorem exists_symmetric_altFormula_succ {n d B M : ℕ} {ι : Type*} [Fintype �
     · intro x
       apply Bool.eq_iff_iff.2
       rw [AltFormula.eval_merge_or]
-      constructor
-      · rintro ⟨t, ht⟩
-        rw [(he t x).1 ht]
-        exact t.property
-      · intro hx
-        have hweight : weight x < n + 1 := by
-          have h := weight_le x
-          simp only [Fintype.card_fin] at h
-          omega
-        let t : T := ⟨⟨weight x, hweight⟩, hx⟩
-        exact ⟨t, (he t x).2 rfl⟩
+      refine ⟨fun ⟨t, ht⟩ => (he t x).1 ht ▸ t.2, fun hx => ?_⟩
+      have hweight : weight x < n + 1 := by simpa using Nat.lt_succ_of_le (weight_le x)
+      exact ⟨⟨⟨weight x, hweight⟩, hx⟩, (he _ x).2 rfl⟩
   cases op with
   | or => exact hor a
   | and =>

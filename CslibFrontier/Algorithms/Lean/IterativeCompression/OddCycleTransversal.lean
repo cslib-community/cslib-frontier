@@ -131,11 +131,9 @@ theorem mem_guesses {ws : List (Fin n)} {g : Vector (Option Bool) n}
     (hg : ∀ v, v ∉ ws → vget g v = none) : g ∈ guesses ws := by
   induction ws generalizing g with
   | nil =>
-    have : g = Vector.replicate n none := by
-      refine Vector.ext fun i hi => ?_
-      rw [Vector.getElem_replicate]
-      exact hg ⟨i, hi⟩ List.not_mem_nil
-    exact this ▸ List.mem_singleton_self _
+    obtain rfl : g = Vector.replicate n none := Vector.ext fun i hi => by
+      rw [Vector.getElem_replicate]; exact hg ⟨i, hi⟩ List.not_mem_nil
+    exact List.mem_singleton_self _
   | cons w ws ih =>
     have hg' : vset g w none ∈ guesses ws := ih fun v hv => by
       by_cases hvw : w = v
@@ -145,9 +143,7 @@ theorem mem_guesses {ws : List (Fin n)} {g : Vector (Option Bool) n}
     have hset : vset (vset g w none) w (vget g w) = g := by
       refine Vector.ext fun i hi => ?_
       simp only [vset, vget, Vector.getElem_set]
-      split_ifs with h
-      · subst h; rfl
-      · rfl
+      split_ifs with h <;> (try subst h) <;> rfl
     have hmem : ∀ x : Option Bool, vset (vset g w none) w x ∈
         [vset (vset g w none) w none, vset (vset g w none) w (some false),
           vset (vset g w none) w (some true)] := by
@@ -284,40 +280,25 @@ private theorem leaf_sound {k : ℕ} {W : List (Fin n)} {c₀ : Vector Bool n}
       fun a ha b hb hab => hsepW (hab ▸ hb) (hmemD.mp ha).1⟩,
       (List.length_append).trans_le hk, ?_⟩
     have henc : Encodes W g {w | w ∈ W ∧ vget g w = none} fun w => (vget g w).getD false :=
-      fun w hw => ⟨by simp only [Set.mem_ofPred_eq, hw, true_and], fun hD' => by
-        obtain ⟨b, hb⟩ := Option.ne_none_iff_exists'.mp fun h' => hD' ⟨hw, h'⟩
-        change vget g w = some ((vget g w).getD false)
-        rw [hb, Option.getD_some]⟩
+      fun w hw => ⟨by simp only [Set.mem_ofPred_eq, hw, true_and],
+        fun hD' => (Option.getD_of_ne_none (fun h' => hD' ⟨hw, h'⟩) false).symm⟩
     have hprop' : ∀ ⦃u v⦄, G.Adj u v → u ∈ {w | w ∈ W} → v ∈ {w | w ∈ W} →
         u ∉ {w | w ∈ W ∧ vget g w = none} → v ∉ {w | w ∈ W ∧ vget g w = none} →
-        (vget g u).getD false ≠ (vget g v).getD false := fun u v huv hu hv hu' hv' => by
-      obtain ⟨a, ha⟩ := Option.ne_none_iff_exists'.mp fun h' => hu' ⟨hu, h'⟩
-      obtain ⟨b, hb⟩ := Option.ne_none_iff_exists'.mp fun h' => hv' ⟨hv, h'⟩
-      rw [ha, hb, Option.getD_some, Option.getD_some]
-      exact hprop u hu v hv huv a b ha hb
+        (vget g u).getD false ≠ (vget g v).getD false := fun u v huv hu hv hu' hv' =>
+      hprop u hu v hv huv _ _ (Option.getD_of_ne_none (fun h' => hu' ⟨hu, h'⟩) false).symm
+        (Option.getD_of_ne_none (fun h' => hv' ⟨hv, h'⟩) false).symm
     have hZ : ∀ {v}, v ∉ ({w | w ∈ W} : Set (Fin n)) → vget (memTable W) v = false :=
-      fun {v} hv => by
-        have hv' : v ∉ W := hv
-        simpa only [vget_memTable, decide_eq_false_iff_not] using hv'
+      fun {v} hv => (vget_memTable W v).trans (decide_eq_false hv)
     have key := proper_of_side (X := {v | v ∈ out.sep}) (side := fun v => vget out.side v)
       (c := fun v => vget (newColour W g c₀ out.side) v) (fun u v huv hu hv => hc₀ huv hu hv)
       hprop' (fun u v huv hu hv hus hvs => minSeparator_side_eq_of_adj huv (hZ hu) (hZ hv) hus hvs)
       (fun v hv hvs => minSeparator_side_eq_true ((keepTable_iff G henc c₀ v).mpr hv)
         (hZ (mem_keepTerminals.mp hv).1) hvs)
       (fun v hv _ => minSeparator_side_eq_false ((flipTable_iff G henc c₀ v).mpr hv))
-      (fun v hv => by
-        simp only [newColour, vget_ofFn, show v ∈ W from hv, ↓reduceIte])
-      (fun v hv => by
-        have hv' : v ∉ W := hv
-        simp only [newColour, vget_ofFn, hv', ↓reduceIte])
-    intro u v huv hu hv
-    refine key huv ?_ ?_
-    · rintro (hu' | hu')
-      · exact hu (List.mem_append_left _ (hmemD.mpr hu'))
-      · exact hu (List.mem_append_right _ hu')
-    · rintro (hv' | hv')
-      · exact hv (List.mem_append_left _ (hmemD.mpr hv'))
-      · exact hv (List.mem_append_right _ hv')
+      (fun v hv => by simp only [newColour, vget_ofFn, show v ∈ W from hv, ↓reduceIte])
+      (fun v hv => by simp only [newColour, vget_ofFn, show v ∉ W from hv, ↓reduceIte])
+    exact fun u v huv hu hv => key huv (fun h' => hu (List.mem_append.mpr (Or.imp hmemD.mpr id h')))
+      (fun h' => hv (List.mem_append.mpr (Or.imp hmemD.mpr id h')))
 
 /-- **Compression step, soundness.** An output of `compress` is an odd cycle transversal of at most
 `k` vertices, without repetitions, with a colouring proper off it. -/
@@ -343,20 +324,13 @@ theorem compress_complete {k : ℕ} {W : List (Fin n)} {c₀ : Vector Bool n}
     with hg
   have hgv : ∀ v, vget g v = if v ∈ W ∧ v ∉ T then some (cT v) else none := fun v => vget_ofFn _ v
   have henc : Encodes W g ((T : Set (Fin n)) ∩ {w | w ∈ W}) cT := fun w hw => by
-    rw [hgv]
-    by_cases hwT : w ∈ T
-    · have hw' : w ∈ (T : Set (Fin n)) ∩ {w | w ∈ W} := ⟨hwT, hw⟩
-      simp [hw', hwT]
-    · have hw' : w ∉ (T : Set (Fin n)) ∩ {w | w ∈ W} := fun h => hwT h.1
-      simp [hw', hwT, hw]
+    by_cases hwT : w ∈ T <;> simp [hgv, hwT, hw]
   have hleaf := h g (mem_guesses fun v hv => by rw [hgv]; simp only [hv, false_and, ↓reduceIte])
   have hprop : ∀ u ∈ W, ∀ v ∈ W, G.Adj u v → ∀ a b, vget g u = some a → vget g v = some b →
-      a ≠ b := by
-    intro u hu v hv huv a b ha hb
+      a ≠ b := fun u _ v _ huv a b ha hb => by
     rw [hgv] at ha hb
     split_ifs at ha hb with hu' hv'
-    obtain rfl := Option.some.inj ha
-    obtain rfl := Option.some.inj hb
+    cases ha; cases hb
     exact hcT huv hu'.2 hv'.2
   unfold leaf at hleaf
   split_ifs at hleaf
@@ -441,11 +415,8 @@ private theorem inv_step {k : ℕ} {i : Fin n} {r : Option (List (Fin n) × Vect
   have hcW : IsProperOff (prefixGraph G (i.val + 1)) c W := by
     intro u v ⟨hadj, hu_lt, hv_lt⟩ hu hv
     rw [hWS, not_or] at hu hv
-    refine hc ⟨hadj, ?_, ?_⟩ hu.2 hv.2
-    · have := Fin.val_ne_of_ne hu.1
-      omega
-    · have := Fin.val_ne_of_ne hv.1
-      omega
+    exact hc ⟨hadj, by have := Fin.val_ne_of_ne hu.1; omega,
+      by have := Fin.val_ne_of_ne hv.1; omega⟩ hu.2 hv.2
   dsimp only [step]
   rw [← hWdef]
   split_ifs with hk

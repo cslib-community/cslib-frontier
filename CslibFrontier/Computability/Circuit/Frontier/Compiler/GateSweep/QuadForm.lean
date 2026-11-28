@@ -272,10 +272,8 @@ theorem sq_correlation_quadForm_mul_le_of_node_cut {σ : Signature.{v}} {n : ℕ
     let msg : (↥Oᶜ → Bool) → Bool × (G_cut → Bool) := fun y =>
       (decide (c.eval I (e.symm (a, y)) 0 ∈ Acc),
         fun g => c.program.trace I (e.symm (a, y)) (Compiler.ActiveSignal.gate g.val).wire)
-    have hT_msg : ∀ y₁ y₂, msg y₁ = msg y₂ → (y₁ ∈ T_a ↔ y₂ ∈ T_a) := by
-      intro y₁ y₂ h
-      have hdec := (Prod.mk.inj h).1
-      simpa [T_a, T] using hdec
+    have hT_msg : ∀ y₁ y₂, msg y₁ = msg y₂ → (y₁ ∈ T_a ↔ y₂ ∈ T_a) := fun y₁ y₂ h => by
+      simpa [T_a, T] using (Prod.mk.inj h).1
     have hrect_msg : ∀ y₀ : ↥Oᶜ → Bool, ∃ (B₁ : Set (X_cut → Bool)) (B₂ : Set (↥X_cutᶜ → Bool)),
         {y | msg y = msg y₀} = rectangle X_cut B₁ B₂ := by
       intro y₀
@@ -293,15 +291,12 @@ theorem sq_correlation_quadForm_mul_le_of_node_cut {σ : Signature.{v}} {n : ℕ
           intro w hw
           cases w with
           | input i hi =>
-            have hniL : i ∉ L := by
-              rintro ⟨_, hsubA⟩
-              obtain ⟨u, hu, huAc⟩ := hw.2
-              exact huAc (hsubA hu)
-            have hniR : i ∉ R' := by
-              rintro ⟨_, hsubAc⟩
-              obtain ⟨u, hu, huA⟩ := hw.1
-              exact hsubAc hu huA
-            have hiO : i ∈ O := fun hLR => hLR.elim hniL hniR
+            have hiO : i ∈ O := by
+              rintro (⟨_, hsubA⟩ | ⟨_, hsubAc⟩)
+              · obtain ⟨u, hu, huAc⟩ := hw.2
+                exact huAc (hsubA hu)
+              · obtain ⟨u, hu, huA⟩ := hw.1
+                exact hsubAc hu huA
             change (sliceEquiv O).symm (a, y₁) i = (sliceEquiv O).symm (a, y₂) i
             rw [sliceEquiv_symm_of_mem a y₁ hiO, sliceEquiv_symm_of_mem a y₂ hiO]
           | gate g =>
@@ -313,9 +308,8 @@ theorem sq_correlation_quadForm_mul_le_of_node_cut {σ : Signature.{v}} {n : ℕ
           change (sliceEquiv O).symm (a, y) i = (sliceEquiv O).symm (a, y₁) i
           by_cases hiO : i ∈ O
           · rw [sliceEquiv_symm_of_mem a y hiO, sliceEquiv_symm_of_mem a y₁ hiO]
-          · have hiLR : i ∈ L ∪ R' := not_not.mp hiO
-            have hniR : i ∉ R' := fun ⟨_, hsubAc⟩ => hsubAc hu huA
-            have hiL : i ∈ L := hiLR.resolve_right hniR
+          · have hiL : i ∈ L :=
+              (not_not.mp hiO : i ∈ L ∪ R').resolve_right fun ⟨_, hsubAc⟩ => hsubAc hu huA
             rw [sliceEquiv_symm_of_not_mem a y hiO, sliceEquiv_symm_of_not_mem a y₁ hiO]
             exact (congrFun hdom₁ ⟨⟨i, hiO⟩, hiL⟩).symm
         have hzy : EqOn (e.symm (a, y)) (e.symm (a, y₂)) (Compiler.nodeReadIn c A)ᶜ := by
@@ -374,28 +368,16 @@ theorem sq_correlation_quadForm_mul_le_of_node_cut {σ : Signature.{v}} {n : ℕ
   rw [Finset.card_univ] at hCS
   set ρ := (Q + Qᵀ).blockRank L R'
   have hρ_pos : (0 : ℝ) < 2 ^ ρ := by positivity
-  have hsum_le :
-      (∑ a : O → Bool,
-        correlation {y | e.symm (a, y) ∈ S} {y | e.symm (a, y) ∈ T} ^ 2 * 2 ^ ρ) ≤
-      M_card * (2 * 2 ^ G_cut.ncard) := by
-    calc (∑ a : O → Bool,
-            correlation {y | e.symm (a, y) ∈ S} {y | e.symm (a, y) ∈ T} ^ 2 * 2 ^ ρ)
-        ≤ ∑ _a : O → Bool, (2 * (2 : ℝ) ^ G_cut.ncard) :=
-          Finset.sum_le_sum fun a _ => hslice_bound a
-      _ = M_card * (2 * 2 ^ G_cut.ncard) := by
-          rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+  have hsum_le := Finset.sum_le_sum fun a (_ : a ∈ Finset.univ) => hslice_bound a
+  rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← Finset.sum_mul] at hsum_le
   have htot_le : (correlation S T * M_card) ^ 2 * 2 ^ ρ ≤
       M_card * (M_card * (2 * 2 ^ G_cut.ncard)) := by
     rw [havg]
-    calc (∑ a : O → Bool, correlation {y | e.symm (a, y) ∈ S} {y | e.symm (a, y) ∈ T}) ^ 2 * 2 ^ ρ
-        ≤ M_card * (∑ a : O → Bool,
-            correlation {y | e.symm (a, y) ∈ S} {y | e.symm (a, y) ∈ T} ^ 2 * 2 ^ ρ) := by
-          rw [← Finset.sum_mul, ← mul_assoc]
-          exact mul_le_mul_of_nonneg_right hCS hρ_pos.le
-      _ ≤ M_card * (M_card * (2 * 2 ^ G_cut.ncard)) :=
-          mul_le_mul_of_nonneg_left hsum_le hM_pos.le
-  have hMM : 0 < M_card * M_card := mul_pos hM_pos hM_pos
-  nlinarith
+    refine (mul_le_mul_of_nonneg_right hCS hρ_pos.le).trans ?_
+    rw [mul_assoc]
+    exact mul_le_mul_of_nonneg_left hsum_le hM_pos.le
+  refine le_of_mul_le_mul_right ?_ (mul_pos hM_pos hM_pos)
+  linarith
 
 /-- Unreachable inputs are unread: if `D` contains no reachable input of `c`, then
 `correlation² · 2 ^ cutRank D ≤ 2`. -/
@@ -423,13 +405,9 @@ theorem quadFormGateSweep_denom_ge (r k₀ : ℕ) :
   linarith
 
 theorem quadFormGateSweepCoefficient_pos {r : ℕ} (hr : 1 ≤ r) (k₀ : ℕ) :
-    0 < quadFormGateSweepCoefficient r k₀ := by
-  unfold quadFormGateSweepCoefficient
-  have hd : (0 : ℝ) < (r : ℝ) + (2 : ℝ) ^ k₀ - k₀ - 1 := by
-    have := quadFormGateSweep_denom_ge r k₀
-    have : (1 : ℝ) ≤ r := by exact_mod_cast hr
-    linarith
-  exact div_pos (by positivity) hd
+    0 < quadFormGateSweepCoefficient r k₀ :=
+  div_pos (by positivity) (by
+    linarith [quadFormGateSweep_denom_ge r k₀, (by exact_mod_cast hr : (1 : ℝ) ≤ r)])
 
 /-- **Exponentially small correlation with quadratic forms at fan-in `r`.** For every `r ≥ 2`,
 `k₀ ≥ 1`, and `ε > 0`, there is `γ > 0` such that if `(Q n + (Q n)ᵀ)` is disjoint-block-robust with
@@ -447,10 +425,8 @@ theorem exists_eventually_abs_correlation_quadForm_le_gateSweep {r k₀ : ℕ} (
           |correlation {x | BitString.quadForm (Q n) x} {x | c.eval I x 0 ∈ Acc}| ≤
             (2 : ℝ) ^ (-γ * n) := by
   set D_r : ℝ := (r : ℝ) + (2 : ℝ) ^ k₀ - k₀ - 1
-  have hDr_ge : (2 : ℝ) ≤ D_r := by
-    have h1 := quadFormGateSweep_denom_ge r k₀
-    have h2 : (2 : ℝ) ≤ r := by exact_mod_cast hr
-    linarith
+  have hDr_ge : (2 : ℝ) ≤ D_r :=
+    (by exact_mod_cast hr : (2 : ℝ) ≤ r).trans (quadFormGateSweep_denom_ge r k₀)
   have hDr_pos : 0 < D_r := by linarith
   set Q_c := quadFormGateSweepCoefficient r k₀
   have hQc_pos : 0 < Q_c := quadFormGateSweepCoefficient_pos (by omega) k₀
@@ -477,13 +453,10 @@ theorem exists_eventually_abs_correlation_quadForm_le_gateSweep {r k₀ : ℕ} (
   have := Fintype.ofFinite (Compiler.ActiveSignal c)
   have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast (show 1 ≤ n by omega)
   have hn0 : (0 : ℝ) ≤ n := by positivity
-  have htn' : (t n : ℝ) ≤ (μ / 8) * n := by
-    simp only [Real.norm_eq_abs, Nat.abs_cast] at htn
-    exact htn
+  have htn' : (t n : ℝ) ≤ (μ / 8) * n := by simpa only [Real.norm_eq_abs, Nat.abs_cast] using htn
   have hconst_n : 2 ≤ (μ / 8) * n := by
-    have h1 : 16 / μ ≤ n := (Nat.le_ceil _).trans (by exact_mod_cast hn_const)
-    have := (div_le_iff₀ hμ_pos).mp h1
-    linarith
+    have : 16 / μ ≤ n := (Nat.le_ceil _).trans (by exact_mod_cast hn_const)
+    linarith [(div_le_iff₀ hμ_pos).mp this]
   apply abs_le_two_rpow_of_sq_le
   let R_in : Set (Fin n) := {i : Fin n | Compiler.Reach c (.input i)}
   set d_un := R_inᶜ.ncard
@@ -498,12 +471,9 @@ theorem exists_eventually_abs_correlation_quadForm_le_gateSweep {r k₀ : ℕ} (
       rw [Nat.card_eq_fintype_card, Fintype.card_fin, hD_card] at htot
       have hm_half : m_un ≤ n / 2 := min_le_right _ _
       omega
-    have hminD : min D.ncard Dᶜ.ncard = m_un := by
-      rw [hD_card]
-      exact min_eq_left hD_compl
     have hcutD : m_un ≤ (Q n + (Q n)ᵀ).cutRank D + t n := by
       have h := hQn.min_le_cutRank_add D
-      rwa [hminD] at h
+      rwa [hD_card, min_eq_left hD_compl] at h
     have hcorrD := sq_correlation_quadForm_mul_le_of_not_reach I Acc c (Q n)
       fun i hi => hD_sub hi
     have hcorrD' :
@@ -542,11 +512,11 @@ theorem exists_eventually_abs_correlation_quadForm_le_gateSweep {r k₀ : ℕ} (
     -- Bound the input sum from below and the gate sum from above via the `k₀`-tangents.
     have hin_lb :
         ∑ i : {i : Fin n // Compiler.Reach c (.input i)},
-          (((k₀ + 1 : ℝ) - (Compiler.support c (.input i.val i.property)).ncard) / (2 : ℝ) ^ k₀) ≤
+          (((k₀ + 1 : ℝ) - (Compiler.support c (.input i.1 i.2)).ncard) / (2 : ℝ) ^ k₀) ≤
         ∑ i : {i : Fin n // Compiler.Reach c (.input i)},
-          (1 / 2 : ℝ) ^ (Compiler.support c (.input i.val i.property)).ncard :=
+          (1 / 2 : ℝ) ^ (Compiler.support c (.input i.1 i.2)).ncard :=
       Finset.sum_le_sum fun i _ => Compiler.two_pow_neg_ge_tangent hk₀
-        ((ncard_pos (toFinite _)).mpr (Compiler.support_nonempty (.input i.val i.property)))
+        ((ncard_pos (toFinite _)).mpr (Compiler.support_nonempty (.input i.1 i.2)))
     have hgt_ub :
         ∑ g : Compiler.InnerGate c,
           (1 - (1 / 2 : ℝ) ^ ((Compiler.support c (.gate g)).ncard - 1)) ≤
@@ -558,7 +528,7 @@ theorem exists_eventually_abs_correlation_quadForm_le_gateSweep {r k₀ : ℕ} (
     -- Combine the support sums into `∑ w : ActiveSignal c, (support c w).ncard`.
     have htot_supp :
         (∑ i : {i : Fin n // Compiler.Reach c (.input i)},
-          ((Compiler.support c (.input i.val i.property)).ncard : ℝ)) +
+          ((Compiler.support c (.input i.1 i.2)).ncard : ℝ)) +
         (∑ g : Compiler.InnerGate c, ((Compiler.support c (.gate g)).ncard : ℝ)) ≤
         (r + 1 : ℝ) * Nat.card (Compiler.InnerGate c) + 1 := by
       have hnat := Compiler.sum_ncard_support_le_card_innerGate (c := c) hfan
@@ -574,18 +544,19 @@ theorem exists_eventually_abs_correlation_quadForm_le_gateSweep {r k₀ : ℕ} (
       rw [Nat.card_eq_fintype_card]
     have hG_le_s : (Nat.card (Compiler.InnerGate c) : ℝ) ≤ c.innerSize := by
       exact_mod_cast Compiler.card_innerGate_le (c := c)
+    have hpos2 : (0 : ℝ) < (2 : ℝ) ^ k₀ := by positivity
     have hexp_diff :
         ((k₀ + 1 : ℝ) * R_in.ncard - D_r * Nat.card (Compiler.InnerGate c) - 1) / (2 : ℝ) ^ k₀ ≤
           (∑ i : {i : Fin n // Compiler.Reach c (.input i)},
-            (1 / 2 : ℝ) ^ (Compiler.support c (.input i.val i.property)).ncard) -
+            (1 / 2 : ℝ) ^ (Compiler.support c (.input i.1 i.2)).ncard) -
           (∑ g : Compiler.InnerGate c,
             (1 - (1 / 2 : ℝ) ^ ((Compiler.support c (.gate g)).ncard - 1))) := by
       have hsum_in :
           ∑ i : {i : Fin n // Compiler.Reach c (.input i)},
-            (((k₀ + 1 : ℝ) - (Compiler.support c (.input i.val i.property)).ncard) / (2 : ℝ) ^ k₀) =
+            (((k₀ + 1 : ℝ) - (Compiler.support c (.input i.1 i.2)).ncard) / (2 : ℝ) ^ k₀) =
           ((k₀ + 1 : ℝ) * R_in.ncard -
             ∑ i : {i : Fin n // Compiler.Reach c (.input i)},
-              ((Compiler.support c (.input i.val i.property)).ncard : ℝ)) / (2 : ℝ) ^ k₀ := by
+              ((Compiler.support c (.input i.1 i.2)).ncard : ℝ)) / (2 : ℝ) ^ k₀ := by
         simp_rw [sub_div]
         rw [Finset.sum_sub_distrib, Finset.sum_const, Finset.card_univ, nsmul_eq_mul, hcard_Rin,
           ← Finset.sum_div, mul_div_assoc']
@@ -599,27 +570,16 @@ theorem exists_eventually_abs_correlation_quadForm_le_gateSweep {r k₀ : ℕ} (
               ((Compiler.support c (.gate g)).ncard : ℝ)) / (2 : ℝ) ^ k₀ := by
         rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, nsmul_eq_mul, hcard_G,
           ← Finset.sum_div]
-        have hpos2 : (0 : ℝ) < (2 : ℝ) ^ k₀ := by positivity
         field_simp
         ring
-      have hpos2 : (0 : ℝ) < (2 : ℝ) ^ k₀ := by positivity
-      have hcomb :
-          ((k₀ + 1 : ℝ) * R_in.ncard - D_r * Nat.card (Compiler.InnerGate c) - 1) / (2 : ℝ) ^ k₀ ≤
-          ((k₀ + 1 : ℝ) * R_in.ncard -
-            ∑ i : {i : Fin n // Compiler.Reach c (.input i)},
-              ((Compiler.support c (.input i.val i.property)).ncard : ℝ)) / (2 : ℝ) ^ k₀ -
-          ((((2 : ℝ) ^ k₀ - k₀ - 2) * Nat.card (Compiler.InnerGate c) +
-            ∑ g : Compiler.InnerGate c,
-              ((Compiler.support c (.gate g)).ncard : ℝ)) / (2 : ℝ) ^ k₀) := by
-        rw [← sub_div]
-        refine div_le_div_of_nonneg_right ?_ hpos2.le
-        dsimp only [D_r]
-        linarith [htot_supp]
-      linarith [hin_lb, hgt_ub, hsum_in, hsum_gt, hcomb]
+      refine le_trans ?_ (sub_le_sub hin_lb hgt_ub)
+      rw [hsum_in, hsum_gt, ← sub_div]
+      refine div_le_div_of_nonneg_right ?_ hpos2.le
+      dsimp only [D_r]
+      linarith [htot_supp]
     -- Bound the numerator using `d_un < θ * n` and `s ≤ (Q_c - ε) * n`.
     have hnum_lb : μ₀ * n - 1 / (2 : ℝ) ^ k₀ ≤
         ((k₀ + 1 : ℝ) * R_in.ncard - D_r * Nat.card (Compiler.InnerGate c) - 1) / (2 : ℝ) ^ k₀ := by
-      have hpos2 : (0 : ℝ) < (2 : ℝ) ^ k₀ := by positivity
       have hd_prod : (k₀ + 1 : ℝ) * d_un ≤ (D_r * ε / 2) * n := by
         have hθ_ub : θ ≤ D_r * ε / (2 * (k₀ + 1 : ℝ)) := min_le_right _ _
         have h1 : (d_un : ℝ) ≤ D_r * ε / (2 * (k₀ + 1 : ℝ)) * n :=
@@ -629,11 +589,8 @@ theorem exists_eventually_abs_correlation_quadForm_le_gateSweep {r k₀ : ℕ} (
           field_simp
         linarith
       have hs_prod : D_r * Nat.card (Compiler.InnerGate c) ≤ (k₀ + 1 : ℝ) * n - D_r * ε * n := by
-        have h1 : (Nat.card (Compiler.InnerGate c) : ℝ) ≤ (Q_c - ε) * n := hG_le_s.trans hsize
-        have h2 := mul_le_mul_of_nonneg_left h1 hDr_pos.le
-        have hexp : D_r * ((Q_c - ε) * n) = D_r * Q_c * n - D_r * ε * n := by ring
-        rw [hexp, hDr_Qc] at h2
-        exact h2
+        have h2 := mul_le_mul_of_nonneg_left (hG_le_s.trans hsize) hDr_pos.le
+        rwa [show D_r * ((Q_c - ε) * n) = D_r * Q_c * n - D_r * ε * n by ring, hDr_Qc] at h2
       have hdiv_eq : μ₀ * n - 1 / (2 : ℝ) ^ k₀ = ((D_r * ε / 2) * n - 1) / (2 : ℝ) ^ k₀ := by
         dsimp only [μ₀]
         field_simp
@@ -644,9 +601,7 @@ theorem exists_eventually_abs_correlation_quadForm_le_gateSweep {r k₀ : ℕ} (
       linarith
     -- Bound the `O(√n)` deviation term.
     have herr_ub : 2 * ((r + 1 : ℝ) * √(3 * (Nat.card (Compiler.Node c) : ℝ))) ≤ (μ / 8) * n := by
-      have hs_qc : (c.innerSize : ℝ) ≤ Q_c * n := by
-        have hεn : 0 ≤ ε * n := by positivity
-        linarith
+      have hs_qc : (c.innerSize : ℝ) ≤ Q_c * n := by linarith [mul_nonneg hε.le hn0]
       have hnode_le : (Nat.card (Compiler.Node c) : ℝ) ≤ (Q_c + 1) * n := by
         have hnat : (Nat.card (Compiler.Node c) : ℝ) ≤ c.innerSize + 1 := by
           exact_mod_cast (Compiler.card_node_le c)
@@ -661,13 +616,10 @@ theorem exists_eventually_abs_correlation_quadForm_le_gateSweep {r k₀ : ℕ} (
               rw [Real.sqrt_mul (by positivity)]
               dsimp only [C_err]
               ring
-      have hsq_n : (8 * C_err / μ) ^ 2 ≤ n := by
-        have : (⌈(8 * C_err / μ) ^ 2⌉₊ : ℝ) ≤ n := by exact_mod_cast (Nat.le_of_succ_le hn_sqrt)
-        exact (Nat.le_ceil _).trans this
-      have hsqrt_lb : 8 * C_err / μ ≤ √n := Real.le_sqrt_of_sq_le hsq_n
+      have hsq_n : (8 * C_err / μ) ^ 2 ≤ n :=
+        (Nat.le_ceil _).trans (by exact_mod_cast Nat.le_of_succ_le hn_sqrt)
       have hCerr_le : C_err ≤ (μ / 8) * √n := by
-        have := (div_le_iff₀ hμ_pos).mp hsqrt_lb
-        linarith
+        linarith [(div_le_iff₀ hμ_pos).mp (Real.le_sqrt_of_sq_le hsq_n)]
       calc 2 * ((r + 1 : ℝ) * √(3 * (Nat.card (Compiler.Node c) : ℝ)))
           ≤ C_err * √n := hdev1
         _ ≤ ((μ / 8) * √n) * √n := mul_le_mul_of_nonneg_right hCerr_le (Real.sqrt_nonneg _)
@@ -676,9 +628,6 @@ theorem exists_eventually_abs_correlation_quadForm_le_gateSweep {r k₀ : ℕ} (
     have hmin_LR :
         μ₀ * n - 1 / (2 : ℝ) ^ k₀ - (μ / 8) * n ≤
           (min L.ncard R'.ncard : ℝ) - G_cut.ncard := by
-      have hmin_real : (min L.ncard R'.ncard : ℝ) = min (L.ncard : ℝ) (R'.ncard : ℝ) := by
-        exact_mod_cast rfl
-      rw [hmin_real]
       rcases min_choice (L.ncard : ℝ) (R'.ncard : ℝ) with hm | hm <;> rw [hm]
       · linarith [hLA, hGA, hexp_diff, hnum_lb, herr_ub]
       · linarith [hRA, hGA, hexp_diff, hnum_lb, herr_ub]
@@ -693,8 +642,7 @@ theorem exists_eventually_abs_correlation_quadForm_le_gateSweep {r k₀ : ℕ} (
     refine hstep.trans (Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_)
     have hpow2_le : 1 / (2 : ℝ) ^ k₀ ≤ 1 := div_le_one_of_le₀
       (one_le_pow₀ (by norm_num : (1 : ℝ) ≤ 2)) (by positivity)
-    have hμ_le_μ₀ : μ ≤ μ₀ := min_le_right _ _
-    have hμn_le : μ * n ≤ μ₀ * n := mul_le_mul_of_nonneg_right hμ_le_μ₀ hn0
+    have hμn_le : μ * n ≤ μ₀ * n := mul_le_mul_of_nonneg_right (min_le_right _ _) hn0
     dsimp only [L, R', G_cut] at hmin_LR
     linarith
 
@@ -703,41 +651,17 @@ theorem isLittleO_sqrt_deficiency :
     (fun n : ℕ => ((2 * Nat.sqrt n + 1 : ℕ) : ℝ)) =o[atTop] fun n => (n : ℝ) := by
   refine IsLittleO.of_bound fun δ hδ => ?_
   filter_upwards [eventually_ge_atTop 1, eventually_ge_atTop ⌈9 / δ ^ 2⌉₊] with n hn1 hnC
-  have hs_pos : 1 ≤ Nat.sqrt n := by
-    have h := Nat.lt_succ_sqrt' n
-    rw [Nat.succ_eq_add_one] at h
-    by_contra h0
-    have hs0 : Nat.sqrt n = 0 := by omega
-    rw [hs0] at h
-    omega
   have h2s : ((2 * Nat.sqrt n + 1 : ℕ) : ℝ) ≤ 3 * (Nat.sqrt n : ℝ) := by
-    exact_mod_cast (show 2 * Nat.sqrt n + 1 ≤ 3 * Nat.sqrt n by omega)
-  have hsq_le : ((Nat.sqrt n : ℝ)) * (Nat.sqrt n : ℝ) ≤ n := by
-    exact_mod_cast Nat.sqrt_le n
-  have hnC' : 9 / δ ^ 2 ≤ n := (Nat.le_ceil _).trans (by exact_mod_cast hnC)
-  have h9 : 9 ≤ δ ^ 2 * n := by
-    have h := (div_le_iff₀ (show (0 : ℝ) < δ ^ 2 by positivity)).mp hnC'
-    linarith
-  set x : ℝ := ((2 * Nat.sqrt n + 1 : ℕ) : ℝ)
-  set y : ℝ := δ * n
-  have hy_pos : 0 < y := by
-    have : (1 : ℝ) ≤ n := by exact_mod_cast hn1
-    positivity
-  have hx_nn : 0 ≤ x := Nat.cast_nonneg _
-  have hxy_sq : x ^ 2 ≤ y ^ 2 := by
-    calc x ^ 2 ≤ (3 * (Nat.sqrt n : ℝ)) ^ 2 := pow_le_pow_left₀ hx_nn h2s 2
-      _ = 9 * ((Nat.sqrt n : ℝ) * (Nat.sqrt n : ℝ)) := by ring
-      _ ≤ 9 * (n : ℝ) := mul_le_mul_of_nonneg_left hsq_le (by norm_num)
-      _ ≤ (δ ^ 2 * n) * n := mul_le_mul_of_nonneg_right h9 (Nat.cast_nonneg _)
-      _ = y ^ 2 := by dsimp only [y]; ring
-  have hxy : x ≤ y := by
-    by_contra hlt
-    push Not at hlt
-    have : y ^ 2 < x ^ 2 := by nlinarith
-    linarith
+    exact_mod_cast (show 2 * Nat.sqrt n + 1 ≤ 3 * Nat.sqrt n by
+      have := Nat.sqrt_pos.mpr hn1
+      omega)
+  have hsq_le : ((Nat.sqrt n : ℝ)) * (Nat.sqrt n : ℝ) ≤ n := by exact_mod_cast Nat.sqrt_le n
+  have h9 : 9 ≤ δ ^ 2 * n :=
+    (div_le_iff₀' (by positivity)).mp ((Nat.le_ceil _).trans (by exact_mod_cast hnC))
   simp only [Real.norm_eq_abs, Nat.abs_cast]
-  rw [abs_of_nonneg hx_nn]
-  exact hxy
+  refine (pow_le_pow_iff_left₀ (Nat.cast_nonneg _) (by positivity) two_ne_zero).mp ?_
+  nlinarith [pow_le_pow_left₀ (Nat.cast_nonneg _) h2s 2,
+    mul_le_mul_of_nonneg_right h9 (Nat.cast_nonneg (α := ℝ) n)]
 
 /-- **Unconditional correlation bound against `symmHardForm`.** For every `r ≥ 2`, `k₀ ≥ 1`, and
 `ε > 0`, some `γ > 0` bounds the correlation of `BitString.quadForm (symmHardForm n)` with every
@@ -761,30 +685,15 @@ theorem exists_mul_two_pow_le_and_logb_sub_logb_le {r : ℕ} (hr : 4 ≤ r) :
     ∃ k₀ : ℕ, 1 ≤ k₀ ∧ k₀ * 2 ^ k₀ ≤ r ∧
       Real.logb 2 r - Real.logb 2 (Real.logb 2 r) ≤ k₀ + 1 := by
   set ℓ := Nat.log 2 r
-  have hℓ2 : 2 ≤ ℓ := by
-    have : Nat.log 2 4 ≤ Nat.log 2 r := Nat.log_mono_right hr
-    have h4 : Nat.log 2 4 = 2 := by decide
-    omega
+  have hℓ2 : 2 ≤ ℓ := Nat.le_log_of_pow_le one_lt_two hr
   have hpow_ℓ : 2 ^ ℓ ≤ r := Nat.pow_log_le_self 2 (by omega)
   have hdiv_ge2 : 2 ≤ r / ℓ := by
     rw [Nat.le_div_iff_mul_le (by omega)]
-    rcases eq_or_lt_of_le hℓ2 with h2 | h3
-    · rw [← h2]; omega
-    · rcases eq_or_lt_of_le (Nat.succ_le_of_lt h3) with h3' | h4'
-      · have hℓ3 : ℓ = 3 := h3'.symm
-        have h8 : 2 ^ 3 ≤ r := by rw [← hℓ3]; exact hpow_ℓ
-        omega
-      · have h2ℓ : 2 * ℓ ≤ 2 ^ ℓ := by
-          clear hpow_ℓ hr hℓ2 h3
-          induction ℓ, Nat.succ_le_of_lt h4' using Nat.le_induction with
-          | base => decide
-          | succ m _ ih => rw [pow_succ']; omega
-        exact h2ℓ.trans hpow_ℓ
-  set k₀ := Nat.log 2 (r / ℓ)
-  have hk₀1 : 1 ≤ k₀ := by
-    have : Nat.log 2 2 ≤ Nat.log 2 (r / ℓ) := Nat.log_mono_right hdiv_ge2
-    have h2 : Nat.log 2 2 = 1 := by decide
+    have h := Nat.lt_two_pow_self (n := ℓ - 1)
+    have h2 : 2 ^ ℓ = 2 * 2 ^ (ℓ - 1) := by rw [← pow_succ', Nat.sub_add_cancel (by omega)]
     omega
+  set k₀ := Nat.log 2 (r / ℓ)
+  have hk₀1 : 1 ≤ k₀ := Nat.le_log_of_pow_le one_lt_two hdiv_ge2
   have hk₀_le_r : 2 ^ k₀ * ℓ ≤ r := by
     have h := Nat.pow_log_le_self 2 (show r / ℓ ≠ 0 by omega)
     exact (Nat.mul_le_mul_right ℓ h).trans (Nat.div_mul_le_self r ℓ)
@@ -854,14 +763,10 @@ theorem exists_log_sub_log_log_le_mul_quadFormGateSweepCoefficient {r : ℕ} (hr
     refine ⟨k₀, hk₀1, ?_⟩
     have hk₀_alg : (k₀ - 1 : ℝ) ≤ (r - 1 : ℝ) * quadFormGateSweepCoefficient r k₀ := by
       unfold quadFormGateSweepCoefficient
-      have hd_pos : (0 : ℝ) < (r : ℝ) + (2 : ℝ) ^ k₀ - k₀ - 1 := by
-        have h1 := quadFormGateSweep_denom_ge r k₀
-        have h2 : (4 : ℝ) ≤ r := by exact_mod_cast hr4
-        linarith
-      rw [mul_div_assoc', le_div_iff₀ hd_pos]
+      have hr4_r : (4 : ℝ) ≤ r := by exact_mod_cast hr4
+      rw [mul_div_assoc', le_div_iff₀ (by linarith [quadFormGateSweep_denom_ge r k₀])]
       have hk₀_pow_r : (k₀ : ℝ) * (2 : ℝ) ^ k₀ ≤ r := by exact_mod_cast hk₀_pow
       have hk₀1_r : (1 : ℝ) ≤ k₀ := by exact_mod_cast hk₀1
-      have hr4_r : (4 : ℝ) ≤ r := by exact_mod_cast hr4
       nlinarith [sq_nonneg ((k₀ : ℝ) - 1)]
     linarith
 

@@ -135,14 +135,14 @@ theorem productDepth_le_of_mem_support_linComb (F : SPFormula K n) :
     cases op with
     | add m c =>
       obtain ⟨j, -, hj⟩ := Finset.mem_biUnion.mp (Finsupp.support_finsetSum hH)
-      refine (ih j H (Finsupp.support_smul hj)).trans ?_
       rw [productDepth_add]
-      exact Finset.le_sup (f := fun j => productDepth (args j)) (Finset.mem_univ j)
+      exact (ih j H (Finsupp.support_smul hj)).trans
+        (Finset.le_sup (f := fun j => productDepth (args j)) (Finset.mem_univ j))
     | mul m =>
       rw [Finset.mem_singleton.mp (Finsupp.support_single_subset hH), productDepth_mul,
         productDepth_mul]
-      refine Nat.add_le_add_right (Finset.sup_mono_fun fun j _ => ?_) 1
-      exact productDepth_ofFinsupp_le (ih j)
+      exact Nat.add_le_add_right
+        (Finset.sup_mono_fun fun j _ => productDepth_ofFinsupp_le (ih j)) 1
     | const a =>
       rw [Finset.mem_singleton.mp (Finsupp.support_single_subset hH), productDepth_const]
       exact Nat.zero_le _
@@ -172,22 +172,16 @@ private theorem support_linComb_subset [DecidableEq (SPFormula K n)]
     (hF : F ∈ S) : (linComb F).support ⊆ S.image key := by
   induction F with
   | input i =>
-    refine (Finsupp.support_single_subset).trans ?_
-    rw [Finset.singleton_subset_iff]
-    exact Finset.mem_image_of_mem key hF
+    exact Finsupp.support_single_subset.trans
+      (Finset.singleton_subset_iff.mpr (Finset.mem_image_of_mem key hF))
   | gate op args ih =>
     cases op with
     | add m c =>
-      refine (Finsupp.support_finsetSum).trans (Finset.biUnion_subset.mpr fun j _ => ?_)
-      exact (Finsupp.support_smul).trans (ih j (hS _ _ hF j))
-    | mul m =>
-      refine (Finsupp.support_single_subset).trans ?_
-      rw [Finset.singleton_subset_iff]
-      exact Finset.mem_image_of_mem key hF
-    | const a =>
-      refine (Finsupp.support_single_subset).trans ?_
-      rw [Finset.singleton_subset_iff]
-      exact Finset.mem_image_of_mem key hF
+      exact Finsupp.support_finsetSum.trans (Finset.biUnion_subset.mpr fun j _ =>
+        Finsupp.support_smul.trans (ih j (hS _ _ hF j)))
+    | mul m | const a =>
+      exact Finsupp.support_single_subset.trans
+        (Finset.singleton_subset_iff.mpr (Finset.mem_image_of_mem key hF))
 
 /-- If `F` lies in a set `S` of formulas closed under taking arguments, its combination has at
 most `#S` formulas. -/
@@ -201,11 +195,10 @@ theorem card_support_linComb_le (hS : ∀ op args, Formula.gate op args ∈ S �
 theorem nodeCount_ofFinsupp_le {f : SPFormula K n →₀ K} {B e : ℕ} (hf : f.support.card ≤ B)
     (h : ∀ H ∈ f.support, H.nodeCount ≤ (B + 1) ^ e) :
     (ofFinsupp f).nodeCount ≤ (B + 1) ^ (e + 1) := by
-  rw [nodeCount_ofFinsupp]
+  rw [nodeCount_ofFinsupp, pow_succ]
   have hsum : ∑ H ∈ f.support, H.nodeCount ≤ B * (B + 1) ^ e :=
     (Finset.sum_le_card_nsmul _ _ _ h).trans (by rw [smul_eq_mul]; gcongr)
-  have hpos : 1 ≤ (B + 1) ^ e := Nat.one_le_pow _ _ (Nat.succ_pos B)
-  rw [pow_succ]
+  have := Nat.one_le_pow e (B + 1) (Nat.succ_pos B)
   nlinarith
 
 variable {B : ℕ}
@@ -229,26 +222,24 @@ theorem nodeCount_le_of_mem_support_linComb
     cases op with
     | add m c =>
       obtain ⟨j, -, hj⟩ := Finset.mem_biUnion.mp (Finsupp.support_finsetSum hH)
-      refine (ih j (hS _ _ hF j) H (Finsupp.support_smul hj)).trans
-        (Nat.pow_le_pow_right (Nat.succ_pos B) (Nat.mul_le_mul_left 2 ?_))
       rw [productDepth_add]
-      exact Finset.le_sup (f := fun j => productDepth (args j)) (Finset.mem_univ j)
+      exact (ih j (hS _ _ hF j) H (Finsupp.support_smul hj)).trans
+        (Nat.pow_le_pow_right (Nat.succ_pos B) (Nat.mul_le_mul_left 2
+          (Finset.le_sup (f := fun j => productDepth (args j)) (Finset.mem_univ j))))
     | mul m =>
-      rw [Finset.mem_singleton.mp (Finsupp.support_single_subset hH), productDepth_mul]
+      rw [Finset.mem_singleton.mp (Finsupp.support_single_subset hH), productDepth_mul,
+        mul, Formula.nodeCount_gate]
       set s := Finset.univ.sup fun j => productDepth (args j)
       have hj (j : Fin m) : (flatten (args j)).nodeCount ≤ (B + 1) ^ (2 * s + 1) := by
-        have hargs := hS _ _ hF j
-        refine (nodeCount_ofFinsupp_le (card_support_linComb_le hS hargs |>.trans hB)
-          (ih j hargs)).trans (Nat.pow_le_pow_right (Nat.succ_pos B) ?_)
-        have : productDepth (args j) ≤ s :=
-          Finset.le_sup (f := fun j => productDepth (args j)) (Finset.mem_univ j)
+        refine (nodeCount_ofFinsupp_le ((card_support_linComb_le hS (hS _ _ hF j)).trans hB)
+          (ih j (hS _ _ hF j))).trans (Nat.pow_le_pow_right (Nat.succ_pos B) ?_)
+        have := Finset.le_sup (f := fun j => productDepth (args j)) (Finset.mem_univ j)
         omega
-      rw [mul, Formula.nodeCount_gate]
       have hsum : ∑ j, (flatten (args j)).nodeCount ≤ B * (B + 1) ^ (2 * s + 1) :=
         (Finset.sum_le_card_nsmul _ _ _ fun j _ => hj j).trans (by
           rw [Finset.card_univ, Fintype.card_fin, smul_eq_mul]
           exact Nat.mul_le_mul_right _ (hmul m args hF))
-      have h1 := hone (2 * s + 1)
+      have := hone (2 * s + 1)
       refine (Nat.add_le_add_right hsum 1).trans ?_
       rw [show 2 * (s + 1) = 2 * s + 1 + 1 by ring, pow_succ (B + 1) (2 * s + 1)]
       nlinarith

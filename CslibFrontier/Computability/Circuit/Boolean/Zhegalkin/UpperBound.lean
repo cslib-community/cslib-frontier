@@ -78,21 +78,12 @@ private def outPartVal (d : PaddedDecomp f M k) : OutPartIdx n M → BooleanFunc
 
 private theorem card_outParts_le (d : PaddedDecomp f M k) :
     #(outParts d) ≤ n + M + 1 := by
+  have h1 : #(if d.outC then {.constOne} else ∅ : Finset (OutPartIdx n M)) ≤ 1 := by
+    split_ifs <;> simp
   unfold outParts
-  set p1 : Finset (OutPartIdx n M) := if d.outC then {.constOne} else ∅
-  set p2 : Finset (OutPartIdx n M) :=
-    (univ.filter fun j : Fin n => d.outX j = true).map ⟨.inX, fun _ _ h => by injection h⟩
-  set p3 : Finset (OutPartIdx n M) :=
-    (univ.filter fun ℓ : Fin M => d.outG ℓ = true).map ⟨.gateG, fun _ _ h => by injection h⟩
-  have hc1 : #p1 ≤ 1 := by dsimp only [p1]; split_ifs <;> simp
-  have hc2 : #p2 ≤ n := by
-    rw [card_map]
-    exact (card_filter_le _ _).trans_eq (by simp)
-  have hc3 : #p3 ≤ M := by
-    rw [card_map]
-    exact (card_filter_le _ _).trans_eq (by simp)
-  have hu2 := card_union_le (p1 ∪ p2) p3
-  have hu1 := card_union_le p1 p2
+  refine (card_union_le _ _).trans <| (add_le_add ((card_union_le _ _).trans <| add_le_add h1
+    ((card_map _).trans_le <| (card_filter_le _ _).trans_eq (card_fin n)))
+    ((card_map _).trans_le <| (card_filter_le _ _).trans_eq (card_fin M))).trans ?_
   omega
 
 private theorem sum_outParts_eq (d : PaddedDecomp f M k) (x : Fin n → Bool) :
@@ -104,19 +95,10 @@ private theorem sum_outParts_eq (d : PaddedDecomp f M k) (x : Fin n → Bool) :
     (univ.filter fun j : Fin n => d.outX j = true).map ⟨.inX, fun _ _ h => by injection h⟩
   set p3 : Finset (OutPartIdx n M) :=
     (univ.filter fun ℓ : Fin M => d.outG ℓ = true).map ⟨.gateG, fun _ _ h => by injection h⟩
-  have hd12 : Disjoint p1 p2 := by
-    rw [Finset.disjoint_left]
-    intro z hz1 hz2
-    obtain ⟨_, _, rfl⟩ := mem_map.mp hz2
-    dsimp only [p1] at hz1; split_ifs at hz1 <;> simp at hz1
-  have hd123 : Disjoint (p1 ∪ p2) p3 := by
-    rw [Finset.disjoint_left]
-    intro z hz12 hz3
-    obtain ⟨_, _, rfl⟩ := mem_map.mp hz3
-    rcases mem_union.mp hz12 with hz1 | hz2
-    · dsimp only [p1] at hz1; split_ifs at hz1 <;> simp at hz1
-    · obtain ⟨_, _, habs⟩ := mem_map.mp hz2; nomatch habs
-  rw [sum_union hd123, sum_union hd12, sum_map, sum_map]
+  have hd : Disjoint p1 p2 ∧ Disjoint (p1 ∪ p2) p3 := by
+    simp only [p1, p2, p3]
+    split_ifs <;> simp [disjoint_right]
+  rw [sum_union hd.2, sum_union hd.1, sum_map, sum_map]
   have hs1 : (∑ z ∈ p1, outPartVal d z x) = if d.outC then true else (0 : Bool) := by
     dsimp only [p1]
     split_ifs <;> simp [outPartVal, constOne]
@@ -150,25 +132,21 @@ theorem exists_circuit_of_andCost_le_bound {n M : ℕ} {f : BooleanFunction n}
     have h0 := ((CostSynthesis.of_subset Set.Subset.rfl).union hconsts).union hxgroup
     refine h0.mono Set.Subset.rfl ?_ (by omega) (by simp)
     intro g hg
-    rcases hg with (((((hg_in | hg_c) | hg_x) | ⟨i, hi, _⟩) | ⟨cg, hcg, _⟩) | ⟨up, _, hq, _⟩)
-    · exact Or.inl (Or.inl hg_in)
-    · exact Or.inl (Or.inr hg_c)
-    · exact Or.inr hg_x
-    · exact (Nat.not_lt_zero _ hi).elim
-    · exact (Nat.not_lt_zero _ hcg).elim
-    · exact (Nat.not_lt_zero _ hq).elim
+    rcases hg with (((((hg | hg) | hg) | ⟨_, hi, _⟩) | ⟨_, hi, _⟩) | ⟨_, _, hi, _⟩)
+    exacts [Or.inl (Or.inl hg), Or.inl (Or.inr hg), Or.inr hg, (Nat.not_lt_zero _ hi).elim,
+      (Nat.not_lt_zero _ hi).elim, (Nat.not_lt_zero _ hi).elim]
   -- Inductive run across stages `q₀ = 0 .. M / s` (`Q = M / s + 1` stages).
   let Q := M / s + 1
   let stageTC (q₀ : ℕ) : ℕ :=
-    (∑ up ∈ (zhegPairIdx d s p).filter (fun up => (up.2.1.val / 2) / s = q₀),
+    (∑ up ∈ (zhegPairIdx d s p).filter (fun up => (up.2.1.1 / 2) / s = q₀),
         (#(pairedCols (hasZhegCol d s) p up.1 up.2.1 up.2.2) - 1)) +
-      (∑ r ∈ (zhegOddIdx d s p).filter (fun r => (r.val / 2) / s = q₀),
+      (∑ r ∈ (zhegOddIdx d s p).filter (fun r => (r.1 / 2) / s = q₀),
         (#(oddCols (hasZhegCol d s) p r) - 1)) +
-      (∑ _ ∈ (univ : Finset (Fin M)).filter (fun i => i.val / s = q₀), (2 * (p + s) + 1)) +
+      (∑ _ ∈ (univ : Finset (Fin M)).filter (fun i => i.1 / s = q₀), (2 * (p + s) + 1)) +
       (if q₀ < M / s then 2 ^ s - s - 1 else 0)
   let stageWC (q₀ : ℕ) : ℕ :=
-    ∑ i ∈ (univ : Finset (Fin M)).filter (fun i => i.val / s = q₀),
-      if i.val < k then 1 else 0
+    ∑ i ∈ (univ : Finset (Fin M)).filter (fun i => i.1 / s = q₀),
+      if i.1 < k then 1 else 0
   have hstages : ∀ T : ℕ,
       CostSynthesis interpretation andCost (stageSet d s p 0) (stageSet d s p T)
         (∑ q₀ ∈ range T, stageTC q₀) (∑ q₀ ∈ range T, stageWC q₀) := by
@@ -177,10 +155,9 @@ theorem exists_circuit_of_andCost_le_bound {n M : ℕ} {f : BooleanFunction n}
     | zero =>
       simpa only [range_zero, sum_empty] using CostSynthesis.of_subset Set.Subset.rfl
     | succ T ih =>
-      have hstep := ih.trans
-        ((synth_stage_step d hs hp T).mono Set.subset_union_right Set.Subset.rfl le_rfl le_rfl)
       rw [sum_range_succ, sum_range_succ]
-      exact hstep
+      exact ih.trans
+        ((synth_stage_step d hs hp T).mono Set.subset_union_right Set.Subset.rfl le_rfl le_rfl)
   have hall_stages := hstage0.trans
     ((hstages Q).mono Set.subset_union_right Set.Subset.rfl le_rfl le_rfl)
   -- Final output linear form from `stageSet d s p Q`.
@@ -207,10 +184,10 @@ theorem exists_circuit_of_andCost_le_bound {n M : ℕ} {f : BooleanFunction n}
   -- Sum the stage gate budgets and compare with `totalBound n M s p` and `k`.
   have hpair_sum :
       (∑ q₀ ∈ range Q,
-        ∑ up ∈ (zhegPairIdx d s p).filter (fun up => (up.2.1.val / 2) / s = q₀),
+        ∑ up ∈ (zhegPairIdx d s p).filter (fun up => (up.2.1.1 / 2) / s = q₀),
           (#(pairedCols (hasZhegCol d s) p up.1 up.2.1 up.2.2) - 1)) ≤
       (M * (M + 2 * n)) / (2 * s) := by
-    have hmaps : ∀ up ∈ zhegPairIdx d s p, (up.2.1.val / 2) / s ∈ range Q := fun up _ =>
+    have hmaps : ∀ up ∈ zhegPairIdx d s p, (up.2.1.1 / 2) / s ∈ range Q := fun up _ =>
       mem_range.mpr (hdiv_Q (by omega))
     rw [sum_fiberwise_of_maps_to hmaps]
     have h₁ : ∑ up ∈ zhegPairIdx d s p,
@@ -225,10 +202,10 @@ theorem exists_circuit_of_andCost_le_bound {n M : ℕ} {f : BooleanFunction n}
     nlinarith only [h₁, h₂, h₃]
   have hodd_sum :
       (∑ q₀ ∈ range Q,
-        ∑ r ∈ (zhegOddIdx d s p).filter (fun r => (r.val / 2) / s = q₀),
+        ∑ r ∈ (zhegOddIdx d s p).filter (fun r => (r.1 / 2) / s = q₀),
           (#(oddCols (hasZhegCol d s) p r) - 1)) ≤
       ((2 * M) ⌈/⌉ p) * 2 ^ s * ((n + M) ⌈/⌉ s) := by
-    have hmaps : ∀ r ∈ zhegOddIdx d s p, (r.val / 2) / s ∈ range Q := fun r _ =>
+    have hmaps : ∀ r ∈ zhegOddIdx d s p, (r.1 / 2) / s ∈ range Q := fun r _ =>
       mem_range.mpr (hdiv_Q (by omega))
     rw [sum_fiberwise_of_maps_to hmaps]
     calc ∑ r ∈ zhegOddIdx d s p, (#(oddCols (hasZhegCol d s) p r) - 1)
@@ -240,13 +217,13 @@ theorem exists_circuit_of_andCost_le_bound {n M : ℕ} {f : BooleanFunction n}
       _ ≤ ((2 * M) ⌈/⌉ p) * (2 ^ s * ((n + M) ⌈/⌉ s)) :=
           Nat.mul_le_mul_left _ (card_zhegCol_le n M s hs)
       _ = ((2 * M) ⌈/⌉ p) * 2 ^ s * ((n + M) ⌈/⌉ s) := by ring
+  have hmapsM : ∀ i ∈ (univ : Finset (Fin M)), i.1 / s ∈ range Q := fun i _ =>
+    mem_range.mpr (hdiv_Q i.isLt.le)
   have hgates_sum :
       (∑ q₀ ∈ range Q,
-        ∑ _ ∈ (univ : Finset (Fin M)).filter (fun i => i.val / s = q₀), (2 * (p + s) + 1)) ≤
+        ∑ _ ∈ (univ : Finset (Fin M)).filter (fun i => i.1 / s = q₀), (2 * (p + s) + 1)) ≤
       2 * M * (p + s + 1) := by
-    have hmaps : ∀ i ∈ (univ : Finset (Fin M)), i.val / s ∈ range Q := fun i _ =>
-      mem_range.mpr (hdiv_Q i.isLt.le)
-    rw [sum_fiberwise_of_maps_to hmaps, sum_const, card_univ, Fintype.card_fin, smul_eq_mul]
+    rw [sum_fiberwise_of_maps_to hmapsM, sum_const, card_univ, Fintype.card_fin, smul_eq_mul]
     nlinarith
   have hgblock_sum :
       (n * 2 ^ s) / s +
@@ -263,28 +240,15 @@ theorem exists_circuit_of_andCost_le_bound {n M : ℕ} {f : BooleanFunction n}
       rw [hfilt, sum_const, card_range, smul_eq_mul]
     rw [hsub_sum]
     have hMs : (M / s) * (2 ^ s - s - 1) ≤ (M * 2 ^ s) / s := by
-      have hsub : 2 ^ s - s - 1 ≤ 2 ^ s := (Nat.sub_le _ _).trans (Nat.sub_le _ _)
-      apply (Nat.le_div_iff_mul_le hs).mpr
-      calc (M / s) * (2 ^ s - s - 1) * s
-          ≤ (M / s) * 2 ^ s * s :=
-            Nat.mul_le_mul_right s (Nat.mul_le_mul_left _ hsub)
-        _ = (s * (M / s)) * 2 ^ s := by ring
-        _ ≤ M * 2 ^ s := Nat.mul_le_mul_right _ (Nat.mul_div_le M s)
-    have hadd_div : (n * 2 ^ s) / s + (M * 2 ^ s) / s ≤ ((n + M) * 2 ^ s) / s := by
-      apply (Nat.le_div_iff_mul_le hs).mpr
-      calc ((n * 2 ^ s) / s + (M * 2 ^ s) / s) * s
-          = s * ((n * 2 ^ s) / s) + s * ((M * 2 ^ s) / s) := by ring
-        _ ≤ n * 2 ^ s + M * 2 ^ s :=
-            Nat.add_le_add (Nat.mul_div_le _ s) (Nat.mul_div_le _ s)
-        _ = (n + M) * 2 ^ s := by ring
-    exact (Nat.add_le_add_left hMs _).trans hadd_div
+      rw [mul_comm M, mul_comm (M / s)]
+      exact (Nat.mul_le_mul_right _ ((Nat.sub_le _ _).trans (Nat.sub_le _ _))).trans
+        (Nat.mul_div_le_mul_div_assoc _ _ _)
+    exact (Nat.add_le_add_left hMs _).trans (add_mul n M (2 ^ s) ▸ Nat.div_add_div_le_add_div)
   have hwc_sum : (∑ q₀ ∈ range Q, stageWC q₀) ≤ k := by
-    have hmaps : ∀ i ∈ (univ : Finset (Fin M)), i.val / s ∈ range Q := fun i _ =>
-      mem_range.mpr (Nat.lt_succ_of_le (Nat.div_le_div_right i.isLt.le))
     dsimp only [stageWC]
-    rw [sum_fiberwise_of_maps_to hmaps, sum_boole, Nat.cast_id]
+    rw [sum_fiberwise_of_maps_to hmapsM, sum_boole, Nat.cast_id]
     have hinj : Set.InjOn Fin.val
-        ((univ.filter fun i : Fin M => i.val < k) : Set (Fin M)) :=
+        ((univ.filter fun i : Fin M => i.1 < k) : Set (Fin M)) :=
       fun _ _ _ _ h => Fin.ext h
     exact (card_le_card_of_injOn Fin.val
       (fun i hi => mem_range.mpr (mem_filter.mp hi).2) hinj).trans_eq (card_range _)
@@ -324,9 +288,7 @@ theorem exists_circuit_of_andCost_le {ε : ℝ} (hε : 0 < ε) :
   let C : ℕ := ⌈((4 + 2 * 88 : ℕ) : ℝ) / ε⌉₊ + 10
   obtain ⟨L₁, hL₁8, _, hL₁⟩ := exists_log_threshold C
   let M₀ : ℕ := 2 ^ L₁
-  have hM₀_ge2 : 2 ≤ M₀ := by
-    have : 2 ^ 1 ≤ 2 ^ L₁ := Nat.pow_le_pow_right (by norm_num) (by omega)
-    simpa [M₀] using this
+  have hM₀_ge2 : 2 ≤ M₀ := le_self_pow (by norm_num) (by omega)
   refine ⟨M₀, hM₀_ge2, fun {n M} hMM₀ {f} c hc hM => ?_⟩
   have hL_ge : L₁ ≤ Nat.log 2 M := Nat.le_log_of_pow_le one_lt_two hMM₀
   obtain ⟨hClog, h6log, hpow2⟩ := hL₁ hL_ge

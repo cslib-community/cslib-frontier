@@ -139,21 +139,6 @@ def flipBlocks (q : V) : List (Finset V) → List (Finset V)
     else
       B :: flipBlocks q (C :: rest)
 
-private theorem erase_nonempty_of_mem_of_ne_singleton {B : Finset V} {q : V}
-    (hq : q ∈ B) (hne : B ≠ {q}) : (B.erase q).Nonempty := by
-  by_contra hemp
-  rw [not_nonempty_iff_eq_empty, erase_eq_empty_iff] at hemp
-  rcases hemp with rfl | rfl
-  · exact notMem_empty q hq
-  · exact hne rfl
-
-private theorem insert_ne_singleton_of_nonempty_disjoint {C : Finset V} {q : V}
-    (hC : C.Nonempty) (hqC : q ∉ C) : insert q C ≠ {q} := by
-  obtain ⟨c, hc⟩ := hC
-  intro heq
-  have hc_mem : c ∈ ({q} : Finset V) := heq ▸ mem_insert_of_mem hc
-  exact hqC (mem_singleton.mp hc_mem ▸ hc)
-
 omit [DecidableEq V] in
 private theorem not_exists_append_singleton_of_head_mem {B C : Finset V} {rest : List (Finset V)}
     {q : V} (hqB : q ∈ B) (hdisj : (B :: C :: rest).Pairwise Disjoint) :
@@ -167,6 +152,34 @@ private theorem not_exists_append_singleton_of_head_mem {B C : Finset V} {rest :
     rw [List.pairwise_cons] at hdisj
     have hq_mem : {q} ∈ C :: rest := htl ▸ List.mem_append_right tl (List.mem_singleton.mpr rfl)
     exact Finset.disjoint_left.mp (hdisj.1 {q} hq_mem) hqB (mem_singleton_self q)
+
+/-- Merging the first two blocks does not change the snapshot of a process outside the first. -/
+private theorem blocksSnapshot_cons_cons_of_notMem {A C : Finset V} {rest : List (Finset V)}
+    {p : V} (hpA : p ∉ A) :
+    blocksSnapshot (A :: C :: rest) p = blocksSnapshot ((A ∪ C) :: rest) p := by
+  simp only [blocksSnapshot, unionBlocks_cons, mem_union, hpA, false_or]
+  by_cases hC : p ∈ C <;> by_cases hr : p ∈ unionBlocks rest <;> simp [hC, hr, union_assoc]
+
+/-- Splitting `B ∋ q` (`B ≠ {q}`) into `{q} :: B.erase q` in front of `tail` keeps the blocks
+nonempty and pairwise disjoint and preserves the union and every snapshot but `q`'s. -/
+private theorem split_spec {B : Finset V} {q : V} (tail : List (Finset V)) (hqB : q ∈ B)
+    (hBs : B ≠ {q}) (hne : ∀ X ∈ B :: tail, X.Nonempty) (hdisj : (B :: tail).Pairwise Disjoint) :
+    (∀ X ∈ {q} :: B.erase q :: tail, X.Nonempty) ∧
+      ({q} :: B.erase q :: tail).Pairwise Disjoint ∧
+      unionBlocks ({q} :: B.erase q :: tail) = unionBlocks (B :: tail) ∧
+      ∀ p, p ≠ q → blocksSnapshot ({q} :: B.erase q :: tail) p = blocksSnapshot (B :: tail) p := by
+  have hu : ({q} : Finset V) ∪ B.erase q = B := by rw [singleton_union, insert_erase hqB]
+  have hBq : (B.erase q).Nonempty := by
+    rw [nonempty_iff_ne_empty, Ne, erase_eq_empty_iff, not_or]
+    exact ⟨(hne B List.mem_cons_self).ne_empty, hBs⟩
+  simp only [List.pairwise_cons, List.forall_mem_cons] at hne hdisj ⊢
+  refine ⟨⟨singleton_nonempty q, hBq, hne.2⟩,
+    ⟨⟨disjoint_singleton_left.mpr (notMem_erase q B), fun D hD =>
+        (hdisj.1 D hD).mono_left (singleton_subset_iff.mpr hqB)⟩,
+      fun D hD => (hdisj.1 D hD).mono_left (erase_subset q B), hdisj.2⟩,
+    by rw [unionBlocks_cons, unionBlocks_cons, ← union_assoc, hu, unionBlocks_cons],
+    fun p hpq => ?_⟩
+  cases tail <;> rw [blocksSnapshot_cons_cons_of_notMem (by simpa using hpq), hu]
 
 /-- Complete structural specification of `flipBlocks q bs` for valid block lists containing `q`. -/
 private theorem flipBlocks_spec (q : V) :
@@ -183,225 +196,60 @@ private theorem flipBlocks_spec (q : V) :
     have hqB : q ∈ B := by simpa only [unionBlocks_cons, unionBlocks_nil, union_empty] using hq
     by_cases hBs : B = {q}
     · subst hBs
-      have hfl_eq : flipBlocks q [{q}] = [{q}] := by
-        dsimp only [flipBlocks]; simp only [↓reduceIte]
-      rw [hfl_eq]
-      exact ⟨hne, hdisj, rfl, hfl_eq, ⟨fun _ => ⟨[], rfl⟩, fun _ => rfl⟩, fun _ _ => rfl⟩
-    · dsimp only [flipBlocks]
-      simp only [hBs, ↓reduceIte]
-      have her_ne : (B.erase q).Nonempty := erase_nonempty_of_mem_of_ne_singleton hqB hBs
-      have hdisj_er : Disjoint ({q} : Finset V) (B.erase q) :=
-        Finset.disjoint_singleton_left.mpr (notMem_erase q B)
-      have hu_eq : ({q} : Finset V) ∪ B.erase q = B := by
-        rw [singleton_union, insert_erase hqB]
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-      · intro X hX
-        rcases List.mem_cons.mp hX with rfl | hX
-        · exact singleton_nonempty q
-        · rw [List.mem_singleton.mp hX]
-          exact her_ne
-      · exact List.pairwise_cons.mpr ⟨fun X hX => List.mem_singleton.mp hX ▸ hdisj_er,
-          List.pairwise_singleton _ _⟩
-      · simp only [unionBlocks_cons, unionBlocks_nil, union_empty, hu_eq]
-      · dsimp only [flipBlocks]
-        simp only [mem_singleton, ↓reduceIte, insert_erase hqB]
-      · constructor
-        · intro hcon
-          have := congrArg List.length hcon
-          simp at this
-        · rintro ⟨init, heq⟩
-          cases init with
-          | nil =>
-            simp only [List.nil_append, List.cons.injEq, and_true] at heq
-            exact absurd heq hBs
-          | cons D tl =>
-            have := congrArg List.length heq
-            simp only [List.length_cons, List.length_append] at this
-            omega
-      · intro p hpq
-        have hp_not_q : p ∉ ({q} : Finset V) := fun h => hpq (mem_singleton.mp h)
-        by_cases hpB : p ∈ B
-        · have hp_er : p ∈ B.erase q := mem_erase.mpr ⟨hpq, hpB⟩
-          have hp_u : p ∈ unionBlocks [B.erase q] := by
-            simp only [unionBlocks_cons, unionBlocks_nil, union_empty, hp_er]
-          rw [blocksSnapshot_cons_of_notMem hp_not_q hp_u, blocksSnapshot_cons_of_mem hp_er,
-            blocksSnapshot_cons_of_mem hpB, hu_eq]
-        · have hp_not_er : p ∉ unionBlocks [B.erase q] := by
-            simp only [unionBlocks_cons, unionBlocks_nil, union_empty, mem_erase, not_and]
-            exact fun _ => hpB
-          have hp_not_all : p ∉ unionBlocks [{q}, B.erase q] := by
-            simp only [unionBlocks_cons, unionBlocks_nil, union_empty, hu_eq, hpB,
-              not_false_eq_true]
-          have hp_not_B : p ∉ unionBlocks [B] := by
-            simp only [unionBlocks_cons, unionBlocks_nil, union_empty, hpB, not_false_eq_true]
-          rw [blocksSnapshot_of_notMem hp_not_all, blocksSnapshot_of_notMem hp_not_B]
+      have hfl : flipBlocks q [{q}] = [{q}] := by simp [flipBlocks]
+      rw [hfl]
+      exact ⟨hne, hdisj, rfl, hfl, ⟨fun _ => ⟨[], rfl⟩, fun _ => rfl⟩, fun _ _ => rfl⟩
+    · obtain ⟨h1, h2, h3, h4⟩ := split_spec [] hqB hBs hne hdisj
+      simp only [flipBlocks, hBs, ↓reduceIte]
+      refine ⟨h1, h2, h3, by simp [insert_erase hqB], ?_, h4⟩
+      simp [List.append_eq_singleton_iff, eq_comm (a := [B]), Ne.symm hBs]
   | B :: C :: rest, hne, hdisj, hq => by
-    have hdisj_all := hdisj
-    rw [List.pairwise_cons] at hdisj
-    have hdisj_BC : Disjoint B C := hdisj.1 C List.mem_cons_self
-    have hdisj_C := List.pairwise_cons.mp hdisj.2
-    have hC_ne : C.Nonempty := hne C (List.mem_cons_of_mem B List.mem_cons_self)
+    have hfix {bs'} (hlen : bs'.length ≠ (B :: C :: rest).length) (hqB : q ∈ B) :
+        (bs' = B :: C :: rest ↔ ∃ init, B :: C :: rest = init ++ [{q}]) :=
+      iff_of_false (fun h => hlen (congrArg List.length h))
+        (not_exists_append_singleton_of_head_mem hqB hdisj)
     by_cases hqB : q ∈ B
     · by_cases hBs : B = {q}
       · -- Merge `{q}` into `C`: `insert q C :: rest`
         subst hBs
+        simp only [List.pairwise_cons, List.forall_mem_cons] at hne hdisj
+        have hqC : q ∉ C := disjoint_left.mp hdisj.1.1 (mem_singleton_self q)
+        have hins : insert q C ≠ {q} := fun h => hqC (by
+          obtain ⟨c, hc⟩ := hne.2.1
+          simpa [mem_singleton.mp (h ▸ mem_insert_of_mem hc)] using hc)
         simp only [flipBlocks, mem_singleton, ↓reduceIte]
-        have hq_not_C : q ∉ C := Finset.disjoint_left.mp hdisj_BC (mem_singleton_self q)
-        have hins_ne_sing : insert q C ≠ {q} :=
-          insert_ne_singleton_of_nonempty_disjoint hC_ne hq_not_C
-        refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-        · intro X hX
-          rcases List.mem_cons.mp hX with rfl | hX
-          · exact ⟨q, mem_insert_self q C⟩
-          · exact hne X (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ hX))
-        · refine List.pairwise_cons.mpr ⟨fun D hD => ?_, hdisj_C.2⟩
-          exact Finset.disjoint_insert_left.mpr
-            ⟨Finset.disjoint_left.mp (hdisj.1 D (List.mem_cons_of_mem C hD))
-              (mem_singleton_self q),
-             hdisj_C.1 D hD⟩
-        · ext x
-          simp only [unionBlocks_cons, mem_union, mem_insert, mem_singleton]
-          tauto
-        · cases rest with
-          | nil =>
-            simp only [flipBlocks, hins_ne_sing, ↓reduceIte, erase_insert hq_not_C]
-          | cons D rest' =>
-            simp only [flipBlocks, mem_insert_self, hins_ne_sing, ↓reduceIte,
-              erase_insert hq_not_C]
-        · constructor
-          · intro hcon
-            have := congrArg List.length hcon
-            simp only [List.length_cons] at this
-            omega
-          · intro hex
-            exact absurd hex (not_exists_append_singleton_of_head_mem hqB hdisj_all)
-        · intro p hpq
-          have hp_not_q : p ∉ ({q} : Finset V) := fun h => hpq (mem_singleton.mp h)
-          have hp_ins_iff : p ∈ insert q C ↔ p ∈ C := by
-            simp only [mem_insert, hpq, false_or]
-          by_cases hpC : p ∈ C
-          · have hp_ins : p ∈ insert q C := mem_insert_of_mem hpC
-            have hp_u : p ∈ unionBlocks (C :: rest) := mem_union_left _ hpC
-            rw [blocksSnapshot_cons_of_mem hp_ins, blocksSnapshot_cons_of_notMem hp_not_q hp_u,
-              blocksSnapshot_cons_of_mem hpC, singleton_union]
-          · have hp_not_ins : p ∉ insert q C := mt hp_ins_iff.mp hpC
-            by_cases hprest : p ∈ unionBlocks rest
-            · have hp_u : p ∈ unionBlocks (C :: rest) := mem_union_right C hprest
-              rw [blocksSnapshot_cons_of_notMem hp_not_ins hprest,
-                blocksSnapshot_cons_of_notMem hp_not_q hp_u,
-                blocksSnapshot_cons_of_notMem hpC hprest, singleton_union, ← insert_union]
-            · have hp_not_1 : p ∉ unionBlocks (insert q C :: rest) := by
-                simp only [unionBlocks_cons, mem_union, hp_not_ins, hprest, or_self,
-                  not_false_eq_true]
-              have hp_not_2 : p ∉ unionBlocks ({q} :: C :: rest) := by
-                simp only [unionBlocks_cons, mem_union, hp_not_q, hpC, hprest, or_self,
-                  not_false_eq_true]
-              rw [blocksSnapshot_of_notMem hp_not_1, blocksSnapshot_of_notMem hp_not_2]
+        refine ⟨?_, ?_, by
+          rw [unionBlocks_cons, unionBlocks_cons, unionBlocks_cons, insert_eq, union_assoc], ?_,
+          hfix (by simp) hqB, fun p hpq => ?_⟩
+        · simpa using hne.2.2
+        · simp only [List.pairwise_cons]
+          exact ⟨fun D hD => disjoint_insert_left.mpr
+            ⟨disjoint_left.mp (hdisj.1.2 D hD) (mem_singleton_self q), hdisj.2.1 D hD⟩,
+            hdisj.2.2⟩
+        · cases rest <;> simp [flipBlocks, hins, erase_insert hqC]
+        · rw [blocksSnapshot_cons_cons_of_notMem (by simpa using hpq), singleton_union]
       · -- Split `B` into `{q} :: B.erase q :: C :: rest`
+        obtain ⟨h1, h2, h3, h4⟩ := split_spec (C :: rest) hqB hBs hne hdisj
         simp only [flipBlocks, hqB, hBs, ↓reduceIte]
-        have her_ne : (B.erase q).Nonempty := erase_nonempty_of_mem_of_ne_singleton hqB hBs
-        have hdisj_q_er : Disjoint ({q} : Finset V) (B.erase q) :=
-          Finset.disjoint_singleton_left.mpr (notMem_erase q B)
-        have hu_B : ({q} : Finset V) ∪ B.erase q = B := by
-          rw [singleton_union, insert_erase hqB]
-        refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-        · intro X hX
-          rcases List.mem_cons.mp hX with rfl | hX
-          · exact singleton_nonempty q
-          · rcases List.mem_cons.mp hX with rfl | hX
-            · exact her_ne
-            · exact hne X (List.mem_cons_of_mem B hX)
-        · refine List.pairwise_cons.mpr ⟨?_, List.pairwise_cons.mpr ⟨?_, hdisj.2⟩⟩
-          · intro D hD
-            rcases List.mem_cons.mp hD with rfl | hD
-            · exact hdisj_q_er
-            · exact Disjoint.mono_left (singleton_subset_iff.mpr hqB) (hdisj.1 D hD)
-          · intro D hD
-            exact Disjoint.mono_left (erase_subset q B) (hdisj.1 D hD)
-        · simp only [unionBlocks_cons, ← union_assoc, hu_B]
-        · simp only [mem_singleton, ↓reduceIte, insert_erase hqB]
-        · constructor
-          · intro hcon
-            have := congrArg List.length hcon
-            simp only [List.length_cons] at this
-            omega
-          · intro hex
-            exact absurd hex (not_exists_append_singleton_of_head_mem hqB hdisj_all)
-        · intro p hpq
-          have hp_not_q : p ∉ ({q} : Finset V) := fun h => hpq (mem_singleton.mp h)
-          by_cases hpB : p ∈ B
-          · have hp_er : p ∈ B.erase q := mem_erase.mpr ⟨hpq, hpB⟩
-            have hp_u : p ∈ unionBlocks (B.erase q :: C :: rest) := mem_union_left _ hp_er
-            rw [blocksSnapshot_cons_of_notMem hp_not_q hp_u,
-              blocksSnapshot_cons_of_mem hp_er, blocksSnapshot_cons_of_mem hpB, hu_B]
-          · have hp_not_er : p ∉ B.erase q := fun h => hpB (erase_subset q B h)
-            by_cases hp_tl : p ∈ unionBlocks (C :: rest)
-            · have hp_u : p ∈ unionBlocks (B.erase q :: C :: rest) :=
-                mem_union_right _ hp_tl
-              rw [blocksSnapshot_cons_of_notMem hp_not_q hp_u,
-                blocksSnapshot_cons_of_notMem hp_not_er hp_tl,
-                blocksSnapshot_cons_of_notMem hpB hp_tl, ← union_assoc, hu_B]
-            · have hp_not_1 : p ∉ unionBlocks ({q} :: B.erase q :: C :: rest) := by
-                rw [unionBlocks_cons, unionBlocks_cons, mem_union, mem_union, not_or, not_or]
-                exact ⟨hp_not_q, hp_not_er, hp_tl⟩
-              have hp_not_2 : p ∉ unionBlocks (B :: C :: rest) := by
-                rw [unionBlocks_cons, mem_union, not_or]
-                exact ⟨hpB, hp_tl⟩
-              rw [blocksSnapshot_of_notMem hp_not_1, blocksSnapshot_of_notMem hp_not_2]
+        exact ⟨h1, h2, h3, by simp [insert_erase hqB], hfix (by simp) hqB, h4⟩
     · -- `q ∉ B`: recurse on `C :: rest`
-      dsimp only [flipBlocks]
-      simp only [hqB, ↓reduceIte]
-      have hq_tl : q ∈ unionBlocks (C :: rest) := by
-        rw [unionBlocks_cons, mem_union] at hq
-        exact hq.resolve_left hqB
+      rw [List.pairwise_cons] at hdisj
+      have hq_tl : q ∈ unionBlocks (C :: rest) := (mem_union.mp hq).resolve_left hqB
       obtain ⟨hne', hdisj', hu', hinv', hfix', hsnap'⟩ :=
         flipBlocks_spec q (C :: rest) (fun X hX => hne X (List.mem_cons_of_mem B hX))
           hdisj.2 hq_tl
-      have hdisj_B_tl : Disjoint B (unionBlocks (flipBlocks q (C :: rest))) := by
-        rw [hu']
-        exact disjoint_unionBlocks_right.mpr hdisj.1
-      have hflip_ne_nil : flipBlocks q (C :: rest) ≠ [] := by
-        intro hnil
-        rw [hnil, unionBlocks_nil] at hu'
-        exact notMem_empty q (hu' ▸ hq_tl)
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-      · intro X hX
-        rcases List.mem_cons.mp hX with rfl | hX
-        · exact hne X List.mem_cons_self
-        · exact hne' X hX
-      · exact List.pairwise_cons.mpr ⟨disjoint_unionBlocks_right.mp hdisj_B_tl, hdisj'⟩
-      · simp only [unionBlocks_cons, hu']
-      · cases hfl : flipBlocks q (C :: rest) with
-        | nil => exact absurd hfl hflip_ne_nil
-        | cons D tl' =>
-          have hstep_B : flipBlocks q (B :: D :: tl') = B :: flipBlocks q (D :: tl') := by
-            conv_lhs => unfold flipBlocks
-            simp only [hqB, ↓reduceIte]
-          rw [hstep_B, ← hfl, hinv']
-      · simp only [List.cons.injEq, true_and, hfix']
-        constructor
-        · rintro ⟨init, heq⟩
-          exact ⟨B :: init, by simp only [List.cons_append, heq]⟩
-        · rintro ⟨init, heq⟩
-          cases init with
-          | nil => simp at heq
-          | cons D tl =>
-            simp only [List.cons_append, List.cons.injEq] at heq
-            exact ⟨tl, heq.2⟩
-      · intro p hpq
-        by_cases hpB : p ∈ B
-        · rw [blocksSnapshot_cons_of_mem hpB, blocksSnapshot_cons_of_mem hpB]
-        · by_cases hp_tl : p ∈ unionBlocks (C :: rest)
-          · have hp_fl : p ∈ unionBlocks (flipBlocks q (C :: rest)) := hu' ▸ hp_tl
-            rw [blocksSnapshot_cons_of_notMem hpB hp_fl,
-              blocksSnapshot_cons_of_notMem hpB hp_tl, hsnap' p hpq]
-          · have hp_not_1 : p ∉ unionBlocks (B :: flipBlocks q (C :: rest)) := by
-              rw [unionBlocks_cons, hu', mem_union, not_or]
-              exact ⟨hpB, hp_tl⟩
-            have hp_not_2 : p ∉ unionBlocks (B :: C :: rest) := by
-              rw [unionBlocks_cons, mem_union, not_or]
-              exact ⟨hpB, hp_tl⟩
-            rw [blocksSnapshot_of_notMem hp_not_1, blocksSnapshot_of_notMem hp_not_2]
+      obtain ⟨D, tl', hfl⟩ : ∃ D tl', flipBlocks q (C :: rest) = D :: tl' := by
+        cases h : flipBlocks q (C :: rest) with
+        | nil => rw [h, unionBlocks_nil] at hu'; exact absurd (hu' ▸ hq_tl) (notMem_empty q)
+        | cons D tl' => exact ⟨D, tl', rfl⟩
+      simp only [flipBlocks, hqB, ↓reduceIte]
+      refine ⟨?_, List.pairwise_cons.mpr ⟨disjoint_unionBlocks_right.mp
+          (hu' ▸ disjoint_unionBlocks_right.mpr hdisj.1), hdisj'⟩,
+        by simp only [unionBlocks_cons, hu'], ?_, ?_, fun p hpq => ?_⟩
+      · simpa [List.forall_mem_cons, hne B List.mem_cons_self] using hne'
+      · rw [hfl]; simp only [flipBlocks, hqB, ↓reduceIte]; rw [← hfl, hinv']
+      · simp [hfix', List.cons_eq_append_iff]
+      · simp only [blocksSnapshot, hu', hsnap' p hpq]
 
 /-- A one-shot `IS` schedule `π : ISSchedule U` lies on the `q`-boundary when `{q}` is the unique
 final block of `π.blocks` (so no process `p ≠ q` observes `q`). -/
@@ -1131,33 +979,27 @@ theorem exists_quorumSetAgreement_of_lt (V Val : Type*) [Fintype V] [DecidableEq
       rw [card_union_of_disjoint hemp, hL_eq] at hcard_u
       have hQp := hQ.2 p
       omega
-  refine ⟨P, ?_, ?_⟩
-  · intro inp Q hQ p
+  have hdec : ∀ {inp : V → Val} {Q : V → Finset V}, IsQuorumSchedule t Q → ∀ p : V,
+      ∃ q ∈ Q p, q ∈ L ∧ P.decide p (quorumRun inp Q p) = inp q := by
+    intro inp Q hQ p
     obtain ⟨q₀, hq₀⟩ := hmeet hQ p
-    obtain ⟨hq₀Q, hq₀L⟩ := mem_inter.mp hq₀
     have hex : ∃ qv ∈ quorumRun inp Q p, qv.1 ∈ L :=
-      ⟨(q₀, inp q₀), mem_image_of_mem _ hq₀Q, hq₀L⟩
-    dsimp only [P]
-    simp only [hex, ↓reduceDIte]
-    obtain ⟨hqv_in, -⟩ := Classical.choose_spec hex
+      ⟨(q₀, inp q₀), mem_image_of_mem _ (mem_inter.mp hq₀).1, (mem_inter.mp hq₀).2⟩
+    obtain ⟨hqv_in, hqvL⟩ := Classical.choose_spec hex
     obtain ⟨q, hqQ, hq_eq⟩ := mem_image.mp hqv_in
-    rw [← hq_eq]
-    exact mem_image_of_mem inp hqQ
-  · intro inp Q hQ
-    have hsub : ((univ : Finset V).image fun p => P.decide p (quorumRun inp Q p)) ⊆
+    rw [← hq_eq] at hqvL
+    refine ⟨q, hqQ, hqvL, ?_⟩
+    dsimp only [P]
+    simp only [hex, ↓reduceDIte, ← hq_eq]
+  refine ⟨P, fun inp Q hQ p => ?_, fun inp Q hQ => ?_⟩
+  · obtain ⟨q, hqQ, -, hq⟩ := hdec hQ p
+    exact hq ▸ mem_image_of_mem inp hqQ
+  · have hsub : ((univ : Finset V).image fun p => P.decide p (quorumRun inp Q p)) ⊆
         L.image inp := by
       intro val hval
       obtain ⟨p, -, rfl⟩ := mem_image.mp hval
-      obtain ⟨q₀, hq₀⟩ := hmeet hQ p
-      obtain ⟨hq₀Q, hq₀L⟩ := mem_inter.mp hq₀
-      have hex : ∃ qv ∈ quorumRun inp Q p, qv.1 ∈ L :=
-        ⟨(q₀, inp q₀), mem_image_of_mem _ hq₀Q, hq₀L⟩
-      dsimp only [P]
-      simp only [hex, ↓reduceDIte]
-      obtain ⟨hqv_in, hqvL⟩ := Classical.choose_spec hex
-      obtain ⟨q, -, hq_eq⟩ := mem_image.mp hqv_in
-      rw [← hq_eq] at hqvL ⊢
-      exact mem_image_of_mem inp hqvL
+      obtain ⟨q, -, hqL, hq⟩ := hdec hQ p
+      exact hq ▸ mem_image_of_mem inp hqL
     calc #((univ : Finset V).image fun p => P.decide p (quorumRun inp Q p))
         ≤ #(L.image inp) := card_le_card hsub
       _ ≤ #L := card_image_le

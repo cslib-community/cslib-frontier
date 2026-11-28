@@ -399,8 +399,7 @@ theorem bareissStep_ediv_eq_int (A : Matrix (Fin m) (Fin n) ℤ)
     (bareissMatrix A S C p q * bareissMatrix A S C i j -
         bareissMatrix A S C i q * bareissMatrix A S C p j) / pivotDet A S C =
       bareissMatrix A (Fin.snoc S p) (Fin.snoc C q) i j := by
-  have heq := ((pivotDet_mul_bareissMatrix_snoc_int A hΔ hp q hΔ' i j).2 hip).symm
-  rw [heq]
+  rw [← (pivotDet_mul_bareissMatrix_snoc_int A hΔ hp q hΔ' i j).2 hip]
   exact Int.mul_ediv_cancel_left _ hΔ
 
 /-- Any predicate `Q` on rows that includes the new pivot row `p` and already makes column `j`
@@ -431,18 +430,16 @@ private theorem abs_det_submatrix_le (A : Matrix (Fin m) (Fin n) ℤ) {B : ℕ}
 theorem abs_bareissMatrix_pivot_le (A : Matrix (Fin m) (Fin n) ℤ) {B : ℕ}
     (hA : ∀ u v, |A u v| ≤ B) {S : Fin k → Fin m} (hS : Function.Injective S)
     (C : Fin k → Fin n) (a : Fin k) (j : Fin n) :
-    |bareissMatrix A S C (S a) j| ≤ (k.factorial * B ^ k : ℕ) := by
-  rw [bareissMatrix_pivot A hS C a j]
-  exact abs_det_submatrix_le A hA _ _
+    |bareissMatrix A S C (S a) j| ≤ (k.factorial * B ^ k : ℕ) :=
+  bareissMatrix_pivot A hS C a j ▸ abs_det_submatrix_le A hA _ _
 
 /-- Entry magnitude bound on unpivoted rows of `bareissMatrix` over `ℤ`:
 `(k + 1)! * B ^ (k + 1)`. -/
 theorem abs_bareissMatrix_nonPivot_le (A : Matrix (Fin m) (Fin n) ℤ) {B : ℕ}
     (hA : ∀ u v, |A u v| ≤ B) {S : Fin k → Fin m} (C : Fin k → Fin n)
     {i : Fin m} (hi : ∀ a : Fin k, S a ≠ i) (j : Fin n) :
-    |bareissMatrix A S C i j| ≤ ((k + 1).factorial * B ^ (k + 1) : ℕ) := by
-  rw [bareissMatrix_nonPivot A C hi j]
-  exact abs_det_submatrix_le A hA _ _
+    |bareissMatrix A S C i j| ≤ ((k + 1).factorial * B ^ (k + 1) : ℕ) :=
+  bareissMatrix_nonPivot A C hi j ▸ abs_det_submatrix_le A hA _ _
 
 /-- Uniform entry magnitude bound for any stage of `bareissMatrix` over `ℤ`. -/
 theorem abs_bareissMatrix_le (A : Matrix (Fin m) (Fin n) ℤ) {B : ℕ}
@@ -567,7 +564,7 @@ theorem span_row_rrefOfBareiss {A : Matrix (Fin m) (Fin n) K}
 theorem rank_rrefOfBareiss {A : Matrix (Fin m) (Fin n) K}
     {S : Fin k → Fin m} {C : Fin k → Fin n} (hΔ : pivotDet A S C ≠ 0) :
     (rrefOfBareiss A S C).rank = A.rank := by
-  rw [← finrank_span_range_row, ← finrank_span_range_row]
+  rw [rank_eq_finrank_span_row, rank_eq_finrank_span_row]
   change Module.finrank K (Submodule.span K (Set.range (rrefOfBareiss A S C))) =
     Module.finrank K (Submodule.span K (Set.range A))
   rw [span_row_rrefOfBareiss hΔ]
@@ -606,21 +603,19 @@ theorem span_rowBasis_eq_of_bareiss_terminal {A : Matrix (Fin m) (Fin n) K}
     Submodule.span K (Set.range fun a : Fin k => A (S a)) = Submodule.span K (Set.range A) := by
   refine le_antisymm (span_mono (Set.range_comp_subset_range S A)) ?_
   rw [← span_row_rrefOfBareiss hΔ]
-  refine span_le.2 ?_
-  rintro _ ⟨i, rfl⟩
+  refine span_le.2 (Set.range_subset_iff.2 fun i => ?_)
   by_cases hrow : ∃ a : Fin k, S a = i
   · obtain ⟨a, rfl⟩ := hrow
     rw [rrefOfBareiss_pivot_eq_sum hΔ a]
     exact sum_smul_mem _ _ fun b _ => subset_span ⟨b, rfl⟩
-  · rw [rrefOfBareiss_row_eq_zero (hterm i (not_exists.1 hrow))]
-    exact zero_mem _
+  · exact rrefOfBareiss_row_eq_zero (hterm i (not_exists.1 hrow)) ▸ zero_mem _
 
 /-- When all unpivoted rows vanish, `A.rank = k`. -/
 theorem rank_eq_of_bareiss_terminal {A : Matrix (Fin m) (Fin n) K}
     {S : Fin k → Fin m} {C : Fin k → Fin n} (hΔ : pivotDet A S C ≠ 0)
     (hterm : ∀ i : Fin m, (∀ a : Fin k, S a ≠ i) → ∀ j : Fin n, bareissMatrix A S C i j = 0) :
     A.rank = k := by
-  rw [← finrank_span_range_row]
+  rw [rank_eq_finrank_span_row]
   change Module.finrank K (Submodule.span K (Set.range A)) = k
   rw [← span_rowBasis_eq_of_bareiss_terminal hΔ hterm,
     finrank_span_eq_card (linearIndependent_row_of_pivotDet_ne_zero hΔ), Fintype.card_fin]
@@ -647,9 +642,7 @@ theorem isReducedRowEchelon_rrefOfBareiss {A : Matrix (Fin m) (Fin n) K}
       rw [← hσ a] at ha
       exact σ.injective ha ▸ a.isLt))
   have hrow : ∀ (i : Fin m) (hi : i.val < k) (j : Fin n),
-      U i j = rrefOfBareiss A S C (S ⟨i, hi⟩) j := fun i hi j => by
-    rw [← hσ ⟨i, hi⟩]
-    rfl
+      U i j = rrefOfBareiss A S C (S ⟨i, hi⟩) j := fun i hi j => by rw [← hσ ⟨i, hi⟩]; rfl
   have hone : ∀ (i : Fin m) (hi : i.val < k), U i (C ⟨i, hi⟩) = 1 := fun i hi => by
     rw [hrow i hi, rrefOfBareiss_pivot_col_self hΔ]
   have hlead : ∀ (i : Fin m) (hi : i.val < k) (j : Fin n), j < C ⟨i, hi⟩ → U i j = 0 :=
@@ -703,7 +696,7 @@ theorem kernelBasisVec_nonPivot {A : Matrix (Fin m) (Fin n) K}
 /-- A sum over all columns splits into the pivot columns `C a` and the non-pivot columns. -/
 private theorem sum_eq_sum_pivot_add_sum_nonPivot {C : Fin k → Fin n} (hC : Function.Injective C)
     (f : Fin n → K) :
-    ∑ c, f c = ∑ a, f (C a) + ∑ j : { j : Fin n // ∀ a : Fin k, C a ≠ j }, f j.val := by
+    ∑ c, f c = ∑ a, f (C a) + ∑ j : { j : Fin n // ∀ a : Fin k, C a ≠ j }, f j.1 := by
   classical
   rw [← Finset.sum_image (f := f) fun _ _ _ _ h => hC h,
     ← Finset.sum_subtype (univ \ univ.image C) (by simp) f, add_comm]
@@ -715,7 +708,7 @@ private theorem rrefOfBareiss_pivot_dotProduct {A : Matrix (Fin m) (Fin n) K}
     {S : Fin k → Fin m} {C : Fin k → Fin n} (hΔ : pivotDet A S C ≠ 0) (a : Fin k)
     (v : Fin n → K) :
     rrefOfBareiss A S C (S a) ⬝ᵥ v = v (C a) +
-      ∑ j : { j : Fin n // ∀ b : Fin k, C b ≠ j }, rrefOfBareiss A S C (S a) j.val * v j.val := by
+      ∑ j : { j : Fin n // ∀ b : Fin k, C b ≠ j }, rrefOfBareiss A S C (S a) j.1 * v j.1 := by
   rw [dotProduct, sum_eq_sum_pivot_add_sum_nonPivot (injective_of_pivotDet_ne_zero hΔ).2,
     Fintype.sum_eq_single a fun b hb => by rw [rrefOfBareiss_pivot_col_ne hΔ hb.symm, zero_mul],
     rrefOfBareiss_pivot_col_self hΔ, one_mul]
@@ -725,12 +718,11 @@ coefficient of the vector indexed by `c`. -/
 private theorem sum_mul_kernelBasisVec_nonPivot {A : Matrix (Fin m) (Fin n) K}
     {S : Fin k → Fin m} {C : Fin k → Fin n} (g : { j : Fin n // ∀ a : Fin k, C a ≠ j } → K)
     (c : { j : Fin n // ∀ a : Fin k, C a ≠ j }) :
-    ∑ x, g x * kernelBasisVec A S C x.val c.val = g c := by
-  rw [Fintype.sum_eq_single c, kernelBasisVec_nonPivot S C c.val c.val c.property, ite_eq_left rfl,
-    mul_one]
+    ∑ x, g x * kernelBasisVec A S C x.1 c.1 = g c := by
+  rw [Fintype.sum_eq_single c, kernelBasisVec_nonPivot S C c.1 c.1 c.2, ite_eq_left rfl, mul_one]
   intro x hx
-  rw [kernelBasisVec_nonPivot S C x.val c.val c.property,
-    ite_eq_right fun h => hx (Subtype.ext h.symm), mul_zero]
+  rw [kernelBasisVec_nonPivot S C x.1 c.1 c.2, ite_eq_right fun h => hx (Subtype.ext h.symm),
+    mul_zero]
 
 /-- Every `kernelBasisVec` associated with a non-pivot column `j` lies in `ker A.mulVecLin`. -/
 theorem mulVec_kernelBasisVec {A : Matrix (Fin m) (Fin n) K}
@@ -738,9 +730,8 @@ theorem mulVec_kernelBasisVec {A : Matrix (Fin m) (Fin n) K}
     (hterm : ∀ i : Fin m, (∀ a : Fin k, S a ≠ i) → ∀ c : Fin n, bareissMatrix A S C i c = 0)
     {j : Fin n} (hj : ∀ a : Fin k, C a ≠ j) :
     A *ᵥ kernelBasisVec A S C j = 0 := by
-  have hker := ker_mulVecLin_rrefOfBareiss (A := A) (S := S) (C := C) hΔ
   change A.mulVecLin (kernelBasisVec A S C j) = 0
-  rw [← LinearMap.mem_ker, ← hker, LinearMap.mem_ker, mulVecLin_apply]
+  rw [← LinearMap.mem_ker, ← ker_mulVecLin_rrefOfBareiss hΔ, LinearMap.mem_ker, mulVecLin_apply]
   ext i
   change rrefOfBareiss A S C i ⬝ᵥ kernelBasisVec A S C j = 0
   by_cases hrow : ∃ a : Fin k, S a = i
@@ -748,19 +739,17 @@ theorem mulVec_kernelBasisVec {A : Matrix (Fin m) (Fin n) K}
     rw [rrefOfBareiss_pivot_dotProduct hΔ, kernelBasisVec_pivot hΔ, Fintype.sum_eq_single ⟨j, hj⟩,
       kernelBasisVec_nonPivot S C j j hj, ite_eq_left rfl, mul_one, neg_add_cancel]
     intro c hc
-    rw [kernelBasisVec_nonPivot S C j c.val c.property, ite_eq_right fun h => hc (Subtype.ext h),
-      mul_zero]
+    rw [kernelBasisVec_nonPivot S C j c.1 c.2, ite_eq_right fun h => hc (Subtype.ext h), mul_zero]
   · rw [rrefOfBareiss_row_eq_zero (hterm i (not_exists.1 hrow)), zero_dotProduct]
 
 /-- The family of `kernelBasisVec` indexed by non-pivot columns is linearly independent. -/
 theorem linearIndependent_kernelBasisVec (A : Matrix (Fin m) (Fin n) K)
     (S : Fin k → Fin m) (C : Fin k → Fin n) :
     LinearIndependent K
-      (fun j : { j : Fin n // ∀ a : Fin k, C a ≠ j } => kernelBasisVec A S C j.val) := by
+      (fun j : { j : Fin n // ∀ a : Fin k, C a ≠ j } => kernelBasisVec A S C j.1) := by
   refine Fintype.linearIndependent_iff.2 fun g hg j => ?_
-  have hj := congrFun hg j.val
-  simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, Pi.zero_apply] at hj
-  rwa [sum_mul_kernelBasisVec_nonPivot] at hj
+  simpa only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, Pi.zero_apply,
+    sum_mul_kernelBasisVec_nonPivot] using congrFun hg j.1
 
 /-- The `kernelBasisVec` vectors over non-pivot columns span `LinearMap.ker A.mulVecLin`. -/
 theorem span_kernelBasisVec {A : Matrix (Fin m) (Fin n) K}
@@ -768,15 +757,14 @@ theorem span_kernelBasisVec {A : Matrix (Fin m) (Fin n) K}
     (hterm : ∀ i : Fin m, (∀ a : Fin k, S a ≠ i) → ∀ c : Fin n, bareissMatrix A S C i c = 0) :
     Submodule.span K
         (Set.range fun j : { j : Fin n // ∀ a : Fin k, C a ≠ j } =>
-          kernelBasisVec A S C j.val) =
+          kernelBasisVec A S C j.1) =
       LinearMap.ker A.mulVecLin := by
-  refine le_antisymm (span_le.2 ?_) fun v hv => ?_
-  · rintro _ ⟨j, rfl⟩
-    exact mulVec_kernelBasisVec hΔ hterm j.property
+  refine le_antisymm (span_le.2 <| Set.range_subset_iff.2 fun j =>
+    mulVec_kernelBasisVec hΔ hterm j.2) fun v hv => ?_
   rw [← ker_mulVecLin_rrefOfBareiss (A := A) (S := S) (C := C) hΔ, LinearMap.mem_ker,
     mulVecLin_apply] at hv
   have hv_eq : v = ∑ j : { j : Fin n // ∀ a : Fin k, C a ≠ j },
-      v j.val • kernelBasisVec A S C j.val := by
+      v j.1 • kernelBasisVec A S C j.1 := by
     ext c
     simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul]
     by_cases hc : ∃ a : Fin k, C a = c
@@ -785,7 +773,7 @@ theorem span_kernelBasisVec {A : Matrix (Fin m) (Fin n) K}
       rw [rrefOfBareiss_pivot_dotProduct hΔ] at hrow
       simp only [kernelBasisVec_pivot hΔ, mul_comm (v _), neg_mul, Finset.sum_neg_distrib]
       linear_combination hrow
-    · exact (sum_mul_kernelBasisVec_nonPivot (fun j => v j.val) ⟨c, not_exists.1 hc⟩).symm
+    · exact (sum_mul_kernelBasisVec_nonPivot (fun j => v j.1) ⟨c, not_exists.1 hc⟩).symm
   rw [hv_eq]
   exact sum_smul_mem _ _ fun j _ => subset_span ⟨j, rfl⟩
 
@@ -796,7 +784,7 @@ theorem finrank_ker_mulVecLin_of_bareiss_terminal {A : Matrix (Fin m) (Fin n) K}
     Module.finrank K (LinearMap.ker A.mulVecLin) = n - k := by
   have hrn := A.mulVecLin.finrank_range_add_finrank_ker
   have hrk := rank_eq_of_bareiss_terminal hΔ hterm
-  rw [finrank_range_mulVecLin] at hrn
+  change A.rank + Module.finrank K (LinearMap.ker A.mulVecLin) = _ at hrn
   rw [hrk, Module.finrank_fintype_fun_eq_card, Fintype.card_fin] at hrn
   omega
 
@@ -829,7 +817,7 @@ private theorem dotProduct_solveVec {A : Matrix (Fin m) (Fin n) K}
     f ⬝ᵥ solveVec A S C b = ∑ a : Fin k, f (C a) * solveVec A S C b (C a) := by
   rw [dotProduct, sum_eq_sum_pivot_add_sum_nonPivot (injective_of_pivotDet_ne_zero hΔ).2,
     add_eq_left]
-  exact Finset.sum_eq_zero fun c _ => by rw [solveVec_nonPivot A S C b c.property, mul_zero]
+  exact Finset.sum_eq_zero fun c _ => by rw [solveVec_nonPivot A S C b c.2, mul_zero]
 
 /-- `solveVec A S C b` always satisfies the pivot rows `(A *ᵥ x) (S a) = b (S a)`. -/
 theorem mulVec_solveVec_pivot {A : Matrix (Fin m) (Fin n) K}
@@ -891,9 +879,8 @@ theorem rrefOfBareiss_augmentCol {A : Matrix (Fin m) (Fin n) K}
     have hdot : ∀ a : Fin k,
         rrefOfBareiss A S C (S a) ⬝ᵥ solveVec A S C b = solveVec A S C b (C a) := fun a => by
       rw [rrefOfBareiss_pivot_dotProduct hΔ, add_eq_left]
-      exact Finset.sum_eq_zero fun c _ => by rw [solveVec_nonPivot A S C b c.property, mul_zero]
+      exact Finset.sum_eq_zero fun c _ => by rw [solveVec_nonPivot A S C b c.2, mul_zero]
     rw [rrefOfBareiss_nonPivot_row hΔaug hi, mulVec]
-    dsimp only
     conv_rhs => rw [hAi, sum_dotProduct]
     simp [smul_dotProduct, hdot, hcol, hlast, hcast]
   refine ⟨hcol, fun hsol i hi => ?_, fun hzeros => funext fun i => ?_⟩

@@ -163,14 +163,10 @@ theorem exists_median {α : Type*} (P : Finset α) (f : α → ℝ) :
 private theorem exists_half {α : Type*} (P : Finset α) (f : α → Bool) :
     ∃ b : Bool, P.card ≤ 2 * (P.filter fun p => f p = b).card := by
   have h := card_filter_add_card_filter_not (s := P) (fun p => f p = true)
-  have hf : (P.filter fun p => ¬ f p = true) = P.filter fun p => f p = false := by
-    ext p
-    simp
-  rw [hf] at h
-  by_contra hno
-  push Not at hno
-  have h1 := hno true
-  have h2 := hno false
+  simp only [Bool.not_eq_true] at h
+  by_contra! hno
+  have := hno true
+  have := hno false
   omega
 
 private theorem half_step {a b c : ℕ} (hab : a ≤ b * 2 ^ c) {b' : ℕ} (hb : b ≤ 2 * b') :
@@ -242,37 +238,24 @@ private theorem touchBelow_succ (prog : Program signature n g) (S D : Finset (Fi
       touchBelow prog S D m + (if ¬ inputSupport prog j₀ ∩ S ⊆ D then 1 else 0) := by
   classical
   unfold touchBelow
+  have hlt (j : Fin g) : j.val < m + 1 ↔ j = j₀ ∨ j.val < m := by
+    rw [Nat.lt_succ_iff_lt_or_eq, Fin.ext_iff, hj₀, eq_comm, or_comm]
   by_cases h : ¬ inputSupport prog j₀ ∩ S ⊆ D
-  · rw [ite_eq_left h]
-    have hins : (univ.filter fun j : Fin g => j.val < m + 1 ∧ ¬ inputSupport prog j ∩ S ⊆ D) =
-        insert j₀ (univ.filter fun j : Fin g => j.val < m ∧ ¬ inputSupport prog j ∩ S ⊆ D) := by
-      ext j
-      simp only [mem_filter, mem_univ, true_and, mem_insert]
-      constructor
-      · rintro ⟨hjm, hjS⟩
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hjm with hlt | heq
-        · exact Or.inr ⟨hlt, hjS⟩
-        · exact Or.inl (Fin.ext (heq.trans hj₀.symm))
-      · rintro (rfl | ⟨hlt, hjS⟩)
-        · exact ⟨by omega, h⟩
-        · exact ⟨by omega, hjS⟩
-    have hnotmem : j₀ ∉ univ.filter
-        fun j : Fin g => j.val < m ∧ ¬ inputSupport prog j ∩ S ⊆ D := by
-      simp [hj₀]
-    rw [hins, card_insert_of_notMem hnotmem]
+  · have hnotmem : j₀ ∉ univ.filter fun j : Fin g => j.val < m ∧ ¬ inputSupport prog j ∩ S ⊆ D := by
+      simp only [mem_filter, mem_univ, true_and, hj₀, lt_self_iff_false, false_and,
+        not_false_eq_true]
+    rw [ite_eq_left h, ← card_insert_of_notMem hnotmem]
+    congr 1
+    ext j
+    rcases eq_or_ne j j₀ with rfl | hj
+    · simp only [mem_filter, mem_univ, true_and, mem_insert, hlt, h, true_or, not_false_eq_true]
+    · simp only [mem_filter, mem_univ, true_and, mem_insert, hlt, hj, false_or]
   · rw [ite_eq_right h, add_zero]
     congr 1
     ext j
-    simp only [mem_filter, mem_univ, true_and]
-    constructor
-    · rintro ⟨hjm, hjS⟩
-      rcases Nat.lt_succ_iff_lt_or_eq.mp hjm with hlt | heq
-      · exact ⟨hlt, hjS⟩
-      · have : j = j₀ := Fin.ext (heq.trans hj₀.symm)
-        subst this
-        exact (h hjS).elim
-    · rintro ⟨hlt, hjS⟩
-      exact ⟨by omega, hjS⟩
+    rcases eq_or_ne j j₀ with rfl | hj
+    · simp only [mem_filter, mem_univ, hj₀, lt_self_iff_false, h, and_false]
+    · simp only [mem_filter, mem_univ, true_and, hlt, hj, false_or]
 
 private def CutInv (prog : Program signature n g) (U A B : Finset (Fin n)) (m : ℕ) : Prop :=
   ∃ (P : Finset (U → Bool)) (Q : Finset (↥Uᶜ → Bool)) (v : Fin g → Bool),
@@ -466,52 +449,30 @@ theorem exists_rectangle_of_split (p : Program signature n g)
           inputSupport p j ⊆ Uᶜ ∧ ¬ inputSupport p j ⊆ B).card := by
   classical
   obtain ⟨P, Q, v, hv, hP, hQ⟩ := exists_rectangle_of_cut_with_fixed p U A B
-  have hfilterU : (univ.filter fun j => ¬ inputSupport p j ∩ U ⊆ A) =
-      univ.filter fun j => inputSupport p j ⊆ U ∧ ¬ inputSupport p j ⊆ A := by
+  have hfilter (S D : Finset (Fin n))
+      (hS : ∀ j, inputSupport p j ⊆ S ∨ Disjoint (inputSupport p j) S) :
+      (univ.filter fun j => ¬ inputSupport p j ∩ S ⊆ D) =
+        univ.filter fun j => inputSupport p j ⊆ S ∧ ¬ inputSupport p j ⊆ D := by
     ext j
     simp only [mem_filter, mem_univ, true_and]
-    rcases hsplit j with hjU | hjUc
-    · rw [inter_eq_left.mpr hjU]
-      exact ⟨fun h => ⟨hjU, h⟩, fun h => h.2⟩
-    · have hemp : inputSupport p j ∩ U = ∅ :=
-        disjoint_iff_inter_eq_empty.mp (disjoint_compl_left.mono_left hjUc)
+    rcases hS j with hjS | hdisj
+    · rw [inter_eq_left.mpr hjS]
+      exact ⟨fun h => ⟨hjS, h⟩, And.right⟩
+    · have hemp := disjoint_iff_inter_eq_empty.mp hdisj
       rw [hemp]
-      simp only [empty_subset, not_true_eq_false, false_iff, not_and]
-      intro hjU'
-      have hsub : inputSupport p j ⊆ ∅ := by
-         rw [← hemp]
-         exact subset_inter Subset.rfl hjU'
-      exact not_not.mpr (hsub.trans (empty_subset A))
-  have hfilterUc : (univ.filter fun j => ¬ inputSupport p j ∩ Uᶜ ⊆ B) =
-      univ.filter fun j => inputSupport p j ⊆ Uᶜ ∧ ¬ inputSupport p j ⊆ B := by
-    ext j
-    simp only [mem_filter, mem_univ, true_and]
-    rcases hsplit j with hjU | hjUc
-    · have hemp : inputSupport p j ∩ Uᶜ = ∅ :=
-        disjoint_iff_inter_eq_empty.mp (disjoint_compl_right.mono_left hjU)
-      rw [hemp]
-      simp only [empty_subset, not_true_eq_false, false_iff, not_and]
-      intro hjUc'
-      have hsub : inputSupport p j ⊆ ∅ := by
-        rw [← hemp]
-        exact subset_inter Subset.rfl hjUc'
-      exact not_not.mpr (hsub.trans (empty_subset B))
-    · rw [inter_eq_left.mpr hjUc]
-      exact ⟨fun h => ⟨hjUc, h⟩, fun h => h.2⟩
+      exact ⟨fun h => absurd (empty_subset D) h, fun ⟨hjS, h⟩ =>
+        (h ((subset_inter Subset.rfl hjS).trans (hemp.symm ▸ empty_subset D))).elim⟩
   refine ⟨P, Q, readout v, fun x hx y hy => by rw [← hreadout, hv x hx y hy], ?_, ?_⟩
-  · rwa [← hfilterU]
-  · rwa [← hfilterUc]
+  · rwa [← hfilter U A fun j => (hsplit j).imp_right disjoint_compl_left.mono_left]
+  · rwa [← hfilter Uᶜ B fun j => (hsplit j).symm.imp_right disjoint_compl_right.mono_left]
 
 /-- Gates whose input support meets `S` belong to `inputGates p`. -/
 theorem card_filter_inter_nonempty_le_card_inputGates (p : Program signature n g)
     (S : Finset (Fin n)) :
     (univ.filter fun j => (inputSupport p j ∩ S).Nonempty).card ≤ (inputGates p).card := by
   classical
-  apply card_le_card
-  intro j hj
-  rw [mem_filter] at hj
-  rw [mem_inputGates_iff_inputSupport_nonempty]
-  exact hj.2.mono inter_subset_left
+  exact card_le_card fun j hj =>
+    (mem_inputGates_iff_inputSupport_nonempty p j).mpr ((mem_filter.mp hj).2.mono inter_subset_left)
 
 /-- **The cut theorem.** If `p` computes a two-sided `K`-rectangle-free function `f` through
 `readout` with `K ≤ 2 ^ k`, then for every coordinate split `U`, one side has fewer than `k`

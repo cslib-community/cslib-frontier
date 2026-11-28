@@ -83,7 +83,7 @@ def HasExtension (M : Type*) [Language.graph.Structure M] (k : ℕ) (s : Fin k �
 witnesses the extension by `s`. -/
 private noncomputable def extensionBody {k : ℕ} (s : Fin k → Bool) :
     Language.graph.Formula (Fin k) :=
-  (Formula.iInf fun p : {p : Fin k × Fin k // p.1 ≠ p.2} => ∼(varEq p.val.1 p.val.2)) ⟹
+  (Formula.iInf fun p : {p : Fin k × Fin k // p.1 ≠ p.2} => ∼(varEq p.1.1 p.1.2)) ⟹
     Formula.iExs (Fin 1)
       (Formula.iInf fun i : Fin k =>
         ∼(varEq (Sum.inr 0) (Sum.inl i)) ⊓
@@ -104,7 +104,7 @@ theorem realize_extensionAxiom {k : ℕ} (s : Fin k → Bool) :
     realize_varEq, Formula.realize_iExs, Formula.realize_inf]
   constructor
   · intro h hx
-    obtain ⟨z, hz⟩ := h fun p hp => p.property (hx hp)
+    obtain ⟨z, hz⟩ := h fun p hp => p.2 (hx hp)
     refine ⟨z 0, fun i => (hz i).1, fun i => ?_⟩
     have := (hz i).2
     cases hs : s i <;> simp only [hs, Bool.false_eq_true, iff_false, ↓reduceIte,
@@ -220,47 +220,35 @@ theorem isExtensionPair_of_hasExtension {N : Type*} [Language.graph.Structure N]
   let s : Fin (Fintype.card S) → Bool := fun i => decide (RelMap adj ![m, ((e i : S) : M)])
   obtain ⟨z, hzne, hzadj⟩ := hN _ s x hx
   have hzf : ∀ a : S, f a ≠ z := fun a h => hzne (e.symm a) (by simp [x, ← h])
-  have hzadj' : ∀ a : S, RelMap adj ![z, f a] ↔ RelMap adj ![m, (a : M)] := by
-    intro a
-    have := hzadj (e.symm a)
-    simpa [x, s] using this
+  have hzadj' : ∀ a : S, RelMap adj ![z, f a] ↔ RelMap adj ![m, (a : M)] := fun a => by
+    simpa [x, s] using hzadj (e.symm a)
   -- Send `m` to `z` and every element of `S` to its image under `f`.
-  let g : (Substructure.closure Language.graph {m} ⊔ S : Language.graph.Substructure M) → N :=
-    fun u => if h : (u : M) ∈ S then f ⟨u, h⟩ else z
-  have hg_of_mem : ∀ u : (Substructure.closure Language.graph {m} ⊔ S :
-      Language.graph.Substructure M), ∀ h : (u : M) ∈ S, g u = f ⟨u, h⟩ :=
-    fun u h => dite_eq_left h
-  have hg_of_not_mem : ∀ u : (Substructure.closure Language.graph {m} ⊔ S :
-      Language.graph.Substructure M), (u : M) ∉ S → g u = z := fun u h => dite_eq_right h
-  have hm_of_not_mem : ∀ u : (Substructure.closure Language.graph {m} ⊔ S :
-      Language.graph.Substructure M), (u : M) ∉ S → (u : M) = m := fun u h =>
-    ((hU u).1 u.property).resolve_right h
-  refine ⟨embeddingOfAdj g ?_ ?_, ?_⟩
+  let U : Language.graph.Substructure M := Substructure.closure Language.graph {m} ⊔ S
+  let g : U → N := fun u => if h : (u : M) ∈ S then f ⟨u, h⟩ else z
+  have hg_of_mem : ∀ (u : U) (h : (u : M) ∈ S), g u = f ⟨u, h⟩ := fun u h => dite_eq_left h
+  have hm_of_not_mem : ∀ u : U, (u : M) ∉ S → (u : M) = m := fun u h =>
+    ((hU u).1 u.2).resolve_right h
+  refine ⟨embeddingOfAdj g ?_ ?_,
+    Embedding.ext fun a => (hg_of_mem (Substructure.inclusion le_sup_right a) a.2).symm⟩
   · intro u v huv
     apply Subtype.ext
-    by_cases hu : (u : M) ∈ S <;> by_cases hv : (v : M) ∈ S
-    · rw [hg_of_mem u hu, hg_of_mem v hv] at huv
-      exact Subtype.mk.inj (f.injective huv)
-    · rw [hg_of_mem u hu, hg_of_not_mem v hv] at huv
-      exact absurd huv (hzf _)
-    · rw [hg_of_not_mem u hu, hg_of_mem v hv] at huv
-      exact absurd huv.symm (hzf _)
+    by_cases hu : (u : M) ∈ S <;> by_cases hv : (v : M) ∈ S <;>
+      simp only [g, hu, hv, ↓reduceDIte] at huv
+    · exact Subtype.mk.inj (f.injective huv)
+    · exact absurd huv (hzf _)
+    · exact absurd huv.symm (hzf _)
     · rw [hm_of_not_mem u hu, hm_of_not_mem v hv]
   · intro u v
     rw [substructure_relMap_adj]
-    by_cases hu : (u : M) ∈ S <;> by_cases hv : (v : M) ∈ S
-    · rw [hg_of_mem u hu, hg_of_mem v hv, embedding_relMap_adj, substructure_relMap_adj]
-    · rw [hg_of_mem u hu, hg_of_not_mem v hv, hm_of_not_mem v hv]
+    by_cases hu : (u : M) ∈ S <;> by_cases hv : (v : M) ∈ S <;> simp only [g, hu, hv, ↓reduceDIte]
+    · rw [embedding_relMap_adj, substructure_relMap_adj]
+    · rw [hm_of_not_mem v hv]
       exact ⟨fun h => relMap_adj_symm ((hzadj' _).1 (relMap_adj_symm h)),
         fun h => relMap_adj_symm ((hzadj' ⟨u, hu⟩).2 (relMap_adj_symm h))⟩
-    · rw [hg_of_not_mem u hu, hg_of_mem v hv, hm_of_not_mem u hu]
+    · rw [hm_of_not_mem u hu]
       exact hzadj' _
-    · rw [hg_of_not_mem u hu, hg_of_not_mem v hv, hm_of_not_mem u hu, hm_of_not_mem v hv]
+    · rw [hm_of_not_mem u hu, hm_of_not_mem v hv]
       exact iff_of_false (relMap_adj_irrefl z) (relMap_adj_irrefl m)
-  · ext a
-    simp only [Embedding.comp_apply, Substructure.coe_inclusion]
-    change f a = g _
-    rw [hg_of_mem _ a.property]
 
 /-- The theory of the random graph is `ℵ₀`-categorical: any two countable models are isomorphic,
 by a back-and-forth argument [Libkin2004, Chapter 12]. -/

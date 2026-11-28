@@ -56,12 +56,8 @@ theorem push_le_prod_wire_hubs {A : Type} [Fintype A] [DecidableEq A] (π : A �
       prod (fun a => wire K (Fintype.card (t.Index a)) (π a) (if S a then o₁ else o₂)) *
           wire K r o₁ o₂ := by
   classical
-  let Λ : Option A → Type := fun o => match o with
-    | none => Fin r
-    | some a => t.Index a
-  let iΛ : ∀ o, Fintype (Λ o) := fun o => match o with
-    | none => inferInstanceAs (Fintype (Fin r))
-    | some a => inferInstanceAs (Fintype (t.Index a))
+  let Λ : Option A → Type := fun | none => Fin r | some a => t.Index a
+  let iΛ : ∀ o, Fintype (Λ o) := fun | none => inferInstance | some _ => inferInstance
   let ξ : A ⊕ Bool → I := Sum.elim π fun b => if b then o₁ else o₂
   let src : Option A → A ⊕ Bool := fun o => o.elim (Sum.inr true) Sum.inl
   let tgt : Option A → A ⊕ Bool := fun o => o.elim (Sum.inr false) fun a => Sum.inr (decide (S a))
@@ -71,32 +67,17 @@ theorem push_le_prod_wire_hubs {A : Type} [Fintype A] [DecidableEq A] (π : A �
     | Sum.inr false => β (l none) fun a => l (some a)
   have key := push_le_of_edges π ξ t Λ src tgt tab (by
     rintro (a | b) x x' l l' hx hl
-    · have h1 := hx a rfl
-      have h2 : l (some a) = l' (some a) := hl (some a) (Or.inl rfl)
-      change (if x a = l (some a) then (1 : K) else 0) = if x' a = l' (some a) then 1 else 0
-      rw [h1, h2]
+    · change (if x a = l (some a) then (1 : K) else 0) = if x' a = l' (some a) then 1 else 0
+      rw [hx a rfl, hl (some a) (Or.inl rfl)]
     · cases b
-      · have h1 : l none = l' none := hl none (Or.inr rfl)
-        change β (l none) _ = β (l' none) _
-        rw [h1]
-        refine hβ _ _ _ fun a ha => hl (some a) (Or.inr ?_)
-        change Sum.inr (decide (S a)) = _
-        simp [ha]
-      · have h1 : l none = l' none := hl none (Or.inl rfl)
-        change α (l none) _ = α (l' none) _
-        rw [h1]
-        refine hα _ _ _ fun a ha => hl (some a) (Or.inr ?_)
-        change Sum.inr (decide (S a)) = _
-        simp [ha]) (by
+      · change β (l none) _ = β (l' none) _
+        rw [hl none (Or.inr rfl)]
+        exact hβ _ _ _ fun a ha => hl (some a) (Or.inr (by simp [tgt, ha]))
+      · change α (l none) _ = α (l' none) _
+        rw [hl none (Or.inl rfl)]
+        exact hα _ _ _ fun a ha => hl (some a) (Or.inr (by simp [tgt, ha]))) (by
     intro x
-    have e1 : ∀ l : ∀ o, Λ o, ∏ v, tab v x l =
-        (∏ a, if x a = l (some a) then (1 : K) else 0) *
-          (α (l none) (fun a => l (some a)) * β (l none) fun a => l (some a)) := by
-      intro l
-      rw [Fintype.prod_sum_type]
-      congr 1
-      rw [Fintype.prod_bool]
-    simp only [e1]
+    simp only [tab, Fintype.prod_sum_type, Fintype.prod_bool]
     rw [hs]
     symm
     refine (Fintype.sum_equiv (Equiv.piOptionEquivProd (β := Λ)) _
@@ -114,10 +95,8 @@ theorem push_le_prod_wire_hubs {A : Type} [Fintype A] [DecidableEq A] (π : A �
     ((antisymmRel_prod_sum _).1.trans
         (mul_le_mul' (prod_le_prod fun a => ?_) ((antisymmRel_prod_unique _).1.trans ?_))))
   · change wire K (Fintype.card (t.Index a)) (π a) (if decide (S a) then o₁ else o₂) ≤ _
-    simp only [decide_eq_true_eq]
-    exact le_refl _
-  · change wire K (Fintype.card (Fin r)) o₁ o₂ ≤ _
-    rw [Fintype.card_fin]
+    simp [decide_eq_true_eq]
+  · exact (congrArg (fun n => wire K n o₁ o₂) (Fintype.card_fin r)).le
 
 /-- Lemma A.3 for two further parties `o₁, o₂`: the parties are `I₁ ⊔ I₂` and the two hubs. -/
 theorem push_inl_le_prod_wire_hubs {I₁ I₂ : Type} [Fintype I₁] [DecidableEq I₁] [Fintype I₂]

@@ -79,9 +79,8 @@ theorem eval_modLinkAdversary_guess_eq_map_coins_of_bounds (E : Scheme)
   · simp [modLinkAdversary, rejectLinkChoice, ProbComp.eval_pure,
       PMF.map, Function.comp_def, guessLinkCoins]
   let replacement := (target.1, List.replicate predecessor.2.length false)
-  have hparticipants : ∀ key ∈ before ++ predecessor :: replacement :: after,
+  have hparticipants (key) (hmem : key ∈ before ++ predecessor :: replacement :: after) :
       key.1.length ≤ pkBound ∧ key.2.length ≤ capacity n := by
-    intro key hmem
     simp only [List.mem_append, List.mem_cons] at hmem
     rcases hmem with h | rfl | rfl | h
     · exact hkey _ (hkeys _ (by simp [h]))
@@ -101,9 +100,7 @@ theorem eval_modLinkAdversary_guess_eq_map_coins_of_bounds (E : Scheme)
   have hfirst :
       (((before ++ predecessor :: replacement :: after).map Prod.fst).getD 0 []).length ≤
         pkBound := by
-    cases before with
-    | nil => simpa using (hparticipants predecessor (by simp)).1
-    | cons first rest => simpa using (hparticipants first (by simp)).1
+    cases before <;> simpa using (hparticipants _ (by simp)).1
   have htest (links) (hlinks : links ∈ (ProbComp.eval
       (E.spliceEncryptedKeyLink n before predecessor replacement after cut challenge)).support) :
       ProbComp.eval (Leveled.publicKeyGame E adversary bit n
@@ -113,24 +110,22 @@ theorem eval_modLinkAdversary_guess_eq_map_coins_of_bounds (E : Scheme)
           chooseCoins ctBound
           (n, (before ++ predecessor :: replacement :: after).map Prod.fst, links)) := by
     have hchosen := hchoose _ (hpublic links hlinks)
-    apply Leveled.eval_publicKeyGame_eq_map_coins E adversary evaluateChoose evaluateEncrypt
+    refine Leveled.eval_publicKeyGame_eq_map_coins E adversary evaluateChoose evaluateEncrypt
       evaluateGuess bit n chooseCoins ctBound guessCoins _ hchosen.1
-        (fun message => (hencrypt _ hfirst message).1)
-    intro chosen hchosenSupport ciphertext hciphertext
-    apply hguess chosen.2 (false :: ciphertext) (hchosen.2 chosen hchosenSupport)
-    have hct := (hencrypt _ hfirst _).2 ciphertext hciphertext
-    simpa using Nat.add_le_add_right hct 1
-  have hpred := (hkey predecessor (hkeys predecessor (by simp))).2
-  have hpositive : 1 ≤ depth n * capacity n :=
-    Nat.mul_le_mul (by omega : 1 ≤ depth n) (by omega : 1 ≤ capacity n)
+      (fun message => (hencrypt _ hfirst message).1) fun chosen hcSup ct hct =>
+        hguess chosen.2 (false :: ct) (hchosen.2 chosen hcSup)
+          (Nat.succ_le_succ ((hencrypt _ hfirst _).2 ct hct))
   have hsize : ((before.length + after.length + 1) * capacity n - 1) * ctBound +
       (chooseCoins + (ctBound + guessCoins)) =
       Leveled.leveledGuessCoinBudget (depth n) (capacity n) ctBound chooseCoins guessCoins := by
+    have := (hkey predecessor (hkeys predecessor (by simp))).2
+    have hpos : 1 ≤ depth n * capacity n :=
+      Nat.mul_le_mul (by omega : 1 ≤ depth n)
+        (by omega : 1 ≤ capacity n)
     rw [hlength]
-    have hsum := Nat.sub_add_cancel hpositive
     calc
       _ = ((depth n * capacity n - 1) + 1) * ctBound + chooseCoins + guessCoins := by ring
-      _ = _ := by rw [hsum]; rfl
+      _ = _ := by rw [Nat.sub_add_cancel hpos]; rfl
   simpa only [modLinkAdversary, hsize] using
     E.eval_guessLink_active_eq_map_coins (Leveled.publicKeyGame E adversary bit)
       evaluateEncrypt
@@ -207,15 +202,12 @@ theorem exists_modLinkAdversary_guess_coin_evaluator {E : Scheme}
       hchooseCoins hctBound hcapacity
     all_goals fun_prop
   · intro n target htarget choice hchoice message challenge hchallenge
-    have htargetLength := (hkeys n target htarget).1
-    have hchallengeLength := (henc n target.1 message htargetLength).2 challenge hchallenge
-    have hlaw := E.eval_modLinkAdversary_guess_eq_map_coins_of_bounds adversary coins
+    rw [E.eval_modLinkAdversary_guess_eq_map_coins_of_bounds adversary coins
       (fun n => 2 * budget n) capacity evalChoose evalEncrypt evalGuess bit n (pkBound n)
       (ctBound n) (chooseCoins n) (guessCoins n) target challenge choice (hkeys n) htarget
-      hchoice hchallengeLength
+      hchoice ((henc n target.1 message (hkeys n target htarget).1).2 challenge hchallenge)
       (fun pk hpk message => henc n pk message hpk)
-      (fun artifact hlen => hchoose n (Leveled.encPublicKey artifact) hlen) (hguess n)
-    rw [hlaw]
+      (fun artifact hlen => hchoose n (Leveled.encPublicKey artifact) hlen) (hguess n)]
     congr 1
 
 end Cslib.Crypto.Homomorphic.Scheme

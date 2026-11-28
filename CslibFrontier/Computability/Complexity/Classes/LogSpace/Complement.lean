@@ -63,11 +63,9 @@ theorem compl_mem_coNL_iff : Aᶜ ∈ coNL enc ↔ A ∈ NL enc := by
 same problems. -/
 theorem NL_eq_NSPACE : NL enc = NSPACE enc Nat.log2 := by
   ext A
-  constructor
-  · rintro ⟨k, State, hfin, ntm, c, hA⟩
-    exact ⟨k, State, hfin, ntm, c, c, hA.mono fun a => by rw [Nat.mul_add, Nat.mul_one]⟩
-  · rintro ⟨k, State, hfin, ntm, c₁, c₂, hA⟩
-    exact ⟨k, State, hfin, ntm, c₁ + c₂, hA.mono fun a => by nlinarith⟩
+  exact ⟨fun ⟨k, S, hf, M, c, hA⟩ =>
+      ⟨k, S, hf, M, c, c, hA.mono fun _ => by rw [Nat.mul_add, Nat.mul_one]⟩,
+    fun ⟨k, S, hf, M, c₁, c₂, hA⟩ => ⟨k, S, hf, M, c₁ + c₂, hA.mono fun _ => by nlinarith⟩⟩
 
 /-- **Native nondeterministic logarithmic space is closed under complement.** The constructed
 machine halts on every branch and obeys the same input/output space convention. -/
@@ -76,20 +74,15 @@ theorem compl_mem_NL (h : A ∈ NL enc) : Aᶜ ∈ NL enc := by
   exact compl_mem_NSPACE (fun _ => le_rfl) h
 
 /-- Complementation preserves membership in native nondeterministic logarithmic space. -/
-theorem compl_mem_NL_iff : Aᶜ ∈ NL enc ↔ A ∈ NL enc := by
-  constructor
-  · intro h
-    simpa only [compl_compl] using compl_mem_NL h
-  · exact compl_mem_NL
+theorem compl_mem_NL_iff : Aᶜ ∈ NL enc ↔ A ∈ NL enc :=
+  ⟨fun h => compl_compl A ▸ compl_mem_NL h, compl_mem_NL⟩
 
 /-- **`NL = coNL`**, the Immerman–Szelepcsényi theorem for the library's native machines and
 arbitrary injective instance encodings: the case `s = log₂` of
 `Cslib.Complexity.NSPACE_eq_coNSPACE`. -/
 theorem NL_eq_coNL : NL enc = coNL enc := by
-  ext A
-  rw [mem_coNL, NL_eq_NSPACE]
-  conv_lhs => rw [NSPACE_eq_coNSPACE (fun _ => le_rfl)]
-  exact mem_coNSPACE
+  simpa only [coNL, coNSPACE, ← NL_eq_NSPACE] using
+    NSPACE_eq_coNSPACE (enc := enc) fun _ => le_rfl
 
 /-- A logarithmic-space recognizer, even with nonterminating branches, recognizes a problem
 decidable within logarithmic space with every branch halting. -/

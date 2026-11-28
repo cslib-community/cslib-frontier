@@ -255,14 +255,12 @@ theorem exists_profile_socialCost_le_steinerCost [Fintype ι] [DecidableEq E]
     (hc : ∀ e, 0 ≤ G.edgeCost e) {F : Finset E} (hF : G.IsSteinerSubgraph F) :
     ∃ s : ∀ i, G.Path i,
       G.formedEdges s ⊆ F ∧ G.toCostGame.socialCost s ≤ ∑ e ∈ F, G.edgeCost e := by
-  refine ⟨fun i => ⟨(hF i).choose, (hF i).choose_spec.1⟩, ?_, ?_⟩
-  · intro e he
-    obtain ⟨i, -, hi⟩ := Finset.mem_biUnion.1 he
-    exact (hF i).choose_spec.2 e ((G.mem_pathEdges_iff).1 hi)
-  · rw [G.socialCost_eq_sum_formedEdges]
-    refine Finset.sum_le_sum_of_subset_of_nonneg (fun e he => ?_) fun e _ _ => hc e
-    obtain ⟨i, -, hi⟩ := Finset.mem_biUnion.1 he
-    exact (hF i).choose_spec.2 e ((G.mem_pathEdges_iff).1 hi)
+  let s : ∀ i, G.Path i := fun i => ⟨(hF i).choose, (hF i).choose_spec.1⟩
+  have hsub : G.formedEdges s ⊆ F := fun e he =>
+    let ⟨i, _, hi⟩ := Finset.mem_biUnion.1 he
+    (hF i).choose_spec.2 e ((G.mem_pathEdges_iff).1 hi)
+  exact ⟨s, hsub, (G.socialCost_eq_sum_formedEdges s).trans_le
+    (Finset.sum_le_sum_of_subset_of_nonneg hsub fun e _ _ => hc e)⟩
 
 end Basic
 
@@ -280,8 +278,7 @@ noncomputable def potential [Fintype E] (s : ∀ i, G.Path i) : ℝ :=
 theorem potential_eq [Fintype E] (s : ∀ i, G.Path i) :
     G.potential s = ∑ e, G.edgeCost e * harmonic (G.edgeLoad s e) := by
   rw [potential, toCongestionGame, CongestionGame.rosenthalPotential_fairCostSharing]
-  refine Finset.sum_congr rfl fun e _ => ?_
-  rw [← G.toCongestionGame_load, toCongestionGame]
+  exact Finset.sum_congr rfl fun e _ => by rw [← G.toCongestionGame_load, toCongestionGame]
 
 /-- **Every finite fair connection game is an exact potential game** ([TardosWexler2007],
 Lemma 19.7): a unilateral path change by player `i` changes `G.potential` by the exact change in
@@ -312,9 +309,9 @@ theorem hasFIP [DecidableEq ι] [Finite E] : G.toCostGame.HasFIP :=
 connection game on finitely many edges in which each player's sink is reachable from its source
 admits a pure Nash equilibrium. -/
 theorem exists_isPureNash [DecidableEq ι] [Finite E] (hconn : G.TerminalsConnected) :
-    ∃ s, G.toCostGame.IsPureNash s := by
-  have : ∀ i, Nonempty (G.Path i) := (G.terminalsConnected_iff_nonempty).1 hconn
-  exact G.toCongestionGame.exists_isPureNash
+    ∃ s, G.toCostGame.IsPureNash s :=
+  have := (G.terminalsConnected_iff_nonempty).1 hconn
+  G.toCongestionGame.exists_isPureNash
 
 /-- **Anshelevich et al. `H_k` price-of-stability theorem** ([AnshelevichDKTWR2008];
 [TardosWexler2007], Theorem 19.10): in a `k`-player fair connection game (`k = Fintype.card ι`) on
@@ -324,9 +321,9 @@ Nash equilibrium `s` (a global minimizer of Rosenthal's potential) with
 theorem exists_isPureNash_socialCost_le_harmonic_mul [DecidableEq ι] [Finite E]
     (hconn : G.TerminalsConnected) (hc : ∀ e, 0 ≤ G.edgeCost e) :
     ∃ s, G.toCostGame.IsPureNash s ∧
-      ∀ s', G.toCostGame.socialCost s ≤ harmonic (Fintype.card ι) * G.toCostGame.socialCost s' := by
-  have : ∀ i, Nonempty (G.Path i) := (G.terminalsConnected_iff_nonempty).1 hconn
-  exact CongestionGame.exists_isPureNash_fairCostSharing_socialCost_le_harmonic_mul _ _ hc
+      ∀ s', G.toCostGame.socialCost s ≤ harmonic (Fintype.card ι) * G.toCostGame.socialCost s' :=
+  have := (G.terminalsConnected_iff_nonempty).1 hconn
+  CongestionGame.exists_isPureNash_fairCostSharing_socialCost_le_harmonic_mul _ _ hc
 
 /-- **Anshelevich et al. `H_k` theorem against centralized Steiner subnetworks**
 ([AnshelevichDKTWR2008]; [TardosWexler2007], Theorem 19.10): when at least one Steiner subnetwork
@@ -468,8 +465,8 @@ noncomputable def potential [Fintype ι] [DecidableEq V] [Fintype V] (s : ∀ i,
 theorem potential_eq [Fintype ι] [DecidableEq V] [Fintype V] (s : ∀ i, G.Path i) :
     G.potential s = ∑ e : Sym2 V, G.edgeCost e * harmonic (G.edgeLoad s e) := by
   rw [potential, toCongestionGame, CongestionGame.rosenthalPotential_fairCostSharing]
-  refine Finset.sum_congr rfl fun e _ => ?_
-  simp only [CongestionGame.load, CongestionGame.fairCostSharing_resources, edgeLoad]
+  exact Finset.sum_congr rfl fun e _ => by
+    simp only [CongestionGame.load, CongestionGame.fairCostSharing_resources, edgeLoad]
 
 theorem isExactPotential_potential [Fintype ι] [DecidableEq ι] [DecidableEq V] [Fintype V] :
     G.toCostGame.IsExactPotential G.potential :=
@@ -477,16 +474,16 @@ theorem isExactPotential_potential [Fintype ι] [DecidableEq ι] [DecidableEq V]
 
 theorem exists_isPureNash [Fintype ι] [DecidableEq ι] [DecidableEq V] [Finite V]
     (hconn : G.TerminalsConnected) :
-    ∃ s, G.toCostGame.IsPureNash s := by
-  have : ∀ i, Nonempty (G.Path i) := (G.terminalsConnected_iff_nonempty).1 hconn
-  exact G.toCongestionGame.exists_isPureNash
+    ∃ s, G.toCostGame.IsPureNash s :=
+  have := (G.terminalsConnected_iff_nonempty).1 hconn
+  G.toCongestionGame.exists_isPureNash
 
 theorem exists_isPureNash_socialCost_le_harmonic_mul [Fintype ι] [DecidableEq ι] [DecidableEq V]
     [Finite V] (hconn : G.TerminalsConnected) (hc : ∀ e, 0 ≤ G.edgeCost e) :
     ∃ s, G.toCostGame.IsPureNash s ∧
-      ∀ s', G.toCostGame.socialCost s ≤ harmonic (Fintype.card ι) * G.toCostGame.socialCost s' := by
-  have : ∀ i, Nonempty (G.Path i) := (G.terminalsConnected_iff_nonempty).1 hconn
-  exact CongestionGame.exists_isPureNash_fairCostSharing_socialCost_le_harmonic_mul _ _ hc
+      ∀ s', G.toCostGame.socialCost s ≤ harmonic (Fintype.card ι) * G.toCostGame.socialCost s' :=
+  have := (G.terminalsConnected_iff_nonempty).1 hconn
+  CongestionGame.exists_isPureNash_fairCostSharing_socialCost_le_harmonic_mul _ _ hc
 
 theorem socialCost_le_card_mul_of_isPureNash [Fintype ι] [DecidableEq ι] [DecidableEq V] [Finite V]
     (hc : ∀ e, 0 ≤ G.edgeCost e) {s : ∀ i, G.Path i} (hs : G.toCostGame.IsPureNash s)

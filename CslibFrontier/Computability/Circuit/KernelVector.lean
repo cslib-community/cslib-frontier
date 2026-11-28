@@ -70,21 +70,13 @@ private theorem prefixZero_succ (b : Fin n → F) {i : ℕ} (h : i < n) :
   by_cases hb : b ⟨i, h⟩ = 0
   · rw [ite_eq_left hb]
     congr 1
-    refine propext ⟨fun h' i' hi' => h' i' (Nat.lt_succ_of_lt hi'), fun h' i' hi' => ?_⟩
-    rcases Nat.lt_succ_iff_lt_or_eq.1 hi' with hi' | hi'
-    · exact h' i' hi'
-    · rw [show i' = ⟨i, h⟩ from Fin.ext hi']
-      exact hb
-  · rw [ite_eq_right hb, ite_eq_right]
-    exact fun h' => hb (h' ⟨i, h⟩ (Nat.lt_succ_self i))
+    exact propext ⟨fun h' i' hi' => h' i' (Nat.lt_succ_of_lt hi'), fun h' i' hi' =>
+      (Nat.lt_succ_iff_lt_or_eq.1 hi').elim (h' i') fun hi' => (Fin.ext hi' : i' = ⟨i, h⟩) ▸ hb⟩
+  · rw [ite_eq_right hb, ite_eq_right fun h' => hb (h' ⟨i, h⟩ (Nat.lt_succ_self i))]
 
 private theorem firstFlags_eq_prefixZero (b : Fin n → F) (i : Fin n) :
     firstFlags b i = if b i = 0 then 0 else prefixZero b i := by
-  unfold firstFlags prefixZero
-  by_cases hb : b i = 0
-  · simp [hb]
-  · simp only [ne_eq, hb, not_false_eq_true, true_and, ite_false]
-    rfl
+  by_cases hb : b i = 0 <;> simp [firstFlags, prefixZero, hb]
 
 /-- **The first nonzero entry.** The indicators `firstFlags b i` of the first nonzero entry of a
 vector of `n` available functions cost `2 * n + 1` gates of the full binary basis. -/
@@ -142,13 +134,10 @@ theorem full_nonzero (v : Fin n → (Fin N → F) → F) (hv : ∀ l, v l ∈ s)
       by_cases hvi : v ⟨i, hi⟩ x = 0
       · rw [ite_eq_left hvi]
         congr 1
-        refine propext ⟨fun h' l hl => ?_, fun h' l hl => h' l (Nat.lt_succ_of_lt hl)⟩
-        rcases Nat.lt_succ_iff_lt_or_eq.1 hl with hl | hl
-        · exact h' l hl
-        · rw [show l = ⟨i, hi⟩ from Fin.ext hl]
-          exact hvi
-      · rw [ite_eq_right hvi, ite_eq_right]
-        exact fun h' => hvi (h' ⟨i, hi⟩ (Nat.lt_succ_self i))
+        exact propext ⟨fun h' l hl =>
+          (Nat.lt_succ_iff_lt_or_eq.1 hl).elim (h' l) fun hl => (Fin.ext hl : l = ⟨i, hi⟩) ▸ hvi,
+          fun h' l hl => h' l (Nat.lt_succ_of_lt hl)⟩
+      · rw [ite_eq_right hvi, ite_eq_right fun h' => hvi (h' ⟨i, hi⟩ (Nat.lt_succ_self i))]
   refine hchain.mono Set.Subset.rfl (Set.singleton_subset_iff.2 ⟨Fin.last n, ?_⟩) le_rfl
   funext x
   change chainValue 0 op g (Fin.last n : ℕ) x = _
@@ -232,15 +221,12 @@ private theorem full_kernelBasisUpTo (A : Fin r → Fin n → (Fin N → F) → 
       ((n + 1) ^ 2 + k * (8 * (n + 1) ^ 2)) := by
   induction k with
   | zero =>
-    have h := family (I := fullInterpretation (k := 2)) (s := s)
+    refine (family (I := fullInterpretation (k := 2)) (s := s)
       (fun il : Fin n × Fin n => fun _ : Fin N → F => (Pi.single il.1 1 : Fin n → F) il.2)
-      (fun _ => 1) (fun il => full_const _)
-    refine h.mono Set.Subset.rfl ?_ ?_
-    · rintro _ ⟨il, rfl⟩
-      exact ⟨il, rfl⟩
-    · simp only [sum_const, card_univ, Fintype.card_prod, Fintype.card_fin, smul_eq_mul,
-        mul_one, zero_mul, add_zero]
-      nlinarith
+      (fun _ => 1) (fun _ => full_const _)).mono Set.Subset.rfl Set.Subset.rfl ?_
+    simp only [sum_const, card_univ, Fintype.card_prod, Fintype.card_fin, smul_eq_mul,
+      mul_one, zero_mul, add_zero]
+    nlinarith
   | succ k ih =>
     by_cases hk : k < r
     · have hstep := full_kernelStep
@@ -251,12 +237,10 @@ private theorem full_kernelBasisUpTo (A : Fin r → Fin n → (Fin N → F) → 
         (fun i l => Set.mem_union_right _ ⟨(i, l), rfl⟩)
       refine (ih.trans hstep).mono Set.Subset.rfl ?_ (le_of_eq (by ring))
       rintro _ ⟨il, rfl⟩
-      refine ⟨il, funext fun x => ?_⟩
-      simp only [kernelBasisUpTo, dite_eq_left hk]
+      exact ⟨il, funext fun _ => by simp only [kernelBasisUpTo, dite_eq_left hk]⟩
     · refine ih.mono Set.Subset.rfl ?_ (by nlinarith)
       rintro _ ⟨il, rfl⟩
-      refine ⟨il, funext fun x => ?_⟩
-      simp only [kernelBasisUpTo, dite_eq_right hk]
+      exact ⟨il, funext fun _ => by simp only [kernelBasisUpTo, dite_eq_right hk]⟩
 
 /-- **The spanning family by a circuit.** If the entries of a matrix with `r` rows and `n` columns
 are available, the entries of `kernelBasis A` cost at most `(n + 1) ^ 2 + r * (8 * (n + 1) ^ 2)`

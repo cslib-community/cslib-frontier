@@ -151,12 +151,18 @@ theorem continuous_horner (F : MvPolynomial (Fin n) ℝ) (k : ℕ) (e : Fin n �
 theorem horner_of_le (F : MvPolynomial (Fin n) ℝ) (x : Fin n → ℝ) {k : ℕ} (hk : n ≤ k)
     (e : Fin n →₀ ℕ) : horner F x k e = F.coeff e := by
   have hf : ∀ f : Fin n →₀ ℕ, (e ≤ f ∧ ∀ i : Fin n, i.val < k → f i = e i) ↔ f = e := fun f =>
-    ⟨fun h => Finsupp.ext fun i => h.2 i (i.isLt.trans_le hk),
-      fun h => h ▸ ⟨le_rfl, fun _ _ => rfl⟩⟩
+    ⟨fun h => Finsupp.ext fun i => h.2 i (i.2.trans_le hk), fun h => h ▸ ⟨le_rfl, fun _ _ => rfl⟩⟩
   simp only [horner, hf, filter_eq']
   split_ifs with h
   · simp [expoPow]
   · simp [notMem_support_iff.1 h]
+
+private theorem add_single_le {d e : Fin n →₀ ℕ} {k : Fin n} (he : e ≤ d) (hk : e k < d k) :
+    e + Finsupp.single k 1 ≤ d := fun i => by
+  rcases eq_or_ne k i with rfl | hi
+  · simp only [Finsupp.coe_add, Pi.add_apply, Finsupp.single_eq_same]
+    omega
+  · simpa [Finsupp.single_apply, hi] using he i
 
 /-- **The Horner step**: `horner F x k e = x_k · horner F x k (e + 1_k) + horner F x (k + 1) e`. -/
 theorem horner_eq (F : MvPolynomial (Fin n) ℝ) (x : Fin n → ℝ) (l : Fin n) (e : Fin n →₀ ℕ) :
@@ -172,13 +178,8 @@ theorem horner_eq (F : MvPolynomial (Fin n) ℝ) (x : Fin n → ℝ) (l : Fin n)
     refine sum_congr (filter_congr fun f _ => ?_) fun f hf => ?_
     · constructor
       · rintro ⟨⟨h1, h2⟩, h3⟩
-        refine ⟨fun i => ?_, fun i hi => (h2 i hi).trans (hs i hi).symm⟩
-        by_cases hi : l = i
-        · subst hi
-          have := h1 l
-          simp only [Finsupp.coe_add, Pi.add_apply, Finsupp.single_eq_same]
-          omega
-        · simpa [Finsupp.single_apply, hi] using h1 i
+        exact ⟨add_single_le h1 ((h1 l).lt_of_ne fun h => h3 h.symm),
+          fun i hi => (h2 i hi).trans (hs i hi).symm⟩
       · rintro ⟨h1, h2⟩
         have hl := h1 l
         simp only [Finsupp.coe_add, Pi.add_apply, Finsupp.single_eq_same] at hl
@@ -241,8 +242,7 @@ theorem le_of_level_eq_none {d : Fin n →₀ ℕ} {k : ℕ} {e : Fin n →₀ �
   | case2 k hk hlt ih =>
     rcases Nat.lt_or_eq_of_le hi with hi | hi
     · exact ih h (by omega)
-    · have : (⟨k, hk⟩ : Fin n) = i := Fin.ext hi
-      subst this
+    · obtain rfl : (⟨k, hk⟩ : Fin n) = i := Fin.ext hi
       omega
   | case3 k hk => omega
 
@@ -267,24 +267,15 @@ noncomputable def nodes (d : Fin n →₀ ℕ) : Finset (Node n) :=
 
 theorem mem_nodes {d : Fin n →₀ ℕ} {p : Node n} :
     p ∈ nodes d ↔ p.expo ≤ d ∧ p.expo p.var < d p.var ∧ ∀ i, p.var < i → p.expo i = 0 := by
-  constructor
-  · intro h
-    obtain ⟨⟨k, e⟩, hp, rfl⟩ := mem_map.1 h
-    simp only [mem_filter, mem_product, mem_univ, mem_Iic, true_and] at hp
-    exact ⟨hp.1, hp.2⟩
-  · rintro ⟨h1, h2, h3⟩
-    exact mem_map.2 ⟨(p.var, p.expo), by
-      simp only [mem_filter, mem_product, mem_univ, mem_Iic, true_and]; exact ⟨h1, h2, h3⟩, rfl⟩
+  simp only [nodes, mem_map, mem_filter, mem_product, mem_univ, mem_Iic, true_and]
+  exact ⟨by rintro ⟨_, hp, rfl⟩; exact hp, fun h => ⟨(p.var, p.expo), h, rfl⟩⟩
 
 /-- The node at which `horner F x k e` is read is a node of the chain. -/
 theorem mem_nodes_of_level {d : Fin n →₀ ℕ} {k : ℕ} {e : Fin n →₀ ℕ} {i : Fin n}
     (he : e ≤ d) (hz : ∀ i : Fin n, k < i.val → e i = 0) (h : level d k e = some i) :
     ⟨i, e⟩ ∈ nodes d := by
   obtain ⟨hki, hlt⟩ := le_of_level_eq_some h
-  exact mem_nodes.2 ⟨he, hlt, fun i' hi' => hz i' (by
-    have : i < i' := hi'
-    rw [Fin.lt_def] at this
-    omega)⟩
+  exact mem_nodes.2 ⟨he, hlt, fun i' (hi' : i < i') => hz i' (by rw [Fin.lt_def] at hi'; omega)⟩
 
 /-- The chain of the degree vector `d` has `∏ᵢ (1 + d i) − 1` nodes: `(k, e) ↦ e + 1_k` is a
 bijection onto the nonzero exponents of the box. -/
@@ -294,31 +285,19 @@ theorem card_nodes (d : Fin n →₀ ℕ) : #(nodes d) + 1 = ∏ i, (1 + d i) :=
   refine card_bij (fun p _ => p.expo + Finsupp.single p.var 1) (fun p hp => ?_)
     (fun p hp p' hp' h => ?_) fun g hg => ?_
   · obtain ⟨hle, hlt, -⟩ := mem_nodes.1 hp
-    refine mem_erase.2 ⟨fun h => ?_, mem_Iic.2 fun i => ?_⟩
-    · simpa using DFunLike.congr_fun h p.var
-    · by_cases hi : p.var = i
-      · subst hi
-        simp only [Finsupp.coe_add, Pi.add_apply, Finsupp.single_eq_same]
-        omega
-      · simpa [Finsupp.single_apply, hi] using hle i
+    refine mem_erase.2 ⟨fun h => ?_, mem_Iic.2 (add_single_le hle hlt)⟩
+    simpa using DFunLike.congr_fun h p.var
   · obtain ⟨-, -, hz⟩ := mem_nodes.1 hp
     obtain ⟨-, -, hz'⟩ := mem_nodes.1 hp'
     have key : ∀ {a b : Node n}, (∀ i, a.var < i → a.expo i = 0) →
-        a.expo + Finsupp.single a.var 1 = b.expo + Finsupp.single b.var 1 → ¬a.var < b.var :=
-      fun {a b} hz h hlt => by
+        a.expo + Finsupp.single a.var 1 = b.expo + Finsupp.single b.var 1 → b.var ≤ a.var :=
+      fun {a b} hz h => not_lt.1 fun hlt => by
         have := DFunLike.congr_fun h b.var
         simp [hz _ hlt, hlt.ne] at this
-    have hv : p.var = p'.var := by
-      rcases lt_trichotomy p.var p'.var with hlt | heq | hgt
-      · exact absurd hlt (key hz h)
-      · exact heq
-      · exact absurd hgt (key hz' h.symm)
     obtain ⟨k, e⟩ := p
     obtain ⟨k', e'⟩ := p'
-    simp only at hv h
-    subst hv
-    rw [add_left_inj] at h
-    rw [h]
+    obtain rfl : k = k' := le_antisymm (key hz' h.symm) (key hz h)
+    simpa using h
   · obtain ⟨hg0, hgd⟩ := mem_erase.1 hg
     have hne : g.support.Nonempty := Finsupp.support_nonempty_iff.2 hg0
     have hk : 1 ≤ g (g.support.max' hne) :=
@@ -329,10 +308,7 @@ theorem card_nodes (d : Fin n →₀ ℕ) : #(nodes d) + 1 = ∏ i, (1 + d i) :=
     · have := mem_Iic.1 hgd (g.support.max' hne)
       simp only [Finsupp.coe_tsub, Pi.sub_apply, Finsupp.single_eq_same]
       omega
-    · have : g i = 0 := by
-        by_contra h
-        exact absurd (le_max' _ i (Finsupp.mem_support_iff.2 h)) (not_le.2 hi)
-      simp [this]
+    · simp [Finsupp.notMem_support_iff.1 fun h => not_le.2 hi (le_max' _ i h)]
 
 /-- The root of the chain: the node `(k, 0)` at the first variable `k` with `d k ≠ 0`. Its value
 `horner F x 0 0` is `F(x)`. -/
@@ -342,10 +318,7 @@ def root (d : Fin n →₀ ℕ) : Option (Node n) :=
 theorem exists_root (d : Fin n →₀ ℕ) (hd : d ≠ 0) : ∃ r ∈ nodes d, root d = some r := by
   cases hl : level d 0 0 with
   | none =>
-    refine absurd (Finsupp.ext fun i => ?_) hd
-    have := le_of_level_eq_none hl i (Nat.zero_le _)
-    simp only [Finsupp.coe_zero, Pi.zero_apply, nonpos_iff_eq_zero] at this ⊢
-    exact this
+    exact absurd (Finsupp.ext fun i => Nat.le_zero.1 (le_of_level_eq_none hl i i.val.zero_le)) hd
   | some i =>
     exact ⟨⟨i, 0⟩, mem_nodes_of_level zero_le (fun _ _ => rfl) hl, by simp [root, hl]⟩
 
@@ -496,17 +469,19 @@ private theorem C_mem_supported {s : Set (Coord F)} (c : ℝ) :
     MvPolynomial.C c ∈ supported ℝ s :=
   mem_supported.2 (by simp [vars_C])
 
+private theorem nodeVal_mem_supported (j : Fin m) (p : Node n) :
+    nodeVal F j p ∈ supported ℝ {v : Coord F | v.1 = .bob} := by
+  unfold nodeVal
+  split_ifs
+  · exact add_mem (mul_mem (C_mem_supported _) (X_mem_supported.2 rfl)) (C_mem_supported _)
+  · exact zero_mem _
+
 theorem term_mem_supported (j : Fin m) (k : ℕ) (e : Fin n →₀ ℕ) :
     term F j k e ∈ supported ℝ {v : Coord F | v.1 = .bob} := by
-  have hval : ∀ p, nodeVal F j p ∈ supported ℝ {v : Coord F | v.1 = .bob} := fun p => by
-    unfold nodeVal
-    split_ifs
-    · exact add_mem (mul_mem (C_mem_supported _) (X_mem_supported.2 rfl)) (C_mem_supported _)
-    · exact zero_mem _
   unfold term
   cases level (degreeVec (F j)) k e
   · exact C_mem_supported _
-  · exact hval _
+  · exact nodeVal_mem_supported j _
 
 private theorem isBlockAffine_nodeVal (j : Fin m) (p : Node n) :
     IsBlockAffine (nodeVal F j p) := by
@@ -528,12 +503,7 @@ theorem chainEq_mem_supported (j : Fin m) (p : Node n) :
   have hmono := supported_mono (R := ℝ)
     (show {v : Coord F | v.1 = .bob} ⊆ {v | v.1 ≠ .critter} from fun v (hv : v.1 = .bob) => by
       simp [hv])
-  have hval : nodeVal F j p ∈ supported ℝ {v : Coord F | v.1 ≠ .critter} := by
-    unfold nodeVal
-    split_ifs
-    · exact add_mem (mul_mem (C_mem_supported _) (X_mem_supported.2 nofun)) (C_mem_supported _)
-    · exact zero_mem _
-  exact sub_mem hval (add_mem (mul_mem (X_mem_supported.2 nofun)
+  exact sub_mem (hmono (nodeVal_mem_supported j p)) (add_mem (mul_mem (X_mem_supported.2 nofun)
     (hmono (term_mem_supported j p.var (p.expo + Finsupp.single p.var 1))))
     (hmono (term_mem_supported j (p.var + 1) p.expo)))
 
@@ -600,14 +570,6 @@ theorem eval_term {q : Coord F → ℝ} {j : Fin m} {k : ℕ} {e : Fin n →₀ 
   cases hl : level (degreeVec (F j)) k e with
   | none => simp
   | some i => exact h i hl
-
-private theorem add_single_le {d e : Fin n →₀ ℕ} {k : Fin n} (he : e ≤ d) (hk : e k < d k) :
-    e + Finsupp.single k 1 ≤ d := fun i => by
-  by_cases hi : k = i
-  · subst hi
-    simp only [Finsupp.coe_add, Pi.add_apply, Finsupp.single_eq_same]
-    omega
-  · simpa [Finsupp.single_apply, hi] using he i
 
 /-- The first successor of a node `(k, e)`, read at `level k (e + 1_k)`, is a node. -/
 private theorem mem_nodes_of_level_add_single {d : Fin n →₀ ℕ} {p : Node n} (hp : p ∈ nodes d)
@@ -717,8 +679,7 @@ theorem isTotallyMixedNash_game_iff (q : Coord F → ℝ) :
     notMem_vars_equation]
   have hroot : ∀ {j : Fin m} {p : Node n}, root (degreeVec (F j)) = some p →
       ∃ i, level (degreeVec (F j)) 0 0 = some i ∧ p = ⟨i, 0⟩ := fun hr => by
-    rw [root, Option.map_eq_some_iff] at hr
-    obtain ⟨i, hi, rfl⟩ := hr
+    obtain ⟨i, hi, rfl⟩ := Option.map_eq_some_iff.1 hr
     exact ⟨i, hi, rfl⟩
   have hmem0 : ∀ {j : Fin m} {i : Fin n}, level (degreeVec (F j)) 0 0 = some i →
       (⟨i, 0⟩ : Node n) ∈ nodes (degreeVec (F j)) := fun hl =>
@@ -732,51 +693,38 @@ theorem isTotallyMixedNash_game_iff (q : Coord F → ℝ) :
       intro j p hp
       by_cases hr : root (degreeVec (F j)) = some p
       · obtain ⟨i, hl, rfl⟩ := hroot hr
-        have := heq .critter (.inr j)
-        simpa [equation, rootEq, hl] using this
+        simpa [equation, rootEq, hl] using heq .critter (.inr j)
       · exact heq .critter (.inl ⟨⟨j, p⟩, mem_bobNodes.2 ⟨hp, hr⟩⟩)
     have hval := fun j => eval_nodeVal_of_chainEq (hchain j)
     refine ⟨⟨fun i => hpos _, hsum .alice, fun j => ?_⟩, fun j p h => ?_, fun ν => ?_,
       fun j hj => ?_, fun j => hpos _, hsum .critter⟩
     · rw [← horner_zero, horner_level]
       cases hl : level (degreeVec (F j)) 0 0 with
-      | none =>
-        have := heq .critter (.inr j)
-        simpa [equation, rootEq, hl] using this
+      | none => simpa [equation, rootEq, hl] using heq .critter (.inr j)
       | some i =>
         rw [Option.elim, ← hval j _ (hmem0 hl), eval_nodeVal_of_notMem (hnot0 hl)]
-    · have := hval j p (mem_bobNodes.1 h).1
-      rw [eval_nodeVal_of_mem h] at this
-      rw [eq_div_iff (scale_pos j).ne']
-      linarith
-    · have := heq .bob ν
-      simp only [equation, map_sub, eval_X, eval_C] at this
-      linarith
-    · have := heq .alice ⟨j, hj⟩
-      simp only [equation, j.isLt, ↓reduceDIte, map_sub, eval_X, eval_C] at this
-      linarith
+    · rw [eq_div_iff (scale_pos j).ne', ← hval j p (mem_bobNodes.1 h).1, eval_nodeVal_of_mem h]
+      ring
+    · simpa only [equation, map_sub, eval_X, eval_C, sub_eq_zero] using heq .bob ν
+    · simpa only [equation, j.2, ↓reduceDIte, map_sub, eval_X, eval_C, sub_eq_zero] using
+        heq .alice ⟨j, hj⟩
   · rintro ⟨⟨ha, hasum, hF0⟩, hb, hcb, hca, hcpos, hcsum⟩
     have hval : ∀ j, ∀ p ∈ nodes (degreeVec (F j)),
         eval q (nodeVal F j p) = horner (F j) (fun i => q (aCoord i)) p.var p.expo := by
       intro j p hp
       by_cases h : ⟨j, p⟩ ∈ bobNodes F
-      · rw [eval_nodeVal_of_mem h, hb j p h]
-        rw [mul_div_cancel₀ _ (scale_pos j).ne']
+      · rw [eval_nodeVal_of_mem h, hb j p h, mul_div_cancel₀ _ (scale_pos j).ne']
         ring
-      · rw [eval_nodeVal_of_notMem h]
-        obtain ⟨i, hl, rfl⟩ :=
-          hroot (not_not.1 fun hr => h (mem_bobNodes.2 ⟨hp, hr⟩))
+      · obtain ⟨i, hl, rfl⟩ := hroot (not_not.1 fun hr => h (mem_bobNodes.2 ⟨hp, hr⟩))
         have := horner_level (F j) (fun i => q (aCoord i)) 0 0
         rw [hl, Option.elim, horner_zero, hF0] at this
-        exact this
+        exact (eval_nodeVal_of_notMem h).trans this
     have hchain : ∀ j, ∀ p ∈ nodes (degreeVec (F j)), eval q (chainEq F j p) = 0 := by
       intro j p hp
       rw [chainEq, map_sub, map_add, map_mul, eval_X, hval j p hp,
         eval_term fun i hi => hval j _ (mem_nodes_of_level_add_single hp hi),
         eval_term fun i hi => hval j _ (mem_nodes_of_level_succ hp hi), sub_eq_zero]
       exact horner_eq (F j) _ p.var p.expo
-    have hxle : ∀ i, q (aCoord i) ≤ 1 := fun i =>
-      (single_le_sum (fun j _ => (ha j).le) (mem_univ i)).trans hasum.le
     refine ⟨fun v => ?_, fun w => ?_, fun w t => ?_⟩
     · rcases v with ⟨_ | _ | _, t⟩
       · exact ha t
@@ -801,7 +749,7 @@ theorem isTotallyMixedNash_game_iff (q : Coord F → ℝ) :
     · rcases w with _ | _ | _
       · simp only [equation]
         split_ifs with h
-        · simp [hca _ (show (⟨t, h⟩ : Fin m).val < n from t.isLt)]
+        · simp [hca _ (show (⟨t, h⟩ : Fin m).val < n from t.2)]
         · simp
       · simp [equation, hcb]
       · rcases t with ⟨⟨j, p⟩, h⟩ | j

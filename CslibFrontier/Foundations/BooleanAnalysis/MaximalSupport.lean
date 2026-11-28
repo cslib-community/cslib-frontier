@@ -76,17 +76,13 @@ theorem exists_ne_zero_on_face_of_fourierCoeff_maximal (S : Finset ι) :
           ⟨insert_subset_insert i hST.1, fun heq => hST.ne ?_⟩)
         rw [← erase_insert hi, heq, erase_insert hiT]
     obtain ⟨y, hy, hfy⟩ := ih (derivative i f) h₁ h₂ x
-    have hvalue : f (update y i false) ≠ 0 ∨ f (update y i true) ≠ 0 := by
-      by_contra h
-      push Not at h
-      exact hfy (by simp [derivative, h.1, h.2])
-    rcases hvalue with hvalue | hvalue
-    all_goals
-      refine ⟨_, ?_, hvalue⟩
-      intro j hj
-      have hji : j ≠ i := fun h => hj (by simp [h])
-      rw [update_of_ne hji]
-      exact hy j (notMem_subset (subset_insert i S) hj)
+    obtain ⟨b, hb⟩ : ∃ b, f (update y i b) ≠ 0 := by
+      by_contra! h
+      exact hfy (by simp [derivative, h])
+    refine ⟨update y i b, fun j hj => ?_, hb⟩
+    rw [mem_insert, not_or] at hj
+    rw [update_of_ne hj.1]
+    exact hy j hj.2
 
 /-- A nonempty maximal Fourier support makes every parallel face nonconstant. This is the
 Fourier form of [Midrijanis2004], Lemma 3. -/

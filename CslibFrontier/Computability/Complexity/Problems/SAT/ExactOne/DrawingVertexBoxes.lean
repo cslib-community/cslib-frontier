@@ -48,8 +48,7 @@ theorem collarPoint_in_positiveBox (reflected : Bool) {p : Point}
     InPositiveLocalBox (collarPoint reflected p) := by
   have hb := collarPoint_in_innerBox reflected hp
   norm_num [inPointBox, realPoint] at hb
-  have hb' : (180000 : ℤ) ≤ (collarPoint reflected p).1 ∧
-      (collarPoint reflected p).1 ≤ 360000 ∧
+  have : (180000 : ℤ) ≤ (collarPoint reflected p).1 ∧ (collarPoint reflected p).1 ≤ 360000 ∧
       180000 ≤ (collarPoint reflected p).2 ∧ (collarPoint reflected p).2 ≤ 360000 := by
     exact_mod_cast hb
   unfold InPositiveLocalBox
@@ -62,21 +61,16 @@ theorem clauseGeometry_auxiliary_bounds (φ : CNF ℕ) (d : Graph.OrthogonalDraw
     InPositiveLocalBox ((clauseGeometry φ d i c).variablePosition
       ((profileVariables (clauseProfile c)).idxOf v)) := by
   rw [clauseGeometry_auxiliary_point φ d i c hv ha]
-  apply collarPoint_in_positiveBox
-  exact profile_prefix_variable_bounds (clauseProfile c)
-    ⟨_, profileVariableIndex_lt _ hv⟩
+  exact collarPoint_in_positiveBox _
+    (profile_prefix_variable_bounds (clauseProfile c) ⟨_, profileVariableIndex_lt _ hv⟩)
 
 /-- Equal placed points in closed local boxes determine the same integer source center. -/
 theorem positiveBox_owner_injective {a b q r : Point} (hq : InPositiveLocalBox q)
     (hr : InPositiveLocalBox r) (he : positiveScale • a + q = positiveScale • b + r) : a = b := by
-  rcases a with ⟨ax, ay⟩
-  rcases b with ⟨bx, by'⟩
-  rcases q with ⟨qx, qy⟩
-  rcases r with ⟨rx, ry⟩
-  simp only [positiveScale, Prod.smul_mk, Int.nsmul_eq_mul,
-    Prod.mk_add_mk, Prod.mk.injEq] at he
+  rcases a, b, q, r with ⟨⟨ax, ay⟩, ⟨bx, by'⟩, ⟨qx, qy⟩, ⟨rx, ry⟩⟩
+  simp only [positiveScale, Prod.smul_mk, Int.nsmul_eq_mul, Prod.mk_add_mk, Prod.mk.injEq] at he
   simp only [InPositiveLocalBox] at hq hr
-  apply Prod.ext <;> omega
+  exact Prod.ext (by omega) (by omega)
 
 /-- A source clause's incidence-graph vertex is declared. -/
 theorem sourceClause_declared (φ : CNF ℕ) {i : ℕ} (hi : i < φ.length) :
@@ -101,10 +95,9 @@ theorem clauseGeometry_auxiliary_injective (φ : CNF ℕ) (d : Graph.OrthogonalD
     v = w := by
   rw [clauseGeometry_auxiliary_point φ d i c hv hva,
     clauseGeometry_auxiliary_point φ d i c hw hwa] at he
-  have he' := collarPoint_injective _ he
-  have hidx := prefix_variablePoint_injective (profilePrefixGeometry_check (clauseProfile c))
-    (profileVariableIndex_lt _ hv) (profileVariableIndex_lt _ hw) he'
-  exact (List.idxOf_inj hv).mp hidx
+  exact (List.idxOf_inj hv).mp (prefix_variablePoint_injective
+    (profilePrefixGeometry_check (clauseProfile c)) (profileVariableIndex_lt _ hv)
+    (profileVariableIndex_lt _ hw) (collarPoint_injective _ he))
 
 /-- Equal points of two fresh-variable table entries have the same actual variable key. -/
 theorem positiveAuxiliaryPositions_point_injective {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
@@ -117,17 +110,13 @@ theorem positiveAuxiliaryPositions_point_injective {φ : CNF ℕ} {d : Graph.Ort
   obtain ⟨hi, hci'⟩ := List.mem_zipIdx' hci
   obtain ⟨hj, hcj'⟩ := List.mem_zipIdx' hcj
   have hplaced := hpa.symm.trans (he.trans hqb)
-  have hcenter := positiveBox_owner_injective (clauseGeometry_auxiliary_bounds φ d i c ha hauxa)
-    (clauseGeometry_auxiliary_bounds φ d j c' hb hauxb) hplaced
-  have hlabels := drawingPosition_injOn hd (sourceClause_declared φ hi)
-    (sourceClause_declared φ hj) hcenter
-  have hij : i = j := Nat.add_left_cancel hlabels
-  subst j
-  have hcc : c = c' := hci'.trans hcj'.symm
-  subst c'
-  have hlocal := add_left_cancel hplaced
-  have hab := clauseGeometry_auxiliary_injective φ d i c ha hb hauxa hauxb hlocal
-  rw [hva, hwb, hab]
+  obtain rfl : i = j := Nat.add_left_cancel (drawingPosition_injOn hd
+    (sourceClause_declared φ hi) (sourceClause_declared φ hj)
+    (positiveBox_owner_injective (clauseGeometry_auxiliary_bounds φ d i c ha hauxa)
+      (clauseGeometry_auxiliary_bounds φ d j c' hb hauxb) hplaced))
+  obtain rfl : c = c' := hci'.trans hcj'.symm
+  rw [hva, hwb, clauseGeometry_auxiliary_injective φ d i c ha hb hauxa hauxb
+    (add_left_cancel hplaced)]
 
 /-- A shared source-variable point cannot coincide with any private clause-box point. -/
 theorem positiveSourceAuxiliary_positions_disjoint {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
@@ -137,19 +126,15 @@ theorem positiveSourceAuxiliary_positions_disjoint {φ : CNF ℕ} {d : Graph.Ort
     (hw : (w, q) ∈ positiveAuxiliaryPositions φ d) : p ≠ q := by
   obtain ⟨n, hn, hv⟩ := List.mem_map.mp hv
   obtain ⟨c, i, hci, a, ha, hauxa, _, hqa⟩ := positiveAuxiliaryPositions_origin φ d hw
-  have hp : p = positiveScale •
-      Graph.drawingPosition (SAT.incidenceGraph φ) d (φ.distinctVars.idxOf n) +
-        positiveTranslation := (congrArg Prod.snd hv).symm
-  have hnm : n ∈ φ.vars := CNF.mem_distinctVars.mp hn
-  have hi := (List.mem_zipIdx' hci).1
   intro he
   have hbox : InPositiveLocalBox positiveTranslation := by
     norm_num [InPositiveLocalBox, positiveTranslation, positiveRadius]
-  have hcenters := positiveBox_owner_injective hbox
-    (clauseGeometry_auxiliary_bounds φ d i c ha hauxa) (hp.symm.trans (he.trans hqa))
-  have hlabels := drawingPosition_injOn hd (sourceVariable_declared φ hnm)
-    (sourceClause_declared φ hi) hcenters
-  have hlt := List.idxOf_lt_length_of_mem hn
+  have hlabels := drawingPosition_injOn hd
+    (sourceVariable_declared φ (CNF.mem_distinctVars.mp hn))
+    (sourceClause_declared φ (List.mem_zipIdx' hci).1)
+    (positiveBox_owner_injective hbox (clauseGeometry_auxiliary_bounds φ d i c ha hauxa)
+      ((congrArg Prod.snd hv).trans (he.trans hqa)))
+  have := List.idxOf_lt_length_of_mem hn
   omega
 
 /-- Shared source-position table entries are injective in their actual source-variable names. -/
@@ -160,20 +145,12 @@ theorem positiveSourcePositions_point_injective {φ : CNF ℕ} {d : Graph.Orthog
     (hw : (w, q) ∈ positiveSourcePositions φ d) (he : p = q) : v = w := by
   obtain ⟨n, hn, hv⟩ := List.mem_map.mp hv
   obtain ⟨m, hm, hw⟩ := List.mem_map.mp hw
-  have hnm : n ∈ φ.vars := CNF.mem_distinctVars.mp hn
-  have hmm : m ∈ φ.vars := CNF.mem_distinctVars.mp hm
-  have hp := congrArg Prod.snd hv
-  have hq := congrArg Prod.snd hw
   have hcenters := nsmul_point_injective (by decide : positiveScale ≠ 0)
-    (add_right_cancel (hp.trans (he.trans hq.symm)))
-  have hlabels := drawingPosition_injOn hd (sourceVariable_declared φ hnm)
-    (sourceVariable_declared φ hmm) hcenters
-  have hnames := (List.idxOf_inj hn).mp hlabels
-  have hv' := congrArg Prod.fst hv
-  have hw' := congrArg Prod.fst hw
-  change Sum.inl (Sum.inl n) = v at hv'
-  change Sum.inl (Sum.inl m) = w at hw'
-  rw [← hv', ← hw', hnames]
+    (add_right_cancel ((congrArg Prod.snd hv).trans (he.trans (congrArg Prod.snd hw).symm)))
+  obtain rfl : n = m := (List.idxOf_inj hn).mp (drawingPosition_injOn hd
+    (sourceVariable_declared φ (CNF.mem_distinctVars.mp hn))
+    (sourceVariable_declared φ (CNF.mem_distinctVars.mp hm)) hcenters)
+  exact (congrArg Prod.fst hv).symm.trans (congrArg Prod.fst hw)
 
 /-- The actual position-table map is injective on all its entries. -/
 theorem positivePositionTable_point_injective {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
@@ -205,10 +182,7 @@ theorem positiveVariablePositions_nodup {φ : CNF ℕ} {d : Graph.OrthogonalDraw
     (hd : Graph.IsPlanarOrthogonalDrawing (SAT.incidenceGraph φ) d) :
     ((CNF.PositiveExactOneCompile.rawFormula φ).distinctVars.map
       (positiveVariablePoint φ d)).Nodup := by
-  apply List.Nodup.map_on
-  · intro v hv w hw he
-    exact positiveVariablePoint_injective hd (CNF.mem_distinctVars.mp hv)
-      (CNF.mem_distinctVars.mp hw) he
-  · exact CNF.nodup_distinctVars _
+  exact (CNF.nodup_distinctVars _).map_on fun _ hv _ hw =>
+    positiveVariablePoint_injective hd (CNF.mem_distinctVars.mp hv) (CNF.mem_distinctVars.mp hw)
 
 end Cslib.Complexity.SAT.ExactOne

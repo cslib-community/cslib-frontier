@@ -63,16 +63,13 @@ private theorem BufMapRel.insert_skip {M tag b₀ : ℕ} {bktCnt : ℕ → ℕ}
     by_cases hbb : b = b₀
     · subst hbb; rw [Function.update_self]; exact Nat.lt_succ_of_lt hloc
     · rwa [Function.update_of_ne hbb]
-  · by_cases hbb : b = b₀
-    · subst hbb
-      rw [Function.update_self] at hloc_upd
-      rcases Nat.lt_succ_iff_lt_or_eq.mp hloc_upd with hlt | rfl
-      · exact ⟨hb, hlt, (hst_pres b hb loc hlt).symm.trans hst',
-          (hrk_pres b hb loc hlt).symm.trans hrk'⟩
-      · exact absurd hst' hst_new
-    · rw [Function.update_of_ne hbb] at hloc_upd
-      exact ⟨hb, hloc_upd, (hst_pres b hb loc hloc_upd).symm.trans hst',
-        (hrk_pres b hb loc hloc_upd).symm.trans hrk'⟩
+  · have hlt : loc < bktCnt b := by
+      rw [Function.update_apply] at hloc_upd
+      split_ifs at hloc_upd with hbb
+      · subst hbb; exact lt_of_le_of_ne (Nat.lt_succ_iff.mp hloc_upd) fun h => hst_new (h ▸ hst')
+      · exact hloc_upd
+    exact ⟨hb, hlt, (hst_pres b hb loc hlt).symm.trans hst',
+      (hrk_pres b hb loc hlt).symm.trans hrk'⟩
 
 private theorem inLiveTree_curEp_eq_false {fs : FastState} (hc : fs.curEp = 0 ∨ fs.curEp = 1)
     (doneB : ℕ) :
@@ -246,6 +243,92 @@ private theorem step_of_inLiveTree_eq {c U V n_max clk₀ : ℕ} {θ : SeedWhp c
   obtain ⟨hc', hom'⟩ := core_and_om_of_inLiveTree_eq fs' hc hom hep hclk hstg_le hcoll0 hq hv_arr
     hbkt hls hbp htop hstk hown hlr hor hbs hlic hoa hoc hoi hbuf_cur hsl_live hsl_om hinL hbo'
   exact ⟨hc', hom', hstg_valid, hclk_eq⟩
+
+/-- Fresh insertion preserves the epoch scan and the rebuilding bucket's scanned prefix.
+The new coordinate is never an old-epoch item, and both insertion branches preserve the old
+buffer, the existing fingerprints, and the rebuild slice. -/
+private theorem ValidEpochStage.fastInsertFresh {c U n_max : ℕ} {θ : SeedWhp c U n_max}
+    {fs fs' : FastState} {b q v rk fp : ℕ} {collision : Bool}
+    (h : ValidEpochStage c U n_max θ fs) (hep : fs.curEp = 0 ∨ fs.curEp = 1)
+    (hins : fs' = fastInsertFresh c n_max b (fs.bktCount b) q v rk fp (fs.liveSliceIdx b)
+      collision (fastInsertAlloc n_max b (fs.bktCount b) fs))
+    (hfp : ∀ salt, ∀ b' < numBucketsWhp n_max, ∀ loc < fs.bktCount b',
+      fs'.fpAt c U n_max θ salt b' loc = fs.fpAt c U n_max θ salt b' loc)
+    (hsl : ∀ bc < numBucketsWhp n_max,
+      fs'.slices (fs'.rebSliceIdx bc) = fs.slices (fs.rebSliceIdx bc)) :
+    ValidEpochStage c U n_max θ fs' := by
+  let tag := if collision then 2 + fs.curEp else 1
+  obtain ⟨hcnt, hloc, hold, hst, hsc, hdc, hdb, hdi, hdf, hrq, hcs, hrc, hri, hbuf⟩ :
+      fs'.bktCount = Function.update fs.bktCount b (fs.bktCount b + 1) ∧
+      fs'.locState =
+        Function.update fs.locState b (Function.update (fs.locState b) (fs.bktCount b) tag) ∧
+      fs'.oldEp = fs.oldEp ∧ fs'.rebStage = fs.rebStage ∧ fs'.stageCursor = fs.stageCursor ∧
+      fs'.dirtyCount = fs.dirtyCount ∧ fs'.dirtyBuckets = fs.dirtyBuckets ∧
+      fs'.dirtyIdx = fs.dirtyIdx ∧ fs'.rebDoneFlag = fs.rebDoneFlag ∧
+      fs'.rebQueued = fs.rebQueued ∧ fs'.rebCandSalt = fs.rebCandSalt ∧
+      fs'.rebScanCursor = fs.rebScanCursor ∧ fs'.rebInsCount = fs.rebInsCount ∧
+      fs'.buf fs'.oldEp = fs.buf fs.oldEp := by
+    subst fs'
+    cases collision <;> refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, ?_⟩
+    · rfl
+    · exact Function.update_of_ne (curEp_ne_oldEp hep).symm _ _
+  have hnot_old : tag ≠ 2 + fs.oldEp := by
+    cases collision
+    · exact (Nat.one_lt_two.trans_le (Nat.le_add_right 2 _)).ne
+    · exact fun heq => curEp_ne_oldEp hep (Nat.add_left_cancel heq)
+  have hloc_pres {b' loc : ℕ} (hl : loc < fs.bktCount b') :
+      fs'.locState b' loc = fs.locState b' loc := by
+    rw [hloc]
+    rcases eq_or_ne b' b with rfl | hne
+    · rw [Function.update_self, Function.update_of_ne hl.ne]
+    · rw [Function.update_of_ne hne]
+  have hcnt_le (bc : ℕ) : fs.bktCount bc ≤ fs'.bktCount bc := by
+    rw [hcnt]
+    rcases eq_or_ne bc b with rfl | hne
+    · rw [Function.update_self]
+      exact Nat.le_succ _
+    · rw [Function.update_of_ne hne]
+  dsimp only [ValidEpochStage] at h ⊢
+  rw [hbuf, hold, hst, hsc, hdc, hdb, hdi, hdf, hrq, hcs, hrc, hri]
+  split_ifs at h ⊢
+  · exact h
+  · exact h
+  · obtain ⟨hd1, hd2, hd3, hd4, hd5, hd6, hreb⟩ := h
+    refine ⟨hd1, hd2, hd3, hd4, hd5, ?_, fun hs => ?_⟩
+    · intro b' hb' loc hlt hst'
+      rw [hcnt] at hlt
+      rcases eq_or_ne b' b with rfl | hne
+      · rw [Function.update_self] at hlt
+        rcases Nat.lt_succ_iff_lt_or_eq.mp hlt with hlt | rfl
+        · exact hd6 _ hb' loc hlt ((hloc_pres hlt).symm ▸ hst')
+        · rw [hloc, Function.update_self, Function.update_self] at hst'
+          exact (hnot_old hst').elim
+      · rw [Function.update_of_ne hne] at hlt
+        exact hd6 b' hb' loc hlt ((hloc_pres hlt).symm ▸ hst')
+    · obtain ⟨hcur, hinj, rm, hvalid, hrel⟩ := hreb hs
+      let bc := fs.dirtyBuckets fs.dirtyIdx
+      have hbc := hd3 _ hd2
+      have hmin : min (fs'.bktCount bc) fs.rebScanCursor =
+          min (fs.bktCount bc) fs.rebScanCursor := by
+        rcases hcur with ⟨hc0, _⟩ | ⟨_, hc, _⟩
+        · simp [hc0]
+        · rw [Nat.min_eq_right (hc.le.trans (hcnt_le bc)), Nat.min_eq_right hc.le]
+      rw [hmin, hsl _ hbc]
+      have hfp_pres {l : ℕ} (hl : l < min (fs.bktCount bc) fs.rebScanCursor) :=
+        hfp fs.rebCandSalt bc hbc l (hl.trans_le (Nat.min_le_left _ _))
+      have hls_pres {l : ℕ} (hl : l < min (fs.bktCount bc) fs.rebScanCursor) :=
+        hloc_pres (hl.trans_le (Nat.min_le_left _ _))
+      refine ⟨?_, ?_, rm, hvalid, hrel.congr (fun _ hl => hfp_pres hl)
+        (fun _ hl => by rw [hls_pres hl])⟩
+      · rcases hcur with ⟨hc0, hi0⟩ | ⟨h16, hc, hi⟩
+        · exact Or.inl ⟨hc0, hi0⟩
+        · exact Or.inr ⟨h16, hc.trans_le (hcnt_le bc), hi⟩
+      · intro l₁ hl₁ l₂ hl₂ hp₁ hp₂ heq
+        rw [hls_pres hl₁] at hp₁
+        rw [hls_pres hl₂] at hp₂
+        rw [hfp_pres hl₁, hfp_pres hl₂] at heq
+        exact hinj _ hl₁ _ hl₂ hp₁ hp₂ heq
+  · exact h
 
 end Cslib.DataStructure.Dictionary.SuccinctWhp
 

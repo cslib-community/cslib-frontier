@@ -186,10 +186,8 @@ theorem ExecSteps.bounded {B : Basis} {r_ds k_init : ℕ}
   | nil _ => exact hbdd
   | cons hstep _ ih =>
     refine ih fun q_seq hq_seq => ?_
-    rw [PMF.mem_support_bind_iff] at hq_seq
-    obtain ⟨t, ht, hq_map⟩ := hq_seq
-    rw [PMF.mem_support_map_iff] at hq_map
-    obtain ⟨q, hq, rfl⟩ := hq_map
+    obtain ⟨t, ht, hq_map⟩ := (PMF.mem_support_bind_iff ..).mp hq_seq
+    obtain ⟨q, hq, rfl⟩ := (PMF.mem_support_map_iff ..).mp hq_map
     exact ((hstep t ht).2.2.2.2 q hq).1
 
 /-- Every operation `o ∈ ops` in an `ExecSteps` derivation has word-bounded encoded arguments on
@@ -411,12 +409,8 @@ theorem initFresh_exec (C : ObliviousSequenceImpl.{u, v, z} P S w base params)
         t.data.regs P.frontierReg = base + C.space ∧
         Modifies (Block.mk base C.space).footprint x.mem t.data.mem := by
   obtain ⟨x₁, he_span, hmem₁, hb₁, hfr₁, hpar₁⟩ := C.span_exec hx hfr hpar
-  have hx₁ : x₁.Bounded w := he_span.bounded hx
-  have hz₁ : ∀ a ∈ (Block.mk base C.space).footprint, x₁.mem a = 0 := by
-    intro a ha
-    rw [hmem₁]
-    exact hz a ha
-  obtain ⟨ν₀, he_setup, hinv, hsupp⟩ := C.setup_exec hx₁ hb₁ hfr₁ hpar₁ hz₁
+  obtain ⟨ν₀, he_setup, hinv, hsupp⟩ :=
+    C.setup_exec (he_span.bounded hx) hb₁ hfr₁ hpar₁ (by rw [hmem₁]; exact hz)
   rw [hmem₁] at hsupp
   exact ⟨ν₀, (ExecCodeDist.of_execWithin he_span).seq_pure he_setup, hinv, hsupp⟩
 
@@ -432,21 +426,22 @@ theorem initClear_exec (C : ObliviousSequenceImpl.{u, v, z} P S w base params)
         t.data.regs P.frontierReg = base + C.space ∧
         Modifies (Block.mk base C.space).footprint x.mem t.data.mem := by
   obtain ⟨x₁, he_span, hmem₁, hb₁, hfr₁, hpar₁⟩ := C.span_exec hx hfr hpar
-  have hx₁ : x₁.Bounded w := he_span.bounded hx
-  obtain ⟨x₂, he_zero, hx₂, hb₂, hfr₂, hpar₂, hz₂, hmod₂⟩ :=
-    P.zeroFillCode_exec C.clear_nodup C.params_not_clear C.incCur_eval hx₁ hb₁ hfr₁ hpar₁
+  obtain ⟨x₂, he_zero, hx₂, hb₂, hfr₂, hpar₂, hz₂, hmod₂⟩ := P.zeroFillCode_exec C.clear_nodup
+    C.params_not_clear C.incCur_eval (he_span.bounded hx) hb₁ hfr₁ hpar₁
   obtain ⟨ν₀, he_setup, hinv, hsupp⟩ := C.setup_exec hx₂ hb₂ hfr₂ hpar₂ hz₂
   rw [hmem₁] at hmod₂
-  have he_clear : ExecCodeDist w P.initClear x (ν₀.map LatentState.data) C.initClearTime := by
-    unfold SubroutineCode.initClear initClearTime
+  refine ⟨ν₀, ?_, hinv, fun t ht => ?_⟩
+  · unfold SubroutineCode.initClear initClearTime
     rw [add_assoc]
     exact (ExecCodeDist.of_execWithin he_span).seq_pure
       ((ExecCodeDist.of_execWithin he_zero).seq_pure he_setup)
-  refine ⟨ν₀, he_clear, hinv, fun t ht => ?_⟩
-  obtain ⟨hbdd_t, hfr_t, hmod_t⟩ := hsupp t ht
-  have hmod : Modifies (Block.mk base C.space).footprint x.mem t.data.mem := by
-    simpa only [Finset.union_self] using hmod₂.trans hmod_t
-  exact ⟨hbdd_t, hfr_t, hmod⟩
+  · obtain ⟨hbdd_t, hfr_t, hmod_t⟩ := hsupp t ht
+    exact ⟨hbdd_t, hfr_t, by simpa only [Finset.union_idempotent] using hmod₂.trans hmod_t⟩
+
+private theorem bounded_map_ofLatentState (C : ObliviousSequenceImpl.{u, v, z} P S w base params)
+    {ν₀ : PMF (LatentState C.Latent r_ds)} (hinv : C.initInv ν₀) :
+    ∀ t ∈ (ν₀.map (SeqOutcome.ofLatentState (Result := S.Result))).support, t.data.Bounded w :=
+  fun _ ht => let ⟨u, hu, hut⟩ := (PMF.mem_support_map_iff ..).mp ht; hut ▸ C.bounded hinv u hu
 
 /-- **End-to-end expected-time and distributional correctness theorem from fresh initialization
 (`seq_expected`).**
@@ -471,15 +466,8 @@ theorem seq_expected (C : ObliviousSequenceImpl.{u, v, z} P S w base params)
         C.initTime + (C.initPotential : ℝ≥0∞) + (C.totalCharge ops : ℝ≥0∞) := by
   obtain ⟨ν₀, he_init, hinv, _⟩ := C.initFresh_exec hx hfr hpar hz
   obtain ⟨ν_final, T_ops, hex, hcontract, hcost⟩ := C.steps_exec ops ν₀ hv hinv
-  have hbdd₀ : ∀ t ∈ (ν₀.map (SeqOutcome.ofLatentState (Result := S.Result))).support,
-      t.data.Bounded w := by
-    intro t ht
-    rw [PMF.mem_support_map_iff] at ht
-    obtain ⟨u, hu, rfl⟩ := ht
-    exact C.bounded hinv u hu
-  refine ⟨ν₀, ν_final, T_ops, he_init, hex, hex.bounded hbdd₀, hcontract, ?_⟩
-  rw [add_assoc]
-  exact add_le_add le_rfl hcost
+  exact ⟨ν₀, ν_final, T_ops, he_init, hex, hex.bounded (C.bounded_map_ofLatentState hinv),
+    hcontract, (add_le_add le_rfl hcost).trans_eq (add_assoc _ _ _).symm⟩
 
 /-- **End-to-end expected-time and distributional correctness theorem from dirty memory
 (`seq_expected_clear`).** -/
@@ -498,15 +486,8 @@ theorem seq_expected_clear (C : ObliviousSequenceImpl.{u, v, z} P S w base param
         C.initClearTime + (C.initPotential : ℝ≥0∞) + (C.totalCharge ops : ℝ≥0∞) := by
   obtain ⟨ν₀, he_init, hinv, _⟩ := C.initClear_exec hx hfr hpar
   obtain ⟨ν_final, T_ops, hex, hcontract, hcost⟩ := C.steps_exec ops ν₀ hv hinv
-  have hbdd₀ : ∀ t ∈ (ν₀.map (SeqOutcome.ofLatentState (Result := S.Result))).support,
-      t.data.Bounded w := by
-    intro t ht
-    rw [PMF.mem_support_map_iff] at ht
-    obtain ⟨u, hu, rfl⟩ := ht
-    exact C.bounded hinv u hu
-  refine ⟨ν₀, ν_final, T_ops, he_init, hex, hex.bounded hbdd₀, hcontract, ?_⟩
-  rw [add_assoc]
-  exact add_le_add le_rfl hcost
+  exact ⟨ν₀, ν_final, T_ops, he_init, hex, hex.bounded (C.bounded_map_ofLatentState hinv),
+    hcontract, (add_le_add le_rfl hcost).trans_eq (add_assoc _ _ _).symm⟩
 
 end ObliviousSequenceImpl
 
@@ -568,11 +549,9 @@ private theorem steps_toObliviousSequenceImpl (C : StateTransitionImpl P D w bas
       C_ops ≤ (((remOps.map opCharge).sum : ℕ) : ℝ≥0∞) := by
   induction hex generalizing prefOps ν with
   | nil _ =>
-    refine ⟨ν, DataStructure.WordRAM.Randomized.ExecSteps.nil
-      (S := D.toObliviousSequenceSpec s₀) ν, fun t ht => ?_, zero_le⟩
+    refine ⟨ν, .nil (S := D.toObliviousSequenceSpec s₀) ν, fun t ht => ?_, zero_le⟩
     obtain ⟨hops, hlbl, htr, _, _⟩ := hsupp t ht
-    rw [List.append_nil]
-    exact ⟨hops, hlbl, htr⟩
+    exact ⟨hops.trans (List.append_nil _).symm, hlbl, htr⟩
   | @cons o os ν_rel ν_final_rel μ_rel T_rel T_rest C_rest hstep _ ih =>
     subst hproj
     have hmem : ∀ t ∈ ν.support, C.projCoupled t ∈ (ν.map C.projCoupled).support :=
@@ -580,8 +559,7 @@ private theorem steps_toObliviousSequenceImpl (C : StateTransitionImpl P D w bas
     have h_a_nonempty : Nonempty (D.Result o) := by
       obtain ⟨t₀, ht₀⟩ := ν.support_nonempty
       obtain ⟨q₀, hq₀⟩ := (μ_rel (C.projCoupled t₀)).support_nonempty
-      obtain ⟨a₀, _⟩ := (hstep _ (hmem t₀ ht₀)).2 q₀ hq₀
-      exact ⟨a₀⟩
+      exact ((hstep _ (hmem t₀ ht₀)).2 q₀ hq₀).elim fun a _ => ⟨a⟩
     let outOf : CoupledState C.Seed D.State r_ds → D.Result o :=
       fun q => (C.decode o q.data.regs).getD (Classical.choice h_a_nonempty)
     let liftStep (t : SeqOutcome (TraceLatent D C.Seed) D.Result r_ds)
@@ -606,19 +584,14 @@ private theorem steps_toObliviousSequenceImpl (C : StateTransitionImpl P D w bas
         D.ValidOpSeq u.latent.state os ∧
         C.rep u.latent.seed u.latent.state u.data := by
       intro u hu
-      rw [PMF.mem_support_bind_iff] at hu
-      obtain ⟨t, ht, hu⟩ := hu
-      rw [PMF.mem_support_map_iff] at hu
-      obtain ⟨u', hu', rfl⟩ := hu
-      dsimp only [μ_step] at hu'
-      rw [PMF.mem_support_map_iff] at hu'
-      obtain ⟨q, hq, rfl⟩ := hu'
+      obtain ⟨t, ht, hu⟩ := (PMF.mem_support_bind_iff ..).mp hu
+      obtain ⟨_, hu', rfl⟩ := (PMF.mem_support_map_iff ..).mp hu
+      obtain ⟨q, hq, rfl⟩ := (PMF.mem_support_map_iff ..).mp hu'
       obtain ⟨hops_t, hlbl_t, htr_t, hv_t, _⟩ := hsupp t ht
       obtain ⟨a, hstep_a, hdec_a, hrep_q, _⟩ := (hstep _ (hmem t ht)).2 q hq
       have hout_eq : outOf q = a := by simp [outOf, hdec_a]
-      refine ⟨?_, ?_, ?_, hv_t.2 q.state a hstep_a, hrep_q⟩
-      · simp [SeqOutcome.appendStep, liftStep, hops_t]
-      · simp [SeqOutcome.appendStep, liftStep, hlbl_t]
+      refine ⟨by simp [SeqOutcome.appendStep, liftStep, hops_t],
+        by simp [SeqOutcome.appendStep, liftStep, hlbl_t], ?_, hv_t.2 q.state a hstep_a, hrep_q⟩
       · refine htr_t.append ?_
         rw [hout_eq]
         exact .cons ⟨o, a, q.state⟩ hv_t.1 hstep_a (.nil q.state)
@@ -632,14 +605,9 @@ private theorem steps_toObliviousSequenceImpl (C : StateTransitionImpl P D w bas
       have hfit_t : ∀ i, P.input i = true → Fits w (C.encode o i) := C.arguments_fit o hv_t.1
       obtain ⟨he_rel, hq_rel⟩ := hstep _ (hmem t ht)
       refine ⟨hbdd_t, hfit_t, C.prepare_bounded hbdd_t hfit_t, ?_, ?_⟩
-      · refine he_rel.congr_dist ?_ le_rfl
-        dsimp only [μ_step]
-        rw [PMF.map_comp]
-        rfl
+      · exact he_rel.congr_dist (by dsimp only [μ_step]; rw [PMF.map_comp]; rfl) le_rfl
       · intro u hu
-        dsimp only [μ_step] at hu
-        rw [PMF.mem_support_map_iff] at hu
-        obtain ⟨q, hq, rfl⟩ := hu
+        obtain ⟨q, hq, rfl⟩ := (PMF.mem_support_map_iff ..).mp hu
         obtain ⟨a, _, hdec_a, hrep_q, hmod_q⟩ := hq_rel q hq
         have hout_eq : outOf q = a := by simp [outOf, hdec_a]
         exact ⟨C.bounded hrep_q, by simp [liftStep, hout_eq, hdec_a], hmod_q⟩
@@ -690,27 +658,20 @@ operation charge bound `opCharge : D.Op → ℕ` such that
     let liftInit : C.Seed × Data r_ds → LatentState (TraceLatent D C.Seed) r_ds :=
       fun p => ⟨⟨p.1, s₀, []⟩, p.2⟩
     refine ⟨ν₀.map liftInit, ?_, ⟨?_, ?_, ?_⟩, ?_⟩
-    · refine he.congr_dist ?_ le_rfl
-      rw [PMF.map_comp]
-      rfl
+    · exact he.congr_dist (by rw [PMF.map_comp]; rfl) le_rfl
     · intro θ
       rw [PMF.map_comp, PMF.map_comp]
       exact hseed θ
-    · intro _
-      refine ⟨s₀, fun t ht => ?_⟩
-      rw [PMF.mem_support_map_iff] at ht
-      obtain ⟨u, hu, rfl⟩ := ht
-      rw [PMF.mem_support_map_iff] at hu
-      obtain ⟨p, _, rfl⟩ := hu
+    · refine fun _ => ⟨s₀, fun t ht => ?_⟩
+      obtain ⟨u, hu, rfl⟩ := (PMF.mem_support_map_iff ..).mp ht
+      obtain ⟨p, _, rfl⟩ := (PMF.mem_support_map_iff ..).mp hu
       rfl
     · intro t ht
-      rw [PMF.mem_support_map_iff] at ht
-      obtain ⟨p, hp, rfl⟩ := ht
+      obtain ⟨p, hp, rfl⟩ := (PMF.mem_support_map_iff ..).mp ht
       obtain ⟨_, hrep, hpot, _⟩ := hsupp p hp
       exact ⟨rfl, rfl, hrep, hpot⟩
     · intro t ht
-      rw [PMF.mem_support_map_iff] at ht
-      obtain ⟨p, hp, rfl⟩ := ht
+      obtain ⟨p, hp, rfl⟩ := (PMF.mem_support_map_iff ..).mp ht
       obtain ⟨hfr', hrep, _, hmod⟩ := hsupp p hp
       exact ⟨C.bounded hrep, hfr', hmod⟩
   steps_exec ops ν₀ hv hinv := by
@@ -730,8 +691,7 @@ operation charge bound `opCharge : D.Op → ℕ` such that
         D.ValidOpSeq t.latent.state ops ∧
         C.rep t.latent.seed t.latent.state t.data := by
       intro t ht
-      rw [PMF.mem_support_map_iff] at ht
-      obtain ⟨u, hu, rfl⟩ := ht
+      obtain ⟨u, hu, rfl⟩ := (PMF.mem_support_map_iff ..).mp ht
       obtain ⟨hs_u, htr_u, hrep_u, _⟩ := hsupp₀ u hu
       dsimp only [SeqOutcome.ofLatentState]
       rw [hs_u, htr_u]
@@ -741,7 +701,7 @@ operation charge bound `opCharge : D.Op → ℕ` such that
       intro t ht
       rw [← hproj_eq, PMF.mem_support_map_iff] at ht
       obtain ⟨u, hu, rfl⟩ := ht
-      exact ⟨(hsupp_seq u hu).2.2.2.1, (hsupp_seq u hu).2.2.2.2⟩
+      exact (hsupp_seq u hu).2.2.2
     obtain ⟨_, T_ops, C_ops, hex_rel, _, _, hamort⟩ :=
       C.steps_expected_amortized ops ν_rel (fun t ht => (hsupp_rel t ht).1) hseed₀
         (fun t ht => (hsupp_rel t ht).2) hsingle₀
@@ -754,11 +714,9 @@ operation charge bound `opCharge : D.Op → ℕ` such that
         Nat.cast_le.mpr (hsupp₀ u hu).2.2.2
     refine ⟨ν_final, T_ops, hex, ?_, ?_⟩
     · intro out hout
-      rw [PMF.mem_support_map_iff] at hout
-      obtain ⟨q, hq, rfl⟩ := hout
+      obtain ⟨q, hq, rfl⟩ := (PMF.mem_support_map_iff ..).mp hout
       obtain ⟨hops_q, hlbl_q, htr_q⟩ := htr_final q hq
-      rw [List.nil_append] at hops_q
-      exact ⟨q.latent.trace, q.latent.state, hops_q, hlbl_q, htr_q⟩
+      exact ⟨q.latent.trace, q.latent.state, hops_q.trans (List.nil_append _), hlbl_q, htr_q⟩
     · rw [add_comm]
       exact le_self_add.trans (hamort.trans (add_le_add hC_ops hpot₀))
 

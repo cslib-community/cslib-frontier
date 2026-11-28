@@ -184,16 +184,8 @@ private theorem evalWord_polyTime :
           p.2)).drop ((fnDecoder.decode p.1).1.2.1 + (fnDecoder.decode p.1).1.2.2.2 -
             (fnDecoder.decode p.1).1.2.2.1) |>.flatten := rfl
   rw [heq]
-  have hc : ComputableInPolyTime (fun p : List Bool × List Bool =>
-      (fnDecoder.decode p.1).1.2.1 + (fnDecoder.decode p.1).1.2.2.2 -
-        (fnDecoder.decode p.1).1.2.2.1) (encPair encBits encBits) encUnary := by
-    polytime
-  have hfin : ComputableInPolyTime (fun p : List (List Bool) × ℕ => (p.1.drop p.2).flatten)
-      (encPair (encList encBits) encUnary) encBits :=
-    (ComputableInPolyTime.bitsFlatten (ComputableInPolyTime.listDropWithInput
-      (ComputableInPolyTime.fst _ _)
-        (ComputableInPolyTime.snd _ _)))
-  exact hfin.comp (hfold.prod hc)
+  exact (ComputableInPolyTime.bitsFlatten (ComputableInPolyTime.listDropWithInput
+    (ComputableInPolyTime.fst _ _) (ComputableInPolyTime.snd _ _))).comp (hfold.prod (by polytime))
 
 /-! ### The body of a garbled function -/
 
@@ -354,34 +346,31 @@ private abbrev encGbInput : (ℕ × ValidCircuit × List Bool) ↪ List Bool :=
 
 private theorem data_polyTime :
     ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool =>
-      (x.2.1.val.n, x.2.1.val.m, x.2.1.val.gateList)) encGbInput encCircuitData :=
+      (x.2.1.1.n, x.2.1.1.m, x.2.1.1.gateList)) encGbInput encCircuitData :=
   circuitData_polyTime.comp (ComputableInPolyTime.snd _ _).fst'
 
 private theorem q_polyTime :
-    ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => x.2.1.val.gateList.length)
+    ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => x.2.1.1.gateList.length)
       encGbInput encUnary := by
-  have hg : ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => x.2.1.val.gateList)
+  have hg : ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => x.2.1.1.gateList)
       encGbInput (encList (encPair encNat (encPair encNat encBits))) := data_polyTime.snd'.snd'
   exact (ComputableInPolyTime.length_list _).comp hg
 
 private theorem q'_polyTime :
-    ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => x.2.1.val.q)
-      encGbInput encUnary :=
+    ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => x.2.1.1.q) encGbInput encUnary :=
   by simpa only [ConventionalCircuit.length_gateList] using q_polyTime
 
 private theorem n_polyTime :
-    ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => x.2.1.val.n)
-      encGbInput encUnary :=
+    ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => x.2.1.1.n) encGbInput encUnary :=
   data_polyTime.fst'
 
 private theorem m_polyTime :
-    ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => x.2.1.val.m)
-      encGbInput encUnary :=
+    ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => x.2.1.1.m) encGbInput encUnary :=
   data_polyTime.snd'.fst'
 
 include hf in
 private theorem fnWord_polyTime :
-    ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => fnWord family x.1 x.2.1.val x.2.2)
+    ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => fnWord family x.1 x.2.1.1 x.2.2)
       encGbInput encBits := by
   have hd := data_polyTime
   have hn := hd.fst'
@@ -399,15 +388,15 @@ private theorem fnWord_polyTime :
   have hgate := ComputableInPolyTime.listGetDWithInput
     (hg.comp (ComputableInPolyTime.fst encGbInput encUnary)) (ComputableInPolyTime.snd _ _)
     (0, 0, [])
-  have hbody := bodyWith_polyTime (n := fun x : ℕ × ValidCircuit × List Bool => x.2.1.val.n)
+  have hbody := bodyWith_polyTime (n := fun x : ℕ × ValidCircuit × List Bool => x.2.1.1.n)
     (cap := fun x => x.2.2.length + 1)
-    (A := fun x g => (x.2.1.val.gateList.getD g (0, 0, [])).1)
-    (B := fun x g => (x.2.1.val.gateList.getD g (0, 0, [])).2.1)
-    (row := fun x g a b i => rowCapped (family := family) x.1 x.2.1.val.n x.2.1.val.gateList.length
-      x.2.2 a b (x.2.1.val.gateList.getD g (0, 0, [])).2.2 g i)
+    (A := fun x g => (x.2.1.1.gateList.getD g (0, 0, [])).1)
+    (B := fun x g => (x.2.1.1.gateList.getD g (0, 0, [])).2.1)
+    (row := fun x g a b i => rowCapped (family := family) x.1 x.2.1.1.n x.2.1.1.gateList.length
+      x.2.2 a b (x.2.1.1.gateList.getD g (0, 0, [])).2.2 g i)
     hn q_polyTime (by polytime) hgate.fst' hgate.snd'.fst' hrow
   have hhead : ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool =>
-      (x.1, x.2.1.val.n, x.2.1.val.m, x.2.1.val.gateList.length)) encGbInput encHeader :=
+      (x.1, x.2.1.1.n, x.2.1.1.m, x.2.1.1.gateList.length)) encGbInput encHeader :=
     (ComputableInPolyTime.fst _ _).prod (hn.prod (hm.prod q_polyTime))
   have henc : ComputableInPolyTime (fun y : (ℕ × ℕ × ℕ × ℕ) × List Bool => encFn y) encFn
       encBits := .of_eq fun _ => rfl
@@ -429,18 +418,18 @@ private theorem encRange_polyTime : ComputableInPolyTime (fun p : ℕ × ℕ × 
 /-- **The decoding information** of a valid circuit on the garbler's coins, the permutation bits of
 its output wires, is computed in polynomial time. -/
 theorem decInfoWord_polyTime :
-    ComputableInPolyTime (fun (f, coins) => decInfoWord f.val coins)
+    ComputableInPolyTime (fun (f, coins) => decInfoWord f.1 coins)
       (encPair encValidCircuit encBits) encBits := by
   have hd : ComputableInPolyTime (fun p : ValidCircuit × List Bool =>
-      (p.1.val.n, p.1.val.m, p.1.val.gateList)) (encPair encValidCircuit encBits) encCircuitData :=
+      (p.1.1.n, p.1.1.m, p.1.1.gateList)) (encPair encValidCircuit encBits) encCircuitData :=
     circuitData_polyTime.comp (ComputableInPolyTime.fst _ _)
   have hrange : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ × List Bool =>
       (List.range p.2.2.1).map fun o => permOf p.2.2.2 (p.1 + p.2.1 - p.2.2.1 + o))
       (encPair encUnary (encPair encUnary (encPair encUnary encBits))) encBits := by
     polytime
-  have heq : (fun (f, coins) => decInfoWord f.val coins) = fun p : ValidCircuit × List Bool =>
-      (List.range p.1.val.m).map fun o =>
-        permOf p.2 (p.1.val.n + p.1.val.gateList.length - p.1.val.m + o) := by
+  have heq : (fun (f, coins) => decInfoWord f.1 coins) = fun p : ValidCircuit × List Bool =>
+      (List.range p.1.1.m).map fun o =>
+        permOf p.2 (p.1.1.n + p.1.1.gateList.length - p.1.1.m + o) := by
     funext ⟨f, coins⟩
     dsimp only
     rw [decInfoWord, ConventionalCircuit.length_gateList, List.map_range_eq_ofFn]
@@ -453,26 +442,18 @@ include hf in
 private theorem gb_polyTime :
     ComputableInPolyTime (fun (k, f, coins) => (scheme family).gb k f coins)
       (encPair encUnary (encPair encValidCircuit encBits)) Scheme.encGarbled := by
-  have hcoins := (ComputableInPolyTime.snd (encUnary) (encPair encValidCircuit encBits)).snd'
-  have hq' := q'_polyTime
-  have hn' := n_polyTime
-  have hm' := m_polyTime
-  have he₀ := encRange_polyTime
+  have hcoins := (ComputableInPolyTime.snd encUnary (encPair encValidCircuit encBits)).snd'
   have he : ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool =>
-      encInfoWord x.1 x.2.1.val x.2.2) encGbInput encBits := by
+      encInfoWord x.1 x.2.1.1 x.2.2) encGbInput encBits := by
     simp only [encInfoWord_eq, ConventionalCircuit.length_gateList]
-    exact he₀.comp ((ComputableInPolyTime.fst _ _).prod (hn'.prod (hq'.prod hcoins)))
+    exact encRange_polyTime.comp
+      ((ComputableInPolyTime.fst _ _).prod (n_polyTime.prod (q'_polyTime.prod hcoins)))
   have hdec : ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool =>
-      decInfoWord x.2.1.val x.2.2) encGbInput encBits :=
+      decInfoWord x.2.1.1 x.2.2) encGbInput encBits :=
     decInfoWord_polyTime.comp ((ComputableInPolyTime.snd _ _).fst'.prod hcoins)
-  have hcomp := Scheme.encGarbled_mk_polyTime (fnWord_polyTime hf) he hdec
-  have heq : (fun x : ℕ × ValidCircuit × List Bool => (⟨fnWord family x.1 x.2.1.val x.2.2,
-      encInfoWord x.1 x.2.1.val x.2.2, decInfoWord x.2.1.val x.2.2⟩ : Scheme.Garbled)) =
-      fun (k, f, coins) => (scheme family).gb k f coins := by
-    funext x
-    obtain ⟨k, f, coins⟩ := x
-    simp only [scheme]
-  exact heq ▸ hcomp
+  convert Scheme.encGarbled_mk_polyTime (fnWord_polyTime hf) he hdec using 1
+  funext ⟨k, f, coins⟩
+  rfl
 
 /-! ### Coins and semantics -/
 
@@ -481,22 +462,16 @@ private theorem coins_polyTime :
     ComputableInPolyTime (fun (k, f) => (scheme family).coins k f)
       (encPair encUnary encValidCircuit) encUnary := by
   have hd : ComputableInPolyTime (fun x : ℕ × ValidCircuit =>
-      (x.2.val.n, x.2.val.m, x.2.val.gateList)) (encPair encUnary encValidCircuit) encCircuitData :=
+      (x.2.1.n, x.2.1.m, x.2.1.gateList)) (encPair encUnary encValidCircuit) encCircuitData :=
     circuitData_polyTime.comp (ComputableInPolyTime.snd _ _)
   have hn := hd.fst'
-  have hg : ComputableInPolyTime (fun x : ℕ × ValidCircuit => x.2.val.gateList)
-      (encPair encUnary encValidCircuit) (encList (encPair encNat (encPair encNat encBits))) :=
-    hd.snd'.snd'
-  have hq : ComputableInPolyTime (fun x : ℕ × ValidCircuit => x.2.val.q)
+  have hq : ComputableInPolyTime (fun x : ℕ × ValidCircuit => x.2.1.q)
       (encPair encUnary encValidCircuit) encUnary := by
     simpa only [Function.comp_def, ConventionalCircuit.length_gateList] using
-      (ComputableInPolyTime.length_list _).comp hg
-  have hn' : ComputableInPolyTime (fun x : ℕ × ValidCircuit => x.2.val.n)
-      (encPair encUnary encValidCircuit) encUnary := hn
+      (ComputableInPolyTime.length_list _).comp hd.snd'.snd'
   have heq : (fun (k, f) => (scheme family).coins k f) = fun x : ℕ × ValidCircuit =>
-      (x.2.val.n + x.2.val.q) * (2 * (x.1 + 1) + 1) := by
-    funext x
-    obtain ⟨k, f⟩ := x
+      (x.2.1.n + x.2.1.q) * (2 * (x.1 + 1) + 1) := by
+    funext ⟨k, f⟩
     simp [scheme, Scheme.coins]
   rw [heq]
   polytime

@@ -48,9 +48,8 @@ namespace Cslib.Algorithms.WordRAM.OddCycleTransversal
 /-- Row-major `n * n`-word `0`/`1` adjacency matrix of `G : SimpleGraph (Fin n)`. -/
 @[expose] def encodeAdjMatrix {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] : List ℕ :=
   List.ofFn fun idx : Fin (n * n) =>
-    if G.Adj ⟨idx.val / n, Nat.div_lt_of_lt_mul idx.isLt⟩
-        ⟨idx.val % n,
-            Nat.mod_lt _ (Nat.pos_of_mul_pos_left (Nat.zero_lt_of_lt idx.isLt))⟩ then 1 else 0
+    if G.Adj ⟨idx.1 / n, Nat.div_lt_of_lt_mul idx.2⟩
+        ⟨idx.1 % n, Nat.mod_lt _ (Nat.pos_of_mul_pos_left (Nat.zero_lt_of_lt idx.2))⟩ then 1 else 0
 
 /-- Word-RAM input word list `n :: k :: encodeAdjMatrix G`. -/
 @[expose] def encodeInput {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (k : ℕ) :
@@ -70,25 +69,18 @@ theorem length_encodeInput {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.A
 
 theorem getElem_encodeAdjMatrix {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
     (u v : Fin n) :
-    (encodeAdjMatrix G)[u.val * n + v.val]'(by
-      rw [length_encodeAdjMatrix]; nlinarith [u.isLt, v.isLt]) =
+    (encodeAdjMatrix G)[u.1 * n + v.1]'(by
+      rw [length_encodeAdjMatrix]; nlinarith [u.2, v.2]) =
       if G.Adj u v then 1 else 0 := by
   simp only [encodeAdjMatrix, List.getElem_ofFn]
-  have hu : u.val * n + v.val = v.val + n * u.val := by ring
-  have hn_pos : 0 < n := Nat.zero_lt_of_lt u.isLt
-  have hdiv : (u.val * n + v.val) / n = u.val := by
-    rw [hu, Nat.add_mul_div_left _ _ hn_pos]
-    simp [Nat.div_eq_of_lt v.isLt]
-  have hmod : (u.val * n + v.val) % n = v.val := by
-    rw [hu, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt v.isLt]
-  have h1 : G.Adj ⟨(u.val * n + v.val) / n,
-      Nat.div_lt_of_lt_mul (by nlinarith [u.isLt, v.isLt] : u.val * n + v.val < n * n)⟩
-      ⟨(u.val * n + v.val) % n, Nat.mod_lt _ hn_pos⟩ ↔ G.Adj u v := by
-    refine Iff.of_eq ?_
-    congr 1
-    · exact Fin.ext hdiv
-    · exact Fin.ext hmod
-  simp only [h1]
+  have hu : u.1 * n + v.1 = v.1 + n * u.1 := by ring
+  have hn_pos : 0 < n := Nat.zero_lt_of_lt u.2
+  have hdiv : (u.1 * n + v.1) / n = u.1 := by
+    simp [hu, Nat.add_mul_div_left _ _ hn_pos, Nat.div_eq_of_lt v.2]
+  have hmod : (u.1 * n + v.1) % n = v.1 := by
+    rw [hu, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt v.2]
+  congr 1
+  exact propext (Iff.of_eq (congrArg₂ G.Adj (Fin.ext hdiv) (Fin.ext hmod)))
 
 /-- Number of vertices `n + n + 2` in the vertex-split network of an `n`-vertex graph. -/
 abbrev splitCount (n : ℕ) : ℕ := n + n + 2
@@ -147,11 +139,11 @@ theorem splitCount_sq (n : ℕ) :
 
 /-- In-vertex index `v + 2` inside the `(2n + 2)`-vertex split network. -/
 @[expose] def inIdx {n : ℕ} (v : Fin n) : Fin (splitCount n) :=
-  ⟨v.val + 2, by dsimp only [splitCount]; omega⟩
+  ⟨v.1 + 2, by dsimp only [splitCount]; omega⟩
 
 /-- Out-vertex index `v + n + 2` inside the `(2n + 2)`-vertex split network. -/
 @[expose] def outIdx {n : ℕ} (v : Fin n) : Fin (splitCount n) :=
-  ⟨v.val + n + 2, by dsimp only [splitCount]; omega⟩
+  ⟨v.1 + n + 2, by dsimp only [splitCount]; omega⟩
 
 /-- `inIdx` is injective. -/
 theorem inIdx_injective (n : ℕ) : Function.Injective (inIdx (n := n)) := by

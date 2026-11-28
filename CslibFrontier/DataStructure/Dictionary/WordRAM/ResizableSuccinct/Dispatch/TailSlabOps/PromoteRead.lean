@@ -15,6 +15,7 @@ import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctTailOps
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlabMove
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import CslibFrontier.DataStructure.StateTransition.ClientMap
 
 /-!
 # Slab Promotion Step Definitions and Read Specification (`compPromoteStepGenProg`)
@@ -40,8 +41,9 @@ open Cslib.DataStructure.HashFamily.WordRAM
 
 attribute [local simp] Realization.memoryCost_bind'
 attribute [local simp] prog_clientResult_bind prog_runClient_state_bind prog_clientResult_pure
-attribute [local simp] prog_runClient_state_pure prog_clientResult_map prog_runClient_state_map
-attribute [local simp] prog_memoryCost_map prog_clientResult_read prog_runClient_state_read
+attribute [local simp] prog_runClient_state_pure StateTransitionSpec.clientResult_map
+  StateTransitionSpec.fst_snd_runClient_map
+attribute [local simp] Realization.memoryCost_map prog_clientResult_read prog_runClient_state_read
 attribute [local simp] prog_memoryCost_read prog_clientResult_write prog_runClient_state_write
 attribute [local simp] prog_memoryCost_write
 
@@ -238,13 +240,11 @@ private theorem compPromoteStep_read_spec {metaBase itemBase U V w N m_cap b k :
   have hu_lt_r : (slabSize N - 1) - k < compGmAt metaBase U w N s.mem (gmRIdx b) := by omega
   have hr_top_lt_r : slabSize N + ((slabSize N - 1) - k) <
       compGmAt metaBase U w N s.mem (gmRIdx b) := by omega
-  have hu_cap : (slabSize N - 1) - k < tailCapPerBucket N := by omega
-  have hr_top_cap : slabSize N + ((slabSize N - 1) - k) < tailCapPerBucket N := by omega
   have hptr_u_lt : gmTailPtrBase N + (b * tailCapPerBucket N + ((slabSize N - 1) - k)) <
-      globalMetaLen N := gmTailPtrIdx_lt hb_pos hb hu_cap
+      globalMetaLen N := gmTailPtrIdx_lt hb_pos hb (by omega)
   have hptr_top_lt : gmTailPtrBase N +
       (b * tailCapPerBucket N + (slabSize N + ((slabSize N - 1) - k))) <
-      globalMetaLen N := gmTailPtrIdx_lt hb_pos hb hr_top_cap
+      globalMetaLen N := gmTailPtrIdx_lt hb_pos hb (by omega)
   have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
   have h1_lt : 1 < globalMetaLen N := by unfold globalMetaLen; omega
   have htu_lt := htail.ptr_lt b hb _ hu_lt_r
@@ -253,17 +253,10 @@ private theorem compPromoteStep_read_spec {metaBase itemBase U V w N m_cap b k :
   have htu_max := lt_of_lt_of_le htu_lt htail.ntails_le
   have httop_max := lt_of_lt_of_le httop_lt htail.ntails_le
   have hn'_max := lt_of_lt_of_le hn'_lt htail.ntails_le
-  have hst1 : (Memory.spec 0).clientState s
-      (compPromoteReadGMProg (((mkCompParams U V w N, metaBase), b), k)) = s := by
-    unfold StateTransitionSpec.clientState
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+  · unfold StateTransitionSpec.clientState
     simp [compPromoteReadGMProg, compPromoteReadPtrsProg, compPromoteReadCountsProg]
-  have hres1 : (Memory.spec 0).clientResult s
-      (compPromoteReadGMProg (((mkCompParams U V w N, metaBase), b), k)) =
-      ((compGmAt metaBase U w N s.mem 0 * slabSize N + k, compGmAt metaBase U w N s.mem 1 - 1),
-       (compGmAt metaBase U w N s.mem (gmTailPtrIdx N b ((slabSize N - 1) - k)),
-        compGmAt metaBase U w N s.mem
-          (gmTailPtrIdx N b (slabSize N + ((slabSize N - 1) - k))))) := by
-    dsimp only [compPromoteReadGMProg, compPromoteReadPtrsProg, compPromoteReadCountsProg]
+  · dsimp only [compPromoteReadGMProg, compPromoteReadPtrsProg, compPromoteReadCountsProg]
     simp only [bind_assoc, pure_bind, cpSlabSizeSubOne_mk, cpSlabSize_mk, cpGmTailPtrBase_mk,
       cpTailCap_mk]
     rw [StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg hptr_u_lt,
@@ -273,30 +266,9 @@ private theorem compPromoteStep_read_spec {metaBase itemBase U V w N m_cap b k :
       clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind,
       clientResult_readCompGMGenProg h1_lt, clientState_readCompGMGenProg]
     rfl
-  have hst2 : (Memory.spec 0).clientState s
-      (compPromoteReadDenseProg ((mkCompParams U V w N, metaBase),
-        ((compGmAt metaBase U w N s.mem 0 * slabSize N + k, compGmAt metaBase U w N s.mem 1 - 1),
-         (compGmAt metaBase U w N s.mem (gmTailPtrIdx N b ((slabSize N - 1) - k)),
-          compGmAt metaBase U w N s.mem
-            (gmTailPtrIdx N b (slabSize N + ((slabSize N - 1) - k))))))) = s := by
-    unfold StateTransitionSpec.clientState
+  · unfold StateTransitionSpec.clientState
     simp [compPromoteReadDenseProg, compPromoteReadTDProg, compPromoteCalcDenseProg]
-  have hres2 : (Memory.spec 0).clientResult s
-      (compPromoteReadDenseProg ((mkCompParams U V w N, metaBase),
-        ((compGmAt metaBase U w N s.mem 0 * slabSize N + k, compGmAt metaBase U w N s.mem 1 - 1),
-         (compGmAt metaBase U w N s.mem (gmTailPtrIdx N b ((slabSize N - 1) - k)),
-          compGmAt metaBase U w N s.mem
-            (gmTailPtrIdx N b (slabSize N + ((slabSize N - 1) - k))))))) =
-      (denseOfCirc (maxTailItems N) (compGmAt metaBase U w N s.mem 0 * slabSize N + k)
-         (compTDAt metaBase U w N s.mem
-           (compGmAt metaBase U w N s.mem (gmTailPtrIdx N b ((slabSize N - 1) - k)))),
-       (denseOfCirc (maxTailItems N) (compGmAt metaBase U w N s.mem 0 * slabSize N + k)
-          (compTDAt metaBase U w N s.mem
-            (compGmAt metaBase U w N s.mem
-              (gmTailPtrIdx N b (slabSize N + ((slabSize N - 1) - k))))),
-        denseOfCirc (maxTailItems N) (compGmAt metaBase U w N s.mem 0 * slabSize N + k)
-          (compTDAt metaBase U w N s.mem (compGmAt metaBase U w N s.mem 1 - 1)))) := by
-    dsimp only [compPromoteReadDenseProg, compPromoteReadTDProg, compPromoteCalcDenseProg]
+  · dsimp only [compPromoteReadDenseProg, compPromoteReadTDProg, compPromoteCalcDenseProg]
     simp only [bind_assoc, pure_bind]
     rw [StateTransitionSpec.clientResult_bind, clientResult_readCompTDGenProg htu_max,
       clientState_readCompTDGenProg, StateTransitionSpec.clientResult_bind,
@@ -310,9 +282,7 @@ private theorem compPromoteStep_read_spec {metaBase itemBase U V w N m_cap b k :
       clientResult_denseOfCircGenProg (fun _ => hcpl.win_inv.td_lt _ hn'_lt),
       clientState_denseOfCircGenProg]
     rfl
-  have hv1 : ValidProg w 0 s
-      (compPromoteReadGMProg (((mkCompParams U V w N, metaBase), b), k)) := by
-    dsimp only [compPromoteReadGMProg, compPromoteReadPtrsProg, compPromoteReadCountsProg]
+  · dsimp only [compPromoteReadGMProg, compPromoteReadPtrsProg, compPromoteReadCountsProg]
     simp only [bind_assoc, pure_bind, cpSlabSizeSubOne_mk, cpSlabSize_mk, cpGmTailPtrBase_mk,
       cpTailCap_mk]
     refine validProg_bind (validProg_readCompGMGen ⟨henv.compMetaEnv, hptr_u_lt⟩) ?_
@@ -322,10 +292,7 @@ private theorem compPromoteStep_read_spec {metaBase itemBase U V w N m_cap b k :
     refine validProg_bind (validProg_readCompGMGen ⟨henv.compMetaEnv, h0_lt⟩) ?_
     rw [clientState_readCompGMGenProg]
     exact validProg_bind (validProg_readCompGMGen ⟨henv.compMetaEnv, h1_lt⟩) (validProg_pure _)
-  have hv2 : ValidProg w 0 s
-      (compPromoteReadDenseProg ((mkCompParams U V w N, metaBase),
-        ((b_win, n'), (t_u, t_top)))) := by
-    dsimp only [compPromoteReadDenseProg, compPromoteReadTDProg, compPromoteCalcDenseProg]
+  · dsimp only [compPromoteReadDenseProg, compPromoteReadTDProg, compPromoteCalcDenseProg]
     simp only [bind_assoc, pure_bind]
     refine validProg_bind (validProg_readCompTDGen ⟨henv.compMetaEnv, htu_max⟩) ?_
     rw [clientState_readCompTDGenProg]
@@ -338,6 +305,5 @@ private theorem compPromoteStep_read_spec {metaBase itemBase U V w N m_cap b k :
     refine validProg_bind (validProg_denseOfCircGen _ _) ?_
     rw [clientState_denseOfCircGenProg]
     exact validProg_bind (validProg_denseOfCircGen _ _) (validProg_pure _)
-  exact ⟨hst1, hres1, hst2, hres2, hv1, hv2⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

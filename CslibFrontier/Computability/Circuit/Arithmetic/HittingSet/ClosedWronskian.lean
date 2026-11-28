@@ -185,9 +185,8 @@ theorem exists_wronskian_eq_C [Module.Finite F V] {r : ℕ} (g : Module.Basis (F
       refine sum_congr rfl fun k _ => ?_
       rw [smul_eq_mul, map_smul, hiter, Algebra.smul_def]
       rfl
-    have hdet := Derivation.map_det (MvPolynomial.pderiv i :
-      Derivation F[X] (MvPolynomial (Fin n) F[X]) (MvPolynomial (Fin n) F[X])) M
-    rw [hdet]
+    rw [Derivation.map_det (MvPolynomial.pderiv i :
+      Derivation F[X] (MvPolynomial (Fin n) F[X]) (MvPolynomial (Fin n) F[X])) M]
     have hcol (j : Fin r) : (M.updateCol j fun m => MvPolynomial.pderiv i (M m j)).det =
         algebraMap F (MvPolynomial (Fin n) F[X]) (T j j) * M.det := by
       have h := det_updateCol_sum M j fun k => algebraMap F (MvPolynomial (Fin n) F[X]) (T k j)
@@ -195,10 +194,8 @@ theorem exists_wronskian_eq_C [Module.Finite F V] {r : ℕ} (g : Module.Basis (F
       rw [← h]
       exact congrArg det (congrArg (M.updateCol j) (funext fun m => hlin m j))
     rw [sum_congr rfl fun j _ => hcol j, ← sum_mul, ← map_sum]
-    have htr : ∑ j, T j j = 0 := by
-      have h := LinearMap.trace_eq_matrix_trace F g (pderivRestrict hV i)
-      rw [trace_pderivRestrict hV i] at h
-      exact h.symm
+    have htr : ∑ j, T j j = 0 := (LinearMap.trace_eq_matrix_trace F g _).symm.trans
+      (trace_pderivRestrict hV i)
     rw [htr, map_zero, zero_mul]
   refine ⟨MvPolynomial.constantCoeff M.det, ?_, MvPolynomial.eq_C_of_pderiv_eq_zero hpd⟩
   -- the constant coefficient is a determinant over `F[X]`

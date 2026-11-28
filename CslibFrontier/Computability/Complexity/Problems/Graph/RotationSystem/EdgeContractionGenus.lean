@@ -95,10 +95,8 @@ theorem exists_faceEven_extension_contractLastEdge {G : Graph} {u v : ℕ}
     change y (e.symm z).1 = (P (A z) ^^ P (A (f z)))
     rw [hrestore]
     rcases z with _ | (_ | a)
-    · rw [show A none = some none from swap_apply_right _ _, hinner, hyOuter]
-      exact (Bool.xor_self _).symm
-    · rw [show A (some none) = none from swap_apply_left _ _, houter, hyInner]
-      exact (Bool.xor_self _).symm
+    · rw [show A none = some none from swap_apply_right _ _, hinner, hyOuter, Bool.xor_self]
+    · rw [show A (some none) = none from swap_apply_left _ _, houter, hyInner, Bool.xor_self]
     · rw [show A (some (some a)) = some (some a) from
         swap_apply_of_ne_of_ne (by simp) (by simp), hnext, hold, hyOld]
       exact hp a
@@ -130,13 +128,8 @@ theorem numericalGenusZero_contractLastEdge {G : Graph} {u v : ℕ}
     hspin, hy0] at hzero
   change false = (spin u ^^ spin v) at hzero
   have huvSpin : spin u = spin v := by
-    cases hu : spin u <;> cases hv : spin v
-    · rfl
-    · rw [hu, hv] at hzero
-      contradiction
-    · rw [hu, hv] at hzero
-      contradiction
-    · rfl
+    revert hzero
+    cases spin u <;> cases spin v <;> decide
   have hmap (w : ℕ) : spin (Function.update id u v w) = spin w := by
     by_cases hw : w = u
     · subst w

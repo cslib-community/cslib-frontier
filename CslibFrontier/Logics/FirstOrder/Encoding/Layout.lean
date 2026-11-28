@@ -98,11 +98,9 @@ theorem tableStart_mono (a : EncodedStructure) {i j : ℕ} (h : i ≤ j) :
   | base => exact le_rfl
   | succ j _ ih =>
     rcases lt_or_ge j a.2.length with hj | hj
-    · rw [tableStart_succ hj]
-      omega
-    · simp only [tableStart, List.take_of_length_le hj,
-        List.take_of_length_le (show a.2.length ≤ j + 1 by omega)] at ih ⊢
-      exact ih
+    · rw [tableStart_succ hj]; omega
+    · simpa only [tableStart, List.take_of_length_le hj,
+        List.take_of_length_le (Nat.le_succ_of_le hj)] using ih
 
 /-- Every table start position is at most `(encStructure a).length`. -/
 theorem tableStart_le_length (a : EncodedStructure) (i : ℕ) :
@@ -161,17 +159,13 @@ theorem getElem?_encStructure_tableStart_two_mul_length {a : EncodedStructure} {
 
 /-- Nothing follows the last table. -/
 theorem getElem?_encStructure_tableStart_length_add (a : EncodedStructure) (q : ℕ) :
-    (encStructure a)[tableStart a a.2.length + q]? = none := by
-  rw [List.getElem?_eq_none]
-  rw [length_encStructure]
-  omega
+    (encStructure a)[tableStart a a.2.length + q]? = none :=
+  List.getElem?_eq_none (by rw [length_encStructure]; omega)
 
 /-- There is a bit at the start of every table. -/
 theorem getElem?_encStructure_tableStart_isSome {a : EncodedStructure} {i : ℕ}
     (hi : i < a.2.length) : ((encStructure a)[tableStart a i]?).isSome := by
-  have h := getElem?_encStructure_tableStart_add a i 0
-  rw [Nat.add_zero] at h
-  rw [h, flatMap_frame_drop hi, List.getElem?_append_left (by simp [length_frame])]
+  rw [← Nat.add_zero (tableStart a i), getElem?_encStructure_tableStart_add, flatMap_frame_drop hi]
   simp [length_frame]
 
 /-! ### Prefixes through the first tables -/
@@ -192,16 +186,9 @@ theorem encStructurePrefix_zero (a : EncodedStructure) :
   simp [encStructurePrefix]
 
 theorem encStructurePrefix_succ (a : EncodedStructure) (i : Fin v.count) :
-    v.encStructurePrefix a (i.val + 1) =
-      v.encStructurePrefix a i.val ++ frame (v.table a (v.symbol i)) := by
-  simp only [encStructurePrefix]
-  have htake :
-      (List.ofFn fun j : Fin v.count => v.table a (v.symbol j)).take (i.val + 1) =
-        (List.ofFn fun j : Fin v.count => v.table a (v.symbol j)).take i.val ++
-          [v.table a (v.symbol i)] := by
-    rw [List.take_add_one, List.getElem?_eq_getElem (by simp [i.isLt]), List.getElem_ofFn]
-    simp
-  rw [htake, List.flatMap_append, List.flatMap_singleton, List.append_assoc]
+    v.encStructurePrefix a (i.1 + 1) =
+      v.encStructurePrefix a i.1 ++ frame (v.table a (v.symbol i)) := by
+  simp [encStructurePrefix, List.take_add_one, i.2, List.append_assoc]
 
 theorem encStructurePrefix_count {a : EncodedStructure} (ha : v.WellFormed a) :
     v.encStructurePrefix a v.count = encStructure a := by

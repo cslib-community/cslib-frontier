@@ -145,25 +145,22 @@ def toIndependentSet (φ : CNF ℕ) : IndependentSetInstance :=
     φ.length⟩
 
 theorem _root_.Cslib.Logic.PL.Occurrence.Conflict.symm {o o' : Occurrence ℕ}
-    (h : o.Conflict o') : o'.Conflict o := by
-  rcases h with ⟨h₁, h₂⟩ | ⟨h₁, h₂⟩
-  · exact Or.inl ⟨h₁.symm, h₂.symm⟩
-  · exact Or.inr ⟨h₁.symm, h₂.symm⟩
+    (h : o.Conflict o') : o'.Conflict o :=
+  h.imp (fun ⟨h₁, h₂⟩ => ⟨h₁.symm, h₂.symm⟩) fun ⟨h₁, h₂⟩ => ⟨h₁.symm, h₂.symm⟩
 
 private theorem _root_.Cslib.Logic.PL.Occurrence.Conflict.ne {o o' : Occurrence ℕ}
     (h : o.Conflict o') : o ≠ o' := by
   rintro rfl
-  rcases h with ⟨-, h⟩ | ⟨-, h⟩ <;> exact h rfl
+  exact h.elim (fun h => h.2 rfl) fun h => h.2 rfl
 
 /-- An occurrence is determined by its vertex. -/
 private theorem vertex_injOn {φ : CNF ℕ} {o o' : Occurrence ℕ} (ho : o ∈ occurrences φ)
     (ho' : o' ∈ occurrences φ) (h : o.vertex = o'.vertex) : o = o' := by
   obtain ⟨i, j, l⟩ := o
   obtain ⟨i', j', l'⟩ := o'
-  simp only [Occurrence.vertex, Nat.pair_eq_pair] at h
-  obtain ⟨rfl, rfl⟩ := h
-  obtain ⟨h₁, h₂, hl⟩ := mem_occurrences.1 ho
-  obtain ⟨h₁', h₂', hl'⟩ := mem_occurrences.1 ho'
+  obtain ⟨rfl, rfl⟩ := Nat.pair_eq_pair.1 h
+  obtain ⟨_, _, hl⟩ := mem_occurrences.1 ho
+  obtain ⟨_, _, hl'⟩ := mem_occurrences.1 ho'
   simp only at hl hl'
   rw [hl, hl']
 
@@ -171,23 +168,16 @@ private theorem vertex_injOn {φ : CNF ℕ} {o o' : Occurrence ℕ} (ho : o ∈ 
 theorem adj_toIndependentSet_iff {φ : CNF ℕ} {o o' : Occurrence ℕ} (ho : o ∈ occurrences φ)
     (ho' : o' ∈ occurrences φ) :
     (toIndependentSet φ).graph.toSimpleGraph.Adj o.vertex o'.vertex ↔ o.Conflict o' := by
-  have hedge : ∀ {p p'}, p ∈ occurrences φ → p' ∈ occurrences φ →
-      ((p.vertex, p'.vertex) ∈ (toIndependentSet φ).graph.edges ↔ p.Conflict p') := by
-    intro p p' hp hp'
+  have hedge {p p'} (hp : p ∈ occurrences φ) (hp' : p' ∈ occurrences φ) :
+      (p.vertex, p'.vertex) ∈ (toIndependentSet φ).graph.edges ↔ p.Conflict p' := by
     simp only [toIndependentSet, List.mem_flatMap, List.mem_map, List.mem_filter,
       decide_eq_true_eq, Prod.mk.injEq]
-    constructor
-    · rintro ⟨q, hq, q', ⟨hq', hc⟩, h₁, h₂⟩
-      rwa [← vertex_injOn hq hp h₁, ← vertex_injOn hq' hp' h₂]
-    · intro hc
-      exact ⟨p, hp, p', ⟨hp', hc⟩, rfl, rfl⟩
+    exact ⟨fun ⟨q, hq, q', ⟨hq', hc⟩, h₁, h₂⟩ =>
+      vertex_injOn hq hp h₁ ▸ vertex_injOn hq' hp' h₂ ▸ hc,
+      fun hc => ⟨p, hp, p', ⟨hp', hc⟩, rfl, rfl⟩⟩
   simp only [Graph.toSimpleGraph_adj, ne_eq, hedge ho ho', hedge ho' ho]
-  constructor
-  · rintro ⟨-, h | h⟩
-    · exact h
-    · exact h.symm
-  · intro h
-    exact ⟨fun hv => h.ne (vertex_injOn ho ho' hv), Or.inl h⟩
+  exact ⟨fun ⟨_, h⟩ => h.elim id Occurrence.Conflict.symm,
+    fun h => ⟨fun hv => h.ne (vertex_injOn ho ho' hv), Or.inl h⟩⟩
 
 /-- **An independent set of Karp's graph gives an assignment satisfying as many clauses**: the
 assignment making the chosen positive literals true satisfies the clause of every chosen
@@ -200,14 +190,12 @@ theorem exists_card_add_countUnsat_le {φ : CNF ℕ} {S : Finset ℕ}
   have hocc : ∀ v ∈ S, ∃ o ∈ occurrences φ, o.vertex = v := fun v hv => by
     simpa [toIndependentSet] using hSV v hv
   choose! occ hocc_mem hocc_vertex using hocc
-  have hadj : ∀ u ∈ S, ∀ v ∈ S, u ≠ v → ¬(occ u).Conflict (occ v) := by
-    intro u hu v hv huv hc
-    have := (adj_toIndependentSet_iff (hocc_mem u hu) (hocc_mem v hv)).2 hc
-    rw [hocc_vertex u hu, hocc_vertex v hv] at this
-    exact hS hu hv huv this
+  have hadj : ∀ u ∈ S, ∀ v ∈ S, u ≠ v → ¬(occ u).Conflict (occ v) := fun u hu v hv huv hc =>
+    hS hu hv huv (by
+      simpa only [hocc_vertex u hu, hocc_vertex v hv] using
+        (adj_toIndependentSet_iff (hocc_mem u hu) (hocc_mem v hv)).2 hc)
   -- Distinct chosen occurrences lie in distinct clauses.
-  have hinj : Set.InjOn (fun v => (occ v).clause) S := by
-    intro u hu v hv h
+  have hinj : Set.InjOn (fun v => (occ v).clause) S := fun u hu v hv h => by
     by_contra huv
     refine hadj u hu v hv huv (Or.inl ⟨h, fun hj => huv ?_⟩)
     rw [← hocc_vertex u hu, ← hocc_vertex v hv]
@@ -220,44 +208,36 @@ theorem exists_card_add_countUnsat_le {φ : CNF ℕ} {S : Finset ℕ}
     intro v hv
     have hov := hocc_mem v hv
     rcases hocc : occ v with ⟨i, j, x, b⟩
-    rw [hocc] at hov
-    obtain ⟨hi, hj, hl⟩ := mem_occurrences.1 hov
-    have hl' : (x, b) = φ[i][j] := hl
+    obtain ⟨hi, hj, hl : (x, b) = φ[i][j]⟩ := mem_occurrences.1 (hocc ▸ hov)
     have heval : φ[i].eval σ = true := by
       rw [Clause.eval_eq_true_iff]
-      refine ⟨(x, b), by rw [hl']; exact List.getElem_mem hj, ?_⟩
+      refine ⟨(x, b), hl ▸ List.getElem_mem hj, ?_⟩
       cases b
       · simp only [σ, decide_eq_false_iff_not, not_exists, not_and]
         intro v' hv' hv'x
         have hne : v ≠ v' := by
           rintro rfl
-          rw [hocc] at hv'x
-          simp at hv'x
-        refine hadj v hv v' hv' hne ?_
-        rw [hocc]
-        exact Or.inr ⟨by simp [hv'x], by simp [hv'x]⟩
+          simp [hocc] at hv'x
+        exact hadj v hv v' hv' hne (hocc ▸ Or.inr ⟨by simp [hv'x], by simp [hv'x]⟩)
       · simp only [σ, decide_eq_true_eq]
         exact ⟨v, hv, by rw [hocc]⟩
     simp only [List.contains_iff_mem, List.mem_map, List.mem_filter]
     exact ⟨(φ[i], i), ⟨List.mem_zipIdx_iff_getElem?.2 (by simp [hi]), heval⟩, rfl⟩
   refine ⟨σ, ?_⟩
-  have hcard : S.card ≤ φ.countP fun c => c.eval σ := by
+  have hcard : S.card ≤ φ.countP fun c => c.eval σ :=
     calc S.card = (S.image fun v => (occ v).clause).card := (Finset.card_image_of_injOn hinj).symm
-      _ ≤ ((φ.zipIdx.filter fun c => c.1.eval σ).map Prod.snd).toFinset.card := by
-          refine Finset.card_le_card fun i hi => ?_
-          obtain ⟨v, hv, rfl⟩ := Finset.mem_image.1 hi
-          exact List.mem_toFinset.2 (List.contains_iff_mem.1 (hsat v hv))
-      _ ≤ ((φ.zipIdx.filter fun c => c.1.eval σ).map Prod.snd).length :=
-          List.toFinset_card_le _
+      _ ≤ ((φ.zipIdx.filter fun c => c.1.eval σ).map Prod.snd).toFinset.card :=
+          Finset.card_le_card fun i hi => by
+            obtain ⟨v, hv, rfl⟩ := Finset.mem_image.1 hi
+            exact List.mem_toFinset.2 (List.contains_iff_mem.1 (hsat v hv))
+      _ ≤ ((φ.zipIdx.filter fun c => c.1.eval σ).map Prod.snd).length := List.toFinset_card_le _
       _ = φ.countP fun c => c.eval σ := by
           rw [List.length_map, ← List.countP_eq_length_filter]
-          conv_rhs => rw [← List.zipIdx_map_fst 0 φ]
-          rw [List.countP_map]
+          conv_rhs => rw [← List.zipIdx_map_fst 0 φ, List.countP_map]
           rfl
   have hsplit := List.length_eq_countP_add_countP (fun c : Clause ℕ => c.eval σ) (l := φ)
-  have hunsat : φ.countUnsat σ = φ.countP fun c => ¬(c.eval σ = true) := by
-    rw [CNF.countUnsat]
-    exact List.countP_congr fun c _ => by simp
+  have hunsat : φ.countUnsat σ = φ.countP fun c => ¬(c.eval σ = true) :=
+    List.countP_congr fun c _ => by simp
   omega
 
 private theorem countSat_mem_IndependentSet (φ : CNF ℕ) (σ : ℕ → Bool) :
@@ -266,49 +246,39 @@ private theorem countSat_mem_IndependentSet (φ : CNF ℕ) (σ : ℕ → Bool) :
   classical
   let I := Finset.univ.filter fun i : Fin φ.length => φ[i].eval σ = true
   have hcl (i : I) : ∃ j : Fin φ[i.val].length, σ φ[i.val][j].1 = φ[i.val][j].2 := by
-    obtain ⟨l, hl, hσl⟩ := (Clause.eval_eq_true_iff _ _).1 (Finset.mem_filter.1 i.property).2
+    obtain ⟨l, hl, hσl⟩ := (Clause.eval_eq_true_iff _ _).1 (Finset.mem_filter.1 i.2).2
     obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hl
     exact ⟨⟨j, hj⟩, hσl⟩
   choose J hJ using hcl
   let o : I → Occurrence ℕ := fun i => ⟨i.val, J i, φ[i.val][J i]⟩
-  have ho (i : I) : o i ∈ occurrences φ := mem_occurrences.2 ⟨i.val.isLt, (J i).isLt, rfl⟩
-  have hoinj : Function.Injective fun i => (o i).vertex := by
-    intro i i' h
-    simp only [o, Occurrence.vertex, Nat.pair_eq_pair] at h
-    exact Subtype.ext (Fin.ext h.1)
+  have ho (i : I) : o i ∈ occurrences φ := mem_occurrences.2 ⟨i.val.2, (J i).2, rfl⟩
+  have hoinj : Function.Injective fun i => (o i).vertex :=
+    fun _ _ h => Subtype.ext (Fin.ext (Nat.pair_eq_pair.1 h).1)
   rw [mem_IndependentSet_iff]
-  refine ⟨Finset.univ.image fun i => (o i).vertex, fun v hv => ?_, ⟨?_, ?_⟩⟩
-  · obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hv
-    simp only [toIndependentSet, List.mem_map]
-    exact ⟨o i, ho i, rfl⟩
+  refine ⟨Finset.univ.image fun i => (o i).vertex,
+    Finset.forall_mem_image.2 fun i _ => List.mem_map.2 ⟨o i, ho i, rfl⟩, ⟨?_, ?_⟩⟩
   · intro u hu w hw huw hadj
     obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hu
     obtain ⟨i', -, rfl⟩ := Finset.mem_image.1 hw
-    have hii' : i ≠ i' := fun h => huw (by rw [h])
     rcases (adj_toIndependentSet_iff (ho i) (ho i')).1 hadj with ⟨h, -⟩ | ⟨hx, hb⟩
-    · exact hii' (Subtype.ext (Fin.ext h))
+    · exact huw (congrArg (fun k => (o k).vertex) (Subtype.ext (Fin.ext h)))
     · have h₁ := hJ i
       have h₂ := hJ i'
       simp only [o] at hx hb
-      rw [hx] at h₁
-      exact hb (h₁.symm.trans h₂)
+      exact hb ((hx ▸ h₁).symm.trans h₂)
   · rw [Finset.card_image_of_injective _ hoinj, Finset.card_univ, Fintype.card_coe,
       List.countP_eq_card_filter_getElem]
 
 /-- **Correctness of Karp's reduction.** A formula is satisfiable exactly when its graph has an
 independent set as large as the number of clauses. -/
 theorem toIndependentSet_mem_iff (φ : CNF ℕ) : toIndependentSet φ ∈ IndependentSet ↔ φ ∈ SAT := by
-  constructor
-  · rw [mem_IndependentSet_iff]
-    rintro ⟨S, hSV, hS⟩
-    obtain ⟨σ, hσ⟩ := exists_card_add_countUnsat_le hSV hS.isIndepSet
-    have hcard : S.card = φ.length := hS.card_eq
-    exact ⟨σ, CNF.countUnsat_eq_zero_iff.1 (by omega)⟩
-  · rintro ⟨σ, hσ⟩
-    have hc := List.countP_eq_length.2 ((CNF.eval_eq_true_iff _ _).1 hσ)
+  refine ⟨fun h => ?_, fun ⟨σ, hσ⟩ => by
     have hs := countSat_mem_IndependentSet φ σ
-    rw [hc] at hs
-    exact hs
+    rwa [List.countP_eq_length.2 ((CNF.eval_eq_true_iff _ _).1 hσ)] at hs⟩
+  obtain ⟨S, hSV, hS⟩ := mem_IndependentSet_iff.1 h
+  obtain ⟨σ, hσ⟩ := exists_card_add_countUnsat_le hSV hS.isIndepSet
+  have : S.card = φ.length := hS.card_eq
+  exact ⟨σ, CNF.countUnsat_eq_zero_iff.1 (by omega)⟩
 
 /-! ### Polynomial-time reduction -/
 
@@ -345,15 +315,11 @@ def verifier : IndependentSetInstance × List Bool → Bool :=
 /-- `IndependentSet.verifier` verifies `IndependentSet` with certificates as long as the encoded
 instance. -/
 theorem isVerifier :
-    IsVerifier encIndependentSetInstance Polynomial.X verifier IndependentSet := by
-  have h := Graph.isVerifier_verifySubset (P := fun G u v => ¬G.toSimpleGraph.Adj u v)
-    (fun G u v _ => by rw [Bool.not_eq_true', Graph.adjBool_eq_false_iff])
-  intro x
-  have hx := h (x.graph, x.m)
-  simp only [IndependentSet, Set.mem_ofPred_eq, SimpleGraph.isNIndepSet_iff,
-    SimpleGraph.IsIndepSet, Graph.induced_adj, verifier]
-  rw [encIndependentSetInstance_apply]
-  exact hx
+    IsVerifier encIndependentSetInstance Polynomial.X verifier IndependentSet := fun x => by
+  simpa only [IndependentSet, Set.mem_ofPred_eq, SimpleGraph.isNIndepSet_iff,
+    SimpleGraph.IsIndepSet, Graph.induced_adj, verifier, encIndependentSetInstance_apply] using
+    Graph.isVerifier_verifySubset (P := fun G u v => ¬G.toSimpleGraph.Adj u v)
+      (fun G u v _ => by rw [Bool.not_eq_true', Graph.adjBool_eq_false_iff]) (x.graph, x.m)
 
 /-- The `IndependentSet` verifier is polynomial-time. -/
 @[fun_prop]
@@ -427,14 +393,12 @@ theorem SAT.le_indepNum_toIndependentSet_iff (φ : CNF ℕ) (k : ℕ) :
     k ≤ (toIndependentSet φ).graph.indepNum ↔
       ∃ σ : ℕ → Bool, k + φ.countUnsat σ ≤ φ.length := by
   rw [Graph.le_indepNum_iff, mem_IndependentSet_iff]
-  constructor
-  · rintro ⟨S, hSV, hS⟩
-    obtain ⟨σ, hσ⟩ := exists_card_add_countUnsat_le hSV hS.isIndepSet
+  refine ⟨fun ⟨S, hSV, hS⟩ => ?_, fun ⟨σ, hσ⟩ => ?_⟩
+  · obtain ⟨σ, h⟩ := exists_card_add_countUnsat_le hSV hS.isIndepSet
     have hs : S.card = k := hS.card_eq
-    exact ⟨σ, by rwa [← hs]⟩
-  · rintro ⟨σ, hσ⟩
-    have hsplit : φ.length = φ.countP (Clause.eval σ) + φ.countUnsat σ :=
-      List.length_eq_countP_add_countP (Clause.eval σ)
+    exact ⟨σ, hs ▸ h⟩
+  · have : φ.length = φ.countP (Clause.eval σ) + φ.countUnsat σ :=
+      List.length_eq_countP_add_countP (Clause.eval σ) (l := φ)
     exact mem_IndependentSet_iff.1
       (Graph.mem_IndependentSet_of_le (countSat_mem_IndependentSet φ σ) (by omega))
 

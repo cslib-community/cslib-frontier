@@ -61,9 +61,7 @@ theorem ofDigits_ofFn_eq_sum {d : ℕ} (B : ℕ) (x : Fin d → ℕ) :
     rw [ofDigits_ofFn_succ, ih, Fin.sum_univ_succ]
     simp only [Fin.val_zero, pow_zero, mul_one, Fin.val_succ, pow_succ, Finset.mul_sum]
     congr 1
-    apply Finset.sum_congr rfl
-    intro i _
-    ring
+    exact Finset.sum_congr rfl fun i _ => by ring
 
 /-- For `1 < B`, the value of `d` digits less than `B` is less than `B ^ d`. -/
 theorem ofDigits_ofFn_lt {B d : ℕ} (hB : 1 < B) (x : Fin d → ℕ)
@@ -131,15 +129,12 @@ theorem exists_radix_quotients {B d : ℕ} (hB : 1 ≤ B) (x : Fin d → ℕ) :
     have ht : ofDigits B (List.ofFn (fun i => x i.succ)) ≤ ofDigits B (List.ofFn x) := by
       rw [ofDigits_ofFn_succ]
       nlinarith
-    refine ⟨Fin.cons (ofDigits B (List.ofFn x)) q, rfl, ?_, ?_, ?_⟩
-    · simpa using hqe
-    · intro i
-      exact Fin.cases (le_refl _) (fun j => le_trans (hqb j) ht) i
-    · intro i
-      refine Fin.cases ?_ (fun j => ?_) i
-      · simpa only [Fin.castSucc_zero, Fin.cons_zero, Fin.succ_zero_eq_one,
-          Fin.cons_one, hq0] using ofDigits_ofFn_succ B x
-      · simpa only [← Fin.succ_castSucc, Fin.cons_succ] using hqs j
+    refine ⟨Fin.cons (ofDigits B (List.ofFn x)) q, rfl, by simpa using hqe,
+      fun i => Fin.cases le_rfl (fun j => (hqb j).trans ht) i,
+      fun i => Fin.cases ?_ (fun j => ?_) i⟩
+    · simpa only [Fin.castSucc_zero, Fin.cons_zero, Fin.succ_zero_eq_one,
+        Fin.cons_one, hq0] using ofDigits_ofFn_succ B x
+    · simpa only [← Fin.succ_castSucc, Fin.cons_succ] using hqs j
 
 /-- A bit of a binary-radix word belongs to exactly one of its fixed chunks. -/
 theorem testBit_ofDigits_ofFn {e d : ℕ} (he : 0 < e) (x : Fin d → ℕ)
@@ -155,14 +150,10 @@ theorem testBit_ofDigits_ofFn {e d : ℕ} (he : 0 < e) (x : Fin d → ℕ)
     lia
   constructor
   · intro hj
-    have hz := ofDigits_ofFn_lt (show 1 < 2 ^ e by
-      exact one_lt_pow₀ (by decide) (by lia)) x hx
+    have hz := ofDigits_ofFn_lt (one_lt_pow₀ (by decide) he.ne') x hx
     rw [← pow_mul] at hz
     have hje : j < d * e := by
-      by_contra hn
-      have hp := Nat.pow_le_pow_right (by decide : 1 ≤ 2) (show e * d ≤ j by lia)
-      have hj' : 2 ^ j ≤ z := Nat.ge_two_pow_of_testBit hj
-      dsimp [z] at hj'
+      have := (Nat.pow_lt_pow_iff_right (by decide)).mp ((Nat.ge_two_pow_of_testBit hj).trans_lt hz)
       lia
     let r : Fin d := ⟨j / e, (Nat.div_lt_iff_lt_mul he).mpr hje⟩
     let b : Fin e := ⟨j % e, Nat.mod_lt _ he⟩
@@ -203,12 +194,9 @@ theorem radix_affine_carries_iff {B d b c₀ : ℕ} (hB : 1 < B) (hb : b ≤ B)
   induction d generalizing c₀ with
   | zero =>
     simp only [List.ofFn_zero, ofDigits_nil, mul_zero, zero_add]
-    constructor
-    · rintro ⟨c, hc, he, _, _⟩
-      exact hc.symm.trans he
-    · intro hc
-      subst c₀
-      exact ⟨fun _ => 0, rfl, rfl, fun _ => by lia, fun i => i.elim0⟩
+    refine ⟨fun ⟨c, hc, he, _, _⟩ => hc.symm.trans he, ?_⟩
+    rintro rfl
+    exact ⟨fun _ => 0, rfl, rfl, fun _ => by lia, fun i => i.elim0⟩
   | succ d ih =>
     rw [ofDigits_ofFn_succ, ofDigits_ofFn_succ, ofDigits_ofFn_succ]
     constructor
@@ -232,9 +220,8 @@ theorem radix_affine_carries_iff {B d b c₀ : ℕ} (hB : 1 < B) (hb : b ≤ B)
       obtain ⟨c, hc0, hce, hcb, hstep⟩ :=
         (ih hc (fun i => x i.succ) (fun i => y i.succ) (fun i => z i.succ)
           (fun i => hx i.succ) (fun i => hy i.succ) (fun i => hz i.succ)).mpr he1
-      refine ⟨Fin.cons c₀ c, rfl, by simpa using hce, fun i => Fin.cases hc₀ hcb i, ?_⟩
-      intro i
-      refine Fin.cases ?_ (fun j => ?_) i
+      refine ⟨Fin.cons c₀ c, rfl, by simpa using hce, fun i => Fin.cases hc₀ hcb i,
+        fun i => Fin.cases ?_ (fun j => ?_) i⟩
       · simpa only [Fin.cons_zero, Fin.castSucc_zero, Fin.succ_zero_eq_one,
           Fin.cons_one, hc0] using he0
       · simpa only [← Fin.succ_castSucc, Fin.cons_succ] using hstep j
@@ -343,7 +330,7 @@ theorem finFunctionFinEquiv_lt_pow_iff {n a : ℕ} :
       (finFunctionFinEquiv x : ℕ) < n ^ a ↔ ∀ i : Fin k, a ≤ (i : ℕ) → (x i : ℕ) = 0
   | k, ha, x => by
     obtain rfl | hlt := eq_or_lt_of_le ha
-    · exact ⟨fun _ i hi => absurd i.isLt (by omega), fun _ => (finFunctionFinEquiv x).isLt⟩
+    · exact ⟨fun _ i hi => absurd i.2 (by omega), fun _ => (finFunctionFinEquiv x).2⟩
     · cases k with
       | zero => omega
       | succ k =>
@@ -353,10 +340,8 @@ theorem finFunctionFinEquiv_lt_pow_iff {n a : ℕ} :
           rw [finFunctionFinEquiv_snoc x] at hlt'
           have hlast : (x (Fin.last k) : ℕ) = 0 := by
             by_contra hne
-            have hn : 1 ≤ n := by have := (x (Fin.last k)).isLt; omega
-            have h1 : n ^ a ≤ n ^ k := Nat.pow_le_pow_right hn ha'
-            have h2 : n ^ k ≤ (x (Fin.last k) : ℕ) * n ^ k :=
-              Nat.le_mul_of_pos_left _ (by omega)
+            have h1 := Nat.pow_le_pow_right (x (Fin.last k)).pos ha'
+            have h2 := Nat.le_mul_of_pos_left (n ^ k) (Nat.pos_of_ne_zero hne)
             omega
           induction i using Fin.lastCases with
           | last => exact hlast
@@ -366,7 +351,7 @@ theorem finFunctionFinEquiv_lt_pow_iff {n a : ℕ} :
               (by simpa only [Fin.val_castSucc] using hi)
         · intro hx
           rw [finFunctionFinEquiv_eq_of_high_zero ha hx]
-          exact (finFunctionFinEquiv _).isLt
+          exact (finFunctionFinEquiv _).2
 
 /-- The numerical order on `finFunctionFinEquiv` is the colexicographic order on `Fin k → Fin n`
 (comparing at the most significant coordinate where the tuples differ). -/
@@ -377,8 +362,8 @@ theorem finFunctionFinEquiv_lt_iff {n : ℕ} :
   | 0, x, y => ⟨fun h => absurd (Subsingleton.elim x y ▸ h) (lt_irrefl _), fun ⟨i, _⟩ => i.elim0⟩
   | k + 1, x, y => by
     rw [← Fin.val_fin_lt, finFunctionFinEquiv_snoc x, finFunctionFinEquiv_snoc y]
-    have hx := (finFunctionFinEquiv (x ∘ Fin.castSucc)).isLt
-    have hy := (finFunctionFinEquiv (y ∘ Fin.castSucc)).isLt
+    have hx := (finFunctionFinEquiv (x ∘ Fin.castSucc)).2
+    have hy := (finFunctionFinEquiv (y ∘ Fin.castSucc)).2
     have hsplit : (finFunctionFinEquiv (x ∘ Fin.castSucc) : ℕ) + (x (Fin.last k) : ℕ) * n ^ k <
         (finFunctionFinEquiv (y ∘ Fin.castSucc) : ℕ) + (y (Fin.last k) : ℕ) * n ^ k ↔
         x (Fin.last k) < y (Fin.last k) ∨
@@ -394,10 +379,7 @@ theorem finFunctionFinEquiv_lt_iff {n : ℕ} :
       · have hle : ((y (Fin.last k) : ℕ) + 1) * n ^ k ≤ (x (Fin.last k) : ℕ) * n ^ k :=
           Nat.mul_le_mul_right (n ^ k) hgt
         rw [Nat.add_mul, Nat.one_mul] at hle
-        have hnot1 : ¬ (x (Fin.last k) < y (Fin.last k)) := by omega
-        have hnot2 : x (Fin.last k) ≠ y (Fin.last k) := by omega
-        exact ⟨fun h => by omega, fun h => h.elim (fun h => absurd h hnot1)
-          (fun ⟨h, _⟩ => absurd h hnot2)⟩
+        exact ⟨fun h => by omega, fun h => (h.elim hgt.not_gt fun h => hgt.ne' h.1).elim⟩
     rw [hsplit, finFunctionFinEquiv_lt_iff (x ∘ Fin.castSucc) (y ∘ Fin.castSucc)]
     constructor
     · rintro (hlt | ⟨heq, i, hi, hj⟩)

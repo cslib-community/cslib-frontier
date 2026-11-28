@@ -182,9 +182,8 @@ private theorem restrictBy_pigeonholeOn_subset {P : Finset (Fin m)} {H : Finset 
   · have hne : i ≠ i' := hii'.ne
     have hii₀ : i ≠ i₀ := by
       rintro rfl
-      by_cases hjj₀ : j = j₀
-      · subst hjj₀
-        exact hsat ((i', j), false) (by simp [CNF.holeClause]) (by simp [matchPair, hne.symm])
+      rcases eq_or_ne j j₀ with rfl | hjj₀
+      · exact hsat ((i', j), false) (by simp [CNF.holeClause]) (by simp [matchPair, hne.symm])
       · exact hsat ((i, j), false) (by simp [CNF.holeClause]) (by simp [matchPair, hjj₀])
     have hjj₀ : j ≠ j₀ := by
       rintro rfl
@@ -229,21 +228,16 @@ private theorem eq_of_not_mem_image_of_isCrit {P : Finset (Fin m)} {H : Finset (
   by_contra hne
   have hsub : H.image g ⊆ P := image_subset_iff.2 hg.1
   have hcard : #(H.image g) = #H := card_image_of_injOn hg.2
-  have hpair : ({i₁, i₂} : Finset (Fin m)) ⊆ P \ H.image g := by
-    intro x hx
-    rcases mem_insert.1 hx with rfl | hx
-    · exact mem_sdiff.2 ⟨hi₁, h₁⟩
-    · rw [mem_singleton.1 hx]
-      exact mem_sdiff.2 ⟨hi₂, h₂⟩
+  have hpair : ({i₁, i₂} : Finset (Fin m)) ⊆ P \ H.image g :=
+    insert_subset_iff.2 ⟨mem_sdiff.2 ⟨hi₁, h₁⟩, singleton_subset_iff.2 (mem_sdiff.2 ⟨hi₂, h₂⟩)⟩
   have hle := (card_le_card hpair).trans_eq (card_sdiff_of_subset hsub)
   rw [card_pair hne, hcard, hP] at hle
   omega
 
 private theorem mem_image_of_ne_of_isCrit {P : Finset (Fin m)} {H : Finset (Fin n)}
     {g : Fin n → Fin m} (hP : #P = #H + 1) (hg : IsCrit P H g) {i₀ i : Fin m} (hi₀ : i₀ ∈ P)
-    (h₀ : i₀ ∉ H.image g) (hi : i ∈ P) (hne : i ≠ i₀) : i ∈ H.image g := by
-  by_contra h
-  exact hne (eq_of_not_mem_image_of_isCrit hP hg hi hi₀ h h₀)
+    (h₀ : i₀ ∉ H.image g) (hi : i ∈ P) (hne : i ≠ i₀) : i ∈ H.image g :=
+  of_not_not fun h => hne (eq_of_not_mem_image_of_isCrit hP hg hi hi₀ h h₀)
 
 /-- Swapping the missing pigeon `i₀` into hole `j ∈ H` gives a critical assignment whose missing
 pigeon is `g j`. -/
@@ -251,32 +245,25 @@ private theorem isCrit_update {P : Finset (Fin m)} {H : Finset (Fin n)} {g : Fin
     (hg : IsCrit P H g) {i₀ : Fin m} (hi₀ : i₀ ∈ P) (h₀ : i₀ ∉ H.image g) {j : Fin n} :
     IsCrit P H (Function.update g j i₀) := by
   refine ⟨fun y hy => ?_, fun y₁ hy₁ y₂ hy₂ heq => ?_⟩
-  · by_cases hyj : y = j
-    · subst hyj
-      simpa using hi₀
-    · simpa [hyj] using hg.1 y hy
-  · by_cases h₁ : y₁ = j <;> by_cases h₂ : y₂ = j
+  · rw [Function.update_apply]
+    split_ifs
+    exacts [hi₀, hg.1 y hy]
+  · simp only [Function.update_apply] at heq
+    split_ifs at heq with h₁ h₂ h₂
     · exact h₁.trans h₂.symm
-    · subst h₁
-      simp only [Function.update_self, Function.update_of_ne h₂] at heq
-      exact absurd (heq ▸ mem_image_of_mem g hy₂) h₀
-    · subst h₂
-      simp only [Function.update_self, Function.update_of_ne h₁] at heq
-      exact absurd (heq.symm ▸ mem_image_of_mem g hy₁) h₀
-    · simp only [Function.update_of_ne h₁, Function.update_of_ne h₂] at heq
-      exact hg.2 hy₁ hy₂ heq
+    · exact absurd (heq ▸ mem_image_of_mem g hy₂) h₀
+    · exact absurd (heq.symm ▸ mem_image_of_mem g hy₁) h₀
+    · exact hg.2 hy₁ hy₂ heq
 
 private theorem not_mem_image_update {P : Finset (Fin m)} {H : Finset (Fin n)} {g : Fin n → Fin m}
     (hg : IsCrit P H g) {i₀ : Fin m} (h₀ : i₀ ∉ H.image g) {j : Fin n} (hj : j ∈ H) :
     g j ∉ H.image (Function.update g j i₀) := by
   intro h
   obtain ⟨y, hy, heq⟩ := mem_image.1 h
-  by_cases hyj : y = j
-  · subst hyj
-    simp only [Function.update_self] at heq
-    exact h₀ (heq ▸ mem_image_of_mem g hj)
-  · simp only [Function.update_of_ne hyj] at heq
-    exact hyj (hg.2 hy hj heq)
+  rw [Function.update_apply] at heq
+  split_ifs at heq with hyj
+  · exact h₀ (heq ▸ mem_image_of_mem g hj)
+  · exact hyj (hg.2 hy hj heq)
 
 /-- When `#P = #H + 1`, every pigeon `i₀ ∈ P` is the missing pigeon of some critical assignment. -/
 private theorem exists_isCrit_not_mem_image {P : Finset (Fin m)} {H : Finset (Fin n)}
@@ -292,8 +279,7 @@ private theorem exists_isCrit_not_mem_image {P : Finset (Fin m)} {H : Finset (Fi
     exact erase_subset i₀ P (e ⟨j, hj⟩).property
   · rw [mem_coe] at hj₁ hj₂
     simp only [g, hj₁, hj₂, ↓reduceDIte] at heq
-    have := e.injective (Subtype.ext heq)
-    simpa using this
+    simpa using e.injective (Subtype.ext heq)
   · intro h
     obtain ⟨j, hj, heq⟩ := mem_image.1 h
     simp only [g, hj, ↓reduceDIte] at heq
@@ -306,13 +292,9 @@ private theorem matchPair_eq_some_of_critAssign_ne {H : Finset (Fin n)} {g : Fin
     (hne : critAssign H g v ≠ critAssign H (Function.update g j i₀) v) :
     matchPair i₀ j v = some (critAssign H (Function.update g j i₀) v) := by
   obtain ⟨x, y⟩ := v
-  have hyj : y = j := by
-    by_contra hyj
-    exact hne (by simp [critAssign, hyj])
-  subst hyj
-  by_cases hxi₀ : x = i₀
-  · subst hxi₀
-    simp [matchPair, critAssign, hj]
+  obtain rfl : y = j := by_contra fun hyj => hne (by simp [critAssign, hyj])
+  rcases eq_or_ne x i₀ with rfl | hxi₀
+  · simp [matchPair, critAssign, hj]
   · simp [matchPair, critAssign, hj, hxi₀, Ne.symm hxi₀]
 
 /-- The pairs `(i, j) ∈ P ×ˢ H` whose matching assignment `matchPair i j` satisfies a literal of
@@ -345,9 +327,8 @@ theorem mem_falsifiedPigeons {P : Finset (Fin m)} {H : Finset (Fin n)}
 
 /-- `falsifiedPigeons P H c` is a subset of `P`. -/
 theorem falsifiedPigeons_subset (P : Finset (Fin m)) (H : Finset (Fin n))
-    (c : Clause (Fin m × Fin n)) : falsifiedPigeons P H c ⊆ P := by
-  intro i hi
-  exact (mem_falsifiedPigeons.1 hi).1
+    (c : Clause (Fin m × Fin n)) : falsifiedPigeons P H c ⊆ P :=
+  fun _ hi => (mem_falsifiedPigeons.1 hi).1
 
 /-- A clause of `pigeonholeOn P H` has at most one falsified pigeon when `#P = #H + 1`. -/
 private theorem card_falsifiedPigeons_le_one_of_mem_pigeonholeOn {P : Finset (Fin m)}
@@ -590,11 +571,8 @@ private theorem exists_restrict_countP_satPairs {P : Finset (Fin m)} {H : Finset
     calc d * f ≤ g * (C * d) := hmany.trans (Nat.mul_le_mul_left g hC)
       _ = d * (C * g) := by ring
   have hfg' : f ≤ C * g := Nat.le_of_mul_le_mul_left hdg hd
-  have hC1 : 1 ≤ C := by
-    rcases C with _ | C
-    · have := Nat.mul_pos (card_pos.2 hP) (card_pos.2 hH)
-      omega
-    · omega
+  have hC1 : 1 ≤ C := Nat.pos_of_ne_zero fun h0 => by
+    rw [h0, zero_mul] at hC; have := Nat.mul_pos (card_pos.2 hP) (card_pos.2 hH); omega
   zify [hC1] at hfg hfg' ⊢
   nlinarith
 
@@ -705,15 +683,11 @@ theorem two_pow_le_of_refutableInSize_pigeonhole {s : ℕ}
     have h2k : 2 ^ k * (11 ^ 8) ^ k ≤ (12 ^ 8) ^ k := by
       rw [← mul_pow]
       exact Nat.pow_le_pow_left h2 k
-    have h11 : (11 ^ 8) ^ k * 11 ^ r = 11 ^ (n / 3) := by
-      rw [hr, pow_add, pow_mul]
-    have h12 : (12 ^ 8) ^ k * 12 ^ r = 12 ^ (n / 3) := by
-      rw [hr, pow_add, pow_mul]
     have hle : 2 ^ k * 11 ^ (n / 3) ≤ 12 ^ (n / 3) := by
-      calc 2 ^ k * 11 ^ (n / 3) = 2 ^ k * (11 ^ 8) ^ k * 11 ^ r := by rw [← h11, mul_assoc]
-        _ ≤ (12 ^ 8) ^ k * 12 ^ r :=
-          Nat.mul_le_mul h2k (Nat.pow_le_pow_left (by decide) r)
-        _ = 12 ^ (n / 3) := h12
+      calc 2 ^ k * 11 ^ (n / 3) = 2 ^ k * (11 ^ 8) ^ k * 11 ^ r := by
+            rw [hr, pow_add, pow_mul, mul_assoc]
+        _ ≤ (12 ^ 8) ^ k * 12 ^ r := Nat.mul_le_mul h2k (Nat.pow_le_pow_left (by decide) r)
+        _ = 12 ^ (n / 3) := by rw [hr, pow_add, pow_mul]
     have hpos : 0 < 11 ^ (n / 3) := Nat.pow_pos (by decide)
     exact Nat.le_of_mul_le_mul_right (hle.trans (hpow.trans_eq (mul_comm _ _))) hpos
 

@@ -183,11 +183,9 @@ theorem measure_pi_lt_error_and_forall_notMem_apply_eq_le (D : Measure (α × β
   -- and so is the event `T`.
   have hslice (S : LabeledSample α β m) : MeasurableSet {p : α × β | g S p.1 ≠ p.2} :=
     hgm.preimage (f := fun p : α × β => ((S, p.1), p.2)) (by fun_prop)
-  have herr : Measurable fun S => error D (g S) := by
-    have hs : MeasurableSet {q : LabeledSample α β m × (α × β) | g q.1 q.2.1 ≠ q.2.2} :=
-      hgm.preimage (f := fun q : LabeledSample α β m × (α × β) => ((q.1, q.2.1), q.2.2))
-        (by fun_prop)
-    exact measurable_measure_prodMk_left hs
+  have herr : Measurable fun S => error D (g S) := measurable_measure_prodMk_left
+    (hgm.preimage (f := fun q : LabeledSample α β m × (α × β) => ((q.1, q.2.1), q.2.2))
+      (by fun_prop))
   have hT : MeasurableSet T := by
     change MeasurableSet ({S | ε < error D (g S)} ∩
       {S : LabeledSample α β m | ∀ i ∉ J, g S (S i).1 = (S i).2})
@@ -212,8 +210,7 @@ theorem measure_pi_lt_error_and_forall_notMem_apply_eq_le (D : Measure (α × β
       Measure.pi (fun _ : {i // i ∉ J} => D) (Prod.mk u ⁻¹' (e.symm ⁻¹' T)) ≤
         (1 - ε) ^ (m - J.card) := by
     rcases (Prod.mk u ⁻¹' (e.symm ⁻¹' T)).eq_empty_or_nonempty with h0 | ⟨v₀, hv₀⟩
-    · rw [h0, measure_empty]
-      exact zero_le
+    · simp [h0]
     set h := g (e.symm (u, v₀))
     have hconst (v : (i : {i // i ∉ J}) → α × β) : g (e.symm (u, v)) = h :=
       hg fun i hi => by
@@ -225,10 +222,7 @@ theorem measure_pi_lt_error_and_forall_notMem_apply_eq_le (D : Measure (α × β
       rw [hconst v] at this
       simpa only [e, MeasurableEquiv.piEquivPiSubtypeProd_symm_apply, i.property, dite_false,
         Subtype.coe_eta] using this
-    have hh : ε ≤ error D h := by
-      have := hv₀.1
-      rw [hconst v₀] at this
-      exact this.le
+    have hh : ε ≤ error D h := (hv₀.1.trans_eq (congrArg (error D) (hconst v₀))).le
     calc Measure.pi (fun _ : {i // i ∉ J} => D) (Prod.mk u ⁻¹' (e.symm ⁻¹' T))
         ≤ Measure.pi (fun _ : {i // i ∉ J} => D) {v | ∀ i, h (v i).1 = (v i).2} :=
           measure_mono hsub
@@ -271,21 +265,15 @@ theorem measure_pi_lt_error_learner_le (κ : SampleCompressionScheme C k)
     have hgS : g ι S = κ.learner S := by
       simp only [g, ι, learner_apply, L]
       rw [← List.map_ofFn, List.ofFn_get]
-    refine mem_iUnion.2 ⟨ι, ?_, fun i _ => ?_⟩
-    · rw [hgS]
-      exact hlt
-    · rw [hgS]
-      exact κ.learner_apply_eq hS i
+    exact mem_iUnion.2 ⟨ι, by rw [hgS]; exact hlt,
+      fun i _ => by rw [hgS]; exact κ.learner_apply_eq hS i⟩
   have hJ (ι : Σ j : Fin (k + 1), Fin j → Fin m) : (J ι).card ≤ k :=
     Finset.card_image_le.trans (by simpa using Nat.lt_succ_iff.1 ι.1.isLt)
   have hB (ι : Σ j : Fin (k + 1), Fin j → Fin m) : μ (B ι) ≤ (1 - ε) ^ (m - k) := by
     refine (measure_pi_lt_error_and_forall_notMem_apply_eq_le D (J ι) (g := g ι) ?_ ?_ ε).trans
       (pow_le_pow_right_of_le_one' tsub_le_self (Nat.sub_le_sub_left (hJ ι) m))
-    · intro S S' hSS'
-      simp only [g]
-      congr 2
-      funext t
-      exact hSS' _ (Finset.mem_image_of_mem _ (Finset.mem_univ t))
+    · exact fun S S' hSS' => congrArg (fun L => κ.reconstruct (List.ofFn L))
+        (funext fun t => hSS' _ (Finset.mem_image_of_mem _ (Finset.mem_univ t)))
     · exact (hκ ι.1).preimage (f := fun q : (LabeledSample α β m × α) × β =>
         ((q.1.1 ∘ ι.2, q.1.2), q.2)) (by fun_prop)
   have hcard : Fintype.card (Σ j : Fin (k + 1), Fin j → Fin m) ≤ (m + 1) ^ k := by

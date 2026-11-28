@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Basic
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Privacy
+import CslibFrontier.Foundations.Data.Finset.BiUnionFinTwo
 import CslibFrontier.Probability.PMF.Map
 import Mathlib.Data.Fin.Embedding
 
@@ -250,16 +251,11 @@ unverified directly). -/
 abbrev ThresholdDesign (t n t' n' : ℕ) :=
   ThresholdDesignOn (Fin n) (Fin n') t t'
 
-private theorem biUnion_fin_two {α : Type*} [DecidableEq α] (f : Fin 2 → Finset α) :
-    (Finset.univ : Finset (Fin 2)).biUnion f = f 0 ∪ f 1 := by
-  ext x
-  simp only [Finset.mem_biUnion, Finset.mem_univ, true_and, Fin.exists_fin_two, Finset.mem_union]
-
 private theorem biUnion_fin_two_ite {α : Type*} [DecidableEq α] (a b : Finset α) :
     (Finset.univ : Finset (Fin 2)).biUnion (fun i => if i = 0 then a else b) = a ∪ b := by
   have h0 : (if (0 : Fin 2) = 0 then a else b) = a := by simp
   have h1 : (if (1 : Fin 2) = 0 then a else b) = b := by simp
-  rw [biUnion_fin_two, h0, h1]
+  rw [Finset.biUnion_univ_fin_two, h0, h1]
 
 namespace ThresholdDesignOn
 
@@ -450,26 +446,21 @@ theorem no_thresholdDesign_two_two {t n : ℕ} (ht : 2 ≤ t) (htn : t ≤ n) (h
     have hex : ∀ i : Fin n, ∃ x : Fin 2, d.assign i = {x} := fun i =>
       Finset.card_eq_one.mp (heq1 i)
     choose f hf using hex
-    have hfinj : Function.Injective f := by
-      intro i j hij
-      exact hinj (by rw [hf i, hf j, hij])
+    have hfinj : Function.Injective f := fun i j hij => hinj (by rw [hf i, hf j, hij])
     have hcard := Fintype.card_le_of_injective f hfinj
     simp only [Fintype.card_fin] at hcard
     omega
   · have ht3 : 3 ≤ t := by omega
     have hpair (i j : Fin n) : (d.assign i ∪ d.assign j).card ≤ 1 := by
-      have hij_le : ({i, j} : Finset (Fin n)).card ≤ t - 1 := by
-        have h2 : ({i, j} : Finset (Fin n)).card ≤ 2 := Finset.card_le_two
-        omega
+      have hij_le : ({i, j} : Finset (Fin n)).card ≤ t - 1 :=
+        Finset.card_le_two.trans (by omega)
       obtain ⟨u, hu_sup, hcard⟩ :=
         Finset.exists_superset_card_eq hij_le (by rw [Fintype.card_fin]; omega)
       have hlt := d.card_lt_of_card_eq_sub_one (by omega) hcard
-      have hsub : d.assign i ∪ d.assign j ⊆ u.biUnion d.assign := by
-        intro x hx
-        rw [Finset.mem_biUnion]
-        rcases Finset.mem_union.mp hx with hxi | hxj
-        · exact ⟨i, hu_sup (Finset.mem_insert_self i {j}), hxi⟩
-        · exact ⟨j, hu_sup (Finset.mem_insert_of_mem (Finset.mem_singleton_self j)), hxj⟩
+      have hsub : d.assign i ∪ d.assign j ⊆ u.biUnion d.assign :=
+        Finset.union_subset (Finset.subset_biUnion_of_mem _ (hu_sup (Finset.mem_insert_self i {j})))
+          (Finset.subset_biUnion_of_mem _
+            (hu_sup (Finset.mem_insert_of_mem (Finset.mem_singleton_self j))))
       have hle := Finset.card_le_card hsub
       omega
     have huniv : 2 ≤ ((Finset.univ : Finset (Fin n)).biUnion d.assign).card := by
@@ -484,20 +475,14 @@ theorem no_thresholdDesign_two_two {t n : ℕ} (ht : 2 ≤ t) (htn : t ≤ n) (h
         intro y hy
         rw [Finset.mem_singleton]
         by_contra hyx
-        have h2 : ({x, y} : Finset (Fin 2)).card ≤ (d.assign i₀ ∪ d.assign j).card := by
-          refine Finset.card_le_card ?_
-          intro z hz
-          rcases Finset.mem_insert.mp hz with rfl | hzy
-          · exact Finset.mem_union_left _ hx₀
-          · rw [Finset.mem_singleton.mp hzy]
-            exact Finset.mem_union_right _ hy
+        have h2 : ({x, y} : Finset (Fin 2)).card ≤ (d.assign i₀ ∪ d.assign j).card :=
+          Finset.card_le_card (Finset.insert_subset (Finset.mem_union_left _ hx₀)
+            (Finset.singleton_subset_iff.2 (Finset.mem_union_right _ hy)))
         rw [Finset.card_pair (Ne.symm hyx)] at h2
         have hp := hpair i₀ j
         omega
-      have huniv_sub : (Finset.univ : Finset (Fin n)).biUnion d.assign ⊆ {x} := by
-        intro z hz
-        obtain ⟨j, _, hzj⟩ := Finset.mem_biUnion.mp hz
-        exact hsub_all j hzj
+      have huniv_sub : (Finset.univ : Finset (Fin n)).biUnion d.assign ⊆ {x} :=
+        Finset.biUnion_subset.2 fun j _ => hsub_all j
       have hle := Finset.card_le_card huniv_sub
       simp only [Finset.card_singleton] at hle
       omega

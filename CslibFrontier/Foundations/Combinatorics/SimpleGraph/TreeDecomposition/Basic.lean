@@ -228,10 +228,8 @@ theorem etreewidth_le_width [Fintype ι] (D : G.TreeDecomposition ι) :
 
 theorem exists_width_eq_etreewidth (h : G.etreewidth ≠ ⊤) :
     ∃ n, ∃ D : G.TreeDecomposition (Fin n), (D.width : ℕ∞) = G.etreewidth := by
-  have : Nonempty (Σ n : ℕ, G.TreeDecomposition (Fin n)) := by
-    by_contra hne
-    rw [not_nonempty_iff] at hne
-    exact h (iInf_of_empty _)
+  have : Nonempty (Σ n : ℕ, G.TreeDecomposition (Fin n)) :=
+    not_isEmpty_iff.1 fun _ => h (iInf_of_empty _)
   obtain ⟨⟨n, D⟩, hD⟩ := ciInf_mem (fun D : (Σ n : ℕ, G.TreeDecomposition (Fin n)) =>
     (D.2.width : ℕ∞))
   exact ⟨n, D, hD⟩

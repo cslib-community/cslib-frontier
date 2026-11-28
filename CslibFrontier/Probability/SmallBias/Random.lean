@@ -165,25 +165,16 @@ theorem exists_isSmallBias_map_of_exp_lt [NeZero d] {ε : ℝ} (hε : 0 ≤ ε)
       simp only [mem_biUnion, mem_filter, mem_univ, true_and]
       exact ⟨S, hS, hle⟩
     have h3 : ((univ : Finset (Fin d → ι → Bool)).card : ℝ) ≤
-        ∑ S ∈ univ.filter fun S : Finset ι => S.Nonempty,
-          (#{s : Fin d → ι → Bool | ε * d ≤ |∑ j, chi ℝ S (s j)|} : ℝ) := by
-      exact_mod_cast (card_le_card hcover).trans card_biUnion_le
-    have h4 : ∑ S ∈ univ.filter fun S : Finset ι => S.Nonempty,
-          (#{s : Fin d → ι → Bool | ε * d ≤ |∑ j, chi ℝ S (s j)|} : ℝ) ≤
         2 ^ Fintype.card ι * (2 * 2 ^ (d * Fintype.card ι) * exp (-(ε ^ 2 * d / 2))) := by
+      refine (Nat.cast_le.mpr ((card_le_card hcover).trans card_biUnion_le)).trans ?_
+      push_cast
       refine (sum_le_sum fun S hS => card_biased_le (mem_filter.mp hS).2 hε).trans ?_
       rw [sum_const, nsmul_eq_mul]
       gcongr
-      calc ((univ.filter fun S : Finset ι => S.Nonempty).card : ℝ)
-          ≤ (univ : Finset (Finset ι)).card := by exact_mod_cast card_filter_le _ _
-        _ = 2 ^ Fintype.card ι := by simp
-    rw [card_univ, Fintype.card_fun, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] at h3
-    have h5 : ((2 : ℝ) ^ Fintype.card ι) ^ d = 2 ^ (d * Fintype.card ι) := by
-      rw [← pow_mul, mul_comm]
-    push_cast at h3
-    rw [h5] at h3
-    have hpos : (0 : ℝ) < 2 ^ (d * Fintype.card ι) := by positivity
-    nlinarith
+      exact (Nat.cast_le.mpr (card_filter_le _ _)).trans_eq (by simp)
+    rw [card_univ, Fintype.card_fun, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin,
+      Nat.cast_pow, Nat.cast_pow, Nat.cast_two, ← pow_mul, mul_comm] at h3
+    nlinarith [pow_pos (two_pos : (0 : ℝ) < 2) (d * Fintype.card ι)]
   refine ⟨s, fun S hS => ?_⟩
   have hd : (0 : ℝ) < d := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne d)
   rw [bias_uniformOfFintype_map, Fintype.expect_eq_sum_div_card, Fintype.card_fin, abs_div,
@@ -200,28 +191,16 @@ theorem exp_neg_lt_of_ceil_le {ε : ℝ} (hε : 0 < ε)
     2 * 2 ^ Fintype.card ι * exp (-(ε ^ 2 * d / 2)) < 1 := by
   have hceil : 4 * ((Fintype.card ι : ℝ) + 1) / ε ^ 2 ≤ d :=
     (Nat.le_ceil _).trans (by exact_mod_cast hd)
-  have hε2 : 0 < ε ^ 2 := sq_pos_of_pos hε
-  have hexp_ge : 2 * ((Fintype.card ι : ℝ) + 1) ≤ ε ^ 2 * d / 2 := by
-    have hmul : 4 * ((Fintype.card ι : ℝ) + 1) ≤ ε ^ 2 * d :=
-      (div_le_iff₀ hε2).mp hceil |>.trans (le_of_eq (by ring))
-    linarith
+  rw [div_le_iff₀ (by positivity)] at hceil
   have he2 : (3 : ℝ) ≤ exp 2 := by linarith [add_one_le_exp (2 : ℝ)]
-  have hpow3 : (2 : ℝ) * 2 ^ Fintype.card ι < 3 ^ (Fintype.card ι + 1) := by
-    have h23 : (2 : ℝ) ^ Fintype.card ι ≤ 3 ^ Fintype.card ι :=
-      pow_le_pow_left₀ (by norm_num) (by norm_num) _
-    have h2pos : (0 : ℝ) < (2 : ℝ) ^ Fintype.card ι := by positivity
-    rw [pow_succ']
-    nlinarith
-  have hpow_exp : (3 : ℝ) ^ (Fintype.card ι + 1) ≤ exp (ε ^ 2 * d / 2) := by
-    refine (pow_le_pow_left₀ (by norm_num) he2 (Fintype.card ι + 1)).trans ?_
-    rw [← Real.exp_natCast_mul]
-    refine Real.exp_le_exp.mpr ?_
-    push_cast
-    linarith
-  have hlt_exp : 2 * 2 ^ Fintype.card ι < exp (ε ^ 2 * d / 2) := hpow3.trans_le hpow_exp
-  have hpos : 0 < exp (ε ^ 2 * d / 2) := Real.exp_pos _
-  rw [Real.exp_neg, mul_inv_lt_iff₀ hpos, one_mul]
-  exact hlt_exp
+  have h23 : (2 : ℝ) ^ Fintype.card ι ≤ 3 ^ Fintype.card ι := by gcongr; norm_num
+  rw [Real.exp_neg, mul_inv_lt_iff₀ (exp_pos _), one_mul]
+  calc (2 : ℝ) * 2 ^ Fintype.card ι < 3 * 3 ^ Fintype.card ι := by
+        linarith [pow_pos (two_pos : (0 : ℝ) < 2) (Fintype.card ι)]
+    _ ≤ exp 2 ^ (Fintype.card ι + 1) := by rw [← pow_succ']; gcongr
+    _ ≤ exp (ε ^ 2 * d / 2) := by
+        rw [← Real.exp_nat_mul]
+        exact exp_le_exp.mpr (by push_cast; linarith)
 
 /-- **Short `ε`-biased lists of size `⌈4 (|ι| + 1) / ε²⌉`**: for `ε > 0` and
 `d ≥ ⌈4 (|ι| + 1) / ε²⌉`, an `ε`-biased list of `d` bit strings on `ι` exists. -/

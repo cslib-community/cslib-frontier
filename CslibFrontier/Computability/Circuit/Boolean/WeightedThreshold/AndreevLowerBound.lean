@@ -418,9 +418,7 @@ theorem andreevWeightTail_scale_le (b : ℕ) {M : ℕ} (hM : 1 ≤ M) :
   have hterm (q : ℕ) : (andreevWeightCount b M q : ℝ) *
       Real.exp (-(2 * (α * Real.sqrt q + β) ^ 2 / x)) ≤ (x + 1) ^ (b + 1) * K * r ^ q := by
     have hsq : α ^ 2 * q + β ^ 2 ≤ (α * Real.sqrt q + β) ^ 2 := by
-      have heq : (α * Real.sqrt q + β) ^ 2 =
-          α ^ 2 * (Real.sqrt q) ^ 2 + β ^ 2 + 2 * (α * Real.sqrt q * β) := by ring
-      rw [heq, Real.sq_sqrt (Nat.cast_nonneg q)]
+      rw [add_sq, mul_pow α, Real.sq_sqrt (Nat.cast_nonneg q)]
       linarith only [mul_nonneg (mul_nonneg hα0 (Real.sqrt_nonneg q)) hβ0]
     have hexp : Real.exp (-(2 * (α * Real.sqrt q + β) ^ 2 / x)) ≤
         Real.exp (-(2 * A)) ^ q * K := by
@@ -456,8 +454,8 @@ theorem andreevWeightTail_scale_le (b : ℕ) {M : ℕ} (hM : 1 ≤ M) :
     have he2 : (4 : ℝ) ^ (b + 2) ≤ Real.exp (2 * ((b : ℝ) + 2)) := by
       have h4 : (4 : ℝ) ≤ Real.exp 2 := by
         have h1 : (2 : ℝ) ≤ Real.exp 1 := by linarith only [Real.add_one_le_exp 1]
-        rw [show (2 : ℝ) = 1 + 1 by norm_num, Real.exp_add, show (4 : ℝ) = 2 * 2 by norm_num]
-        exact mul_le_mul h1 h1 (by norm_num) (Real.exp_nonneg 1)
+        rw [show (2 : ℝ) = 1 + 1 by norm_num, Real.exp_add]
+        nlinarith only [h1]
       calc (4 : ℝ) ^ (b + 2) ≤ Real.exp 2 ^ (b + 2) := pow_le_pow_left₀ (by norm_num) h4 _
         _ = Real.exp (2 * ((b : ℝ) + 2)) := by
           rw [← Real.exp_natCast_mul]; congr 1; push_cast; ring
@@ -487,21 +485,15 @@ theorem andreevWeightTail_scale_le (b : ℕ) {M : ℕ} (hM : 1 ≤ M) :
   have hexpK : (2 : ℝ) ^ ((b + 1) * (b + 1) + 1 + (b + 6)) ≤ Real.exp (2 * ((b : ℝ) + 2) ^ 2) :=
     (pow_le_pow_right₀ (by norm_num) (by ring_nf; omega)).trans
       ((Real.two_pow_le_exp (2 * (b + 2) ^ 2)).trans_eq (by push_cast; ring_nf))
-  have hKpos : 0 < K := Real.exp_pos _
-  have hK_eq : K * Real.exp (2 * ((b : ℝ) + 2) ^ 2) = 1 := by
-    rw [hK, ← Real.exp_add, neg_add_cancel, Real.exp_zero]
-  rw [one_div, inv_pow]
-  rw [← one_div]
-  apply (le_div_iff₀ (by positivity : (0 : ℝ) < (2 : ℝ) ^ (b + 6))).mpr
-  have hp : (x + 1) ^ (b + 1) * (4 / 3 : ℝ) * (2 : ℝ) ^ (b + 6) ≤
-      Real.exp (2 * ((b : ℝ) + 2) ^ 2) := by
-    calc _ ≤ (2 : ℝ) ^ ((b + 1) * (b + 1)) * 2 * (2 : ℝ) ^ (b + 6) := by gcongr; norm_num
-         _ = (2 : ℝ) ^ ((b + 1) * (b + 1) + 1 + (b + 6)) := by simp only [pow_add, pow_one]
-         _ ≤ _ := hexpK
+  rw [one_div_pow, le_div_iff₀ (by positivity)]
   calc (x + 1) ^ (b + 1) * K * (4 / 3) * (2 : ℝ) ^ (b + 6)
       = K * ((x + 1) ^ (b + 1) * (4 / 3) * (2 : ℝ) ^ (b + 6)) := by ring
-    _ ≤ K * Real.exp (2 * ((b : ℝ) + 2) ^ 2) := mul_le_mul_of_nonneg_left hp hKpos.le
-    _ = 1 := hK_eq
+    _ ≤ K * Real.exp (2 * ((b : ℝ) + 2) ^ 2) := by
+      refine mul_le_mul_of_nonneg_left ?_ (Real.exp_pos _).le
+      calc _ ≤ (2 : ℝ) ^ ((b + 1) * (b + 1)) * 2 * (2 : ℝ) ^ (b + 6) := by gcongr; norm_num
+        _ = (2 : ℝ) ^ ((b + 1) * (b + 1) + 1 + (b + 6)) := by simp only [pow_add, pow_one]
+        _ ≤ _ := hexpK
+    _ = 1 := by rw [hK, ← Real.exp_add, neg_add_cancel, Real.exp_zero]
 
 /-- With `ε ≥ 3 (b + 2) / √(2 ^ b)`, the canonical offset and tail consume at most
 `2 ε / 3`, leaving a nonnegative excess of at least `2 ^ b * ε / 3`. -/

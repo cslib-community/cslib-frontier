@@ -166,7 +166,7 @@ theorem exists_isMatching (hm : G.IsMatchingInto A B m) (hAB : Disjoint A B) :
     rw [hba] at this
     exact Finset.disjoint_left.1 hAB ha this
   exact Subgraph.IsMatching.exists_of_disjoint_sets_of_equiv hdisj
-    (hm.injOn.bijOn_image.equiv m) fun a => hm.adj a a.property
+    (hm.injOn.bijOn_image.equiv m) fun a => hm.adj a a.2
 
 end IsMatchingInto
 
@@ -214,11 +214,8 @@ theorem vertexCoverNum_eq (h : G.IsCrown C H) :
       have := hS'.vertexCoverNum_le
       rwa [← Subtype.val_injective.encard_image, Subtype.image_preimage_coe, Set.inter_comm] at this
     have h₂ : (H.card : ℕ∞) ≤ (S ∩ (↑H ∪ ↑C)).encard := hm.card_le_encard_inter h.disjoint hS
-    have hdisj : Disjoint (S ∩ R) (S ∩ (↑H ∪ ↑C)) := by
-      refine Set.disjoint_left.2 fun v hv hv' => hv.2 ?_
-      rcases hv'.2 with h' | h'
-      · exact Or.inr h'
-      · exact Or.inl h'
+    have hdisj : Disjoint (S ∩ R) (S ∩ (↑H ∪ ↑C)) :=
+      Set.disjoint_left.2 fun v hv hv' => hv.2 hv'.2.symm
     rw [← hcard]
     calc (G.induce R).vertexCoverNum + H.card ≤ (S ∩ R).encard + (S ∩ (↑H ∪ ↑C)).encard := by gcongr
       _ = (S ∩ R ∪ S ∩ (↑H ∪ ↑C)).encard := (Set.encard_union_eq hdisj).symm
@@ -316,10 +313,8 @@ theorem exists_isMatchingInto_or_exists_card_lt (A B : Finset V) :
   · left
     obtain ⟨f, hfi, hf⟩ := (Finset.all_card_le_biUnion_card_iff_exists_injective
       (fun a : A => G.neighborFinset a ∩ B)).1 fun s => by
-        have := hHall (s.map (Function.Embedding.subtype _)) (by
-          intro x hx
-          obtain ⟨y, -, rfl⟩ := Finset.mem_map.1 hx
-          exact y.property)
+        have := hHall (s.map (Function.Embedding.subtype _))
+          fun x hx => Finset.property_of_mem_map_subtype s hx
         rw [Finset.card_map] at this
         refine this.trans (Finset.card_le_card fun v hv => ?_)
         simp only [Finset.mem_inter, Finset.mem_biUnion, Finset.mem_map,
@@ -336,9 +331,8 @@ theorem exists_isMatchingInto_or_exists_card_lt (A B : Finset V) :
       have hb : b ∈ A := hb
       simp only [ha, hb, ↓reduceDIte] at hab
       exact congrArg Subtype.val (hfi hab)
-  · right
-    push Not at hHall
-    exact hHall
+  · push Not at hHall
+    exact Or.inr hHall
 
 variable {I : Finset V}
 
@@ -356,7 +350,7 @@ theorem exists_isCrown_of_card_lt (hI : G.IsIndepSet I)
     hYmax Y' (Finset.mem_powerset.2 hY')
   have hpos := hYmax I le_rfl
   have hYne : Y.Nonempty := by
-    rw [← Finset.ne_empty_iff_nonempty]
+    rw [Finset.nonempty_iff_ne_empty]
     rintro rfl
     simp only [Finset.card_empty, Finset.biUnion_empty, Nat.cast_zero, sub_zero] at hpos
     omega
@@ -416,7 +410,7 @@ theorem IsCrown.union_map [DecidableEq V] {C H : Finset V} (h : G.IsCrown C H)
   have hR : ∀ {X : Finset R} {v : V}, v ∈ X.map (Function.Embedding.subtype _) →
       ∃ hv : v ∈ R, (⟨v, hv⟩ : R) ∈ X := fun hv => by
     obtain ⟨x, hx, rfl⟩ := Finset.mem_map.1 hv
-    exact ⟨x.property, hx⟩
+    exact ⟨x.2, hx⟩
   have hnotR : ∀ {v : V}, v ∈ R → v ∉ C ∧ v ∉ H := fun hv => by
     simpa [R, not_or] using hv
   -- every neighbour of `C` lies in `H`
@@ -477,12 +471,12 @@ theorem exists_isCrown_forall_isCrown_eq_empty [Finite V] :
   have hCH : G.IsCrown C H := (Finset.mem_filter.1 hCH).2
   refine ⟨C, H, hCH, fun C' H' h' => ?_⟩
   by_contra hne
-  obtain ⟨c, hc⟩ := Finset.ne_empty_iff_nonempty.1 hne
+  obtain ⟨c, hc⟩ := Finset.nonempty_iff_ne_empty.2 hne
   have h'' := hCH.union_map h'
   have hle := hmax (C ∪ C'.map (Function.Embedding.subtype _),
     H ∪ H'.map (Function.Embedding.subtype _)) (Finset.mem_filter.2 ⟨Finset.mem_univ _, h''⟩)
   have hc' : (c : V) ∉ C ∪ H := by
-    have := c.property
+    have := c.2
     simpa [not_or] using this
   dsimp only at hle
   finset_card [show (c : V) ∈ C'.map (Function.Embedding.subtype _) from
@@ -535,9 +529,13 @@ theorem exists_isMatchingInto_or_exists_isCrown {k : ℕ} (hk : 3 * k < Fintype.
     intro u hu v hv huv hadj
     have hu := hmemI.1 hu
     have hv := hmemI.1 hv
-    have hupd : ∀ a ∈ A, Function.update m u v a = m a := fun a ha =>
-      Function.update_of_ne (by rintro rfl; exact hu.1 ha) _ _
-    have := hmax (insert u A) (insert v (A.image m)) (Function.update m u v) ?_ ?_
+    obtain ⟨m'', hm''⟩ := IsMatchingInto.union (A := {u}) (B := {v}) (m := fun _ => v)
+      ⟨fun _ _ => Finset.mem_singleton_self v, fun a ha => by rwa [Finset.mem_singleton.1 ha],
+        fun a ha b hb _ => (Finset.mem_singleton.1 ha).trans (Finset.mem_singleton.1 hb).symm⟩
+      ⟨fun a ha => Finset.mem_image_of_mem m ha, hm.adj, hm.injOn⟩
+      (Finset.disjoint_singleton_left.2 hv.2)
+    rw [← Finset.insert_eq, ← Finset.insert_eq] at hm''
+    have := hmax (insert u A) (insert v (A.image m)) m'' ?_ hm''
     · finset_card
     · refine Finset.disjoint_left.2 fun x hx hx' => ?_
       rcases Finset.mem_insert.1 hx with hxu | hx <;>
@@ -547,29 +545,6 @@ theorem exists_isMatchingInto_or_exists_isCrown {k : ℕ} (hk : 3 * k < Fintype.
       · exact hv.1 (hxv ▸ hx)
       · obtain ⟨a, ha, rfl⟩ := Finset.mem_image.1 hx'
         exact Finset.disjoint_left.1 hAB hx (hm.mapsTo a ha)
-    · refine ⟨fun a ha => ?_, fun a ha => ?_, fun a ha b hb hab => ?_⟩
-      · rcases Finset.mem_insert.1 ha with rfl | ha
-        · rw [Function.update_self]
-          exact Finset.mem_insert_self _ _
-        · rw [hupd a ha]
-          exact Finset.mem_insert_of_mem (Finset.mem_image_of_mem _ ha)
-      · rcases Finset.mem_insert.1 ha with rfl | ha
-        · rw [Function.update_self]
-          exact hadj
-        · rw [hupd a ha]
-          exact hm.adj a ha
-      · have ha' : a ∈ insert u A := ha
-        have hb' : b ∈ insert u A := hb
-        clear ha hb
-        rcases Finset.mem_insert.1 ha' with hau | ha <;>
-          rcases Finset.mem_insert.1 hb' with hbu | hb
-        · exact hau.trans hbu.symm
-        · rw [hau, Function.update_self, hupd b hb] at hab
-          exact (hv.2 (by rw [hab]; exact Finset.mem_image_of_mem m hb)).elim
-        · rw [hbu, Function.update_self, hupd a ha] at hab
-          exact (hv.2 (by rw [← hab]; exact Finset.mem_image_of_mem m ha)).elim
-        · rw [hupd a ha, hupd b hb] at hab
-          exact hm.injOn ha hb hab
   rcases G.exists_isMatchingInto_or_exists_card_lt I (I.biUnion fun v => G.neighborFinset v) with
     ⟨m', hm'⟩ | ⟨S, hSI, hS⟩
   · refine Or.inl ⟨I, _, m', Finset.disjoint_left.2 fun v hvI hvN => ?_, hm', hIcard⟩
@@ -614,7 +589,7 @@ theorem exists_isMatchingInto_or_exists_isCrown_card_compl_le [DecidableEq V] (k
   have hRmem : ∀ {X : Finset ↥((↑C ∪ ↑H : Set V)ᶜ)} {v : V},
       v ∈ X.map (Function.Embedding.subtype _) → v ∉ C ∧ v ∉ H := fun hv => by
     obtain ⟨x, -, rfl⟩ := Finset.mem_map.1 hv
-    have := x.property
+    have := x.2
     simpa [not_or] using this
   rcases (G.induce (↑C ∪ ↑H : Set V)ᶜ).exists_isMatchingInto_or_exists_isCrown
       (k := k - H.card) (by rw [card_compl_union_eq]; exact hR) with

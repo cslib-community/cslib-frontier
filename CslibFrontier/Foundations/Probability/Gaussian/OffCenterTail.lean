@@ -83,40 +83,23 @@ less than `1` ([MicciancioRegev2007], Lemma 2.10, p. 9). -/
 theorem banaszczykConstant_lt_one {c : ℝ} (hc : 1 / Real.sqrt (2 * Real.pi) < c) :
     c * Real.sqrt (2 * Real.pi * Real.exp 1) * Real.exp (-Real.pi * c ^ 2) < 1 := by
   have h2pi : 0 < 2 * Real.pi := by positivity
-  have hcpos : 0 < c := lt_trans (by positivity) hc
-  have h1 : 1 < c * Real.sqrt (2 * Real.pi) := by
-    rw [div_lt_iff₀ (Real.sqrt_pos.mpr h2pi)] at hc
-    linarith
+  -- With `u = 2πc² > 1`, the square of the constant is `u * exp (1 - u) < 1`.
   have hu : 1 < 2 * Real.pi * c ^ 2 := by
-    have hsq : 1 ^ 2 < (c * Real.sqrt (2 * Real.pi)) ^ 2 :=
-      pow_lt_pow_left₀ h1 zero_le_one (by decide : 2 ≠ 0)
+    rw [div_lt_iff₀ (Real.sqrt_pos.mpr h2pi)] at hc
+    have hsq := pow_lt_pow_left₀ hc zero_le_one two_ne_zero
     rw [one_pow, mul_pow, Real.sq_sqrt h2pi.le] at hsq
     linarith
-  have hexp : 2 * Real.pi * c ^ 2 < Real.exp (2 * Real.pi * c ^ 2 - 1) := by
-    have h := Real.add_one_lt_exp (sub_ne_zero.mpr hu.ne')
-    linarith
-  have hsq_lt :
-      (c * Real.sqrt (2 * Real.pi * Real.exp 1) * Real.exp (-Real.pi * c ^ 2)) ^ 2 < 1 ^ 2 := by
-    rw [one_pow, mul_pow, mul_pow, Real.sq_sqrt (by positivity), ← Real.exp_natCast_mul]
-    have hmul :
-        Real.exp 1 * Real.exp ((2 : ℕ) * (-Real.pi * c ^ 2)) =
-          Real.exp (1 - 2 * Real.pi * c ^ 2) := by
-      rw [← Real.exp_add]
-      congr 1
-      push_cast
-      ring
-    have hcomb :
-        c ^ 2 * (2 * Real.pi * Real.exp 1) * Real.exp ((2 : ℕ) * (-Real.pi * c ^ 2)) =
-          2 * Real.pi * c ^ 2 * Real.exp (1 - 2 * Real.pi * c ^ 2) := by
-      calc
-        c ^ 2 * (2 * Real.pi * Real.exp 1) * Real.exp ((2 : ℕ) * (-Real.pi * c ^ 2)) =
-            2 * Real.pi * c ^ 2 * (Real.exp 1 * Real.exp ((2 : ℕ) * (-Real.pi * c ^ 2))) := by
-          ring
-        _ = 2 * Real.pi * c ^ 2 * Real.exp (1 - 2 * Real.pi * c ^ 2) := by rw [hmul]
-    rw [hcomb, show 1 - 2 * Real.pi * c ^ 2 = -(2 * Real.pi * c ^ 2 - 1) by ring, Real.exp_neg,
-      ← div_eq_mul_inv]
-    exact (div_lt_one (Real.exp_pos _)).mpr hexp
-  exact lt_of_pow_lt_pow_left₀ 2 zero_le_one hsq_lt
+  have hexp := Real.add_one_lt_exp (sub_ne_zero.mpr hu.ne')
+  have key : Real.exp 1 * Real.exp ((2 : ℕ) * (-Real.pi * c ^ 2)) *
+      Real.exp (2 * Real.pi * c ^ 2 - 1) = 1 := by
+    rw [← Real.exp_add, ← Real.exp_add, ← Real.exp_zero]
+    congr 1
+    push_cast
+    ring
+  refine lt_of_pow_lt_pow_left₀ 2 zero_le_one ?_
+  rw [one_pow, mul_pow, mul_pow, Real.sq_sqrt (by positivity), ← Real.exp_nat_mul]
+  linarith [mul_lt_mul_of_pos_left hexp
+    (mul_pos (Real.exp_pos 1) (Real.exp_pos ((2 : ℕ) * (-Real.pi * c ^ 2))))]
 
 private theorem one_div_sqrt_two_pi_lt_one : 1 / Real.sqrt (2 * Real.pi) < 1 := by
   rw [div_lt_one (Real.sqrt_pos.mpr (by positivity))]
@@ -129,7 +112,7 @@ private theorem banaszczykConstant_one_lt_quarter :
   have he_gt : (2.7 : ℝ) < Real.exp 1 := lt_trans (by norm_num) Real.exp_one_gt_d9
   have he5 : (2.7 : ℝ) ^ 5 < Real.exp 5 := by
     have hp := pow_lt_pow_left₀ he_gt (by norm_num : (0 : ℝ) ≤ 2.7) (by decide : 5 ≠ 0)
-    rwa [← Real.exp_natCast_mul, show ((5 : ℕ) : ℝ) * 1 = 5 by norm_num] at hp
+    rwa [← Real.exp_nat_mul, show ((5 : ℕ) : ℝ) * 1 = 5 by norm_num] at hp
   have he_exp : 32 * Real.pi < Real.exp (2 * Real.pi - 1) := by
     have h5 : Real.exp 5 < Real.exp (2 * Real.pi - 1) := Real.exp_lt_exp.mpr (by linarith)
     have hnum : (32 : ℝ) * 3.15 < (2.7 : ℝ) ^ 5 := by norm_num
@@ -137,7 +120,7 @@ private theorem banaszczykConstant_one_lt_quarter :
   have hsq :
       (1 * Real.sqrt (2 * Real.pi * Real.exp 1) * Real.exp (-Real.pi * 1 ^ 2)) ^ 2 <
         (1 / 4 : ℝ) ^ 2 := by
-    rw [one_mul, mul_pow, Real.sq_sqrt (by positivity), ← Real.exp_natCast_mul]
+    rw [one_mul, mul_pow, Real.sq_sqrt (by positivity), ← Real.exp_nat_mul]
     have hcomb :
         2 * Real.pi * Real.exp 1 * Real.exp ((2 : ℕ) * (-Real.pi * 1 ^ 2)) =
           2 * Real.pi / Real.exp (2 * Real.pi - 1) := by
@@ -197,113 +180,59 @@ theorem tsum_gaussianWeight_norm_sub_gt_lt
         gaussianMass L s 0 := by
   have h2pi : 0 < 2 * Real.pi := by positivity
   have hcpos : 0 < c := lt_trans (by positivity) hc
-  have hCpos :
-      0 < c * Real.sqrt (2 * Real.pi * Real.exp 1) * Real.exp (-Real.pi * c ^ 2) := by
-    positivity
   set S : Set L := {z : L | c * s * Real.sqrt (finrank ℝ E) < ‖(z : E) - v‖}
-  by_cases hS : S.Nonempty
-  · let t : ℝ := c * Real.sqrt (2 * Real.pi) * s
-    have hc_sqrt : 1 < c * Real.sqrt (2 * Real.pi) := by
-      rw [div_lt_iff₀ (Real.sqrt_pos.mpr h2pi)] at hc
-      linarith
-    have hst : s < t := by
-      dsimp only [t]
-      nlinarith
-    have ht : 0 < t := hs.trans hst
-    let R : ℝ := c * s * Real.sqrt (finrank ℝ E)
-    have hR : 0 ≤ R := by positivity
-    let κ : ℝ := Real.pi * (1 / s ^ 2 - 1 / t ^ 2)
-    have hκ : 0 < κ := by
-      apply mul_pos Real.pi_pos
-      apply sub_pos.mpr
-      apply one_div_lt_one_div_of_lt (sq_pos_of_pos hs)
-      nlinarith
-    have hpoint (z : S) :
-        gaussianWeight s ((z : E) - v) <
-          Real.exp (-κ * R ^ 2) * gaussianWeight t ((z : E) - v) := by
-      have hgt : R < ‖(z : E) - v‖ := z.property
-      have hsq : R ^ 2 < ‖(z : E) - v‖ ^ 2 := by
-        nlinarith [norm_nonneg ((z : E) - v)]
-      have hmul := gaussianWeight_mul_exp s t ((z : E) - v)
-      have hexp_lt :
-          Real.exp (-κ * ‖(z : E) - v‖ ^ 2) < Real.exp (-κ * R ^ 2) := by
-        apply Real.exp_lt_exp.mpr
-        nlinarith
-      have hrewrite :
-          gaussianWeight s ((z : E) - v) =
-            Real.exp (-κ * ‖(z : E) - v‖ ^ 2) * gaussianWeight t ((z : E) - v) := by
-        rw [← hmul, mul_comm (gaussianWeight s _), ← mul_assoc, ← Real.exp_add]
-        have hzero : -κ * ‖(z : E) - v‖ ^ 2 + Real.pi * (1 / s ^ 2 - 1 / t ^ 2) *
-            ‖(z : E) - v‖ ^ 2 = 0 := by
-          dsimp only [κ]
-          ring
-        rw [hzero, Real.exp_zero, one_mul]
-      rw [hrewrite]
-      exact mul_lt_mul_of_pos_right hexp_lt (gaussianWeight_pos _ _)
-    obtain ⟨z₀, hz₀⟩ := hS
-    have hsum_s : Summable (fun z : S ↦ gaussianWeight s ((z : E) - v)) :=
-      (summable_gaussianWeight L s hs v).subtype (· ∈ S)
-    have hsum_t :
-        Summable (fun z : S ↦ Real.exp (-κ * R ^ 2) * gaussianWeight t ((z : E) - v)) :=
-      ((summable_gaussianWeight L t ht v).subtype (· ∈ S)).mul_left _
-    have hlt :
-        (∑' z : S, gaussianWeight s ((z : E) - v)) <
-          Real.exp (-κ * R ^ 2) * (∑' z : S, gaussianWeight t ((z : E) - v)) := by
-      rw [← tsum_mul_left]
-      exact Summable.tsum_lt_tsum (i := ⟨z₀, hz₀⟩) (fun z ↦ (hpoint z).le) (hpoint ⟨z₀, hz₀⟩)
-        hsum_s hsum_t
-    have hsub_le : (∑' z : S, gaussianWeight t ((z : E) - v)) ≤ gaussianMass L t v :=
-      ((summable_gaussianWeight L t ht v).subtype (· ∈ S)).tsum_le_tsum_of_inj Subtype.val
-        Subtype.val_injective (fun _ _ ↦ (gaussianWeight_pos _ _).le) (fun _ ↦ le_rfl)
-        (summable_gaussianWeight L t ht v)
-    have hmass_t : gaussianMass L t v ≤ (t / s) ^ finrank ℝ E * gaussianMass L s 0 := by
-      let _ : MeasurableSpace E := borel E
-      have _ : BorelSpace E := ⟨rfl⟩
-      have hdiv := gaussianMass_zero_div_le L s hs t hst.le
-      have hzero : gaussianMass L t 0 ≤ (t / s) ^ finrank ℝ E * gaussianMass L s 0 :=
-        (div_le_iff₀ (gaussianMass_pos L s hs 0)).mp hdiv
-      exact (gaussianMass_le_gaussianMass_zero L t ht v).trans hzero
-    have hconst :
-        Real.exp (-κ * R ^ 2) * (t / s) ^ finrank ℝ E =
-          (c * Real.sqrt (2 * Real.pi * Real.exp 1) * Real.exp (-Real.pi * c ^ 2)) ^
-            finrank ℝ E := by
-      have hts : t / s = c * Real.sqrt (2 * Real.pi) := by
-        dsimp only [t]
-        field_simp
-      have hRsq : R ^ 2 = c ^ 2 * s ^ 2 * (finrank ℝ E : ℝ) := by
-        dsimp only [R]
-        rw [mul_pow, mul_pow, Real.sq_sqrt (Nat.cast_nonneg _)]
-      have htsq : t ^ 2 = c ^ 2 * (2 * Real.pi) * s ^ 2 := by
-        dsimp only [t]
-        rw [mul_pow, mul_pow, Real.sq_sqrt h2pi.le]
-      have hexp_arg : -κ * R ^ 2 = (finrank ℝ E : ℝ) * (1 / 2 - Real.pi * c ^ 2) := by
-        dsimp only [κ]
-        rw [hRsq, htsq]
-        have hpi0 : Real.pi ≠ 0 := Real.pi_pos.ne'
-        field_simp
-        ring
-      have hsqrt_e : Real.exp (1 / 2) = Real.sqrt (Real.exp 1) := by
-        symm
-        rw [Real.sqrt_eq_iff_eq_sq (Real.exp_pos _).le (Real.exp_pos _).le, ← Real.exp_natCast_mul]
-        norm_num
-      rw [hts, hexp_arg, Real.exp_natCast_mul, ← mul_pow]
-      congr 1
-      rw [sub_eq_add_neg, Real.exp_add, hsqrt_e, Real.sqrt_mul h2pi.le, neg_mul]
-      ring
-    calc
-      (∑' z : S, gaussianWeight s ((z : E) - v)) <
-          Real.exp (-κ * R ^ 2) * (∑' z : S, gaussianWeight t ((z : E) - v)) := hlt
-      _ ≤ Real.exp (-κ * R ^ 2) * gaussianMass L t v :=
-        mul_le_mul_of_nonneg_left hsub_le (Real.exp_pos _).le
-      _ ≤ Real.exp (-κ * R ^ 2) * ((t / s) ^ finrank ℝ E * gaussianMass L s 0) :=
-        mul_le_mul_of_nonneg_left hmass_t (Real.exp_pos _).le
-      _ = (Real.exp (-κ * R ^ 2) * (t / s) ^ finrank ℝ E) * gaussianMass L s 0 := by ring
-      _ = (c * Real.sqrt (2 * Real.pi * Real.exp 1) * Real.exp (-Real.pi * c ^ 2)) ^
-            finrank ℝ E * gaussianMass L s 0 := by rw [hconst]
-  · rw [Set.not_nonempty_iff_eq_empty] at hS
-    have : IsEmpty S := by rw [hS]; infer_instance
+  rcases S.eq_empty_or_nonempty with hS | ⟨z₀, hz₀⟩
+  · have : IsEmpty S := by rw [hS]; infer_instance
     rw [tsum_empty]
-    exact mul_pos (pow_pos hCpos _) (gaussianMass_pos L s hs 0)
+    exact mul_pos (by positivity) (gaussianMass_pos L s hs 0)
+  -- Compare width `s` with the wider width `t = c √(2π) s` on the tail `‖z - v‖ > R`.
+  let t : ℝ := c * Real.sqrt (2 * Real.pi) * s
+  have hc_sqrt : 1 < c * Real.sqrt (2 * Real.pi) := by
+    rw [div_lt_iff₀ (Real.sqrt_pos.mpr h2pi)] at hc
+    linarith
+  have hst : s < t := by dsimp only [t]; nlinarith
+  have ht : 0 < t := hs.trans hst
+  let R : ℝ := c * s * Real.sqrt (finrank ℝ E)
+  let κ : ℝ := Real.pi * (1 / s ^ 2 - 1 / t ^ 2)
+  have hκ : 0 < κ :=
+    mul_pos Real.pi_pos (sub_pos.mpr (one_div_lt_one_div_of_lt (by positivity) (by nlinarith)))
+  have hpoint (z : S) :
+      gaussianWeight s ((z : E) - v) < Real.exp (-κ * R ^ 2) * gaussianWeight t ((z : E) - v) := by
+    have hsq := mul_lt_mul_of_pos_left
+      (pow_lt_pow_left₀ (show R < ‖(z : E) - v‖ from z.2) (by positivity) two_ne_zero) hκ
+    rw [← gaussianWeight_mul_exp s t, mul_left_comm, ← Real.exp_add]
+    refine lt_mul_of_one_lt_right (gaussianWeight_pos _ _) (Real.one_lt_exp_iff.mpr ?_)
+    dsimp only [κ] at hsq ⊢
+    linarith
+  have hsum_t := summable_gaussianWeight L t ht v
+  have hlt : (∑' z : S, gaussianWeight s ((z : E) - v)) <
+      Real.exp (-κ * R ^ 2) * (∑' z : S, gaussianWeight t ((z : E) - v)) := by
+    rw [← tsum_mul_left]
+    exact Summable.tsum_lt_tsum (i := ⟨z₀, hz₀⟩) (fun z ↦ (hpoint z).le) (hpoint ⟨z₀, hz₀⟩)
+      ((summable_gaussianWeight L s hs v).subtype (· ∈ S)) ((hsum_t.subtype (· ∈ S)).mul_left _)
+  have hsub_le : (∑' z : S, gaussianWeight t ((z : E) - v)) ≤ gaussianMass L t v :=
+    (hsum_t.subtype (· ∈ S)).tsum_le_tsum_of_inj Subtype.val Subtype.val_injective
+      (fun _ _ ↦ (gaussianWeight_pos _ _).le) (fun _ ↦ le_rfl) hsum_t
+  have hmass_t : gaussianMass L t v ≤ (t / s) ^ finrank ℝ E * gaussianMass L s 0 := by
+    let _ : MeasurableSpace E := borel E
+    have _ : BorelSpace E := ⟨rfl⟩
+    exact (gaussianMass_le_gaussianMass_zero L t ht v).trans
+      ((div_le_iff₀ (gaussianMass_pos L s hs 0)).mp (gaussianMass_zero_div_le L s hs t hst.le))
+  have hconst : Real.exp (-κ * R ^ 2) * (t / s) ^ finrank ℝ E =
+      (c * Real.sqrt (2 * Real.pi * Real.exp 1) * Real.exp (-Real.pi * c ^ 2)) ^ finrank ℝ E := by
+    have hexp_arg : -κ * R ^ 2 = (finrank ℝ E : ℝ) * (1 / 2 - Real.pi * c ^ 2) := by
+      simp only [κ, R, t, mul_pow, Real.sq_sqrt h2pi.le, Real.sq_sqrt (Nat.cast_nonneg _)]
+      field_simp
+      ring
+    have hts : t / s = c * Real.sqrt (2 * Real.pi) := by dsimp only [t]; field_simp
+    rw [hexp_arg, Real.exp_nat_mul, ← mul_pow, hts, sub_eq_add_neg, Real.exp_add, Real.exp_half,
+      Real.sqrt_mul h2pi.le, neg_mul]
+    ring
+  calc
+    (∑' z : S, gaussianWeight s ((z : E) - v)) <
+        Real.exp (-κ * R ^ 2) * (∑' z : S, gaussianWeight t ((z : E) - v)) := hlt
+    _ ≤ Real.exp (-κ * R ^ 2) * ((t / s) ^ finrank ℝ E * gaussianMass L s 0) := by gcongr; linarith
+    _ = _ := by rw [← mul_assoc, hconst]
 
 /-- **Shifted Regev Lemma 2.5** ([Regev2009], Lemma 2.5, p. 16, extended to arbitrary center `v`
 via [Banaszczyk1993], Lemma 1.5(ii), printed p. 630 / [MicciancioRegev2007], Lemma 2.10): for any
@@ -522,7 +451,7 @@ theorem hasSubgaussianMGF_inner_discreteGaussian_zero
         (discreteGaussian L s hs 0).toMeasure := by
     have hcont : Continuous (fun z : L ↦ Real.exp (t * ⟪(z : E), u⟫)) :=
       Real.continuous_exp.comp
-        (continuous_const.mul (continuous_subtypeVal.inner continuous_const))
+        (continuous_const.mul (continuous_subtype_val.inner continuous_const))
     refine ⟨hcont.measurable.aestronglyMeasurable, ?_⟩
     rw [hasFiniteIntegral_iff_ofReal (Filter.Eventually.of_forall (fun z ↦ (Real.exp_pos _).le)),
       lintegral_countable']
@@ -562,68 +491,39 @@ private theorem tsum_gaussianWeight_inner_sub_ge_le
       Real.exp (-Real.pi * t ^ 2) * gaussianMass L s 0 := by
   have hun : 0 < ‖u‖ := norm_pos_iff.mpr hu
   let lam : ℝ := 2 * Real.pi * t / (s * ‖u‖)
-  have hlam : 0 ≤ lam := by positivity
   set S : Set L := {z : L | t * s * ‖u‖ ≤ ⟪(z : E) - c, u⟫}
   have hpoint (z : S) :
       gaussianWeight s ((z : E) - c) ≤
         Real.exp (-2 * Real.pi * t ^ 2) *
           (gaussianWeight s ((z : E) - c) * Real.exp (lam * ⟪(z : E) - c, u⟫)) := by
-    have hz : t * s * ‖u‖ ≤ ⟪(z : E) - c, u⟫ := z.property
-    have hmul : 2 * Real.pi * t ^ 2 ≤ lam * ⟪(z : E) - c, u⟫ := by
-      have h1 := mul_le_mul_of_nonneg_left hz hlam
-      have h2 : lam * (t * s * ‖u‖) = 2 * Real.pi * t ^ 2 := by
-        dsimp only [lam]
-        field_simp
-      linarith
-    have hexp : 1 ≤ Real.exp (-2 * Real.pi * t ^ 2) * Real.exp (lam * ⟪(z : E) - c, u⟫) := by
-      rw [← Real.exp_add, Real.one_le_exp_iff]
-      linarith
-    calc
-      gaussianWeight s ((z : E) - c) = gaussianWeight s ((z : E) - c) * 1 := (mul_one _).symm
-      _ ≤ gaussianWeight s ((z : E) - c) *
-          (Real.exp (-2 * Real.pi * t ^ 2) * Real.exp (lam * ⟪(z : E) - c, u⟫)) :=
-        mul_le_mul_of_nonneg_left hexp (gaussianWeight_pos _ _).le
-      _ = Real.exp (-2 * Real.pi * t ^ 2) *
-          (gaussianWeight s ((z : E) - c) * Real.exp (lam * ⟪(z : E) - c, u⟫)) := by ring
+    have h1 := mul_le_mul_of_nonneg_left (show t * s * ‖u‖ ≤ ⟪(z : E) - c, u⟫ from z.2)
+      (by positivity : 0 ≤ lam)
+    have h2 : lam * (t * s * ‖u‖) = 2 * Real.pi * t ^ 2 := by dsimp only [lam]; field_simp
+    rw [mul_left_comm, ← Real.exp_add]
+    exact le_mul_of_one_le_right (gaussianWeight_pos _ _).le (Real.one_le_exp_iff.mpr (by linarith))
   have hsum_full := summable_gaussianWeight_mul_exp_inner L s hs c u lam
-  have h1 :
-      (∑' z : S, gaussianWeight s ((z : E) - c)) ≤
-        Real.exp (-2 * Real.pi * t ^ 2) *
-          (∑' z : S, gaussianWeight s ((z : E) - c) * Real.exp (lam * ⟪(z : E) - c, u⟫)) := by
-    rw [← tsum_mul_left]
-    exact Summable.tsum_le_tsum hpoint ((summable_gaussianWeight L s hs c).subtype (· ∈ S))
-      ((hsum_full.subtype (· ∈ S)).mul_left _)
-  have h2 :
-      (∑' z : S, gaussianWeight s ((z : E) - c) * Real.exp (lam * ⟪(z : E) - c, u⟫)) ≤
-        ∑' z : L, gaussianWeight s ((z : E) - c) * Real.exp (lam * ⟪(z : E) - c, u⟫) :=
-    (hsum_full.subtype (· ∈ S)).tsum_le_tsum_of_inj Subtype.val Subtype.val_injective
-      (fun _ _ ↦ mul_nonneg (gaussianWeight_pos _ _).le (Real.exp_pos _).le) (fun _ ↦ le_rfl)
-      hsum_full
-  have h3 :
-      Real.exp (-2 * Real.pi * t ^ 2) *
-          Real.exp ((s * ‖u‖) ^ 2 / (2 * Real.pi) * lam ^ 2 / 2) =
-        Real.exp (-Real.pi * t ^ 2) := by
-    rw [← Real.exp_add]
-    congr 1
-    dsimp only [lam]
-    have hpi : Real.pi ≠ 0 := Real.pi_pos.ne'
-    have hs0 : s ≠ 0 := hs.ne'
-    have hu0 : ‖u‖ ≠ 0 := hun.ne'
-    field_simp
-    ring
   calc
     (∑' z : S, gaussianWeight s ((z : E) - c)) ≤
         Real.exp (-2 * Real.pi * t ^ 2) *
-          (∑' z : L, gaussianWeight s ((z : E) - c) * Real.exp (lam * ⟪(z : E) - c, u⟫)) :=
-      h1.trans (mul_le_mul_of_nonneg_left h2 (Real.exp_pos _).le)
-    _ = (Real.exp (-2 * Real.pi * t ^ 2) *
-          Real.exp ((s * ‖u‖) ^ 2 / (2 * Real.pi) * lam ^ 2 / 2)) *
-          gaussianMass L s (c + (lam * s ^ 2 / (2 * Real.pi)) • u) := by
-      rw [tsum_gaussianWeight_mul_exp_inner L s hs c u lam, ← mul_assoc]
+          (∑' z : S, gaussianWeight s ((z : E) - c) * Real.exp (lam * ⟪(z : E) - c, u⟫)) := by
+      rw [← tsum_mul_left]
+      exact Summable.tsum_le_tsum hpoint ((summable_gaussianWeight L s hs c).subtype (· ∈ S))
+        ((hsum_full.subtype (· ∈ S)).mul_left _)
+    _ ≤ Real.exp (-2 * Real.pi * t ^ 2) *
+          (∑' z : L, gaussianWeight s ((z : E) - c) * Real.exp (lam * ⟪(z : E) - c, u⟫)) := by
+      gcongr
+      exact (Summable.tsum_subtype_le _ S
+        (fun _ ↦ mul_nonneg (gaussianWeight_pos _ _).le (Real.exp_pos _).le) hsum_full :)
     _ = Real.exp (-Real.pi * t ^ 2) *
-          gaussianMass L s (c + (lam * s ^ 2 / (2 * Real.pi)) • u) := by rw [h3]
-    _ ≤ Real.exp (-Real.pi * t ^ 2) * gaussianMass L s 0 :=
-      mul_le_mul_of_nonneg_left (gaussianMass_le_gaussianMass_zero L s hs _) (Real.exp_pos _).le
+          gaussianMass L s (c + (lam * s ^ 2 / (2 * Real.pi)) • u) := by
+      rw [tsum_gaussianWeight_mul_exp_inner L s hs c u lam, ← mul_assoc, ← Real.exp_add]
+      congr 2
+      dsimp only [lam]
+      field_simp
+      ring
+    _ ≤ Real.exp (-Real.pi * t ^ 2) * gaussianMass L s 0 := by
+      gcongr
+      exact gaussianMass_le_gaussianMass_zero L s hs _
 
 /-- Unnormalized two-sided one-dimensional directional tail of a shifted lattice Gaussian:
 for any nonzero `u` and `t ≥ 0`, the mass of `{z ∈ L | t * s * ‖u‖ ≤ |⟪z - c, u⟫|}` is at most
@@ -639,30 +539,21 @@ theorem tsum_gaussianWeight_abs_inner_sub_ge_le
   set S₂ : Set L := {z : L | t * s * ‖-u‖ ≤ ⟪(z : E) - c, -u⟫}
   let g : L → ℝ := fun w ↦ gaussianWeight s ((w : E) - c)
   have hsum : Summable g := summable_gaussianWeight L s hs c
+  have hnn (T : Set L) (z : L) : 0 ≤ T.indicator g z :=
+    Set.indicator_nonneg (fun _ _ ↦ (gaussianWeight_pos _ _).le) z
   have hpoint (z : L) : S.indicator g z ≤ S₁.indicator g z + S₂.indicator g z := by
     by_cases hz : z ∈ S
     · rw [Set.indicator_of_mem hz]
       have habs : t * s * ‖u‖ ≤ |⟪(z : E) - c, u⟫| := hz
       rcases le_or_gt 0 ⟪(z : E) - c, u⟫ with hpos | hneg
-      · have hz1 : z ∈ S₁ := by
-          change t * s * ‖u‖ ≤ ⟪(z : E) - c, u⟫
-          rwa [abs_of_nonneg hpos] at habs
-        rw [Set.indicator_of_mem hz1]
-        have hnn : 0 ≤ S₂.indicator g z :=
-          Set.indicator_nonneg (fun w _ ↦ (gaussianWeight_pos _ _).le) z
-        linarith
-      · have hz2 : z ∈ S₂ := by
-          change t * s * ‖-u‖ ≤ ⟪(z : E) - c, -u⟫
-          rw [norm_neg, inner_neg_right]
-          rwa [abs_of_neg hneg] at habs
-        rw [Set.indicator_of_mem hz2]
-        have hnn : 0 ≤ S₁.indicator g z :=
-          Set.indicator_nonneg (fun w _ ↦ (gaussianWeight_pos _ _).le) z
-        linarith
+      · rw [abs_of_nonneg hpos] at habs
+        rw [Set.indicator_of_mem (show z ∈ S₁ from habs)]
+        linarith [hnn S₂ z]
+      · rw [abs_of_neg hneg, ← inner_neg_right, ← norm_neg] at habs
+        rw [Set.indicator_of_mem (show z ∈ S₂ from habs)]
+        linarith [hnn S₁ z]
     · rw [Set.indicator_of_notMem hz]
-      exact add_nonneg
-        (Set.indicator_nonneg (fun w _ ↦ (gaussianWeight_pos _ _).le) z)
-        (Set.indicator_nonneg (fun w _ ↦ (gaussianWeight_pos _ _).le) z)
+      exact add_nonneg (hnn S₁ z) (hnn S₂ z)
   have htsum_le : (∑' z : S, g z) ≤ (∑' z : S₁, g z) + (∑' z : S₂, g z) := by
     rw [tsum_subtype S g, tsum_subtype S₁ g, tsum_subtype S₂ g,
       ← Summable.tsum_add (hsum.indicator S₁) (hsum.indicator S₂)]

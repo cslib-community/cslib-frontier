@@ -347,8 +347,7 @@ theorem arithModel_stdInterp : ArithModel (stdInterp N K) :=
 theorem stdInterp_caseSem {C : ℕ} (hN : K + outBound K C < N) (c : Code) (hc : encode c ≤ C)
     (k n x : Fin N) (hI : stdInterp N K (encode c + 4) [k, n, x]) :
     stdInterp N K 0 [n, k] ∧ CaseSem (stdInterp N K) c k n x := by
-  rw [stdInterp_ev] at hI
-  obtain ⟨hkK, h⟩ := hI
+  obtain ⟨hkK, h⟩ := (stdInterp_ev c k n x).1 hI
   have hnk : (n : ℕ) < k := Code.evaln_bound h
   refine ⟨hnk, ?_⟩
   obtain ⟨k', hk'⟩ : ∃ k', (k : ℕ) = k' + 1 := ⟨(k : ℕ) - 1, by omega⟩
@@ -358,82 +357,51 @@ theorem stdInterp_caseSem {C : ℕ} (hN : K + outBound K C < N) (c : Code) (hc :
     by have := le_outBound hk hd h; omega
   have hin : ∀ {d : Code} {k₀ n₀ x₀ : ℕ}, k₀ ≤ K → Code.evaln k₀ d n₀ = some x₀ → n₀ < N :=
     fun hk h => by have := Code.evaln_bound h; omega
+  have hev {d : Code} {k₀ n₀ x₀ : Fin N} (hk : (k₀ : ℕ) ≤ K) (h : Code.evaln k₀ d n₀ = some x₀) :
+      stdInterp N K (encode d + 4) [k₀, n₀, x₀] := (stdInterp_ev d k₀ n₀ x₀).2 ⟨hk, h⟩
+  have hl : (n : ℕ).unpair.1 < N := lt_of_le_of_lt (Nat.unpair_left_le _) n.2
+  have hr : (n : ℕ).unpair.2 < N := lt_of_le_of_lt (Nat.unpair_right_le _) n.2
   cases c with
-  | zero =>
-    rw [evaln_succ_zero_iff (by omega)] at h
-    exact h
-  | succ =>
-    rw [evaln_succ_succ_iff (by omega)] at h
-    change (x : ℕ) = n + 1
-    exact h
+  | zero => exact (evaln_succ_zero_iff (by omega)).1 h
+  | succ => exact (evaln_succ_succ_iff (by omega)).1 h
   | left =>
     rw [evaln_succ_left_iff (by omega)] at h
-    refine ⟨⟨(n : ℕ).unpair.2, lt_of_le_of_lt (Nat.unpair_right_le _) n.isLt⟩, ?_⟩
-    change Nat.pair x _ = n
-    rw [h, Nat.pair_unpair]
+    exact ⟨⟨_, hr⟩, show Nat.pair x _ = n by rw [h, Nat.pair_unpair]⟩
   | right =>
     rw [evaln_succ_right_iff (by omega)] at h
-    refine ⟨⟨(n : ℕ).unpair.1, lt_of_le_of_lt (Nat.unpair_left_le _) n.isLt⟩, ?_⟩
-    change Nat.pair _ x = n
-    rw [h, Nat.pair_unpair]
+    exact ⟨⟨_, hl⟩, show Nat.pair _ x = n by rw [h, Nat.pair_unpair]⟩
   | pair cf cg =>
     have h1 := Code.encode_lt_pair cf cg
-    rw [evaln_succ_pair_iff (by omega)] at h
-    obtain ⟨a, b, ha, hb, hab⟩ := h
+    obtain ⟨a, b, ha, hb, hab⟩ := (evaln_succ_pair_iff (by omega)).1 h
     rw [← hk'] at ha hb
-    refine ⟨⟨a, hout hkK (by omega) ha⟩, ⟨b, hout hkK (by omega) hb⟩, ?_, ?_, ?_⟩
-    · simpa [hkK] using ha
-    · simpa [hkK] using hb
-    · exact hab
+    exact ⟨⟨a, hout hkK (by omega) ha⟩, ⟨b, hout hkK (by omega) hb⟩, hev hkK ha, hev hkK hb, hab⟩
   | comp cf cg =>
     have h1 := Code.encode_lt_comp cf cg
-    rw [evaln_succ_comp_iff (by omega)] at h
-    obtain ⟨y, hy, hx⟩ := h
+    obtain ⟨y, hy, hx⟩ := (evaln_succ_comp_iff (by omega)).1 h
     rw [← hk'] at hy hx
-    refine ⟨⟨y, hout hkK (by omega) hy⟩, ?_, ?_⟩
-    · simpa [hkK] using hy
-    · simpa [hkK] using hx
+    exact ⟨⟨y, hout hkK (by omega) hy⟩, hev hkK hy, hev hkK hx⟩
   | prec cf cg =>
     have h1 := Code.encode_lt_prec cf cg
-    rw [evaln_succ_prec_iff (by omega)] at h
-    refine ⟨⟨(n : ℕ).unpair.1, lt_of_le_of_lt (Nat.unpair_left_le _) n.isLt⟩,
-      ⟨(n : ℕ).unpair.2, lt_of_le_of_lt (Nat.unpair_right_le _) n.isLt⟩,
-      (Nat.pair_unpair (n : ℕ) :), ?_⟩
+    rw [evaln_succ_prec_iff (by omega), ← hk'] at h
+    refine ⟨⟨_, hl⟩, ⟨_, hr⟩, (Nat.pair_unpair (n : ℕ) :), ?_⟩
     rcases h with ⟨hy0, hx⟩ | ⟨y', hy', i, hi, hx⟩
-    · rw [← hk'] at hx
-      exact Or.inl ⟨hy0, by simpa [hkK] using hx⟩
-    · rw [← hk'] at hx
-      have hiN : i < N := hout (by omega) hc hi
-      have htN := hin (by omega : k' ≤ K) hi
+    · exact Or.inl ⟨hy0, hev hkK hx⟩
+    · have htN := hin (by omega : k' ≤ K) hi
       have huN := hin hkK hx
-      have hsN : Nat.pair y' i < N :=
-        lt_of_le_of_lt (Nat.right_le_pair _ _) huN
-      have := Nat.unpair_right_le (n : ℕ)
-      have := n.isLt
-      refine Or.inr ⟨⟨y', by omega⟩, ⟨k', by omega⟩, ⟨_, htN⟩, ⟨i, hiN⟩, ⟨_, hsN⟩, ⟨_, huN⟩,
-        ?_, ?_, rfl, ?_, rfl, rfl, ?_⟩
-      · change (n : ℕ).unpair.2 = y' + 1
-        exact hy'
-      · change (k : ℕ) = k' + 1
-        exact hk'
-      · simpa [show k' ≤ K by omega] using hi
-      · simpa [hkK] using hx
+      refine Or.inr ⟨⟨y', by omega⟩, ⟨k', by omega⟩, ⟨_, htN⟩, ⟨i, hout (by omega) hc hi⟩,
+        ⟨_, lt_of_le_of_lt (Nat.right_le_pair _ _) huN⟩, ⟨_, huN⟩, hy', hk', rfl,
+        hev (show k' ≤ K by omega) hi, rfl, rfl, hev hkK hx⟩
   | rfind' cf =>
     have h1 := Code.encode_lt_rfind' cf
-    rw [evaln_succ_rfind_iff (by omega)] at h
-    obtain ⟨w, hw, hcase⟩ := h
+    obtain ⟨w, hw, hcase⟩ := (evaln_succ_rfind_iff (by omega)).1 h
     rw [← hk'] at hw
-    refine ⟨⟨(n : ℕ).unpair.1, lt_of_le_of_lt (Nat.unpair_left_le _) n.isLt⟩,
-      ⟨(n : ℕ).unpair.2, lt_of_le_of_lt (Nat.unpair_right_le _) n.isLt⟩,
-      ⟨w, hout hkK (by omega) hw⟩, (Nat.pair_unpair (n : ℕ) :), by simpa [hkK] using hw, ?_⟩
+    refine ⟨⟨_, hl⟩, ⟨_, hr⟩, ⟨w, hout hkK (by omega) hw⟩, (Nat.pair_unpair (n : ℕ) :),
+      hev hkK hw, ?_⟩
     rcases hcase with ⟨hw0, hx⟩ | ⟨hw0, hx⟩
     · exact Or.inl ⟨hw0, Fin.ext hx⟩
     · have htN := hin (by omega : k' ≤ K) hx
-      have hjN : (n : ℕ).unpair.2 + 1 < N := lt_of_le_of_lt (Nat.right_le_pair _ _) htN
-      refine Or.inr ⟨hw0, ⟨k', by omega⟩, ⟨_, hjN⟩, ⟨_, htN⟩, ?_, rfl, rfl, ?_⟩
-      · change (k : ℕ) = k' + 1
-        exact hk'
-      · simpa [show k' ≤ K by omega] using hx
+      exact Or.inr ⟨hw0, ⟨k', by omega⟩, ⟨_, lt_of_le_of_lt (Nat.right_le_pair _ _) htN⟩,
+        ⟨_, htN⟩, hk', rfl, rfl, hev (show k' ≤ K by omega) hx⟩
 
 end StdInterp
 

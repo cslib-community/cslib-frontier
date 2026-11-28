@@ -78,9 +78,8 @@ theorem exists_isNClique_or_isNIndepSet_of_choose_le (G : SimpleGraph V) :
       set N := (s.erase v).filter (G.Adj v) with hN
       set M := (s.erase v).filter (fun w => ¬ G.Adj v w) with hM
       have hcard : #N + #M + 1 = #s := by
-        rw [hN, hM, card_filter_add_card_filter_not, card_erase_of_mem hv]
         have := card_pos.2 ⟨v, hv⟩
-        omega
+        rw [hN, hM, card_filter_add_card_filter_not, card_erase_of_mem hv]; omega
       have hpascal : (a + 1 + (b + 1)).choose (a + 1) =
           (a + (b + 1)).choose a + (a + 1 + b).choose (a + 1) := by
         rw [show a + 1 + (b + 1) = (a + (b + 1)) + 1 by omega, Nat.choose_succ_succ',
@@ -88,19 +87,15 @@ theorem exists_isNClique_or_isNIndepSet_of_choose_le (G : SimpleGraph V) :
       have hNs : N ⊆ s := (filter_subset _ _).trans (erase_subset _ _)
       have hMs : M ⊆ s := (filter_subset _ _).trans (erase_subset _ _)
       by_cases hNc : (a + (b + 1)).choose a ≤ #N
-      · rcases iha (b + 1) N hNc with ⟨t, ht, hcl⟩ | ⟨t, ht, hind⟩
-        · refine .inl ⟨insert v t, insert_subset hv (ht.trans hNs), hcl.insert fun w hw => ?_⟩
-          exact (mem_filter.1 (ht hw)).2
-        · exact .inr ⟨t, ht.trans hNs, hind⟩
-      · have hMc : (a + 1 + b).choose (a + 1) ≤ #M := by omega
-        rcases ihb M hMc with ⟨t, ht, hcl⟩ | ⟨t, ht, hind⟩
-        · exact .inl ⟨t, ht.trans hMs, hcl⟩
-        · refine .inr ⟨insert v t, insert_subset hv (ht.trans hMs), ?_⟩
-          rw [← isNClique_compl] at hind ⊢
-          refine hind.insert fun w hw => ?_
-          have hw' := mem_filter.1 (ht hw)
-          rw [compl_adj]
-          exact ⟨fun h => (mem_erase.1 hw'.1).1 h.symm, hw'.2⟩
+      · exact (iha (b + 1) N hNc).imp
+          (fun ⟨t, ht, hcl⟩ => ⟨insert v t, insert_subset hv (ht.trans hNs),
+            hcl.insert fun _ hw => (mem_filter.1 (ht hw)).2⟩)
+          fun ⟨t, ht, hind⟩ => ⟨t, ht.trans hNs, hind⟩
+      · exact (ihb M (by omega)).imp (fun ⟨t, ht, hcl⟩ => ⟨t, ht.trans hMs, hcl⟩)
+          fun ⟨t, ht, hind⟩ => ⟨insert v t, insert_subset hv (ht.trans hMs),
+            (G.isNClique_compl).1 <| ((G.isNClique_compl).2 hind).insert fun w hw => by
+              obtain ⟨hw1, hw2⟩ := mem_filter.1 (ht hw)
+              exact (compl_adj G v w).2 ⟨fun h => (mem_erase.1 hw1).1 h.symm, hw2⟩⟩
 
 /-- A clique or an independent set of a pulled-back graph maps to one of the original graph. -/
 private theorem exists_of_comap {W : Type*} (G : SimpleGraph W) (f : V ↪ W) {k l : ℕ}
@@ -138,22 +133,17 @@ private theorem ramseyNumber_set_nonempty (k l : ℕ) :
 /-- `R(k, l) ≤ |V|` exactly when every graph on `V` has a `k`-clique or an `l`-independent set. -/
 theorem ramseyNumber_le_card_iff {k l : ℕ} [Fintype V] :
     ramseyNumber k l ≤ Fintype.card V ↔
-      ∀ G : SimpleGraph V, (∃ s, G.IsNClique k s) ∨ ∃ s, G.IsNIndepSet l s := by
-  constructor
-  · intro h G
-    have hmem := Nat.sInf_mem (ramseyNumber_set_nonempty k l)
-    exact exists_of_comap G ((Fin.castLEEmb h).trans (Fintype.equivFin V).symm.toEmbedding)
-      (hmem _)
-  · intro h
-    refine Nat.sInf_le fun G => ?_
-    exact exists_of_comap G (Fintype.equivFin V).toEmbedding (h _)
+      ∀ G : SimpleGraph V, (∃ s, G.IsNClique k s) ∨ ∃ s, G.IsNIndepSet l s :=
+  ⟨fun h G => exists_of_comap G ((Fin.castLEEmb h).trans (Fintype.equivFin V).symm.toEmbedding)
+      (Nat.sInf_mem (ramseyNumber_set_nonempty k l) _),
+    fun h => Nat.sInf_le fun G => exists_of_comap G (Fintype.equivFin V).toEmbedding (h _)⟩
 
 /-- `|V| < R(k, l)` exactly when some graph on `V` has no `k`-clique and no `l`-independent set.
 This is how lower bounds on Ramsey numbers are proved. -/
 theorem card_lt_ramseyNumber_iff {k l : ℕ} [Fintype V] :
     Fintype.card V < ramseyNumber k l ↔ ∃ G : SimpleGraph V, G.CliqueFree k ∧ G.IndepSetFree l := by
-  rw [← not_le, ramseyNumber_le_card_iff]
-  simp only [not_forall, not_or, not_exists, CliqueFree, IndepSetFree]
+  simp only [← not_le, ramseyNumber_le_card_iff, not_forall, not_or, not_exists, CliqueFree,
+    IndepSetFree]
 
 /-- A graph with at least `R(k, l)` vertices has a `k`-clique or an `l`-independent set. -/
 theorem exists_isNClique_or_isNIndepSet {k l : ℕ} [Fintype V] (G : SimpleGraph V)
@@ -179,20 +169,15 @@ theorem ramseyNumber_comm (k l : ℕ) : ramseyNumber k l = ramseyNumber l k := b
 for `k, l ≥ 1` [ErdosSzekeres1935, pp. 466–467]. -/
 theorem ramseyNumber_succ_succ_le (a b : ℕ) :
     ramseyNumber (a + 1) (b + 1) ≤ (a + b).choose a := by
-  have h := ramseyNumber_le_card_iff (k := a + 1) (l := b + 1) (V := Fin ((a + b).choose a))
-  rw [Fintype.card_fin] at h
-  refine h.2 fun G => ?_
-  rcases G.exists_isNClique_or_isNIndepSet_of_choose_le a b univ (by simp) with
-    ⟨t, -, ht⟩ | ⟨t, -, ht⟩
-  · exact .inl ⟨t, ht⟩
-  · exact .inr ⟨t, ht⟩
+  rw [← Fintype.card_fin ((a + b).choose a), ramseyNumber_le_card_iff]
+  exact fun G => (G.exists_isNClique_or_isNIndepSet_of_choose_le a b univ (by simp)).imp
+    (fun ⟨t, _, ht⟩ => ⟨t, ht⟩) fun ⟨t, _, ht⟩ => ⟨t, ht⟩
 
 /-- The diagonal upper bound `R(k, k) ≤ C(2k - 2, k - 1) ≤ 4 ^ (k - 1)`. -/
 theorem ramseyNumber_le_four_pow (k : ℕ) : ramseyNumber k k ≤ 4 ^ (k - 1) := by
   rcases k with _ | m
-  · have h := ramseyNumber_le_card_iff (k := 0) (l := 0) (V := Fin 0)
-    rw [Fintype.card_fin] at h
-    exact (h.2 fun G => .inl ⟨∅, by simp⟩).trans (Nat.zero_le _)
+  · exact ((Fintype.card_fin 0 ▸ ramseyNumber_le_card_iff (V := Fin 0)).2
+      fun _ => .inl ⟨∅, by simp⟩).trans (Nat.zero_le _)
   · refine (ramseyNumber_succ_succ_le m m).trans ?_
     rw [← two_mul, ← Nat.centralBinom_eq_two_mul_choose, Nat.add_sub_cancel]
     exact Nat.centralBinom_le_four_pow m

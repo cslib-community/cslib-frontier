@@ -133,21 +133,19 @@ private theorem runWith_memoize_map_fst_eq_eval_run_aux {D R α : Type} [Decidab
       cases hlook : cache.lookup q with
       | none => rfl
       | some v =>
-        have hle := (OracleComp.IsCostBounded.liftBind_iff.mp (h0 q (by simp [hlook]))).1
-        simp at hle
+        simpa using (OracleComp.IsCostBounded.liftBind_iff.mp (h0 q (by simp [hlook]))).1
     simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
       memoize_of_none _ _ _ hnone, Probability.PMF.monad_bind_eq_bind,
       Probability.PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind, PMF.map_bind,
       ProbOracleComp.run_bind, ProbOracleComp.run_query, ProbComp.eval_bind]
-    refine congrArg _ (funext fun v => ?_)
-    refine ih v ((q, v) :: cache) (fun d => ?_) (fun d hd => ?_)
-    · exact ((OracleComp.IsCostBounded.liftBind_iff.mp (h1 d)).2 v).mono (Nat.sub_le _ _)
-    · by_cases hdq : d = q
-      · subst hdq
-        have hcont := (OracleComp.IsCostBounded.liftBind_iff.mp (h1 d)).2 v
-        simpa using hcont
-      · rw [List.lookup_cons, beq_eq_false_iff_ne.mpr hdq] at hd
-        exact ((OracleComp.IsCostBounded.liftBind_iff.mp (h0 d hd)).2 v).mono (Nat.sub_le _ _)
+    refine congrArg _ (funext fun v => ih v ((q, v) :: cache)
+      (fun d => ((OracleComp.IsCostBounded.liftBind_iff.mp (h1 d)).2 v).mono (Nat.sub_le _ _))
+      fun d hd => ?_)
+    by_cases hdq : d = q
+    · subst hdq
+      simpa using (OracleComp.IsCostBounded.liftBind_iff.mp (h1 d)).2 v
+    · rw [List.lookup_cons, beq_eq_false_iff_ne.mpr hdq] at hd
+      exact ((OracleComp.IsCostBounded.liftBind_iff.mp (h0 d hd)).2 v).mono (Nat.sub_le _ _)
 
 /-- If an oracle computation queries each tweak `tweak q` at most once on every path, lazily
 memoizing `fun q => ProbComp.eval (O q)` produces the same output distribution as running `A`
@@ -158,12 +156,11 @@ theorem runWith_memoize_map_fst_eq_eval_run {D T R α : Type} [DecidableEq D] [D
       (Sum.elim (fun _ => 0) fun q : D => if tweak q = t then 1 else 0) A 1) :
     (ProbOracleComp.runWith (memoize fun q => ProbComp.eval (O q)) A []).map Prod.fst =
       ProbComp.eval (A.run O) := by
-  refine runWith_memoize_map_fst_eq_eval_run_aux O A [] (fun d => ?_) (fun _ hd => by simp at hd)
-  refine (h (tweak d)).of_le fun x => ?_
-  cases x with
-  | inl _ => exact le_rfl
-  | inr q =>
-    by_cases hqd : q = d <;> simp [hqd]
+  refine runWith_memoize_map_fst_eq_eval_run_aux O A [] (fun d => (h (tweak d)).of_le ?_)
+    fun _ hd => by simp at hd
+  rintro (_ | q)
+  · exact le_rfl
+  · by_cases hqd : q = d <;> simp [hqd]
 
 end Cslib.ProbOracleComp
 
@@ -276,9 +273,8 @@ query via `keyOnlyEmbed`, so that adding the offset `(R, true)` cancels the colo
 private theorem oracle_keyOnly (H : L × Bool → T → M) (R : L) (Δ' : M) (q : Query L T) :
     oracle H (R, true) Δ' (keyOnlyEmbed L T q) =
       oracle (fun x t => H (x, false) t) R Δ' q := by
-  change H (q.label + R, true + true) q.tweak + bitOffset Δ' q.bit =
-    H (q.label + R, false) q.tweak + bitOffset Δ' q.bit
-  rw [show (true + true : Bool) = false by decide]
+  change H (q.label + R, true + true) q.tweak + bitOffset Δ' q.bit = _
+  rw [show (true + true : Bool) = false by decide]; rfl
 
 /-- Library infrastructure (no cited result): **Key-only CCR advantage transfer.** For any key-only
 adversary `A` against `fun x t => H (x, false) t` with input offset `δ` and output offset `δ'`,
@@ -293,22 +289,16 @@ theorem advantage_keyOnly [Fintype Key] [Nonempty Key] [Fintype L] [DecidableEq 
       (ProbOracleComp.simulate keyOnlyHandler A)) =
       ProbComp.eval (PRF.realExperiment (keyed (fun x t => H (x, false) t) δ δ') A) := by
     simp only [PRF.realExperiment, ProbOracleComp.run_simulate, ProbComp.eval_bind,
-      ProbComp.eval_uniform]
-    refine congrArg _ (funext fun r =>
-      congrArg ProbComp.eval (congrArg A.run (funext fun q => ?_)))
-    rw [keyOnlyHandler, ProbOracleComp.run_query, keyed, oracle_keyOnly]
-    rfl
+      ProbComp.eval_uniform, keyOnlyHandler, ProbOracleComp.run_query, keyed, oracle_keyOnly]
   have hideal : ProbComp.eval (PRF.idealExperiment (ProbOracleComp.simulate keyOnlyHandler A)) =
       ProbComp.eval (PRF.idealExperiment A) := by
     simp only [PRF.idealExperiment, ProbOracleComp.run_simulate, ProbComp.eval_bind,
       ProbComp.eval_uniform]
-    have hcomp : (fun f : Query (L × Bool) T → M =>
+    rw [show (fun f : Query (L × Bool) T → M =>
         ProbComp.eval (A.run fun q => (keyOnlyHandler q).run fun q' => pure (f q'))) =
         (fun g : Query L T → M => ProbComp.eval (A.run fun q => pure (g q))) ∘
-          (fun f q => f (keyOnlyEmbed L T q)) := by
-      funext f
-      rfl
-    rw [hcomp, ← PMF.bind_map, Probability.PMF.uniformOfFintype_pi_map_comp_embedding]
+          fun f q => f (keyOnlyEmbed L T q) from rfl,
+      ← PMF.bind_map, Probability.PMF.uniformOfFintype_pi_map_comp_embedding]
   simp only [advantage, PRF.advantage, hreal, hideal]
 
 /-! ### The arithmetic variant -/

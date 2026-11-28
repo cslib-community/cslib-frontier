@@ -70,18 +70,13 @@ theorem symmetric_reaches_halted_iff (M : Turing.TM0.Machine Γ Q) (c d : Cfg Γ
     (hd : Turing.TM0Window.step M d = none) :
     Relation.ReflTransGen (Rewrites (SymmetricRule M)) (word (.stable c)) (word (.stable d)) ↔
       Reaches (Turing.TM0Window.step M) c d := by
-  constructor
-  · intro hr
-    obtain ⟨e, he, hev⟩ := eval_eq_of_symmetric_reaches hr
-    obtain rfl := word_injective he
-    have hh : Phases.step M (.stable d) = none := by
-      simp only [Phases.step, hd, Option.map_none]
-    have heval : MicroCfg.stable d ∈ eval (Phases.step M) (.stable c) := by
-      rw [hev]
-      exact mem_eval.mpr ⟨.refl, hh⟩
-    exact (Phases.reaches_halted_iff M c d hd).mp (mem_eval.mp heval).1
-  · intro hr
-    exact Relation.ReflTransGen.mono (fun _ _ h => symmetric_rewrites.mpr (Or.inl h)) _ _
-      (window_reaches_word hr)
+  refine ⟨fun hr => ?_, fun hr =>
+    Relation.ReflTransGen.mono (fun _ _ h => symmetric_rewrites.mpr (.inl h)) _ _
+      (window_reaches_word hr)⟩
+  obtain ⟨e, he, hev⟩ := eval_eq_of_symmetric_reaches hr
+  obtain rfl := word_injective he
+  refine (Phases.reaches_halted_iff M c d hd).mp
+    (mem_eval.mp (hev.symm ▸ mem_eval.mpr ⟨.refl, ?_⟩)).1
+  simp only [Phases.step, hd, Option.map_none]
 
 end Cslib.Complexity.NCL.TM0Window.Rules

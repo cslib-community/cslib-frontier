@@ -122,43 +122,48 @@ private theorem eval_qScanM_best_mem
   | cons c cs ih =>
     rcases c with ⟨b, sb⟩
     simp only [qScanM, FreeM.eval_bind, ValueQuery.eval_ask]
-    by_cases h : oracle (.value (A ∪ b)) + sBest < vBest + sb
-    · simp only [h, ↓reduceIte]
-      obtain ⟨s, hs⟩ := ih b sb (oracle (.value (A ∪ b)))
-      exact ⟨s, List.mem_cons_of_mem _ hs⟩
-    · simp only [h, ↓reduceIte]
-      obtain ⟨s, hs⟩ := ih best sBest vBest
-      rcases List.mem_cons.mp hs with heq | hmem
-      · exact ⟨s, heq ▸ List.mem_cons_self⟩
-      · exact ⟨s, List.mem_cons_of_mem _ (List.mem_cons_of_mem _ hmem)⟩
+    by_cases h : oracle (.value (A ∪ b)) + sBest < vBest + sb <;> simp only [h, ↓reduceIte]
+    · exact (ih b sb _).imp fun _ => List.mem_cons_of_mem _
+    · exact (ih best sBest vBest).imp fun _ hs => (List.mem_cons.mp hs).elim
+        (List.mem_cons.mpr ∘ .inl) (List.mem_cons_of_mem _ ∘ List.mem_cons_of_mem _)
+
+private theorem eraseBlock_qScanM_eq_cons
+    (oracle : {ι : Type} → ValueQuery V β ι → ι)
+    (A : Finset V) (c₀ c₁ : Finset V × β) (cs : List (Finset V × β)) :
+    ∃ sBest d₀ ds,
+      (((qScanM ValueQuery.ask A c₀.1 c₀.2
+        (oracle (.value (A ∪ c₀.1))) (c₁ :: cs)).eval oracle).best, sBest) ∈ c₀ :: c₁ :: cs ∧
+      eraseBlock ((qScanM ValueQuery.ask A c₀.1 c₀.2
+        (oracle (.value (A ∪ c₀.1))) (c₁ :: cs)).eval oracle).best (c₀ :: c₁ :: cs) = d₀ :: ds ∧
+      ds.length = cs.length := by
+  obtain ⟨sBest, hsBest⟩ :=
+    eval_qScanM_best_mem oracle A c₀.1 c₀.2 (oracle (.value (A ∪ c₀.1))) (c₁ :: cs)
+  have hlen_er := length_eraseBlock ⟨sBest, hsBest⟩
+  cases her : eraseBlock ((qScanM ValueQuery.ask A c₀.1 c₀.2
+      (oracle (.value (A ∪ c₀.1))) (c₁ :: cs)).eval oracle).best (c₀ :: c₁ :: cs) with
+  | nil => simp [her] at hlen_er
+  | cons d₀ ds =>
+    refine ⟨sBest, d₀, ds, hsBest, rfl, ?_⟩
+    simp only [her, List.length_cons] at hlen_er; omega
 
 private theorem countQueries_qSearchStepsM_eq
     (oracle : {ι : Type} → ValueQuery V β ι → ι) :
     ∀ (k : ℕ) (A prev : Finset V) (c₀ : Finset V × β) (cs : List (Finset V × β)),
       cs.length = k →
       2 * (qSearchStepsM ValueQuery.ask k A prev c₀ cs).countQueries oracle = k * (k + 3)
-  | 0, _, prev, (t, st), _, _ => by simp [qSearchStepsM]
-  | _ + 1, _, prev, (t, st), [], hlen => by simp at hlen
+  | 0, _, _, _, _, _ => by simp [qSearchStepsM]
+  | _ + 1, _, _, _, [], hlen => by simp at hlen
   | k + 1, A, prev, c₀, c₁ :: cs, hlen => by
-    have hscan_mem :=
-      eval_qScanM_best_mem oracle A c₀.1 c₀.2 (oracle (.value (A ∪ c₀.1))) (c₁ :: cs)
-    set best := ((qScanM ValueQuery.ask A c₀.1 c₀.2
-      (oracle (.value (A ∪ c₀.1))) (c₁ :: cs)).eval oracle).best
-    have hlen_er := length_eraseBlock hscan_mem
+    obtain ⟨_, d₀, ds, -, her, hds_len⟩ := eraseBlock_qScanM_eq_cons oracle A c₀ c₁ cs
+    have hds : ds.length = k := by simp only [List.length_cons] at hlen; omega
     simp only [qSearchStepsM, FreeM.countQueries_bind, ValueQuery.countQueries_ask,
-      ValueQuery.eval_ask, countQueries_qScanM]
-    cases her : eraseBlock best (c₀ :: c₁ :: cs) with
-    | nil =>
-      rw [her, List.length_nil] at hlen_er
-      simp at hlen_er
-    | cons d₀ ds =>
-      have hds_len : ds.length = k := by
-        simp only [her, List.length_cons] at hlen hlen_er
-        omega
-      have ih := countQueries_qSearchStepsM_eq oracle k (A ∪ best) best d₀ ds hds_len
-      have hcs_len : (c₁ :: cs).length = k + 1 := hlen
-      rw [hcs_len]
-      nlinarith
+      ValueQuery.eval_ask, countQueries_qScanM, her, hlen]
+    have ih := countQueries_qSearchStepsM_eq oracle k
+      (A ∪ ((qScanM ValueQuery.ask A c₀.1 c₀.2
+        (oracle (.value (A ∪ c₀.1))) (c₁ :: cs)).eval oracle).best)
+      ((qScanM ValueQuery.ask A c₀.1 c₀.2
+        (oracle (.value (A ∪ c₀.1))) (c₁ :: cs)).eval oracle).best d₀ ds hds
+    nlinarith
 
 private theorem eval_qSearchStepsM_spec
     (oracle : {ι : Type} → ValueQuery V β ι → ι) {blocks : List (Finset V)} :
@@ -174,87 +179,56 @@ private theorem eval_qSearchStepsM_spec
     have ht : t ∈ blocks := hmem (t, st) List.mem_cons_self
     have hne : prev ≠ t := fun h => hnot (by simp [h])
     simpa [qSearchStepsM] using ⟨hprev, ht, hne⟩
-  | _ + 1, _, prev, (t, st), [], hlen, _, _, _, _ => by simp at hlen
+  | _ + 1, _, _, _, [], hlen, _, _, _, _ => by simp at hlen
   | k + 1, A, prev, c₀, c₁ :: cs, hlen, _, hmem, hnd, _ => by
-    have hscan_mem :=
-      eval_qScanM_best_mem oracle A c₀.1 c₀.2 (oracle (.value (A ∪ c₀.1))) (c₁ :: cs)
+    obtain ⟨sBest, d₀, ds, hsBest, her, hds_len⟩ := eraseBlock_qScanM_eq_cons oracle A c₀ c₁ cs
     set best := ((qScanM ValueQuery.ask A c₀.1 c₀.2
       (oracle (.value (A ∪ c₀.1))) (c₁ :: cs)).eval oracle).best
-    obtain ⟨sBest, hsBest⟩ := hscan_mem
-    have hbest_mem : best ∈ blocks := hmem (best, sBest) hsBest
-    have hlen_er := length_eraseBlock ⟨sBest, hsBest⟩
-    cases her : eraseBlock best (c₀ :: c₁ :: cs) with
-    | nil =>
-      rw [her, List.length_nil] at hlen_er
-      simp at hlen_er
-    | cons d₀ ds =>
-      have hds_len : ds.length = k := by
-        simp only [her, List.length_cons] at hlen hlen_er
-        omega
-      have hnd' : ((d₀ :: ds).map Prod.fst).Nodup :=
-        her ▸ nodup_fst_eraseBlock best hnd
-      have hsub' : ∀ p ∈ d₀ :: ds, p ∈ c₀ :: c₁ :: cs ∧ p.1 ≠ best := by
-        intro p hp'
-        rw [← her] at hp'
-        exact (mem_eraseBlock_iff hnd).mp hp'
-      have hmem' : ∀ p ∈ d₀ :: ds, p.1 ∈ blocks := fun p hp' => hmem p (hsub' p hp').1
-      have hnot' : best ∉ (d₀ :: ds).map Prod.fst := by
-        intro hin
-        obtain ⟨p, hp', hpeq⟩ := List.mem_map.mp hin
-        exact (hsub' p hp').2 hpeq
-      have ih := eval_qSearchStepsM_spec oracle k (A ∪ best) best d₀ ds hds_len
-        hbest_mem hmem' hnd' hnot'
-      simpa [qSearchStepsM, her, best] using ih
+    have hsub' : ∀ p ∈ d₀ :: ds, p ∈ c₀ :: c₁ :: cs ∧ p.1 ≠ best := fun p hp =>
+      (mem_eraseBlock_iff hnd).mp (her ▸ hp)
+    have hds : ds.length = k := by simp only [List.length_cons] at hlen; omega
+    have ih := eval_qSearchStepsM_spec oracle k (A ∪ best) best d₀ ds hds
+      (hmem (best, sBest) hsBest) (fun p hp => hmem p (hsub' p hp).1)
+      (her ▸ nodup_fst_eraseBlock best hnd)
+      (fun hin => by obtain ⟨p, hp, hpeq⟩ := List.mem_map.mp hin; exact (hsub' p hp).2 hpeq)
+    simpa [qSearchStepsM, her, best] using ih
+
+omit [DecidableEq V] [Add β] [LT β] [DecidableLT β] in
+private theorem eval_qSingletonsM_cons_eq_cons
+    (oracle : {ι : Type} → ValueQuery V β ι → ι) (b₁ : Finset V) (bs : List (Finset V)) :
+    ∃ c₀ cs, (qSingletonsM (ValueQuery.ask (α := V) (β := β)) (b₁ :: bs)).eval oracle =
+      c₀ :: cs ∧ (c₀ :: cs).map Prod.fst = b₁ :: bs ∧ cs.length = bs.length := by
+  have hmap := map_fst_eval_qSingletonsM oracle (b₁ :: bs)
+  cases hc : (qSingletonsM (ValueQuery.ask (α := V) (β := β)) (b₁ :: bs)).eval oracle with
+  | nil => rw [hc] at hmap; simp at hmap
+  | cons c₀ cs =>
+    rw [hc] at hmap
+    exact ⟨c₀, cs, rfl, hmap, by
+      have hl := congrArg List.length hmap
+      simp only [List.length_map, List.length_cons] at hl; omega⟩
 
 private theorem countQueries_qSearchM_eq
     (oracle : {ι : Type} → ValueQuery V β ι → ι)
     (b₀ b₁ : Finset V) (bs : List (Finset V)) :
     2 * (qSearchM ValueQuery.ask b₀ b₁ bs).countQueries oracle + 4 =
       (bs.length + 2) * (bs.length + 3) := by
-  simp only [qSearchM, FreeM.countQueries_bind, countQueries_qSingletonsM, List.length_cons]
-  cases hc : (qSingletonsM (ValueQuery.ask (α := V) (β := β)) (b₁ :: bs)).eval oracle with
-  | nil =>
-    have hlen := map_fst_eval_qSingletonsM oracle (b₁ :: bs)
-    rw [hc] at hlen
-    simp at hlen
-  | cons c₀ cs =>
-    have hmap := map_fst_eval_qSingletonsM oracle (b₁ :: bs)
-    rw [hc] at hmap
-    have hlen : cs.length = bs.length := by
-      have hl := congrArg List.length hmap
-      simp only [List.length_map, List.length_cons] at hl
-      omega
-    have hsteps := countQueries_qSearchStepsM_eq oracle bs.length b₀ b₀ c₀ cs hlen
-    dsimp only
-    nlinarith
+  obtain ⟨c₀, cs, hc, -, hlen⟩ := eval_qSingletonsM_cons_eq_cons oracle b₁ bs
+  have hsteps := countQueries_qSearchStepsM_eq oracle bs.length b₀ b₀ c₀ cs hlen
+  simp only [qSearchM, FreeM.countQueries_bind, countQueries_qSingletonsM, List.length_cons, hc]
+  nlinarith
 
 private theorem eval_qSearchM_mem
     (oracle : {ι : Type} → ValueQuery V β ι → ι)
     {b₀ b₁ : Finset V} {bs : List (Finset V)} (hnd : (b₀ :: b₁ :: bs).Nodup) :
     let res := (qSearchM ValueQuery.ask b₀ b₁ bs).eval oracle
     res.fst ∈ b₀ :: b₁ :: bs ∧ res.snd ∈ b₀ :: b₁ :: bs ∧ res.fst ≠ res.snd := by
-  simp only [qSearchM, FreeM.eval_bind]
-  have hmap := map_fst_eval_qSingletonsM oracle (b₁ :: bs)
-  cases hc : (qSingletonsM (ValueQuery.ask (α := V) (β := β)) (b₁ :: bs)).eval oracle with
-  | nil =>
-    rw [hc] at hmap
-    simp at hmap
-  | cons c₀ cs =>
-    rw [hc] at hmap
-    have hlen : cs.length = bs.length := by
-      have hl := congrArg List.length hmap
-      simp only [List.length_map, List.length_cons] at hl
-      omega
-    rw [List.nodup_cons] at hnd
-    have hc_mem : ∀ p ∈ c₀ :: cs, p.1 ∈ b₀ :: b₁ :: bs := by
-      intro p hp
-      have hp' : p.1 ∈ (c₀ :: cs).map Prod.fst := List.mem_map.mpr ⟨p, hp, rfl⟩
-      rw [hmap] at hp'
-      exact List.mem_cons_of_mem b₀ hp'
-    have hc_nd : ((c₀ :: cs).map Prod.fst).Nodup := hmap ▸ hnd.2
-    have hc_not : b₀ ∉ (c₀ :: cs).map Prod.fst := hmap ▸ hnd.1
-    exact eval_qSearchStepsM_spec oracle bs.length b₀ b₀ c₀ cs hlen
-      List.mem_cons_self hc_mem hc_nd hc_not
+  obtain ⟨c₀, cs, hc, hmap, hlen⟩ := eval_qSingletonsM_cons_eq_cons oracle b₁ bs
+  rw [List.nodup_cons] at hnd
+  have hc_mem : ∀ p ∈ c₀ :: cs, p.1 ∈ b₀ :: b₁ :: bs := fun p hp =>
+    List.mem_cons_of_mem b₀ (hmap ▸ List.mem_map_of_mem hp)
+  simpa only [qSearchM, FreeM.eval_bind, hc] using
+    eval_qSearchStepsM_spec oracle bs.length b₀ b₀ c₀ cs hlen
+      List.mem_cons_self hc_mem (hmap ▸ hnd.2) (hmap ▸ hnd.1)
 
 private theorem countQueries_queyranneRecM_eq
     (oracle : {ι : Type} → ValueQuery V β ι → ι) :
@@ -267,40 +241,22 @@ private theorem countQueries_queyranneRecM_eq
     rcases blocks with _ | ⟨b₀, _ | ⟨b₁, bs⟩⟩ <;> simp at hlen
     simp [queyranneRecM]
   | steps + 1, blocks, hne, hdisj, hlen => by
-    rcases blocks with _ | ⟨b₀, _ | ⟨b₁, bs⟩⟩
-    · simp at hlen
-    · simp at hlen
-    · have hnd := nodup_of_pairwise_disjoint_nonempty hne hdisj
-      have hsearch := eval_qSearchM_mem oracle hnd
-      set sr := (qSearchM ValueQuery.ask b₀ b₁ bs).eval oracle
-      have hmerge := mergeBlocks_nonempty_disjoint hne hdisj hsearch.1 hsearch.2.1 hsearch.2.2
-      have hlen' : (mergeBlocks sr.fst sr.snd (b₀ :: b₁ :: bs)).length = steps + 2 := by
-        have hm := length_mergeBlocks hsearch.1 hsearch.2.1 hsearch.2.2
-        omega
-      have ih := countQueries_queyranneRecM_eq oracle steps
-        (mergeBlocks sr.fst sr.snd (b₀ :: b₁ :: bs)) hmerge.1 hmerge.2 hlen'
-      have hq := countQueries_qSearchM_eq oracle b₀ b₁ bs
-      have hbs_len1 : bs.length + 2 = steps + 3 := by
-        simp only [List.length_cons] at hlen
-        omega
-      have hbs_len2 : bs.length + 3 = steps + 4 := by omega
-      rw [hbs_len1, hbs_len2] at hq
-      simp only [queyranneRecM, FreeM.countQueries_bind]
-      set qrec := (queyranneRecM ValueQuery.ask steps
-        (mergeBlocks sr.fst sr.snd (b₀ :: b₁ :: bs))).countQueries oracle
-      set qs := (qSearchM ValueQuery.ask b₀ b₁ bs).countQueries oracle
-      set recRes := (queyranneRecM ValueQuery.ask steps
-        (mergeBlocks sr.fst sr.snd (b₀ :: b₁ :: bs))).eval oracle
-      have htail :
-          FreeM.countQueries oracle
-            (if recRes.val < sr.sndVal then
-              (pure recRes : FreeM (ValueQuery V β) (QCutResult V β))
-            else
-              pure ⟨sr.snd, sr.sndVal⟩) = 0 := by
-        split_ifs <;> simp
-      change 6 * (qs + (qrec + _)) + 12 * (steps + 1 + 2) = _
-      rw [htail]
-      linarith
+    rcases blocks with _ | ⟨b₀, _ | ⟨b₁, bs⟩⟩ <;> simp at hlen
+    have hnd := nodup_of_pairwise_disjoint_nonempty hne hdisj
+    have hsearch := eval_qSearchM_mem oracle hnd
+    set sr := (qSearchM ValueQuery.ask b₀ b₁ bs).eval oracle
+    have hmerge := mergeBlocks_nonempty_disjoint hne hdisj hsearch.1 hsearch.2.1 hsearch.2.2
+    have hlen' : (mergeBlocks sr.fst sr.snd (b₀ :: b₁ :: bs)).length = steps + 2 := by
+      have hm := length_mergeBlocks hsearch.1 hsearch.2.1 hsearch.2.2
+      simp only [List.length_cons] at hm
+      omega
+    have ih := countQueries_queyranneRecM_eq oracle steps
+      (mergeBlocks sr.fst sr.snd (b₀ :: b₁ :: bs)) hmerge.1 hmerge.2 hlen'
+    have hq := countQueries_qSearchM_eq oracle b₀ b₁ bs
+    have hbs : bs.length = steps + 1 := by omega
+    rw [hbs] at hq
+    simp only [queyranneRecM, FreeM.countQueries_bind]
+    split_ifs <;> simp only [FreeM.countQueries_pure, add_zero] <;> linarith
 
 /-- **Exact value-oracle query complexity** ([Queyranne1998]): when `2 ≤ n := vs.toFinset.card`,
 against any value oracle `queyranneQuery vs` performs `Q` queries satisfying
@@ -309,41 +265,24 @@ theorem countQueries_queyranneQuery_eq
     (oracle : {ι : Type} → ValueQuery V β ι → ι) {vs : List V} (hvs : 2 ≤ vs.toFinset.card) :
     6 * (queyranneQuery vs).countQueries oracle + 12 * vs.toFinset.card =
       vs.toFinset.card * (vs.toFinset.card + 1) * (vs.toFinset.card + 2) + 6 := by
-  have hu_nd : vs.eraseDups.Nodup := List.nodup_eraseDups vs
   have hu_len : vs.eraseDups.length = vs.toFinset.card := List.length_eraseDups vs
-  have hne : ∀ b ∈ vs.eraseDups.map ({·} : V → Finset V), b.Nonempty := by
-    intro b hb
-    obtain ⟨v, _, rfl⟩ := List.mem_map.mp hb
-    exact Finset.singleton_nonempty v
+  have hne : ∀ b ∈ vs.eraseDups.map ({·} : V → Finset V), b.Nonempty :=
+    List.forall_mem_map.mpr fun v _ => Finset.singleton_nonempty v
   have hdisj : (vs.eraseDups.map ({·} : V → Finset V)).Pairwise Disjoint :=
-    List.pairwise_map.mpr (hu_nd.imp fun hab => Finset.disjoint_singleton.mpr hab)
-  have hlen : (vs.eraseDups.map ({·} : V → Finset V)).length =
-      (vs.eraseDups.length - 2) + 2 := by
-    rw [List.length_map]
-    omega
-  have hrec := countQueries_queyranneRecM_eq oracle (vs.eraseDups.length - 2) _ hne hdisj hlen
-  have h1 : vs.eraseDups.length - 2 + 2 = vs.toFinset.card := by omega
-  have h2 : vs.eraseDups.length - 2 + 3 = vs.toFinset.card + 1 := by omega
-  have h3 : vs.eraseDups.length - 2 + 4 = vs.toFinset.card + 2 := by omega
-  rw [h1, h2, h3] at hrec
-  exact hrec
+    List.pairwise_map.mpr ((List.nodup_eraseDups vs).imp Finset.disjoint_singleton.mpr)
+  have hm : vs.toFinset.card = (vs.eraseDups.length - 2) + 2 := by omega
+  rw [hm]
+  exact countQueries_queyranneRecM_eq oracle (vs.eraseDups.length - 2) _ hne hdisj
+    (by rw [List.length_map]; omega)
 
 /-- On degenerate inputs with fewer than two distinct elements, `queyranneQuery vs` makes `1`
 query (`∅`). -/
 theorem countQueries_queyranneQuery_eq_one_of_lt_two
     (oracle : {ι : Type} → ValueQuery V β ι → ι) {vs : List V} (hvs : vs.toFinset.card < 2) :
     (queyranneQuery vs).countQueries oracle = 1 := by
-  have hu_len : vs.eraseDups.length = vs.toFinset.card := List.length_eraseDups vs
-  have hlen : vs.eraseDups.length < 2 := hu_len.symm ▸ hvs
+  have hlen : vs.eraseDups.length < 2 := (List.length_eraseDups vs).symm ▸ hvs
   simp only [queyranneQuery, queyranneM]
-  cases hu : vs.eraseDups with
-  | nil => simp [queyranneRecM]
-  | cons a rest =>
-    cases hrest : rest with
-    | nil => simp [queyranneRecM]
-    | cons b bs =>
-      rw [hu, hrest] at hlen
-      simp at hlen
+  rcases hu : vs.eraseDups with _ | ⟨a, _ | ⟨b, bs⟩⟩ <;> simp_all [queyranneRecM]
 
 /-- When `2 ≤ vs.toFinset.card`, `3 * countQueries ≤ vs.toFinset.card ^ 3` against any oracle. -/
 theorem three_mul_countQueries_queyranneQuery_le
@@ -352,10 +291,8 @@ theorem three_mul_countQueries_queyranneQuery_le
   have heq := countQueries_queyranneQuery_eq oracle hvs
   set n := vs.toFinset.card
   rcases Nat.eq_or_lt_of_le hvs with heq2 | hn
-  · rw [← heq2] at heq ⊢
-    omega
-  · have hge3 : 3 ≤ n := hn
-    nlinarith
+  · rw [← heq2] at heq ⊢; omega
+  · nlinarith
 
 /-- Pointwise cubic upper bound valid for all input lists `vs`, including degenerate lists with
 `vs.toFinset.card < 2`. -/

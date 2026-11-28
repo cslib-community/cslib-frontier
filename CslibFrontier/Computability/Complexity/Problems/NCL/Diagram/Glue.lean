@@ -91,22 +91,15 @@ theorem glueComp_congr_right (D₁ : Diagram Γ a b) (D₂ : Diagram Γ b c) (t�
     {t₂ t₂' : D₂.Edge → Label} (h : ∀ e, t₂ (.inr e) = t₂' (.inr e)) :
     glueComp D₁ D₂ t₁ t₂ = glueComp D₁ D₂ t₁ t₂' := by
   funext x
-  rcases x with i | e | e
-  · rfl
-  · rfl
-  · exact h e
+  rcases x with i | e | e <;> first | rfl | exact h e
 
 theorem legal_glueComp {D₁ : Diagram Γ a b} {D₂ : Diagram Γ b c} {t₁ : D₁.Edge → Bool}
     {t₂ : D₂.Edge → Bool} (h₁ : (D₁.graph I).Legal t₁) (h₂ : (D₂.graph I).Legal t₂)
     (h : ∀ j, t₂ (.inl j) = t₁ (D₁.bottom j)) :
-    ((comp D₁ D₂).graph I).Legal (glueComp D₁ D₂ t₁ t₂) := by
-  refine (legal_comp_iff _ _ _).2 ⟨?_, ?_⟩
-  · rw [show glueComp D₁ D₂ t₁ t₂ ∘ compLeft D₁ D₂ = t₁ from
-      funext fun x => glueComp_compLeft D₁ D₂ t₁ t₂ x]
-    exact h₁
-  · rw [show glueComp D₁ D₂ t₁ t₂ ∘ compRight D₁ D₂ = t₂ from
-      funext fun x => glueComp_compRight D₁ D₂ t₁ t₂ h x]
-    exact h₂
+    ((comp D₁ D₂).graph I).Legal (glueComp D₁ D₂ t₁ t₂) :=
+  (legal_comp_iff _ _ _).2
+    ⟨(funext (glueComp_compLeft D₁ D₂ t₁ t₂)).symm ▸ h₁,
+     (funext (glueComp_compRight D₁ D₂ t₁ t₂ h)).symm ▸ h₂⟩
 
 /-- Configurations of a stack agree when they agree on the upper part and inside the lower one. -/
 private theorem comp_ext {D₁ : Diagram Γ a b} {D₂ : Diagram Γ b c} {t t' : (comp D₁ D₂).Edge → Bool}
@@ -114,9 +107,7 @@ private theorem comp_ext {D₁ : Diagram Γ a b} {D₂ : Diagram Γ b c} {t t' :
     (h₂ : ∀ e, t (.inr (.inr e)) = t' (.inr (.inr e))) : t = t' := by
   funext x
   rcases x with i | e | e
-  · exact h₁ (.inl i)
-  · exact h₁ (.inr e)
-  · exact h₂ e
+  exacts [h₁ (.inl i), h₁ (.inr e), h₂ e]
 
 theorem glueComp_reverse_left (D₁ : Diagram Γ a b) (D₂ : Diagram Γ b c) (t₁ : D₁.Edge → Bool)
     (t₂ : D₂.Edge → Bool) (y : D₁.Edge) :
@@ -132,13 +123,12 @@ theorem glueComp_reverse_right (D₁ : Diagram Γ a b) (D₂ : Diagram Γ b c) (
       reverse (glueComp D₁ D₂ t₁ t₂) (.inr (.inr e)) := by
   refine comp_ext (fun x => ?_) (fun e' => ?_)
   · rw [glueComp_compLeft, reverse_of_ne _ (compLeft_ne_inr_inr D₁ D₂ x e), glueComp_compLeft]
-  · by_cases h : e' = e
-    · subst h
-      simp [glueComp]
-    · have h' : (Sum.inr (Sum.inr e') : (comp D₁ D₂).Edge) ≠ .inr (.inr e) := fun h'' =>
-        h (by injection h'' with h''; injection h'')
-      rw [reverse_of_ne _ h']
-      exact reverse_of_ne _ fun h'' => h (by injection h'')
+  · obtain rfl | h := eq_or_ne e' e
+    · simp [glueComp]
+    · dsimp only [glueComp]
+      rw [reverse_of_ne _ (Sum.inr_injective.ne h)]
+      exact (reverse_of_ne (glueComp D₁ D₂ t₁ t₂)
+        (fun hc => h (Sum.inr_injective (Sum.inr_injective hc)))).symm
 
 /-! ### Moves inside the parts of a stack -/
 
@@ -192,10 +182,9 @@ theorem innerReach_glueComp_left {D₁ : Diagram Γ a b} {D₂ : Diagram Γ b c}
   induction h with
   | refl => exact .refl
   | @tail u u' hr hs ih =>
-    have hu : ∀ j, t₂ (.inl j) = u (D₁.bottom j) := fun j =>
+    have hu (j) : t₂ (.inl j) = u (D₁.bottom j) :=
       (hag j).trans (InnerReach.boundary hr (Or.inr ⟨j, rfl⟩)).symm
-    have hu' : ∀ j, t₂ (.inl j) = u' (D₁.bottom j) := fun j =>
-      (hu j).trans (hs.boundary (Or.inr ⟨j, rfl⟩)).symm
+    have hu' (j) := (hu j).trans (hs.boundary (Or.inr ⟨j, rfl⟩)).symm
     obtain ⟨hl, hl', y, hy, rfl⟩ := hs
     exact ih.tail ⟨legal_glueComp hl h₂ hu, legal_glueComp hl' h₂ hu', compLeft D₁ D₂ y,
       not_isBoundary_compLeft hy, glueComp_reverse_left ..⟩
@@ -208,10 +197,9 @@ theorem innerReach_glueComp_right {D₁ : Diagram Γ a b} {D₂ : Diagram Γ b c
   induction h with
   | refl => exact .refl
   | @tail u u' hr hs ih =>
-    have hu : ∀ j, u (.inl j) = t₁ (D₁.bottom j) := fun j =>
+    have hu (j) : u (.inl j) = t₁ (D₁.bottom j) :=
       (InnerReach.boundary hr (Or.inl ⟨j, rfl⟩)).trans (hag j)
-    have hu' : ∀ j, u' (.inl j) = t₁ (D₁.bottom j) := fun j =>
-      (hs.boundary (Or.inl ⟨j, rfl⟩)).trans (hu j)
+    have hu' (j) := (hs.boundary (Or.inl ⟨j, rfl⟩)).trans (hu j)
     obtain ⟨hl, hl', z, hz, rfl⟩ := hs
     rcases z with j | e
     · exact absurd (Or.inl ⟨j, rfl⟩) hz
@@ -302,13 +290,9 @@ private theorem tensor_ext {D₁ : Diagram Γ a b} {D₂ : Diagram Γ c d}
 theorem legal_glueTensor {D₁ : Diagram Γ a b} {D₂ : Diagram Γ c d} {t₁ : D₁.Edge → Bool}
     {t₂ : D₂.Edge → Bool} (h₁ : (D₁.graph I).Legal t₁) (h₂ : (D₂.graph I).Legal t₂) :
     ((tensor D₁ D₂).graph I).Legal (glueTensor D₁ D₂ t₁ t₂) := by
-  refine (legal_tensor_iff _ _ _).2 ⟨?_, ?_⟩
-  · rw [show glueTensor D₁ D₂ t₁ t₂ ∘ tensorLeft D₁ D₂ = t₁ from
-      funext fun x => glueTensor_tensorLeft D₁ D₂ t₁ t₂ x]
-    exact h₁
-  · rw [show glueTensor D₁ D₂ t₁ t₂ ∘ tensorRight D₁ D₂ = t₂ from
-      funext fun x => glueTensor_tensorRight D₁ D₂ t₁ t₂ x]
-    exact h₂
+  rw [legal_tensor_iff, Function.comp_def, Function.comp_def,
+    funext (glueTensor_tensorLeft D₁ D₂ t₁ t₂), funext (glueTensor_tensorRight D₁ D₂ t₁ t₂)]
+  exact ⟨h₁, h₂⟩
 
 theorem glueTensor_reverse_left (D₁ : Diagram Γ a b) (D₂ : Diagram Γ c d)
     (t₁ : D₁.Edge → Bool) (t₂ : D₂.Edge → Bool) (y : D₁.Edge) :
@@ -341,8 +325,7 @@ private theorem not_isBoundary_tensorLeft {D₁ : Diagram Γ a b} {D₂ : Diagra
   · exact absurd (Or.inl ⟨i, rfl⟩) hy
   rintro (⟨i, h⟩ | ⟨j, h⟩)
   · injection h
-  · obtain ⟨j, rfl⟩ := (List.appendIndexEquiv b d).surjective j
-    rcases j with j | j
+  · rcases (List.appendIndexEquiv b d).surjective j with ⟨j | j, rfl⟩
     · rw [bottom_tensor_left] at h
       exact hy (Or.inr ⟨j, tensorLeft_injective D₁ D₂ h⟩)
     · rw [bottom_tensor_right] at h
@@ -354,8 +337,7 @@ private theorem not_isBoundary_tensorRight {D₁ : Diagram Γ a b} {D₂ : Diagr
   · exact absurd (Or.inl ⟨i, rfl⟩) hz
   rintro (⟨i, h⟩ | ⟨j, h⟩)
   · injection h
-  · obtain ⟨j, rfl⟩ := (List.appendIndexEquiv b d).surjective j
-    rcases j with j | j
+  · rcases (List.appendIndexEquiv b d).surjective j with ⟨j | j, rfl⟩
     · rw [bottom_tensor_left] at h
       exact tensorLeft_ne_tensorRight D₁ D₂ _ _ h.symm
     · rw [bottom_tensor_right] at h

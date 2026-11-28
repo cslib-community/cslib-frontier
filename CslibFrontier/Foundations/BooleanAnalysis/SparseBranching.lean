@@ -150,10 +150,8 @@ theorem eval_zero_univariateMonomialSumPoly [CommRing R] {q : ι → Polynomial 
     {𝓜 : Finset (Finset ι)} {x : ι → Bool}
     (hq0 : ∀ M ∈ 𝓜, ∀ v ∈ M, (q v).eval 0 = bitVal R (x v)) :
     (univariateMonomialSumPoly R q 𝓜).eval 0 = monomialSum R 𝓜 x := by
-  rw [eval_univariateMonomialSumPoly, monomialSum]
-  refine sum_congr rfl fun M hM => ?_
-  rw [monomial]
-  exact prod_congr rfl fun v hv => hq0 M hM v hv
+  simp_rw [eval_univariateMonomialSumPoly, monomialSum, monomial]
+  exact sum_congr rfl fun M hM => prod_congr rfl (hq0 M hM)
 
 /-- If `#M ≤ k` and every `q v` (`v ∈ M`) has `natDegree ≤ d₀`, then
 `univariateMonomialPoly R q M` has `natDegree ≤ k * d₀`. -/
@@ -233,10 +231,9 @@ theorem univariateParityTruncatedSum_eq_sum [Fintype ι] [DecidableEq ι] [CommR
         (∏ i ∈ I,
           Polynomial.parityFactor ℓ
             (univariateMonomialSumPoly R (q x i) (P i))).sumCoeffsBelow ℓ := by
-  rw [univariateParityTruncatedSum, univariateParityProduct, Polynomial.sumCoeffsBelow]
-  simp only [Polynomial.finsetSum_coeff]
-  rw [sum_comm]
-  rfl
+  simp only [univariateParityTruncatedSum, univariateParityProduct, Polynomial.sumCoeffsBelow,
+    Polynomial.finsetSum_coeff]
+  exact sum_comm
 
 /-- **§5.3, eq. (5.5a) (coordinatewise degree bound $\deg_T [V^s] H(T) \le k R_{\mathrm{deg}}
 (\#I + 2(\ell - 1))$)**: if every equation has degree at most `k` and every replacement polynomial
@@ -252,10 +249,8 @@ theorem natDegree_univariateParityCoord_le [Fintype ι] [DecidableEq ι] [CommRi
   rw [univariateParityCoord_eq_sum]
   refine (Polynomial.natDegree_sum_le _ _).trans ?_
   rw [Finset.fold_max_le]
-  refine ⟨Nat.zero_le _, fun x _ => ?_⟩
-  refine Polynomial.natDegree_coeff_prod_parityFactor_le_of_lt I ℓ
-    (fun i => univariateMonomialSumPoly R (q x i) (P i)) (fun i hi => ?_) hs
-  exact natDegree_univariateMonomialSumPoly_le (hk i hi) (hq x i hi)
+  exact ⟨Nat.zero_le _, fun x _ => Polynomial.natDegree_coeff_prod_parityFactor_le_of_lt I ℓ _
+    (fun i hi => natDegree_univariateMonomialSumPoly_le (hk i hi) (hq x i hi)) hs⟩
 
 /-- **§5.3, eq. (5.5a) ($\deg_T S_\ell(H(T)) \le k R_{\mathrm{deg}} (\#I + 2(\ell - 1))$)**: if
 every equation has degree at most `k` and every replacement polynomial `q x i v` has
@@ -270,8 +265,8 @@ theorem natDegree_univariateParityTruncatedSum_le [Fintype ι] [DecidableEq ι] 
   rw [univariateParityTruncatedSum_eq_sum_coord]
   refine (Polynomial.natDegree_sum_le _ _).trans ?_
   rw [Finset.fold_max_le]
-  refine ⟨Nat.zero_le _, fun s hs => ?_⟩
-  exact natDegree_univariateParityCoord_le I P ℓ q hk hq (mem_range.mp hs)
+  exact ⟨Nat.zero_le _, fun _ hs =>
+    natDegree_univariateParityCoord_le I P ℓ q hk hq (mem_range.mp hs)⟩
 
 /-- **§5.3, eq. (5.5b) (evaluation restoration at `T = 0`)**: when every replacement polynomial
 `q x i v` restores `bitVal R (x v)` at `T = 0`, evaluating `univariateParityTruncatedSum` at `0`
@@ -286,9 +281,8 @@ theorem eval_zero_univariateParityTruncatedSum [Fintype ι] [DecidableEq ι] [Co
   rw [univariateParityTruncatedSum_eq_sum, Polynomial.eval_finsetSum]
   refine sum_congr rfl fun x _ => ?_
   rw [Polynomial.eval_sumCoeffsBelow_prod_parityFactor]
-  congr 1
-  refine prod_congr rfl fun i hi => ?_
-  rw [eval_zero_univariateMonomialSumPoly (hq0 x i hi)]
+  exact congrArg (Polynomial.sumCoeffsBelow ℓ)
+    (prod_congr rfl fun i hi => by rw [eval_zero_univariateMonomialSumPoly (hq0 x i hi)])
 
 /-- **§5.3, eq. (5.5b) ($S_\ell(H(0)) \equiv N(\mathcal{P}) \pmod{2^\ell}$)**: when every integer
 replacement polynomial `q x i v` restores `bitVal ℤ (x v)` at `T = 0`,
@@ -342,36 +336,29 @@ def extendFreeAssignment [Fintype ι] [DecidableEq ι] (S : Finset ι) (e : ↥(
 /-- Restricting an assignment `z : ι → Bool` to `ι'` along `e : ↥(univ \ S) ≃ ι'`. -/
 def restrictToFreeVars [Fintype ι] [DecidableEq ι] (S : Finset ι) (e : ↥(univ \ S) ≃ ι')
     (z : ι → Bool) (w : ι') : Bool :=
-  z (e.symm w).val
+  z (e.symm w).1
 
 @[simp]
 theorem restrictToFreeVars_extendFreeAssignment [Fintype ι] [DecidableEq ι] (S : Finset ι)
     (e : ↥(univ \ S) ≃ ι') (y : ι' → Bool) :
     restrictToFreeVars S e (extendFreeAssignment S e y) = y := by
   ext w
-  simp only [restrictToFreeVars, extendFreeAssignment, (e.symm w).property, ↓reduceDIte,
-    Subtype.coe_eta, Equiv.apply_symm_apply]
+  simp only [restrictToFreeVars, extendFreeAssignment, (e.symm w).2, ↓reduceDIte, Subtype.coe_eta,
+    Equiv.apply_symm_apply]
 
 theorem extendFreeAssignment_mem_subproblemAssignments [Fintype ι] [DecidableEq ι]
     (S : Finset ι) (e : ↥(univ \ S) ≃ ι') (y : ι' → Bool) :
     extendFreeAssignment S e y ∈ subproblemAssignments S := by
   rw [subproblemAssignments, mem_filter]
-  refine ⟨mem_univ _, fun v hv => ?_⟩
-  have hnot : v ∉ univ \ S := fun h => (mem_sdiff.mp h).2 hv
-  simp only [extendFreeAssignment, hnot, ↓reduceDIte]
+  exact ⟨mem_univ _, fun v hv => dite_eq_right fun h => (mem_sdiff.mp h).2 hv⟩
 
 theorem extendFreeAssignment_restrictToFreeVars [Fintype ι] [DecidableEq ι]
     (S : Finset ι) (e : ↥(univ \ S) ≃ ι') {z : ι → Bool} (hz : z ∈ subproblemAssignments S) :
     extendFreeAssignment S e (restrictToFreeVars S e z) = z := by
-  rw [subproblemAssignments, mem_filter] at hz
   ext v
   by_cases hv : v ∈ univ \ S
-  · simp only [extendFreeAssignment, hv, ↓reduceDIte, restrictToFreeVars,
-      Equiv.symm_apply_apply]
-  · have hvS : v ∈ S := by
-      by_contra hnotS
-      exact hv (mem_sdiff.mpr ⟨mem_univ v, hnotS⟩)
-    simp only [extendFreeAssignment, hv, ↓reduceDIte, hz.2 v hvS]
+  · simp [extendFreeAssignment, restrictToFreeVars, hv]
+  · simp [extendFreeAssignment, hv, (mem_filter.mp hz).2 v (by simpa [mem_sdiff] using hv)]
 
 /-- Every monomial in `relabelRestrictedMonomials S e b 𝓜` has degree at most `k` when every
 monomial in `𝓜` has degree at most `k`. -/
@@ -380,8 +367,7 @@ theorem card_mem_relabelRestrictedMonomials_le [Fintype ι] [DecidableEq ι] [De
     (hk : ∀ M ∈ 𝓜, #M ≤ k) :
     ∀ M' ∈ relabelRestrictedMonomials S e b 𝓜, #M' ≤ k := by
   intro M' hM'
-  rw [relabelRestrictedMonomials, mem_image] at hM'
-  rcases hM' with ⟨M, hM, rfl⟩
+  rcases mem_image.mp hM' with ⟨M, hM, rfl⟩
   calc
     #((M.subtype (· ∈ univ \ S)).image e)
       ≤ #(M.subtype (· ∈ univ \ S)) := card_image_le
@@ -431,7 +417,7 @@ theorem monomialSum_relabelRestrictedMonomials [Fintype ι] [DecidableEq ι] [De
     Subtype.val_injective.injOn
     (fun v hv => ⟨⟨v, hsub hv⟩, mem_coe.mpr (mem_subtype.mpr hv), rfl⟩)
     (fun x _ => ?_)
-  simp only [extendFreeAssignment, x.property, ↓reduceDIte]
+  simp only [extendFreeAssignment, x.2, ↓reduceDIte]
 
 /-- **§5.5–5.6 (Theorem 2.2 additive branch decomposition on the relabeled free-variable cube
 `ι' → Bool`)**: for any branch variable set `S` and equivalence `e : ↥(univ \ S) ≃ ι'`, the
@@ -444,24 +430,20 @@ theorem commonZeroCount_eq_sum_relabelRestrictedMonomials [Fintype ι] [Decidabl
       ∑ b ∈ branchAssignments S,
         commonZeroCount I (fun i => relabelRestrictedMonomials S e b (P i)) := by
   rw [commonZeroCount_eq_sum_branches S I P]
-  refine sum_congr rfl fun b _ => ?_
-  rw [commonZeroCount]
-  refine card_bij (fun z _ => restrictToFreeVars S e z)
+  refine sum_congr rfl fun b _ => card_bij (fun z _ => restrictToFreeVars S e z)
     (fun z hz => ?_) (fun z₁ hz₁ z₂ hz₂ hEq => ?_) (fun y hy => ?_)
   · rw [mem_filter] at hz ⊢
     refine ⟨mem_univ _, fun i hi => ?_⟩
     rw [monomialSum_relabelRestrictedMonomials,
       extendFreeAssignment_restrictToFreeVars S e hz.1]
     exact hz.2 i hi
-  · rw [mem_filter] at hz₁ hz₂
-    rw [← extendFreeAssignment_restrictToFreeVars S e hz₁.1,
-      ← extendFreeAssignment_restrictToFreeVars S e hz₂.1, hEq]
-  · rw [mem_filter] at hy
-    refine ⟨extendFreeAssignment S e y, mem_filter.mpr
+  · rw [← extendFreeAssignment_restrictToFreeVars S e (mem_filter.mp hz₁).1,
+      ← extendFreeAssignment_restrictToFreeVars S e (mem_filter.mp hz₂).1, hEq]
+  · refine ⟨extendFreeAssignment S e y, mem_filter.mpr
       ⟨extendFreeAssignment_mem_subproblemAssignments S e y, fun i hi => ?_⟩,
       restrictToFreeVars_extendFreeAssignment S e y⟩
     rw [← monomialSum_relabelRestrictedMonomials]
-    exact hy.2 i hi
+    exact (mem_filter.mp hy).2 i hi
 
 /-- A variable `w` of the relabeled restricted equation comes from the variable `e.symm w` of the
 restricted equation. -/
@@ -469,15 +451,11 @@ private theorem symm_mem_equationScope_restrictMonomials [Fintype ι] [Decidable
     [DecidableEq ι'] {S : Finset ι} {e : ↥(univ \ S) ≃ ι'} {b : ι → Bool}
     {𝓜 : Finset (Finset ι)} {w : ι'}
     (hw : w ∈ equationScope (relabelRestrictedMonomials S e b 𝓜)) :
-    (e.symm w).val ∈ equationScope (restrictMonomials S b 𝓜) := by
-  rw [equationScope, mem_biUnion] at hw ⊢
-  rcases hw with ⟨M', hM', hwM'⟩
-  rw [relabelRestrictedMonomials, mem_image] at hM'
-  rcases hM' with ⟨M, hM, rfl⟩
-  rw [id_eq, mem_image] at hwM'
-  rcases hwM' with ⟨v, hv, rfl⟩
-  rw [Equiv.symm_apply_apply]
-  exact ⟨M, hM, mem_subtype.mp hv⟩
+    (e.symm w).1 ∈ equationScope (restrictMonomials S b 𝓜) := by
+  rcases mem_biUnion.mp hw with ⟨_, hM', hwM'⟩
+  rcases mem_image.mp hM' with ⟨M, hM, rfl⟩
+  rcases mem_image.mp hwM' with ⟨v, hv, rfl⟩
+  exact mem_biUnion.mpr ⟨M, hM, by simpa using mem_subtype.mp hv⟩
 
 /-- The variable scope of `relabelRestrictedMonomials S e b 𝓜` is contained in the image under `e`
 of `(equationScope 𝓜 \ S).subtype (· ∈ univ \ S)`. -/
@@ -503,21 +481,15 @@ theorem varIncidence_relabelRestrictedMonomials_heavyVars_le [Fintype ι] [Decid
         (relabelRestrictedMonomials
           (heavyVars univ F (fun i => equationScope (P i)) b₀) e b (P i))) w ≤ b₀ := by
   let S := heavyVars univ F (fun i => equationScope (P i)) b₀
-  have hsub :
-      {i ∈ I | w ∈ equationScope (relabelRestrictedMonomials S e b (P i))} ⊆
-        {i ∈ F | (e.symm w).val ∈ equationScope (restrictMonomials S b (P i))} := by
-    intro i hi
-    rw [mem_filter] at hi ⊢
-    exact ⟨hIF hi.1, symm_mem_equationScope_restrictMonomials hi.2⟩
   calc
-    varIncidence I
-        (fun i => equationScope (relabelRestrictedMonomials S e b (P i))) w
-      ≤ varIncidence F
-          (fun i => equationScope (restrictMonomials S b (P i))) (e.symm w).val :=
-        card_le_card hsub
+    varIncidence I (fun i => equationScope (relabelRestrictedMonomials S e b (P i))) w
+      ≤ varIncidence F (fun i => equationScope (restrictMonomials S b (P i))) (e.symm w).1 :=
+        card_le_card fun i hi => mem_filter.mpr
+          ⟨hIF (mem_filter.mp hi).1,
+            symm_mem_equationScope_restrictMonomials (mem_filter.mp hi).2⟩
     _ ≤ b₀ :=
         varIncidence_equationScope_restrictMonomials_heavyVars_le univ F P b₀
-          (fun _ _ => subset_univ _) b (e.symm w).val
+          (fun _ _ => subset_univ _) b (e.symm w).1
 
 end BranchRelabeling
 
@@ -543,15 +515,9 @@ theorem varIncidence_withNeutralFactors [Fintype ι'] [DecidableEq ι'] (I : Fin
     varIncidence (withNeutralFactors I) (withNeutralScope scope) v =
       varIncidence I scope v + 1 := by
   classical
-  unfold varIncidence withNeutralFactors
-  rw [card_filter, sum_disjSum, ← card_filter, ← card_filter]
+  rw [varIncidence, withNeutralFactors, card_filter, sum_disjSum, ← card_filter]
   congr 1
-  have hfilter :
-      ({w : ι' | v ∈ ({w} : Finset ι')} : Finset ι') = {v} := by
-    ext w
-    simp only [mem_filter, mem_univ, true_and, mem_singleton, eq_comm]
-  change #({w ∈ (univ : Finset ι') | v ∈ ({w} : Finset ι')}) = 1
-  rw [hfilter, card_singleton]
+  simp [withNeutralScope, @eq_comm _ v]
 
 /-- Every declared variable `v : ι'` has incidence at least `1` after adjoining neutral scopes. -/
 theorem one_le_varIncidence_withNeutralFactors [Fintype ι'] [DecidableEq ι'] (I : Finset κ)
@@ -597,20 +563,19 @@ def heavyThreshold (M n s : ℕ) : ℕ :=
 theorem mul_le_heavyThreshold_mul {M n s : ℕ} (hn : 1 ≤ n) :
     M * s ≤ heavyThreshold M n s * n := by
   unfold heavyThreshold
-  have hmod := Nat.div_add_mod (M * s + n - 1) n
-  have hlt : (M * s + n - 1) % n < n := Nat.mod_lt _ hn
-  rw [Nat.mul_comm ((M * s + n - 1) / n) n]
+  have := Nat.div_add_mod (M * s + n - 1) n
+  have := Nat.mod_lt (M * s + n - 1) hn
+  rw [Nat.mul_comm _ n]
   omega
 
 /-- When `1 ≤ n`, `M * s ≤ paperHeavyThreshold M n s * n`. -/
 theorem mul_le_paperHeavyThreshold_mul {M n s : ℕ} (hn : 1 ≤ n) :
     M * s ≤ paperHeavyThreshold M n s * n := by
-  unfold paperHeavyThreshold
   have hceil : M ≤ ((M + n - 1) / n) * n := by
-    simpa only [heavyThreshold, mul_one] using (mul_le_heavyThreshold_mul (M := M) (s := 1) hn)
+    simpa only [heavyThreshold, mul_one] using mul_le_heavyThreshold_mul (M := M) (s := 1) hn
   calc
     M * s ≤ (((M + n - 1) / n) * n) * s := Nat.mul_le_mul_right s hceil
-    _ = (((M + n - 1) / n) * s) * n := by ring
+    _ = paperHeavyThreshold M n s * n := by rw [paperHeavyThreshold, Nat.mul_right_comm]
 
 /-- **§5.5 ($|S| \le n / s$)**: whenever `totalIncidence F scope * s ≤ b₀ * #V` and `1 ≤ s`, the
 heavy-variable set `heavyVars V F scope b₀` has cardinality at most `#V / s`. -/
@@ -618,16 +583,12 @@ theorem card_heavyVars_le_card_div [DecidableEq ι] (V : Finset ι) (F : Finset 
     (scope : κ → Finset ι) {b₀ s : ℕ} (hs : 1 ≤ s)
     (hM : totalIncidence F scope * s ≤ b₀ * #V) :
     #(heavyVars V F scope b₀) ≤ #V / s := by
-  refine (Nat.le_div_iff_mul_le hs).mpr ?_
-  have hcard := card_heavyVars_mul_succ_le_totalIncidence V F scope b₀
-  have hmul : (#(heavyVars V F scope b₀) * s) * (b₀ + 1) ≤ #V * (b₀ + 1) := by
-    calc
-      (#(heavyVars V F scope b₀) * s) * (b₀ + 1)
-        = (#(heavyVars V F scope b₀) * (b₀ + 1)) * s := by ring
-      _ ≤ totalIncidence F scope * s := Nat.mul_le_mul_right s hcard
-      _ ≤ b₀ * #V := hM
-      _ ≤ #V * (b₀ + 1) := by rw [Nat.mul_comm]; exact Nat.mul_le_mul_left _ (Nat.le_succ b₀)
-  exact Nat.le_of_mul_le_mul_right hmul (Nat.succ_pos b₀)
+  refine (Nat.le_div_iff_mul_le hs).mpr (Nat.le_of_mul_le_mul_right ?_ (Nat.succ_pos b₀))
+  calc (#(heavyVars V F scope b₀) * s) * (b₀ + 1)
+      = (#(heavyVars V F scope b₀) * (b₀ + 1)) * s := by ring
+    _ ≤ totalIncidence F scope * s :=
+      Nat.mul_le_mul_right s (card_heavyVars_mul_succ_le_totalIncidence V F scope b₀)
+    _ ≤ #V * (b₀ + 1) := hM.trans (by nlinarith)
 
 /-- **§5.5 ($2^{|S|} \le 2^{n / s}$)**: under `totalIncidence F scope * s ≤ b₀ * Fintype.card ι`
 and `1 ≤ s`, there are at most `2 ^ (Fintype.card ι / s)` heavy-variable branches. -/
@@ -636,9 +597,8 @@ theorem card_branchAssignments_heavyVars_le_two_pow_div [Fintype ι] [DecidableE
     (hM : totalIncidence F scope * s ≤ b₀ * Fintype.card ι) :
     #(branchAssignments (heavyVars univ F scope b₀)) ≤ 2 ^ (Fintype.card ι / s) := by
   rw [card_branchAssignments]
-  have hle := card_heavyVars_le_card_div univ F scope hs (by simpa [card_univ] using hM)
-  rw [card_univ] at hle
-  exact Nat.pow_le_pow_right (by decide) hle
+  refine Nat.pow_le_pow_right (by decide) ?_
+  simpa [card_univ] using card_heavyVars_le_card_div univ F scope hs (by simpa [card_univ] using hM)
 
 /-- **§5.5 ($n' = n - |S| \ge n - n / s$)**: under `totalIncidence F scope * s ≤ b₀ * #V` and
 `1 ≤ s`, the set `V \ heavyVars V F scope b₀` of free variables has cardinality at least
@@ -647,9 +607,8 @@ theorem card_sdiff_heavyVars_ge [DecidableEq ι] (V : Finset ι) (F : Finset κ)
     (scope : κ → Finset ι) {b₀ s : ℕ} (hs : 1 ≤ s)
     (hM : totalIncidence F scope * s ≤ b₀ * #V) :
     #V - #V / s ≤ #(V \ heavyVars V F scope b₀) := by
-  have hsub : heavyVars V F scope b₀ ⊆ V := filter_subset _ V
-  rw [card_sdiff, inter_eq_left.mpr hsub]
-  have hle := card_heavyVars_le_card_div V F scope hs hM
+  rw [card_sdiff_of_subset (s := heavyVars V F scope b₀) (filter_subset _ V)]
+  have := card_heavyVars_le_card_div V F scope hs hM
   omega
 
 /-- **§5.5 ($n' \ge n / 2$ for $s \ge 2$)**: when `2 ≤ s` and
@@ -715,13 +674,8 @@ and `n ≤ 2 * n'`, the equation-plus-precision factor `m + 2 * (branchPrecision
 `(2 * c + 4) * n'`. -/
 theorem branchEquationBudget_le {m c n n' : ℕ} (hm : m ≤ c * n) (hn : n ≤ 2 * n') :
     m + 2 * (branchPrecision n - 1) ≤ (2 * c + 4) * n' := by
-  unfold branchPrecision
-  calc
-    m + 2 * (n + 1 - 1) = m + 2 * n := by omega
-    _ ≤ c * n + 2 * n := Nat.add_le_add_right hm (2 * n)
-    _ = (c + 2) * n := by ring
-    _ ≤ (c + 2) * (2 * n') := Nat.mul_le_mul_left (c + 2) hn
-    _ = (2 * c + 4) * n' := by ring
+  rw [branchPrecision, Nat.add_sub_cancel]
+  nlinarith
 
 /-- **§5.5 ($d_H = O_{k, c}(n' R)$ per-branch degree bound)**: on any branch `(S, b)` relabeled
 along `e : ↥(univ \ S) ≃ ι'`, if `#I ≤ c * Fintype.card ι`, `Fintype.card ι ≤ 2 * Fintype.card ι'`,
@@ -741,13 +695,10 @@ theorem natDegree_univariateParityTruncatedSum_branch_le [CommRing R] [Fintype �
     (univariateParityTruncatedSum I
       (fun i => relabelRestrictedMonomials S e b (P i))
       (branchPrecision (Fintype.card ι)) q).natDegree ≤
-      (k * R_deg) * ((2 * c + 4) * Fintype.card ι') := by
-  have hk_branch : ∀ i ∈ I, ∀ M' ∈ relabelRestrictedMonomials S e b (P i), #M' ≤ k :=
-    fun i hi => card_mem_relabelRestrictedMonomials_le (hk i hi)
-  refine (natDegree_univariateParityTruncatedSum_le I
-    (fun i => relabelRestrictedMonomials S e b (P i))
-    (branchPrecision (Fintype.card ι)) q hk_branch hdeg).trans ?_
-  exact Nat.mul_le_mul_left (k * R_deg) (branchEquationBudget_le hm hn)
+      (k * R_deg) * ((2 * c + 4) * Fintype.card ι') :=
+  (natDegree_univariateParityTruncatedSum_le I _ _ q
+    (fun i hi => card_mem_relabelRestrictedMonomials_le (hk i hi)) hdeg).trans
+    (Nat.mul_le_mul_left _ (branchEquationBudget_le hm hn))
 
 end NeutralScopesAndThresholds
 

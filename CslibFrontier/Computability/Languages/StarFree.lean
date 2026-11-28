@@ -111,26 +111,19 @@ def matchEpsilon : StarFreeExpression α → Bool
   | comp e f => e.matchEpsilon && f.matchEpsilon
 
 theorem matchEpsilon_iff : ∀ e : StarFreeExpression α, e.matchEpsilon = true ↔ [] ∈ e.matches'
-  | zero => by
-    simp only [matchEpsilon, matches'_zero, Bool.false_eq_true, false_iff]
-    exact Language.notMem_zero _
+  | zero => by simp [matchEpsilon]
   | char a => by simp [matchEpsilon]
-  | plus e f => by
-    simp only [matchEpsilon, Bool.or_eq_true, matches'_plus, Language.mem_add, matchEpsilon_iff e,
-      matchEpsilon_iff f]
+  | plus e f => by simp [matchEpsilon, Language.mem_add, matchEpsilon_iff e, matchEpsilon_iff f]
   | compl e => by
-    simp only [matchEpsilon, Bool.not_eq_true', matches'_compl]
-    rw [← Bool.not_eq_true, matchEpsilon_iff e]
-    exact Iff.rfl
+    rw [matchEpsilon, Bool.not_eq_true', ← Bool.not_eq_true, matchEpsilon_iff e]
+    rfl
   | comp e f => by
     simp only [matchEpsilon, Bool.and_eq_true, matches'_comp, Language.mem_mul, matchEpsilon_iff e,
       matchEpsilon_iff f]
-    constructor
-    · rintro ⟨he, hf⟩
-      exact ⟨[], he, [], hf, rfl⟩
-    · rintro ⟨a, ha, b, hb, hab⟩
-      obtain ⟨rfl, rfl⟩ := List.append_eq_nil_iff.1 hab
-      exact ⟨ha, hb⟩
+    refine ⟨fun ⟨he, hf⟩ => ⟨[], he, [], hf, rfl⟩, ?_⟩
+    rintro ⟨_, ha, _, hb, hab⟩
+    obtain ⟨rfl, rfl⟩ := List.append_eq_nil_iff.1 hab
+    exact ⟨ha, hb⟩
 
 /-- The language of a star-free expression is regular. -/
 theorem isRegular_matches' : ∀ e : StarFreeExpression α, e.matches'.IsRegular
@@ -159,35 +152,26 @@ theorem letters_finite : ∀ e : StarFreeExpression α, e.letters.Finite
 nothing. -/
 theorem replicate_mem_or_notMem {c : α} : ∀ e : StarFreeExpression α, c ∉ e.letters →
     (∀ n, List.replicate n c ∈ e.matches') ∨ (∀ n, List.replicate n c ∉ e.matches')
-  | zero, _ => .inr fun n => Language.notMem_zero _
-  | char a, hc => .inr fun n h => hc (List.eq_of_mem_replicate (by
-      change List.replicate n c = [a] at h
-      exact h ▸ List.mem_singleton_self a)).symm
+  | zero, _ => .inr fun _ => Language.notMem_zero _
+  | char a, hc => .inr fun _ h =>
+      hc (List.eq_of_mem_replicate (Set.mem_singleton_iff.1 h ▸ List.mem_singleton_self a)).symm
   | plus e f, hc => by
-    simp only [letters, Set.mem_union, not_or] at hc
-    simp only [matches'_plus, Language.mem_add]
-    rcases replicate_mem_or_notMem e hc.1 with he | he <;>
-      rcases replicate_mem_or_notMem f hc.2 with hf | hf
+    obtain ⟨he, hf⟩ := not_or.1 hc
+    rcases replicate_mem_or_notMem e he with he | he <;>
+      rcases replicate_mem_or_notMem f hf with hf | hf
     exacts [.inl fun n => .inl (he n), .inl fun n => .inl (he n), .inl fun n => .inr (hf n),
       .inr fun n h => h.elim (he n) (hf n)]
-  | compl e, hc => by
-    simp only [matches'_compl]
-    rcases replicate_mem_or_notMem e hc with he | he
-    exacts [.inr fun n h => h (he n), .inl fun n h => he n h]
+  | compl e, hc => (replicate_mem_or_notMem e hc).symm.imp
+      (fun he n h => he n h) (fun he n h => h (he n))
   | comp e f, hc => by
-    simp only [letters, Set.mem_union, not_or] at hc
-    simp only [matches'_comp]
-    rcases replicate_mem_or_notMem e hc.1 with he | he
-    · rcases replicate_mem_or_notMem f hc.2 with hf | hf
-      · exact .inl fun n => Language.mem_mul.2 ⟨[], he 0, _, hf n, List.nil_append _⟩
-      · refine .inr fun n h => ?_
-        obtain ⟨x, -, y, hy, hxy⟩ := Language.mem_mul.1 h
-        obtain ⟨-, -, hy'⟩ := List.append_eq_replicate_iff.1 hxy
-        exact hf _ (hy' ▸ hy)
-    · refine .inr fun n h => ?_
-      obtain ⟨x, hx, y, -, hxy⟩ := Language.mem_mul.1 h
-      obtain ⟨-, hx', -⟩ := List.append_eq_replicate_iff.1 hxy
-      exact he _ (hx' ▸ hx)
+    obtain ⟨he, hf⟩ := not_or.1 hc
+    rcases replicate_mem_or_notMem e he with he | he
+    · rcases replicate_mem_or_notMem f hf with hf | hf
+      · exact .inl fun n => Language.mem_mul.2 ⟨[], he 0, _, hf n, rfl⟩
+      · exact .inr fun _ h => let ⟨_, _, _, hy, hxy⟩ := Language.mem_mul.1 h
+          hf _ ((List.append_eq_replicate_iff.1 hxy).2.2 ▸ hy)
+    · exact .inr fun _ h => let ⟨_, hx, _, _, hxy⟩ := Language.mem_mul.1 h
+        he _ ((List.append_eq_replicate_iff.1 hxy).2.1 ▸ hx)
 
 end StarFreeExpression
 
@@ -219,39 +203,28 @@ theorem mul {L M : _root_.Language α} (hL : IsStarFree L) (hM : IsStarFree M) :
   ⟨.comp e f, by rw [StarFreeExpression.matches'_comp, he, hf]⟩
 
 /-- All words form a star-free language, the complement of `∅`. -/
-theorem top : IsStarFree (⊤ : _root_.Language α) := by
-  have h : (0 : _root_.Language α)ᶜ = ⊤ := by
-    ext x
-    exact iff_of_true (Language.notMem_zero x) trivial
-  exact h ▸ zero.compl
+theorem top : IsStarFree (⊤ : _root_.Language α) :=
+  have h : (0 : _root_.Language α)ᶜ = ⊤ :=
+    Set.ext fun x => iff_of_true (Language.notMem_zero x) trivial
+  h ▸ zero.compl
 
 theorem inf {L M : _root_.Language α} (hL : IsStarFree L) (hM : IsStarFree M) :
     IsStarFree (L ⊓ M) := by
-  have h : (Lᶜ + Mᶜ)ᶜ = L ⊓ M := by
-    ext x
-    constructor
-    · intro hx
-      exact ⟨by_contra fun h => hx ((Language.mem_add _ _ x).2 (.inl h)),
-        by_contra fun h => hx ((Language.mem_add _ _ x).2 (.inr h))⟩
-    · rintro ⟨hL, hM⟩ hx
-      rcases (Language.mem_add _ _ x).1 hx with h | h
-      exacts [h hL, h hM]
+  have h : (Lᶜ + Mᶜ)ᶜ = L ⊓ M := Set.ext fun x =>
+    ⟨fun hx => ⟨by_contra fun h => hx ((Language.mem_add _ _ x).2 (.inl h)),
+      by_contra fun h => hx ((Language.mem_add _ _ x).2 (.inr h))⟩,
+      fun ⟨h1, h2⟩ hx => ((Language.mem_add _ _ x).1 hx).elim (· h1) (· h2)⟩
   exact h ▸ (hL.compl.add hM.compl).compl
 
 /-- A finite union of star-free languages is star-free. -/
 theorem iSup {ι : Type*} [Finite ι] {L : ι → _root_.Language α} (hL : ∀ i, IsStarFree (L i)) :
     IsStarFree (⨆ i, L i) := by
   classical
-  have := Fintype.ofFinite ι
-  have key : ∀ s : Finset ι, IsStarFree (s.sup L) := by
-    intro s
-    induction s using Finset.induction_on with
-    | empty => exact zero
-    | insert i s _ ih =>
-      rw [Finset.sup_insert]
-      exact (hL i).add ih
+  cases nonempty_fintype ι
   rw [← Finset.sup_univ_eq_iSup]
-  exact key Finset.univ
+  refine Finset.univ.induction_on zero fun i _ _ ih => ?_
+  rw [Finset.sup_insert]
+  exact (hL i).add ih
 
 /-- A finite intersection of star-free languages is star-free. -/
 theorem iInf {ι : Type*} [Finite ι] {L : ι → _root_.Language α} (hL : ∀ i, IsStarFree (L i)) :
@@ -267,27 +240,22 @@ theorem isRegular {L : _root_.Language α} (h : IsStarFree L) : L.IsRegular :=
 /-- Over a finite alphabet, the words of length one form a star-free language, the finite union
 of the letters. -/
 theorem setOf_length_eq_one [Finite α] : IsStarFree {w : List α | w.length = 1} := by
-  refine cast (congrArg IsStarFree ?_) (iSup fun a : α => char a)
+  suffices (⨆ a : α, ({[a]} : _root_.Language α)) = {w | w.length = 1} from this ▸ iSup char
   ext w
   change w ∈ ⨆ a : α, ({[a]} : _root_.Language α) ↔ w.length = 1
   simp [Language.mem_iSup, List.length_eq_one_iff]
 
 /-- Over a finite alphabet, `{ε}` is star-free: it is the complement of `⊤ · Σ`. -/
 theorem one [Finite α] : IsStarFree (1 : _root_.Language α) := by
-  refine cast (congrArg IsStarFree ?_) (top.mul (setOf_length_eq_one (α := α))).compl
+  let S : _root_.Language α := {w | w.length = 1}
+  suffices (⊤ * S)ᶜ = (1 : _root_.Language α) from this ▸ (top.mul setOf_length_eq_one).compl
   ext w
   rw [Language.mem_one]
-  constructor
-  · intro h
-    rcases List.eq_nil_or_concat w with hw | ⟨x, b, rfl⟩
-    · exact hw
-    · exact (h (Language.mem_mul.2 ⟨x, trivial, [b], rfl, List.concat_eq_append.symm⟩)).elim
-  · rintro rfl h
-    obtain ⟨x, -, y, hy, hxy⟩ := Language.mem_mul.1 h
-    have := congrArg List.length hxy
-    simp only [List.length_append, List.length_nil] at this
-    change y.length = 1 at hy
-    omega
+  refine ⟨fun h => (List.eq_nil_or_concat w).resolve_right fun ⟨x, b, hw⟩ =>
+    h (hw ▸ Language.mem_mul.2 ⟨x, trivial, [b], rfl, List.concat_eq_append.symm⟩), ?_⟩
+  rintro rfl h
+  obtain ⟨x, -, y, hy : y.length = 1, hxy⟩ := Language.mem_mul.1 h
+  simp [(List.append_eq_nil_iff.1 hxy).2] at hy
 
 /-- Over a finite alphabet, every one-word language `{w}` is star-free: `{ε}` is, and
 `{a :: w} = {a} · {w}`. -/
@@ -295,27 +263,21 @@ theorem singleton [Finite α] (w : List α) : IsStarFree ({w} : _root_.Language 
   induction w with
   | nil => exact one
   | cons a w ih =>
-    refine cast (congrArg IsStarFree ?_) ((char a).mul ih)
+    suffices ({[a]} * {w} : _root_.Language α) = {a :: w} from this ▸ (char a).mul ih
     ext u
     rw [Language.mem_mul]
-    constructor
-    · rintro ⟨x, hx, y, hy, rfl⟩
-      change x = [a] at hx
-      change y = w at hy
-      subst hx hy
-      rfl
-    · intro hu
-      change u = a :: w at hu
-      exact ⟨[a], rfl, w, rfl, hu.symm⟩
+    refine ⟨?_, fun hu : u = a :: w => ⟨[a], rfl, w, rfl, hu.symm⟩⟩
+    rintro ⟨_, rfl : _ = [a], _, rfl : _ = w, rfl⟩
+    rfl
 
 /-- Over a finite alphabet, every finite language is star-free, as a finite union of one-word
 languages. -/
 theorem of_finite [Finite α] {L : _root_.Language α} (hL : Set.Finite (L : Set (List α))) :
     IsStarFree L := by
-  have : Finite {w // w ∈ L} := hL.to_subtype
-  refine cast (congrArg IsStarFree ?_) (iSup fun v : {w // w ∈ L} => singleton v.val)
+  have := hL.to_subtype
+  suffices (⨆ v : {w // w ∈ L}, ({v.1} : _root_.Language α)) = L from
+    this ▸ iSup fun v => singleton v.1
   ext w
-  change w ∈ ⨆ v : {w // w ∈ L}, ({v.val} : _root_.Language α) ↔ w ∈ L
   simp [Language.mem_iSup]
 
 end IsStarFree
@@ -326,16 +288,12 @@ theorem not_isStarFree_one [Infinite α] : ¬ IsStarFree (1 : _root_.Language α
   rintro ⟨e, he⟩
   obtain ⟨c, hc⟩ := e.letters_finite.exists_notMem
   rcases e.replicate_mem_or_notMem hc with h | h
-  · have h1 := h 1
-    rw [he, Language.mem_one] at h1
-    exact List.cons_ne_nil _ _ h1
-  · exact h 0 (he ▸ (Language.mem_one _).2 rfl)
+  · exact absurd (he ▸ h 1 : [c] ∈ (1 : _root_.Language α)) (by simp)
+  · exact h 0 (he ▸ rfl)
 
 /-- `{ε}` is star-free if and only if the alphabet is finite. -/
-theorem isStarFree_one_iff : IsStarFree (1 : _root_.Language α) ↔ Finite α := by
-  refine ⟨fun h => ?_, fun _ => IsStarFree.one⟩
-  by_contra hfin
-  have := not_finite_iff_infinite.1 hfin
-  exact not_isStarFree_one h
+theorem isStarFree_one_iff : IsStarFree (1 : _root_.Language α) ↔ Finite α :=
+  ⟨fun h => by_contra fun hfin => @not_isStarFree_one _ (not_finite_iff_infinite.1 hfin) h,
+    fun _ => .one⟩
 
 end Cslib.Language

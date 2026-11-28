@@ -91,41 +91,31 @@ private theorem eq_of_partSplit_eq {j : ι} {r : P.parts} (h : partSplit P e j =
   · obtain ⟨r', -, rfl⟩ := mem_map.1 hj
     rw [partSplit_apply] at h
     rw [Subtype.ext h]
-  · rw [partSplit_of_notMem hj] at h
-    exact absurd h.symm (P.nonempty_of_mem_parts r.property).ne_empty
+  · exact absurd ((partSplit_of_notMem hj).symm.trans h).symm
+      (P.nonempty_of_mem_parts r.2).ne_empty
 
 /-- The split is an ordered split of `S`. -/
 private theorem partSplit_mem_blockSplits [Fintype ι] : partSplit P e ∈ blockSplits ι S := by
-  refine mem_blockSplits.2 ⟨fun j k hjk => ?_, ?_⟩
-  · rw [Function.onFun, partSplit, partSplit]
-    refine (disjoint_biUnion_left _ _ _).2 fun r hr =>
-      (disjoint_biUnion_right _ _ _).2 fun r' hr' => ?_
-    have hrr' : r ≠ r' := by
-      rintro rfl
-      exact hjk ((mem_filter.1 hr).2.symm.trans (mem_filter.1 hr').2)
-    exact P.disjoint r.property r'.property (Subtype.coe_ne_coe.2 hrr')
-  · refine Eq.trans ?_ P.biUnion_parts
-    ext x
-    simp only [mem_biUnion, partSplit, mem_filter, mem_univ, true_and, id]
-    constructor
-    · rintro ⟨-, r, -, hx⟩
-      exact ⟨r, r.property, hx⟩
-    · rintro ⟨t, ht, hx⟩
-      exact ⟨e ⟨t, ht⟩, ⟨t, ht⟩, rfl, hx⟩
+  refine mem_blockSplits.2 ⟨fun j k hjk => ?_, Eq.trans (Finset.ext fun x => ?_) P.biUnion_parts⟩
+  · refine (disjoint_biUnion_left _ _ _).2 fun r hr =>
+      (disjoint_biUnion_right _ _ _).2 fun r' hr' =>
+        P.disjoint r.2 r'.2 <| Subtype.coe_ne_coe.2 ?_
+    rintro rfl
+    exact hjk ((mem_filter.1 hr).2.symm.trans (mem_filter.1 hr').2)
+  · simp only [mem_biUnion, partSplit, mem_filter, mem_univ, true_and, id]
+    exact ⟨fun ⟨_, r, _, hx⟩ => ⟨r, r.2, hx⟩, fun ⟨t, ht, hx⟩ => ⟨e ⟨t, ht⟩, ⟨t, ht⟩, rfl, hx⟩⟩
 
 /-- The parts of `P` are the nonempty parts of the split. -/
 private theorem mem_parts_iff_exists_partSplit_eq {t : Finset (Fin d)} :
     t ∈ P.parts ↔ t.Nonempty ∧ ∃ j, partSplit P e j = t := by
-  constructor
-  · intro ht
-    exact ⟨P.nonempty_of_mem_parts ht, e ⟨t, ht⟩, partSplit_apply _⟩
-  · rintro ⟨ht, j, rfl⟩
-    by_cases hj : j ∈ univ.map e
-    · obtain ⟨r, -, rfl⟩ := mem_map.1 hj
-      rw [partSplit_apply]
-      exact r.property
-    · rw [partSplit_of_notMem hj] at ht
-      exact absurd ht not_nonempty_empty
+  refine ⟨fun ht => ⟨P.nonempty_of_mem_parts ht, e ⟨t, ht⟩, partSplit_apply _⟩, ?_⟩
+  rintro ⟨ht, j, rfl⟩
+  by_cases hj : j ∈ univ.map e
+  · obtain ⟨r, -, rfl⟩ := mem_map.1 hj
+    rw [partSplit_apply]
+    exact r.2
+  · rw [partSplit_of_notMem hj] at ht
+    exact absurd ht Finset.not_nonempty_empty
 
 /-- The split determines the set partition and the injection. -/
 private theorem partSplit_injective {x y : Σ P : Finpartition S, P.parts ↪ ι}
@@ -154,21 +144,16 @@ private theorem exists_partSplit_eq [Fintype ι] {T : ι → Finset (Fin d)}
     rw [sup_image, Function.id_comp, sup_eq_biUnion, hU]
   let P := Finpartition.ofErase (univ.image T) hind hsup
   have hP (r : P.parts) : ∃ j, T j = r := by
-    obtain ⟨j, -, hj⟩ := mem_image.1 (mem_of_mem_erase r.property)
+    obtain ⟨j, -, hj⟩ := mem_image.1 (mem_of_mem_erase r.2)
     exact ⟨j, hj⟩
   choose g hg using hP
   refine ⟨⟨P, ⟨g, fun r r' h => Subtype.ext ((hg r).symm.trans (h ▸ hg r'))⟩⟩,
-    funext fun j => ?_⟩
-  ext x
+    funext fun j => Finset.ext fun x => ?_⟩
   simp only [partSplit, mem_biUnion, mem_filter, mem_univ, true_and]
-  constructor
-  · rintro ⟨r, rfl, hx⟩
-    exact hg r ▸ hx
-  · intro hx
-    have hj : T j ∈ P.parts := mem_erase.2 ⟨ne_empty_of_mem hx, mem_image_of_mem T (mem_univ j)⟩
-    refine ⟨⟨T j, hj⟩, ?_, hx⟩
-    by_contra hne
-    exact disjoint_left.1 (hdisj hne) ((hg ⟨T j, hj⟩).symm ▸ hx) hx
+  refine ⟨fun ⟨r, hr, hx⟩ => hr ▸ hg r ▸ hx, fun hx => ?_⟩
+  have hj : T j ∈ P.parts := mem_erase.2 ⟨ne_empty_of_mem hx, mem_image_of_mem T (mem_univ j)⟩
+  exact ⟨⟨T j, hj⟩, by_contra fun hne =>
+    disjoint_left.1 (hdisj hne) ((hg ⟨T j, hj⟩).symm ▸ hx) hx, hx⟩
 
 /-- The term of the split: the parts of `P` on their factors, and the constant terms of the other
 factors. -/
@@ -242,9 +227,9 @@ private theorem sum_embedding_eq_C_mul_rectPermSurj (blk : σ → Fin d) {S : Fi
     set M := univ.map e
     let a' := fun j => if j ∈ Z then 1 else a j
     have ha' : ∏ j ∈ Zᶜ, a j = ∏ j, a' j := by
-      rw [← prod_mul_prod_compl Z a', prod_eq_one (s := Z) (f := a') fun j hj => ?_, one_mul]
-      · exact prod_congr rfl fun j hj => by simp [a', mem_compl.1 hj]
-      · simp [a', hj]
+      rw [← prod_mul_prod_compl Z a', prod_eq_one (s := Z) (f := a') fun j hj => ite_eq_left hj,
+        one_mul]
+      exact prod_congr rfl fun j hj => (ite_eq_right (mem_compl.1 hj)).symm
     have hau : (∏ j ∈ M, a' j) * ∏ j ∈ M, u j = 1 := by
       rw [← prod_mul_distrib]
       refine prod_eq_one fun j _ => ?_
@@ -253,12 +238,10 @@ private theorem sum_embedding_eq_C_mul_rectPermSurj (blk : σ → Fin d) {S : Fi
       · simpa [a', hj, mul_comm] using hu j hj
     have key : ∏ j ∈ Mᶜ, a j = (∏ j ∈ Zᶜ, a j) * ∏ r, u (e r) := by
       rw [ha', ← prod_mul_prod_compl M a', ← prod_map univ e u, mul_right_comm, hau, one_mul]
-      refine prod_congr rfl fun j hj => ?_
-      have hjZ : j ∉ Z := fun hjZ => mem_compl.1 hj (hZe hjZ)
-      simp [a', hjZ]
+      exact prod_congr rfl fun j hj => (ite_eq_right fun hjZ => mem_compl.1 hj (hZe hjZ)).symm
     simp only [Matrix.of_apply, prod_mul_distrib, ← map_prod C]
-    rw [key, map_mul]
-    ring
+    change _ * C (∏ j ∈ Mᶜ, a j) = _
+    rw [key, map_mul]; ring
   · obtain ⟨j, hjZ, hje⟩ := not_subset.1 hZe
     rw [prod_eq_zero (mem_compl.2 hje) (by rw [(hZ j).1 hjZ, map_zero]), mul_zero, mul_zero]
 

@@ -77,15 +77,11 @@ theorem faceNext_disjointUnion {G H : Graph} (r : RotationSystem G) (s : Rotatio
   change (r.disjointUnion s).rotate
     ((r.disjointUnion s).rotate.symm (disjointDartEquiv G H d).reverse) = _
   rw [Equiv.apply_symm_apply, rotate_disjointUnion]
-  cases d with
-  | inl d =>
-    change _ = disjointDartEquiv G H (Sum.inl (r.rotate (r.rotate.symm d.reverse)))
-    rw [Equiv.apply_symm_apply]
-    rfl
-  | inr d =>
-    change _ = disjointDartEquiv G H (Sum.inr (s.rotate (s.rotate.symm d.reverse)))
-    rw [Equiv.apply_symm_apply]
-    rfl
+  rcases d with d | d
+  · change _ = disjointDartEquiv G H (Sum.inl (r.rotate (r.rotate.symm d.reverse)))
+    rw [Equiv.apply_symm_apply]; rfl
+  · change _ = disjointDartEquiv G H (Sum.inr (s.rotate (s.rotate.symm d.reverse)))
+    rw [Equiv.apply_symm_apply]; rfl
 
 /-- Two actual disjoint-union darts are connected exactly when they come from the same
 block and were connected in that source graph. Point components are not represented as darts. -/
@@ -100,74 +96,43 @@ theorem sameComponent_disjointUnion_iff {G H : Graph}
       | _, _ => False := by
   let e := disjointDartEquiv G H
   have hT := endpoints_declared_disjointUnion G H hG hH
-  let keyG (d : Dart G) := G.induced.connectedComponentMk ⟨d.vertex, vertex_mem hG d⟩
-  let keyH (d : Dart H) := H.induced.connectedComponentMk ⟨d.vertex, vertex_mem hH d⟩
-  let key := Sum.map keyG keyH
+  let key := Sum.map
+    (fun d : Dart G => G.induced.connectedComponentMk ⟨d.vertex, vertex_mem hG d⟩)
+    (fun d : Dart H => H.induced.connectedComponentMk ⟨d.vertex, vertex_mem hH d⟩)
   have hv (d f : Dart G ⊕ Dart H) (he : (e d).vertex = (e f).vertex) : key d = key f := by
-    cases d with
-    | inl d =>
-      cases f with
-      | inl f =>
-        simp only [e, vertex_disjointDartEquiv_inl] at he
-        exact congrArg Sum.inl (congrArg G.induced.connectedComponentMk
-          (Subtype.ext (by omega : d.vertex = f.vertex)))
-      | inr f =>
-        simp only [e, vertex_disjointDartEquiv_inl, vertex_disjointDartEquiv_inr] at he
-        omega
-    | inr d =>
-      cases f with
-      | inl f =>
-        simp only [e, vertex_disjointDartEquiv_inr, vertex_disjointDartEquiv_inl] at he
-        omega
-      | inr f =>
-        simp only [e, vertex_disjointDartEquiv_inr] at he
-        exact congrArg Sum.inr (congrArg H.induced.connectedComponentMk
-          (Subtype.ext (by omega : d.vertex = f.vertex)))
-  constructor
-  · intro hc
-    have hh := Dart.eq_of_sameComponent (fun d => key (e.symm d))
-      (fun d f he => hv (e.symm d) (e.symm f)
-        (by simpa only [e.apply_symm_apply] using he)) (fun d => by
-          obtain ⟨d, rfl⟩ := e.surjective d
+    rcases d with d | d <;> rcases f with f | f <;>
+      simp only [e, vertex_disjointDartEquiv_inl, vertex_disjointDartEquiv_inr] at he
+    · exact congrArg Sum.inl (congrArg _ (Subtype.ext (by omega : d.vertex = f.vertex)))
+    · omega
+    · omega
+    · exact congrArg Sum.inr (congrArg _ (Subtype.ext (by omega : d.vertex = f.vertex)))
+  refine ⟨fun hc => ?_, ?_⟩
+  · have hh := Dart.eq_of_sameComponent (fun d => key (e.symm d))
+      (fun d f he => hv _ _ (by simpa only [e.apply_symm_apply] using he))
+      (fun d => by
+        obtain ⟨d | d, rfl⟩ := e.surjective d <;>
           rw [← reverse_disjointDartEquiv, e.symm_apply_apply, e.symm_apply_apply]
-          cases d with
-          | inl d =>
-            exact congrArg Sum.inl
-              (SimpleGraph.ConnectedComponent.sound (sameComponent_reverse hG d).2.2)
-          | inr d =>
-            exact congrArg Sum.inr
-              (SimpleGraph.ConnectedComponent.sound (sameComponent_reverse hH d).2.2)) hc
+        · exact congrArg Sum.inl
+            (SimpleGraph.ConnectedComponent.sound (sameComponent_reverse hG d).2.2)
+        · exact congrArg Sum.inr
+            (SimpleGraph.ConnectedComponent.sound (sameComponent_reverse hH d).2.2)) hc
     change key (e.symm (e a)) = key (e.symm (e b)) at hh
     simp only [e.symm_apply_apply] at hh
-    cases a with
-    | inl a =>
-      cases b with
-      | inl b =>
-        exact ⟨vertex_mem hG a, vertex_mem hG b,
-          SimpleGraph.ConnectedComponent.exact (Sum.inl.inj hh)⟩
-      | inr b => cases hh
-    | inr a =>
-      cases b with
-      | inl b => cases hh
-      | inr b =>
-        exact ⟨vertex_mem hH a, vertex_mem hH b,
-          SimpleGraph.ConnectedComponent.exact (Sum.inr.inj hh)⟩
-  · cases a with
-    | inl a =>
-      cases b with
-      | inl b =>
-        intro hc
-        exact sameComponent_map_darts (fun d => e (Sum.inl d))
-          (fun d f he => by simp only [e, vertex_disjointDartEquiv_inl, he])
-          (fun _ => rfl) hT hc
-      | inr b => exact False.elim
-    | inr a =>
-      cases b with
-      | inl b => exact False.elim
-      | inr b =>
-        intro hc
-        exact sameComponent_map_darts (fun d => e (Sum.inr d))
-          (fun d f he => by simp only [e, vertex_disjointDartEquiv_inr, he])
-          (fun _ => rfl) hT hc
+    rcases a with a | a <;> rcases b with b | b
+    · exact ⟨vertex_mem hG a, vertex_mem hG b,
+        SimpleGraph.ConnectedComponent.exact (Sum.inl.inj hh)⟩
+    · cases hh
+    · cases hh
+    · exact ⟨vertex_mem hH a, vertex_mem hH b,
+        SimpleGraph.ConnectedComponent.exact (Sum.inr.inj hh)⟩
+  · rcases a with a | a <;> rcases b with b | b
+    · exact sameComponent_map_darts (e ∘ Sum.inl)
+        (fun _ _ he => by simp only [Function.comp_apply, e, vertex_disjointDartEquiv_inl, he])
+        (fun _ => rfl) hT
+    · exact False.elim
+    · exact False.elim
+    · exact sameComponent_map_darts (e ∘ Sum.inr)
+        (fun _ _ he => by simp only [Function.comp_apply, e, vertex_disjointDartEquiv_inr, he])
+        (fun _ => rfl) hT
 
 end Cslib.Complexity.Graph.RotationSystem

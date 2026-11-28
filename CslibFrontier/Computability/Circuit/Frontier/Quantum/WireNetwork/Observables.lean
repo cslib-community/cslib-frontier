@@ -91,24 +91,22 @@ private theorem amplitude_cut_factorization {V_fin E_fin W : Type}
   let eqvE : (E_fin → Bool) ≃ (Ecut → Bool) × ((Ein → Bool) × (Eout → Bool)) :=
     { toFun := fun γ => (Ecut.domRestrict γ, (Ein.domRestrict γ, Eout.domRestrict γ))
       invFun := fun p => glueE p.1 p.2.1 p.2.2
-      left_inv := fun γ => by
-        ext e
-        rcases hpart_e e with ⟨hc, _, _⟩ | ⟨hc, hi, _⟩ | ⟨hc, hi, ho⟩
-        · simp only [glueE, hc, ↓reduceDIte, Set.domRestrict_apply]
-        · simp only [glueE, hc, hi, ↓reduceDIte, Set.domRestrict_apply]
-        · simp only [glueE, hc, hi, ho, ↓reduceDIte, Set.domRestrict_apply]
-      right_inv := fun ⟨τ, γ_in, γ_out⟩ => by
-        refine Prod.ext (funext fun ⟨e, hc⟩ => ?_) (Prod.ext (funext fun ⟨e, hi⟩ => ?_)
-          (funext fun ⟨e, ho⟩ => ?_))
-        · simp only [Set.domRestrict_apply, glueE, hc, ↓reduceDIte]
-        · rcases hpart_e e with ⟨hc, hni, _⟩ | ⟨hc, _, _⟩ | ⟨_, hni, _⟩
-          · exact absurd hi hni
-          · simp only [Set.domRestrict_apply, glueE, hc, hi, ↓reduceDIte]
-          · exact absurd hi hni
-        · rcases hpart_e e with ⟨_, _, hno⟩ | ⟨_, _, hno⟩ | ⟨hc, hi, _⟩
-          · exact absurd ho hno
-          · exact absurd ho hno
-          · simp only [Set.domRestrict_apply, glueE, hc, hi, ho, ↓reduceDIte] }
+      left_inv := fun γ => funext fun e => by
+        rcases hpart_e e with ⟨hc, _, _⟩ | ⟨hc, hi, _⟩ | ⟨hc, hi, ho⟩ <;>
+          simp only [glueE, *, ↓reduceDIte, Set.domRestrict_apply]
+      right_inv := fun ⟨τ, γ_in, γ_out⟩ =>
+        Prod.ext
+          (funext fun ⟨e, hc⟩ => by simp only [Set.domRestrict_apply, glueE, hc, ↓reduceDIte])
+          (Prod.ext (funext fun ⟨e, hi⟩ => by
+            rcases hpart_e e with ⟨_, hni, _⟩ | ⟨hc, _, _⟩ | ⟨_, hni, _⟩
+            · exact absurd hi hni
+            · simp only [Set.domRestrict_apply, glueE, hc, hi, ↓reduceDIte]
+            · exact absurd hi hni)
+          (funext fun ⟨e, ho⟩ => by
+            rcases hpart_e e with ⟨_, _, hno⟩ | ⟨_, _, hno⟩ | ⟨hc, hi, _⟩
+            · exact absurd ho hno
+            · exact absurd ho hno
+            · simp only [Set.domRestrict_apply, glueE, hc, hi, ho, ↓reduceDIte])) }
   let x0P (xP : XP → Bool) : W → Bool := fun q => if hq : q ∈ XP then xP ⟨q, hq⟩ else false
   let y0P (yP : YP → Bool) : W → Bool := fun q => if hq : q ∈ YP then yP ⟨q, hq⟩ else false
   let x0Pc (xPc : ↥XPᶜ → Bool) : W → Bool := fun q => if hq : q ∈ XPᶜ then xPc ⟨q, hq⟩ else false
@@ -121,49 +119,42 @@ private theorem amplitude_cut_factorization {V_fin E_fin W : Type}
       F v (x0Pc xPc) (y0Pc yPc) (glueE τ (fun _ => false) γ_out)
   refine ⟨Φ, Ψ, fun x y => ?_⟩
   rw [hcontract y x,
-    ← Fintype.sum_equiv eqvE.symm (fun p => ∏ v : V_fin, F v x y (eqvE.symm p)) _ (fun _ => rfl)]
-  rw [Fintype.sum_prod_type]
+    ← Fintype.sum_equiv eqvE.symm (fun p => ∏ v : V_fin, F v x y (eqvE.symm p)) _ (fun _ => rfl),
+    Fintype.sum_prod_type]
   refine Finset.sum_congr rfl fun τ _ => ?_
-  rw [Fintype.sum_prod_type]
   dsimp only [Φ, Ψ]
-  rw [Finset.sum_mul_sum]
+  rw [Fintype.sum_prod_type, Finset.sum_mul_sum]
   refine Finset.sum_congr rfl fun γ_in _ => Finset.sum_congr rfl fun γ_out _ => ?_
   rw [← Finset.prod_filter_mul_prod_filter_not Finset.univ (· ∈ P)]
   congr 1
   · refine Finset.prod_congr rfl fun v hv => ?_
     have hvP : v ∈ P := (Finset.mem_filter.mp hv).2
-    have h1 := hloc_in v x (x0P (XP.domRestrict x)) y (glueE τ γ_in γ_out) fun q hq => by
-      have hqP : q ∈ XP := by change inVert q ∈ P; rwa [hq]
-      simp only [x0P, hqP, ↓reduceDIte, Set.domRestrict_apply]
-    have h2 := hloc_out v (x0P (XP.domRestrict x)) y (y0P (YP.domRestrict y))
+    exact (hloc_in v x (x0P (XP.domRestrict x)) y (glueE τ γ_in γ_out) fun q hq => by
+        have hqP : q ∈ XP := show inVert q ∈ P from hq.symm ▸ hvP
+        simp only [x0P, hqP, ↓reduceDIte, Set.domRestrict_apply]).trans <|
+      (hloc_out v (x0P (XP.domRestrict x)) y (y0P (YP.domRestrict y))
         (glueE τ γ_in γ_out) fun q hq => by
-      have hqP : q ∈ YP := by change outVert q ∈ P; rwa [hq]
-      simp only [y0P, hqP, ↓reduceDIte, Set.domRestrict_apply]
-    have h3 := hloc_edge v (x0P (XP.domRestrict x)) (y0P (YP.domRestrict y))
+          have hqP : q ∈ YP := show outVert q ∈ P from hq.symm ▸ hvP
+          simp only [y0P, hqP, ↓reduceDIte, Set.domRestrict_apply]).trans <|
+      hloc_edge v (x0P (XP.domRestrict x)) (y0P (YP.domRestrict y))
         (glueE τ γ_in γ_out) (glueE τ γ_in fun _ => false) fun e he => by
-      have hnot_out : e ∉ Eout := by
-        rcases he with hs | ht
-        · exact fun h => h.1 (hs.symm ▸ hvP)
-        · exact fun h => h.2 (ht.symm ▸ hvP)
-      simp only [glueE, hnot_out, ↓reduceDIte]
-    exact (h1.trans h2).trans h3
+          have hnot_out : e ∉ Eout := he.elim (fun hs h => h.1 (hs.symm ▸ hvP))
+            (fun ht h => h.2 (ht.symm ▸ hvP))
+          simp only [glueE, hnot_out, ↓reduceDIte]
   · refine Finset.prod_congr rfl fun v hv => ?_
     have hvPc : v ∉ P := (Finset.mem_filter.mp hv).2
-    have h1 := hloc_in v x (x0Pc (XPᶜ.domRestrict x)) y (glueE τ γ_in γ_out) fun q hq => by
-      have hqPc : q ∈ XPᶜ := by change inVert q ∉ P; rwa [hq]
-      simp only [x0Pc, hqPc, ↓reduceDIte, Set.domRestrict_apply]
-    have h2 := hloc_out v (x0Pc (XPᶜ.domRestrict x)) y (y0Pc (YPᶜ.domRestrict y))
+    exact (hloc_in v x (x0Pc (XPᶜ.domRestrict x)) y (glueE τ γ_in γ_out) fun q hq => by
+        have hqPc : q ∈ XPᶜ := show inVert q ∉ P from hq.symm ▸ hvPc
+        simp only [x0Pc, hqPc, ↓reduceDIte, Set.domRestrict_apply]).trans <|
+      (hloc_out v (x0Pc (XPᶜ.domRestrict x)) y (y0Pc (YPᶜ.domRestrict y))
         (glueE τ γ_in γ_out) fun q hq => by
-      have hqPc : q ∈ YPᶜ := by change outVert q ∉ P; rwa [hq]
-      simp only [y0Pc, hqPc, ↓reduceDIte, Set.domRestrict_apply]
-    have h3 := hloc_edge v (x0Pc (XPᶜ.domRestrict x)) (y0Pc (YPᶜ.domRestrict y))
+          have hqPc : q ∈ YPᶜ := show outVert q ∉ P from hq.symm ▸ hvPc
+          simp only [y0Pc, hqPc, ↓reduceDIte, Set.domRestrict_apply]).trans <|
+      hloc_edge v (x0Pc (XPᶜ.domRestrict x)) (y0Pc (YPᶜ.domRestrict y))
         (glueE τ γ_in γ_out) (glueE τ (fun _ => false) γ_out) fun e he => by
-      have hnot_in : e ∉ Ein := by
-        rcases he with hs | ht
-        · exact fun h => hvPc (hs ▸ h.1)
-        · exact fun h => hvPc (ht ▸ h.2)
-      simp only [glueE, hnot_in, ↓reduceDIte]
-    exact (h1.trans h2).trans h3
+          have hnot_in : e ∉ Ein := he.elim (fun hs h => hvPc (hs ▸ h.1))
+            (fun ht h => hvPc (ht ▸ h.2))
+          simp only [glueE, hnot_in, ↓reduceDIte]
 
 
 private theorem glue_left_injective {n N : ℕ} (e : Fin n ↪ Fin N) (x₀ : Fin N → Bool) :
@@ -222,11 +213,10 @@ theorem norm_phaseState {n N : ℕ} (Q : Matrix (Fin n) (Fin n) (ZMod 2))
   have hsq : ‖ψ‖ ^ 2 = 1 := by
     rw [← Quantum.measureProb_univ, Quantum.measureProb]
     have hterm (z : Fin n → Bool) : ‖ψ.ofLp z‖ ^ 2 = (1 / 2 : ℝ) ^ n := by
-      have hsign_norm : ‖(if BitString.quadForm Q z then (-1 : ℂ) else 1)‖ = 1 := by
-        split_ifs <;> simp
       simp only [ψ, norm_mul, Complex.norm_real,
-        Real.norm_of_nonneg (by positivity : (0 : ℝ) ≤ (1 / √2) ^ n), hsign_norm, mul_one]
-      rw [sq_one_div_sqrt_two_pow]
+        Real.norm_of_nonneg (by positivity : (0 : ℝ) ≤ (1 / √2) ^ n),
+        (by split_ifs <;> simp : ‖(if BitString.quadForm Q z then (-1 : ℂ) else 1)‖ = 1),
+        mul_one, sq_one_div_sqrt_two_pow]
     simp_rw [hterm]
     rw [Finset.sum_const, Finset.card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin,
       nsmul_eq_mul, Nat.cast_pow, Nat.cast_ofNat, ← mul_pow, mul_one_div_cancel (by norm_num),
@@ -238,30 +228,22 @@ private theorem exists_lift_domRestrict {n N : ℕ} {α : Type*}
     (Q_sub : Set ↥A) {T : Set (Fin n)}
     (hQT : ∀ i : Fin n, (⟨e i, heA ⟨i, rfl⟩⟩ : ↥A) ∈ Q_sub → i ∈ T)
     (inp : α → Fin n → Bool) (proj : α → T → Bool)
-    (hinp : ∀ z (i : T), inp z i.val = proj z i) :
+    (hinp : ∀ z (i : T), inp z i.1 = proj z i) :
     ∃ liftQ : (T → Bool) → (Q_sub → Bool),
       ∀ z : α, Q_sub.domRestrict (A.domRestrict (Quantum.glue e (inp z) x₀)) = liftQ (proj z) := by
+  have hmem (q : Q_sub) (hq : ∃ i : Fin n, e i = q.1.1) : Classical.choose hq ∈ T :=
+    hQT _ ((Subtype.ext (Classical.choose_spec hq) :
+      (⟨e (Classical.choose hq), heA ⟨_, rfl⟩⟩ : ↥A) = q.1).symm ▸ q.2)
   refine ⟨fun a q => open Classical in
-    if hq : ∃ i : Fin n, e i = q.val then
-      a ⟨Classical.choose hq, hQT _ ?_⟩
-    else x₀ q.val.val, fun z => ?_⟩
-  · have hspec : (⟨e (Classical.choose hq), heA ⟨_, rfl⟩⟩ : ↥A) = q.val :=
-      Subtype.ext (Classical.choose_spec hq)
-    rw [hspec]; exact q.property
-  · ext q
-    simp only [Set.domRestrict_apply]
-    by_cases hq : ∃ i : Fin n, e i = q.val.val
-    · simp only [hq, ↓reduceDIte]
-      have hg : Quantum.glue e (inp z) x₀ q.val.val = inp z (Classical.choose hq) :=
-        (congrArg (Quantum.glue e (inp z) x₀) (Classical.choose_spec hq)).symm.trans
-          (Quantum.glue_apply_emb e (inp z) x₀ (Classical.choose hq))
-      have hmem : Classical.choose hq ∈ T := hQT _ (by
-        have hspec : (⟨e (Classical.choose hq), heA ⟨_, rfl⟩⟩ : ↥A) = q.val :=
-          Subtype.ext (Classical.choose_spec hq)
-        rw [hspec]; exact q.property)
-      exact hg.trans (hinp z ⟨Classical.choose hq, hmem⟩)
-    · simp only [hq, ↓reduceDIte]
-      exact Quantum.glue_of_not e _ x₀ fun i hi => hq ⟨i, hi⟩
+    if hq : ∃ i : Fin n, e i = q.1 then a ⟨Classical.choose hq, hmem q hq⟩
+    else x₀ q.1.1, fun z => funext fun q => ?_⟩
+  simp only [Set.domRestrict_apply]
+  by_cases hq : ∃ i : Fin n, e i = q.1.1
+  · simp only [hq, ↓reduceDIte, ← hinp z ⟨Classical.choose hq, hmem q hq⟩]
+    exact (congrArg (Quantum.glue e (inp z) x₀) (Classical.choose_spec hq)).symm.trans
+      (Quantum.glue_apply_emb e (inp z) x₀ (Classical.choose hq))
+  · simp only [hq, ↓reduceDIte]
+    exact Quantum.glue_of_not e _ x₀ fun i hi => hq ⟨i, hi⟩
 
 /-- Given `Q_sub ⊆ ↥A` inducing `S = {i : Fin n | ⟨e i, _⟩ ∈ Q_sub}`, restricting
 `Quantum.glue e (glueS (a, b)) x₀` to `Q_sub` depends only on `a : S → Bool` and restricting to
@@ -280,10 +262,10 @@ private theorem exists_lift_domRestrict_glue {n N : ℕ}
   intro S glueS
   obtain ⟨liftP, hP⟩ := exists_lift_domRestrict (T := S) e x₀ heA Q_sub (fun _ h => h)
     glueS Prod.fst fun ⟨a, b⟩ i => by
-      simp only [glueS, Equiv.piEquivPiSubtypeProd_symm_apply, i.property, ↓reduceDIte]
+      simp only [glueS, Equiv.piEquivPiSubtypeProd_symm_apply, i.2, ↓reduceDIte]
   obtain ⟨liftPc, hPc⟩ := exists_lift_domRestrict (T := Sᶜ) e x₀ heA Q_subᶜ (fun _ h => h)
     glueS Prod.snd fun ⟨a, b⟩ i => by
-      have hni : i.val ∉ S := i.property
+      have hni : i.1 ∉ S := i.2
       simp only [glueS, Equiv.piEquivPiSubtypeProd_symm_apply, hni, ↓reduceDIte]; rfl
   exact ⟨liftP, liftPc, fun a b => hP (a, b), fun a b => hPc (a, b)⟩
 
@@ -326,12 +308,8 @@ private theorem sum_prod_subtype_compl_one {m : ℕ} (S : Set (Fin m)) [Fintype 
     (∑ _a : S → Bool, ∑ _b : ↥Sᶜ → Bool, (1 : ℝ)) = (2 : ℝ) ^ m := by
   simp only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_one, Fintype.card_fun,
     Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat]
-  rw [← pow_add]
-  congr 1
-  rw [← Nat.card_eq_fintype_card, ← Nat.card_eq_fintype_card, Nat.card_coe_set_eq,
-    Nat.card_coe_set_eq]
-  have hc := ncard_add_ncard_compl S
-  rwa [Nat.card_eq_fintype_card (α := Fin m), Fintype.card_fin] at hc
+  rw [← pow_add, ← Nat.card_eq_fintype_card, ← Nat.card_eq_fintype_card, Nat.card_coe_set_eq,
+    Nat.card_coe_set_eq, ncard_add_ncard_compl, Nat.card_eq_fintype_card, Fintype.card_fin]
 
 private theorem run_ofLp_eq_matrix_apply {N : ℕ} (C : Quantum.Circuit N)
     (x y : Fin N → Bool) :
@@ -347,10 +325,10 @@ def boolMulVec {n : ℕ} (M : Matrix (Fin n) (Fin n) (ZMod 2)) (x : Fin n → Bo
   decide ((M *ᵥ fun j => BitString.bitVal (ZMod 2) (x j)) i = 1)
 
 private def inl2n (n : ℕ) (i : Fin n) : Fin (2 * n) :=
-  ⟨i.val, by omega⟩
+  ⟨i.1, by omega⟩
 
 private def inr2n (n : ℕ) (j : Fin n) : Fin (2 * n) :=
-  ⟨n + j.val, by omega⟩
+  ⟨n + j.1, by omega⟩
 
 private theorem inl2n_injective (n : ℕ) : Function.Injective (inl2n n) :=
   fun _ _ h => Fin.ext (Fin.mk.inj h)

@@ -72,11 +72,11 @@ variable {next s live}
 
 /-- A row of the count matrix, applied to a vector, sums the two coin successors. -/
 theorem coinStepMatrix_mulVec (hs : ∀ x ∈ s, ∀ b, next x b ∈ s) (g : s → R) (x : s) :
-    (coinStepMatrix next s *ᵥ g) x = ∑ b : Bool, g ⟨next x b, hs x x.property b⟩ := by
+    (coinStepMatrix next s *ᵥ g) x = ∑ b : Bool, g ⟨next x b, hs x x.2 b⟩ := by
   simp only [mulVec, dotProduct, coinStepMatrix, Finset.sum_mul, ite_mul, one_mul, zero_mul]
   rw [Finset.sum_comm]
   refine Finset.sum_congr rfl fun b _ => ?_
-  rw [Finset.sum_eq_single ⟨next x b, hs x x.property b⟩]
+  rw [Finset.sum_eq_single ⟨next x b, hs x x.2 b⟩]
   · simp
   · intro y _ hy
     simp only [show ¬ next x b = y from fun h => hy (Subtype.ext h.symm), ↓reduceIte]
@@ -86,7 +86,7 @@ theorem coinStepMatrix_mulVec (hs : ∀ x ∈ s, ∀ b, next x b ∈ s) (g : s �
 elsewhere. -/
 theorem liveCoinStepMatrix_mulVec (hs : ∀ x ∈ s, ∀ b, next x b ∈ s) (g : s → R) (x : s) :
     (liveCoinStepMatrix next s live *ᵥ g) x =
-      if live x then ∑ b : Bool, g ⟨next x b, hs x x.property b⟩ else 0 := by
+      if live x then ∑ b : Bool, g ⟨next x b, hs x x.2 b⟩ else 0 := by
   rw [← coinStepMatrix_mulVec hs]
   simp only [mulVec, dotProduct, liveCoinStepMatrix]
   split_ifs <;> simp
@@ -106,9 +106,7 @@ theorem coinStepMatrix_pow_mulVec (hs : ∀ x ∈ s, ∀ b, next x b ∈ s) (f :
   induction t generalizing f x with
   | zero => simp
   | succ t ih =>
-    have hfun : (coinStepMatrix next s ^ t *ᵥ fun y : s => f y) =
-        fun y : s => ∑ w : Fin t → Bool, f ((List.ofFn w).foldl next y) := funext fun y => ih f y
-    rw [pow_succ', ← mulVec_mulVec, hfun, coinStepMatrix_mulVec hs, sum_fin_succ_bool]
+    rw [pow_succ', ← mulVec_mulVec, funext (ih f), coinStepMatrix_mulVec hs, sum_fin_succ_bool]
     simp [List.ofFn_succ]
 
 /-- **Powers of the live count matrix sum over live coin strings**: `(S ^ t *ᵥ f) x` is the sum
@@ -155,21 +153,17 @@ theorem coinStepMatrix_pow_mulVec_eq_sum (hs : ∀ x ∈ s, ∀ b, next x b ∈ 
     rw [pow_succ', ← mulVec_mulVec, coinStepMatrix_mulVec hs]
     by_cases hx : live x
     · rw [Finset.sum_range_succ', pow_zero, one_mulVec]
-      simp only [hf x hx, mul_zero, add_zero]
       have hrow (t : ℕ) : (liveCoinStepMatrix next s live ^ (t + 1) *ᵥ fun y : s => f y) x =
           ∑ b : Bool, (liveCoinStepMatrix next s live ^ t *ᵥ fun y : s => f y)
-            ⟨next x b, hs x x.property b⟩ := by
-        rw [pow_succ', ← mulVec_mulVec, liveCoinStepMatrix_mulVec hs]
-        simp only [hx, ↓reduceIte]
-      simp only [hrow, Finset.mul_sum, Nat.add_sub_add_right]
+            ⟨next x b, hs x x.2 b⟩ := by
+        rw [pow_succ', ← mulVec_mulVec, liveCoinStepMatrix_mulVec hs, ite_eq_left hx]
+      simp only [hf x hx, mul_zero, add_zero, hrow, Finset.mul_sum, Nat.add_sub_add_right]
       rw [Finset.sum_comm]
-      exact Finset.sum_congr rfl fun b _ => ih ⟨next x b, hs x x.property b⟩
-    · have hnext (b : Bool) : (⟨next x b, hs x x.property b⟩ : s) = x := Subtype.ext (hfix x hx b)
-      have hzero (t : ℕ) :
+      exact Finset.sum_congr rfl fun b _ => ih ⟨next x b, hs x x.2 b⟩
+    · have hzero (t : ℕ) :
           (liveCoinStepMatrix next s live ^ (t + 1) *ᵥ fun y : s => f y) x = 0 := by
-        rw [pow_succ', ← mulVec_mulVec, liveCoinStepMatrix_mulVec hs]
-        simp only [hx, ↓reduceIte]
-      simp only [hnext]
+        rw [pow_succ', ← mulVec_mulVec, liveCoinStepMatrix_mulVec hs, ite_eq_right hx]
+      simp only [show ∀ b, (⟨next x b, hs x x.2 b⟩ : s) = x from fun b => Subtype.ext (hfix x hx b)]
       rw [Fintype.sum_bool, ih x, Finset.sum_range_succ', Finset.sum_range_succ']
       simp only [hzero, mul_zero, Finset.sum_const_zero, zero_add, pow_zero, one_mulVec,
         Nat.sub_zero]
@@ -184,13 +178,16 @@ theorem liveCoinStepMatrix_pow_eq_zero (hs : ∀ x ∈ s, ∀ b, next x b ∈ s)
   ext x y
   have hcol := liveCoinStepMatrix_pow_mulVec (R := R) (live := live) hs
     (fun z => if z = y then 1 else 0) n x
-  have hvec : (fun z : s => if (z : α) = y then (1 : R) else 0) = Pi.single y 1 := by
+  have hsingle : (fun z : s => if (z : α) = y then (1 : R) else 0) = Pi.single y 1 := by
     funext z
     simp only [Pi.single_apply, Subtype.ext_iff]
-  rw [hvec, mulVec_single_one, Finset.sum_eq_zero fun w _ => ?_] at hcol
-  · simpa using hcol
-  · obtain ⟨i, hi⟩ := h x x.property w
-    exact ite_eq_right_iff.mpr fun hall => absurd (hall i) hi
+  have hzero (w : Fin n → Bool) :
+      ¬ ∀ i : Fin n, live (((List.ofFn w).take i).foldl next x) :=
+    let ⟨i, hi⟩ := h x x.2 w
+    fun hall => hi (hall i)
+  rw [hsingle, mulVec_single_one,
+    Finset.sum_eq_zero fun w _ => ite_eq_right (hzero w)] at hcol
+  simpa using hcol
 
 end Semiring
 

@@ -175,10 +175,8 @@ private theorem tuple4_ext {α : Type*} {u v : Fin 4 → α}
   | ⟨3, _⟩ => exact h3
 
 private theorem eq_anchorTuple_iff {n : ℕ} [Fact (2 ≤ n)] (u : Fin 4 → Fin n) :
-    (u 0 = QFNumeric.maxFin n ∧ (u 1 = 0 ∧ (u 2 = 0 ∧ u 3 = 0))) ↔ u = anchorTuple n := by
-  refine ⟨fun ⟨h0, h1, h2, h3⟩ => tuple4_ext h0 h1 h2 h3, ?_⟩
-  rintro rfl
-  exact ⟨rfl, rfl, rfl, rfl⟩
+    (u 0 = QFNumeric.maxFin n ∧ (u 1 = 0 ∧ (u 2 = 0 ∧ u 3 = 0))) ↔ u = anchorTuple n :=
+  ⟨fun ⟨h0, h1, h2, h3⟩ => tuple4_ext h0 h1 h2 h3, fun h => h ▸ ⟨rfl, rfl, rfl, rfl⟩⟩
 
 private theorem pair_arg1_12 {n : ℕ} (u v : Fin 4 → Fin n) :
     (fun i : Fin 2 =>
@@ -214,18 +212,14 @@ private theorem relMap_size_iff (M : Structure FO.cnf) (u : Fin 4 → Fin M.size
     sizeClauseGuard, sizeAnchorGuard, Formula.realize_inf, QFNumeric.realize_isZero,
     QFNumeric.realize_isMax, Matrix.cons_val_zero, ProjectionFormula.realize_const_true, and_true,
     eq_anchorTuple_iff]
-  constructor
-  · rintro (h | ⟨_, h⟩)
-    · exact .inl h
-    · exact .inr h
-  · rintro (h | rfl)
-    · exact .inl h
-    · refine .inr ⟨fun hc => QFNumeric.zero_ne_maxFin hc.1.symm, rfl⟩
+  exact ⟨fun h => h.imp_right And.right,
+    fun h => h.elim .inl fun h => .inr ⟨fun hc => QFNumeric.zero_ne_maxFin (h ▸ hc.1).symm, h⟩⟩
 
 private theorem ncard_size_satToIndependentSet (M : Structure FO.cnf) :
     {u : Fin 4 → Fin M.size |
       (satToIndependentSetInterpretation.tupleStructure M).RelMap FO.sizedGraph.size ![u]}.ncard =
       Nat.card (Option (Fin M.size)) := by
+  have hne : (anchorTuple M.size) 0 ≠ 0 := QFNumeric.zero_ne_maxFin.symm
   rw [← Nat.card_coe_set_eq]
   refine Nat.card_congr
     { toFun := fun x => blockOf x.val
@@ -242,14 +236,8 @@ private theorem ncard_size_satToIndependentSet (M : Structure FO.cnf) :
     rcases hu with ⟨h0, h2, h3⟩ | rfl
     · simp only [blockOf, h0, ↓reduceIte, sizeRep]
       exact tuple4_ext h0.symm rfl h2.symm h3.symm
-    · have hne : (anchorTuple M.size) 0 ≠ 0 := QFNumeric.zero_ne_maxFin.symm
-      simp [blockOf, hne, sizeRep]
-  · intro o
-    cases o with
-    | some c => simp [blockOf, sizeRep]
-    | none =>
-      have hne : (anchorTuple M.size) 0 ≠ 0 := QFNumeric.zero_ne_maxFin.symm
-      simp [blockOf, sizeRep, hne]
+    · simp [blockOf, hne, sizeRep]
+  · rintro (_ | c) <;> simp [blockOf, sizeRep, hne]
 
 private theorem adj_same_clause (M : Structure FO.cnf) {u v : Fin 4 → Fin M.size}
     (hu0 : u 0 = 0) (hv0 : v 0 = 0) (h1 : u 1 = v 1) :
@@ -331,13 +319,8 @@ private theorem mem_SAT_iff_mem_IndependentSet
   rw [ncard_size_satToIndependentSet M]
   constructor
   · rintro ⟨A, hA⟩
-    have hsat : ∀ c : Fin M.size,
-        ∃ (b : Bool) (x : Fin M.size),
-          RelMap (M := M) (FO.cnf.lit b) ![c, x] ∧ (A x ↔ b = true) := by
-      intro c
-      obtain ⟨⟨b, x⟩, hlit, htr⟩ := (FO.cnf.clauseSatisfied_iff A c).mp (hA c)
-      exact ⟨b, x, hlit, htr⟩
-    choose b x hlit htrue using hsat
+    choose b x hlit htrue using
+      fun c => Prod.exists.mp ((FO.cnf.clauseSatisfied_iff A c).mp (hA c))
     let pick (c : Fin M.size) : Fin 4 → Fin M.size :=
       ![0, c, x c, if b c then 0 else QFNumeric.maxFin M.size]
     have hpick0 (c : Fin M.size) : (pick c) 0 = 0 := rfl
@@ -346,24 +329,21 @@ private theorem mem_SAT_iff_mem_IndependentSet
         ((pick c) 3 = 0 ∧ RelMap (M := M) FO.cnf.pos ![c, (pick c) 2] ∧ A ((pick c) 2)) ∨
         ((pick c) 3 = QFNumeric.maxFin M.size ∧
           RelMap (M := M) FO.cnf.neg ![c, (pick c) 2] ∧ ¬ A ((pick c) 2)) := by
-      have hl := hlit c
-      have ht := htrue c
+      have hl : RelMap (M := M) (FO.cnf.lit (b c)) ![c, x c] := hlit c
       cases hbc : b c
       · rw [hbc, FO.cnf.lit_false] at hl
-        rw [hbc] at ht
-        exact .inr ⟨by simp [pick, hbc], hl, fun hAx => Bool.false_ne_true (ht.mp hAx)⟩
+        exact .inr ⟨by simp [pick, hbc], hl,
+          fun hAx => Bool.false_ne_true (hbc ▸ (htrue c).mp hAx)⟩
       · rw [hbc, FO.cnf.lit_true] at hl
-        rw [hbc] at ht
-        exact .inl ⟨by simp [pick, hbc], hl, ht.mpr rfl⟩
+        exact .inl ⟨by simp [pick, hbc], hl, (htrue c).mpr hbc⟩
     let f : Option (Fin M.size) → (Fin 4 → Fin M.size)
       | some c => pick c
       | none => anchorTuple M.size
+    have han0 : (anchorTuple M.size) 0 ≠ 0 := QFNumeric.zero_ne_maxFin.symm
     have hf_block (o : Option (Fin M.size)) : blockOf (f o) = o := by
       cases o with
       | some c => simp [f, blockOf, hpick0 c, hpick1 c]
-      | none =>
-        have hne : (anchorTuple M.size) 0 ≠ 0 := QFNumeric.zero_ne_maxFin.symm
-        simp [f, blockOf, hne]
+      | none => simp [f, blockOf, han0]
     have hf_inj : Function.Injective f := Function.LeftInverse.injective hf_block
     refine ⟨Set.range f, ?_, ?_⟩
     · rw [← Set.image_univ, Set.ncard_image_of_injective _ hf_inj, Set.ncard_univ]
@@ -380,13 +360,9 @@ private theorem mem_SAT_iff_mem_IndependentSet
           rcases hpick_spec c₁ with ⟨_, _, hA1⟩ | ⟨hbad, _, _⟩
           · rcases hpick_spec c₂ with ⟨hbad, _, _⟩ | ⟨_, _, hnA2⟩
             · exact QFNumeric.zero_ne_maxFin (hbad.symm.trans hs2)
-            · rw [hx_eq] at hA1
-              exact hnA2 hA1
+            · exact hnA2 (hx_eq ▸ hA1)
           · exact QFNumeric.zero_ne_maxFin (hs1.symm.trans hbad)
-        | none =>
-          dsimp only [f] at hadj
-          have han0 : (anchorTuple M.size) 0 ≠ 0 := QFNumeric.zero_ne_maxFin.symm
-          exact not_adj_clause_to_top M (hpick0 c₁) han0 hadj
+        | none => exact not_adj_clause_to_top M (hpick0 c₁) han0 hadj
       | none =>
         cases o₂ with
         | none => exact ho_ne rfl
@@ -394,9 +370,7 @@ private theorem mem_SAT_iff_mem_IndependentSet
           dsimp only [f] at hadj
           rw [adj_anchor_to_clause_iff M (hpick0 c₂), hpick1 c₂] at hadj
           rcases hpick_spec c₂ with ⟨hs, hpos, _⟩ | ⟨hs, hneg, _⟩
-          · rcases hadj with ⟨_, hnpos⟩ | ⟨hne0, _⟩
-            · exact hnpos hpos
-            · exact hne0 hs
+          · exact hadj.elim (fun h => h.2 hpos) (fun h => h.1 hs)
           · rcases hadj with ⟨hz, _⟩ | ⟨_, ⟨_, hnneg⟩ | hnemax⟩
             · exact QFNumeric.zero_ne_maxFin (hz.symm.trans hs)
             · exact hnneg hneg
@@ -415,57 +389,35 @@ private theorem mem_SAT_iff_mem_IndependentSet
       · exact hind hu hv huv (adj_top_block M hu0 hv0)
     obtain ⟨-, hsurj⟩ := hinj.bijective_of_nat_card_le (by rw [Nat.card_coe_set_eq, hs_card])
     obtain ⟨⟨uTop, huTop⟩, hTopBlk⟩ := hsurj none
-    have huTop0 : uTop 0 ≠ 0 := by
-      intro hz
-      simp [blockOf, hz] at hTopBlk
+    have huTop0 : uTop 0 ≠ 0 := fun hz => by simp [blockOf, hz] at hTopBlk
     obtain ⟨⟨uZero, huZero⟩, hZeroBlk⟩ := hsurj (some 0)
-    have huZero0 : uZero 0 = 0 := by
-      by_contra hnz
-      simp [blockOf, hnz] at hZeroBlk
-    have hTop_ne_Zero : uTop ≠ uZero := fun h => huTop0 (h ▸ huZero0)
-    have huTop_eq : uTop = anchorTuple M.size := by
-      by_contra huan
-      exact hind huTop huZero hTop_ne_Zero (adj_junk_to_clause M huTop0 huan huZero0)
+    have huZero0 : uZero 0 = 0 := of_not_not fun hnz => by simp [blockOf, hnz] at hZeroBlk
+    have huTop_eq : uTop = anchorTuple M.size := of_not_not fun huan =>
+      hind huTop huZero (fun h => huTop0 (h ▸ huZero0)) (adj_junk_to_clause M huTop0 huan huZero0)
     have han_mem : anchorTuple M.size ∈ s := huTop_eq ▸ huTop
-    let A (x : Fin M.size) : Prop := ∃ u ∈ s, u 0 = 0 ∧ u 2 = x ∧ u 3 = 0
-    refine ⟨A, fun c => ?_⟩
+    refine ⟨fun x => ∃ u ∈ s, u 0 = 0 ∧ u 2 = x ∧ u 3 = 0, fun c => ?_⟩
     obtain ⟨⟨v, hv⟩, hvBlk⟩ := hsurj (some c)
-    have hv0 : v 0 = 0 := by
-      by_contra hnz
-      simp [blockOf, hnz] at hvBlk
-    have hv1 : v 1 = c := by
-      simp only [blockOf, hv0, ↓reduceIte, Option.some.injEq] at hvBlk
-      exact hvBlk
-    have han_ne_v : anchorTuple M.size ≠ v := by
-      intro h
-      have := congrFun h 0
-      rw [hv0] at this
-      exact QFNumeric.zero_ne_maxFin this.symm
+    have hv0 : v 0 = 0 := of_not_not fun hnz => by simp [blockOf, hnz] at hvBlk
+    have hv1 : v 1 = c := by simpa [blockOf, hv0] using hvBlk
+    have han_ne_v : anchorTuple M.size ≠ v :=
+      fun h => QFNumeric.zero_ne_maxFin (hv0 ▸ congrFun h 0).symm
     have hnadj_an :
         ¬ (satToIndependentSetInterpretation.tupleStructure M).RelMap FO.sizedGraph.adj
           ![anchorTuple M.size, v] :=
       hind han_mem hv han_ne_v
     rw [adj_anchor_to_clause_iff M hv0, hv1] at hnadj_an
     by_cases hv3_zero : v 3 = 0
-    · have hpos : RelMap (M := M) FO.cnf.pos ![c, v 2] := by
-        by_contra hnpos
-        exact hnadj_an (.inl ⟨hv3_zero, hnpos⟩)
+    · have hpos : RelMap (M := M) FO.cnf.pos ![c, v 2] :=
+        of_not_not fun hnpos => hnadj_an (.inl ⟨hv3_zero, hnpos⟩)
       exact ⟨v 2, .inl ⟨hpos, ⟨v, hv, hv0, rfl, hv3_zero⟩⟩⟩
     · by_cases hv3_max : v 3 = QFNumeric.maxFin M.size
-      · have hneg : RelMap (M := M) FO.cnf.neg ![c, v 2] := by
-          by_contra hnneg
-          exact hnadj_an (.inr ⟨hv3_zero, .inl ⟨hv3_max, hnneg⟩⟩)
-        refine ⟨v 2, .inr ⟨hneg, ?_⟩⟩
-        rintro ⟨u, hu, hu0, hu2, hu3⟩
-        have huv : u ≠ v := by
-          intro h
-          have h3 := congrFun h 3
-          rw [hu3, hv3_max] at h3
-          exact QFNumeric.zero_ne_maxFin h3
-        refine hind hu hv huv ((adj_clause_to_clause_iff M hu0 hv0).mpr ?_)
-        by_cases hc : u 1 = v 1
-        · exact .inl hc
-        · exact .inr ⟨hc, hu2, hu3, hv3_max⟩
+      · have hneg : RelMap (M := M) FO.cnf.neg ![c, v 2] :=
+          of_not_not fun hnneg => hnadj_an (.inr ⟨hv3_zero, .inl ⟨hv3_max, hnneg⟩⟩)
+        refine ⟨v 2, .inr ⟨hneg, fun ⟨u, hu, hu0, hu2, hu3⟩ => ?_⟩⟩
+        have huv : u ≠ v :=
+          fun h => QFNumeric.zero_ne_maxFin (hu3.symm.trans ((congrFun h 3).trans hv3_max))
+        exact hind hu hv huv ((adj_clause_to_clause_iff M hu0 hv0).mpr
+          ((em (u 1 = v 1)).imp_right fun hc => ⟨hc, hu2, hu3, hv3_max⟩))
       · exact False.elim (hnadj_an (.inr ⟨hv3_zero, .inr hv3_max⟩))
 
 /-- **Exact `IndependentSet` preservation of `satToIndependentSetInterpretation`**: on every ordered

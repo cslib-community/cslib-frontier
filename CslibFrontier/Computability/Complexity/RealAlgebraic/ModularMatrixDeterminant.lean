@@ -80,16 +80,15 @@ theorem modularMatrixDeterminant_mem {α : Type} {enc : α ↪ List Bool} {a : �
     (he : entry ∈ CountingFunction a (encPair enc encNat) encNat) :
     (fun w => modularMatrixDeterminant (p w) (n w) (fun i => entry (w, i))) ∈
       CountingFunction a enc encNat := by
-  have hq := ComputableInPolyTime.binary_max' (.const 1) hp
-  have hlist := unaryModularList_mem (ComputableInPolyTime.unary_mul' hn hn) hq
-    (fun _ => lt_of_lt_of_le (by decide : 0 < 1) (le_max_left _ _)) he
+  have hlist := unaryModularList_mem (ComputableInPolyTime.unary_mul' hn hn)
+    (ComputableInPolyTime.binary_max' (.const 1) hp) (fun _ => by positivity) he
   have hrows := CountingFunction.map (CountingFunction.prod (CountingFunction.of_polyTime hn) hlist)
     (modularMatrixRows_polyTime (ComputableInPolyTime.fst encUnary (encList encNat))
       (ComputableInPolyTime.snd encUnary (encList encNat)))
-  have hdet := CountingFunction.map hrows Rational.detRows_polytime
-  have hres := CountingFunction.map (CountingFunction.prod hdet (CountingFunction.of_polyTime hp))
+  simpa only [modularMatrixDeterminant] using CountingFunction.map
+    (CountingFunction.prod (CountingFunction.map hrows Rational.detRows_polytime)
+      (CountingFunction.of_polyTime hp))
     ComputableInPolyTime.intBin_emodNat
-  simpa only [modularMatrixDeterminant] using hres
 
 /-- Only the residues of the entries are required, including for singular
 matrices. The determinant program itself runs on ordinary short integers. -/
@@ -107,17 +106,13 @@ theorem modularMatrixDeterminant_cast {p n : ℕ} [Fact p.Prime]
         unaryModularList_get, max_eq_right (Fact.out : p.Prime).one_le]
       exact lt_of_lt_of_le (by nlinarith [j.isLt] : i.val * n + j.val < (i.val + 1) * n)
         (Nat.mul_le_mul_right n (Nat.succ_le_of_lt i.isLt))
-  rw [modularMatrixDeterminant, hrows]
   let : NeZero p := ⟨(Fact.out : p.Prime).ne_zero⟩
-  have hval := congrArg Int.toNat (ZMod.val_intCast (n := p) M.det)
-  simp only [Int.toNat_natCast] at hval
-  rw [← hval, ZMod.natCast_zmod_val]
+  rw [modularMatrixDeterminant, hrows, ← ZMod.val_intCast (n := p) M.det, Int.toNat_natCast,
+    ZMod.natCast_zmod_val]
   change (Int.castRingHom (ZMod p)) M.det = A.det
   rw [RingHom.map_det]
   congr 1
   ext i j
-  change (((entry (i.val * n + j.val) % p : ℕ) : ℤ) : ZMod p) = A i j
-  rw [Int.cast_natCast, ZMod.natCast_mod]
-  exact he i j
+  exact (Int.cast_natCast _).trans ((ZMod.natCast_mod _ _).trans (he i j))
 
 end Cslib.Complexity.RealAlgebraic

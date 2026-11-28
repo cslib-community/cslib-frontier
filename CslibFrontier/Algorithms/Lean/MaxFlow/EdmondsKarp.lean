@@ -728,10 +728,8 @@ private theorem scanNeighbors_preserves {n : ℕ} {N : Network (Fin n)} {f : N.F
       obtain ⟨hpos', hnone⟩ := Bool.and_eq_true_iff.mp hcond
       have hpos : 0 < f.resCap u v := of_decide_eq_true hpos'
       have hnone_st : vget st.revPath v = none := Option.isNone_iff_eq_none.mp hnone
-      have hnone_base : vget baseTbl v = none := by
-        cases hb : vget baseTbl v with
-        | none => rfl
-        | some rp => exact absurd (hst.mono_base v rp hb) (by simp [hnone_st])
+      have hnone_base : vget baseTbl v = none := Option.eq_none_iff_forall_ne_some.mpr
+        fun rp hb => by simpa [hnone_st] using hst.mono_base v rp hb
       have hv_lt : f.resDist v < n := by
         have hu_r := (f.resDist_lt_card_iff_resReachable u).mp (by simpa [Fintype.card_fin])
         simpa [Fintype.card_fin] using (f.resDist_lt_card_iff_resReachable v).mpr (hu_r.tail hpos)

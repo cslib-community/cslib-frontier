@@ -726,12 +726,8 @@ private theorem init_rename_of_exec (C : StateTransitionImpl P D w base params s
     obtain ⟨hfr', hrep, hpot, hmod⟩ := hsupp p hp
     refine ⟨?_, ?_, ?_, hmod, fun j hj => Data.extend_regs_of_notMem p.2 x hj⟩
     · change ((p.2.extend f x).comap f).regs P.frontierReg = base + C.space
-      rw [Data.comap_extend hf]
-      exact hfr'
-    · rw [Data.comap_extend hf]
-      exact hrep
-    · rw [Data.comap_extend hf]
-      exact hpot
+      rwa [Data.comap_extend hf]
+    all_goals rwa [Data.comap_extend hf]
 
 /-- Relocated fresh initialization along any injective register embedding `f`. -/
 theorem initFresh_rename (C : StateTransitionImpl P D w base params s₀)
@@ -1012,11 +1008,7 @@ theorem code_rename (C : StateTransitionImpl P D w base params s₀)
       supp_cases hq [μ_caller] with ⟨q_ds, hq_mem, rfl⟩
       obtain ⟨a, hstep_a, hdec, hrep', hmod⟩ := hq_ds q_ds hq_mem
       refine ⟨a, hstep_a, ?_, ?_, hmod,
-        fun j hj => Data.extend_regs_of_notMem q_ds.data t.data hj⟩
-      · rw [Data.comap_extend hf]
-        exact hdec
-      · rw [Data.comap_extend hf]
-        exact hrep'
+        fun j hj => Data.extend_regs_of_notMem q_ds.data t.data hj⟩ <;> rwa [Data.comap_extend hf]
   · intro θ'
     have hmap_eq : (ν.bind μ_caller).map CoupledState.seed =
         (ν_ds.bind μ_ds).map CoupledState.seed := by
@@ -1401,20 +1393,15 @@ theorem steps_expected_amortized (C : StateTransitionImpl P D w base params s₀
       rfl
     have hmem_prep {t} (ht : t ∈ ν.support) : prepMap t ∈ ν_prep.support :=
       (PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩
-    have hv₁ : ∀ q ∈ ν₁.support, D.ValidOpSeq q.state os := by
+    have hv₁ : ∀ q ∈ ν₁.support, D.ValidOpSeq q.state os ∧ C.rep q.seed q.state q.data := by
       intro q hq
       supp_cases hq [ν₁] with ⟨t, ht, hq_op⟩
-      obtain ⟨a, hstep_a, _, _, _⟩ := (hstep (prepMap t) (hmem_prep ht)).2 q hq_op
-      exact (hv t ht).2 q.state a hstep_a
-    have hrep₁ : ∀ q ∈ ν₁.support, C.rep q.seed q.state q.data := by
-      intro q hq
-      rw [hν₁_eq] at hq
-      supp_cases hq with ⟨t', ht', hq_step⟩
-      obtain ⟨_, _, _, hrep_q, _⟩ := (hstep t' ht').2 q hq_step
-      exact hrep_q
+      obtain ⟨a, hstep_a, _, hrep_q, _⟩ := (hstep (prepMap t) (hmem_prep ht)).2 q hq_op
+      exact ⟨(hv t ht).2 q.state a hstep_a, hrep_q⟩
     let T₁ : ℝ≥0∞ := ∑' t, ν t * T_op t
     let C₁ : ℝ≥0∞ := ∑' t, ν t * (C.charge t.state o : ℝ≥0∞)
-    refine ⟨ν₁, T₁, C₁, ⟨hv₁, hν₁_eq ▸ hseed₁, hrep₁, hν₁_eq ▸ hsingle₁⟩, ?_,
+    refine ⟨ν₁, T₁, C₁, ⟨fun q hq => (hv₁ q hq).1, hν₁_eq ▸ hseed₁, fun q hq => (hv₁ q hq).2,
+      hν₁_eq ▸ hsingle₁⟩, ?_,
       fun _ _ _ hex_rest => .cons (fun t ht => hstep (prepMap t) (hmem_prep ht)) hex_rest⟩
     have hstep_split :
         T₁ + (∑' q, ν₁ q * (C.potential q.seed q.data : ℝ≥0∞)) =
@@ -1526,8 +1513,7 @@ theorem ExecSteps.toOfFn {C : StateTransitionImpl P D w base params s₀}
     let lift : C.Seed × Data r_ds → CoupledState C.Seed D.State r_ds := fun p => ⟨p.1, s, p.2⟩
     have hlift_proj : ∀ t ∈ ν_rel.support, lift (proj t) = t := by
       intro ⟨θ, s_t, x⟩ ht
-      have hst : s_t = s := hs ⟨θ, s_t, x⟩ ht
-      subst hst
+      obtain rfl : s_t = s := hs _ ht
       rfl
     have hs₁ : ∀ q ∈ (ν_rel.bind μ_step).support, q.state = (D.stepFn s o).1 := by
       intro q hq
@@ -1551,13 +1537,8 @@ theorem ExecSteps.toOfFn {C : StateTransitionImpl P D w base params s₀}
       dsimp only [T_det]
       rw [hlift_proj t ht]
     have hC_eq : (∑' t, ν_rel t * (C.charge t.state o : ℝ≥0∞)) = (C.charge s o : ℝ≥0∞) := by
-      calc
-        (∑' t, ν_rel t * (C.charge t.state o : ℝ≥0∞))
-          = ∑' t, ν_rel t * (C.charge s o : ℝ≥0∞) := by
-              refine Cslib.Probability.PMF.tsum_mul_congr_support ν_rel fun t ht => ?_
-              rw [hs t ht]
-        _ = (C.charge s o : ℝ≥0∞) := by
-              rw [ENNReal.tsum_mul_right, ν_rel.tsum_coe, one_mul]
+      rw [Cslib.Probability.PMF.tsum_mul_congr_support ν_rel (g := fun _ => (C.charge s o : ℝ≥0∞))
+        fun t ht => by rw [hs t ht], ENNReal.tsum_mul_right, ν_rel.tsum_coe, one_mul]
     refine ⟨?_, ?_, ?_⟩
     · rw [← hT_eq]
       refine ExecStepsOfFn.cons (μ_step := μ_det) (T_step := T_det) ?_ (hbind_eq ▸ hex_rest_det)

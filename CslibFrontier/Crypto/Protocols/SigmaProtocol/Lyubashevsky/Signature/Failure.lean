@@ -57,15 +57,11 @@ theorem lyubashevskySignAttempt_none_le {n m k q γ β η : ℕ} {M : Type}
     rw [← PMF.toOuterMeasure_apply_singleton, ← PMF.toOuterMeasure_apply_singleton]
     simp only [lyubashevskySignAttempt, fsAbortSignAttempt, lyubashevsky, PMF.map_comp,
       boxReject, shiftReject, PMF.toOuterMeasure_map_apply]
-    apply MeasureTheory.measure_mono
-    intro r hr
+    refine MeasureTheory.measure_mono fun r hr => ?_
     simp only [Set.mem_preimage, Set.mem_singleton_iff, Function.comp_apply,
       fsAbortSignStep, add_zero] at hr ⊢
     by_contra hn
-    have hrsmall : r ∈ intBox (Fin m) (γ - 2 * β) := by
-      simpa using hn
-    have := hsmall r hrsmall
-    simp [this] at hr
+    simp [hsmall r (by simpa using hn)] at hr
   refine hcompare.trans ?_
   simpa only [Fintype.card_fin, Nat.cast_mul, Nat.cast_ofNat, mul_assoc, mul_left_comm,
     mul_comm, show (2 * 2 : ℝ≥0∞) = 4 by norm_num] using

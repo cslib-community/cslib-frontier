@@ -137,18 +137,15 @@ private theorem turnsDown_run_mono {j k : ℕ} (hjk : j ≤ k) {p : Fin m} {r : 
       · by_cases hxq : x = q
         · subst hxq
           obtain ⟨r', hr', hd⟩ := hq
-          have hrr : r' = r := Option.some_injective _ (hr'.symm.trans hx)
-          subst hrr
+          rcases Option.some_injective _ (hr'.symm.trans hx) with rfl
           rcases hd with hnot | ⟨y, hy, hyx⟩
-          · exfalso
-            have heq : I.recvRank r' (some x) = I.recvRank r' none :=
-              List.idxOf_eq_length_iff.2 hnot
+          · have : I.recvRank r' (some x) = I.recvRank r' none := List.idxOf_eq_length_iff.2 hnot
             have := I.recvRank_le_recvRank_none r' (some p)
             omega
-          · have hyx' : y ≠ x := by rintro rfl; exact lt_irrefl _ hyx
-            exact Or.inr ⟨y, by simp only [target, Function.update_of_ne hyx']; exact hy,
-              lt_trans hyx hxp⟩
-        · exact Or.inr ⟨x, by simp only [target, Function.update_of_ne hxq]; exact hx, hxp⟩
+          · have hyx' : y ≠ x := fun e => hyx.ne (e ▸ rfl)
+            exact Or.inr ⟨y, by simpa only [target, Function.update_of_ne hyx'] using hy,
+              hyx.trans hxp⟩
+        · exact Or.inr ⟨x, by simpa only [target, Function.update_of_ne hxq] using hx, hxp⟩
 
 private theorem getElem?_idxOf_of_mem {α : Type*} [DecidableEq α] {l : List α} {a : α}
     (ha : a ∈ l) : l[l.idxOf a]? = some a := by
@@ -160,21 +157,17 @@ private theorem getElem?_idxOf_of_mem {α : Type*} [DecidableEq α] {l : List α
 theorem propRank_deferredAcceptance_eq_finalState (p : Fin m) :
     I.propRank p (I.deferredAcceptance p) = I.finalState p := by
   refine le_antisymm (I.propRank_deferredAcceptance_le p) ?_
-  by_contra hlt
-  push Not at hlt
+  by_contra! hlt
   cases hd : I.deferredAcceptance p with
   | none =>
     rw [hd, propRank_none] at hlt
-    have hle := I.inv_finalState.le_length p
-    rw [deferredAcceptance_apply] at hd
-    have : (I.propPref p).length ≤ I.finalState p := List.getElem?_eq_none_iff.1 hd
+    have := I.inv_finalState.le_length p
+    have := List.getElem?_eq_none_iff.1 (deferredAcceptance_apply I p ▸ hd)
     omega
   | some r =>
-    have hmem : r ∈ I.propPref p := (I.isIndividuallyRational_deferredAcceptance p r hd).1
-    have hget : (I.propPref p)[(I.propPref p).idxOf r]? = some r := getElem?_idxOf_of_mem hmem
     rw [hd, propRank_some] at hlt
-    have htd : I.TurnsDown I.finalState r p := I.inv_finalState.turnsDown p _ r hlt hget
-    exact I.not_rejected_finalState p ⟨r, hd, htd⟩
+    exact I.not_rejected_finalState p ⟨r, hd, I.inv_finalState.turnsDown p _ r hlt
+      (getElem?_idxOf_of_mem (I.isIndividuallyRational_deferredAcceptance p r hd).1)⟩
 
 /-! ### The blocking lemma for incomplete lists -/
 
@@ -184,12 +177,9 @@ private theorem recvRank_deferredAcceptance_lt {q : Fin m} {r : Fin n}
     ∃ x : Fin m, I.deferredAcceptance x = some r ∧
       I.recvRank r (some x) < I.recvRank r (some q) := by
   have hr_mem : r ∈ I.propPref q :=
-    (I.propRank_some_lt_none_iff q r).1 (lt_of_lt_of_le hq_lt (I.propRank_le_propRank_none q _))
-  have hk : (I.propPref q).idxOf r < I.finalState q := by
-    rw [← propRank_deferredAcceptance_eq_finalState]
-    exact hq_lt
-  have htd := I.inv_finalState.turnsDown q _ r hk (getElem?_idxOf_of_mem hr_mem)
-  rcases htd with hnot | ⟨x, hx, hxq⟩
+    (I.propRank_some_lt_none_iff q r).1 (hq_lt.trans_le (I.propRank_le_propRank_none q _))
+  rcases I.inv_finalState.turnsDown q _ r (I.propRank_deferredAcceptance_eq_finalState q ▸ hq_lt)
+      (getElem?_idxOf_of_mem hr_mem) with hnot | ⟨x, hx, hxq⟩
   · exact absurd hqr hnot
   · exact ⟨x, hx, hxq⟩
 
@@ -211,25 +201,19 @@ private theorem exists_last_change (B : Finset (Fin m)) {p₀ : Fin m} (hp₀ : 
         have h1 := hTe (Finset.mem_range.2 (show k < N by omega))
         push Not at h1
         rw [← h1 p₀ hp₀, ih (by omega)]
-    have := key N le_rfl
-    change I.finalState p₀ = 0 at this
+    have : I.finalState p₀ = 0 := key N le_rfl
     omega
   set t := T.max' hT
-  have ht : t ∈ T := T.max'_mem hT
-  rw [Finset.mem_filter, Finset.mem_range] at ht
-  obtain ⟨htN, p, hpB, hp⟩ := ht
+  obtain ⟨htN, p, hpB, hp⟩ := Finset.mem_filter.1 (T.max'_mem hT)
+  rw [Finset.mem_range] at htN
   refine ⟨t, htN, p, hpB, hp, fun q hq => ?_⟩
-  have stable : ∀ k, t + 1 ≤ k → k ≤ N → I.run (t + 1) q = I.run k q := by
-    intro k hk hkN
+  have stable (k) (hk : t + 1 ≤ k) (hkN : k ≤ N) : I.run (t + 1) q = I.run k q := by
     induction k, hk using Nat.le_induction with
     | base => rfl
     | succ k hk ih =>
       rw [ih (by omega)]
       by_contra hne
-      have hmem : k ∈ T := by
-        rw [Finset.mem_filter, Finset.mem_range]
-        exact ⟨by omega, q, hq, hne⟩
-      have := T.le_max' k hmem
+      have := T.le_max' k (Finset.mem_filter.2 ⟨Finset.mem_range.2 (by omega), q, hq, hne⟩)
       omega
   exact stable N (by omega) le_rfl
 
@@ -239,12 +223,8 @@ private theorem run_succ_eq_update_of_ne {t : ℕ} {p₀ : Fin m}
       I.run (t + 1) = Function.update (I.run t) p₀ (I.run t p₀ + 1) := by
   rw [run_succ] at h ⊢
   rcases I.step_cases (I.run t) with ⟨hs, -⟩ | ⟨p, hp, hs⟩
-  · rw [hs] at h; exact absurd rfl h
-  · have hpp : p₀ = p := by
-      by_contra hne
-      rw [hs, Function.update_of_ne hne] at h
-      exact h rfl
-    subst hpp
+  · exact absurd rfl (hs ▸ h)
+  · obtain rfl : p₀ = p := by_contra fun hne => h (by rw [hs, Function.update_of_ne hne])
     exact ⟨hp, hs⟩
 
 /-- **The blocking lemma for incomplete lists** (Hwang; [GaleSotomayor1985]): let `μ` be any
@@ -264,37 +244,27 @@ theorem exists_isBlockingPair_of_lt {μ : PartialMatching m n}
   let B : Finset (Fin m) := Finset.univ.filter fun q => I.propRank q (μ q) < I.propRank q (D q)
   have hB : ∀ q, q ∈ B ↔ I.propRank q (μ q) < I.propRank q (D q) := fun q => by
     simp only [B, Finset.mem_filter, Finset.mem_univ, true_and]
-  have hB_some : ∀ q ∈ B, ∃ r : Fin n, μ q = some r := by
-    intro q hq
+  have hB_some : ∀ q ∈ B, ∃ r : Fin n, μ q = some r := fun q hq => by
     cases h : μ q with
-    | none =>
-      have hlt := (hB q).1 hq
-      rw [h] at hlt
-      exact absurd hlt (not_lt.2 (I.propRank_le_propRank_none q _))
+    | none => exact absurd (h ▸ (hB q).1 hq) (not_lt.2 (I.propRank_le_propRank_none q _))
     | some r => exact ⟨r, rfl⟩
   have hmatch : ∀ q ∈ B, ∃ (r : Fin n) (x : Fin m),
-      μ q = some r ∧ D x = some r ∧ I.recvRank r (some x) < I.recvRank r (some q) := by
-    intro q hq
+      μ q = some r ∧ D x = some r ∧ I.recvRank r (some x) < I.recvRank r (some q) := fun q hq => by
     obtain ⟨r, hqr⟩ := hB_some q hq
-    have hlt : I.propRank q (some r) < I.propRank q (D q) := hqr ▸ (hB q).1 hq
-    obtain ⟨x, hxD, hxlt⟩ := I.recvRank_deferredAcceptance_lt hlt (hrecIR q r hqr)
+    obtain ⟨x, hxD, hxlt⟩ := I.recvRank_deferredAcceptance_lt (hqr ▸ (hB q).1 hq) (hrecIR q r hqr)
     exact ⟨r, x, hqr, hxD, hxlt⟩
   by_cases hnot : ∃ q ∈ B, ∃ (r : Fin n) (x : Fin m),
       μ q = some r ∧ D x = some r ∧ I.recvRank r (some x) < I.recvRank r (some q) ∧ x ∉ B
   · obtain ⟨q, hqB, r, x, hqr, hxD, hxlt, hxnot⟩ := hnot
     have hxle : I.propRank x (D x) ≤ I.propRank x (μ x) := le_of_not_gt (mt (hB x).2 hxnot)
     have hxq : x ≠ q := fun h => hxnot (h ▸ hqB)
-    have hr_acc : r ∈ I.propPref x := (I.isIndividuallyRational_deferredAcceptance x r hxD).1
-    have hne_μ : μ x ≠ some r := fun h => hxq (μ.inj h hqr)
-    have hprop_lt : I.propRank x (some r) < I.propRank x (μ x) := by
-      refine lt_of_le_of_ne (hxD ▸ hxle) fun heq => hne_μ ?_
-      exact I.eq_of_propRank_eq hr_acc heq
-    have hμsymm : μ.symm r = some q := μ.eq_some_iff.2 hqr
-    exact ⟨x, q, r, hqr, hqr ▸ (hB q).1 hqB, hxle, hprop_lt, hμsymm ▸ hxlt⟩
+    have hprop_lt : I.propRank x (some r) < I.propRank x (μ x) :=
+      lt_of_le_of_ne (hxD ▸ hxle) fun heq => hxq (μ.inj
+        (I.eq_of_propRank_eq (I.isIndividuallyRational_deferredAcceptance x r hxD).1 heq) hqr)
+    exact ⟨x, q, r, hqr, hqr ▸ (hB q).1 hqB, hxle, hprop_lt, μ.eq_some_iff.2 hqr ▸ hxlt⟩
   · -- Closed case: the map `q ↦ D.symm (μ q)` maps `B` injectively into `B`, hence onto `B`.
     push Not at hnot
-    have hclosed : ∀ q ∈ B, ∃ x ∈ B, ∃ r : Fin n, μ q = some r ∧ D x = some r := by
-      intro q hq
+    have hclosed : ∀ q ∈ B, ∃ x ∈ B, ∃ r : Fin n, μ q = some r ∧ D x = some r := fun q hq => by
       obtain ⟨r, x, hqr, hxD, hxlt⟩ := hmatch q hq
       exact ⟨x, hnot q hq r x hqr hxD hxlt, r, hqr, hxD⟩
     have honto : ∀ p ∈ B, ∃ q ∈ B, ∃ r : Fin n, μ q = some r ∧ D p = some r := by
@@ -302,83 +272,63 @@ theorem exists_isBlockingPair_of_lt {μ : PartialMatching m n}
         ⟨(hclosed q.val q.property).choose, (hclosed q.val q.property).choose_spec.1⟩
       have hfinj : Function.Injective f := by
         rintro ⟨q₁, hq₁⟩ ⟨q₂, hq₂⟩ heq
-        have hx : (hclosed q₁ hq₁).choose = (hclosed q₂ hq₂).choose := congrArg Subtype.val heq
         obtain ⟨r₁, hμ₁, hD₁⟩ := (hclosed q₁ hq₁).choose_spec.2
         obtain ⟨r₂, hμ₂, hD₂⟩ := (hclosed q₂ hq₂).choose_spec.2
-        rw [hx] at hD₁
-        have hrr : r₁ = r₂ := Option.some_injective _ (hD₁.symm.trans hD₂)
-        exact Subtype.ext (μ.inj hμ₁ (hrr ▸ hμ₂))
-      have hsurj := (Finite.injective_iff_bijective.1 hfinj).2
+        rw [show (hclosed q₁ hq₁).choose = (hclosed q₂ hq₂).choose from congrArg Subtype.val heq]
+          at hD₁
+        exact Subtype.ext (μ.inj hμ₁ (Option.some_injective _ (hD₁.symm.trans hD₂) ▸ hμ₂))
       intro p hp
-      obtain ⟨⟨q, hq⟩, hfq⟩ := hsurj ⟨p, hp⟩
-      have heq : (hclosed q hq).choose = p := congrArg Subtype.val hfq
+      obtain ⟨⟨q, hq⟩, hfq⟩ := (Finite.injective_iff_bijective.1 hfinj).2 ⟨p, hp⟩
       obtain ⟨r, hμq, hDp⟩ := (hclosed q hq).choose_spec.2
-      exact ⟨q, hq, r, hμq, heq ▸ hDp⟩
+      exact ⟨q, hq, r, hμq, (show (hclosed q hq).choose = p from congrArg Subtype.val hfq) ▸ hDp⟩
     have hq₀B : q₀ ∈ B := (hB q₀).2 hq₀
     have hpos : 0 < I.finalState q₀ := by
-      have hlt := (hB q₀).1 hq₀B
-      rw [I.propRank_deferredAcceptance_eq_finalState q₀] at hlt
+      have := I.propRank_deferredAcceptance_eq_finalState q₀ ▸ hq₀
       omega
     obtain ⟨t, _, p₀, hp₀B, hch, hfin⟩ := I.exists_last_change B hq₀B hpos
-    obtain ⟨hrej, hupd⟩ := I.run_succ_eq_update_of_ne hch
+    obtain ⟨_, hupd⟩ := I.run_succ_eq_update_of_ne hch
     obtain ⟨q, hqB, r₀, hμq, hDp₀⟩ := honto p₀ hp₀B
     have hqp : q ≠ p₀ := by
       rintro rfl
-      have h := (hB q).1 hqB
-      rw [hμq, hDp₀] at h
-      exact lt_irrefl _ h
-    have hrun_ne : ∀ y, y ≠ p₀ → I.run (t + 1) y = I.run t y := fun y hy => by
+      exact lt_irrefl _ (hμq.trans hDp₀.symm ▸ (hB q).1 hqB)
+    have hrun_ne (y) (hy : y ≠ p₀) : I.run (t + 1) y = I.run t y := by
       rw [hupd, Function.update_of_ne hy]
     have hq_mem : r₀ ∈ I.propPref q :=
       (I.propRank_some_lt_none_iff q r₀).1
-        (lt_of_lt_of_le (hμq ▸ (hB q).1 hqB) (I.propRank_le_propRank_none q _))
+        ((hμq ▸ (hB q).1 hqB).trans_le (I.propRank_le_propRank_none q _))
     have hk_q : (I.propPref q).idxOf r₀ < I.run t q := by
-      have h := (hB q).1 hqB
-      rw [hμq, propRank_some, I.propRank_deferredAcceptance_eq_finalState q,
-        ← hfin q hqB, hrun_ne q hqp] at h
-      exact h
-    have htd_q := (I.inv_run t).turnsDown q _ r₀ hk_q (getElem?_idxOf_of_mem hq_mem)
-    rcases htd_q with hnot_rec | ⟨x, hx, hxq⟩
+      simpa only [D, hμq, propRank_some, I.propRank_deferredAcceptance_eq_finalState q,
+        ← hfin q hqB, hrun_ne q hqp] using (hB q).1 hqB
+    rcases (I.inv_run t).turnsDown q _ r₀ hk_q (getElem?_idxOf_of_mem hq_mem) with
+      hnot_rec | ⟨x, hx, hxq⟩
     · exact absurd (hrecIR q r₀ hμq) hnot_rec
     have hxp : x ≠ p₀ := by
       rintro rfl
-      have htd_p : I.TurnsDown (I.run (t + 1)) r₀ x := by
-        have hklt : I.run t x < I.run (t + 1) x := by rw [hupd, Function.update_self]; omega
-        exact (I.inv_run (t + 1)).turnsDown x (I.run t x) r₀ hklt hx
+      have htd_p : I.TurnsDown (I.run (t + 1)) r₀ x :=
+        (I.inv_run (t + 1)).turnsDown x (I.run t x) r₀
+          (by rw [hupd, Function.update_self]; omega) hx
       have htd_fin : I.TurnsDown I.finalState r₀ x := by
         rw [show I.finalState = I.run I.totalLength from rfl]
         rcases le_total (t + 1) I.totalLength with hle | hge
         · exact I.turnsDown_run_mono hle htd_p
-        · have heq : I.run (t + 1) = I.run I.totalLength :=
-            I.run_fixed_of_le hge I.step_run_fixed
-          exact heq ▸ htd_p
+        · exact I.run_fixed_of_le hge I.step_run_fixed ▸ htd_p
       exact I.not_rejected_finalState x ⟨r₀, hDp₀, htd_fin⟩
     have hx' : I.target (I.run (t + 1)) x = some r₀ := by
       simpa only [target, hrun_ne x hxp] using hx
-    have hxB : x ∉ B := by
-      intro hxB
-      have hDx : D x = some r₀ := by
-        change I.target I.finalState x = some r₀
-        simpa only [target, hfin x hxB] using hx'
-      exact hxp (I.target_finalState_inj x p₀ r₀ hDx hDp₀)
+    have hxB : x ∉ B := fun hxB => hxp <| I.target_finalState_inj x p₀ r₀
+      (show I.target I.finalState x = some r₀ by simpa only [target, hfin x hxB] using hx') hDp₀
     have hxle : I.propRank x (D x) ≤ I.propRank x (μ x) := le_of_not_gt (mt (hB x).2 hxB)
-    have hxlt_state : I.run (t + 1) x < I.finalState x := by
-      refine lt_of_le_of_ne (I.run_le_finalState (t + 1) x) fun heq => hxp ?_
-      have hDx : I.target I.finalState x = some r₀ := by simpa only [target, heq] using hx'
-      exact I.target_finalState_inj x p₀ r₀ hDx hDp₀
+    have hxlt_state : I.run (t + 1) x < I.finalState x :=
+      lt_of_le_of_ne (I.run_le_finalState (t + 1) x) fun heq => hxp <|
+        I.target_finalState_inj x p₀ r₀ (by simpa only [target, heq] using hx') hDp₀
     have hxlt_rank : I.propRank x (some r₀) < I.propRank x (D x) := by
       rw [propRank_some, I.propRank_deferredAcceptance_eq_finalState x]
-      have hidx_le : (I.propPref x).idxOf r₀ ≤ I.run (t + 1) x := by
-        obtain ⟨_, hka⟩ := List.getElem?_eq_some_iff.1 hx'
-        by_contra hlt
-        push Not at hlt
-        have hnot := List.not_of_lt_findIdx (p := fun y => y == r₀) (xs := I.propPref x) hlt
-        simp only [hka, beq_self_eq_true] at hnot
-        exact Bool.false_ne_true hnot.symm
-      exact lt_of_le_of_lt hidx_le hxlt_state
-    refine ⟨x, q, r₀, hμq, hμq ▸ (hB q).1 hqB, hxle, lt_of_lt_of_le hxlt_rank hxle, ?_⟩
-    rw [μ.eq_some_iff.2 hμq]
-    exact hxq
+      obtain ⟨_, hka⟩ := List.getElem?_eq_some_iff.1 hx'
+      refine lt_of_le_of_lt (not_lt.1 fun hlt => ?_) hxlt_state
+      have hnot := List.not_of_lt_findIdx (p := fun y => y == r₀) (xs := I.propPref x) hlt
+      simp [hka] at hnot
+    exact ⟨x, q, r₀, hμq, hμq ▸ (hB q).1 hqB, hxle, hxlt_rank.trans_le hxle,
+      μ.eq_some_iff.2 hμq ▸ hxq⟩
 
 /-! ### Weak Pareto optimality and coalitional strategy-proofness -/
 
@@ -465,19 +415,11 @@ private theorem liftMatching_symm_castSucc (μ : PartialMatching m n) (r : Fin n
     cases hc : (liftMatching μ).symm r.castSucc with
     | none => rfl
     | some p =>
-      have hp := (liftMatching μ).eq_some_iff.1 hc
-      change (μ p).map Fin.castSucc = some r.castSucc at hp
-      cases hμp : μ p with
-      | none => simp [hμp] at hp
-      | some r' =>
-        simp only [hμp, Option.map_some, Option.some.injEq] at hp
-        have hr : r' = r := Fin.castSucc_injective _ hp
-        have := μ.eq_some_iff.2 (hr ▸ hμp)
-        rw [h] at this; exact absurd this (by simp)
+      obtain ⟨r', hμp, hr⟩ := Option.map_eq_some_iff.1 ((liftMatching μ).eq_some_iff.1 hc)
+      exact absurd (h ▸ μ.eq_some_iff.2 (Fin.castSucc_injective _ hr ▸ hμp)) (by simp)
   | some p =>
-    refine (liftMatching μ).eq_some_iff.2 ?_
-    change (μ p).map Fin.castSucc = some r.castSucc
-    rw [μ.eq_some_iff.1 h, Option.map_some]
+    exact (liftMatching μ).eq_some_iff.2
+      (show (μ p).map Fin.castSucc = some r.castSucc by rw [μ.eq_some_iff.1 h, Option.map_some])
 
 private def restrictMatching (μ' : PartialMatching m (n + 1)) : PartialMatching m n :=
   PartialMatching.ofInjOn
@@ -549,31 +491,15 @@ theorem deferredAcceptance_propRank_le {I : IncompleteInstance m n}
     {I' : IncompleteInstance m (n + 1)} (hE : ExtendsByReceiver I I') (p : Fin m) :
     I'.propRank p (I'.deferredAcceptance p) ≤
       I'.propRank p ((I.deferredAcceptance p).map Fin.castSucc) := by
-  by_contra hlt
-  push Not at hlt
+  by_contra! hlt
   let μl := liftMatching I.deferredAcceptance
-  have hrecIR : ∀ q r', μl q = some r' → q ∈ I'.recvPref r' := by
-    intro q r' hq
-    change (I.deferredAcceptance q).map Fin.castSucc = some r' at hq
-    cases h : I.deferredAcceptance q with
-    | none => simp [h] at hq
-    | some r =>
-      simp only [h, Option.map_some, Option.some.injEq] at hq
-      subst hq
-      rw [hE.recvPref_castSucc r]
-      exact (I.isIndividuallyRational_deferredAcceptance q r h).2
-  have hlt' : I'.propRank p (μl p) < I'.propRank p (I'.deferredAcceptance p) := hlt
-  obtain ⟨x, q, r', hμq, -, -, hbp⟩ := I'.exists_isBlockingPair_of_lt hrecIR hlt'
-  change (I.deferredAcceptance q).map Fin.castSucc = some r' at hμq
-  cases h : I.deferredAcceptance q with
-  | none => simp [h] at hμq
-  | some r =>
-    simp only [h, Option.map_some, Option.some.injEq] at hμq
-    subst hμq
-    refine I.isStable_deferredAcceptance.2 x r ⟨?_, ?_⟩
-    · exact hE.propRank_lt_of_castSucc hbp.1
-    · have := hbp.2
-      rwa [liftMatching_symm_castSucc, hE.recvRank_castSucc, hE.recvRank_castSucc] at this
+  have hrecIR : ∀ q r', μl q = some r' → q ∈ I'.recvPref r' := fun q _ hq => by
+    obtain ⟨r, h, rfl⟩ := Option.map_eq_some_iff.1 hq
+    exact hE.recvPref_castSucc r ▸ (I.isIndividuallyRational_deferredAcceptance q r h).2
+  obtain ⟨x, q, _, hμq, -, -, hbp⟩ := I'.exists_isBlockingPair_of_lt (μ := μl) hrecIR hlt
+  obtain ⟨r, _, rfl⟩ := Option.map_eq_some_iff.1 hμq
+  refine I.isStable_deferredAcceptance.2 x r ⟨hE.propRank_lt_of_castSucc hbp.1, ?_⟩
+  simpa only [μl, liftMatching_symm_castSucc, hE.recvRank_castSucc] using hbp.2
 
 /-- **Gale–Sotomayor comparative statics (receiver side, proposer-DA)** ([GaleSotomayor1985]):
 adding a receiver makes every original receiver weakly worse off under `deferredAcceptance`. -/
@@ -593,17 +519,11 @@ theorem deferredAcceptance_recvRank_le {I : IncompleteInstance m n}
         I'.propRank p ((I.deferredAcceptance p).map Fin.castSucc) :=
       hD'p ▸ hE.deferredAcceptance_propRank_le p
     have hplt : I'.propRank p (some r.castSucc) <
-        I'.propRank p ((I.deferredAcceptance p).map Fin.castSucc) := by
-      refine lt_of_le_of_ne hple fun heq => ?_
-      have heq_opt := I'.eq_of_propRank_eq hacc' heq
-      cases hDp : I.deferredAcceptance p with
-      | none => simp [hDp] at heq_opt
-      | some r₀ =>
-        simp only [hDp, Option.map_some, Option.some.injEq] at heq_opt
-        have hrr : r₀ = r := Fin.castSucc_injective _ heq_opt
-        have hsym := I.deferredAcceptance.eq_some_iff.2 (hrr ▸ hDp)
-        rw [hsym] at hlt
-        exact lt_irrefl _ hlt
+        I'.propRank p ((I.deferredAcceptance p).map Fin.castSucc) :=
+      lt_of_le_of_ne hple fun heq => by
+        obtain ⟨r₀, hDp, hr₀⟩ := Option.map_eq_some_iff.1 (I'.eq_of_propRank_eq hacc' heq)
+        have hsym := I.deferredAcceptance.eq_some_iff.2 (Fin.castSucc_injective _ hr₀ ▸ hDp)
+        exact lt_irrefl _ (hsym ▸ hlt)
     exact I.isStable_deferredAcceptance.2 p r ⟨hE.propRank_lt_of_castSucc hplt, hlt⟩
 
 /-- **Gale–Sotomayor comparative statics (receiver side, receiver-DA)** ([GaleSotomayor1985]):
@@ -752,43 +672,27 @@ private theorem ne_none_of_two_by_two_cycle {m n : ℕ} {K : IncompleteInstance 
   intro h0
   cases hsym0 : μ.symm r0 with
   | none =>
-    refine hK.2 p0 r0 ⟨?_, ?_⟩
-    · rw [h0, K.propRank_some_lt_none_iff]
-      exact hp0
-    · rw [hsym0, K.recvRank_some_lt_none_iff, hr0]
-      simp
+    exact hK.2 p0 r0 ⟨h0 ▸ (K.propRank_some_lt_none_iff p0 r0).2 hp0,
+      hsym0 ▸ (K.recvRank_some_lt_none_iff r0 p0).2 (by simp [hr0])⟩
   | some q =>
-    have hq_mem : q = p1 ∨ q = p0 := by
-      have hacc := (hK.1 q r0 (μ.eq_some_iff.1 hsym0)).2
-      simpa [hr0] using hacc
-    rcases hq_mem with hqp1 | hqp0
+    rcases (by simpa [hr0] using (hK.1 q r0 (μ.eq_some_iff.1 hsym0)).2 : q = p1 ∨ q = p0) with
+      hqp1 | hqp0
     · subst q
       have hp1_eq : μ p1 = some r0 := μ.eq_some_iff.1 hsym0
       have hsym1 : μ.symm r1 = none := by
         cases hr1_eq : μ.symm r1 with
         | none => rfl
         | some x =>
-          have hx_mem : x = p0 ∨ x = p1 := by
-            have hacc := (hK.1 x r1 (μ.eq_some_iff.1 hr1_eq)).2
-            simpa [hr1] using hacc
-          rcases hx_mem with hxp0 | hxp1
+          rcases (by simpa [hr1] using (hK.1 x r1 (μ.eq_some_iff.1 hr1_eq)).2 :
+              x = p0 ∨ x = p1) with hxp0 | hxp1
           · subst x
-            have hx0 := μ.eq_some_iff.1 hr1_eq
-            rw [h0] at hx0
-            exact absurd hx0 (by simp)
+            exact absurd (h0 ▸ μ.eq_some_iff.1 hr1_eq) (by simp)
           · subst x
-            have hx1 := μ.eq_some_iff.1 hr1_eq
-            rw [hp1_eq] at hx1
-            exact absurd (Option.some_injective _ hx1) hrne
-      refine hK.2 p1 r1 ⟨?_, ?_⟩
-      · rw [hp1_eq]
-        simp [IncompleteInstance.propRank, hp1, hrne.symm]
-      · rw [hsym1, K.recvRank_some_lt_none_iff, hr1]
-        simp
+            exact absurd (Option.some_injective _ (hp1_eq ▸ μ.eq_some_iff.1 hr1_eq)) hrne
+      exact hK.2 p1 r1 ⟨by simp [IncompleteInstance.propRank, hp1_eq, hp1, hrne.symm],
+        hsym1 ▸ (K.recvRank_some_lt_none_iff r1 p1).2 (by simp [hr1])⟩
     · subst q
-      have hp0_eq := μ.eq_some_iff.1 hsym0
-      rw [h0] at hp0_eq
-      exact absurd hp0_eq (by simp)
+      exact absurd (h0 ▸ μ.eq_some_iff.1 hsym0) (by simp)
 
 /-- With incomplete preference lists (where truncation is permitted), **Roth's impossibility**
 holds already at **`m ≥ 2, n ≥ 2`** (compare with `n ≥ 3` for complete lists in
@@ -878,60 +782,49 @@ theorem isReceiverStrategyProof_deferredAcceptance_of_le_one {m n : ℕ} (h : m 
       | some p => exact p.elim0
     · cases h1 : I.deferredAcceptance.symm r with
       | some p =>
-        have hp : p = 0 := Subsingleton.elim p 0
-        subst hp
-        have hmem : (0 : Fin 1) ∈ I.recvPref r :=
-          (I.isIndividuallyRational_deferredAcceptance 0 r
-            (I.deferredAcceptance.eq_some_iff.1 h1)).2
+        obtain rfl : p = 0 := Subsingleton.elim p 0
         cases h2 : (I.updateRecvPref r l).deferredAcceptance.symm r with
-        | none => exact (I.recvRank_some_lt_none_iff r 0).2 hmem |>.le
+        | none =>
+          exact ((I.recvRank_some_lt_none_iff r 0).2
+            (I.isIndividuallyRational_deferredAcceptance 0 r
+              (I.deferredAcceptance.eq_some_iff.1 h1)).2).le
         | some q =>
-          have : q = 0 := Subsingleton.elim q 0
-          subst this; exact le_rfl
+          obtain rfl : q = 0 := Subsingleton.elim q 0
+          exact le_rfl
       | none =>
         cases h2 : (I.updateRecvPref r l).deferredAcceptance.symm r with
         | none => exact le_rfl
         | some q =>
-          have hq : q = 0 := Subsingleton.elim q 0
-          subst hq
+          obtain rfl : q = 0 := Subsingleton.elim q 0
           by_cases hmem : (0 : Fin 1) ∈ I.recvPref r
           · exfalso
             have h0r : (I.updateRecvPref r l).deferredAcceptance 0 = some r :=
               (I.updateRecvPref r l).deferredAcceptance.eq_some_iff.1 h2
             have hr_mem : r ∈ I.propPref 0 :=
-              (I.updateRecvPref r l).isIndividuallyRational_deferredAcceptance 0 r h0r |>.1
-            have hne_none : I.propRank 0 (some r) < I.propRank 0 none :=
-              (I.propRank_some_lt_none_iff 0 r).2 hr_mem
+              ((I.updateRecvPref r l).isIndividuallyRational_deferredAcceptance 0 r h0r).1
             cases h0 : I.deferredAcceptance 0 with
             | none =>
               exact I.isStable_deferredAcceptance.2 0 r
-                ⟨h0 ▸ hne_none, h1 ▸ (I.recvRank_some_lt_none_iff r 0).2 hmem⟩
+                ⟨h0 ▸ (I.propRank_some_lt_none_iff 0 r).2 hr_mem,
+                  h1 ▸ (I.recvRank_some_lt_none_iff r 0).2 hmem⟩
             | some r' =>
-              have hne : r' ≠ r := by
-                intro e; subst e
-                have := I.deferredAcceptance.eq_some_iff.2 h0
-                rw [h1] at this; exact absurd this (by simp)
-              have hlt_r' : I.propRank 0 (some r') < I.propRank 0 (some r) := by
-                by_contra hge
-                push Not at hge
-                have hgt : I.propRank 0 (some r) < I.propRank 0 (some r') :=
-                  lt_of_le_of_ne hge fun e =>
-                    hne (Option.some_injective _ (I.eq_of_propRank_eq hr_mem e))
-                exact I.isStable_deferredAcceptance.2 0 r
-                  ⟨h0 ▸ hgt, h1 ▸ (I.recvRank_some_lt_none_iff r 0).2 hmem⟩
+              have hne : r' ≠ r := fun e =>
+                absurd (h1 ▸ I.deferredAcceptance.eq_some_iff.2 (e ▸ h0)) (by simp)
+              have hlt_r' : I.propRank 0 (some r') < I.propRank 0 (some r) :=
+                not_le.1 fun hge => I.isStable_deferredAcceptance.2 0 r
+                  ⟨h0 ▸ lt_of_le_of_ne hge fun e =>
+                    hne (Option.some_injective _ (I.eq_of_propRank_eq hr_mem e)),
+                    h1 ▸ (I.recvRank_some_lt_none_iff r 0).2 hmem⟩
               have hmem_r' : (0 : Fin 1) ∈ (I.updateRecvPref r l).recvPref r' := by
-                change (0 : Fin 1) ∈ Function.update I.recvPref r l r'
-                rw [Function.update_of_ne hne]
-                exact (I.isIndividuallyRational_deferredAcceptance 0 r' h0).2
+                simpa only [IncompleteInstance.updateRecvPref, Function.update_of_ne hne] using
+                  (I.isIndividuallyRational_deferredAcceptance 0 r' h0).2
               have hr'_none : (I.updateRecvPref r l).deferredAcceptance.symm r' = none := by
                 cases hx : (I.updateRecvPref r l).deferredAcceptance.symm r' with
                 | none => rfl
                 | some x =>
-                  have hx0 : x = 0 := Subsingleton.elim x 0
-                  subst hx0
-                  have := (I.updateRecvPref r l).deferredAcceptance.eq_some_iff.1 hx
-                  rw [h0r] at this
-                  exact absurd (Option.some_injective _ this) hne.symm
+                  obtain rfl : x = 0 := Subsingleton.elim x 0
+                  exact absurd (Option.some_injective _
+                    (h0r ▸ (I.updateRecvPref r l).deferredAcceptance.eq_some_iff.1 hx)) hne.symm
               exact (I.updateRecvPref r l).isStable_deferredAcceptance.2 0 r'
                 ⟨h0r ▸ hlt_r',
                   hr'_none ▸ ((I.updateRecvPref r l).recvRank_some_lt_none_iff r' 0).2 hmem_r'⟩

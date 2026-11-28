@@ -66,11 +66,9 @@ theorem two_ne_of_maj3_ne {a b c y : α} (h : maj3 a b c ≠ y) :
     (a ≠ y ∧ b ≠ y) ∨ (a ≠ y ∧ c ≠ y) ∨ (b ≠ y ∧ c ≠ y) := by
   unfold maj3 at h
   split_ifs at h with hab
-  · subst hab
-    exact Or.inl ⟨h, h⟩
+  · exact Or.inl ⟨h, hab ▸ h⟩
   · by_cases ha : a = y
-    · subst ha
-      exact Or.inr (Or.inr ⟨Ne.symm hab, h⟩)
+    · exact Or.inr (Or.inr ⟨ha ▸ Ne.symm hab, h⟩)
     · exact Or.inr (Or.inl ⟨ha, h⟩)
 
 /-- The splitting of `3 ^ (L + 1)` leaves into three blocks of `3 ^ L`. -/
@@ -94,25 +92,19 @@ theorem card_majTree_ne_le {Ω : Type*} [Fintype Ω] (val : Ω → α) (y : α)
   classical
   induction L with
   | zero =>
-    have : #{V : Fin (3 ^ 0) → Ω | majTree 0 (val ∘ V) ≠ y} = #{ω | val ω ≠ y} := by
-      refine card_nbij' (fun V => V ⟨0, by simp⟩) (fun ω _ => ω) (fun V hV => ?_)
-        (fun ω hω => ?_) (fun V _ => ?_) (fun ω _ => rfl)
-      · rw [mem_coe, mem_filter] at hV ⊢
-        exact ⟨mem_univ _, hV.2⟩
-      · rw [mem_coe, mem_filter] at hω ⊢
-        exact ⟨mem_univ _, hω.2⟩
-      · funext k
-        have hk : k = ⟨0, by simp⟩ := Fin.ext (Nat.lt_one_iff.1 (k.isLt.trans_eq (pow_zero 3)))
-        rw [hk]
+    have : #{V : Fin (3 ^ 0) → Ω | majTree 0 (val ∘ V) ≠ y} = #{ω | val ω ≠ y} :=
+      card_nbij' (fun V => V ⟨0, by simp⟩) (fun ω _ => ω)
+        (fun V hV => mem_coe.2 (mem_filter.2 ⟨mem_univ _, (mem_filter.1 (mem_coe.1 hV)).2⟩))
+        (fun ω hω => mem_coe.2 (mem_filter.2 ⟨mem_univ _, (mem_filter.1 (mem_coe.1 hω)).2⟩))
+        (fun V _ => funext fun k => congrArg V (Fin.ext (Nat.lt_one_iff.1 k.2).symm))
+        (fun _ _ => rfl)
     rw [this]
     simpa using hρ
   | succ L ih =>
-    set N := (#{V : Fin (3 ^ L) → Ω | majTree L (val ∘ V) ≠ y} : ℕ)
     set B : Finset (Fin (3 ^ L) → Ω) := {V | majTree L (val ∘ V) ≠ y}
     -- the three blocks of a tuple
     let e : (Fin (3 ^ (L + 1)) → Ω) ≃ (Fin 3 → Fin (3 ^ L) → Ω) :=
       (Equiv.arrowCongr (tripleEquiv L).symm (Equiv.refl Ω)).trans (Equiv.curry _ _ _)
-    have he : ∀ V j k, e V j k = V (tripleEquiv L (j, k)) := fun V j k => rfl
     have hcard : #{V : Fin (3 ^ (L + 1)) → Ω | majTree (L + 1) (val ∘ V) ≠ y} ≤
         #(Fintype.piFinset ![B, B, univ]) + #(Fintype.piFinset ![B, univ, B]) +
           #(Fintype.piFinset ![univ, B, B]) := by
@@ -121,24 +113,21 @@ theorem card_majTree_ne_le {Ω : Type*} [Fintype Ω] (val : Ω → α) (y : α)
               Fintype.piFinset ![univ, B, B]) := by
             refine card_le_card_of_injOn e (fun V hV => ?_) (e.injective.injOn)
             rw [mem_coe, mem_filter] at hV
-            have h := two_ne_of_maj3_ne hV.2
             rw [mem_coe]
-            rcases h with ⟨h₀, h₁⟩ | ⟨h₀, h₂⟩ | ⟨h₁, h₂⟩
-            · refine mem_union_left _ (mem_union_left _ (Fintype.mem_piFinset.2 fun j => ?_))
+            have hB_mem {W} (hW : majTree L (val ∘ W) ≠ y) : W ∈ B :=
+              mem_filter.2 ⟨mem_univ _, hW⟩
+            have hpi {X Y Z : Finset (Fin (3 ^ L) → Ω)}
+                (h0 : e V 0 ∈ X) (h1 : e V 1 ∈ Y) (h2 : e V 2 ∈ Z) :
+                e V ∈ Fintype.piFinset ![X, Y, Z] := by
+              refine Fintype.mem_piFinset.2 fun j => ?_
               fin_cases j
-              · exact mem_filter.2 ⟨mem_univ _, h₀⟩
-              · exact mem_filter.2 ⟨mem_univ _, h₁⟩
-              · exact mem_univ _
-            · refine mem_union_left _ (mem_union_right _ (Fintype.mem_piFinset.2 fun j => ?_))
-              fin_cases j
-              · exact mem_filter.2 ⟨mem_univ _, h₀⟩
-              · exact mem_univ _
-              · exact mem_filter.2 ⟨mem_univ _, h₂⟩
-            · refine mem_union_right _ (Fintype.mem_piFinset.2 fun j => ?_)
-              fin_cases j
-              · exact mem_univ _
-              · exact mem_filter.2 ⟨mem_univ _, h₁⟩
-              · exact mem_filter.2 ⟨mem_univ _, h₂⟩
+              · exact h0
+              · exact h1
+              · exact h2
+            rcases two_ne_of_maj3_ne hV.2 with ⟨h₀, h₁⟩ | ⟨h₀, h₂⟩ | ⟨h₁, h₂⟩
+            · exact mem_union_left _ (mem_union_left _ (hpi (hB_mem h₀) (hB_mem h₁) (mem_univ _)))
+            · exact mem_union_left _ (mem_union_right _ (hpi (hB_mem h₀) (mem_univ _) (hB_mem h₂)))
+            · exact mem_union_right _ (hpi (mem_univ _) (hB_mem h₁) (hB_mem h₂))
         _ ≤ _ := (card_union_le _ _).trans (Nat.add_le_add_right (card_union_le _ _) _)
     have hB : (#B : ℝ) ≤ (3 * ρ) ^ (2 ^ L) / 3 * Fintype.card Ω ^ (3 ^ L) := ih
     simp only [Fintype.card_piFinset, Fin.prod_univ_three, Matrix.cons_val_zero,
@@ -174,19 +163,13 @@ theorem exists_forall_majTree_eq {X Ω : Type*} [Fintype Ω] [Nonempty Ω]
     (h3 : 3 * ρ ≤ 1 / 2) {L : ℕ} (hS : #S ≤ 2 ^ (2 ^ L)) :
     ∃ V : Fin (3 ^ L) → Ω, ∀ x ∈ S, majTree L (val x ∘ V) = target x := by
   classical
+  rcases S.eq_empty_or_nonempty with rfl | ⟨x₀, hx₀⟩
+  · exact ⟨fun _ => Classical.arbitrary Ω, by simp⟩
   by_contra hcon
   push Not at hcon
   have hρ0 : 0 ≤ ρ := by
-    by_cases hS0 : S.Nonempty
-    · obtain ⟨x, hx⟩ := hS0
-      have := hρ x hx
-      have hpos : (0 : ℝ) < Fintype.card Ω := by exact_mod_cast Fintype.card_pos
-      nlinarith [show (0 : ℝ) ≤ #{ω | val x ω ≠ target x} from by positivity]
-    · simp only [not_nonempty_iff_eq_empty] at hS0
-      subst hS0
-      obtain ⟨V⟩ : Nonempty (Fin (3 ^ L) → Ω) := inferInstance
-      obtain ⟨x, hx, -⟩ := hcon V
-      exact absurd hx (notMem_empty x)
+    have hpos : (0 : ℝ) < Fintype.card Ω := by exact_mod_cast Fintype.card_pos
+    nlinarith [hρ x₀ hx₀, show (0 : ℝ) ≤ #{ω | val x₀ ω ≠ target x₀} by positivity]
   have hcover : (univ : Finset (Fin (3 ^ L) → Ω)) ⊆
       S.biUnion fun x => {V | majTree L (val x ∘ V) ≠ target x} := by
     intro V _

@@ -35,15 +35,10 @@ required entropy slack. This includes the floor rounding explicitly. -/
 theorem exists_dangerous_parity_threshold {L A : ℝ} (hL : 1 ≤ L) (hA : 2 * L + 4 ≤ A) :
     ∃ t : ℕ, 1 ≤ t ∧ A ≤ 2 * L * t ∧ (t : ℝ) * L ≤ A - 2 := by
   have hL0 : 0 < L := by linarith
-  have hq : 0 ≤ (A - 2) / L := div_nonneg (by linarith) hL0.le
-  refine ⟨⌊(A - 2) / L⌋₊, Nat.le_floor ?_, ?_, ?_⟩
-  · apply (le_div_iff₀ hL0).mpr
-    norm_num
-    linarith
-  · have h := Nat.lt_floor_add_one ((A - 2) / L)
-    have h' := (div_lt_iff₀ hL0).mp h
-    nlinarith
-  · exact (le_div_iff₀ hL0).mp (Nat.floor_le hq)
+  refine ⟨⌊(A - 2) / L⌋₊, Nat.le_floor ((le_div_iff₀ hL0).mpr (by push_cast; linarith)), ?_,
+    (le_div_iff₀ hL0).mp (Nat.floor_le (div_nonneg (by linarith) hL0.le))⟩
+  have h' := (div_lt_iff₀ hL0).mp (Nat.lt_floor_add_one ((A - 2) / L))
+  nlinarith
 
 /-- A large slice-probability ratio admits an integer threshold that both pays the low-order
 count and makes all larger parities eligible. The formulation avoids rounding a real entropy. -/
@@ -92,23 +87,18 @@ theorem dangerous_density_margin {L b ε η γ δX δY : ℝ}
     (hdensity : 2 - η / 4 + γ + 16 * L / (ε * b) ≤ δX + δY) :
     γ * b + 5 * L + 5 + 2 * L * (b + L) / (ε * b) ≤
       (δX + δY - 2 + η / 4) * b - 1 / 2 := by
-  have hL0 : 0 ≤ L := by linarith
   have heb : 0 < ε * b := mul_pos hε hb
   have hLb : L ≤ b := by nlinarith [mul_le_mul_of_nonneg_right hε1 hb.le]
-  have hfrac : 2 * L * (b + L) / (ε * b) ≤ 4 * L / ε := by
-    apply (div_le_iff₀ heb).mpr
+  have hfrac : 2 * L * (b + L) / (ε * b) ≤ 4 * (L / ε) := by
+    rw [← mul_div_assoc, div_le_iff₀ heb]
     have heq : 4 * L / ε * (ε * b) = 4 * L * b := by field_simp
     rw [heq]
     nlinarith
-  have hLε : L ≤ L / ε := by
-    apply (le_div_iff₀ hε).mpr
-    exact mul_le_of_le_one_right hL0 hε1
+  have hLε : L ≤ L / ε := (le_div_iff₀ hε).mpr (mul_le_of_le_one_right (by linarith) hε1)
   have hmul := mul_le_mul_of_nonneg_right hdensity hb.le
-  have heq : (2 - η / 4 + γ + 16 * L / (ε * b)) * b =
-      (2 - η / 4 + γ) * b + 16 * (L / ε) := by field_simp
+  have heq : (2 - η / 4 + γ + 16 * L / (ε * b)) * b = (2 - η / 4 + γ) * b + 16 * (L / ε) := by
+    field_simp
   rw [heq] at hmul
-  have hfrac' : 2 * L * (b + L) / (ε * b) ≤ 4 * (L / ε) := by
-    simpa only [mul_div_assoc] using hfrac
-  nlinarith [hfrac']
+  nlinarith
 
 end Cslib.Communication.Lifting

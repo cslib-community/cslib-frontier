@@ -149,7 +149,7 @@ private theorem exists_spanning_columns (R : Matrix (Fin k) (Fin k) (ZMod 2))
   refine ⟨Finset.univ.image fun x => (a x : Fin k), ?_, ?_, ?_⟩
   · intro j hj
     obtain ⟨x, -, rfl⟩ := mem_image.mp hj
-    exact (a x).property
+    exact (a x).2
   · rw [show (fun x => (a x : Fin k)) = Subtype.val ∘ a from rfl,
       card_image_of_injective _ (Subtype.val_injective.comp ha), card_univ,
       ← finrank_span_eq_card hli, hspan, ← blockRank_transpose]
@@ -281,27 +281,15 @@ private theorem exists_blockRank_ge_of_spanned_bound {α : Type*} [Fintype α] {
           rw [sum_const, smul_eq_mul, card_product, card_univ, Fintype.card_finset,
             Fintype.card_fin]
   have hlt : #bad < Fintype.card α := by
-    rw [hα]
-    by_contra hge
-    push Not at hge
-    have h₁ : 2 ^ U * 2 ^ ((t + 1) ^ 2) ≤ 2 ^ k * 2 ^ k * (2 ^ k * 2 ^ U) :=
-      (Nat.mul_le_mul_right _ hge).trans hbad
-    have h₂ : 2 ^ k * 2 ^ k * (2 ^ k * 2 ^ U) < 2 ^ U * 2 ^ ((t + 1) ^ 2) := by
-      rw [← pow_add, ← pow_add, ← pow_add, ← pow_add]
-      exact Nat.pow_lt_pow_right (by norm_num) (by omega)
-    omega
+    refine Nat.lt_of_mul_lt_mul_right (a := 2 ^ ((t + 1) ^ 2)) (hbad.trans_lt ?_)
+    rw [hα, ← pow_add, ← pow_add, ← pow_add, ← pow_add]
+    exact Nat.pow_lt_pow_right (by norm_num) (by omega)
   obtain ⟨a, -, ha⟩ := exists_mem_notMem_of_card_lt_card hlt
-  refine ⟨a, fun S T hP hST => ?_⟩
-  by_contra hcon
-  push Not at hcon
-  apply ha
-  refine mem_biUnion.mpr ⟨(S.toFinset, T.toFinset), mem_product.mpr ⟨mem_univ _, mem_univ _⟩, ?_⟩
-  refine mem_filter.mpr ⟨mem_univ _, hP, ?_, ?_⟩
-  · rw [← Set.ncard_eq_toFinset_card', ← Set.ncard_eq_toFinset_card']
-    exact hST
-  · simp only [Set.coe_toFinset]
-    rw [← Set.ncard_eq_toFinset_card']
-    exact hcon
+  refine ⟨a, fun S T hP hST => not_lt.mp fun hcon => ha ?_⟩
+  refine mem_biUnion.mpr ⟨(S.toFinset, T.toFinset), mem_product.mpr ⟨mem_univ _, mem_univ _⟩,
+    mem_filter.mpr ⟨mem_univ _, hP, ?_, ?_⟩⟩
+  · simpa only [Set.ncard_eq_toFinset_card'] using hST
+  · simpa only [Set.coe_toFinset, Set.ncard_eq_toFinset_card'] using hcon
 
 private theorem three_mul_lt_sq_two_mul_sqrt (k : ℕ) :
     3 * k < (2 * Nat.sqrt k + 1 + 1) ^ 2 := by
@@ -311,67 +299,64 @@ private theorem three_mul_lt_sq_two_mul_sqrt (k : ℕ) :
   rw [Nat.succ_eq_add_one] at h
   omega
 
-/-- The complement of `S ×ˢ D` in `Fin k × Fin k` has `k * k - #S * #D` elements. -/
-private theorem card_compl_product_add (S D : Finset (Fin k)) :
-    #((S ×ˢ D)ᶜ : Finset (Fin k × Fin k)) + #S * #D = k * k := by
-  rw [card_compl, card_product, Fintype.card_prod, Fintype.card_fin]
-  have : #S * #D ≤ k * k :=
-    Nat.mul_le_mul (card_le_univ S |>.trans (by simp)) (card_le_univ D |>.trans (by simp))
-  omega
-
-/-- **Counting spanned matrices.** A matrix in `spannedFamily id S T T'` is determined by the
-coefficients of its columns in `T \ T'` and by its entries outside `S × (T \ T')`. -/
-private theorem card_spannedBy_mul_le (S T T' : Finset (Fin k)) :
-    #(spannedFamily (id : Matrix (Fin k) (Fin k) (ZMod 2) → _) S T T') *
-        2 ^ (#S * #(T \ T')) ≤
-      2 ^ (#(T \ T') * #T') * 2 ^ (k * k) := by
+/-- **Counting spanned families.** Let the entries of `mat u` on `S × T` be distinct coordinates
+`u (e p)` of `u`. A parameter in `spannedFamily mat S T T'` is determined by the coefficients of
+its columns in `T \ T'` and by its coordinates outside `e (S × (T \ T'))`. -/
+private theorem card_spannedFamily_mul_le {ι : Type*} [Fintype ι] [DecidableEq ι]
+    {mat : (ι → ZMod 2) → Matrix (Fin k) (Fin k) (ZMod 2)} {S T T' : Finset (Fin k)}
+    (hT'T : T' ⊆ T) (e : S × T → ι) (he : Function.Injective e)
+    (hmat : ∀ u (p : S × T), mat u p.1 p.2 = u (e p)) :
+    #(spannedFamily mat S T T') * 2 ^ (#S * #(T \ T')) ≤
+      2 ^ (#(T \ T') * #T') * 2 ^ Fintype.card ι := by
   classical
   set D := T \ T'
-  set Z : Finset (Fin k × Fin k) := (S ×ˢ D)ᶜ
-  let Φ : Matrix (Fin k) (Fin k) (ZMod 2) → (D → T' → ZMod 2) × (Z → ZMod 2) :=
-    fun R => (fun j => spanCoeff R S T' j, fun p => R p.val.1 p.val.2)
-  have hinj : Set.InjOn Φ
-      (spannedFamily (id : Matrix (Fin k) (Fin k) (ZMod 2) → _) S T T') := by
-    intro R hR R' hR' h
-    simp only [Φ, Prod.mk.injEq] at h
-    obtain ⟨hc, hz⟩ := h
-    have hR := (mem_filter.mp hR).2
-    have hR' := (mem_filter.mp hR').2
-    funext i j
-    by_cases hij : (i, j) ∈ Z
-    · exact congrFun hz ⟨(i, j), hij⟩
-    · have hij' : i ∈ S ∧ j ∈ D := by simpa [Z] using hij
-      have hjT : j ∈ T := (mem_sdiff.mp hij'.2).1
-      have e1 := congrFun (spanCoeff_spec (hR j hjT)) ⟨i, hij'.1⟩
-      have e2 := congrFun (spanCoeff_spec (hR' j hjT)) ⟨i, hij'.1⟩
-      have hcj : spanCoeff R S T' j = spanCoeff R' S T' j := congrFun hc ⟨j, hij'.2⟩
-      simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, colVec, id_eq] at e1 e2
-      rw [← e1, ← e2, hcj]
-      refine Finset.sum_congr rfl fun l _ => ?_
-      congr 1
-      have hlZ : (i, (l : Fin k)) ∈ Z := by
-        simp only [Z, Finset.mem_compl, mem_product, not_and]
-        intro _ hl
-        exact (mem_sdiff.mp hl).2 l.property
-      exact congrFun hz ⟨(i, l), hlZ⟩
+  have hDT (j : D) : j.1 ∈ T := (mem_sdiff.mp j.2).1
+  let W : Finset ι := univ.image fun p : S × D => e (p.1, ⟨p.2, hDT p.2⟩)
+  have hcardW : #W = #S * #D := by
+    refine (card_image_of_injective _ fun p q h => ?_).trans (by simp)
+    obtain ⟨h₁, h₂⟩ := Prod.mk.inj (he h)
+    exact Prod.ext h₁ (Subtype.ext (Subtype.mk.inj h₂))
+  let Φ : (ι → ZMod 2) → (D → T' → ZMod 2) × (↥Wᶜ → ZMod 2) :=
+    fun u => (fun j => spanCoeff (mat u) S T' j, fun q => u q)
+  have hinj : Set.InjOn Φ (spannedFamily mat S T T') := by
+    intro u₁ h₁ u₂ h₂ h
+    obtain ⟨hc, hz⟩ := Prod.mk.inj h
+    funext q
+    by_cases hq : q ∈ Wᶜ
+    · exact congrFun hz ⟨q, hq⟩
+    simp only [mem_compl, not_not, W, mem_image, mem_univ, true_and] at hq
+    obtain ⟨⟨i, j⟩, rfl⟩ := hq
+    have e₁ := congrFun (spanCoeff_spec ((mem_filter.mp h₁).2 j (hDT j))) i
+    have e₂ := congrFun (spanCoeff_spec ((mem_filter.mp h₂).2 j (hDT j))) i
+    simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, colVec] at e₁ e₂
+    rw [← hmat u₁ (i, ⟨j, hDT j⟩), ← hmat u₂ (i, ⟨j, hDT j⟩), ← e₁, ← e₂, congrFun hc j]
+    refine Finset.sum_congr rfl fun l _ => congrArg _ ?_
+    have hl : e (i, ⟨l, hT'T l.2⟩) ∈ Wᶜ := by
+      simp only [W, mem_compl, mem_image, mem_univ, true_and, not_exists]
+      intro p hp
+      have hpl : p.2.1 = l.1 := congrArg (fun x => x.2.1) (he hp)
+      exact (mem_sdiff.mp p.2.2).2 (hpl ▸ l.2)
+    rw [hmat u₁ (i, ⟨l, _⟩), hmat u₂ (i, ⟨l, _⟩)]
+    exact congrFun hz ⟨_, hl⟩
   have hcard := card_le_card_of_injOn Φ (fun _ _ => mem_univ _) hinj
   rw [card_univ, Fintype.card_prod, Fintype.card_fun, Fintype.card_fun, Fintype.card_fun,
     ZMod.card, Fintype.card_coe, Fintype.card_coe, Fintype.card_coe] at hcard
-  calc #(spannedFamily (id : Matrix (Fin k) (Fin k) (ZMod 2) → _) S T T') * 2 ^ (#S * #D)
-      ≤ (2 ^ #T') ^ #D * 2 ^ #Z * 2 ^ (#S * #D) := Nat.mul_le_mul_right _ hcard
-    _ = 2 ^ (#D * #T') * 2 ^ (k * k) := by
-        rw [mul_assoc, ← pow_add, card_compl_product_add S D, ← pow_mul, mul_comm #T']
+  calc #(spannedFamily mat S T T') * 2 ^ (#S * #D)
+      ≤ (2 ^ #T') ^ #D * 2 ^ #Wᶜ * 2 ^ (#S * #D) := Nat.mul_le_mul_right _ hcard
+    _ = 2 ^ (#D * #T') * 2 ^ Fintype.card ι := by
+        rw [mul_assoc, ← pow_add, ← hcardW, card_compl_add_card, ← pow_mul, mul_comm #T']
 
 /-- **Robust matrices exist, by counting.** If `3 k < (t + 1)²`, some `k × k` matrix over `𝔽₂` is
 submatrix-robust with deficiency `t`. -/
 theorem exists_submatrixRobust_of_lt {t : ℕ} (ht : 3 * k < (t + 1) ^ 2) :
     ∃ R : Matrix (Fin k) (Fin k) (ZMod 2), R.SubmatrixRobust t := by
-  have hcard : Fintype.card (Matrix (Fin k) (Fin k) (ZMod 2)) = 2 ^ (k * k) := by
-    rw [Fintype.card_congr Matrix.of.symm, Fintype.card_fun, Fintype.card_fun, ZMod.card,
-      Fintype.card_fin, ← pow_mul]
-  obtain ⟨R, hR⟩ := exists_blockRank_ge_of_spanned_bound hcard id (fun _ _ => True)
-    (fun _ _ => card_spannedBy_mul_le _ _ _) ht
-  exact ⟨R, fun S T hST => hR S T trivial hST⟩
+  classical
+  obtain ⟨u, hu⟩ := exists_blockRank_ge_of_spanned_bound (by rw [Fintype.card_fun, ZMod.card])
+    (fun u : Fin k × Fin k → ZMod 2 => Matrix.of fun i j => u (i, j)) (fun _ _ => True)
+    (fun _ hT'T => card_spannedFamily_mul_le hT'T (fun p => (p.1.1, p.2.1))
+      (fun _ _ h => Prod.ext (Subtype.ext (congrArg Prod.fst h))
+        (Subtype.ext (congrArg Prod.snd h))) fun _ _ => rfl) ht
+  exact ⟨_, fun S T hST => hu S T trivial hST⟩
 
 /-- **Robust matrices exist.** For every `k`, some `k × k` matrix over `𝔽₂` has every square block
 with `j` rows of rank at least `j - (2 ⌊√k⌋ + 1)`. -/
@@ -400,106 +385,26 @@ private def ordPair {i j : Fin k} (hne : i ≠ j) : UpperIdx k :=
 
 private theorem polarUpper_apply_of_ne (u : UpperIdx k → ZMod 2) {i j : Fin k}
     (hne : i ≠ j) : polarUpper u i j = u (ordPair hne) := by
-  simp only [polarUpper, toUpper, Matrix.add_apply, Matrix.transpose_apply, Matrix.of_apply]
-  by_cases hij : i < j
-  · have hnji : ¬ j < i := lt_asymm hij
-    simp only [hij, hnji, ↓reduceDIte, add_zero]
-    congr 1
-    exact Subtype.ext (Prod.ext (min_eq_left hij.le).symm (max_eq_right hij.le).symm)
-  · have hji : j < i := lt_of_le_of_ne (not_lt.mp hij) hne.symm
-    simp only [hij, hji, ↓reduceDIte, zero_add]
-    congr 1
-    exact Subtype.ext (Prod.ext (min_eq_right hji.le).symm (max_eq_left hji.le).symm)
+  rcases hne.lt_or_gt with h | h <;>
+    simp [polarUpper, toUpper, ordPair, Function.swap, h, lt_asymm h, h.le]
 
 private theorem ordPair_eq_iff {i₁ j₁ i₂ j₂ : Fin k} (h₁ : i₁ ≠ j₁) (h₂ : i₂ ≠ j₂)
     (heq : ordPair h₁ = ordPair h₂) :
     (i₁ = i₂ ∧ j₁ = j₂) ∨ (i₁ = j₂ ∧ j₁ = i₂) := by
-  have hval : (min i₁ j₁, max i₁ j₁) = (min i₂ j₂, max i₂ j₂) := congrArg Subtype.val heq
-  obtain ⟨hmin, hmax⟩ := Prod.mk.inj hval
-  rcases le_total i₁ j₁ with le₁ | le₁ <;> rcases le_total i₂ j₂ with le₂ | le₂
-  · rw [min_eq_left le₁, min_eq_left le₂] at hmin
-    rw [max_eq_right le₁, max_eq_right le₂] at hmax
-    exact Or.inl ⟨hmin, hmax⟩
-  · rw [min_eq_left le₁, min_eq_right le₂] at hmin
-    rw [max_eq_right le₁, max_eq_left le₂] at hmax
-    exact Or.inr ⟨hmin, hmax⟩
-  · rw [min_eq_right le₁, min_eq_left le₂] at hmin
-    rw [max_eq_left le₁, max_eq_right le₂] at hmax
-    exact Or.inr ⟨hmax, hmin⟩
-  · rw [min_eq_right le₁, min_eq_right le₂] at hmin
-    rw [max_eq_left le₁, max_eq_left le₂] at hmax
-    exact Or.inl ⟨hmax, hmin⟩
+  simp only [ordPair, Subtype.mk.injEq, Prod.mk.injEq, Fin.ext_iff, Fin.val_min,
+    Fin.val_max] at heq ⊢
+  omega
 
 private theorem card_spannedUpper_mul_le {S T T' : Finset (Fin k)}
     (hST : Disjoint S T) (hT'T : T' ⊆ T) :
     #(spannedFamily (polarUpper (k := k)) S T T') * 2 ^ (#S * #(T \ T')) ≤
       2 ^ (#(T \ T') * #T') * 2 ^ Fintype.card (UpperIdx k) := by
-  classical
-  set D := T \ T'
-  have hSD : Disjoint S D := hST.mono_right sdiff_subset
-  let toW : {p : Fin k × Fin k // p ∈ S ×ˢ D} → UpperIdx k
-    | ⟨⟨i, j⟩, hp⟩ =>
-      ordPair (Finset.disjoint_coe.mpr hSD |>.ne_of_mem (mem_product.mp hp).1 (mem_product.mp hp).2)
-  have htoW_inj : Function.Injective toW := by
-    rintro ⟨⟨i₁, j₁⟩, hp₁⟩ ⟨⟨i₂, j₂⟩, hp₂⟩ heq
-    obtain ⟨hi₁, hj₁⟩ := mem_product.mp hp₁
-    obtain ⟨hi₂, hj₂⟩ := mem_product.mp hp₂
-    rcases ordPair_eq_iff _ _ heq with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-    · rfl
-    · exact absurd hj₂ (Finset.disjoint_left.mp hSD hi₁)
-  let W : Finset (UpperIdx k) := (S ×ˢ D).attach.image toW
-  have hcardW : #W = #S * #D := by
-    rw [card_image_of_injective _ htoW_inj, card_attach, card_product]
-  let Z : Finset (UpperIdx k) := Wᶜ
-  have hcardZ : #Z + #S * #D = Fintype.card (UpperIdx k) := by
-    rw [← hcardW]
-    exact card_compl_add_card W
-  let Φ : (UpperIdx k → ZMod 2) → (D → T' → ZMod 2) × (Z → ZMod 2) :=
-    fun u => (fun j => spanCoeff (polarUpper u) S T' j.val, fun p => u p.val)
-  have hinj : Set.InjOn Φ (spannedFamily (polarUpper (k := k)) S T T') := by
-    intro u₁ hu₁ u₂ hu₂ h
-    obtain ⟨hc, hz⟩ := Prod.mk.inj h
-    have h₁ := (mem_filter.mp hu₁).2
-    have h₂ := (mem_filter.mp hu₂).2
-    funext q
-    by_cases hqZ : q ∈ Z
-    · exact congrFun hz ⟨q, hqZ⟩
-    · have hqW : q ∈ W := by simpa [Z] using hqZ
-      obtain ⟨⟨⟨i, j⟩, hp⟩, -, rfl⟩ := mem_image.mp hqW
-      obtain ⟨hiS, hjD⟩ := mem_product.mp hp
-      have hjT : j ∈ T := (mem_sdiff.mp hjD).1
-      have hne_ij : i ≠ j := Finset.disjoint_coe.mpr hSD |>.ne_of_mem hiS hjD
-      have eq₁ := polarUpper_apply_of_ne u₁ hne_ij
-      have eq₂ := polarUpper_apply_of_ne u₂ hne_ij
-      change u₁ (ordPair hne_ij) = u₂ (ordPair hne_ij)
-      rw [← eq₁, ← eq₂]
-      have e₁ := congrFun (spanCoeff_spec (h₁ j hjT)) ⟨i, hiS⟩
-      have e₂ := congrFun (spanCoeff_spec (h₂ j hjT)) ⟨i, hiS⟩
-      have hcj : spanCoeff (polarUpper u₁) S T' j = spanCoeff (polarUpper u₂) S T' j :=
-        congrFun hc ⟨j, hjD⟩
-      simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, colVec] at e₁ e₂
-      rw [← e₁, ← e₂, hcj]
-      refine Finset.sum_congr rfl fun l _ => ?_
-      congr 1
-      have hlT : l.val ∈ T := hT'T l.prop
-      have hne_il : i ≠ l.val := Finset.disjoint_coe.mpr hST |>.ne_of_mem hiS hlT
-      have hlZ : ordPair hne_il ∈ Z := by
-        rw [Finset.mem_compl]
-        intro hmemW
-        obtain ⟨⟨⟨i', j'⟩, hp'⟩, -, heq'⟩ := mem_image.mp hmemW
-        obtain ⟨hi'S, hj'D⟩ := mem_product.mp hp'
-        rcases ordPair_eq_iff _ _ heq' with ⟨_, hlj⟩ | ⟨hij', _⟩
-        · exact (mem_sdiff.mp (hlj ▸ hj'D)).2 l.prop
-        · exact Finset.disjoint_left.mp hST (hij' ▸ hi'S) hlT
-      rw [polarUpper_apply_of_ne u₁ hne_il, polarUpper_apply_of_ne u₂ hne_il]
-      exact congrFun hz ⟨ordPair hne_il, hlZ⟩
-  have hcard := card_le_card_of_injOn Φ (fun _ _ => mem_univ _) hinj
-  rw [card_univ, Fintype.card_prod, Fintype.card_fun, Fintype.card_fun, Fintype.card_fun,
-    ZMod.card, Fintype.card_coe, Fintype.card_coe, Fintype.card_coe] at hcard
-  calc #(spannedFamily (polarUpper (k := k)) S T T') * 2 ^ (#S * #D)
-      ≤ (2 ^ #T') ^ #D * 2 ^ #Z * 2 ^ (#S * #D) := Nat.mul_le_mul_right _ hcard
-    _ = 2 ^ (#D * #T') * 2 ^ Fintype.card (UpperIdx k) := by
-        rw [mul_assoc, ← pow_add, hcardZ, ← pow_mul, mul_comm #T']
+  have hne (p : S × T) : p.1.1 ≠ p.2.1 := fun h => disjoint_left.mp hST p.1.2 (h ▸ p.2.2)
+  refine card_spannedFamily_mul_le hT'T (fun p => ordPair (hne p)) (fun p q h => ?_)
+    fun u p => polarUpper_apply_of_ne u (hne p)
+  rcases ordPair_eq_iff _ _ h with ⟨h₁, h₂⟩ | ⟨h₁, -⟩
+  · exact Prod.ext (Subtype.ext h₁) (Subtype.ext h₂)
+  · exact absurd (h₁ ▸ q.2.2) (disjoint_left.mp hST p.1.2)
 
 /-- **Disjoint-block-robust `polarUpper` witnesses, by counting.** If `3 k < (t + 1) ^ 2`, some
 upper-triangular assignment `u : UpperIdx k → ZMod 2` has `(polarUpper u).DisjointBlockRobust t`. -/
@@ -563,29 +468,22 @@ theorem add_blockRank_le_cutRank_add_transpose [Finite ι]
   have hsum := (M + Mᵀ).add_blockRank_le_of_disjoint (S := U) (T := Uᶜ) (S₁ := U ∩ X)
     (S₂ := U ∩ Y) (T₁ := Uᶜ ∩ Y) (T₂ := Uᶜ ∩ X) inter_subset_left inter_subset_left
     (hfg.symm.mono inter_subset_right inter_subset_right)
-    (fun i hi j hj hj' => by
-      have hjY : j ∉ Y := fun h => hj' ⟨hj, h⟩
-      simp only [Matrix.add_apply, transpose_apply, hMY i j hjY, hMY j i (hnotY i hi.2), add_zero])
-    (fun i hi j hj hj' => by
-      have hjX : j ∉ X := fun h => hj' ⟨hj, h⟩
-      simp only [Matrix.add_apply, transpose_apply, hMX i j (hnotX i hi.2), hMX j i hjX, add_zero])
+    (fun i hi j hj hj' => by simp only [Matrix.add_apply, transpose_apply,
+      hMY i j fun h => hj' ⟨hj, h⟩, hMY j i (hnotY i hi.2), add_zero])
+    (fun i hi j hj hj' => by simp only [Matrix.add_apply, transpose_apply,
+      hMX i j (hnotX i hi.2), hMX j i fun h => hj' ⟨hj, h⟩, add_zero])
   have hb₁ : R.blockRank (f ⁻¹' U) (g ⁻¹' Uᶜ) ≤ (M + Mᵀ).blockRank (U ∩ X) Uᶜ := by
-    calc R.blockRank (f ⁻¹' U) (g ⁻¹' Uᶜ)
-        = M.blockRank (U ∩ X) (Uᶜ ∩ Y) := by
-          rw [← hMR, M.blockRank_submatrix hf hg, image_preimage_eq_inter_range,
-            image_preimage_eq_inter_range]
-      _ = (M + Mᵀ).blockRank (U ∩ X) (Uᶜ ∩ Y) := blockRank_congr fun i hi j _ => by
-            simp only [Matrix.add_apply, transpose_apply, hMY j i (hnotY i hi.2), add_zero]
-      _ ≤ (M + Mᵀ).blockRank (U ∩ X) Uᶜ := blockRank_mono_right _ _ inter_subset_left
+    rw [← hMR, M.blockRank_submatrix hf hg, image_preimage_eq_inter_range,
+      image_preimage_eq_inter_range]
+    refine (blockRank_congr fun i hi j _ => ?_).trans_le
+      (blockRank_mono_right _ _ inter_subset_left)
+    simp only [Matrix.add_apply, transpose_apply, hMY j i (hnotY i hi.2), add_zero]
   have hb₂ : R.blockRank (f ⁻¹' Uᶜ) (g ⁻¹' U) ≤ (M + Mᵀ).blockRank (U ∩ Y) Uᶜ := by
-    calc R.blockRank (f ⁻¹' Uᶜ) (g ⁻¹' U)
-        = M.blockRank (Uᶜ ∩ X) (U ∩ Y) := by
-          rw [← hMR, M.blockRank_submatrix hf hg, image_preimage_eq_inter_range,
-            image_preimage_eq_inter_range]
-      _ = Mᵀ.blockRank (U ∩ Y) (Uᶜ ∩ X) := (M.blockRank_transpose _ _).symm
-      _ = (M + Mᵀ).blockRank (U ∩ Y) (Uᶜ ∩ X) := blockRank_congr fun i hi j _ => by
-            simp only [Matrix.add_apply, transpose_apply, hMX i j (hnotX i hi.2), zero_add]
-      _ ≤ (M + Mᵀ).blockRank (U ∩ Y) Uᶜ := blockRank_mono_right _ _ inter_subset_left
+    rw [← hMR, M.blockRank_submatrix hf hg, image_preimage_eq_inter_range,
+      image_preimage_eq_inter_range, ← M.blockRank_transpose]
+    refine (blockRank_congr fun i hi j _ => ?_).trans_le
+      (blockRank_mono_right _ _ inter_subset_left)
+    simp only [Matrix.add_apply, transpose_apply, hMX i j (hnotX i hi.2), zero_add]
   unfold cutRank
   omega
 

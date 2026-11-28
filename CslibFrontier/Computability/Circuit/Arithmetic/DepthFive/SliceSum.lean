@@ -83,24 +83,20 @@ theorem sum_slice_mul {R : Type*} [CommSemiring R] (a b : ℕ)
     (FV FU : (Fin p.n × Fin p.n × Fin p.n →₀ ℕ) → R)
     (hV : ∀ x y, (∀ c, p.layerVar c → x c = y c) → FV x = FV y)
     (hU : ∀ x y, (∀ c, ¬ p.layerVar c → x c = y c) → FU x = FU y) :
-    ∑ M : Slice p (a, b), FV M.val * FU M.val =
+    ∑ M : Slice p (a, b), FV M.1 * FU M.1 =
       (∑ x ∈ p.varV.finsuppAntidiag a, FV x) * ∑ y ∈ p.varU.finsuppAntidiag b, FU y := by
   rw [← (bidegreeEquiv p.layerVar a b).symm.sum_comp, Fintype.sum_prod_type,
     ← Finset.sum_coe_sort (p.varV.finsuppAntidiag a),
     ← Finset.sum_coe_sort (p.varU.finsuppAntidiag b), Finset.sum_mul_sum]
   refine Finset.sum_congr rfl fun x _ => Finset.sum_congr rfl fun y _ => ?_
-  have hx := (Finset.mem_finsuppAntidiag.1 x.property).2
-  have hy := (Finset.mem_finsuppAntidiag.1 y.property).2
-  have hV' : FV (x.val + y.val) = FV x.val := hV _ _ fun c hc => by
-    have : y.val c = 0 := by
-      by_contra h
-      exact (Finset.mem_filter.1 (hy (Finsupp.mem_support_iff.2 h))).2 hc
-    rw [Finsupp.add_apply, this, add_zero]
-  have hU' : FU (x.val + y.val) = FU y.val := hU _ _ fun c hc => by
-    have : x.val c = 0 := by
-      by_contra h
-      exact hc (Finset.mem_filter.1 (hx (Finsupp.mem_support_iff.2 h))).2
-    rw [Finsupp.add_apply, this, zero_add]
+  have hx := (Finset.mem_finsuppAntidiag.1 x.2).2
+  have hy := (Finset.mem_finsuppAntidiag.1 y.2).2
+  have hV' : FV (x.1 + y.1) = FV x.1 := hV _ _ fun c hc => by
+    rw [Finsupp.add_apply, Classical.byContradiction fun h =>
+      (Finset.mem_filter.1 (hy (Finsupp.mem_support_iff.2 h))).2 hc, add_zero]
+  have hU' : FU (x.1 + y.1) = FU y.1 := hU _ _ fun c hc => by
+    rw [Finsupp.add_apply, Classical.byContradiction fun h =>
+      hc (Finset.mem_filter.1 (hx (Finsupp.mem_support_iff.2 h))).2, zero_add]
   exact congrArg₂ (· * ·) hV' hU'
 
 /-- A product over the layers `t` in a set of a function of a variable `c t` of layer `t` is a

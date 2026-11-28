@@ -91,16 +91,12 @@ a `nop` transition followed by `R`, and a push followed by `R`, a matching pop a
 theorem lfp_wellNestedRuleHom (M : MPDA n State Symbol Γ) :
     M.wellNestedRuleHom.lfp = {p | M.WellNestedReach p.1 p.2} := by
   apply le_antisymm
-  · refine OrderHom.lfp_le _ fun p hp => ?_
-    rcases hp with h | ⟨a, s₂, ht, hr⟩ | ⟨a, b, i, γ, s₂, s₃, s₄, h₁, h₂, h₃, h₄⟩
-    · obtain ⟨s, s'⟩ := p
-      simp only at h
-      subst h
-      exact .refl s
+  · refine OrderHom.lfp_le _ ?_
+    rintro ⟨s, s'⟩ ((rfl : s = s') | ⟨a, s₂, ht, hr⟩ | ⟨a, b, i, γ, s₂, s₃, s₄, h₁, h₂, h₃, h₄⟩)
+    · exact .refl s
     · exact .nop ht hr
     · exact .pushPop h₁ h₂ h₃ h₄
-  · rintro ⟨s, s'⟩ h
-    simp only [Set.mem_ofPred_eq] at h
+  · rintro ⟨s, s'⟩ (h : M.WellNestedReach s s')
     induction h with
     | refl s =>
       rw [← OrderHom.map_lfp]
@@ -277,18 +273,13 @@ theorem splitLastHole_eq_some {i : Fin n} :
         l = pre ++ ⟨i, s, s'⟩ :: post ∧ ∀ h ∈ post, h.stack ≠ i
   | [], _, _, _, _, h => by simp [splitLastHole] at h
   | ⟨j, a, b⟩ :: t, pre, post, s, s', hs => by
-    unfold splitLastHole at hs
-    rcases ht : splitLastHole i t with _ | ⟨pre', ⟨x, x'⟩, post'⟩
-    · rw [ht] at hs
-      simp only at hs
-      split_ifs at hs with hi
-      simp only [Option.some.injEq, Prod.mk.injEq] at hs
+    rcases ht : splitLastHole i t with _ | ⟨pre', ⟨x, x'⟩, post'⟩ <;>
+      simp only [splitLastHole, ht, Option.some.injEq, Prod.mk.injEq] at hs
+    · split_ifs at hs with hi
       obtain ⟨rfl, ⟨rfl, rfl⟩, rfl⟩ := hs
       subst hi
-      exact ⟨rfl, fun h' hh' hh => splitLastHole_none_of_mem ht h' hh' hh⟩
-    · rw [ht] at hs
-      simp only [Option.some.injEq, Prod.mk.injEq] at hs
-      obtain ⟨rfl, ⟨rfl, rfl⟩, rfl⟩ := hs
+      exact ⟨rfl, splitLastHole_none_of_mem ht⟩
+    · obtain ⟨rfl, ⟨rfl, rfl⟩, rfl⟩ := hs
       obtain ⟨rfl, hpost⟩ := splitLastHole_eq_some ht
       exact ⟨rfl, hpost⟩
 where
@@ -297,16 +288,12 @@ where
       splitLastHole i l = none → ∀ h ∈ l, h.stack = i → False
     | [], _, _, hh, _ => by simp at hh
     | h :: t, hs, h', hh', hi => by
-      unfold splitLastHole at hs
-      rcases ht : splitLastHole i t with _ | ⟨pre', x', post'⟩
-      · rw [ht] at hs
-        simp only at hs
-        split_ifs at hs with hhi
-        rcases List.mem_cons.mp hh' with rfl | hh'
-        · exact hhi hi
-        · exact splitLastHole_none_of_mem ht h' hh' hi
-      · rw [ht] at hs
-        simp at hs
+      rcases ht : splitLastHole i t with _ | ⟨pre', x', post'⟩ <;>
+        simp only [splitLastHole, ht, reduceCtorEq] at hs
+      split_ifs at hs with hhi
+      rcases List.mem_cons.mp hh' with rfl | hh'
+      · exact hhi hi
+      · exact splitLastHole_none_of_mem ht h' hh' hi
 
 section Search
 

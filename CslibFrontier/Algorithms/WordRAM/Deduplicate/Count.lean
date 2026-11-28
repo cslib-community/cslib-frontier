@@ -104,20 +104,15 @@ theorem exec {w s n start stop k : ℕ} (x : Data 16)
       by_cases hsn : stop < n
       · have hread : y.mem (s + stop) ≠ k := hym ▸ hnext hsn
         wram_exec * [hend]
-        wram_simp * [I, hend, hyflag, hym, hle, le_rfl]
-        exact fun _ => trivial
+        wram_simp * [I, hend, hyflag, hym, hle, le_rfl, implies_true]
       · wram_exec * [hend]
-        wram_simp * [I, hend, hyflag, hym, hle, le_rfl]
-        exact fun _ => trivial
+        wram_simp * [I, hend, hyflag, hym, hle, le_rfl, implies_true]
   have hx : I x := ⟨hn, hs, hk, ho, by omega, by omega, by omega, by omega, by omega, rfl⟩
   obtain ⟨y, he, hy, hnot⟩ := ExecWithin.loop_invariant I
     (fun y => stop - y.regs idx + y.regs active) hbody hx
   obtain ⟨_, _, _, hyo, _, _, hyc, hya, hyend, hym⟩ := hy
-  have hz : y.regs active = 0 := by
-    simp only [Cond.holds_eq, hyo] at hnot
-    omega
-  have hend := hyend hz
-  refine ⟨y, ?_, hend, by simpa only [hend] using hyc, hym⟩
+  have hend : y.regs idx = stop := hyend (by simp only [Cond.holds_eq, hyo] at hnot; omega)
+  refine ⟨y, ?_, hend, hend ▸ hyc, hym⟩
   simpa only [code, hi, ha, Nat.add_mul, Nat.one_mul, Nat.mul_comm, Nat.add_assoc] using he
 
 end Count

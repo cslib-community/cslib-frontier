@@ -159,32 +159,22 @@ private theorem valleyFree_customer_propagate {G : SimpleGraph V} {rel : V → V
       Relation.TransGen (IsProviderOf G rel) u x ∧ rel x y = .customer
   | [], _, _, _, _, hhead, _, _, _ => by simp at hhead
   | [a], u, x, y, t, hhead, hchain, hvf, hfirst => by
-    simp only [List.head?_cons, Option.some.injEq] at hhead
-    subst hhead
+    obtain rfl : a = u := Option.some.inj hhead
     simp only [List.singleton_append] at hchain hvf hfirst
-    have hadj : G.Adj a x := (List.isChain_cons_cons.mp hchain).1
-    have hxy : rel x y = .customer := hvf.1 (by simp [hfirst])
-    exact ⟨Relation.TransGen.single ⟨hadj, hfirst⟩, hxy⟩
+    exact ⟨.single ⟨(List.isChain_cons_cons.mp hchain).1, hfirst⟩, hvf.1 (by simp [hfirst])⟩
   | a :: b :: r, u, x, y, t, hhead, hchain, hvf, hfirst => by
-    simp only [List.head?_cons, Option.some.injEq] at hhead
-    subst hhead
+    obtain rfl : a = u := Option.some.inj hhead
     simp only [List.cons_append] at hchain hvf hfirst
-    have hadj : G.Adj a b := (List.isChain_cons_cons.mp hchain).1
-    have hchain' : (b :: (r ++ x :: y :: t)).IsChain G.Adj :=
-      (List.isChain_cons_cons.mp hchain).2
     cases hr : r ++ x :: y :: t with
     | nil => exact (List.append_ne_nil_of_right_ne_nil r (List.cons_ne_nil x (y :: t)) hr).elim
     | cons c rest =>
       rw [hr] at hvf
       have hbc : rel b c = .customer := hvf.1 (by simp [hfirst])
-      have hvf' : IsValleyFree rel ((b :: r) ++ x :: y :: t) := by
-        simpa only [List.cons_append, hr] using hvf.2
-      have hfirst' : (match (b :: r) ++ x :: y :: t with
-          | a :: b :: _ => rel a b = .customer | _ => False) := by
-        simpa only [List.cons_append, hr] using hbc
-      obtain ⟨hreach, hxy⟩ :=
-        valleyFree_customer_propagate (q := b :: r) rfl hchain' hvf' hfirst'
-      exact ⟨Relation.TransGen.head ⟨hadj, hfirst⟩ hreach, hxy⟩
+      obtain ⟨hreach, hxy⟩ := valleyFree_customer_propagate (q := b :: r) rfl
+        (List.isChain_cons_cons.mp hchain).2
+        (by simpa only [List.cons_append, hr] using hvf.2)
+        (by simpa only [List.cons_append, hr] using hbc)
+      exact ⟨.head ⟨(List.isChain_cons_cons.mp hchain).1, hfirst⟩ hreach, hxy⟩
 
 /-- Backward provider propagation: if `q` is nonempty, `q ++ x :: y :: t` is a valley-free chain
 in `G`, and `rel x y ≠ .customer`, then every edge of `q` into `x` is a `provider` edge; hence `x`
@@ -200,61 +190,38 @@ private theorem valleyFree_provider_backprop {G : SimpleGraph V} {rel : V → V 
         (match q ++ x :: y :: t with | a :: b :: _ => rel a b = .provider | _ => False)
   | [], _, _, _, _, hhead, _, _, _ => by simp at hhead
   | [a], u, x, y, t, hhead, hchain, hvf, hxy => by
-    simp only [List.head?_cons, Option.some.injEq] at hhead
-    subst hhead
+    obtain rfl : a = u := Option.some.inj hhead
     simp only [List.singleton_append] at hchain hvf ⊢
     have hadj : G.Adj a x := (List.isChain_cons_cons.mp hchain).1
-    have hax : rel a x = .provider := by
-      by_contra hne
-      exact hxy (hvf.1 hne)
-    have hxa : rel x a = .customer := by
-      rw [hsymm a x hadj, hax]; rfl
-    exact ⟨Relation.TransGen.single ⟨hadj.symm, hxa⟩, hax⟩
+    have hax : rel a x = .provider := by_contra fun hne => hxy (hvf.1 hne)
+    have hxa : rel x a = .customer := by simp [hsymm a x hadj, hax, CommercialRel.flip]
+    exact ⟨.single ⟨hadj.symm, hxa⟩, hax⟩
   | a :: b :: r, u, x, y, t, hhead, hchain, hvf, hxy => by
-    simp only [List.head?_cons, Option.some.injEq] at hhead
-    subst hhead
+    obtain rfl : a = u := Option.some.inj hhead
     simp only [List.cons_append] at hchain hvf ⊢
     have hadj : G.Adj a b := (List.isChain_cons_cons.mp hchain).1
-    have hchain' : ((b :: r) ++ x :: y :: t).IsChain G.Adj :=
-      (List.isChain_cons_cons.mp hchain).2
     cases hr : r ++ x :: y :: t with
     | nil => exact (List.append_ne_nil_of_right_ne_nil r (List.cons_ne_nil x (y :: t)) hr).elim
     | cons c rest =>
       rw [hr] at hvf
-      have hvf' : IsValleyFree rel ((b :: r) ++ x :: y :: t) := by
-        simpa only [List.cons_append, hr] using hvf.2
-      obtain ⟨hreach, hbc⟩ :=
-        valleyFree_provider_backprop hsymm (q := b :: r) rfl hchain' hvf' hxy
-      have hbc' : rel b c = .provider := by
-        simpa only [List.cons_append, hr] using hbc
-      have hab : rel a b = .provider := by
-        by_contra hne
-        have : rel b c = .customer := hvf.1 hne
-        rw [hbc'] at this
-        exact CommercialRel.noConfusion this
-      have hba : rel b a = .customer := by
-        rw [hsymm a b hadj, hab]; rfl
-      exact ⟨Relation.TransGen.tail hreach ⟨hadj.symm, hba⟩, hab⟩
+      obtain ⟨hreach, hbc⟩ := valleyFree_provider_backprop hsymm (q := b :: r) rfl
+        (List.isChain_cons_cons.mp hchain).2
+        (by simpa only [List.cons_append, hr] using hvf.2) hxy
+      have hbc' : rel b c = .provider := by simpa only [List.cons_append, hr] using hbc
+      have hab : rel a b = .provider := by_contra fun hne => by simpa [hbc'] using hvf.1 hne
+      have hba : rel b a = .customer := by simp [hsymm a b hadj, hab, CommercialRel.flip]
+      exact ⟨.tail hreach ⟨hadj.symm, hba⟩, hab⟩
 
 private theorem transGen_cycle_forward {R : V → V → Prop} {k : ℕ} (hk : 0 < k) (f : Fin k → V)
     (hstep : ∀ i : Fin k, Relation.TransGen R (f i) (f ⟨(i.val + 1) % k, Nat.mod_lt _ hk⟩)) :
     Relation.TransGen R (f ⟨0, hk⟩) (f ⟨0, hk⟩) := by
-  have hwalk : ∀ m, 1 ≤ m →
+  have hwalk (m : ℕ) (hm : 1 ≤ m) :
       Relation.TransGen R (f ⟨0, hk⟩) (f ⟨m % k, Nat.mod_lt _ hk⟩) := by
-    intro m hm
     induction m, hm using Nat.le_induction with
     | base => exact hstep ⟨0, hk⟩
-    | succ m hm ihm =>
-      have hmod : ((m % k) + 1) % k = (m + 1) % k := by
-        simp [Nat.add_mod]
-      have hs := hstep ⟨m % k, Nat.mod_lt _ hk⟩
-      have hs' : Relation.TransGen R (f ⟨m % k, Nat.mod_lt _ hk⟩)
-          (f ⟨(m + 1) % k, Nat.mod_lt _ hk⟩) := by
-        convert hs using 2
-        exact Fin.ext hmod.symm
-      exact Relation.TransGen.trans ihm hs'
-  have h := hwalk k hk
-  simpa only [Nat.mod_self] using h
+    | succ m _ ihm =>
+      exact ihm.trans (by simpa only [Nat.mod_add_mod] using hstep ⟨m % k, Nat.mod_lt _ hk⟩)
+  simpa only [Nat.mod_self] using hwalk k hk
 
 private theorem transGen_cycle_backward {R : V → V → Prop} {k : ℕ} (hk : 0 < k) (f : Fin k → V)
     (hstep : ∀ i : Fin k, Relation.TransGen R (f ⟨(i.val + 1) % k, Nat.mod_lt _ hk⟩) (f i)) :
@@ -275,10 +242,8 @@ exist. -/
 theorem isEmpty_disputeWheel (hGR : GaoRexfordConditions S) : IsEmpty (DisputeWheel S) := by
   refine ⟨fun W => ?_⟩
   -- For each spoke `i`, decompose `W.pivot i = W.node i :: v_i :: t_i`.
-  have hpiv_decomp : ∀ i : Fin W.size,
-      ∃ v t, W.pivot i = W.node i :: v :: t ∧ S.graph.Adj (W.node i) v := fun i =>
+  choose nextHop pivTail hpiv_eq _ using fun i =>
     S.exists_cons_cons_of_permitted (W.node_ne_dest i) (W.pivot_permitted i)
-  choose nextHop pivTail hpiv_eq _ using hpiv_decomp
   have hrp_perm : ∀ i : Fin W.size, S.permitted (W.node i) (W.rim i ++ W.pivot (W.next i)) :=
     W.rim_pivot_permitted
   have hrp_sp : ∀ i : Fin W.size,
@@ -287,9 +252,7 @@ theorem isEmpty_disputeWheel (hGR : GaoRexfordConditions S) : IsEmpty (DisputeWh
   have hrp_vf : ∀ i : Fin W.size, IsValleyFree hGR.rel (W.rim i ++ W.pivot (W.next i)) :=
     fun i => hGR.valleyFree (W.node i) _ (hrp_perm i)
   have hrim_head : ∀ i : Fin W.size, (W.rim i).head? = some (W.node i) := fun i => by
-    have h1 := (hrp_sp i).1
-    rw [List.head?_append_of_ne_nil _ (W.rim_nonempty i)] at h1
-    exact h1
+    simpa only [List.head?_append_of_ne_nil _ (W.rim_nonempty i)] using (hrp_sp i).1
   have hchain : ∀ i : Fin W.size, (W.rim i ++
       W.node (W.next i) :: nextHop (W.next i) :: pivTail (W.next i)).IsChain S.graph.Adj :=
     fun i => by rw [← hpiv_eq (W.next i)]; exact (hrp_sp i).2.2.1
@@ -308,52 +271,31 @@ theorem isEmpty_disputeWheel (hGR : GaoRexfordConditions S) : IsEmpty (DisputeWh
         by_contra hne
         have hlt := hGR.preferCustomer (W.node i) (nextHop i) w (pivTail i) t'
           (hpiv_eq i ▸ W.pivot_permitted i) (hrp_eq ▸ hrp_perm i) hcust_i hne
-        have hpref := W.prefers i
-        change S.rank (W.node i) (some (W.pivot i)) <
-          S.rank (W.node i) (some (W.rim i ++ W.pivot (W.next i))) at hpref
-        rw [hpiv_eq i, hrp_eq] at hpref
-        omega
-      have hfirst :
-          (match W.rim i ++ W.node (W.next i) :: nextHop (W.next i) :: pivTail (W.next i) with
-           | a :: b :: _ => hGR.rel a b = .customer | _ => False) := by
-        rw [← hpiv_eq (W.next i)]
-        change (match W.rim i ++ W.pivot (W.next i) with
-          | a :: b :: _ => hGR.rel a b = .customer | _ => False)
-        rw [hrp_eq]
-        exact hcust_rim
-      exact valleyFree_customer_propagate (hrim_head i) (hchain i) (hvf i) hfirst
+        rw [← hpiv_eq i, ← hrp_eq] at hlt
+        exact lt_asymm hlt (W.prefers i)
+      exact valleyFree_customer_propagate (hrim_head i) (hchain i) (hvf i)
+        (by simpa only [← hpiv_eq (W.next i), hrp_eq] using hcust_rim)
     obtain ⟨i₀, hi₀⟩ := hex
-    have hall_cust : ∀ i : Fin W.size, hGR.rel (W.node i) (nextHop i) = .customer := by
-      have hshift : ∀ m : ℕ,
-          hGR.rel (W.node ⟨(i₀.val + m) % W.size, Nat.mod_lt _ W.size_pos⟩)
-            (nextHop ⟨(i₀.val + m) % W.size, Nat.mod_lt _ W.size_pos⟩) = .customer := by
-        intro m
-        induction m with
-        | zero =>
-          have hidx : (⟨(i₀.val + 0) % W.size, Nat.mod_lt _ W.size_pos⟩ : Fin W.size) = i₀ := by
-            apply Fin.ext
-            simp [Nat.mod_eq_of_lt i₀.isLt]
-          rwa [hidx]
-        | succ m ihm =>
-          have h2 := (hprop ⟨(i₀.val + m) % W.size, Nat.mod_lt _ W.size_pos⟩ ihm).2
-          have hmod : ((i₀.val + m) % W.size + 1) % W.size = (i₀.val + (m + 1)) % W.size := by
-            rw [Nat.add_mod, Nat.mod_mod, ← Nat.add_mod, Nat.add_assoc]
-          have hidx : W.next ⟨(i₀.val + m) % W.size, Nat.mod_lt _ W.size_pos⟩ =
-              ⟨(i₀.val + (m + 1)) % W.size, Nat.mod_lt _ W.size_pos⟩ := Fin.ext hmod
-          rwa [hidx] at h2
-      intro i
-      let m := (i.val + W.size - i₀.val) % W.size
-      have hidx : (⟨(i₀.val + m) % W.size, Nat.mod_lt _ W.size_pos⟩ : Fin W.size) = i := by
-        apply Fin.ext
-        dsimp [m]
-        have h1 : (i₀.val + (i.val + W.size - i₀.val) % W.size) % W.size =
-            (i₀.val + (i.val + W.size - i₀.val)) % W.size := by
-          simp [Nat.add_mod]
-        rw [h1, show i₀.val + (i.val + W.size - i₀.val) = i.val + W.size by omega,
-          Nat.add_mod_right, Nat.mod_eq_of_lt i.isLt]
-      simpa only [hidx] using hshift m
-    have hcyc := transGen_cycle_forward W.size_pos W.node fun i => (hprop i (hall_cust i)).1
-    exact hGR.noCustomerProviderCycle _ hcyc
+    -- The customer property spreads from `i₀` to spoke `(i₀ + m) % W.size` for every `m`, hence to
+    -- every spoke.
+    have hshift : ∀ m : ℕ,
+        hGR.rel (W.node ⟨(i₀.val + m) % W.size, Nat.mod_lt _ W.size_pos⟩)
+          (nextHop ⟨(i₀.val + m) % W.size, Nat.mod_lt _ W.size_pos⟩) = .customer := by
+      intro m
+      induction m with
+      | zero => simpa only [Nat.add_zero, Nat.mod_eq_of_lt i₀.isLt, Fin.eta] using hi₀
+      | succ m ihm =>
+        have hidx : W.next ⟨(i₀.val + m) % W.size, Nat.mod_lt _ W.size_pos⟩ =
+            ⟨(i₀.val + (m + 1)) % W.size, Nat.mod_lt _ W.size_pos⟩ :=
+          Fin.ext (by simp only [DisputeWheel.next, Nat.mod_add_mod, Nat.add_assoc])
+        simpa only [hidx] using (hprop _ ihm).2
+    have hall_cust : ∀ i : Fin W.size, hGR.rel (W.node i) (nextHop i) = .customer := fun i => by
+      have hadd : i₀.val + (i.val + W.size - i₀.val) = i.val + W.size := by omega
+      have hidx : (⟨(i₀.val + (i.val + W.size - i₀.val)) % W.size, Nat.mod_lt _ W.size_pos⟩ :
+          Fin W.size) = i := Fin.ext (by simp [hadd, Nat.mod_eq_of_lt i.isLt])
+      simpa only [hidx] using hshift (i.val + W.size - i₀.val)
+    exact hGR.noCustomerProviderCycle _
+      (transGen_cycle_forward W.size_pos W.node fun i => (hprop i (hall_cust i)).1)
   · -- Case 2: no spoke has a customer pivot path; backward propagation forces a reverse
     -- customer–provider cycle around the entire wheel.
     push Not at hex
@@ -361,8 +303,7 @@ theorem isEmpty_disputeWheel (hGR : GaoRexfordConditions S) : IsEmpty (DisputeWh
         Relation.TransGen (IsProviderOf S.graph hGR.rel) (W.node (W.next i)) (W.node i) := fun i =>
       (valleyFree_provider_backprop hGR.rel_symm (hrim_head i) (hchain i) (hvf i)
         (hex (W.next i))).1
-    have hcyc := transGen_cycle_backward W.size_pos W.node hback
-    exact hGR.noCustomerProviderCycle _ hcyc
+    exact hGR.noCustomerProviderCycle _ (transGen_cycle_backward W.size_pos W.node hback)
 
 /-- **Gao–Rexford stability** ([GaoRexford2001]): under the Gao–Rexford commercial routing
 conditions, an `SPP` instance has a unique stable path assignment. -/

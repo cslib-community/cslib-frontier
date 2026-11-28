@@ -135,9 +135,8 @@ theorem root_plug_congr (cs : List (Frame M extra))
 
 /-- The focused addresses are among the complete tree's addresses. -/
 theorem addresses_subset_plug (cs : List (Frame M extra))
-    (t : BinaryTree (Label M extra)) : addresses t ⊆ addresses (plug cs t) := by
-  rw [addresses_plug]
-  exact Finset.subset_union_left
+    (t : BinaryTree (Label M extra)) : addresses t ⊆ addresses (plug cs t) :=
+  addresses_plug cs t ▸ Finset.subset_union_left
 
 /-- A focus's height plus its ancestor count is bounded by the complete tree's height. -/
 theorem height_add_context_length_le (cs : List (Frame M extra))
@@ -146,7 +145,7 @@ theorem height_add_context_length_le (cs : List (Frame M extra))
   | nil => simp [plug]
   | cons frame cs ih =>
     obtain ⟨right, label, sibling, hplug, -⟩ := frame_nodeAt frame
-    have h := ih (nodeAt right label t sibling)
+    have := ih (nodeAt right label t sibling)
     cases right <;>
       (simp only [hplug, nodeAt, Bool.false_eq_true, ↓reduceIte, List.length_cons,
         BinaryTree.height] at *; omega)
@@ -166,10 +165,10 @@ theorem Represents.plug_of_frame {h k : List (Record M (layout extra regs))}
     rw [hpar] at newRep
     rw [hplug] at rep distinct ⊢
     obtain ⟨_, _, no, _, dis⟩ := (nodeAt_distinct_iff ..).mp distinct.focus
-    refine ih rep distinct ((((represents_plug_iff ..).mp rep).1).nodeAt_congr_child right
-      newRep sameRoot frame no dis) (by simp) fun a ha => frame a fun mem => ha ?_
-    rw [nodeAt_addresses]
-    exact Finset.mem_insert_of_mem (Finset.mem_union_left _ mem)
+    exact ih rep distinct ((((represents_plug_iff ..).mp rep).1).nodeAt_congr_child right
+      newRep sameRoot frame no dis) (by simp) fun a ha => frame a fun mem =>
+        ha (nodeAt_addresses right label before sibling ▸
+          Finset.mem_insert_of_mem (Finset.mem_union_left _ mem))
 
 /-- Following a represented nonempty focus's parent takes one load and halt. The heap,
 scalars and every other pointer register survive; at the root the resulting cursor is null. -/
@@ -179,12 +178,9 @@ theorem ascend_correct (s : State M (layout extra regs)) (cs : List (Frame M ext
     (cursor : s.ptr 0 = some label.address) (pc : s.pc = 0) :
     ∃ t, Executes [.loadPtr 0 2 0, .halt] s t 2 ∧
       t.heap = s.heap ∧ t.data = s.data ∧ t.ptr 0 = contextParent cs ∧
-      (∀ i, i ≠ 0 → t.ptr i = s.ptr i) := by
-  let t := { s.setPtr 0 (contextParent cs) with pc := 1 }
-  refine ⟨t, ⟨1, .single ?_, rfl, rfl⟩, rfl, rfl, ?_, ?_⟩
-  · simp [step, pc, Instr.effect, Instr.next, State.deref, cursor, rep.1, record, t]
-  · simp [t, State.setPtr]
-  · intro i hi
-    simp [t, State.setPtr, hi]
+      (∀ i, i ≠ 0 → t.ptr i = s.ptr i) :=
+  ⟨{ s.setPtr 0 (contextParent cs) with pc := 1 }, ⟨1, .single (by
+      simp [step, pc, Instr.effect, Instr.next, State.deref, cursor, rep.1, record]), rfl, rfl⟩,
+    rfl, rfl, by simp [State.setPtr], fun i hi => by simp [State.setPtr, hi]⟩
 
 end Cslib.DataStructure.SearchTree.PointerMachine

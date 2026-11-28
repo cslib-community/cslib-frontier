@@ -119,22 +119,15 @@ private theorem decodingError_le_ballBound {E : M → ι → Bool} {D : (ι → 
   have hnn : 0 ≤ ∑ m' ∈ univ.erase m,
       (if hammingDist (E m') (E m + e) ≤ r then (1 : ℝ) else 0) :=
     sum_nonneg fun _ _ => by split_ifs <;> norm_num
-  by_cases hm : D (E m + e) ≠ m
-  · rw [ite_eq_left hm]
-    by_cases hw : r < weight e
-    · rw [ite_eq_left hw]
-      linarith
-    · rw [ite_eq_right hw, zero_add]
-      refine le_trans ?_ (single_le_sum (f := fun m' =>
-        if hammingDist (E m') (E m + e) ≤ r then (1 : ℝ) else 0)
-        (fun _ _ => by split_ifs <;> norm_num) (mem_erase.mpr ⟨hm, mem_univ _⟩))
-      rw [ite_eq_left]
-      calc hammingDist (E (D (E m + e))) (E m + e) ≤ hammingDist (E m) (E m + e) := hD _ _
-        _ = weight e := by rw [hammingDist_eq_weight_add, BitString.add_cancel_left]
-        _ ≤ r := not_lt.mp hw
-  · rw [ite_eq_right hm]
-    have : (0 : ℝ) ≤ if r < weight e then 1 else 0 := by split_ifs <;> norm_num
-    linarith
+  split_ifs with hm hw <;> try linarith
+  rw [zero_add]
+  refine le_trans ?_ (single_le_sum (f := fun m' =>
+    if hammingDist (E m') (E m + e) ≤ r then (1 : ℝ) else 0)
+    (fun _ _ => by split_ifs <;> norm_num) (mem_erase.mpr ⟨hm, mem_univ _⟩))
+  rw [ite_eq_left]
+  calc hammingDist (E (D (E m + e))) (E m + e) ≤ hammingDist (E m) (E m + e) := hD _ _
+    _ = weight e := by rw [hammingDist_eq_weight_add, BitString.add_cancel_left]
+    _ ≤ r := not_lt.mp hw
 
 /-- Passing to a subcode can only decrease the union bound. -/
 private theorem ballBound_comp_le {K : Type*} [Fintype K] [DecidableEq K] (f : K ↪ M) (p : I)
@@ -238,10 +231,9 @@ private theorem exists_sum_ballBound_le [Nonempty M] (p : I) (r : ℕ) :
     ∃ E : M → ι → Bool, ∑ m, ballBound p r E m ≤
       Fintype.card M * (bernoulliAverage p (fun e : ι → Bool => if r < weight e then 1 else 0) +
         (Fintype.card M - 1 : ℕ) * (∑ j ∈ range (r + 1), ((Fintype.card ι).choose j : ℝ)) /
-          2 ^ Fintype.card ι) := by
-  obtain ⟨E, -, hE⟩ :=
-    exists_le_of_sum_le univ_nonempty (sum_sum_ballBound (ι := ι) (M := M) p r).le
-  exact ⟨E, hE⟩
+          2 ^ Fintype.card ι) :=
+  (exists_le_of_sum_le univ_nonempty (sum_sum_ballBound (ι := ι) (M := M) p r).le).imp
+    fun _ h => h.2
 
 omit [DecidableEq ι] in
 /-- **Achievability for the binary symmetric channel, finite form** (random coding with
@@ -363,10 +355,8 @@ theorem exists_pos_forall_exists_code_decodingError_le_exp (p : I) (hp : (p : �
   have hp0 : (0 : ℝ) ≤ p := p.property.1
   -- work with a nonnegative rate
   have hcap : 0 < 1 - Real.binEntropy p / Real.log 2 := by
-    have : Real.binEntropy p < Real.log 2 :=
-      Real.binEntropy_lt_log_two.mpr (by norm_num at hp ⊢; exact hp.ne)
     rw [sub_pos, div_lt_one hL]
-    exact this
+    exact Real.binEntropy_lt_log_two.mpr (by norm_num at hp ⊢; exact hp.ne)
   set R' := max R 0 with hR'
   have hR'cap : R' < 1 - Real.binEntropy p / Real.log 2 := max_lt hR hcap
   -- a radius fraction `ρ ∈ (p, 1 / 2)` still below capacity
@@ -379,9 +369,7 @@ theorem exists_pos_forall_exists_code_decodingError_le_exp (p : I) (hp : (p : �
   obtain ⟨ρ, hρR, hpρ, hρ⟩ := hev.exists
   have hδ₁ : 0 < 2 * (ρ - p) ^ 2 := by have : 0 < ρ - p := sub_pos.mpr hpρ; positivity
   have hδ₂ : 0 < (1 - R') * Real.log 2 - Real.binEntropy ρ := by
-    have := (lt_sub_comm.mp hρR)
-    rw [div_lt_iff₀ hL] at this
-    linarith
+    linarith [(div_lt_iff₀ hL).mp (lt_sub_comm.mp hρR)]
   refine ⟨min (2 * (ρ - p) ^ 2) ((1 - R') * Real.log 2 - Real.binEntropy ρ), lt_min hδ₁ hδ₂,
     fun n => ?_⟩
   obtain ⟨E, hE⟩ := exists_code_decodingError_le (ι := Fin n) p ⌊ρ * n⌋₊ (2 ^ ⌈R * n⌉₊)
@@ -397,19 +385,15 @@ theorem exists_pos_forall_exists_code_decodingError_le_exp (p : I) (hp : (p : �
   -- the number of codewords
   have hK : ((2 * 2 ^ ⌈R * n⌉₊ - 1 : ℕ) : ℝ) ≤ 4 * Real.exp (R' * n * Real.log 2) := by
     have h1 : ((2 * 2 ^ ⌈R * n⌉₊ - 1 : ℕ) : ℝ) ≤ 2 * 2 ^ ⌈R * n⌉₊ := by
-      have : (2 * 2 ^ ⌈R * n⌉₊ - 1 : ℕ) ≤ 2 * 2 ^ ⌈R * n⌉₊ := Nat.sub_le _ _
-      exact_mod_cast this
-    have h2 : (⌈R * n⌉₊ : ℝ) ≤ R' * n + 1 := by
-      have := Nat.ceil_lt_add_one (mul_nonneg (le_max_right R 0) hn)
-      have h3 : ⌈R * n⌉₊ ≤ ⌈R' * n⌉₊ := Nat.ceil_mono (by nlinarith [le_max_left R 0])
-      have : (⌈R * n⌉₊ : ℝ) ≤ ⌈R' * n⌉₊ := by exact_mod_cast h3
-      linarith
-    have h4 : (2 : ℝ) ^ ⌈R * n⌉₊ = Real.exp (⌈R * n⌉₊ * Real.log 2) := by
-      rw [← Real.log_pow, Real.exp_log (by positivity)]
-    have h5 : Real.exp (⌈R * n⌉₊ * Real.log 2) ≤ Real.exp ((R' * n + 1) * Real.log 2) :=
-      Real.exp_le_exp.mpr (mul_le_mul_of_nonneg_right h2 hL.le)
-    have h6 : Real.exp ((R' * n + 1) * Real.log 2) = 2 * Real.exp (R' * n * Real.log 2) := by
-      rw [add_mul, one_mul, Real.exp_add, Real.exp_log two_pos, mul_comm]
+      exact_mod_cast Nat.sub_le (2 * 2 ^ ⌈R * n⌉₊) 1
+    have h2 : (⌈R * n⌉₊ : ℝ) ≤ R' * n + 1 :=
+      (Nat.cast_le.2 (Nat.ceil_mono (by nlinarith [le_max_left R 0]))).trans
+        (Nat.ceil_lt_add_one (mul_nonneg (le_max_right R 0) hn)).le
+    have h4 : (2 : ℝ) ^ ⌈R * n⌉₊ ≤ 2 * Real.exp (R' * n * Real.log 2) := by
+      rw [← Real.exp_log (by positivity : (0 : ℝ) < 2 ^ ⌈R * n⌉₊), Real.log_pow]
+      calc _ ≤ Real.exp ((R' * n + 1) * Real.log 2) :=
+            Real.exp_le_exp.mpr (mul_le_mul_of_nonneg_right h2 hL.le)
+        _ = _ := by rw [add_mul, one_mul, Real.exp_add, Real.exp_log two_pos, mul_comm]
     linarith
   have h2n : (2 : ℝ) ^ n = Real.exp (n * Real.log 2) := by
     rw [← Real.log_pow, Real.exp_log (by positivity)]

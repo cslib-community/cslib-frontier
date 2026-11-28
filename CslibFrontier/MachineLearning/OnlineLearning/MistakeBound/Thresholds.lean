@@ -108,32 +108,25 @@ tree. -/
 theorem hasMistakeTree_thresholdConcept_orderEmb (k : ℕ) (e : Fin (2 ^ k) ↪o α) :
     HasMistakeTree k (thresholdConcept '' Set.range e) := by
   induction k with
-  | zero =>
-    exact ⟨thresholdConcept (e ⟨0, Nat.one_le_two_pow⟩), e ⟨0, Nat.one_le_two_pow⟩,
-      ⟨⟨0, Nat.one_le_two_pow⟩, rfl⟩, rfl⟩
+  | zero => exact ⟨_, _, ⟨⟨0, Nat.one_le_two_pow⟩, rfl⟩, rfl⟩
   | succ k ih =>
     have hk : 1 ≤ 2 ^ k := Nat.one_le_two_pow
-    let mid : Fin (2 ^ (k + 1)) := ⟨2 ^ k - 1, by rw [pow_succ]; omega⟩
-    let e₀ : Fin (2 ^ k) ↪o α :=
-      OrderEmbedding.ofStrictMono (fun i : Fin (2 ^ k) =>
-        e ⟨i.val, by rw [pow_succ]; omega⟩) fun _ _ h => e.strictMono h
-    let e₁ : Fin (2 ^ k) ↪o α :=
-      OrderEmbedding.ofStrictMono (fun i : Fin (2 ^ k) =>
-        e ⟨2 ^ k + i.val, by rw [pow_succ]; omega⟩) fun _ _ h =>
-          e.strictMono (Nat.add_lt_add_left h _)
-    refine hasMistakeTree_succ_bool.mpr ⟨e mid, fun y => ?_⟩
+    refine hasMistakeTree_succ_bool.mpr ⟨e ⟨2 ^ k - 1, by rw [pow_succ]; omega⟩, fun y => ?_⟩
     cases y
-    · refine (ih e₀).mono ?_
+    · refine (ih (OrderEmbedding.ofStrictMono
+        (fun i => e ⟨i.1, by rw [pow_succ]; omega⟩) fun _ _ h => e.strictMono h)).mono ?_
       rintro _ ⟨_, ⟨i, rfl⟩, rfl⟩
-      have hi : i.val < 2 ^ (k + 1) := by have := i.isLt; rw [pow_succ]; omega
-      refine mem_versionSpace_singleton.mpr ⟨⟨e ⟨i.val, hi⟩, ⟨⟨i.val, hi⟩, rfl⟩, rfl⟩, ?_⟩
+      have hi : i.1 < 2 ^ (k + 1) := by have := i.2; rw [pow_succ]; omega
+      refine mem_versionSpace_singleton.mpr ⟨⟨e ⟨i.1, hi⟩, ⟨⟨i.1, hi⟩, rfl⟩, rfl⟩, ?_⟩
       simp only [thresholdConcept_apply, decide_eq_false_iff_not, not_lt]
-      exact e.le_iff_le.mpr (Fin.mk_le_mk.mpr (by have := i.isLt; omega))
-    · refine (ih e₁).mono ?_
+      exact e.le_iff_le.mpr (Fin.mk_le_mk.mpr (by have := i.2; omega))
+    · refine (ih (OrderEmbedding.ofStrictMono
+        (fun i => e ⟨2 ^ k + i.1, by rw [pow_succ]; omega⟩) fun _ _ h =>
+          e.strictMono (Nat.add_lt_add_left h _))).mono ?_
       rintro _ ⟨_, ⟨i, rfl⟩, rfl⟩
-      have hi : 2 ^ k + i.val < 2 ^ (k + 1) := by have := i.isLt; rw [pow_succ]; omega
-      refine mem_versionSpace_singleton.mpr
-        ⟨⟨e ⟨2 ^ k + i.val, hi⟩, ⟨⟨2 ^ k + i.val, hi⟩, rfl⟩, rfl⟩, ?_⟩
+      have hi : 2 ^ k + i.1 < 2 ^ (k + 1) := by have := i.2; rw [pow_succ]; omega
+      refine mem_versionSpace_singleton.mpr ⟨⟨e ⟨2 ^ k + i.1, hi⟩, ⟨⟨2 ^ k + i.1, hi⟩, rfl⟩, rfl⟩,
+        ?_⟩
       simp only [thresholdConcept_apply, decide_eq_true_eq]
       exact e.lt_iff_lt.mpr (Fin.mk_lt_mk.mpr (by omega))
 
@@ -144,7 +137,7 @@ theorem littlestoneDim_thresholdClass [Infinite α] : littlestoneDim (thresholdC
   obtain ⟨s, hs⟩ := Infinite.exists_subset_card_eq α (2 ^ k)
   refine le_littlestoneDim_of_hasMistakeTree
     ((hasMistakeTree_thresholdConcept_orderEmb k (s.orderEmbOfFin hs)).mono ?_)
-  exact Set.image_mono (Set.subset_univ _) |>.trans (by simp [thresholdClass])
+  exact (Set.image_mono (Set.subset_univ _)).trans (by simp [thresholdClass])
 
 /-- On a dense linear order (such as `ℚ`), the thresholds strictly inside `(lo, hi)` (`lo < hi`)
 admit complete mistake trees of every height via midpoint bisection. -/
@@ -153,21 +146,17 @@ theorem hasMistakeTree_thresholdConcept_Ioo [DenselyOrdered α] (k : ℕ) {lo hi
   induction k generalizing lo hi with
   | zero =>
     obtain ⟨m, hm⟩ := exists_between h
-    exact ⟨thresholdConcept m, m, hm, rfl⟩
+    exact ⟨_, m, hm, rfl⟩
   | succ k ih =>
     obtain ⟨m, hlo, hhi⟩ := exists_between h
     refine hasMistakeTree_succ_bool.mpr ⟨m, fun y => ?_⟩
     cases y
     · refine (ih hlo).mono ?_
       rintro _ ⟨θ, ⟨h1, h2⟩, rfl⟩
-      refine mem_versionSpace_singleton.mpr ⟨⟨θ, ⟨h1, h2.trans hhi⟩, rfl⟩, ?_⟩
-      simp only [thresholdConcept_apply, decide_eq_false_iff_not, not_lt]
-      exact h2.le
+      exact mem_versionSpace_singleton.mpr ⟨⟨θ, ⟨h1, h2.trans hhi⟩, rfl⟩, by simpa using h2.le⟩
     · refine (ih hhi).mono ?_
       rintro _ ⟨θ, ⟨h1, h2⟩, rfl⟩
-      refine mem_versionSpace_singleton.mpr ⟨⟨θ, ⟨hlo.trans h1, h2⟩, rfl⟩, ?_⟩
-      simp only [thresholdConcept_apply, decide_eq_true_eq]
-      exact h1
+      exact mem_versionSpace_singleton.mpr ⟨⟨θ, ⟨hlo.trans h1, h2⟩, rfl⟩, by simpa using h1⟩
 
 /-- No two points of a linear order are shattered by thresholds. -/
 theorem not_setShatters_thresholdClass {W : Finset α} (hW : 1 < W.card) :
@@ -175,15 +164,14 @@ theorem not_setShatters_thresholdClass {W : Finset α} (hW : 1 < W.card) :
   intro hsh
   obtain ⟨a, ha, b, hb, hab⟩ := Finset.one_lt_card.mp hW
   wlog hlt : a < b generalizing a b
-  · exact this b hb a ha (Ne.symm hab) (hab.lt_or_gt.resolve_left hlt)
-  obtain ⟨c, ⟨θ, rfl⟩, hc⟩ := hsh {b} (by simpa using hb)
-  have hb' : b ∈ thresholdConcept θ ⁻¹' {true} ∩ (W : Set α) := hc ▸ rfl
+  · exact this b hb a ha hab.symm (hab.lt_or_gt.resolve_left hlt)
+  obtain ⟨_, ⟨θ, rfl⟩, hc⟩ := hsh {b} (by simpa using hb)
+  have hbθ : b < θ := by
+    simpa using (hc ▸ rfl : b ∈ thresholdConcept θ ⁻¹' {true} ∩ (W : Set α)).1
   have ha' : a ∉ thresholdConcept θ ⁻¹' {true} ∩ (W : Set α) := by
-    rw [hc]; simpa using hab
-  have hbθ : b < θ := by simpa using hb'.1
-  exact ha' ⟨by
-    simp only [Set.mem_preimage, Set.mem_singleton_iff, thresholdConcept_apply, decide_eq_true_eq]
-    exact hlt.trans hbθ, ha⟩
+    rw [hc]
+    simpa using hab
+  exact ha' ⟨by simpa using hlt.trans hbθ, ha⟩
 
 /-- A subclass of `thresholdClass α` that shatters a singleton has VC dimension `1`. -/
 theorem vcDim_eq_one_of_subset_thresholdClass {C : ConceptClass α Bool}
@@ -231,11 +219,11 @@ tree. -/
 theorem hasMistakeTree_thresholdConcept_Icc (k lo : ℕ) :
     HasMistakeTree k (thresholdConcept '' Set.Icc lo (lo + 2 ^ k - 1)) := by
   let e : Fin (2 ^ k) ↪o ℕ :=
-    OrderEmbedding.ofStrictMono (fun i : Fin (2 ^ k) => lo + i.val) fun _ _ h =>
+    OrderEmbedding.ofStrictMono (fun i : Fin (2 ^ k) => lo + i.1) fun _ _ h =>
       Nat.add_lt_add_left h lo
   refine (hasMistakeTree_thresholdConcept_orderEmb k e).mono ?_
   rintro _ ⟨_, ⟨i, rfl⟩, rfl⟩
-  exact ⟨lo + i.val, ⟨Nat.le_add_right lo i.val, by have := i.isLt; omega⟩, rfl⟩
+  exact ⟨lo + i.1, ⟨Nat.le_add_right lo i.1, by have := i.2; omega⟩, rfl⟩
 
 /-- The thresholds `θ ≤ N` on `ℕ` have Littlestone dimension `⌊log₂ (N + 1)⌋`. -/
 theorem littlestoneDim_thresholdClassUpTo (N : ℕ) :
@@ -246,14 +234,12 @@ theorem littlestoneDim_thresholdClassUpTo (N : ℕ) :
         ((Finset.Iic N).image thresholdConcept : Set (ℕ → Bool)) := by
       simp [thresholdClassUpTo]
     rw [hC]
-    refine (littlestoneDim_le_log_card _).trans ?_
-    exact_mod_cast Nat.log_mono_right (Finset.card_image_le.trans (by simp))
+    exact (littlestoneDim_le_log_card _).trans
+      (by exact_mod_cast Nat.log_mono_right (Finset.card_image_le.trans (by simp)))
   · refine le_littlestoneDim_of_hasMistakeTree ((hasMistakeTree_thresholdConcept_Icc _ 0).mono ?_)
     rintro _ ⟨θ, ⟨-, h2⟩, rfl⟩
-    refine ⟨θ, ?_, rfl⟩
-    have := Nat.pow_log_le_self 2 (show N + 1 ≠ 0 by omega)
-    simp only [Set.mem_Iic]
-    omega
+    have := Nat.pow_log_le_self 2 (Nat.add_one_ne_zero N)
+    exact ⟨θ, by simp only [Set.mem_Iic]; omega, rfl⟩
 
 /-- [Littlestone1988, §3, Example 3]: the `2 ^ n` thresholds `θ < 2 ^ n` have optimal mistake
 bound `n`. -/
@@ -267,9 +253,11 @@ theorem setShatters_singleton_thresholdClassUpTo {N x : ℕ} (hx : x < N) :
   intro W' hW'
   rcases Set.subset_singleton_iff_eq.mp hW' with rfl | rfl
   · refine ⟨thresholdConcept 0, ⟨0, by simp, rfl⟩, ?_⟩
-    ext z; simp
+    ext
+    simp
   · refine ⟨thresholdConcept (x + 1), ⟨x + 1, by simp only [Set.mem_Iic]; omega, rfl⟩, ?_⟩
-    ext z; simp
+    ext
+    simp
 
 /-- For `N ≥ 1`, the thresholds `θ ≤ N` have VC dimension `1`. -/
 theorem vcDim_thresholdClassUpTo {N : ℕ} (hN : 1 ≤ N) : vcDim (thresholdClassUpTo N) = 1 :=

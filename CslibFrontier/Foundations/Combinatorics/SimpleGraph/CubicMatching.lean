@@ -51,16 +51,16 @@ theorem exists_isMatching_mul_eight_ge {V : Type*} [Finite V] (H : SimpleGraph V
   have := Fintype.ofFinite OddC
   let Ufin : Finset V := U.toFinset
   have hUcard : Ufin.card = U.ncard := (Set.ncard_eq_toFinset_card' U).symm
-  let S (c : OddC) : Finset V := (Subtype.val '' c.val.supp).toFinset
-  have hScard (c : OddC) : (S c).card = c.val.supp.ncard := by
+  let S (c : OddC) : Finset V := (Subtype.val '' c.1.supp).toFinset
+  have hScard (c : OddC) : (S c).card = c.1.supp.ncard := by
     rw [← Set.ncard_eq_toFinset_card', Set.ncard_image_of_injective _ Subtype.val_injective]
   have hSodd (c : OddC) : Odd (S c).card := by
     rw [hScard]
-    exact c.property
+    exact c.2
   have hS_notU (c : OddC) {v : V} (hv : v ∈ S c) : v ∉ U := by
     simp only [S, Set.mem_toFinset, Set.mem_image] at hv
     obtain ⟨x, -, rfl⟩ := hv
-    exact x.property.2
+    exact x.2.2
   have hS_disj_U (c : OddC) : Disjoint (S c) Ufin :=
     Finset.disjoint_left.mpr fun v hv hvU => hS_notU c hv (Set.mem_toFinset.mp hvU)
   have hS_pairwise : Set.Pairwise (Set.univ : Set OddC) fun c₁ c₂ => Disjoint (S c₁) (S c₂) := by
@@ -79,8 +79,10 @@ theorem exists_isMatching_mul_eight_ge {V : Type*} [Finite V] (H : SimpleGraph V
     rw [ConnectedComponent.mem_supp_iff] at hx ⊢
     rw [← hx]
     exact (ConnectedComponent.connectedComponentMk_eq_of_adj
-      (Subgraph.Adj.coe
-          (Subgraph.deleteVerts_adj.mpr ⟨trivial, x.property.2, trivial, hw, hadj⟩))).symm
+      (Subgraph.Adj.coe (Subgraph.deleteVerts_adj.mpr ⟨trivial, x.2.2, trivial, hw, hadj⟩))).symm
+  have h3fin (v : V) : (H.neighborFinset v).card = 3 := by
+    have := h3 v
+    rwa [← H.coe_neighborFinset v, Set.ncard_coe_finset] at this
   let intPairs (c : OddC) : Finset (V × V) :=
     (S c ×ˢ S c).filter fun p => H.Adj p.1 p.2
   let cutPairs (c : OddC) : Finset (V × V) :=
@@ -100,15 +102,9 @@ theorem exists_isMatching_mul_eight_ge {V : Type*} [Finite V] (H : SimpleGraph V
         by_cases hwU : w' ∈ U
         · exact Or.inr ⟨⟨hv', Set.mem_toFinset.mpr hwU⟩, hadj⟩
         · exact Or.inl ⟨⟨hv', hS_closed c hv' hwU hadj⟩, hadj⟩
-    have hdisj : Disjoint (intPairs c) (cutPairs c) :=
-      Finset.disjoint_left.mpr fun p hp₁ hp₂ =>
-        Finset.disjoint_left.mp (hS_disj_U c) (Finset.mem_product.mp (Finset.mem_filter.mp hp₁).1).2
-          (Finset.mem_product.mp (Finset.mem_filter.mp hp₂).1).2
-    rw [← Finset.card_union_of_disjoint hdisj, hpart, Finset.card_biUnion]
-    · have h3fin (v : V) : (H.neighborFinset v).card = 3 := by
-        have := h3 v
-        rwa [← H.coe_neighborFinset v, Set.ncard_coe_finset] at this
-      simp only [Finset.card_map, h3fin, Finset.sum_const, smul_eq_mul, mul_comm]
+    rw [← Finset.card_union_of_disjoint (Finset.disjoint_filter_filter
+      (Finset.disjoint_product.2 (Or.inr (hS_disj_U c)))), hpart, Finset.card_biUnion]
+    · simp only [Finset.card_map, h3fin, Finset.sum_const, smul_eq_mul, mul_comm]
     · intro v₁ _ v₂ _ hne
       refine Finset.disjoint_left.mpr fun p hp₁ hp₂ => hne ?_
       simp only [Finset.mem_map] at hp₁ hp₂
@@ -137,45 +133,20 @@ theorem exists_isMatching_mul_eight_ge {V : Type*} [Finite V] (H : SimpleGraph V
       simp only [intPairs, Finset.mem_filter, Finset.mem_product, Finset.mem_offDiag] at hp ⊢
       exact ⟨hp.1.1, hp.1.2, hp.2.ne⟩
     exact (Finset.card_le_card hsub).trans_eq (Finset.offDiag_card (S c))
-  have hcut_odd (c : OddC) : Odd (cutPairs c).card := by
+  -- Each odd component pays `8` in vertices plus three times its cut edges: the cut size is odd,
+  -- and a single cut edge forces `3 |C| - 1 ≤ |C| (|C| - 1)`, so `|C| ≥ 5`.
+  have hpt (c : OddC) : 8 ≤ (S c).card + 3 • (cutPairs c).card := by
+    rw [smul_eq_mul]
     obtain ⟨k, hk⟩ := hSodd c
     obtain ⟨m, hm⟩ := hint_even c
     have hsum := hdeg_sum c
-    refine ⟨3 * k + 1 - m, ?_⟩
-    omega
-  have hfive_of_one (c : OddC) (h1 : (cutPairs c).card = 1) : 5 ≤ (S c).card := by
-    obtain ⟨k, hk⟩ := hSodd c
-    have hsum := hdeg_sum c
     have hle := hint_le c
-    rw [h1] at hsum
     rw [hk] at hsum hle
     rcases k with _ | _ | k <;> omega
-  let Q₁ : Finset OddC := Finset.univ.filter fun c => (cutPairs c).card = 1
-  let Q₃ : Finset OddC := Finset.univ.filter fun c => ¬(cutPairs c).card = 1
-  have hQ_tot : Q₁.card + Q₃.card = OddC.ncard := by
-    rw [Finset.card_filter_add_card_filter_not, Finset.card_univ, ← Nat.card_eq_fintype_card,
-      Nat.card_coe_set_eq]
-  have hQ₃_ge (c : OddC) (hc : c ∈ Q₃) : 3 ≤ (cutPairs c).card := by
-    have hne : (cutPairs c).card ≠ 1 := (Finset.mem_filter.mp hc).2
-    obtain ⟨k, hk⟩ := hcut_odd c
-    omega
-  have hcut_tot : Q₁.card + 3 * Q₃.card ≤ 3 * U.ncard := by
-    have hlow : Q₁.card + 3 * Q₃.card ≤ ∑ c : OddC, (cutPairs c).card := by
-      rw [← Finset.sum_add_sum_compl Q₁]
-      have hcompl : Q₁ᶜ = Q₃ := by ext c; simp [Q₁, Q₃]
-      rw [hcompl]
-      refine Nat.add_le_add ?_ ?_
-      · calc Q₁.card = ∑ _c ∈ Q₁, 1 := by simp
-          _ ≤ ∑ c ∈ Q₁, (cutPairs c).card :=
-            Finset.sum_le_sum fun c hc => le_of_eq (Finset.mem_filter.mp hc).2.symm
-      · calc 3 * Q₃.card = ∑ _c ∈ Q₃, 3 := by simp [mul_comm]
-          _ ≤ ∑ c ∈ Q₃, (cutPairs c).card := Finset.sum_le_sum fun c hc => hQ₃_ge c hc
-    have hbi_disj : ((Finset.univ : Finset OddC) : Set OddC).PairwiseDisjoint cutPairs := by
-      intro c₁ _ c₂ _ hne
-      refine Finset.disjoint_left.mpr fun p hp₁ hp₂ => ?_
-      exact Finset.disjoint_left.mp (hS_pairwise trivial trivial hne)
-        (Finset.mem_product.mp (Finset.mem_filter.mp hp₁).1).1
-        (Finset.mem_product.mp (Finset.mem_filter.mp hp₂).1).1
+  have hcut_tot : ∑ c : OddC, (cutPairs c).card ≤ 3 * U.ncard := by
+    have hbi_disj : ((Finset.univ : Finset OddC) : Set OddC).PairwiseDisjoint cutPairs :=
+      fun c₁ _ c₂ _ hne => Finset.disjoint_filter_filter
+        (Finset.disjoint_product.2 (Or.inl (hS_pairwise trivial trivial hne)))
     let allFromU : Finset (V × V) :=
       Ufin.biUnion fun u => (H.neighborFinset u).map
         ⟨fun v => (v, u), fun _ _ h => Prod.mk.inj h |>.1⟩
@@ -186,40 +157,17 @@ theorem exists_isMatching_mul_eight_ge {V : Type*} [Finite V] (H : SimpleGraph V
       obtain ⟨c, ⟨_, hu⟩, hadj⟩ := hp
       simp only [allFromU, Finset.mem_biUnion, Finset.mem_map, mem_neighborFinset]
       exact ⟨u, hu, v, hadj.symm, rfl⟩
-    have hall_card : allFromU.card ≤ 3 * Ufin.card := by
-      refine Finset.card_biUnion_le.trans ?_
-      have h3fin (u : V) : (H.neighborFinset u).card = 3 := by
-        have := h3 u
-        rwa [← H.coe_neighborFinset u, Set.ncard_coe_finset] at this
-      simp [h3fin, mul_comm]
-    calc Q₁.card + 3 * Q₃.card
-        ≤ ∑ c : OddC, (cutPairs c).card := hlow
-      _ = (Finset.univ.biUnion cutPairs).card := (Finset.card_biUnion hbi_disj).symm
-      _ ≤ allFromU.card := Finset.card_le_card hsub
-      _ ≤ 3 * U.ncard := by rwa [hUcard] at hall_card
-  have hvert_tot : U.ncard + 5 * Q₁.card + Q₃.card ≤ Nat.card V := by
-    have hlow : 5 * Q₁.card + Q₃.card ≤ ∑ c : OddC, (S c).card := by
-      rw [← Finset.sum_add_sum_compl Q₁]
-      have hcompl : Q₁ᶜ = Q₃ := by ext c; simp [Q₁, Q₃]
-      rw [hcompl]
-      refine Nat.add_le_add ?_ ?_
-      · calc 5 * Q₁.card = ∑ _c ∈ Q₁, 5 := by simp [mul_comm]
-          _ ≤ ∑ c ∈ Q₁, (S c).card :=
-            Finset.sum_le_sum fun c hc => hfive_of_one c (Finset.mem_filter.mp hc).2
-      · calc Q₃.card = ∑ _c ∈ Q₃, 1 := by simp
-          _ ≤ ∑ c ∈ Q₃, (S c).card := Finset.sum_le_sum fun c _ => by
-            obtain ⟨k, hk⟩ := hSodd c; omega
-    have hdisj_all : Disjoint Ufin (Finset.univ.biUnion S) := by
-      refine Finset.disjoint_left.mpr fun v hvU hvS => ?_
-      obtain ⟨c, -, hvc⟩ := Finset.mem_biUnion.mp hvS
-      exact Finset.disjoint_left.mp (hS_disj_U c) hvc hvU
-    have hcard_bi : (Finset.univ.biUnion S).card = ∑ c : OddC, (S c).card :=
-      Finset.card_biUnion fun c₁ _ c₂ _ hne => hS_pairwise trivial trivial hne
-    have hunion_le : (Ufin ∪ Finset.univ.biUnion S).card ≤ Fintype.card V :=
-      Finset.card_le_univ _
-    rw [Finset.card_union_of_disjoint hdisj_all, hUcard, hcard_bi,
-      ← Nat.card_eq_fintype_card] at hunion_le
-    omega
+    rw [← Finset.card_biUnion hbi_disj, ← hUcard]
+    refine (Finset.card_le_card hsub).trans (Finset.card_biUnion_le.trans ?_)
+    simp [h3fin, mul_comm]
+  have hvert_tot : U.ncard + ∑ c : OddC, (S c).card ≤ Nat.card V := by
+    rw [← hUcard, ← Finset.card_biUnion fun c₁ _ c₂ _ hne => hS_pairwise trivial trivial hne,
+      ← Finset.card_union_of_disjoint ((Finset.disjoint_biUnion_right _ _ _).2 fun c _ =>
+        (hS_disj_U c).symm), Nat.card_eq_fintype_card]
+    exact Finset.card_le_univ _
+  have hq := Finset.card_nsmul_le_sum Finset.univ _ 8 fun c _ => hpt c
+  rw [Finset.card_univ, ← Nat.card_eq_fintype_card, Nat.card_coe_set_eq, Finset.sum_add_distrib,
+    Finset.sum_nsmul, smul_eq_mul, smul_eq_mul] at hq
   omega
 
 end SimpleGraph

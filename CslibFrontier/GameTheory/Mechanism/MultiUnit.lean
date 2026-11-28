@@ -129,13 +129,10 @@ theorem beats_trichotomous {b : ι → ℝ} {i j : ι} (hij : i ≠ j) :
   · exact Or.inl (Or.inl hgt)
 
 theorem le_of_beats {b : ι → ℝ} {j i : ι} (h : Beats b j i) : b i ≤ b j := by
-  rcases h with hlt | ⟨heq, -⟩
-  · exact hlt.le
-  · exact heq.le
+  exact h.elim le_of_lt fun h => h.1.le
 
 theorem le_of_not_beats {b : ι → ℝ} {j i : ι} (h : ¬ Beats b j i) : b j ≤ b i := by
-  by_contra hlt
-  exact h (Or.inl (not_le.1 hlt))
+  exact not_lt.1 fun hlt => h (Or.inl hlt)
 
 variable [Fintype ι]
 
@@ -153,21 +150,14 @@ theorem rank_def (b : ι → ℝ) (i : ι) :
 open Classical in
 theorem rank_lt_card (b : ι → ℝ) (i : ι) : rank b i < Fintype.card ι := by
   rw [rank, ← Finset.card_univ]
-  refine Finset.card_lt_card (Finset.ssubset_iff_subset_ne.2 ⟨Finset.filter_subset _ _, ?_⟩)
-  intro heq
-  have hi : i ∈ Finset.univ.filter (fun j => Beats b j i) := by
-    rw [heq]
-    exact Finset.mem_univ i
-  exact beats_irrefl b i (Finset.mem_filter.1 hi).2
+  exact Finset.card_lt_card (Finset.filter_ssubset.2 ⟨i, Finset.mem_univ i, beats_irrefl b i⟩)
 
 open Classical in
 theorem rank_lt_of_beats {b : ι → ℝ} {i j : ι} (h : Beats b i j) : rank b i < rank b j := by
-  refine Finset.card_lt_card (Finset.ssubset_iff_subset_ne.2 ⟨fun m hm => ?_, fun heq => ?_⟩)
-  · exact Finset.mem_filter.2 ⟨Finset.mem_univ m, beats_trans (Finset.mem_filter.1 hm).2 h⟩
-  · have hi : i ∈ Finset.univ.filter (fun m => Beats b m j) :=
-      Finset.mem_filter.2 ⟨Finset.mem_univ i, h⟩
-    rw [← heq] at hi
-    exact beats_irrefl b i (Finset.mem_filter.1 hi).2
+  refine Finset.card_lt_card ((Finset.ssubset_iff_of_subset fun m hm => ?_).2
+    ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ i, h⟩,
+      fun hi => beats_irrefl b i (Finset.mem_filter.1 hi).2⟩)
+  exact Finset.mem_filter.2 ⟨Finset.mem_univ m, beats_trans (Finset.mem_filter.1 hm).2 h⟩
 
 theorem beats_iff_rank_lt {b : ι → ℝ} {i j : ι} : Beats b i j ↔ rank b i < rank b j := by
   refine ⟨rank_lt_of_beats, fun hlt => ?_⟩
@@ -176,12 +166,10 @@ theorem beats_iff_rank_lt {b : ι → ℝ} {i j : ι} : Beats b i j ↔ rank b i
   · exact h
   · exact absurd (rank_lt_of_beats h) (not_lt.2 hlt.le)
 
-theorem rank_injective (b : ι → ℝ) : Function.Injective (rank b) := by
-  intro i j heq
-  by_contra hij
-  rcases beats_trichotomous hij with h | h
-  · exact (heq ▸ rank_lt_of_beats h).false
-  · exact (heq ▸ rank_lt_of_beats h).false
+theorem rank_injective (b : ι → ℝ) : Function.Injective (rank b) := fun _ _ heq =>
+  by_contra fun hij => (beats_trichotomous hij).elim
+    (fun h => (heq ▸ rank_lt_of_beats h).false)
+    (fun h => (heq ▸ rank_lt_of_beats h).false)
 
 theorem image_rank_eq_range (b : ι → ℝ) :
     Finset.univ.image (rank b) = Finset.range (Fintype.card ι) := by
@@ -191,11 +179,8 @@ theorem image_rank_eq_range (b : ι → ℝ) :
   · rw [Finset.card_range, Finset.card_image_of_injective _ (rank_injective b), Finset.card_univ]
 
 theorem exists_rank_eq {b : ι → ℝ} {r : ℕ} (hr : r < Fintype.card ι) : ∃ i, rank b i = r := by
-  have hmem : r ∈ Finset.univ.image (rank b) := by
-    rw [image_rank_eq_range]
-    exact Finset.mem_range.2 hr
-  obtain ⟨i, -, hi⟩ := Finset.mem_image.1 hmem
-  exact ⟨i, hi⟩
+  simpa only [Finset.mem_image, Finset.mem_univ, true_and] using
+    ((image_rank_eq_range b).symm ▸ Finset.mem_range.2 hr : r ∈ Finset.univ.image (rank b))
 
 /-- Bidder `i` wins one of the `k` identical items iff `rank b i < k`. -/
 @[expose] def Wins (k : ℕ) (b : ι → ℝ) (i : ι) : Prop :=
@@ -204,16 +189,12 @@ theorem exists_rank_eq {b : ι → ℝ} {r : ℕ} (hr : r < Fintype.card ι) : �
 theorem wins_one_iff {b : ι → ℝ} {i : ι} : Wins 1 b i ↔ Vickrey.Wins b i := by
   classical
   rw [Wins, Nat.lt_one_iff, rank, Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-  constructor
-  · intro h j hj
-    have hnb : ¬ Beats b j i := h (Finset.mem_univ j)
-    refine ⟨le_of_not_beats hnb, fun hlt => ?_⟩
-    exact (le_of_not_beats hnb).lt_of_ne fun heq => hnb (Or.inr ⟨heq.symm, hlt⟩)
-  · rintro h j - (hlt | ⟨heq, hji⟩)
-    · have hj : j ≠ i := fun he => by subst he; exact lt_irrefl _ hlt
-      exact not_lt.2 (h j hj).1 hlt
-    · have hj : j ≠ i := ne_of_lt hji
-      exact ((h j hj).2 hji).ne heq.symm
+  refine ⟨fun h j _ => ⟨le_of_not_beats (h (Finset.mem_univ j)), fun hlt =>
+    (le_of_not_beats (h (Finset.mem_univ j))).lt_of_ne fun heq =>
+      h (Finset.mem_univ j) (Or.inr ⟨heq.symm, hlt⟩)⟩, ?_⟩
+  rintro h j - (hlt | ⟨heq, hji⟩)
+  · exact not_lt.2 (h j (fun he => lt_irrefl _ (he ▸ hlt))).1 hlt
+  · exact ((h j hji.ne).2 hji).ne heq.symm
 
 open Classical in
 /-- Top-`k` allocation rule: each of the `k` highest-ranked bidders receives `1` item, and all
@@ -222,31 +203,21 @@ noncomputable def allocation (k : ℕ) (b : ι → ℝ) (i : ι) : ℝ :=
   if Wins k b i then 1 else 0
 
 theorem allocation_one : allocation (ι := ι) 1 = Vickrey.allocation := by
-  funext b i
-  unfold allocation Vickrey.allocation
-  by_cases h : Wins 1 b i
-  · rw [ite_eq_left h, ite_eq_left (wins_one_iff.1 h)]
-  · rw [ite_eq_right h, ite_eq_right (mt wins_one_iff.2 h)]
+  classical
+  ext b i
+  simp only [allocation, Vickrey.allocation, wins_one_iff]
 
 theorem allocation_eq_one_iff {k : ℕ} {b : ι → ℝ} {i : ι} :
     allocation k b i = 1 ↔ Wins k b i := by
-  unfold allocation
-  split_ifs with h
-  · exact iff_of_true rfl h
-  · exact iff_of_false zero_ne_one h
+  simp [allocation]
 
 theorem allocation_eq_zero_iff {k : ℕ} {b : ι → ℝ} {i : ι} :
     allocation k b i = 0 ↔ ¬ Wins k b i := by
-  unfold allocation
-  split_ifs with h
-  · exact iff_of_false one_ne_zero (not_not_intro h)
-  · exact iff_of_true rfl h
+  simp [allocation]
 
 theorem allocation_binary (k : ℕ) (b : ι → ℝ) (i : ι) :
     allocation k b i = 0 ∨ allocation k b i = 1 := by
-  unfold allocation
-  split_ifs
-  exacts [Or.inr rfl, Or.inl rfl]
+  by_cases h : Wins k b i <;> simp [allocation, h]
 
 theorem isBinary_allocation (k : ℕ) : IsBinary (allocation (ι := ι) k) :=
   fun b _ i => allocation_binary k b i
@@ -261,11 +232,10 @@ theorem card_wins (k : ℕ) (b : ι → ℝ) :
       Finset.range (min k (Fintype.card ι)) := by
     ext r
     rw [Finset.mem_image, Finset.mem_range, lt_min_iff]
-    refine ⟨?_, fun ⟨hrk, hrn⟩ => ?_⟩
-    · rintro ⟨i, hi, rfl⟩
-      exact ⟨(Finset.mem_filter.1 hi).2, rank_lt_card b i⟩
-    · obtain ⟨i, hi⟩ := exists_rank_eq (b := b) hrn
-      exact ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ i, by rw [Wins, hi]; exact hrk⟩, hi⟩
+    refine ⟨fun ⟨i, hi, hr⟩ => ⟨hr ▸ (Finset.mem_filter.1 hi).2, hr ▸ rank_lt_card b i⟩,
+      fun ⟨hrk, hrn⟩ => ?_⟩
+    obtain ⟨i, hi⟩ := exists_rank_eq (b := b) hrn
+    exact ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ i, hi.trans_lt hrk⟩, hi⟩
   rw [himg, Finset.card_range]
 
 open Classical in
@@ -289,10 +259,8 @@ theorem isWelfareMaximizing_allocation (k : ℕ) :
   have hy01 : ∀ i, 0 ≤ y i ∧ y i ≤ 1 := fun i => by
     rcases hy.1 i with h | h <;> rw [h] <;> exact ⟨by norm_num, by norm_num⟩
   rcases le_or_gt (Fintype.card ι) k with hnk | hkn
-  · have hall : ∀ i, allocation k b i = 1 := fun i =>
-      allocation_eq_one_iff.2 ((rank_lt_card b i).trans_le hnk)
-    refine Finset.sum_le_sum fun i _ => ?_
-    rw [hall i]
+  · refine Finset.sum_le_sum fun i _ => ?_
+    rw [allocation_eq_one_iff.2 ((rank_lt_card b i).trans_le hnk)]
     exact mul_le_mul_of_nonneg_left (hy01 i).2 (hb i)
   · obtain ⟨ik, hik⟩ := exists_rank_eq (b := b) hkn
     set p := b ik
@@ -304,13 +272,8 @@ theorem isWelfareMaximizing_allocation (k : ℕ) :
         have hbp : 0 ≤ b i - p := sub_nonneg.2 (le_of_beats hbeat)
         rw [allocation_eq_one_iff.2 hw]
         exact mul_le_mul_of_nonneg_left (hy01 i).2 hbp
-      · have hle : b i ≤ p := by
-          rcases eq_or_ne i ik with rfl | hne
-          · exact le_rfl
-          · have hlt : rank b ik < rank b i :=
-              lt_of_le_of_ne (hik ▸ not_lt.1 hw)
-                (fun heq => hne (rank_injective b heq.symm))
-            exact le_of_beats (beats_iff_rank_lt.2 hlt)
+      · have hle : b i ≤ p :=
+          le_of_not_beats fun h => hw (by rw [Wins, ← hik]; exact beats_iff_rank_lt.1 h)
         rw [allocation_eq_zero_iff.2 hw, mul_zero]
         exact mul_nonpos_of_nonpos_of_nonneg (sub_nonpos.2 hle) (hy01 i).1
     have hsum_shift : ∑ i, (b i - p) * y i ≤ ∑ i, (b i - p) * allocation k b i :=
@@ -318,8 +281,7 @@ theorem isWelfareMaximizing_allocation (k : ℕ) :
     have hexp : ∀ z : ι → ℝ, ∑ i, (b i - p) * z i = (∑ i, b i * z i) - p * ∑ i, z i := fun z => by
       simp only [sub_mul, Finset.sum_sub_distrib, ← Finset.mul_sum]
     rw [hexp, hexp, sum_allocation, min_eq_left hkn.le] at hsum_shift
-    have hp_sum : p * ∑ i, y i ≤ p * k := mul_le_mul_of_nonneg_left hy.2 hp0
-    linarith
+    linarith [mul_le_mul_of_nonneg_left hy.2 hp0]
 
 /-- `allocation k` is monotone on nonnegative bids. -/
 theorem isMonotone_allocation (k : ℕ) : IsMonotone (allocation (ι := ι) k) :=
@@ -340,17 +302,12 @@ theorem bidAtRank_eq_of_rank {r : ℕ} {b : ι → ℝ} {i : ι} (hi : rank b i 
   rw [dite_eq_left hex, rank_injective b ((Classical.choose_spec hex).trans hi.symm)]
 
 theorem bidAtRank_eq_of_rank_nonneg {r : ℕ} {b : ι → ℝ} (hb : 0 ≤ b) {i : ι}
-    (hi : rank b i = r) : bidAtRank r b = b i := by
-  have hbi : 0 ≤ b i := hb i
-  rw [bidAtRank_eq_of_rank hi, max_eq_right hbi]
+    (hi : rank b i = r) : bidAtRank r b = b i :=
+  (bidAtRank_eq_of_rank hi).trans (max_eq_right (hb i))
 
 theorem bidAtRank_of_card_le {r : ℕ} (b : ι → ℝ) (hr : Fintype.card ι ≤ r) :
     bidAtRank r b = 0 := by
-  have hno : ¬ ∃ i, rank b i = r := by
-    rintro ⟨i, rfl⟩
-    exact (rank_lt_card b i).not_ge hr
-  unfold bidAtRank
-  exact dite_eq_right hno
+  exact dite_eq_right fun ⟨i, hi⟩ => (hi ▸ rank_lt_card b i).not_ge hr
 
 /-- **Uniform `(k + 1)`-st price multi-unit auction** ([Nisan2007], §9.3.5.4, p. 221): the top `k`
 bidders win one item each and every winner pays `bidAtRank k b` (the `(k + 1)`-st highest bid, or
@@ -385,50 +342,32 @@ theorem criticalBid_allocation_of_wins {k : ℕ} {b : ι → ℝ} (hb : 0 ≤ b)
     let S : Finset ι := (Finset.univ.filter fun j => Beats b j ik).erase i
     have hi_mem : i ∈ Finset.univ.filter (fun j => Beats b j ik) :=
       Finset.mem_filter.2 ⟨Finset.mem_univ i, hbeat_i⟩
-    have hS_card : S.card = k - 1 := by
-      rw [Finset.card_erase_of_mem hi_mem]
-      change rank b ik - 1 = k - 1
-      rw [hik]
+    have hS_card : S.card = k - 1 := by rw [Finset.card_erase_of_mem hi_mem, ← hik]; rfl
     have hk_pos : 1 ≤ k := Nat.one_le_iff_ne_zero.2 fun h0 => Nat.not_lt_zero _ (h0 ▸ hw)
     refine criticalBid_eq_of_threshold (hb ik) (fun z hz => ?_) (fun z hz hwin => ?_)
-    · apply allocation_eq_one_iff.2
-      have hsub : (Finset.univ.filter fun j => Beats (Function.update b i z) j i) ⊆ S := by
+    · have hsub : (Finset.univ.filter fun j => Beats (Function.update b i z) j i) ⊆ S := by
         intro j hj
         have hjb : Beats (Function.update b i z) j i := (Finset.mem_filter.1 hj).2
         have hj_ne_i : j ≠ i := fun h => beats_irrefl _ i (h ▸ hjb)
-        refine Finset.mem_erase.2 ⟨hj_ne_i, Finset.mem_filter.2 ⟨Finset.mem_univ j, ?_⟩⟩
-        have hbj_ge : z ≤ b j := by
-          rcases hjb with hlt | ⟨heq, -⟩
-          · exact (by simpa only [Function.update_self, Function.update_of_ne hj_ne_i] using hlt :
-              z < b j).le
-          · exact (by simpa only [Function.update_self, Function.update_of_ne hj_ne_i] using heq :
-              z = b j).le
-        exact Or.inl (hz.trans_le hbj_ge)
-      have hcard := Finset.card_le_card hsub
-      rw [Wins, rank]
-      omega
-    · by_contra hlt'
-      have hlt : z < b ik := not_le.1 hlt'
+        refine Finset.mem_erase.2 ⟨hj_ne_i, Finset.mem_filter.2 ⟨Finset.mem_univ j, Or.inl ?_⟩⟩
+        exact hz.trans_le <| by
+          simpa only [Function.update_self, Function.update_of_ne hj_ne_i] using le_of_beats hjb
+      exact allocation_eq_one_iff.2
+        ((Finset.card_le_card hsub).trans_lt (hS_card ▸ Nat.sub_lt hk_pos zero_lt_one))
+    · by_contra! hlt
       have hik_not_S : ik ∉ S := fun hm =>
         beats_irrefl b ik (Finset.mem_filter.1 (Finset.mem_of_mem_erase hm)).2
       have hsup : insert ik S ⊆
           Finset.univ.filter fun j => Beats (Function.update b i z) j i := by
         intro j hj
-        refine Finset.mem_filter.2 ⟨Finset.mem_univ j, ?_⟩
+        refine Finset.mem_filter.2 ⟨Finset.mem_univ j, Or.inl ?_⟩
         rcases Finset.mem_insert.1 hj with rfl | hjS
-        · refine Or.inl ?_
-          simpa only [Function.update_self, Function.update_of_ne hi_ne_ik.symm] using hlt
-        · have hj_ne_i : j ≠ i := Finset.ne_of_mem_erase hjS
-          have hjb_ik : Beats b j ik :=
-            (Finset.mem_filter.1 (Finset.mem_of_mem_erase hjS)).2
-          refine Or.inl ?_
-          have : z < b j := hlt.trans_le (le_of_beats hjb_ik)
-          simpa only [Function.update_self, Function.update_of_ne hj_ne_i] using this
+        · simpa only [Function.update_self, Function.update_of_ne hi_ne_ik.symm] using hlt
+        · simpa only [Function.update_self, Function.update_of_ne (Finset.ne_of_mem_erase hjS)]
+            using hlt.trans_le (le_of_beats (Finset.mem_filter.1 (Finset.mem_of_mem_erase hjS)).2)
       have hcard := Finset.card_le_card hsup
       rw [Finset.card_insert_of_notMem hik_not_S, hS_card, Nat.sub_add_cancel hk_pos] at hcard
-      have hw' : rank (Function.update b i z) i < k := allocation_eq_one_iff.1 hwin
-      rw [rank] at hw'
-      omega
+      exact absurd hcard (not_le.2 (allocation_eq_one_iff.1 hwin))
 
 /-- On every nonnegative bid profile, `criticalBidMechanism (allocation k)` and `mechanism k` have
 identical allocations and payments. -/
@@ -495,8 +434,7 @@ theorem nextBidMechanism_one_eq_mechanism :
     nextBidMechanism (ι := ι) 1 = mechanism 1 := by
   refine congrArg (Mechanism.mk (allocation 1)) (funext fun b => funext fun i => ?_)
   by_cases hw : Wins 1 b i
-  · have hr0 : rank b i = 0 := Nat.lt_one_iff.1 hw
-    rw [hr0]
+  · rw [Nat.lt_one_iff.1 hw]
   · rw [allocation_eq_zero_iff.2 hw, mul_zero, mul_zero]
 
 open Classical in
@@ -504,27 +442,23 @@ open Classical in
 theorem nextBidMechanism_isDSIC_of_card_le_one (k : ℕ) (hn : Fintype.card ι ≤ 1) :
     (nextBidMechanism (ι := ι) k).IsDSIC := by
   intro i b v _ _
-  have hp0 : ∀ c : ι → ℝ, (nextBidMechanism k).payment c i = 0 := fun c => by
-    simp only [nextBidMechanism]
-    rw [bidAtRank_of_card_le c (by omega), zero_mul]
+  have hp0 (c : ι → ℝ) : (nextBidMechanism k).payment c i = 0 := by
+    simp only [nextBidMechanism_payment, bidAtRank_of_card_le (r := rank c i + 1) c (by omega),
+      zero_mul]
   have ha : ∀ c : ι → ℝ, allocation k c i = if 0 < k then 1 else 0 := fun c => by
     have hsub : Subsingleton ι := Fintype.card_le_one_iff_subsingleton.1 hn
     have hr0 : rank c i = 0 := by
       rw [rank, Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-      intro j _ hjb
-      exact beats_irrefl c i (hsub.elim j i ▸ hjb)
+      exact fun j _ hjb => beats_irrefl c i (hsub.elim j i ▸ hjb)
     simp only [allocation, Wins, hr0]
-  simp only [Mechanism.utility, hp0]
-  simp only [nextBidMechanism, ha, sub_zero, le_rfl]
+  simp only [Mechanism.utility, hp0, nextBidMechanism_allocation, ha, sub_zero, le_rfl]
 
 open Classical in
 /-- If bidder `i`'s bid strictly exceeds every other bid, `rank b i = 0`. -/
 theorem rank_eq_zero_of_gt {b : ι → ℝ} {i : ι} (h : ∀ j, j ≠ i → b j < b i) :
     rank b i = 0 := by
   rw [rank, Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-  intro j _ hjb
-  have hj : j ≠ i := fun he => beats_irrefl b i (he ▸ hjb)
-  exact (le_of_beats hjb).not_gt (h j hj)
+  exact fun j _ hjb => (le_of_beats hjb).not_gt (h j fun he => beats_irrefl b i (he ▸ hjb))
 
 open Classical in
 /-- If `top` strictly outbids `second` and `second` strictly outbids everyone else,
@@ -550,53 +484,42 @@ bids `2`, and any remaining bidders bid `0`, bidding truthfully gives `i₀` ran
 theorem not_isDSIC_nextBidMechanism {k : ℕ} (hk : 2 ≤ k) (hn : 2 ≤ Fintype.card ι) :
     ¬ (nextBidMechanism (ι := ι) k).IsDSIC := by
   intro hDSIC
-  obtain ⟨i₀, i₁, hne⟩ := Fintype.one_lt_card_iff.1 (by omega : 1 < Fintype.card ι)
+  obtain ⟨i₀, i₁, hne⟩ := Fintype.one_lt_card_iff.1 hn
   let b : ι → ℝ := fun m => if m = i₀ then 1 else if m = i₁ then 2 else 0
-  have hb0 : 0 ≤ b := fun m => by
-    dsimp only [b]
-    split_ifs <;> norm_num
-  have hbi₀ : b i₀ = 1 := by simp only [b, ↓reduceIte]
-  have hbi₁ : b i₁ = 2 := by simp only [b, ite_eq_right hne.symm, ↓reduceIte]
-  have hb_other : ∀ m, m ≠ i₀ → m ≠ i₁ → b m = 0 := fun m hm0 hm1 => by
-    simp only [b, ite_eq_right hm0, ite_eq_right hm1]
+  have hb0 : 0 ≤ b := fun m => by dsimp only [b]; split_ifs <;> norm_num
   have hrank_b_i₀ : rank b i₀ = 1 :=
-    rank_eq_one_of_between (top := i₁) (by rw [hbi₀, hbi₁]; norm_num) fun j hj0 hj1 => by
-      rw [hb_other j hj0 hj1, hbi₀]; norm_num
+    rank_eq_one_of_between (top := i₁) (by norm_num [b, hne.symm])
+      fun j hj0 hj1 => by norm_num [b, hj0, hj1]
   have hrank_b_i₁ : rank b i₁ = 0 := rank_eq_zero_of_gt fun j hj1 => by
-    rcases eq_or_ne j i₀ with rfl | hj0
-    · rw [hbi₀, hbi₁]; norm_num
-    · rw [hb_other j hj0 hj1, hbi₁]; norm_num
+    rcases eq_or_ne j i₀ with rfl | hj0 <;> norm_num [b, hne.symm, *]
   have hpay_shaded : bidAtRank 2 b = 0 := by
     by_cases hex : ∃ m, rank b m = 2
     · obtain ⟨m, hm⟩ := hex
-      have hm0 : m ≠ i₀ := fun h => by rw [h, hrank_b_i₀] at hm; omega
-      have hm1 : m ≠ i₁ := fun h => by rw [h, hrank_b_i₁] at hm; omega
-      rw [bidAtRank_eq_of_rank_nonneg hb0 hm, hb_other m hm0 hm1]
-    · unfold bidAtRank
-      exact dite_eq_right hex
+      have hm0 : m ≠ i₀ := fun h => by simp [h, hrank_b_i₀] at hm
+      have hm1 : m ≠ i₁ := fun h => by simp [h, hrank_b_i₁] at hm
+      simpa [b, hm0, hm1] using bidAtRank_eq_of_rank_nonneg hb0 hm
+    · exact dite_eq_right hex
   -- At truthful profile `b* = update b i₀ 3`, `i₀` has rank `0` and `i₁` has rank `1`.
   let bStar := Function.update b i₀ 3
   have hbStar0 : 0 ≤ bStar := update_nonneg hb0 i₀ (by norm_num)
-  have hbStar_i₀ : bStar i₀ = 3 := Function.update_self i₀ 3 b
-  have hbStar_i₁ : bStar i₁ = 2 := by
-    simp only [bStar, Function.update_of_ne hne.symm, hbi₁]
-  have hbStar_other : ∀ m, m ≠ i₀ → m ≠ i₁ → bStar m = 0 := fun m hm0 hm1 => by
-    simp only [bStar, Function.update_of_ne hm0, hb_other m hm0 hm1]
   have hrank_bStar_i₀ : rank bStar i₀ = 0 := rank_eq_zero_of_gt fun j hj0 => by
     rcases eq_or_ne j i₁ with rfl | hj1
-    · rw [hbStar_i₁, hbStar_i₀]; norm_num
-    · rw [hbStar_other j hj0 hj1, hbStar_i₀]; norm_num
+    · norm_num [bStar, Function.update_self, Function.update_of_ne hj0, b, hj0]
+    · norm_num [bStar, Function.update_self, Function.update_of_ne hj0, b, hj0, hj1]
   have hrank_bStar_i₁ : rank bStar i₁ = 1 :=
-    rank_eq_one_of_between (top := i₀) (by rw [hbStar_i₁, hbStar_i₀]; norm_num) fun j hj1 hj0 => by
-      rw [hbStar_other j hj0 hj1, hbStar_i₁]; norm_num
+    rank_eq_one_of_between (top := i₀)
+      (by norm_num [bStar, Function.update_self, Function.update_of_ne hne.symm, b, hne.symm])
+      fun j hj1 hj0 => by
+        norm_num [bStar, Function.update_of_ne hj0, Function.update_of_ne hne.symm, b, hj0, hj1,
+          hne.symm]
   have hwin_shaded : allocation k b i₀ = 1 :=
     allocation_eq_one_iff.2 (by rw [Wins, hrank_b_i₀]; omega)
   have hwin_truth : allocation k bStar i₀ = 1 :=
     allocation_eq_one_iff.2 (by rw [Wins, hrank_bStar_i₀]; omega)
   have hpay_truth : bidAtRank 1 bStar = 2 := by
-    rw [bidAtRank_eq_of_rank_nonneg hbStar0 hrank_bStar_i₁, hbStar_i₁]
-  have hineq := hDSIC i₀ b 3 hb0 (by norm_num)
-  change (nextBidMechanism k).utility i₀ 3 b ≤ (nextBidMechanism k).utility i₀ 3 bStar at hineq
+    simpa [bStar, b, hne.symm] using bidAtRank_eq_of_rank_nonneg hbStar0 hrank_bStar_i₁
+  have hineq : (nextBidMechanism k).utility i₀ 3 b ≤ (nextBidMechanism k).utility i₀ 3 bStar :=
+    hDSIC i₀ b 3 hb0 (by norm_num)
   simp only [Mechanism.utility, nextBidMechanism, hrank_b_i₀, hrank_bStar_i₀,
     hwin_shaded, hwin_truth, hpay_shaded, hpay_truth] at hineq
   norm_num at hineq

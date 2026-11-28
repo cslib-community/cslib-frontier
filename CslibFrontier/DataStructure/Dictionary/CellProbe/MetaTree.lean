@@ -209,11 +209,11 @@ theorem nodeCount_mul_fanout_le (T : MetaTree) (ℓ : ℕ) :
 
 theorem child_lt_nodeCount (T : MetaTree) {ℓ b : ℕ} (hb : b < T.nodeCount (ℓ + 1))
     (i : Fin (T.fanout (ℓ + 1))) :
-    b * T.fanout (ℓ + 1) + i.val < T.nodeCount ℓ := by
+    b * T.fanout (ℓ + 1) + i.1 < T.nodeCount ℓ := by
   have h1 : (b + 1) * T.fanout (ℓ + 1) ≤ T.nodeCount (ℓ + 1) * T.fanout (ℓ + 1) :=
     Nat.mul_le_mul_right _ hb
   have h2 := T.nodeCount_mul_fanout_le ℓ
-  have hi := i.isLt
+  have hi := i.2
   rw [Nat.succ_mul] at h1
   omega
 
@@ -228,6 +228,11 @@ theorem nodeStart_child (T : MetaTree) (ℓ b i : ℕ) :
 
 theorem nodeStop_child (T : MetaTree) (ℓ b i : ℕ) :
     T.nodeStop ℓ (b * T.fanout (ℓ + 1) + i) = T.nodeStart (ℓ + 1) b + (i + 1) * T.blockSize ℓ := by
+  simp only [nodeStart, nodeStop, blockSize_succ]
+  ring
+
+private theorem nodeStop_succ (T : MetaTree) (ℓ b : ℕ) :
+    T.nodeStop (ℓ + 1) b = T.nodeStart (ℓ + 1) b + T.fanout (ℓ + 1) * T.blockSize ℓ := by
   simp only [nodeStart, nodeStop, blockSize_succ]
   ring
 
@@ -844,11 +849,8 @@ private theorem rangeProbes_add_mul (D : IndexedScheme Op Result cells w) (initL
   induction q with
   | zero => simp
   | succ q ih =>
-    have h₁₂ : t₀ ≤ t₀ + q * m := Nat.le_add_right _ _
-    have h₂₃ : t₀ + q * m ≤ t₀ + (q + 1) * m := by
-      rw [Nat.succ_mul]
-      omega
-    rw [rangeProbes_append D initLen stride ops h₁₂ h₂₃, Finset.sum_range_succ, ih]
+    rw [rangeProbes_append D initLen stride ops (Nat.le_add_right _ _)
+      (Nat.add_le_add_left (Nat.mul_le_mul_right _ q.le_succ) _), Finset.sum_range_succ, ih]
 
 private theorem rangeProbedCells_add_mul (D : IndexedScheme Op Result cells w)
     (initLen stride : ℕ) (ops : List Op) (t₀ m q : ℕ) :
@@ -858,11 +860,8 @@ private theorem rangeProbedCells_add_mul (D : IndexedScheme Op Result cells w)
   induction q with
   | zero => simp
   | succ q ih =>
-    have h₁₂ : t₀ ≤ t₀ + q * m := Nat.le_add_right _ _
-    have h₂₃ : t₀ + q * m ≤ t₀ + (q + 1) * m := by
-      rw [Nat.succ_mul]
-      omega
-    rw [rangeProbedCells_append D initLen stride ops h₁₂ h₂₃, Finset.range_add_one,
+    rw [rangeProbedCells_append D initLen stride ops (Nat.le_add_right _ _)
+      (Nat.add_le_add_left (Nat.mul_le_mul_right _ q.le_succ) _), Finset.range_add_one,
       Finset.biUnion_insert, ih, Finset.union_comm]
 
 namespace MetaTree
@@ -884,12 +883,12 @@ p. 14 / PDF p. 15). -/
 @[expose] def segProbedCells (T : MetaTree) (D : IndexedScheme Op Result cells w)
     (initLen stride : ℕ) (ops : List Op) (ℓ b : ℕ) (i : Fin (T.fanout (ℓ + 1))) :
     Finset (Fin cells) :=
-  T.nodeProbedCells D initLen stride ops ℓ (b * T.fanout (ℓ + 1) + i.val)
+  T.nodeProbedCells D initLen stride ops ℓ (b * T.fanout (ℓ + 1) + i.1)
 
 /-- Cell probes incurred during the `i`-th child segment of internal node `(ℓ + 1, b)`. -/
 @[expose] def segProbes (T : MetaTree) (D : IndexedScheme Op Result cells w)
     (initLen stride : ℕ) (ops : List Op) (ℓ b : ℕ) (i : Fin (T.fanout (ℓ + 1))) : ℕ :=
-  T.nodeProbes D initLen stride ops ℓ (b * T.fanout (ℓ + 1) + i.val)
+  T.nodeProbes D initLen stride ops ℓ (b * T.fanout (ℓ + 1) + i.1)
 
 /-- Number of distinct child segments of internal node `(ℓ + 1, b)` in which cell `j` is probed. -/
 @[expose] def segHitCount (T : MetaTree) (D : IndexedScheme Op Result cells w)
@@ -924,9 +923,8 @@ theorem mem_badCells_iff_exists_ne (T : MetaTree) (D : IndexedScheme Op Result c
       ∃ i₁ i₂ : Fin (T.fanout (ℓ + 1)), i₁ ≠ i₂ ∧
         j ∈ T.segProbedCells D initLen stride ops ℓ b i₁ ∧
         j ∈ T.segProbedCells D initLen stride ops ℓ b i₂ := by
-  have htwo : 2 ≤ T.segHitCount D initLen stride ops ℓ b j ↔
-      1 < T.segHitCount D initLen stride ops ℓ b j := by omega
-  rw [T.mem_badCells_iff, htwo, segHitCount, Finset.one_lt_card_iff]
+  rw [T.mem_badCells_iff, segHitCount]
+  refine Finset.one_lt_card_iff.trans ?_
   simp only [Finset.mem_filter, Finset.mem_univ, true_and]
   exact ⟨fun ⟨i₁, i₂, h₁, h₂, hne⟩ => ⟨i₁, i₂, hne, h₁, h₂⟩,
     fun ⟨i₁, i₂, hne, h₁, h₂⟩ => ⟨i₁, i₂, h₁, h₂, hne⟩⟩
@@ -959,13 +957,8 @@ theorem nodeProbes_succ_eq_sum_segProbes (T : MetaTree) (D : IndexedScheme Op Re
     (initLen stride : ℕ) (ops : List Op) (ℓ b : ℕ) :
     T.nodeProbes D initLen stride ops (ℓ + 1) b =
       ∑ i : Fin (T.fanout (ℓ + 1)), T.segProbes D initLen stride ops ℓ b i := by
-  have hstop : T.nodeStop (ℓ + 1) b =
-      T.nodeStart (ℓ + 1) b + T.fanout (ℓ + 1) * T.blockSize ℓ := by
-    simp only [nodeStart, nodeStop, T.blockSize_succ ℓ]; ring
-  simp only [nodeProbes, segProbes]
-  rw [hstop, rangeProbes_add_mul, ← Fin.sum_univ_eq_sum_range]
-  refine Finset.sum_congr rfl fun i _ => ?_
-  rw [← T.nodeStart_child ℓ b i.val, ← T.nodeStop_child ℓ b i.val]
+  simp only [nodeProbes, segProbes, nodeStart_child, nodeStop_child]
+  rw [T.nodeStop_succ, rangeProbes_add_mul, ← Fin.sum_univ_eq_sum_range]
 
 /-- Probed cells at internal node `(ℓ + 1, b)` equal the union over its `T.fanout (ℓ + 1)` child
 segments. -/
@@ -974,21 +967,12 @@ theorem nodeProbedCells_succ_eq_biUnion_segProbedCells (T : MetaTree)
     T.nodeProbedCells D initLen stride ops (ℓ + 1) b =
       Finset.univ.biUnion fun i : Fin (T.fanout (ℓ + 1)) =>
         T.segProbedCells D initLen stride ops ℓ b i := by
-  have hstop : T.nodeStop (ℓ + 1) b =
-      T.nodeStart (ℓ + 1) b + T.fanout (ℓ + 1) * T.blockSize ℓ := by
-    simp only [nodeStart, nodeStop, T.blockSize_succ ℓ]; ring
   simp only [nodeProbedCells]
-  rw [hstop, rangeProbedCells_add_mul]
+  rw [T.nodeStop_succ, rangeProbedCells_add_mul]
   ext j
   simp only [Finset.mem_biUnion, Finset.mem_range, Finset.mem_univ, true_and, segProbedCells,
-    nodeProbedCells]
-  constructor
-  · rintro ⟨i, hi, hj⟩
-    refine ⟨⟨i, hi⟩, ?_⟩
-    rwa [T.nodeStart_child ℓ b i, T.nodeStop_child ℓ b i]
-  · rintro ⟨⟨i, hi⟩, hj⟩
-    refine ⟨i, hi, ?_⟩
-    rwa [← T.nodeStart_child ℓ b i, ← T.nodeStop_child ℓ b i]
+    nodeProbedCells, nodeStart_child, nodeStop_child]
+  exact ⟨fun ⟨i, hi, hj⟩ => ⟨⟨i, hi⟩, hj⟩, fun ⟨i, hj⟩ => ⟨i, i.2, hj⟩⟩
 
 theorem sum_card_segProbedCells_le_nodeProbes (T : MetaTree)
     (D : IndexedScheme Op Result cells w) (initLen stride : ℕ) (ops : List Op) (ℓ b : ℕ) :
@@ -1002,15 +986,10 @@ theorem card_badCells_le_nodeCost (T : MetaTree) (D : IndexedScheme Op Result ce
     (T.badCells D initLen stride ops ℓ b).card ≤
       T.nodeCost D initLen stride ops ℓ b := by
   rw [Finset.card_eq_sum_ones, nodeCost]
-  calc
-    ∑ j ∈ T.badCells D initLen stride ops ℓ b, 1
-      ≤ ∑ j ∈ T.badCells D initLen stride ops ℓ b,
-          (T.segHitCount D initLen stride ops ℓ b j - 1) := by
-            refine Finset.sum_le_sum fun j hj => ?_
-            have := (T.mem_badCells_iff D initLen stride ops ℓ b j).mp hj
-            omega
-    _ ≤ ∑ j : Fin cells, (T.segHitCount D initLen stride ops ℓ b j - 1) :=
-          Finset.sum_le_univ_sum_of_nonneg fun _ => Nat.zero_le _
+  refine (Finset.sum_le_sum fun j hj => ?_).trans
+    (Finset.sum_le_univ_sum_of_nonneg fun _ => Nat.zero_le _)
+  have := (T.mem_badCells_iff D initLen stride ops ℓ b j).mp hj
+  omega
 
 private theorem sum_card_segProbedCells_inter_eq_sum_segHitCount (T : MetaTree)
     (D : IndexedScheme Op Result cells w) (initLen stride : ℕ) (ops : List Op) (ℓ b : ℕ)
@@ -1126,7 +1105,7 @@ private theorem mem_badCells_of_seg_memAt_ne (T : MetaTree)
     (hne : memAt D ops (initLen + stride * (T.nodeStart (ℓ + 1) b + i₀ * T.blockSize ℓ)) j ≠
       memAt D ops
         (initLen + stride * (T.nodeStart (ℓ + 1) b + (i₀ + q) * T.blockSize ℓ)) j)
-    (hrange : ∀ r < q, i₀ + r < T.fanout (ℓ + 1) ∧ i₀ + r ≠ i.val) :
+    (hrange : ∀ r < q, i₀ + r < T.fanout (ℓ + 1) ∧ i₀ + r ≠ i.1) :
     j ∈ T.badCells D initLen stride ops ℓ b := by
   let t₁ := T.nodeStart (ℓ + 1) b + i₀ * T.blockSize ℓ
   let t₂ := T.nodeStart (ℓ + 1) b + (i₀ + q) * T.blockSize ℓ
@@ -1143,9 +1122,9 @@ private theorem mem_badCells_of_seg_memAt_ne (T : MetaTree)
   obtain ⟨hlt, hne_val⟩ := hrange r (Finset.mem_range.mp hr)
   let i' : Fin (T.fanout (ℓ + 1)) := ⟨i₀ + r, hlt⟩
   have hj_i' : j ∈ T.segProbedCells D initLen stride ops ℓ b i' := by
-    rwa [show t₁ + r * T.blockSize ℓ = T.nodeStart ℓ (b * T.fanout (ℓ + 1) + i'.val) by
+    rwa [show t₁ + r * T.blockSize ℓ = T.nodeStart ℓ (b * T.fanout (ℓ + 1) + i'.1) by
         rw [T.nodeStart_child]; dsimp [t₁, i']; ring,
-      show t₁ + (r + 1) * T.blockSize ℓ = T.nodeStop ℓ (b * T.fanout (ℓ + 1) + i'.val) by
+      show t₁ + (r + 1) * T.blockSize ℓ = T.nodeStop ℓ (b * T.fanout (ℓ + 1) + i'.1) by
         rw [T.nodeStop_child]; dsimp [t₁, i']; ring] at hj_r
   exact T.mem_badCells_of_mem_segProbedCells_ne D initLen stride ops ℓ b
     (fun h => hne_val (congrArg Fin.val h)) hj_i' hj
@@ -1160,10 +1139,10 @@ theorem mem_badCells_of_seg_preMem_ne_node_preMem (T : MetaTree)
     (D : IndexedScheme Op Result cells w) (initLen stride : ℕ) (ops : List Op)
     (ℓ b : ℕ) (i : Fin (T.fanout (ℓ + 1))) {j : Fin cells}
     (hj : j ∈ T.segProbedCells D initLen stride ops ℓ b i)
-    (hne : memAt D ops (initLen + stride * T.nodeStart ℓ (b * T.fanout (ℓ + 1) + i.val)) j ≠
+    (hne : memAt D ops (initLen + stride * T.nodeStart ℓ (b * T.fanout (ℓ + 1) + i.1)) j ≠
       memAt D ops (initLen + stride * T.nodeStart (ℓ + 1) b) j) :
     j ∈ T.badCells D initLen stride ops ℓ b :=
-  T.mem_badCells_of_seg_memAt_ne D initLen stride ops ℓ b i 0 i.val hj
+  T.mem_badCells_of_seg_memAt_ne D initLen stride ops ℓ b i 0 i.1 hj
     (by simpa [T.nodeStart_child] using hne.symm)
     fun r hr => ⟨by simpa using hr.trans i.isLt, by omega⟩
 
@@ -1174,7 +1153,7 @@ theorem card_filter_seg_preMem_ne_node_preMem_le (T : MetaTree)
     (D : IndexedScheme Op Result cells w) (initLen stride : ℕ) (ops : List Op)
     (ℓ b : ℕ) (i : Fin (T.fanout (ℓ + 1))) :
     ((T.segProbedCells D initLen stride ops ℓ b i).filter fun j =>
-        memAt D ops (initLen + stride * T.nodeStart ℓ (b * T.fanout (ℓ + 1) + i.val)) j ≠
+        memAt D ops (initLen + stride * T.nodeStart ℓ (b * T.fanout (ℓ + 1) + i.1)) j ≠
           memAt D ops (initLen + stride * T.nodeStart (ℓ + 1) b) j).card ≤
       (T.segProbedCells D initLen stride ops ℓ b i ∩
         T.badCells D initLen stride ops ℓ b).card :=
@@ -1192,17 +1171,14 @@ theorem mem_badCells_of_seg_postMem_ne_node_postMem (T : MetaTree)
     (D : IndexedScheme Op Result cells w) (initLen stride : ℕ) (ops : List Op)
     (ℓ b : ℕ) (i : Fin (T.fanout (ℓ + 1))) {j : Fin cells}
     (hj : j ∈ T.segProbedCells D initLen stride ops ℓ b i)
-    (hne : memAt D ops (initLen + stride * T.nodeStop ℓ (b * T.fanout (ℓ + 1) + i.val)) j ≠
+    (hne : memAt D ops (initLen + stride * T.nodeStop ℓ (b * T.fanout (ℓ + 1) + i.1)) j ≠
       memAt D ops (initLen + stride * T.nodeStop (ℓ + 1) b) j) :
     j ∈ T.badCells D initLen stride ops ℓ b := by
-  refine T.mem_badCells_of_seg_memAt_ne D initLen stride ops ℓ b i (i.val + 1)
-    (T.fanout (ℓ + 1) - (i.val + 1)) hj ?_ fun r hr => ⟨by omega, by omega⟩
-  have h1 := T.nodeStop_child ℓ b i.val
-  have h2 : T.nodeStop (ℓ + 1) b = T.nodeStart (ℓ + 1) b + T.fanout (ℓ + 1) * T.blockSize ℓ := by
-    simp only [nodeStart, nodeStop, T.blockSize_succ ℓ]; ring
-  rw [show i.val + 1 + (T.fanout (ℓ + 1) - (i.val + 1)) = T.fanout (ℓ + 1) by
+  refine T.mem_badCells_of_seg_memAt_ne D initLen stride ops ℓ b i (i.1 + 1)
+    (T.fanout (ℓ + 1) - (i.1 + 1)) hj ?_ fun r hr => ⟨by omega, by omega⟩
+  rw [show i.1 + 1 + (T.fanout (ℓ + 1) - (i.1 + 1)) = T.fanout (ℓ + 1) by
     have := i.isLt; omega]
-  rwa [← h1, ← h2]
+  rwa [← T.nodeStop_child ℓ b i.1, ← T.nodeStop_succ]
 
 /-- Corollary of `mem_badCells_of_seg_postMem_ne_node_postMem`: on child segment `i`, the number of
 probed cells whose post-segment value differs from the end-of-node memory is at most
@@ -1211,7 +1187,7 @@ theorem card_filter_seg_postMem_ne_node_postMem_le (T : MetaTree)
     (D : IndexedScheme Op Result cells w) (initLen stride : ℕ) (ops : List Op)
     (ℓ b : ℕ) (i : Fin (T.fanout (ℓ + 1))) :
     ((T.segProbedCells D initLen stride ops ℓ b i).filter fun j =>
-        memAt D ops (initLen + stride * T.nodeStop ℓ (b * T.fanout (ℓ + 1) + i.val)) j ≠
+        memAt D ops (initLen + stride * T.nodeStop ℓ (b * T.fanout (ℓ + 1) + i.1)) j ≠
           memAt D ops (initLen + stride * T.nodeStop (ℓ + 1) b) j).card ≤
       (T.segProbedCells D initLen stride ops ℓ b i ∩
         T.badCells D initLen stride ops ℓ b).card :=

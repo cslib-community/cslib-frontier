@@ -105,22 +105,16 @@ theorem nthFilterPos_lt_length {α : Type*} {pred : α → Bool} {l : List α} {
     · rw [nthFilterPos_cons_of_false rest n hpa, Option.map_eq_some_iff] at h
       obtain ⟨pos', hpos', rfl⟩ := h
       obtain ⟨hlt, hget, hpr⟩ := ih hpos'
-      exact ⟨by simp only [List.length_cons]; omega,
-        by simp only [List.getElem?_cons_succ, List.filter, hpa, hget],
-        by simp only [List.getElem?_cons_succ, hpr]⟩
+      exact ⟨Nat.succ_lt_succ hlt, by simpa [hpa] using hget, by simpa using hpr⟩
     · cases n with
       | zero =>
-        rw [nthFilterPos_cons_zero_of_true rest hpa, Option.some.injEq] at h
-        subst h
-        exact ⟨Nat.zero_lt_succ _, by simp only [List.filter, hpa, List.getElem?_cons_zero],
-          by simp only [List.getElem?_cons_zero, Option.map_some, hpa]⟩
+        obtain rfl : 0 = pos := by simpa [nthFilterPos_cons_zero_of_true rest hpa] using h
+        simp [hpa]
       | succ n =>
         rw [nthFilterPos_cons_succ_of_true rest n hpa, Option.map_eq_some_iff] at h
         obtain ⟨pos', hpos', rfl⟩ := h
         obtain ⟨hlt, hget, hpr⟩ := ih hpos'
-        exact ⟨by simp only [List.length_cons]; omega,
-          by simp only [List.getElem?_cons_succ, List.filter, hpa, hget],
-          by simp only [List.getElem?_cons_succ, hpr]⟩
+        exact ⟨Nat.succ_lt_succ hlt, by simpa [hpa] using hget, by simpa using hpr⟩
 
 /-- `nthFilterPos` is strictly monotone in the filtered rank `m < n`. -/
 theorem nthFilterPos_strictMono {α : Type*} {pred : α → Bool} {l : List α}
@@ -134,8 +128,7 @@ theorem nthFilterPos_strictMono {α : Type*} {pred : α → Bool} {l : List α}
       rw [nthFilterPos_cons_of_false rest n hpa, Option.map_eq_some_iff] at hn
       obtain ⟨i', hi', rfl⟩ := hm
       obtain ⟨j', hj', rfl⟩ := hn
-      have := ih hmn hi' hj'
-      omega
+      exact Nat.succ_lt_succ (ih hmn hi' hj')
     · cases n with
       | zero => omega
       | succ n =>
@@ -143,13 +136,12 @@ theorem nthFilterPos_strictMono {α : Type*} {pred : α → Bool} {l : List α}
         obtain ⟨j', hj', rfl⟩ := hn
         cases m with
         | zero =>
-          rw [nthFilterPos_cons_zero_of_true rest hpa, Option.some.injEq] at hm
-          omega
+          obtain rfl : 0 = i := by simpa [nthFilterPos_cons_zero_of_true rest hpa] using hm
+          exact Nat.zero_lt_succ _
         | succ m =>
           rw [nthFilterPos_cons_succ_of_true rest m hpa, Option.map_eq_some_iff] at hm
           obtain ⟨i', hi', rfl⟩ := hm
-          have := ih (by omega) hi' hj'
-          omega
+          exact Nat.succ_lt_succ (ih (Nat.lt_of_succ_lt_succ hmn) hi' hj')
 
 /-- `nthFilterPos` is injective in the filtered rank `n`. -/
 theorem nthFilterPos_inj {α : Type*} {pred : α → Bool} {l : List α} {u v w : ℕ}
@@ -224,16 +216,13 @@ theorem filter_getElem_count_take {α : Type*} (pred : α → Bool) :
       List.filter_cons_of_pos hpred]
     exact ⟨Nat.zero_lt_succ _, rfl⟩
   | c :: rest, k + 1, hk, hpred => by
-    have hk' : k < rest.length := by simp only [List.length_cons] at hk; omega
-    simp only [List.getElem_cons_succ] at hpred ⊢
-    obtain ⟨hlt', heq'⟩ := filter_getElem_count_take pred rest k hk' hpred
-    by_cases hpc : pred c = true
-    · rw [List.take_succ_cons, List.filter_cons_of_pos hpc]
-      refine ⟨by simp only [List.filter_cons_of_pos hpc, List.length_cons]; omega, ?_⟩
-      simpa only [List.filter_cons_of_pos hpc, List.length_cons, List.getElem_cons_succ] using heq'
-    · rw [List.take_succ_cons, List.filter_cons_of_neg hpc]
-      refine ⟨by simp only [List.filter_cons_of_neg hpc]; exact hlt', ?_⟩
-      simpa only [List.filter_cons_of_neg hpc] using heq'
+    obtain ⟨hlt', heq'⟩ := filter_getElem_count_take pred rest k (Nat.lt_of_succ_lt_succ hk)
+      (by simpa using hpred)
+    cases hpc : pred c
+    · simp only [List.take_succ_cons, List.filter, hpc, List.getElem_cons_succ]
+      exact ⟨hlt', heq'⟩
+    · simp only [List.take_succ_cons, List.filter, hpc, List.length_cons, List.getElem_cons_succ]
+      exact ⟨Nat.succ_lt_succ hlt', heq'⟩
 
 private theorem strictMono_list_eq_range' :
     ∀ (m s : ℕ) (L : List ℕ),
@@ -248,18 +237,17 @@ private theorem strictMono_list_eq_range' :
   | m + 1, s, L, hpw, hbd, hsurj => by
     have hs_mem : s ∈ L := hsurj s (Nat.le_refl s) (by omega)
     cases L with
-    | nil => exact False.elim (List.not_mem_nil hs_mem)
+    | nil => cases hs_mem
     | cons a tail =>
       obtain ⟨ha_tail, hpw_tail⟩ := List.pairwise_cons.mp hpw
-      have has : a = s := by
+      obtain rfl : a = s := by
         rcases List.mem_cons.mp hs_mem with rfl | htail
         · rfl
-        · have hlt := ha_tail s htail
-          have hge := (hbd a List.mem_cons_self).1
+        · have := ha_tail s htail
+          have := (hbd a List.mem_cons_self).1
           omega
-      subst a
       simp only [List.range'_succ]
-      refine congrArg (s :: ·) (strictMono_list_eq_range' m (s + 1) tail hpw_tail ?_ ?_)
+      refine congrArg (a :: ·) (strictMono_list_eq_range' m (a + 1) tail hpw_tail ?_ ?_)
       · intro x hx
         have := ha_tail x hx
         have := hbd x (List.mem_cons_of_mem _ hx)
@@ -278,84 +266,53 @@ theorem map_eq_of_strictMono_surj {β γ : Type*} {src : List β} {dst : List γ
     (hmono : ∀ i j (hi : i < src.length) (hj : j < src.length), i < j → pos src[i] < pos src[j])
     (hsurj : ∀ k < dst.length, ∃ b ∈ src, pos b = k) :
     src.map pos = List.range dst.length ∧ src.map val = dst := by
-  have hpw : List.Pairwise (· < ·) (src.map pos) := by
-    rw [List.pairwise_iff_getElem]
-    intro i j hi hj hij
-    simp only [List.length_map] at hi hj
-    simp only [List.getElem_map]
-    exact hmono i j hi hj hij
+  have hpw : List.Pairwise (· < ·) (src.map pos) :=
+    List.pairwise_iff_getElem.mpr fun i j hi hj hij => by
+      simpa using hmono i j (by simpa using hi) (by simpa using hj) hij
   have hrange : src.map pos = List.range dst.length := by
     rw [List.range_eq_range']
-    refine strictMono_list_eq_range' dst.length 0 (src.map pos) hpw ?_ ?_
-    · intro x hx
-      obtain ⟨b, hb, rfl⟩ := List.mem_map.mp hx
+    refine strictMono_list_eq_range' dst.length 0 (src.map pos) hpw (fun x hx => ?_)
+      fun k _ hk => ?_
+    · obtain ⟨b, hb, rfl⟩ := List.mem_map.mp hx
       obtain ⟨hlt, _⟩ := hvalid b hb
       exact ⟨Nat.zero_le _, by omega⟩
-    · intro k _ hk
-      obtain ⟨b, hb, rfl⟩ := hsurj k (by omega)
+    · obtain ⟨b, hb, rfl⟩ := hsurj k (by omega)
       exact List.mem_map_of_mem hb
-  refine ⟨hrange, ?_⟩
   have hlen : src.length = dst.length := by
-    have := congrArg List.length hrange
-    simpa only [List.length_map, List.length_range] using this
-  apply List.ext_getElem
-  · rw [List.length_map, hlen]
-  · intro i hi₁ hi₂
-    simp only [List.length_map] at hi₁
-    have hpos_i : pos src[i] = i := by
-      have hget := congrArg (fun l => l[i]?) hrange
-      simpa only [List.getElem?_map, List.getElem?_eq_getElem hi₁, Option.map_some,
-        List.getElem?_range hi₂, Option.some.injEq] using hget
-    obtain ⟨hlt, hval⟩ := hvalid src[i] (List.getElem_mem hi₁)
-    simp only [List.getElem_map, hval, hpos_i]
+    simpa using congrArg List.length hrange
+  refine ⟨hrange, List.ext_getElem (by simp [hlen]) fun i hi₁ hi₂ => ?_⟩
+  simp only [List.length_map] at hi₁
+  have hpos_i : pos src[i] = i := by
+    simpa [hi₁, hi₂] using congrArg (fun l => l[i]?) hrange
+  obtain ⟨_, hval⟩ := hvalid src[i] (List.getElem_mem hi₁)
+  simp only [List.getElem_map, hval, hpos_i]
 
 private theorem exists_fin_idx_of_eq {α : Type*} {l₁ l₂ l : List α} (heq : l₁ = l₂)
     (h : ∃ idx : Fin l₂.length → Fin l.length,
-      (∀ i, l₂[i.val] = l[(idx i).val]) ∧ (∀ i j, i.val < j.val → (idx i).val < (idx j).val)) :
+      (∀ i, l₂[i.1] = l[(idx i).1]) ∧ (∀ i j, i.1 < j.1 → (idx i).1 < (idx j).1)) :
     ∃ idx : Fin l₁.length → Fin l.length,
-      (∀ i, l₁[i.val] = l[(idx i).val]) ∧ (∀ i j, i.val < j.val → (idx i).val < (idx j).val) := by
+      (∀ i, l₁[i.1] = l[(idx i).1]) ∧ (∀ i j, i.1 < j.1 → (idx i).1 < (idx j).1) := by
   subst heq; exact h
 
 /-- Every filtered sublist `l.filter pred` embeds into `l` via a strictly monotone index map. -/
 theorem filter_strictMono_indices {α : Type*} (l : List α) (pred : α → Bool) :
     ∃ idx : Fin (l.filter pred).length → Fin l.length,
-      (∀ i, (l.filter pred)[i.val] = l[(idx i).val]) ∧
-      (∀ i j, i.val < j.val → (idx i).val < (idx j).val) := by
+      (∀ i, (l.filter pred)[i.1] = l[(idx i).1]) ∧
+      (∀ i j, i.1 < j.1 → (idx i).1 < (idx j).1) := by
   induction l with
-  | nil =>
-    exact ⟨fun i => Fin.elim0 i, fun i => Fin.elim0 i, fun i => Fin.elim0 i⟩
+  | nil => exact ⟨Fin.elim0, fun i => i.elim0, fun i => i.elim0⟩
   | cons a rest ih =>
     obtain ⟨idx', hval', hmono'⟩ := ih
     by_cases hpa : pred a = true
-    · refine exists_fin_idx_of_eq (List.filter_cons_of_pos hpa) ?_
-      refine ⟨fun i =>
-          if hi0 : i.val = 0 then ⟨0, Nat.zero_lt_succ _⟩
-          else
-            let i' : Fin (rest.filter pred).length :=
-              ⟨i.val - 1, by have h := i.isLt; simp only [List.length_cons] at h; omega⟩
-            ⟨(idx' i').val + 1, Nat.succ_lt_succ (idx' i').isLt⟩,
-        ?_, ?_⟩
-      · intro ⟨i, hi⟩
-        cases i with
-        | zero => simp only [↓reduceDIte, List.getElem_cons_zero]
-        | succ k =>
-          simp only [Nat.succ_ne_zero, ↓reduceDIte, Nat.add_sub_cancel, List.getElem_cons_succ]
-          exact hval' ⟨k, by simp only [List.length_cons] at hi; omega⟩
-      · intro ⟨i, hi⟩ ⟨j, hj⟩ hij
-        dsimp only at hij ⊢
-        cases j with
-        | zero => omega
-        | succ j' =>
-          cases i with
-          | zero => simp only [↓reduceDIte, Nat.succ_ne_zero]; omega
-          | succ i' =>
-            simp only [Nat.succ_ne_zero, ↓reduceDIte, Nat.add_sub_cancel]
-            have := hmono' ⟨i', by simp only [List.length_cons] at hi; omega⟩
-              ⟨j', by simp only [List.length_cons] at hj; omega⟩ (by dsimp only; omega)
-            omega
-    · refine exists_fin_idx_of_eq (List.filter_cons_of_neg hpa) ?_
-      refine ⟨fun i => ⟨(idx' i).val + 1, Nat.succ_lt_succ (idx' i).isLt⟩, ?_, ?_⟩
-      · intro i; simp only [List.getElem_cons_succ, hval' i]
-      · intro i j hij; have := hmono' i j hij; dsimp only; omega
+    · refine exists_fin_idx_of_eq (List.filter_cons_of_pos hpa)
+        ⟨Fin.cases ⟨0, Nat.zero_lt_succ _⟩ (fun i' => (idx' i').succ), ?_, ?_⟩
+      · refine Fin.cases rfl fun i' => ?_
+        simpa only [Fin.cases_succ, Fin.val_succ, List.getElem_cons_succ] using hval' i'
+      · refine Fin.cases (Fin.cases (by simp) fun _ _ => Nat.zero_lt_succ _) fun i' =>
+          Fin.cases (by simp) fun j' hij => ?_
+        exact Nat.succ_lt_succ (hmono' i' j' (Nat.lt_of_succ_lt_succ hij))
+    · refine exists_fin_idx_of_eq (List.filter_cons_of_neg hpa)
+        ⟨fun i => (idx' i).succ, fun i => ?_, fun i j hij => Nat.succ_lt_succ (hmono' i j hij)⟩
+      simpa only [Fin.val_succ, List.getElem_cons_succ] using hval' i
 
 end List

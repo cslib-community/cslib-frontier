@@ -307,63 +307,22 @@ theorem run_eq_coinLaw_bind_fixCoins (t : RandProbeTree S w α) (m : Mem S w) :
     · dsimp only [ProbOracleComp.Coins, ProbOracleComp.fixCoins]
       rw [ProbOracleComp.coinLaw_liftBind_inr]
       change (run (cont (m i)) m).map (fun (out, p) => (out, p + 1)) = _
-      have hstep : ∀ f : ∀ y : Fin (2 ^ w), ProbOracleComp.Coins (cont y),
-          (ProbeTree.run
-            (PFunctor.FreeM.liftBind (ProbeOp.read i)
-              fun y => ProbOracleComp.fixCoins (cont y) (f y)) m,
-           ProbeTree.probes
-            (PFunctor.FreeM.liftBind (ProbeOp.read i)
-              fun y => ProbOracleComp.fixCoins (cont y) (f y)) m) =
-          (ProbeTree.run (ProbOracleComp.fixCoins (cont (m i)) (f (m i))) m,
-           ProbeTree.probes (ProbOracleComp.fixCoins (cont (m i)) (f (m i))) m + 1) :=
-        fun _ => Prod.ext rfl (Nat.add_comm 1 _)
-      simp_rw [hstep]
-      have heval :=
-        Probability.PMF.pi_map_eval (fun y : Fin (2 ^ w) => ProbOracleComp.coinLaw (cont y)) (m i)
-      have hpull :
-          (Probability.PMF.pi fun y => ProbOracleComp.coinLaw (cont y)).bind
-            (fun f => PMF.pure
-              (ProbeTree.run (ProbOracleComp.fixCoins (cont (m i)) (f (m i))) m,
-               ProbeTree.probes (ProbOracleComp.fixCoins (cont (m i)) (f (m i))) m + 1)) =
-          (ProbOracleComp.coinLaw (cont (m i))).bind
-            (fun ω => PMF.pure
-              (ProbeTree.run (ProbOracleComp.fixCoins (cont (m i)) ω) m,
-               ProbeTree.probes (ProbOracleComp.fixCoins (cont (m i)) ω) m + 1)) := by
-        rw [← heval, PMF.bind_map]
-        rfl
-      rw [hpull, ih (m i) m, PMF.map_bind]
-      simp only [PMF.pure_map]
+      rw [ih (m i) m, PMF.map_bind,
+        ← Probability.PMF.pi_map_eval (fun y => ProbOracleComp.coinLaw (cont y)) (m i),
+        PMF.bind_map]
+      refine congrArg (PMF.bind _) (funext fun f => ?_)
+      simp only [Function.comp_apply, PMF.pure_map]
+      exact congrArg PMF.pure (Prod.ext rfl (Nat.add_comm _ 1))
     · dsimp only [ProbOracleComp.Coins, ProbOracleComp.fixCoins]
       rw [ProbOracleComp.coinLaw_liftBind_inr]
-      set m' := Function.update m i v
-      change (run (cont PUnit.unit) m').map (fun (out, p) => (out, p + 1)) = _
-      have hstep : ∀ f : ∀ y : PUnit, ProbOracleComp.Coins (cont y),
-          (ProbeTree.run
-            (PFunctor.FreeM.liftBind (ProbeOp.write i v)
-              fun y => ProbOracleComp.fixCoins (cont y) (f y)) m,
-           ProbeTree.probes
-            (PFunctor.FreeM.liftBind (ProbeOp.write i v)
-              fun y => ProbOracleComp.fixCoins (cont y) (f y)) m) =
-          (ProbeTree.run (ProbOracleComp.fixCoins (cont PUnit.unit) (f PUnit.unit)) m',
-           ProbeTree.probes (ProbOracleComp.fixCoins (cont PUnit.unit) (f PUnit.unit)) m' + 1) :=
-        fun _ => Prod.ext rfl (Nat.add_comm 1 _)
-      simp_rw [hstep]
-      have heval :=
-        Probability.PMF.pi_map_eval (fun y : PUnit => ProbOracleComp.coinLaw (cont y)) PUnit.unit
-      have hpull :
-          (Probability.PMF.pi fun y => ProbOracleComp.coinLaw (cont y)).bind
-            (fun f => PMF.pure
-              (ProbeTree.run (ProbOracleComp.fixCoins (cont PUnit.unit) (f PUnit.unit)) m',
-               ProbeTree.probes (ProbOracleComp.fixCoins (cont PUnit.unit) (f PUnit.unit)) m' +
-                 1)) =
-          (ProbOracleComp.coinLaw (cont PUnit.unit)).bind
-            (fun ω => PMF.pure
-              (ProbeTree.run (ProbOracleComp.fixCoins (cont PUnit.unit) ω) m',
-               ProbeTree.probes (ProbOracleComp.fixCoins (cont PUnit.unit) ω) m' + 1)) := by
-        rw [← heval, PMF.bind_map]
-        rfl
-      rw [hpull, ih PUnit.unit m', PMF.map_bind]
-      simp only [PMF.pure_map]
+      change (run (cont PUnit.unit) (Function.update m i v)).map
+        (fun (out, p) => (out, p + 1)) = _
+      rw [ih PUnit.unit _, PMF.map_bind,
+        ← Probability.PMF.pi_map_eval (fun y => ProbOracleComp.coinLaw (cont y)) PUnit.unit,
+        PMF.bind_map]
+      refine congrArg (PMF.bind _) (funext fun f => ?_)
+      simp only [Function.comp_apply, PMF.pure_map]
+      exact congrArg PMF.pure (Prod.ext rfl (Nat.add_comm _ 1))
 
 /-- Expected probe count of `t` from `m` equals the `coinLaw t`-average of
 `ProbeTree.probes (fixCoins t ω) m`. -/
@@ -671,20 +630,10 @@ private theorem runFrom_eq_pi_bind_runInterval [DecidableEq Op] [∀ o, Inhabite
           simp only [fixIndexedScheme, ht₀, ↓reduceDIte, ho, idx₀] at hΩ₀ ⊢
           rw [hΩ₀]
         simp only [IndexedScheme.runInterval_cons, IndexedScheme.probesInterval_cons, hDstep, f₀]
-      rw [hcongr]
-      have hmap :
-          (Probability.PMF.pi p').bind (fun Ω =>
-            let D := P.fixIndexedScheme horizon opsAlphabet m₀ Ω
-            PMF.pure (f₀ (D.runInterval (t₀ + 1) (d₀.run m).2 rest,
-              D.probesInterval (t₀ + 1) (d₀.run m).2 rest))) =
-          ((Probability.PMF.pi p').bind (fun Ω =>
-            let D := P.fixIndexedScheme horizon opsAlphabet m₀ Ω
-            PMF.pure (D.runInterval (t₀ + 1) (d₀.run m).2 rest,
-              D.probesInterval (t₀ + 1) (d₀.run m).2 rest))).map f₀ := by
-        rw [PMF.map_bind]
-        simp only [PMF.pure_map]
-      rw [hmap, ih (d₀.run m).2 (t₀ + 1) p' (by omega)
-        (fun o' ho' => halph o' (List.mem_cons_of_mem o ho'))]
+      change _ = (P.runFrom (d₀.run m).2 rest).map f₀
+      rw [hcongr, ← ih (d₀.run m).2 (t₀ + 1) p' (by omega)
+        (fun o' ho' => halph o' (List.mem_cons_of_mem o ho')), PMF.map_bind]
+      · simp only [PMF.pure_map]
       intro t o' ht
       have hne : (t, o') ≠ idx₀ := by
         intro heq

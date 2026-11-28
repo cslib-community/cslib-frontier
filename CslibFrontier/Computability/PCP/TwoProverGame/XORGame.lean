@@ -70,19 +70,6 @@ open Cslib.BitString (signVal)
 open Cslib.Probability.PMF (uniformOfFintype uniformOfFintype_apply)
 open scoped Kronecker ComplexOrder
 
-private theorem continuous_finset_sum_real {α β : Type*} [TopologicalSpace α] (s : Finset β)
-    {g : β → α → ℝ} (hg : ∀ b ∈ s, Continuous (g b)) :
-    Continuous (fun a => ∑ b ∈ s, g b a) := by
-  classical
-  induction s using Finset.induction_on with
-  | empty => simpa using continuous_const
-  | @insert b s hb ih =>
-    have hgb : Continuous (g b) := hg b (Finset.mem_insert_self b s)
-    have hgs : Continuous (fun a => ∑ c ∈ s, g c a) :=
-      ih fun c hc => hg c (Finset.mem_insert_of_mem hc)
-    have hadd : Continuous (fun a => g b a + ∑ c ∈ s, g c a) := hgb.add hgs
-    simpa only [Finset.sum_insert hb] using hadd
-
 /-! ### Realification of complex `L²` vectors and contraction dilation -/
 
 /-- Split a complex Euclidean vector `w ∈ ℂ^α` into real and imaginary coordinates in
@@ -128,13 +115,10 @@ private theorem hermitian_quadForm_eq_ofReal_re {α : Type*} [Fintype α]
     {H : Matrix α α ℂ} (hH : H.IsHermitian) (x : α → ℂ) :
     star x ⬝ᵥ (H *ᵥ x) = ((star x ⬝ᵥ (H *ᵥ x)).re : ℂ) := by
   have hself : star (star x ⬝ᵥ (H *ᵥ x)) = star x ⬝ᵥ (H *ᵥ x) := by
-    conv_lhs =>
-      rw [star_dotProduct, star_star, star_mulVec, hH.eq, ← dotProduct_mulVec]
-  exact Complex.ext (Complex.ofReal_re _).symm (by
-    have him := congrArg Complex.im hself
-    simp only [Complex.star_def, Complex.conj_im] at him
-    rw [Complex.ofReal_im]
-    linarith)
+    conv_lhs => rw [star_dotProduct, star_star, star_mulVec, hH.eq, ← dotProduct_mulVec]
+  have him := congrArg Complex.im hself
+  simp only [Complex.star_def, Complex.conj_im] at him
+  exact Complex.ext (Complex.ofReal_re _).symm (by rw [Complex.ofReal_im]; linarith)
 
 /-- **Tsirelson's correspondence, `(1) ⇒ (2)`** ([Cirel'son][Cirelson1980];
 [Cleve, Høyer, Toner, Watrous, §5.3, Theorem 4][CleveHoyerTonerWatrous2004]): `±1` observables
@@ -150,33 +134,25 @@ theorem tsirelson_vectors_of_observables {S T ι : Type*} [Fintype ι] [Decidabl
         (v : T → EuclideanSpace ℝ (Fin (2 * Fintype.card ι ^ 2))),
         (∀ s, ‖u s‖ = 1) ∧ (∀ t, ‖v t‖ = 1) ∧
         ∀ s t, star ψ.ofLp ⬝ᵥ (((A s) ⊗ₖ (B t)) *ᵥ ψ.ofLp) = (inner ℝ (u s) (v t) : ℂ) := by
-  have hcard_pos : 0 < Fintype.card ι := by
-    by_contra h0
-    have hempty : IsEmpty ι := Fintype.card_eq_zero_iff.mp (Nat.eq_zero_of_not_pos h0)
-    have hψ0 : ‖ψ‖ = 0 := by
-      rw [EuclideanSpace.norm_eq]
-      simp
-    linarith
-  have hm_pos : 0 < 2 * Fintype.card ι ^ 2 := by positivity
+  have hcard_pos : 0 < Fintype.card ι := Fintype.card_pos_iff.mpr <| by
+    by_contra h
+    have : IsEmpty ι := not_nonempty_iff.mp h
+    simp [EuclideanSpace.norm_eq] at hψ
   let γ (s : S) : EuclideanSpace ℂ (ι × ι) :=
     WithLp.toLp 2 (((A s) ⊗ₖ (1 : Matrix ι ι ℂ)) *ᵥ ψ.ofLp)
   let δ (t : T) : EuclideanSpace ℂ (ι × ι) :=
     WithLp.toLp 2 (((1 : Matrix ι ι ℂ) ⊗ₖ (B t)) *ᵥ ψ.ofLp)
-  have hγ_norm (s : S) : ‖γ s‖ = 1 := by
-    have hiso : ((A s) ⊗ₖ (1 : Matrix ι ι ℂ))ᴴ * ((A s) ⊗ₖ (1 : Matrix ι ι ℂ)) = 1 := by
+  have hγ_norm (s : S) : ‖γ s‖ = 1 :=
+    (Matrix.norm_toLp_mulVec_of_conjTranspose_mul_self (by
       rw [conjTranspose_kronecker, (hA_herm s).eq, conjTranspose_one, ← mul_kronecker_mul,
-        hA_sq s, Matrix.mul_one, one_kronecker_one]
-    exact (Matrix.norm_toLp_mulVec_of_conjTranspose_mul_self hiso ψ).trans hψ
-  have hδ_norm (t : T) : ‖δ t‖ = 1 := by
-    have hiso : ((1 : Matrix ι ι ℂ) ⊗ₖ (B t))ᴴ * ((1 : Matrix ι ι ℂ) ⊗ₖ (B t)) = 1 := by
+        hA_sq s, Matrix.mul_one, one_kronecker_one]) ψ).trans hψ
+  have hδ_norm (t : T) : ‖δ t‖ = 1 :=
+    (Matrix.norm_toLp_mulVec_of_conjTranspose_mul_self (by
       rw [conjTranspose_kronecker, conjTranspose_one, (hB_herm t).eq, ← mul_kronecker_mul,
-        Matrix.mul_one, hB_sq t, one_kronecker_one]
-    exact (Matrix.norm_toLp_mulVec_of_conjTranspose_mul_self hiso ψ).trans hψ
-  have heq_card : Fintype.card ((ι × ι) × Bool) = 2 * Fintype.card ι ^ 2 := by
-    simp only [Fintype.card_prod, Fintype.card_bool]
-    ring
-  let e : ((ι × ι) × Bool) ≃ Fin (2 * Fintype.card ι ^ 2) := Fintype.equivFinOfCardEq heq_card
-  refine ⟨hm_pos,
+        Matrix.mul_one, hB_sq t, one_kronecker_one]) ψ).trans hψ
+  let e : ((ι × ι) × Bool) ≃ Fin (2 * Fintype.card ι ^ 2) :=
+    Fintype.equivFinOfCardEq (by simp only [Fintype.card_prod, Fintype.card_bool]; ring)
+  refine ⟨by positivity,
     fun s => WithLp.toLp 2 ((complexToRealLp (γ s)).ofLp ∘ e.symm),
     fun t => WithLp.toLp 2 ((complexToRealLp (δ t)).ofLp ∘ e.symm),
     fun s => (reindex_euclideanSpace_norm e _).trans ((norm_complexToRealLp _).trans (hγ_norm s)),
@@ -189,10 +165,9 @@ theorem tsirelson_vectors_of_observables {S T ι : Type*} [Fintype ι] [Decidabl
     rw [WithLp.ofLp_toLp, WithLp.ofLp_toLp, star_mulVec, ← dotProduct_mulVec, mulVec_mulVec,
       conjTranspose_kronecker, (hA_herm s).eq, conjTranspose_one, ← mul_kronecker_mul,
       Matrix.mul_one, Matrix.one_mul]
-  have hAB_herm : ((A s) ⊗ₖ (B t)).IsHermitian := by
-    rw [IsHermitian, conjTranspose_kronecker, (hA_herm s).eq, (hB_herm t).eq]
   rw [hinner]
-  exact hermitian_quadForm_eq_ofReal_re hAB_herm ψ.ofLp
+  exact hermitian_quadForm_eq_ofReal_re (by
+    rw [IsHermitian, conjTranspose_kronecker, (hA_herm s).eq, (hB_herm t).eq]) ψ.ofLp
 
 namespace QuantumStrategy
 
@@ -230,6 +205,22 @@ private theorem norm_kronecker_one_mulVec_le {ι κ : Type*} [Fintype ι] [Decid
   rw [hslice, ← EuclideanSpace.norm_sq_eq ψk]
   exact pow_le_pow_left₀ (norm_nonneg _) (Matrix.norm_toLp_mulVec_le_of_posSemidef hM ψk) 2
 
+private theorem norm_pad_unit {α : Type*} [Fintype α] (v : EuclideanSpace ℝ α) (hv : ‖v‖ ≤ 1)
+    (slot : Bool) :
+    ‖(WithLp.toLp 2 (Sum.elim v.ofLp fun b : Bool =>
+        if b = slot then Real.sqrt (1 - ‖v‖ ^ 2) else 0) : EuclideanSpace ℝ (α ⊕ Bool))‖ = 1 := by
+  have hle1 : ‖v‖ ^ 2 ≤ 1 := by nlinarith [norm_nonneg v]
+  apply (sq_eq_sq₀ (norm_nonneg _) zero_le_one).mp
+  rw [EuclideanSpace.norm_sq_eq, Fintype.sum_sum_type, Fintype.sum_bool]
+  have hsum : (∑ x : α, ‖(WithLp.toLp 2 (Sum.elim v.ofLp fun b : Bool =>
+      if b = slot then Real.sqrt (1 - ‖v‖ ^ 2) else 0) : EuclideanSpace ℝ (α ⊕ Bool)).ofLp
+      (Sum.inl x)‖ ^ 2) = ‖v‖ ^ 2 := (EuclideanSpace.norm_sq_eq v).symm
+  rw [hsum]
+  cases slot <;>
+    simp only [Sum.elim_inr, reduceCtorEq, ↓reduceIte, norm_zero,
+      Real.norm_eq_abs, sq_abs, Real.sq_sqrt (by linarith : 0 ≤ 1 - ‖v‖ ^ 2)] <;>
+    ring
+
 /-- Every quantum strategy with binary answers—even with non-projective POVMs and unequal local
 dimensions—has its correlation table realized by real unit vectors. -/
 theorem exists_unit_vectors_correlation {S T ι κ : Type*} [Fintype ι] [DecidableEq ι]
@@ -244,81 +235,52 @@ theorem exists_unit_vectors_correlation {S T ι κ : Type*} [Fintype ι] [Decida
     WithLp.toLp 2 ((A s ⊗ₖ (1 : Matrix κ κ ℂ)) *ᵥ ψ.ofLp)
   let δ (t : T) : EuclideanSpace ℂ (ι × κ) :=
     WithLp.toLp 2 (((1 : Matrix ι ι ℂ) ⊗ₖ B t) *ᵥ ψ.ofLp)
-  have hγ_le (s : S) : ‖γ s‖ ≤ 1 := by
-    have hpsd : (1 - (A s)ᴴ * A s).PosSemidef := by
+  have hγ_le (s : S) : ‖γ s‖ ≤ 1 :=
+    (norm_kronecker_one_mulVec_le (by
       rw [(POVM.isHermitian_observable (strat.alice s)).eq]
-      exact POVM.posSemidef_one_sub_observable_mul_self (strat.alice s)
-    exact (norm_kronecker_one_mulVec_le hpsd ψ).trans_eq strat.norm_state
+      exact POVM.posSemidef_one_sub_observable_mul_self (strat.alice s)) ψ).trans_eq
+      strat.norm_state
   have hδ_le (t : T) : ‖δ t‖ ≤ 1 := by
-    have hpsd : (1 - (B t)ᴴ * B t).PosSemidef := by
-      rw [(POVM.isHermitian_observable (strat.bob t)).eq]
-      exact POVM.posSemidef_one_sub_observable_mul_self (strat.bob t)
     let ψ' : EuclideanSpace ℂ (κ × ι) := WithLp.toLp 2 (ψ.ofLp ∘ Equiv.prodComm κ ι)
-    let δ' : EuclideanSpace ℂ (κ × ι) :=
-      WithLp.toLp 2 ((B t ⊗ₖ (1 : Matrix ι ι ℂ)) *ᵥ ψ'.ofLp)
-    have hδ_eq : ‖δ t‖ = ‖δ'‖ := by
-      apply (sq_eq_sq₀ (norm_nonneg _) (norm_nonneg _)).mp
+    let δ' : EuclideanSpace ℂ (κ × ι) := WithLp.toLp 2 ((B t ⊗ₖ (1 : Matrix ι ι ℂ)) *ᵥ ψ'.ofLp)
+    have hδ_eq : ‖δ t‖ = ‖δ'‖ := (sq_eq_sq₀ (norm_nonneg _) (norm_nonneg _)).mp <| by
       rw [EuclideanSpace.norm_sq_eq, EuclideanSpace.norm_sq_eq,
         ← Equiv.sum_comp (Equiv.prodComm ι κ)]
       refine Finset.sum_congr rfl fun ⟨i, k⟩ _ => ?_
-      dsimp only [δ, δ', ψ', Equiv.prodComm_apply, Prod.swap, Function.comp_apply]
-      rw [WithLp.ofLp_toLp, WithLp.ofLp_toLp, one_kronecker_mulVec_apply,
-        kronecker_one_mulVec_apply]
-      rfl
-    have hψ_eq : ‖ψ'‖ = ‖ψ‖ := by
-      apply (sq_eq_sq₀ (norm_nonneg _) (norm_nonneg _)).mp
+      simp only [δ, δ', ψ', Equiv.prodComm_apply, Prod.swap, Function.comp_apply,
+        one_kronecker_mulVec_apply, kronecker_one_mulVec_apply]
+    have hψ_eq : ‖ψ'‖ = ‖ψ‖ := (sq_eq_sq₀ (norm_nonneg _) (norm_nonneg _)).mp <| by
       rw [EuclideanSpace.norm_sq_eq, EuclideanSpace.norm_sq_eq]
       exact Equiv.sum_comp (Equiv.prodComm κ ι) fun p => ‖ψ.ofLp p‖ ^ 2
-    exact (hδ_eq.trans_le (norm_kronecker_one_mulVec_le hpsd ψ')).trans_eq
+    exact (hδ_eq.trans_le (norm_kronecker_one_mulVec_le (by
+      rw [(POVM.isHermitian_observable (strat.bob t)).eq]
+      exact POVM.posSemidef_one_sub_observable_mul_self (strat.bob t)) ψ')).trans_eq
       (hψ_eq.trans strat.norm_state)
   let α' (s : S) := complexToRealLp (γ s)
   let β' (t : T) := complexToRealLp (δ t)
   let Pad := ((ι × κ) × Bool) ⊕ Bool
   let uPad (s : S) : EuclideanSpace ℝ Pad :=
-    WithLp.toLp 2 (Sum.elim (α' s).ofLp
-      (fun b => bif b then 0 else Real.sqrt (1 - ‖α' s‖ ^ 2)))
+    WithLp.toLp 2 (Sum.elim (α' s).ofLp fun b =>
+      if b = false then Real.sqrt (1 - ‖α' s‖ ^ 2) else 0)
   let vPad (t : T) : EuclideanSpace ℝ Pad :=
-    WithLp.toLp 2 (Sum.elim (β' t).ofLp
-      (fun b => bif b then Real.sqrt (1 - ‖β' t‖ ^ 2) else 0))
-  have huPad (s : S) : ‖uPad s‖ = 1 := by
-    have hle1 : ‖α' s‖ ^ 2 ≤ 1 := by
-      rw [norm_complexToRealLp]
-      nlinarith [hγ_le s, norm_nonneg (γ s)]
-    apply (sq_eq_sq₀ (norm_nonneg _) zero_le_one).mp
-    rw [EuclideanSpace.norm_sq_eq, Fintype.sum_sum_type, Fintype.sum_bool]
-    have hsum : (∑ x : (ι × κ) × Bool, ‖(uPad s).ofLp (Sum.inl x)‖ ^ 2) = ‖α' s‖ ^ 2 :=
-      (EuclideanSpace.norm_sq_eq (α' s)).symm
-    rw [hsum]
-    simp only [uPad, Sum.elim_inr, Bool.cond_true, Bool.cond_false, norm_zero,
-      Real.norm_eq_abs, sq_abs, Real.sq_sqrt (by linarith : 0 ≤ 1 - ‖α' s‖ ^ 2)]
-    ring
-  have hvPad (t : T) : ‖vPad t‖ = 1 := by
-    have hle1 : ‖β' t‖ ^ 2 ≤ 1 := by
-      rw [norm_complexToRealLp]
-      nlinarith [hδ_le t, norm_nonneg (δ t)]
-    apply (sq_eq_sq₀ (norm_nonneg _) zero_le_one).mp
-    rw [EuclideanSpace.norm_sq_eq, Fintype.sum_sum_type, Fintype.sum_bool]
-    have hsum : (∑ x : (ι × κ) × Bool, ‖(vPad t).ofLp (Sum.inl x)‖ ^ 2) = ‖β' t‖ ^ 2 :=
-      (EuclideanSpace.norm_sq_eq (β' t)).symm
-    rw [hsum]
-    simp only [vPad, Sum.elim_inr, Bool.cond_true, Bool.cond_false, norm_zero,
-      Real.norm_eq_abs, sq_abs, Real.sq_sqrt (by linarith : 0 ≤ 1 - ‖β' t‖ ^ 2)]
-    ring
+    WithLp.toLp 2 (Sum.elim (β' t).ofLp fun b =>
+      if b = true then Real.sqrt (1 - ‖β' t‖ ^ 2) else 0)
   let M := Fintype.card Pad
-  have hM : 0 < M := Fintype.card_pos_iff.mpr ⟨Sum.inr false⟩
   let e : Pad ≃ Fin M := Fintype.equivFin Pad
-  refine ⟨M, hM,
+  refine ⟨M, Fintype.card_pos_iff.mpr ⟨Sum.inr false⟩,
     fun s => WithLp.toLp 2 ((uPad s).ofLp ∘ e.symm),
     fun t => WithLp.toLp 2 ((vPad t).ofLp ∘ e.symm),
-    fun s => (reindex_euclideanSpace_norm e _).trans (huPad s),
-    fun t => (reindex_euclideanSpace_norm e _).trans (hvPad t),
+    fun s => (reindex_euclideanSpace_norm e _).trans
+      (norm_pad_unit (α' s) ((norm_complexToRealLp _).trans_le (hγ_le s)) false),
+    fun t => (reindex_euclideanSpace_norm e _).trans
+      (norm_pad_unit (β' t) ((norm_complexToRealLp _).trans_le (hδ_le t)) true),
     fun s t => ?_⟩
   rw [reindex_euclideanSpace_inner, PiLp.inner_apply, Fintype.sum_sum_type, Fintype.sum_bool]
   have hinl : (∑ x : (ι × κ) × Bool, inner ℝ ((uPad s).ofLp (Sum.inl x))
       ((vPad t).ofLp (Sum.inl x))) = inner ℝ (α' s) (β' t) :=
     (PiLp.inner_apply (α' s) (β' t)).symm
   rw [hinl]
-  simp only [uPad, vPad, Sum.elim_inr, Bool.cond_true, Bool.cond_false,
+  simp only [uPad, vPad, Sum.elim_inr, Bool.true_eq_false, Bool.false_eq_true, ↓reduceIte,
     RCLike.inner_apply, conj_trivial, mul_zero, zero_mul, add_zero]
   rw [inner_complexToRealLp, EuclideanSpace.inner_eq_star_dotProduct, dotProduct_comm]
   dsimp only [γ, δ]
@@ -433,6 +395,20 @@ theorem tsirelson_iff {S T : Type*} (c : S → T → ℝ) :
 
 /-! ### Elementary Gram–Schmidt dimension reduction to `min(|S|, |T|)` -/
 
+private theorem inner_sum_proj_orthonormal {M r : ℕ} {e : Fin r → EuclideanSpace ℝ (Fin M)}
+    (horth : ∀ i j, i ≠ j → inner ℝ (e i) (e j) = 0)
+    (hnorm : ∀ i, ‖e i‖ = 1 ∨ e i = 0) (x : EuclideanSpace ℝ (Fin M)) (i : Fin r) :
+    inner ℝ (e i) (∑ k : Fin r, inner ℝ (e k) x • e k) = inner ℝ (e i) x := by
+  rw [inner_sum, Finset.sum_eq_single i]
+  · rw [inner_smul_right]
+    rcases hnorm i with hi | hi
+    · rw [real_inner_self_eq_norm_sq, hi, one_pow, mul_one]
+    · simp [hi]
+  · intro k _ hki
+    rw [inner_smul_right, horth i k hki.symm, mul_zero]
+  · intro hi
+    exact absurd (Finset.mem_univ i) hi
+
 private theorem exists_orthonormal_expansion {M : ℕ} :
     ∀ (r : ℕ) (v : Fin r → EuclideanSpace ℝ (Fin M)),
       ∃ e : Fin r → EuclideanSpace ℝ (Fin M),
@@ -448,61 +424,27 @@ private theorem exists_orthonormal_expansion {M : ℕ} :
     let elast : EuclideanSpace ℝ (Fin M) := if w = 0 then 0 else ‖w‖⁻¹ • w
     let e : Fin (r + 1) → EuclideanSpace ℝ (Fin M) := Fin.snoc e₀ elast
     have horth_w (i : Fin r) : inner ℝ (e₀ i) w = 0 := by
-      dsimp only [w]
-      rw [inner_sub_right, inner_sum]
-      have hterm (k : Fin r) :
-          inner ℝ (e₀ i) (inner ℝ (e₀ k) (v (Fin.last r)) • e₀ k) =
-            if k = i then inner ℝ (e₀ i) (v (Fin.last r)) else 0 := by
-        rw [inner_smul_right]
-        by_cases hki : k = i
-        · subst hki
-          rw [ite_eq_left_iff.mpr (fun h => absurd rfl h)]
-          rcases hnorm₀ k with hk1 | hk0
-          · rw [real_inner_self_eq_norm_sq, hk1, one_pow, mul_one]
-          · simp [hk0]
-        · rw [ite_eq_right_iff.mpr (fun h => absurd h hki), horth₀ i k (Ne.symm hki), mul_zero]
-      simp_rw [hterm]
-      have hsum : (∑ k : Fin r, if k = i then inner ℝ (e₀ i) (v (Fin.last r)) else 0) =
-          inner ℝ (e₀ i) (v (Fin.last r)) :=
-        (Finset.sum_eq_single i (fun k _ hki => ite_eq_right_iff.mpr fun h => absurd h hki)
-          (fun hi => absurd (Finset.mem_univ i) hi)).trans (by simp)
-      rw [hsum, sub_self]
+      rw [inner_sub_right, inner_sum_proj_orthonormal horth₀ hnorm₀, sub_self]
     have horth_elast (i : Fin r) : inner ℝ (e₀ i) elast = 0 := by
       dsimp only [elast]
-      split_ifs with hw
+      split_ifs
       · simp
       · rw [inner_smul_right, horth_w i, mul_zero]
-    have horth : ∀ i j : Fin (r + 1), i ≠ j → inner ℝ (e i) (e j) = 0 := by
-      intro i j
-      refine Fin.lastCases ?_ (fun i₀ => ?_) i
-      · refine Fin.lastCases ?_ (fun j₀ => ?_) j
-        · intro hij
-          exact absurd rfl hij
-        · intro _
-          dsimp only [e]
-          rw [Fin.snoc_last, Fin.snoc_castSucc, real_inner_comm, horth_elast j₀]
-      · refine Fin.lastCases ?_ (fun j₀ => ?_) j
-        · intro _
-          dsimp only [e]
-          rw [Fin.snoc_castSucc, Fin.snoc_last, horth_elast i₀]
-        · intro hij
-          dsimp only [e]
-          rw [Fin.snoc_castSucc, Fin.snoc_castSucc]
-          exact horth₀ i₀ j₀ fun h => hij (congrArg Fin.castSucc h)
-    have hnorm : ∀ i : Fin (r + 1), ‖e i‖ = 1 ∨ e i = 0 := by
-      intro i
-      refine Fin.lastCases ?_ (fun i₀ => ?_) i
-      · dsimp only [e]
-        rw [Fin.snoc_last]
-        dsimp only [elast]
-        split_ifs with hw
-        · exact Or.inr rfl
-        · left
-          rw [norm_smul, Real.norm_of_nonneg (inv_nonneg.mpr (norm_nonneg w)),
-            inv_mul_cancel₀ (norm_ne_zero_iff.mpr hw)]
-      · dsimp only [e]
-        rw [Fin.snoc_castSucc]
-        exact hnorm₀ i₀
+    have horth : ∀ i j : Fin (r + 1), i ≠ j → inner ℝ (e i) (e j) = 0 := fun i j => by
+      refine Fin.lastCases (Fin.lastCases (fun h => absurd rfl h) (fun j₀ _ => ?_) j)
+        (fun i₀ => Fin.lastCases (fun _ => ?_) (fun j₀ hij => ?_) j) i
+      · simp only [e, Fin.snoc_last, Fin.snoc_castSucc, real_inner_comm, horth_elast j₀]
+      · simp only [e, Fin.snoc_castSucc, Fin.snoc_last, horth_elast i₀]
+      · simp only [e, Fin.snoc_castSucc]
+        exact horth₀ i₀ j₀ fun h => hij (congrArg Fin.castSucc h)
+    have hnorm : ∀ i : Fin (r + 1), ‖e i‖ = 1 ∨ e i = 0 := fun i => by
+      refine Fin.lastCases ?_ (fun i₀ => by simpa only [e, Fin.snoc_castSucc] using hnorm₀ i₀) i
+      simp only [e, Fin.snoc_last, elast]
+      split_ifs with hw
+      · exact Or.inr rfl
+      · left
+        rw [norm_smul, Real.norm_of_nonneg (inv_nonneg.mpr (norm_nonneg w)),
+          inv_mul_cancel₀ (norm_ne_zero_iff.mpr hw)]
     refine ⟨e, horth, hnorm, fun j => ?_⟩
     refine Fin.lastCases ?_ (fun j₀ => ?_) j
     · rw [Fin.sum_univ_castSucc]
@@ -543,31 +485,10 @@ private theorem bessel_sum_sq_le {M r : ℕ} (e : Fin r → EuclideanSpace ℝ (
     (∑ i : Fin r, inner ℝ (e i) x ^ 2) ≤ ‖x‖ ^ 2 := by
   let p : EuclideanSpace ℝ (Fin M) := ∑ i : Fin r, inner ℝ (e i) x • e i
   have hp_sq : ‖p‖ ^ 2 = ∑ i : Fin r, inner ℝ (e i) x ^ 2 := by
-    rw [← real_inner_self_eq_norm_sq]
-    dsimp only [p]
-    rw [sum_inner]
-    have hrow (i : Fin r) :
-        inner ℝ (inner ℝ (e i) x • e i) (∑ j : Fin r, inner ℝ (e j) x • e j) =
-          inner ℝ (e i) x ^ 2 := by
-      rw [inner_sum]
-      have hterm (j : Fin r) :
-          inner ℝ (inner ℝ (e i) x • e i) (inner ℝ (e j) x • e j) =
-            if j = i then inner ℝ (e i) x ^ 2 else 0 := by
-        rw [inner_smul_left, inner_smul_right, RCLike.conj_to_real]
-        by_cases hji : j = i
-        · subst hji
-          rw [ite_eq_left_iff.mpr (fun h => absurd rfl h)]
-          rcases hnorm j with hj1 | hj0
-          · rw [real_inner_self_eq_norm_sq, hj1, one_pow, mul_one, ← sq]
-          · simp [hj0]
-        · rw [ite_eq_right_iff.mpr (fun h => absurd h hji), horth i j (Ne.symm hji), mul_zero,
-            mul_zero]
-      simp_rw [hterm]
-      exact (Finset.sum_eq_single i (fun j _ hji => ite_eq_right_iff.mpr fun h => absurd h hji)
-        (fun hi => absurd (Finset.mem_univ i) hi)).trans (by simp)
-    simp_rw [hrow]
+    rw [← real_inner_self_eq_norm_sq, sum_inner]
+    refine Finset.sum_congr rfl fun i _ => ?_
+    rw [inner_smul_left, RCLike.conj_to_real, inner_sum_proj_orthonormal horth hnorm, sq]
   have hxp : inner ℝ x p = ∑ i : Fin r, inner ℝ (e i) x ^ 2 := by
-    dsimp only [p]
     rw [inner_sum]
     refine Finset.sum_congr rfl fun i _ => ?_
     rw [inner_smul_right, real_inner_comm (e i) x, sq]
@@ -590,20 +511,20 @@ private theorem exists_unit_vectors_dim_le_right {S T : Type*} [Fintype S] [Fint
   let eT : T ≃ Fin r := Fintype.equivFin T
   obtain ⟨e, horth, hnorm, hexp⟩ := exists_orthonormal_expansion r (fun j => v (eT.symm j))
   let proj (x : EuclideanSpace ℝ (Fin M)) : EuclideanSpace ℝ (Fin m) :=
-    WithLp.toLp 2 fun k : Fin m => if hk : k.val < r then inner ℝ (e ⟨k.val, hk⟩) x else 0
-  let emb : Fin r ↪ Fin m := ⟨fun j => ⟨j.val, by omega⟩, fun a b h => Fin.ext (Fin.mk.inj h)⟩
+    WithLp.toLp 2 fun k : Fin m => if hk : k.1 < r then inner ℝ (e ⟨k.1, hk⟩) x else 0
+  let emb : Fin r ↪ Fin m := ⟨fun j => ⟨j.1, by omega⟩, fun a b h => Fin.ext (Fin.mk.inj h)⟩
   have hproj_inner (x y : EuclideanSpace ℝ (Fin M)) :
       inner ℝ (proj x) (proj y) = ∑ j : Fin r, inner ℝ (e j) x * inner ℝ (e j) y := by
     rw [PiLp.inner_apply]
     have hsub : (∑ k ∈ Finset.univ.map emb, inner ℝ ((proj x).ofLp k) ((proj y).ofLp k)) =
         ∑ k : Fin m, inner ℝ ((proj x).ofLp k) ((proj y).ofLp k) := by
       refine Finset.sum_subset (Finset.subset_univ _) fun k _ hk_not => ?_
-      have hge : ¬ k.val < r := fun hlt =>
-        hk_not (Finset.mem_map.mpr ⟨⟨k.val, hlt⟩, Finset.mem_univ _, rfl⟩)
+      have hge : ¬ k.1 < r := fun hlt =>
+        hk_not (Finset.mem_map.mpr ⟨⟨k.1, hlt⟩, Finset.mem_univ _, rfl⟩)
       simp [proj, hge]
     rw [← hsub, Finset.sum_map]
     refine Finset.sum_congr rfl fun j _ => ?_
-    have hlt : (emb j).val < r := j.isLt
+    have hlt : (emb j).1 < r := j.2
     simp only [proj, hlt, ↓reduceDIte, RCLike.inner_apply, conj_trivial]
     exact mul_comm _ _
   have hproj_norm_le (x : EuclideanSpace ℝ (Fin M)) : ‖proj x‖ ≤ ‖x‖ := by
@@ -865,6 +786,17 @@ theorem value_sub_trivialWinProb {G : TwoProverGame X Y Bool Bool}
     rw [← winProb_sub_trivialWinProb hG ha₁ hb₁]
     linarith [G.winProb_le_value ha₁ hb₁]
 
+private theorem continuous_finset_sum_real {ι α : Type*} [TopologicalSpace α]
+    (s : Finset ι) {f : ι → α → ℝ} (hf : ∀ i ∈ s, Continuous (f i)) :
+    Continuous (fun a => ∑ i ∈ s, f i a) := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => simpa using continuous_const
+  | @insert b s hb ih =>
+    have hadd : Continuous (fun a => f b a + ∑ c ∈ s, f c a) :=
+      (hf b (Finset.mem_insert_self b s)).add (ih fun c hc => hf c (Finset.mem_insert_of_mem hc))
+    simpa only [Finset.sum_insert hb] using hadd
+
 /-- **Proposition 5 (attainment form)** of
 [Cleve, Høyer, Toner, Watrous, §5.3][CleveHoyerTonerWatrous2004]: for every XOR game `G` on
 nonempty finite question sets and `m = min(|X|, |Y|)`, there exist real unit vectors in `ℝ^m`
@@ -895,15 +827,15 @@ theorem exists_max_unit_vectors_xorGame [Nonempty X] [Nonempty Y]
   have hF_cont : Continuous F := by
     refine continuous_finset_sum_real Finset.univ fun x _ =>
       continuous_finset_sum_real Finset.univ fun y _ => ?_
-    refine continuous_const.mul (Continuous.inner ?_ ?_)
-    · exact continuous_subtypeVal.comp ((continuous_apply x).comp continuous_fst)
-    · exact continuous_subtypeVal.comp ((continuous_apply y).comp continuous_snd)
+    exact continuous_const.mul <| Continuous.inner
+      (continuous_subtype_val.comp ((continuous_apply x).comp continuous_fst))
+      (continuous_subtype_val.comp ((continuous_apply y).comp continuous_snd))
   obtain ⟨⟨u₀, v₀⟩, _, hmax_dom⟩ :=
     isCompact_univ.exists_isMaxOn Set.univ_nonempty hF_cont.continuousOn
-  let u (x : X) : EuclideanSpace ℝ (Fin m) := (u₀ x).val
-  let v (y : Y) : EuclideanSpace ℝ (Fin m) := (v₀ y).val
-  have hu (x : X) : ‖u x‖ = 1 := mem_sphere_zero_iff_norm.mp (u₀ x).property
-  have hv (y : Y) : ‖v y‖ = 1 := mem_sphere_zero_iff_norm.mp (v₀ y).property
+  let u (x : X) : EuclideanSpace ℝ (Fin m) := (u₀ x).1
+  let v (y : Y) : EuclideanSpace ℝ (Fin m) := (v₀ y).1
+  have hu (x : X) : ‖u x‖ = 1 := mem_sphere_zero_iff_norm.mp (u₀ x).2
+  have hv (y : Y) : ‖v y‖ = 1 := mem_sphere_zero_iff_norm.mp (v₀ y).2
   have hmax_all : ∀ {M : ℕ} (u' : X → EuclideanSpace ℝ (Fin M)) (v' : Y → EuclideanSpace ℝ (Fin M)),
       (∀ x, ‖u' x‖ = 1) → (∀ y, ‖v' y‖ = 1) →
       ∑ x : X, ∑ y : Y, W x y * inner ℝ (u' x) (v' y) ≤
@@ -960,9 +892,9 @@ theorem quantumValue_sub_trivialWinProb [Nonempty X] [Nonempty Y]
   let vSph : Y → Sph := fun y => ⟨v₀ y, mem_sphere_zero_iff_norm.mpr (hv₀ y)⟩
   have : Nonempty Sph := ⟨uSph (Classical.arbitrary X)⟩
   have hub (u : X → Sph) (v : Y → Sph) : obj u v ≤ topVal :=
-    hmax (fun x => (u x).val) (fun y => (v y).val)
-      (fun x => mem_sphere_zero_iff_norm.mp (u x).property)
-      (fun y => mem_sphere_zero_iff_norm.mp (v y).property)
+    hmax (fun x => (u x).1) (fun y => (v y).1)
+      (fun x => mem_sphere_zero_iff_norm.mp (u x).2)
+      (fun y => mem_sphere_zero_iff_norm.mp (v y).2)
   have hbdd1 (u : X → Sph) : BddAbove (Set.range (obj u)) :=
     ⟨topVal, by rintro _ ⟨v, rfl⟩; exact hub u v⟩
   have hbdd2 : BddAbove (Set.range fun u : X → Sph => ⨆ v : Y → Sph, obj u v) :=
@@ -1081,57 +1013,26 @@ theorem winProb_oddCycleGame_parity {n : ℕ} [NeZero n] (hn : Odd n) (hn3 : 3 �
     by_cases hs : s = last
     · subst hs
       rw [hlast_succ]
-      simp only [ne_eq, not_true_eq_false, iff_false]
-      have hl0 : color last = false := by
-        simp only [color, hlast_val, show n - 1 = 2 * k by omega, Nat.mul_mod_right,
-          decide_eq_false_iff_not]
-        omega
-      have hc0 : color 0 = false := by
-        simp [color]
-      rw [hl0, hc0]
-      decide
+      simp [color, hlast_val, show n - 1 = 2 * k by omega]
     · simp only [ne_eq, hs, not_false_eq_true, iff_true]
-      have hsv_lt : s.val < 2 * k := by
-        have hlt := s.val_lt
-        have hne_val : s.val ≠ 2 * k := by
-          intro heq
-          apply hs
-          apply ZMod.val_injective
-          rw [hlast_val]
-          omega
-        omega
+      have hne_val : s.val ≠ n - 1 := fun h => hs (ZMod.val_injective n (h.trans hlast_val.symm))
       have hsucc_val : (s + 1).val = s.val + 1 := by
+        have := s.val_lt
         rw [ZMod.val_add, ZMod.val_one, Nat.mod_eq_of_lt (by omega)]
       simp only [color, hsucc_val]
       rcases Nat.mod_two_eq_zero_or_one s.val with h0 | h1
-      · have hnext : (s.val + 1) % 2 = 1 := by omega
-        simp [h0, hnext]
-      · have hnext : (s.val + 1) % 2 = 0 := by omega
-        simp [h1, hnext]
-  simp_rw [hedge]
-  let inv2n : ℝ := (2 * (n : ℝ))⁻¹
-  have hterm (s : ZMod n) :
-      ((if s ≠ last then inv2n else 0) + inv2n) =
-        if s = last then inv2n else 2 * inv2n := by
-    by_cases hs : s = last
-    · simp [hs]
-    · simp only [hs, ne_eq, not_false_eq_true, ↓reduceIte]
-      ring
-  change (∑ s : ZMod n, ((if s ≠ last then inv2n else 0) + inv2n)) = _
-  simp_rw [hterm]
-  have hsum : (∑ s : ZMod n, if s = last then inv2n else 2 * inv2n) =
-      inv2n + ((n - 1 : ℕ) : ℝ) * (2 * inv2n) := by
-    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ last)]
-    simp only [↓reduceIte]
-    congr 1
-    have hconst : ∀ s ∈ Finset.univ.erase last,
-        (if s = last then inv2n else 2 * inv2n) = 2 * inv2n := by
-      intro s hs
-      rw [ite_eq_right_iff.mpr (fun h => absurd h (Finset.ne_of_mem_erase hs))]
-    rw [Finset.sum_congr rfl hconst, Finset.sum_const, Finset.card_erase_of_mem (Finset.mem_univ _),
-      Finset.card_univ, ZMod.card, nsmul_eq_mul]
-  rw [hsum, Nat.cast_sub (by omega)]
-  dsimp only [inv2n]
+      · simp [h0, show (s.val + 1) % 2 = 1 by omega]
+      · simp [h1, show (s.val + 1) % 2 = 0 by omega]
+  simp_rw [hedge, Finset.sum_add_distrib]
+  have h1 : (∑ s : ZMod n, if s ≠ last then (2 * (n : ℝ))⁻¹ else 0) =
+      ((n - 1 : ℕ) : ℝ) * (2 * (n : ℝ))⁻¹ := by
+    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ last),
+      ite_eq_right_iff.mpr (fun h => absurd rfl h), zero_add,
+      Finset.sum_congr rfl (fun s hs =>
+        ite_eq_left_iff.mpr (fun h => absurd (Finset.ne_of_mem_erase hs) h)),
+      Finset.sum_const, Finset.card_erase_of_mem (Finset.mem_univ _), Finset.card_univ, ZMod.card,
+      nsmul_eq_mul]
+  rw [h1, Finset.sum_const, Finset.card_univ, ZMod.card, nsmul_eq_mul, Nat.cast_sub (by omega)]
   push_cast
   field_simp
   ring
@@ -1151,55 +1052,43 @@ theorem value_oddCycleGame {n : ℕ} [NeZero n] (hn : Odd n) (hn3 : 3 ≤ n) :
       have hsame (s : ZMod n) : ha s = hb s := by
         have h0 := hall (s, false)
         simp only [Bool.cond_false, decide_eq_false (zmod_add_one_ne_self hn3 s)] at h0
-        cases h_a : ha s <;> cases h_b : hb s <;> simp [h_a, h_b] at h0 ⊢
+        simpa using h0
       have hflip (s : ZMod n) : ha (s + 1) = !(ha s) := by
         have h1 := hall (s, true)
-        simp only [Bool.cond_true, decide_true] at h1
-        rw [← hsame (s + 1)] at h1
+        simp only [Bool.cond_true, decide_true, ← hsame (s + 1)] at h1
         cases h_a : ha s <;> cases h_a1 : ha (s + 1) <;> simp [h_a, h_a1] at h1 ⊢
       have hind : ∀ j : ℕ, ha (j : ZMod n) = if j % 2 = 1 then !(ha 0) else ha 0 := by
         intro j
         induction j with
         | zero => simp
         | succ j ih =>
-          rw [Nat.cast_add, Nat.cast_one, hflip (j : ZMod n), ih]
+          rw [Nat.cast_add, Nat.cast_one, hflip, ih]
           rcases Nat.mod_two_eq_zero_or_one j with h0 | h1
-          · have hnext : (j + 1) % 2 = 1 := by omega
-            simp [h0, hnext]
-          · have hnext : (j + 1) % 2 = 0 := by omega
-            simp [h1, hnext]
-      have hn_cast := hind n
+          · simp [h0, show (j + 1) % 2 = 1 by omega]
+          · simp [h1, show (j + 1) % 2 = 0 by omega]
       obtain ⟨k, hk⟩ := hn
-      have hn_mod : n % 2 = 1 := by omega
-      simp only [ZMod.natCast_self, hn_mod, ↓reduceIte] at hn_cast
+      have hn_cast := hind n
+      simp only [ZMod.natCast_self, show n % 2 = 1 by omega, ↓reduceIte] at hn_cast
       exact Bool.not_ne_self (ha 0) hn_cast.symm
     obtain ⟨sb₀, hsb₀⟩ := not_forall.mp hnot_all
-    rw [winProb_oddCycleGame]
-    have hcard : Fintype.card (ZMod n × Bool) = 2 * n := by
-      rw [Fintype.card_prod, ZMod.card, Fintype.card_bool, mul_comm]
-    let Win (sb : ZMod n × Bool) : Prop :=
-      (ha sb.1 ^^ hb (bif sb.2 then sb.1 + 1 else sb.1)) =
-        decide (sb.1 + 1 = bif sb.2 then sb.1 + 1 else sb.1)
-    change (∑ x : ZMod n × Bool, if Win x then (2 * (n : ℝ))⁻¹ else 0) ≤ _
-    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ sb₀)]
-    rw [ite_eq_right_iff.mpr (fun h => absurd h hsb₀), zero_add]
-    have hle_each : ∀ x ∈ Finset.univ.erase sb₀,
-        (if Win x then ((2 * (n : ℝ))⁻¹) else 0) ≤ (2 * (n : ℝ))⁻¹ := by
-      intro x _
-      split_ifs
-      · exact le_rfl
-      · positivity
-    have hsum_le := Finset.sum_le_sum hle_each
-    rw [Finset.sum_const, Finset.card_erase_of_mem (Finset.mem_univ sb₀), Finset.card_univ,
-      hcard, nsmul_eq_mul] at hsum_le
+    rw [winProb_oddCycleGame, ← Finset.add_sum_erase _ _ (Finset.mem_univ sb₀),
+      ite_eq_right_iff.mpr (fun h => absurd h hsb₀), zero_add]
     have hn_pos : (0 : ℝ) < n := by positivity
     calc
-      (∑ x ∈ Finset.univ.erase sb₀, if Win x then (2 * (n : ℝ))⁻¹ else 0)
-          ≤ ((2 * n - 1 : ℕ) : ℝ) * (2 * (n : ℝ))⁻¹ := hsum_le
+      (∑ x ∈ Finset.univ.erase sb₀,
+          if (ha x.1 ^^ hb (bif x.2 then x.1 + 1 else x.1)) =
+              decide (x.1 + 1 = bif x.2 then x.1 + 1 else x.1)
+          then (2 * (n : ℝ))⁻¹ else 0)
+          ≤ ((2 * n - 1 : ℕ) : ℝ) * (2 * (n : ℝ))⁻¹ := by
+        refine (Finset.sum_le_sum fun x _ => by
+          split_ifs
+          · exact le_rfl
+          · positivity).trans_eq ?_
+        rw [Finset.sum_const, Finset.card_erase_of_mem (Finset.mem_univ _), Finset.card_univ,
+          Fintype.card_prod, ZMod.card, Fintype.card_bool, mul_comm, nsmul_eq_mul]
       _ = 1 - 1 / (2 * (n : ℝ)) := by
         rw [Nat.cast_sub (by omega)]
-        push_cast
-        field_simp
+        push_cast; field_simp
   · rw [← winProb_oddCycleGame_parity hn hn3]
     exact (oddCycleGame n).winProb_le_value _ _
 
@@ -1248,152 +1137,90 @@ private theorem correlation_oddCycleStrategy (n : ℕ) (s t : ZMod n) :
 theorem quantumWinProb_oddCycleGame_oddCycleStrategy {n : ℕ} [NeZero n]
     (hn : Odd n) (hn3 : 3 ≤ n) :
     (oddCycleGame n).quantumWinProb (oddCycleStrategy n) = cos (π / (4 * (n : ℝ))) ^ 2 := by
-  have htriv : (oddCycleGame n).trivialWinProb = 1 / 2 := trivialWinProb_xorGame _ _
   have hsub := quantumWinProb_sub_trivialWinProb (isXORGame_oddCycleGame n) (oddCycleStrategy n)
-  rw [htriv] at hsub
-  have hn_pos : (0 : ℝ) < n := by positivity
-  have hn_ne : (n : ℝ) ≠ 0 := ne_of_gt hn_pos
+  rw [show (oddCycleGame n).trivialWinProb = 1 / 2 from trivialWinProb_xorGame _ _] at hsub
+  have hn_ne : (n : ℝ) ≠ 0 := by positivity
   -- Evaluate the question-weighted correlation sum by pulling back along `oddCycleQuestions`:
-  have hprob (p : ZMod n × ZMod n) :
-      ((oddCycleGame n).questions p).toReal =
-        if p.1 = p.2 ∨ p.1 + 1 = p.2 then (2 * (n : ℝ))⁻¹ else 0 := by
-    rcases p with ⟨s, t⟩
-    change ((oddCycleQuestions n (s, t))).toReal = _
+  have hprob (s t : ZMod n) :
+      ((oddCycleGame n).questions (s, t)).toReal =
+        if s = t ∨ s + 1 = t then (2 * (n : ℝ))⁻¹ else 0 := by
+    change (oddCycleQuestions n (s, t)).toReal = _
     rw [oddCycleQuestions, _root_.PMF.map_apply, tsum_fintype, Fintype.sum_prod_type]
     simp_rw [Fintype.sum_bool]
     simp only [Bool.cond_true, Bool.cond_false, Prod.mk.injEq, uniformOfFintype_apply,
       Fintype.card_prod, ZMod.card, Fintype.card_bool]
+    rw [Finset.sum_eq_single s (fun x _ hxs => by simp [hxs.symm])
+      (fun h => absurd (Finset.mem_univ s) h)]
+    have hne := zmod_add_one_ne_self hn3 s
     by_cases hst : s = t
     · subst t
-      have hne : s ≠ s + 1 := (zmod_add_one_ne_self hn3 s).symm
-      simp only [true_or, ↓reduceIte]
-      have hinner (x : ZMod n) :
-          ((if s = x ∧ s = x + 1 then ((n * 2 : ℕ) : ENNReal)⁻¹ else 0) +
-            (if s = x ∧ s = x then ((n * 2 : ℕ) : ENNReal)⁻¹ else 0)) =
-          if x = s then ((n * 2 : ℕ) : ENNReal)⁻¹ else 0 := by
-        by_cases hx : x = s
-        · subst x
-          simp [hne]
-        · simp [Ne.symm hx, hx]
-      simp_rw [hinner]
-      rw [Finset.sum_ite_eq' Finset.univ s (fun _ => ((n * 2 : ℕ) : ENNReal)⁻¹)]
-      simp only [Finset.mem_univ, ↓reduceIte, ENNReal.toReal_inv, Nat.cast_mul, Nat.cast_ofNat,
-        ENNReal.toReal_mul, ENNReal.toReal_natCast, ENNReal.toReal_ofNat]
-      ring
+      simp [hne.symm, ENNReal.toReal_inv, mul_comm]
     · by_cases hsucc : s + 1 = t
       · subst t
-        simp only [hst, false_or, ↓reduceIte]
-        have hinner (x : ZMod n) :
-            ((if s = x ∧ s + 1 = x + 1 then ((n * 2 : ℕ) : ENNReal)⁻¹ else 0) +
-              (if s = x ∧ s + 1 = x then ((n * 2 : ℕ) : ENNReal)⁻¹ else 0)) =
-            if x = s then ((n * 2 : ℕ) : ENNReal)⁻¹ else 0 := by
-          by_cases hx : x = s
-          · subst x
-            simp [zmod_add_one_ne_self hn3 s]
-          · simp [Ne.symm hx, hx]
-        simp_rw [hinner]
-        rw [Finset.sum_ite_eq' Finset.univ s (fun _ => ((n * 2 : ℕ) : ENNReal)⁻¹)]
-        simp only [Finset.mem_univ, ↓reduceIte, ENNReal.toReal_inv, Nat.cast_mul, Nat.cast_ofNat,
-          ENNReal.toReal_mul, ENNReal.toReal_natCast, ENNReal.toReal_ofNat]
-        ring
-      · simp only [hst, hsucc, or_self, ↓reduceIte]
-        have hz : (∑ x : ZMod n,
-            ((if s = x ∧ t = x + 1 then ((n * 2 : ℕ) : ENNReal)⁻¹ else 0) +
-              (if s = x ∧ t = x then ((n * 2 : ℕ) : ENNReal)⁻¹ else 0))) = 0 := by
-          refine Finset.sum_eq_zero fun x _ => ?_
-          by_cases hx : s = x
-          · subst hx
-            have h1 : t ≠ s + 1 := Ne.symm hsucc
-            have h2 : t ≠ s := Ne.symm hst
-            simp [h1, h2]
-          · simp [hx]
-        rw [hz, ENNReal.toReal_zero]
+        simp [hne, ENNReal.toReal_inv, mul_comm]
+      · simp [hst, hsucc, Ne.symm hst, Ne.symm hsucc]
   have hrow (s : ZMod n) :
       (∑ t : ZMod n, ((oddCycleGame n).questions (s, t)).toReal *
           (oddCycleGame n).xorCoeff s t * (oddCycleStrategy n).correlation s t) =
         (n : ℝ)⁻¹ * cos (π / (2 * (n : ℝ))) := by
     have hne : s + 1 ≠ s := zmod_add_one_ne_self hn3 s
-    have hterm (t : ZMod n) :
-        ((oddCycleGame n).questions (s, t)).toReal *
-            (oddCycleGame n).xorCoeff s t * (oddCycleStrategy n).correlation s t =
-          if t = s then (2 * (n : ℝ))⁻¹ * cos (π / (2 * (n : ℝ)))
-          else if t = s + 1 then (2 * (n : ℝ))⁻¹ * cos (π / (2 * (n : ℝ)))
-          else 0 := by
-      rw [hprob (s, t), xorCoeff_oddCycleGame, correlation_oddCycleStrategy]
-      by_cases hts : t = s
-      · subst t
-        simp only [↓reduceIte, true_or, decide_eq_false hne, signVal, Bool.false_eq_true]
-        have hang : 2 * (oddCycleAliceAngle n s - oddCycleBobAngle n s) =
-            -(π / (2 * (n : ℝ))) := by
-          unfold oddCycleAliceAngle oddCycleBobAngle
-          ring
-        rw [hang, cos_neg]
+    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ s),
+      ← Finset.add_sum_erase _ _ (Finset.mem_erase.mpr ⟨hne, Finset.mem_univ _⟩)]
+    have hrest : (∑ t ∈ (Finset.univ.erase s).erase (s + 1),
+        ((oddCycleGame n).questions (s, t)).toReal * (oddCycleGame n).xorCoeff s t *
+          (oddCycleStrategy n).correlation s t) = 0 := by
+      refine Finset.sum_eq_zero fun t ht => ?_
+      have ht1 : s + 1 ≠ t := (Finset.mem_erase.mp ht).1.symm
+      have ht0 : s ≠ t := (Finset.mem_erase.mp (Finset.mem_erase.mp ht).2).1.symm
+      simp [hprob, ht0, ht1]
+    rw [hrest, add_zero, hprob, hprob, xorCoeff_oddCycleGame, xorCoeff_oddCycleGame,
+      correlation_oddCycleStrategy, correlation_oddCycleStrategy]
+    simp only [true_or, or_true, ↓reduceIte, decide_eq_false hne, decide_true, signVal,
+      Bool.false_eq_true]
+    have hcos0 : cos (2 * (oddCycleAliceAngle n s - oddCycleBobAngle n s)) =
+        cos (π / (2 * (n : ℝ))) := by
+      have hang : 2 * (oddCycleAliceAngle n s - oddCycleBobAngle n s) =
+          -(π / (2 * (n : ℝ))) := by
+        unfold oddCycleAliceAngle oddCycleBobAngle
         ring
-      · by_cases ht1 : t = s + 1
-        · subst t
-          have hst_f : s ≠ s + 1 := hne.symm
-          simp only [hne, hst_f, false_or, ↓reduceIte, decide_true, signVal]
-          have : Fact (1 < n) := ⟨by omega⟩
-          -- Show `-cos (2 * (α_s - β_{s+1})) = cos (π / (2n))`:
-          have hcos : -cos (2 * (oddCycleAliceAngle n s - oddCycleBobAngle n (s + 1))) =
-              cos (π / (2 * (n : ℝ))) := by
-            by_cases hlt : s.val + 1 < n
-            · have hval : (s + 1).val = s.val + 1 := by
-                rw [ZMod.val_add, ZMod.val_one, Nat.mod_eq_of_lt hlt]
-              have hang : 2 * (oddCycleAliceAngle n s - oddCycleBobAngle n (s + 1)) =
-                  -(π - π / (2 * (n : ℝ))) := by
-                unfold oddCycleAliceAngle oddCycleBobAngle
-                rw [hval, Nat.cast_add, Nat.cast_one]
-                field_simp
-                ring
-              rw [hang, cos_neg, cos_pi_sub, neg_neg]
-            · have hsv : s.val = n - 1 := by
-                have := s.val_lt
-                omega
-              have hval0 : (s + 1).val = 0 := by
-                rw [ZMod.val_add, ZMod.val_one, hsv, show n - 1 + 1 = n by omega, Nat.mod_self]
-              obtain ⟨k, hk⟩ := hn
-              have hang : 2 * (oddCycleAliceAngle n s - oddCycleBobAngle n (s + 1)) =
-                  -(π - π / (2 * (n : ℝ))) + (k : ℝ) * (2 * π) := by
-                unfold oddCycleAliceAngle oddCycleBobAngle
-                rw [hsv, hval0, Nat.cast_zero, mul_zero, sub_zero]
-                have hn_sub : ((n - 1 : ℕ) : ℝ) = 2 * (k : ℝ) := by
-                  rw [hk, show 2 * k + 1 - 1 = 2 * k by omega]
-                  push_cast
-                  rfl
-                rw [hn_sub]
-                have hn_eq : (n : ℝ) = 2 * (k : ℝ) + 1 := by exact_mod_cast hk
-                field_simp
-                rw [hn_eq]
-                ring
-              rw [hang, cos_add_nat_mul_two_pi _ k, cos_neg, cos_pi_sub, neg_neg]
-          linear_combination (2 * (n : ℝ))⁻¹ * hcos
-        · have h1 : s ≠ t := Ne.symm hts
-          have h2 : s + 1 ≠ t := Ne.symm ht1
-          simp [hts, ht1, h1, h2]
-    simp_rw [hterm]
-    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ s)]
-    simp only [↓reduceIte]
-    have hs1_mem : s + 1 ∈ Finset.univ.erase s :=
-      Finset.mem_erase.mpr ⟨hne, Finset.mem_univ _⟩
-    rw [← Finset.add_sum_erase _ _ hs1_mem]
-    simp only [hne, ↓reduceIte]
-    have hrest : (∑ x ∈ (Finset.univ.erase s).erase (s + 1),
-        if x = s then (2 * (n : ℝ))⁻¹ * cos (π / (2 * (n : ℝ)))
-        else if x = s + 1 then (2 * (n : ℝ))⁻¹ * cos (π / (2 * (n : ℝ))) else 0) = 0 := by
-      refine Finset.sum_eq_zero fun x hx => ?_
-      have hx1 : x ≠ s + 1 := (Finset.mem_erase.mp hx).1
-      have hx0 : x ≠ s := (Finset.mem_erase.mp (Finset.mem_erase.mp hx).2).1
-      simp [hx0, hx1]
-    rw [hrest, add_zero]
-    ring
+      rw [hang, cos_neg]
+    have : Fact (1 < n) := ⟨by omega⟩
+    -- Show `-cos (2 * (α_s - β_{s+1})) = cos (π / (2n))`:
+    have hcos1 : -cos (2 * (oddCycleAliceAngle n s - oddCycleBobAngle n (s + 1))) =
+        cos (π / (2 * (n : ℝ))) := by
+      by_cases hlt : s.val + 1 < n
+      · have hval : (s + 1).val = s.val + 1 := by
+          rw [ZMod.val_add, ZMod.val_one, Nat.mod_eq_of_lt hlt]
+        have hang : 2 * (oddCycleAliceAngle n s - oddCycleBobAngle n (s + 1)) =
+            -(π - π / (2 * (n : ℝ))) := by
+          unfold oddCycleAliceAngle oddCycleBobAngle
+          rw [hval, Nat.cast_add, Nat.cast_one]
+          field_simp; ring
+        rw [hang, cos_neg, cos_pi_sub, neg_neg]
+      · have hsv : s.val = n - 1 := by have := s.val_lt; omega
+        have hval0 : (s + 1).val = 0 := by
+          rw [ZMod.val_add, ZMod.val_one, hsv, show n - 1 + 1 = n by omega, Nat.mod_self]
+        obtain ⟨k, hk⟩ := hn
+        have hn_eq : (n : ℝ) = 2 * (k : ℝ) + 1 := by exact_mod_cast hk
+        have hn_sub : ((n - 1 : ℕ) : ℝ) = 2 * (k : ℝ) := by
+          rw [hk, show 2 * k + 1 - 1 = 2 * k by omega]
+          push_cast
+          rfl
+        have hang : 2 * (oddCycleAliceAngle n s - oddCycleBobAngle n (s + 1)) =
+            -(π - π / (2 * (n : ℝ))) + (k : ℝ) * (2 * π) := by
+          unfold oddCycleAliceAngle oddCycleBobAngle
+          rw [hsv, hval0, Nat.cast_zero, mul_zero, sub_zero, hn_sub]
+          field_simp
+          rw [hn_eq]
+          ring
+        rw [hang, cos_add_nat_mul_two_pi _ k, cos_neg, cos_pi_sub, neg_neg]
+    simp only [hcos0, mul_inv]
+    linear_combination (2⁻¹ * (n : ℝ)⁻¹) * hcos1
   simp_rw [hrow] at hsub
   rw [Finset.sum_const, Finset.card_univ, ZMod.card, nsmul_eq_mul,
     mul_inv_cancel_left₀ hn_ne] at hsub
   have hhalf : 1 / 2 + (1 / 2 : ℝ) * cos (π / (2 * (n : ℝ))) = cos (π / (4 * (n : ℝ))) ^ 2 := by
-    have hdouble : π / (2 * (n : ℝ)) = 2 * (π / (4 * (n : ℝ))) := by ring
-    rw [hdouble, cos_two_mul]
-    ring
+    rw [show π / (2 * (n : ℝ)) = 2 * (π / (4 * (n : ℝ))) by ring, cos_two_mul]; ring
   linarith
 
 /-- Entanglement strictly helps in every Odd-Cycle game (`n ≥ 3` odd):

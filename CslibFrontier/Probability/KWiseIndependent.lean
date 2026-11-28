@@ -108,7 +108,7 @@ variable {k : ℕ} {h : ι → X → Y}
 
 /-- A `k`-wise independent family has a seed. -/
 theorem nonempty (hh : IsKWiseIndependentHash k h) : Nonempty ι := by
-  let y : (∅ : Finset X) → Y := fun x => (notMem_empty _ x.property).elim
+  let y : (∅ : Finset X) → Y := fun x => (notMem_empty _ x.2).elim
   obtain ⟨i, -⟩ : ({i | (∅ : Finset X).restrict (h i) = y} : Finset ι).Nonempty := by
     rw [← dens_ne_zero, hh.dens_filter_restrict_eq (by simp)]
     simp
@@ -122,9 +122,9 @@ theorem mono (hh : IsKWiseIndependentHash k h) {k' : ℕ} (hk : k' ≤ k) :
 /-- Relabelling the seed space by an equivalence `e : ι' ≃ ι` preserves `k`-wise independence. -/
 theorem comp_seedEquiv {ι' : Type*} [Fintype ι'] (hh : IsKWiseIndependentHash k h)
     (e : ι' ≃ ι) : IsKWiseIndependentHash k (fun i' x => h (e i') x) where
-  dens_filter_restrict_eq {T} hT y := by
-    rw [Fintype.dens_filter_comp_equiv e fun i => T.restrict (h i) = y]
-    exact hh.dens_filter_restrict_eq hT y
+  dens_filter_restrict_eq {T} hT y :=
+    (Fintype.dens_filter_comp_equiv e fun i => T.restrict (h i) = y).trans
+      (hh.dens_filter_restrict_eq hT y)
 
 /-- Precomposing the input domain with an injective map `e : X' → X` preserves `k`-wise
 independence. -/
@@ -132,33 +132,30 @@ theorem comp {X' : Type*} (hh : IsKWiseIndependentHash k h) {e : X' → X}
     (he : Function.Injective e) : IsKWiseIndependentHash k (fun i x' => h i (e x')) where
   dens_filter_restrict_eq {T} hT y := by
     let emb : X' ↪ X := ⟨e, he⟩
-    have hmem (z : T.map emb) : ∃ x' ∈ T, emb x' = z.val := mem_map.1 z.property
+    have hmem (z : T.map emb) : ∃ x' ∈ T, emb x' = z.1 := mem_map.1 z.2
     let eT : T ≃ T.map emb :=
-      { toFun := fun x => ⟨e x.val, mem_map_of_mem emb x.property⟩
+      { toFun := fun x => ⟨e x.1, mem_map_of_mem emb x.2⟩
         invFun := fun z => ⟨(hmem z).choose, (hmem z).choose_spec.1⟩
         left_inv := fun x =>
-          Subtype.ext (he (hmem ⟨e x.val, mem_map_of_mem emb x.property⟩).choose_spec.2)
+          Subtype.ext (he (hmem ⟨e x.1, mem_map_of_mem emb x.2⟩).choose_spec.2)
         right_inv := fun z => Subtype.ext (hmem z).choose_spec.2 }
     have hcard : #(T.map emb) = #T := card_map emb
     have hmap : #(T.map emb) ≤ k := hcard.le.trans hT
     have hdens := hh.dens_filter_restrict_eq hmap (fun z => y (eT.symm z))
-    rw [hcard] at hdens
-    rw [← hdens]
+    rw [← hcard, ← hdens]
     congr 1
     ext i
     simp only [mem_filter, mem_univ, true_and]
     constructor
     · intro hi
       funext z
-      have hz : (T.map emb).restrict (h i) z = T.restrict (fun x' => h i (e x')) (eT.symm z) := by
-        simp only [restrict]
-        exact congrArg (h i) (congrArg Subtype.val (eT.apply_symm_apply z)).symm
+      have hz : (T.map emb).restrict (h i) z = T.restrict (fun x' => h i (e x')) (eT.symm z) :=
+        congrArg (h i) (congrArg Subtype.val (eT.apply_symm_apply z)).symm
       rw [hz, hi]
     · intro hi
       funext x
       have hx := congrFun hi (eT x)
-      rw [Equiv.symm_apply_apply] at hx
-      exact hx
+      rwa [Equiv.symm_apply_apply] at hx
 
 /-- Postcomposing the output values with an equivalence `e : Y ≃ Z` preserves `k`-wise
 independence. -/
@@ -217,15 +214,11 @@ theorem comp_surjective_addMonoidHom {Z : Type*} [AddGroup Y] [AddGroup Z] [Fint
     let πT (y : T → Y) : T → Z := fun x => π (y x)
     have hexp := hh.expect_restrict hT (fun y : T → Y => if πT y = z then (1 : ℚ≥0) else 0)
     simp only [Fintype.expect_boole, NNRat.cast_id] at hexp
-    have hfun (i : ι) : (πT (T.restrict (h i)) = z) ↔ (T.restrict (fun x => π (h i x)) = z) :=
-      Iff.rfl
-    simp only [hfun] at hexp
-    rw [hexp]
+    refine hexp.trans ?_
     have hshift := dens_filter_eq_of_shift (f := πT) (fun c => by
       refine ⟨Equiv.addRight (fun x => (hπ (c x)).choose), fun y => funext fun x => ?_⟩
       simp [πT, Pi.add_apply, map_add, (hπ (c x)).choose_spec]) z
-    rw [Fintype.card_fun, Fintype.card_coe, Nat.cast_pow] at hshift
-    exact hshift
+    rwa [Fintype.card_fun, Fintype.card_coe, Nat.cast_pow] at hshift
 
 /-- A `k`-wise independent family with `k ≥ 2` is pairwise independent. -/
 theorem isPairwiseIndependentHash (hh : IsKWiseIndependentHash k h)
@@ -243,7 +236,7 @@ theorem isPairwiseIndependentHash (hh : IsKWiseIndependentHash k h)
   dens_filter_apply_eq_and_apply_eq {x₁ x₂} hx y₁ y₂ := by
     classical
     have h2 := hh.dens_filter_restrict_eq (T := {x₁, x₂}) (by rw [card_pair hx]; exact hk)
-      fun z => if z.val = x₁ then y₁ else y₂
+      fun z => if z.1 = x₁ then y₁ else y₂
     rw [card_pair hx] at h2
     rw [← h2]
     congr 1
@@ -271,7 +264,7 @@ theorem _root_.Cslib.Probability.isKWiseIndependentHash_two_iff :
   interval_cases hc : #T
   · obtain rfl := card_eq_zero.1 hc
     have : ({i | (∅ : Finset X).restrict (h i) = y} : Finset ι) = univ :=
-      filter_true_of_mem fun i _ => funext fun x => (notMem_empty _ x.property).elim
+      filter_true_of_mem fun i _ => funext fun x => (notMem_empty _ x.2).elim
     rw [this, dens_univ]
     simp
   · obtain ⟨x, rfl⟩ := card_eq_one.1 hc
@@ -287,12 +280,8 @@ theorem _root_.Cslib.Probability.isKWiseIndependentHash_two_iff :
     ext i
     simp only [mem_filter, mem_univ, true_and, funext_iff, Subtype.forall, mem_insert,
       mem_singleton, restrict]
-    constructor
-    · intro hi
-      exact ⟨hi x₁ (Or.inl rfl), hi x₂ (Or.inr rfl)⟩
-    · rintro ⟨h₁, h₂⟩ z (rfl | rfl)
-      · exact h₁
-      · exact h₂
+    refine ⟨fun hi => ⟨hi x₁ (Or.inl rfl), hi x₂ (Or.inr rfl)⟩, ?_⟩
+    rintro ⟨h₁, h₂⟩ z (rfl | rfl) <;> assumption
 
 /-- Tuples of `n` elements of `S` with at most `m ≤ n` distinct entries factor through `Fin m`, so
 there are at most `m ^ n * #S ^ m` of them. -/
@@ -304,27 +293,21 @@ theorem _root_.Cslib.Probability.card_filter_card_image_le [DecidableEq X] (S : 
       ≤ #(((piFinset fun _ : Fin n => (univ : Finset (Fin m))) ×ˢ
           (piFinset fun _ : Fin m => S)).image fun q => q.2 ∘ q.1) := by
         refine card_le_card fun t ht => ?_
-        rw [mem_filter, mem_piFinset] at ht
-        obtain ⟨htS, hcard⟩ := ht
+        obtain ⟨htS, hcard⟩ := (mem_filter.1 ht).imp_left mem_piFinset.1
         set I := univ.image t
         let e := I.equivFin
         have hmem (j : Fin n) : t j ∈ I := mem_image_of_mem t (mem_univ j)
-        let v (r : Fin m) : X := if hr : r.val < #I then (e.symm ⟨r, hr⟩).val else
-          t ⟨0, lt_of_lt_of_le (Nat.zero_lt_of_lt r.isLt) hmn⟩
+        let v (r : Fin m) : X := if hr : r.1 < #I then (e.symm ⟨r, hr⟩).1 else
+          t ⟨0, lt_of_lt_of_le (Nat.zero_lt_of_lt r.2) hmn⟩
         refine mem_image.2 ⟨(fun j => Fin.castLE hcard (e ⟨t j, hmem j⟩), v), ?_, ?_⟩
         · refine mem_product.2 ⟨by simp, mem_piFinset.2 fun r => ?_⟩
-          by_cases hr : r.val < #I
-          · obtain ⟨j, -, hj⟩ := mem_image.1 (e.symm ⟨r, hr⟩).property
-            simp only [v, hr, ↓reduceDIte, ← hj]
-            exact htS j
+          by_cases hr : r.1 < #I
+          · obtain ⟨j, -, hj⟩ := mem_image.1 (e.symm ⟨r, hr⟩).2
+            simpa only [v, hr, ↓reduceDIte, ← hj] using htS j
           · simp only [v, hr, ↓reduceDIte]
             exact htS _
         · funext j
-          have hlt : (Fin.castLE hcard (e ⟨t j, hmem j⟩)).val < #I := (e ⟨t j, hmem j⟩).isLt
-          simp only [Function.comp_apply, v, hlt, ↓reduceDIte]
-          have : (⟨(Fin.castLE hcard (e ⟨t j, hmem j⟩)).val, hlt⟩ : Fin #I) = e ⟨t j, hmem j⟩ :=
-            Fin.ext rfl
-          rw [this, Equiv.symm_apply_apply]
+          simp [v]
     _ ≤ m ^ n * #S ^ m := card_image_le.trans (by simp [card_piFinset])
 
 /-- **The `2 m`-th moment bound for limited independence**: for a `2 m`-wise independent family and
@@ -343,10 +326,8 @@ theorem expect_sum_pow_le {m : ℕ} (hh : IsKWiseIndependentHash (2 * m) h)
   have hterm : ∀ t ∈ piFinset fun _ : Fin (2 * m) => S,
       𝔼 i, ∏ j, Z (t j) (h i (t j)) ≤ if #(univ.image t) ≤ m then 1 else 0 := by
     intro t ht
-    have htS : ∀ x ∈ univ.image t, x ∈ S := by
-      intro x hx
-      obtain ⟨j, -, rfl⟩ := mem_image.1 hx
-      exact mem_piFinset.1 ht j
+    have htS : ∀ x ∈ univ.image t, x ∈ S := fun x hx => by
+      obtain ⟨j, -, rfl⟩ := mem_image.1 hx; exact mem_piFinset.1 ht j
     have hprod (i : ι) : ∏ j, Z (t j) (h i (t j)) =
         ∏ x ∈ univ.image t, Z x (h i x) ^ #{j | t j = x} :=
       prod_comp (fun x => Z x (h i x)) t
@@ -357,12 +338,10 @@ theorem expect_sum_pow_le {m : ℕ} (hh : IsKWiseIndependentHash (2 * m) h)
       rw [abs_prod]
       refine prod_le_one₀ (fun _ _ => abs_nonneg _) fun x hx => ?_
       have : Nonempty Y := ⟨h (Classical.arbitrary ι) x⟩
-      refine (abs_expect_le _ _).trans (expect_le univ_nonempty fun y _ => ?_)
-      rw [abs_pow]
-      exact pow_le_one₀ (abs_nonneg _) (hZ₁ x (htS x hx) y)
+      exact (abs_expect_le _ _).trans (expect_le univ_nonempty fun y _ =>
+        (abs_pow _ _).trans_le (pow_le_one₀ (abs_nonneg _) (hZ₁ x (htS x hx) y)))
     · obtain ⟨x, hx, hc⟩ : ∃ x ∈ univ.image t, #{j | t j = x} = 1 := by
-        by_contra hne
-        push Not at hne
+        by_contra! hne
         have hsum := card_eq_sum_card_image t (univ : Finset (Fin (2 * m)))
         have h2 : ∑ x ∈ univ.image t, 2 ≤ ∑ x ∈ univ.image t, #{j | t j = x} := by
           refine sum_le_sum fun x hx => ?_
@@ -376,10 +355,8 @@ theorem expect_sum_pow_le {m : ℕ} (hh : IsKWiseIndependentHash (2 * m) h)
   calc ∑ t ∈ piFinset (fun _ : Fin (2 * m) => S), 𝔼 i, ∏ j, Z (t j) (h i (t j))
       ≤ ∑ t ∈ piFinset (fun _ : Fin (2 * m) => S), if #(univ.image t) ≤ m then (1 : ℝ) else 0 :=
         sum_le_sum hterm
-    _ = #{t ∈ piFinset fun _ : Fin (2 * m) => S | #(univ.image t) ≤ m} := by
-        rw [sum_boole]
-    _ ≤ m ^ (2 * m) * #S ^ m := by
-        exact_mod_cast card_filter_card_image_le S (by omega)
+    _ = #{t ∈ piFinset fun _ : Fin (2 * m) => S | #(univ.image t) ≤ m} := by rw [sum_boole]
+    _ ≤ m ^ (2 * m) * #S ^ m := by exact_mod_cast card_filter_card_image_le S (by omega)
 
 /-- **The tail bound for limited independence**: for a `2 m`-wise independent family and scores
 `Z x : Y → ℝ` with average `0` and values in `[-1, 1]` at the points of a finite set `S`, the sum
@@ -396,8 +373,7 @@ theorem dens_filter_le_abs_sum {m : ℕ} (hh : IsKWiseIndependentHash (2 * m) h)
       ({i | a ^ (2 * m) ≤ (∑ x ∈ S, Z x (h i x)) ^ (2 * m)} : Finset ι) := by
     intro i hi
     simp only [mem_filter, mem_univ, true_and] at hi ⊢
-    rw [← (even_two_mul m).pow_abs (∑ x ∈ S, Z x (h i x))]
-    exact pow_le_pow_left₀ ha.le hi _
+    exact (pow_le_pow_left₀ ha.le hi _).trans_eq ((even_two_mul m).pow_abs _)
   have hdens : (dens {i | a ≤ |∑ x ∈ S, Z x (h i x)|} : ℝ) ≤
       dens {i | a ^ (2 * m) ≤ (∑ x ∈ S, Z x (h i x)) ^ (2 * m)} := by
     exact_mod_cast dens_le_dens hsub
@@ -423,8 +399,7 @@ theorem dens_filter_le_abs_sum_sub_expect {m : ℕ}
   · have : Nonempty Y := ⟨y⟩
     have h0 : 0 ≤ 𝔼 y, g x y := expect_nonneg fun y _ => (hg x hx y).1
     have h1 : 𝔼 y, g x y ≤ 1 := expect_le univ_nonempty fun y _ => (hg x hx y).2
-    rw [abs_le]
-    constructor <;> linarith [(hg x hx y).1, (hg x hx y).2]
+    exact abs_le.2 ⟨by linarith [(hg x hx y).1], by linarith [(hg x hx y).2]⟩
 
 end IsKWiseIndependentHash
 
@@ -453,31 +428,20 @@ theorem isKWiseIndependentHash_id [Fintype X] [DecidableEq X] [Nonempty Y] (k : 
     IsKWiseIndependentHash k (id : (X → Y) → X → Y) where
   dens_filter_restrict_eq {T} _ y := by
     let e : (X → Y) ≃ (T → Y) × ({x : X // x ∉ T} → Y) :=
-      { toFun := fun f => (T.restrict f, fun x => f x.val)
-        invFun := fun p x => if hx : x ∈ T then p.1 ⟨x, hx⟩ else p.2 ⟨x, hx⟩
-        left_inv := fun f => by
-          funext x
-          dsimp only
-          split_ifs <;> rfl
-        right_inv := fun ⟨p₁, p₂⟩ => by
-          ext ⟨x, hx⟩
-          · simp [Finset.restrict, hx]
-          · simp [hx] }
+      Equiv.piEquivPiSubtypeProd (· ∈ T) fun _ => Y
     have hcard_filter :
         #{f : X → Y | T.restrict f = y} = Fintype.card ({x : X // x ∉ T} → Y) := by
       rw [← Finset.card_univ]
       refine Finset.card_nbij' (fun f => (e f).2) (fun g => e.symm (y, g)) ?_ ?_ ?_ ?_
-      · intro _ _; exact Finset.mem_univ _
+      · exact fun _ _ => Finset.mem_univ _
       · intro g _
         simp only [Finset.mem_coe, Finset.mem_filter, Finset.mem_univ, true_and]
         exact congrArg Prod.fst (e.apply_symm_apply (y, g))
       · intro f hf
         simp only [Finset.mem_coe, Finset.mem_filter, Finset.mem_univ, true_and] at hf
-        have h1 : (e f).1 = y := hf
-        calc e.symm (y, (e f).2) = e.symm ((e f).1, (e f).2) := by rw [h1]
-          _ = f := e.symm_apply_apply f
-      · intro g _
-        exact congrArg Prod.snd (e.apply_symm_apply (y, g))
+        rw [← hf]
+        exact e.symm_apply_apply f
+      · exact fun g _ => congrArg Prod.snd (e.apply_symm_apply (y, g))
     have hcard_all :
         Fintype.card (X → Y) =
           Fintype.card Y ^ #T * Fintype.card ({x : X // x ∉ T} → Y) := by

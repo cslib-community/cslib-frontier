@@ -98,30 +98,23 @@ theorem special_correction_available {A a f u : ℝ} (M c i L : ℕ) (h : ℤ)
   rcases le_or_gt 0 h with hh | hh
   · exact coarse_scale_available M c i h hc hA1 hi hh ha ha1 hf hf1 hu hu1 hscale hactive
   have hlog := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2) ha haf
-  rw [Real.logb_mul (by positivity : (2 : ℝ) ^ L ≠ 0) hf.ne', Real.logb_pow] at hlog
-  have hlow : -(L : ℝ) ≤ h := by
-    rw [Real.logb_div hf.ne' ha.ne'] at hscale
-    norm_num at hlog
-    linarith
+  rw [Real.logb_mul (by positivity : (2 : ℝ) ^ L ≠ 0) hf.ne', Real.logb_pow,
+    Real.logb_self_eq_one one_lt_two] at hlog
+  rw [Real.logb_div hf.ne' ha.ne'] at hscale
   have habs : (h.natAbs : ℝ) ≤ L := by
-    have heq : |(h : ℝ)| = (h.natAbs : ℝ) := by simp
-    rw [abs_of_neg (show (h : ℝ) < 0 by exact_mod_cast hh)] at heq
+    rw [Nat.cast_natAbs, Int.cast_abs, abs_of_neg (by exact_mod_cast hh)]
     linarith
   have hla := Real.logb_nonpos (by norm_num : (1 : ℝ) < 2) ha.le ha1
   have hlu := Real.logb_nonpos (by norm_num : (1 : ℝ) < 2) hu.le hu1
   have hiR : (1 : ℝ) ≤ i := by exact_mod_cast hi
   have hAi : 1 + (L : ℝ) ≤ A * i := hA.trans (le_mul_of_one_le_right (zero_le_one.trans hA1) hiR)
   have hM : (16 * c : ℝ) * (1 + (L : ℝ)) < M := by
-    have hdiv : 1 + (L : ℝ) < (M : ℝ) / (16 * c) := by grind [precision]
-    have hcR : (0 : ℝ) < c := by exact_mod_cast hc
-    simpa only [mul_comm] using
-      (lt_div_iff₀ (show (0 : ℝ) < 16 * c by positivity)).mp hdiv
-  have hcut : ((scaleCutoff c h : ℕ) : ℝ) < M := by
+    simpa only [mul_comm] using (lt_div_iff₀ (show (0 : ℝ) < 16 * c by positivity)).mp
+      (show 1 + (L : ℝ) < (M : ℝ) / (16 * c) by grind [precision])
+  exact_mod_cast (show ((scaleCutoff c h : ℕ) : ℝ) < M by
     simp only [scaleCutoff, Nat.cast_mul, Nat.cast_add, Nat.cast_one]
     have : (c : ℝ) * (1 + (h.natAbs : ℝ)) ≤ c * (1 + (L : ℝ)) := by gcongr
-    have hcR : (0 : ℝ) ≤ c := Nat.cast_nonneg c
-    nlinarith
-  exact_mod_cast hcut
+    nlinarith [Nat.cast_nonneg (α := ℝ) c])
 
 end Cslib.LogSpaceEstimation
 

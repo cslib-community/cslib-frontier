@@ -84,9 +84,7 @@ private theorem transfer_identity (p r K W : A)
           simp only [mul_assoc, hKr.eq, hpW.left_comm (r * K), hpr.left_comm K]
         have h₂ : star K * (W * K) * r = star K * W * r * (K * r) := by
           simp only [mul_assoc, hKr.eq, ← mul_assoc r r K, hrr]
-        rw [show (p * star K - star K * p) * (W * K * r) =
-          (p * star K) * (W * K * r) - star K * p * (W * K * r) by rw [sub_mul]]
-        rw [h₁, h₂]
+        rw [sub_mul, h₁, h₂]
         noncomm_ring
   simpa only [mul_assoc] using he
 
@@ -145,10 +143,8 @@ theorem abs_first_transcript_score_sub_le {k : ℕ} (φ : AlgState A)
         sum_le_sum fun g _ => sum_norm_weighted_effect_le φ R hR classify
           (fun b => W b g) (fun b => hcontract b g) (K g)
       _ = _ := by
-        rw [← mul_sum]
-        have h := hK 1
-        simp only [mul_one, AlgState.norm_one, one_pow] at h
-        rw [h, mul_one]
+        simpa only [mul_one, AlgState.norm_one, one_pow, ← mul_sum] using
+          congrArg ((Fintype.card B : ℝ) * ·) (hK 1)
   have hD : ∑ z, φ.norm (D z) ^ 2 = copyDefect φ P R := by
     simp only [D, p, r, t, Fintype.sum_prod_type, hK, copyDefect]
   have hC : ∑ z, φ.norm (C z) ^ 2 = transcriptCommutatorDefect φ P M := by

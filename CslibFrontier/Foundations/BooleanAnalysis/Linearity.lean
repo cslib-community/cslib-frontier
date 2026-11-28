@@ -84,6 +84,12 @@ theorem expect_boole_eq_one_div_two_of_map_add {f : (ι → Bool) → Bool}
 
 /-! ### The Blum–Luby–Rubinfeld test -/
 
+/-- The indicator of the BLR acceptance condition `(a ^^ b) = c`, in terms of the signs: it is
+`1/2 + 1/2 (-1)^a (-1)^b (-1)^c`. -/
+theorem ite_xor_eq_eq_signVal (a b c : Bool) : (if (a ^^ b) = c then (1 : ℝ) else 0) =
+    1 / 2 + 1 / 2 * (signVal a * (signVal b * signVal c)) := by
+  cases a <;> cases b <;> cases c <;> norm_num
+
 /-- The acceptance probability of the Blum–Luby–Rubinfeld linearity test on `f`: the probability,
 over independent uniformly random bit strings `x` and `y`, that `(f x ^^ f y) = f (x + y)`. -/
 noncomputable def blrAcceptance (f : (ι → Bool) → Bool) : ℝ :=
@@ -94,14 +100,12 @@ probability `1/2 + 1/2 ∑_S F̂(S)³`. -/
 theorem blrAcceptance_eq_sum_fourierCoeff_pow_three (f : (ι → Bool) → Bool) :
     blrAcceptance f = 1 / 2 + 1 / 2 * ∑ S, fourierCoeff (fun x => signVal (f x)) S ^ 3 := by
   set F : (ι → Bool) → ℝ := fun x => signVal (f x)
-  have hind (a b c : Bool) : (if (a ^^ b) = c then (1 : ℝ) else 0) =
-      1 / 2 + 1 / 2 * (signVal a * (signVal b * signVal c)) := by
-    cases a <;> cases b <;> cases c <;> norm_num
   have hconv : 𝔼 x, 𝔼 y, F x * (F y * F (x + y)) =
       𝔼 x, F x * convolution F F x := by
     simp only [convolution, mul_expect]
   calc blrAcceptance f = 1 / 2 + 1 / 2 * 𝔼 x, 𝔼 y, F x * (F y * F (x + y)) := by
-        simp only [blrAcceptance, hind, expect_add_distrib, ← mul_expect, Fintype.expect_const]
+        simp only [blrAcceptance, ite_xor_eq_eq_signVal, expect_add_distrib, ← mul_expect,
+          Fintype.expect_const]
         rfl
     _ = 1 / 2 + 1 / 2 * ∑ S, fourierCoeff F S ^ 3 := by
         rw [hconv, expect_mul_eq_sum_fourierCoeff_mul]

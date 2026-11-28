@@ -30,13 +30,13 @@ variable {Rel Rel' V : Type*} {F : CSP Rel V} {G : CSP Rel' V}
 /-- The transported incidence list is the original finite incidence list mapped portwise. -/
 theorem edges_mapPorts (port : Occurrence F → Occurrence G) (w : Walk F) :
     (mapPorts port w).edges = w.edges.map port := by
-  obtain ⟨v, ss⟩ := w
+  obtain ⟨_, ss⟩ := w
   induction ss with
   | nil => rfl
-  | cons s ss ih =>
+  | cons s _ ih =>
     rcases s with ⟨input, output⟩
-    simpa only [mapPorts, edges, edgesOf_cons, List.map_cons] using congrArg
-      (fun tail => port input :: port output :: tail) ih
+    simpa only [mapPorts, edges, edgesOf_cons, List.map_cons] using
+      congrArg (port input :: port output :: ·) ih
 
 /-- Actual-port transport commutes with every variable-ended prefix. -/
 theorem mapPorts_take (port : Occurrence F → Occurrence G) (w : Walk F) (n : ℕ) :
@@ -52,12 +52,10 @@ private theorem linked_mapPorts (port : Occurrence F → Occurrence G)
   | nil => trivial
   | cons s ss ih =>
     rcases s with ⟨input, output⟩
-    have hvi := hv input (by simp [edgesOf_cons])
-    have hvo := hv output (by simp [edgesOf_cons])
-    refine ⟨hvi.trans hl.1, hc _ List.mem_cons_self, ?_⟩
-    rw [hvo]
-    exact ih hl.2.2 (fun o ho => hv o (by simpa [edgesOf_cons] using Or.inr (Or.inr ho)))
-      (fun s hs => hc s (List.mem_cons_of_mem _ hs))
+    refine ⟨(hv input (by simp [edgesOf_cons])).trans hl.1, hc _ List.mem_cons_self, ?_⟩
+    rw [hv output (by simp [edgesOf_cons])]
+    exact ih hl.2.2 (fun o ho => hv o (by simp [edgesOf_cons, ho]))
+      fun s hs => hc s (List.mem_cons_of_mem _ hs)
 
 /-- Preserving used variable names and step constraints, with injectivity on used ports,
 transports a genuine incidence trail between the original positional CSP list models. -/
@@ -66,9 +64,7 @@ theorem IsWalk.mapPorts (port : Occurrence F → Occurrence G) {w : Walk F} (hw 
     (hc : ∀ s ∈ w.steps, let (input, output) := s; (port input).1 = (port output).1)
     (hi : ∀ o ∈ w.edges, ∀ p ∈ w.edges, port o = port p → o = p) :
     (mapPorts port w).IsWalk := by
-  refine ⟨linked_mapPorts port hw.1 hv hc, ?_⟩
-  rw [edges_mapPorts]
-  exact List.Nodup.map_on hi hw.2
+  exact ⟨linked_mapPorts port hw.1 hv hc, edges_mapPorts port w ▸ hw.2.map_on hi⟩
 
 /-- Used-variable preservation retains the actual final variable, also for the empty walk. -/
 theorem finish_mapPorts (port : Occurrence F → Occurrence G) (w : Walk F)
@@ -78,12 +74,10 @@ theorem finish_mapPorts (port : Occurrence F → Occurrence G) (w : Walk F)
   | nil => rfl
   | cons s ss ih =>
     rcases s with ⟨input, output⟩
-    have hvo := hv output (by simp [edges, edgesOf_cons])
     change finishFrom (port output).var _ = finishFrom output.var ss
-    rw [hvo]
-    exact ih output.var (fun o ho => hv o (by
-      change o ∈ input :: output :: edgesOf ss
-      exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _ ho)))
+    rw [hv output (by simp [edges, edgesOf_cons])]
+    exact ih output.var fun o ho =>
+      hv o (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ ho))
 
 /-- Internal consistency transports when defect status agrees at each actual used port. -/
 theorem InternallyConsistent.mapPorts (port : Occurrence F → Occurrence G)

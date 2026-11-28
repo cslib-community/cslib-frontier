@@ -95,13 +95,9 @@ theorem answersWinProb_pullbackSeed {T : Type*} (law : PMF T) (f : T → R)
   rw [PMF.bind_map]
   let project : T × A × B → R × A × B := fun (t, ab) => (f t, ab)
   let sample (t : T) := (ans (G.query (f t)).1 (G.query (f t)).2).map fun ab => (t, ab)
-  calc
-    _ = (((law.bind sample).map project).toOuterMeasure {z | G.AcceptsRound z}).toReal := by
-      rw [PMF.toOuterMeasure_map_apply]
-      rfl
-    _ = _ := by
-      simp only [PMF.map_bind, sample, PMF.map_comp]
-      rfl
+  calc _ = (((law.bind sample).map project).toOuterMeasure {z | G.AcceptsRound z}).toReal := by
+        rw [PMF.toOuterMeasure_map_apply]; rfl
+    _ = _ := by simp only [PMF.map_bind, sample, PMF.map_comp]; rfl
 
 /-- If the seed law first draws a finite index and then samples from its conditional law,
 the verifier's score is the weighted sum of the conditional scores. -/
@@ -144,10 +140,8 @@ probabilities for deterministic seeds. -/
 theorem rejection_eq_sum [Fintype R] (ans : X → Y → PMF (A × B)) :
     1 - G.answersWinProb ans =
       ∑ r, (G.seed r).toReal * (1 - ({ G with seed := PMF.pure r }).answersWinProb ans) := by
-  have h := G.answersWinProb_bind_seed G.seed PMF.pure ans
-  rw [PMF.bind_pure] at h
-  simp only [mul_sub, mul_one, Finset.sum_sub_distrib, Cslib.Probability.PMF.sum_toReal]
-  rw [← h]
+  have h := (PMF.bind_pure G.seed) ▸ G.answersWinProb_bind_seed G.seed PMF.pure ans
+  simp only [mul_sub, mul_one, Finset.sum_sub_distrib, Cslib.Probability.PMF.sum_toReal, ← h]
 
 /-- An injective restriction of a uniform seed retains at most the total rejection
 budget, after weighting by the proportion of seeds retained. -/
@@ -170,15 +164,12 @@ theorem weighted_rejection_pullback_uniform_le [Fintype R] [Nonempty R]
   rw [rejection_eq_sum, rejection_eq_sum]
   simp only [pullbackSeed] at hpure
   simp only [pullbackSeed, Cslib.Probability.PMF.uniformOfFintype_apply,
-    ENNReal.toReal_inv, ENNReal.toReal_natCast, ← Finset.mul_sum]
-  simp only [hpure]
-  change (Fintype.card T : ℝ) / Fintype.card R *
-      ((Fintype.card T : ℝ)⁻¹ * ∑ t, loss (f t)) ≤
-        (Fintype.card R : ℝ)⁻¹ * ∑ r, loss r
+    ENNReal.toReal_inv, ENNReal.toReal_natCast, ← Finset.mul_sum, hpure]
   have ht : (Fintype.card T : ℝ) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
-  rw [← mul_assoc, show (Fintype.card T : ℝ) / Fintype.card R *
-      (Fintype.card T : ℝ)⁻¹ = (Fintype.card R : ℝ)⁻¹ by
-    rw [div_eq_mul_inv, mul_right_comm, mul_inv_cancel₀ ht, one_mul]]
+  change (Fintype.card T : ℝ) / Fintype.card R * ((Fintype.card T : ℝ)⁻¹ * ∑ t, loss (f t)) ≤
+    (Fintype.card R : ℝ)⁻¹ * ∑ r, loss r
+  rw [← mul_assoc, show (Fintype.card T : ℝ) / Fintype.card R * (Fintype.card T : ℝ)⁻¹ =
+    (Fintype.card R : ℝ)⁻¹ by rw [div_eq_mul_inv, mul_right_comm, mul_inv_cancel₀ ht, one_mul]]
   exact mul_le_mul_of_nonneg_left hsubset (by positivity)
 
 end SeededGame

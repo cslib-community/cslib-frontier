@@ -69,21 +69,19 @@ theorem exists_heuristic_of_mem_HeurP (b : List Bool → Bool)
   have hfalse : ((BitString.uniformList n).map fun x =>
       decide ((A (x, 2 * p.eval x.length)).toNat = (b x).toNat)) false ≤
       ((2 * p.eval n + 1 : ℕ) : ℝ≥0∞)⁻¹ := by
-    have herr := hA.error_le n (2 * p.eval n)
-    rw [Ensemble.uniform_dist] at herr
     rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
-    refine le_trans (PMF.toOuterMeasure_mono _ ?_) herr
+    refine (PMF.toOuterMeasure_mono _ ?_).trans
+      (Ensemble.uniform_dist n ▸ hA.error_le n (2 * p.eval n))
     rintro x ⟨hx, hsupp⟩
-    have hlen : x.length = n := BitString.length_of_mem_support_uniformList hsupp
-    simp only [Set.mem_preimage, Set.mem_singleton_iff, decide_eq_false_iff_not, hlen] at hx
+    simp only [Set.mem_preimage, Set.mem_singleton_iff, decide_eq_false_iff_not,
+      BitString.length_of_mem_support_uniformList hsupp] at hx
     simp only [Set.mem_ofPred_eq]
-    cases hAx : A (x, 2 * p.eval n) <;> cases hbx : b x <;> simp_all
+    cases h1 : A (x, 2 * p.eval n) <;> cases h2 : b x <;> simp_all
   ennreal_to_real at hfalse
   rw [Probability.PMF.toReal_true_eq_one_sub]
-  have hp0 : (0 : ℝ) < (p.eval n : ℕ) := by exact_mod_cast hp n
   have hlt : ((2 * p.eval n + 1 : ℕ) : ℝ)⁻¹ < 1 / ((p.eval n : ℕ) : ℝ) := by
     rw [← one_div]
-    apply one_div_lt_one_div_of_lt hp0
+    refine one_div_lt_one_div_of_lt (by exact_mod_cast hp n) ?_
     push_cast
     linarith
   linarith

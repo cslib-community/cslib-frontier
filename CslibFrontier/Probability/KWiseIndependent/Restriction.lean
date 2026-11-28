@@ -51,19 +51,14 @@ hash family `h : ι → X → Y` over a nonempty codomain `Y`. -/
 theorem card_filter_restrict_eq {k : ℕ} {h : ι → X → Y}
     (hh : IsKWiseIndependentHash k h) {T : Finset X} (hT : #T ≤ k) (y : T → Y) :
     Fintype.card Y ^ #T * #{i : ι | T.restrict (h i) = y} = Fintype.card ι := by
-  have : Nonempty ι := hh.nonempty
+  have := hh.nonempty
   have hdens := hh.dens_filter_restrict_eq hT y
-  rw [Finset.dens_eq_card_div_card] at hdens
-  have hι_ne : (Fintype.card ι : ℚ≥0) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
-  have hY_ne : ((Fintype.card Y : ℚ≥0) ^ #T) ≠ 0 :=
-    pow_ne_zero _ (Nat.cast_ne_zero.mpr Fintype.card_ne_zero)
-  have hq :
-      ((Fintype.card Y ^ #T * #{i : ι | T.restrict (h i) = y} : ℕ) : ℚ≥0) =
-        (Fintype.card ι : ℚ≥0) := by
+  rw [Finset.dens_eq_card_div_card, div_eq_iff (Nat.cast_ne_zero.mpr Fintype.card_ne_zero)] at hdens
+  exact_mod_cast (show ((Fintype.card Y ^ #T * #{i : ι | T.restrict (h i) = y} : ℕ) : ℚ≥0) =
+      Fintype.card ι by
     push_cast
-    rw [div_eq_iff hι_ne] at hdens
-    rw [hdens, ← mul_assoc, mul_inv_cancel₀ hY_ne, one_mul]
-  exact Nat.cast_inj.mp hq
+    rw [hdens, ← mul_assoc, mul_inv_cancel₀
+      (pow_ne_zero _ (Nat.cast_ne_zero.mpr Fintype.card_ne_zero)), one_mul])
 
 /-- Exact natural-number fiber cardinality of `h i = y` on a finite domain `X` with
 `Fintype.card X ≤ k` under a `k`-wise independent hash family `h : ι → X → Y`. -/
@@ -72,9 +67,9 @@ theorem card_filter_eq_of_card_le [Fintype X] {k : ℕ} {h : ι → X → Y}
     #{i : ι | h i = y} * Fintype.card Y ^ Fintype.card X = Fintype.card ι := by
   let T : Finset X := Finset.univ
   have hT : #T ≤ k := by simpa [T] using hX
-  have h1 := hh.card_filter_restrict_eq hT (fun a => y a.val)
+  have h1 := hh.card_filter_restrict_eq hT (fun a => y a.1)
   have hset :
-      #{i : ι | T.restrict (h i) = fun a => y a.val} = #{i : ι | h i = y} := by
+      #{i : ι | T.restrict (h i) = fun a => y a.1} = #{i : ι | h i = y} := by
     congr 1
     ext i
     simp [T, funext_iff, Finset.restrict]
@@ -100,7 +95,7 @@ nonempty seed fiber `{θ : ι // h θ x = v₀}` carrying a `k`-wise independent
 theorem fiber {k : ℕ} {h : ι → X → Y} (hh : IsKWiseIndependentHash (k + 1) h) (x : X) (v₀ : Y) :
     Nonempty {θ : ι // h θ x = v₀} ∧
     IsKWiseIndependentHash k
-      (fun (θ : {θ : ι // h θ x = v₀}) (z : {z : X // z ≠ x}) => h θ.val z.val) := by
+      (fun (θ : {θ : ι // h θ x = v₀}) (z : {z : X // z ≠ x}) => h θ.1 z.1) := by
   classical
   have : Nonempty ι := hh.nonempty
   have hcard1 : Fintype.card Y * Fintype.card {θ : ι // h θ x = v₀} = Fintype.card ι :=
@@ -116,20 +111,20 @@ theorem fiber {k : ℕ} {h : ι → X → Y} (hh : IsKWiseIndependentHash (k + 1
   let y' : T' → Y := fun ⟨a, ha⟩ =>
     if hz : a = x then v₀ else y ⟨⟨a, hz⟩, hmemT hz ((Finset.mem_insert.mp ha).resolve_left hz)⟩
   have hcardT' := hh.card_filter_restrict_eq (T := T') (by simp [T', emb]; omega) y'
-  have hbij : #{θ : {θ : ι // h θ x = v₀} | T.restrict (fun z => h θ.val z.val) = y} =
+  have hbij : #{θ : {θ : ι // h θ x = v₀} | T.restrict (fun z => h θ.1 z.1) = y} =
       #{θ : ι | T'.restrict (h θ) = y'} := by
-    refine Finset.card_bij (fun θ _ => θ.val) ?_ (fun _ _ _ _ h => Subtype.ext h) ?_
+    refine Finset.card_bij (fun θ _ => θ.1) ?_ (fun _ _ _ _ h => Subtype.ext h) ?_
     · intro θ hθ; refine Finset.mem_filter.mpr ⟨Finset.mem_univ _, funext fun ⟨a, ha⟩ => ?_⟩
       rcases eq_or_ne a x with rfl | hzx
-      · simp [Finset.restrict, y', θ.property]
+      · simp [Finset.restrict, y', θ.2]
       · simpa [Finset.restrict, y', hzx] using congrFun (Finset.mem_filter.mp hθ).2
           ⟨⟨a, hzx⟩, hmemT hzx ((Finset.mem_insert.mp ha).resolve_left hzx)⟩
     · intro θ hθ; rw [Finset.mem_filter] at hθ
       have hx0 : h θ x = v₀ := by
         simpa [Finset.restrict, y'] using congrFun hθ.2 ⟨x, Finset.mem_insert_self _ _⟩
       refine ⟨⟨θ, hx0⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, funext fun w => ?_⟩, rfl⟩
-      simpa [Finset.restrict, y', w.val.property] using
-        congrFun hθ.2 ⟨w.val.val, Finset.mem_insert_of_mem (Finset.mem_map_of_mem emb w.property)⟩
+      simpa [Finset.restrict, y', w.1.2] using
+        congrFun hθ.2 ⟨w.1.1, Finset.mem_insert_of_mem (Finset.mem_map_of_mem emb w.2)⟩
   rw [show #T' = #T + 1 by simp [T', emb], pow_succ, mul_comm (Fintype.card Y ^ #T), mul_assoc,
     ← hbij, ← hcard1] at hcardT'
   rw [Finset.dens_eq_card_div_card, div_eq_iff (by exact_mod_cast hF_pos.ne'),
@@ -150,13 +145,11 @@ theorem dens_le_of_hash_fiber {ι α Y : Type*} [Fintype ι] [Fintype Y] [Decida
     (Bad : ι → Prop) [DecidablePred Bad] {B : ℝ}
     (hfib : ∀ v₀ : Y, ∀ (_ : Nonempty {θ : ι // h θ x = v₀}),
       IsKWiseIndependentHash k (fun (θ : {θ : ι // h θ x = v₀}) (y : {y : α // y ≠ x}) =>
-        h θ.val y.val) →
-      (dens {θ : {θ : ι // h θ x = v₀} | Bad θ.val} : ℝ) ≤ B) :
+        h θ.1 y.1) →
+      (dens {θ : {θ : ι // h θ x = v₀} | Bad θ.1} : ℝ) ≤ B) :
     (dens {θ : ι | Bad θ} : ℝ) ≤ B := by
   classical
-  have : Nonempty ι := hh.nonempty
-  have hcard1 (v₀ : Y) : Fintype.card Y * Fintype.card {θ : ι // h θ x = v₀} = Fintype.card ι :=
-    hh.card_fiber_eq x v₀
+  have := hh.nonempty
   rw [Finset.dens_eq_card_div_card, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast,
     div_le_iff₀ (by exact_mod_cast Fintype.card_pos (α := ι))]
   have hY_ne : (Fintype.card Y : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
@@ -165,20 +158,17 @@ theorem dens_le_of_hash_fiber {ι α Y : Type*} [Fintype ι] [Fintype Y] [Decida
       (t := Finset.univ) fun _ _ => Finset.mem_univ _).trans
       (Finset.sum_congr rfl fun v₀ _ => congrArg Finset.card (by ext θ; simp))
   have htot : (Fintype.card ι : ℝ) = ∑ v₀ : Y, (Fintype.card {θ : ι // h θ x = v₀} : ℝ) := by
-    have hdiv (v₀ : Y) :
-        (Fintype.card {θ : ι // h θ x = v₀} : ℝ) = Fintype.card ι / Fintype.card Y :=
-      eq_div_of_mul_eq hY_ne (by rw [mul_comm]; exact_mod_cast hcard1 v₀)
-    simp_rw [hdiv]; rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_div_cancel₀ _ hY_ne]
+    rw [Finset.sum_congr rfl fun v₀ _ => eq_div_of_mul_eq (b := (Fintype.card ι : ℝ)) hY_ne
+      (by exact_mod_cast (Nat.mul_comm _ _).trans (hh.card_fiber_eq x v₀)),
+      Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_div_cancel₀ _ hY_ne]
   rw [hpart, htot, Finset.mul_sum]; refine Finset.sum_le_sum fun v₀ _ => ?_
   obtain ⟨hne_v₀, hind_v₀⟩ := hh.fiber x v₀
-  have hF_pos : 0 < Fintype.card {θ : ι // h θ x = v₀} := Fintype.card_pos
   have hf := hfib v₀ hne_v₀ hind_v₀
   rw [Finset.dens_eq_card_div_card, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast,
-    div_le_iff₀ (by exact_mod_cast hF_pos)] at hf
-  rwa [show #{θ : {θ : ι // h θ x = v₀} | Bad θ.val} = #{θ : ι | Bad θ ∧ h θ x = v₀} from
-    Finset.card_bij (fun θ _ => θ.val)
-      (fun θ hθ => Finset.mem_filter.mpr
-        ⟨Finset.mem_univ _, (Finset.mem_filter.mp hθ).2, θ.property⟩)
+    div_le_iff₀ (by exact_mod_cast Fintype.card_pos)] at hf
+  rwa [show #{θ : {θ : ι // h θ x = v₀} | Bad θ.1} = #{θ : ι | Bad θ ∧ h θ x = v₀} from
+    Finset.card_bij (fun θ _ => θ.1)
+      (fun θ hθ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, (Finset.mem_filter.mp hθ).2, θ.2⟩)
       (fun _ _ _ _ h => Subtype.ext h)
       (fun θ hθ => ⟨⟨θ, (Finset.mem_filter.mp hθ).2.2⟩,
         Finset.mem_filter.mpr ⟨Finset.mem_univ _, (Finset.mem_filter.mp hθ).2.1⟩, rfl⟩)] at hf

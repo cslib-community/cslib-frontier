@@ -172,8 +172,8 @@ private def indexGraph (G : Graph) : SimpleGraph (Fin (domMatrix G).length) :=
 private theorem finDist_domMatrix (G : Graph) [DecidableRel (indexGraph G).Adj]
     (i j : Fin (domMatrix G).length) :
     TSP.finDist (domMatrix G) i j = domDist (indexGraph G) i j := by
-  have hi : (i : ℕ) < G.distinctVertices.length := by simpa using i.isLt
-  have hj : (j : ℕ) < G.distinctVertices.length := by simpa using j.isLt
+  have hi : (i : ℕ) < G.distinctVertices.length := by simpa using i.2
+  have hj : (j : ℕ) < G.distinctVertices.length := by simpa using j.2
   rw [TSP.finDist, dist_domMatrix hi hj, domDist]
   by_cases hij : i = j
   · subst hij
@@ -215,7 +215,7 @@ private theorem mem_centerLabels {A : List (List ℕ) × ℕ → List ℕ} {G : 
   · rintro ⟨i, ⟨hi, hlt⟩, rfl⟩
     exact ⟨⟨i, by simpa using hlt⟩, hi, rfl⟩
   · rintro ⟨i, hi, rfl⟩
-    exact ⟨i, ⟨hi, by simpa using i.isLt⟩, rfl⟩
+    exact ⟨i, ⟨hi, by simpa using i.2⟩, rfl⟩
 
 /-- **The decider is correct** ([WilliamsonShmoys2011], Theorem 2.4): if, on metric instances
 with `1 ≤ k ≤ D.length`, `A` returns at most `k` centers with a radius within a factor `ρ < 2` of
@@ -240,33 +240,21 @@ theorem decideDominatingSet_iff {A : List (List ℕ) × ℕ → List ℕ} {ρ : 
   · rintro ⟨⟨hk, hpos⟩, hdom⟩
     refine ⟨hk, (centerLabels A G k).toFinset, fun v hv => ?_, fun v hv => ?_, ?_⟩
     · obtain ⟨i, -, rfl⟩ := mem_centerLabels.1 (List.mem_toFinset.1 hv)
-      exact G.vertexEquiv_apply (Fin.cast (length_domMatrix G) i) ▸ (G.vertexEquiv _).property
+      exact G.vertexEquiv_apply (Fin.cast (length_domMatrix G) i) ▸ (G.vertexEquiv _).2
     · simpa only [List.mem_toFinset] using hdom v hv
     · rw [hfs]
       refine Finset.card_image_le.trans ?_
       rcases hpos with h0 | h0
-      · have : (centers (domMatrix G) (A (domMatrix G, k))) = ∅ := by
-          refine Finset.eq_empty_of_forall_notMem fun i _ => ?_
-          have := i.isLt
-          simp only [length_domMatrix, h0] at this
-          omega
-        rw [this, Finset.card_empty]
-        exact Nat.zero_le k
+      · exact (Finset.card_le_univ _).trans (by simp [length_domMatrix, h0])
       · exact hcard _ _ (isInstance_domMatrix G) h0 (by simpa using hk)
   · rintro ⟨hk, S, hSV, hS, hSk⟩
     have hpos : G.distinctVertices.length = 0 ∨ 0 < k := by
-      rcases Nat.eq_zero_or_pos G.distinctVertices.length with h | h
-      · exact Or.inl h
-      · right
-        by_contra hk0
-        have hk0 : k = 0 := by omega
-        subst hk0
-        have hS0 : S = ∅ := Finset.card_eq_zero.1 (Nat.le_zero.1 hSk)
-        subst hS0
-        obtain ⟨v, hv⟩ := List.exists_mem_of_length_pos h
-        rcases hS v (Graph.mem_distinctVertices.1 hv) with h' | ⟨s, hs, -⟩
-        · exact Finset.notMem_empty v h'
-        · exact Finset.notMem_empty s hs
+      refine or_iff_not_imp_left.2 fun h => Nat.pos_of_ne_zero fun hk0 => ?_
+      obtain ⟨v, hv⟩ := List.exists_mem_of_length_pos (Nat.pos_of_ne_zero h)
+      obtain rfl : S = ∅ := Finset.card_eq_zero.1 (by omega)
+      rcases hS v (Graph.mem_distinctVertices.1 hv) with h' | ⟨s, hs, -⟩
+      · exact Finset.notMem_empty v h'
+      · exact Finset.notMem_empty s hs
     refine ⟨⟨hk, hpos⟩, fun v hv => ?_⟩
     have hvL : v ∈ G.distinctVertices := Graph.mem_distinctVertices.2 hv
     have hn : 0 < G.distinctVertices.length := List.length_pos_of_mem hvL
@@ -289,7 +277,7 @@ theorem decideDominatingSet_iff {A : List (List ℕ) × ℕ → List ℕ} {ρ : 
         (hfinj.injOn)
     have hTdom : (indexGraph G).IsDominatingSet T := by
       refine SimpleGraph.isDominatingSet_iff.2 fun i => ?_
-      have hfiV : f i ∈ G.vertices := hfe i ▸ (e i).property
+      have hfiV : f i ∈ G.vertices := hfe i ▸ (e i).2
       rcases hS (f i) hfiV with h | ⟨s, hs, hadj⟩
       · exact Or.inl (by simpa [T] using h)
       · obtain ⟨j, rfl⟩ := hsurj s (Graph.mem_distinctVertices.2 (hSV s hs))

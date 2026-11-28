@@ -93,103 +93,36 @@ private theorem sum_prod_image_eq_card_le [DecidableEq X] (S : Finset X) (v : X 
       ∏ x ∈ univ.image t, v x) ≤
       (r : ℝ) ^ n * (∑ x ∈ S, v x) ^ r := by
   set T_filt := (piFinset fun _ : Fin n => S).filter (fun t => #(univ.image t) = r)
-  by_cases hT_emp : T_filt = ∅
-  · rw [hT_emp, Finset.sum_empty]
-    have hsum_nonneg : 0 ≤ ∑ x ∈ S, v x := sum_nonneg hv
+  let P_idx := piFinset fun _ : Fin n => (univ : Finset (Fin r))
+  let P_val := piFinset fun _ : Fin r => S
+  -- Each `t ∈ T_filt` factors as `w ∘ f` through an enumeration of its `r`-element image.
+  have hsec : ∀ t ∈ T_filt, ∃ q ∈ P_idx ×ˢ P_val,
+      q.2 ∘ q.1 = t ∧ (∏ x ∈ univ.image t, v x) = ∏ k : Fin r, v (q.2 k) := by
+    intro t ht
+    rw [mem_filter, mem_piFinset] at ht
+    let I := univ.image t
+    let e : I ≃ Fin r := I.equivFin.trans (finCongr ht.2)
+    refine ⟨(fun j => e ⟨t j, mem_image_of_mem t (mem_univ j)⟩, fun k => (e.symm k).1),
+      mem_product.mpr ⟨by simp [P_idx], mem_piFinset.mpr fun k => ?_⟩, funext fun j => by simp, ?_⟩
+    · obtain ⟨j, -, hj⟩ := mem_image.mp (e.symm k).2
+      exact show (e.symm k).1 ∈ S from hj ▸ ht.1 j
+    · rw [← prod_coe_sort]
+      exact (e.symm.prod_comp fun x : I => v x).symm
+  rcases isEmpty_or_nonempty ((Fin n → Fin r) × (Fin r → X)) with hE | hE
+  · rw [T_filt.eq_empty_of_forall_notMem fun t ht => hE.false (hsec t ht).choose, Finset.sum_empty]
+    have := sum_nonneg hv
     positivity
-  · obtain ⟨t₀, ht₀⟩ := ne_empty_iff_nonempty.mp hT_emp
-    have hS_ne : S.Nonempty := by
-      have ht₀_pi := (mem_filter.mp ht₀).1
-      rw [mem_piFinset] at ht₀_pi
-      have hn_pos : 0 < n := by
-        by_contra hn0
-        have hn_eq : n = 0 := by omega
-        subst hn_eq
-        have hc0 : #(univ.image t₀) = 0 := by simp
-        have hcr : #(univ.image t₀) = r := (mem_filter.mp ht₀).2
-        omega
-      exact ⟨t₀ ⟨0, hn_pos⟩, ht₀_pi ⟨0, hn_pos⟩⟩
-    let P_idx := piFinset fun _ : Fin n => (univ : Finset (Fin r))
-    let P_val := piFinset fun _ : Fin r => S
-    let φ : (Fin n → Fin r) × (Fin r → X) → (Fin n → X) := fun q => q.2 ∘ q.1
-    have hnonneg_pair : ∀ q ∈ P_idx ×ˢ P_val, 0 ≤ ∏ k : Fin r, v (q.2 k) := by
-      intro q hq
-      have hq2 := (mem_product.mp hq).2
-      rw [mem_piFinset] at hq2
-      exact prod_nonneg fun k _ => hv (q.2 k) (hq2 k)
-    have hsec : ∀ t ∈ T_filt,
-        ∃ q ∈ P_idx ×ˢ P_val, φ q = t ∧ (∏ x ∈ univ.image t, v x) = ∏ k : Fin r, v (q.2 k) := by
-      intro t ht
-      rw [mem_filter, mem_piFinset] at ht
-      obtain ⟨htS, hcard⟩ := ht
-      let I := univ.image t
-      let e : I ≃ Fin r := I.equivFin.trans (finCongr hcard)
-      have hmem (j : Fin n) : t j ∈ I := mem_image_of_mem t (mem_univ j)
-      let f : Fin n → Fin r := fun j => e ⟨t j, hmem j⟩
-      let w : Fin r → X := fun k => (e.symm k).val
-      refine ⟨(f, w), ?_, ?_, ?_⟩
-      · refine mem_product.mpr ⟨by simp [P_idx], mem_piFinset.mpr fun k => ?_⟩
-        obtain ⟨j, -, hj⟩ := mem_image.mp (e.symm k).property
-        dsimp only [w]
-        rw [← hj]
-        exact htS j
-      · funext j
-        dsimp only [φ, Function.comp_apply, w, f]
-        rw [Equiv.symm_apply_apply]
-      · have himg : I = univ.image w := by
-          ext x
-          simp only [I, w, mem_image, mem_univ, true_and]
-          constructor
-          · rintro ⟨j, rfl⟩
-            exact ⟨e ⟨t j, hmem j⟩, by simp⟩
-          · rintro ⟨k, rfl⟩
-            obtain ⟨j, -, hj⟩ := mem_image.mp (e.symm k).property
-            exact ⟨j, hj⟩
-        have hinj : Set.InjOn w ↑(univ : Finset (Fin r)) := by
-          intro k₁ _ k₂ _ hwk
-          exact e.symm.injective (Subtype.ext hwk)
-        change (∏ x ∈ I, v x) = ∏ k : Fin r, v (w k)
-        rw [himg, prod_image hinj]
-    choose sec hsec_mem hsec_comp hsec_prod using hsec
-    let defPair : (Fin n → Fin r) × (Fin r → X) :=
-      (fun _ => ⟨0, hr⟩, fun _ => hS_ne.choose)
-    let secFn : (Fin n → X) → (Fin n → Fin r) × (Fin r → X) := fun t =>
-      if ht : t ∈ T_filt then sec t ht else defPair
-    have hinj_sec : Set.InjOn secFn (T_filt : Set (Fin n → X)) := by
-      intro t₁ ht₁ t₂ ht₂ heq
-      have h1 : φ (secFn t₁) = t₁ := by
-        simp only [secFn, mem_coe.mp ht₁, ↓reduceDIte]
-        exact hsec_comp t₁ ht₁
-      have h2 : φ (secFn t₂) = t₂ := by
-        simp only [secFn, mem_coe.mp ht₂, ↓reduceDIte]
-        exact hsec_comp t₂ ht₂
-      rw [← h1, ← h2, heq]
-    have himg_sub : T_filt.image secFn ⊆ P_idx ×ˢ P_val := by
-      intro q hq
-      obtain ⟨t, ht, rfl⟩ := mem_image.mp hq
-      simp only [secFn, ht, ↓reduceDIte]
-      exact hsec_mem t ht
-    calc
-      (∑ t ∈ T_filt, ∏ x ∈ univ.image t, v x)
-        = ∑ t ∈ T_filt, ∏ k : Fin r, v ((secFn t).2 k) := by
-            refine sum_congr rfl fun t ht => ?_
-            simp only [secFn, ht, ↓reduceDIte]
-            exact hsec_prod t ht
-      _ = ∑ q ∈ T_filt.image secFn, ∏ k : Fin r, v (q.2 k) :=
-            (sum_image (f := fun q : (Fin n → Fin r) × (Fin r → X) =>
-              ∏ k : Fin r, v (q.2 k)) hinj_sec).symm
-      _ ≤ ∑ q ∈ P_idx ×ˢ P_val, ∏ k : Fin r, v (q.2 k) :=
-            sum_le_sum_of_subset_of_nonneg himg_sub fun q hq _ => hnonneg_pair q hq
-      _ = (#P_idx : ℝ) * ∑ w ∈ P_val, ∏ k : Fin r, v (w k) := by
-            rw [sum_product]
-            simp only [sum_const, nsmul_eq_mul]
-      _ = (r : ℝ) ^ n * (∑ x ∈ S, v x) ^ r := by
-            have hcard_idx : (#P_idx : ℝ) = (r : ℝ) ^ n := by
-              simp [P_idx]
-            have hsum_val : (∑ w ∈ P_val, ∏ k : Fin r, v (w k)) = (∑ x ∈ S, v x) ^ r := by
-              dsimp only [P_val]
-              rw [← sum_pow']
-            rw [hcard_idx, hsum_val]
+  choose! sec hsec_mem hsec_comp hsec_prod using hsec
+  calc (∑ t ∈ T_filt, ∏ x ∈ univ.image t, v x)
+      ≤ ∑ q ∈ P_idx ×ˢ P_val, ∏ k : Fin r, v (q.2 k) :=
+        sum_le_sum_of_injOn sec
+          (fun t₁ h₁ t₂ h₂ h => by rw [← hsec_comp t₁ h₁, ← hsec_comp t₂ h₂, h])
+          (fun _ hq => by obtain ⟨t, ht, rfl⟩ := mem_image.mp hq; exact hsec_mem t ht)
+          (fun t ht => (hsec_prod t ht).le)
+          fun q hq _ => prod_nonneg fun k _ => hv _ (mem_piFinset.mp (mem_product.mp hq).2 k)
+    _ = (r : ℝ) ^ n * (∑ x ∈ S, v x) ^ r := by
+        simp only [sum_product, sum_const, P_val, ← sum_pow']
+        simp [P_idx]
 
 /-- **Heterogeneous variance-aware `2 m`-th moment bound for limited independence**:
 For `1 ≤ m`, a `2 * m`-wise independent family `h : ι → X → Y`, a finite set `S : Finset X`, and
@@ -223,64 +156,42 @@ theorem expect_sum_pow_le_of_sq_le {m : ℕ} (hm : 1 ≤ m) (hh : IsKWiseIndepen
     by_cases hex1 : ∃ x ∈ univ.image t, #{j | t j = x} = 1
     · obtain ⟨x, hx, hc1⟩ := hex1
       rw [prod_eq_zero hx (by simp only [hc1, pow_one]; exact hZ x (htS x hx))]
-      split_ifs with hI
-      · exact prod_nonneg fun z hz => hv z (htS z hz)
-      · exact le_rfl
-    · push Not at hex1
-      have hcard_le : #(univ.image t) ≤ m := by
-        have hsum := card_eq_sum_card_image t (univ : Finset (Fin (2 * m)))
-        have h2 : ∑ x ∈ univ.image t, 2 ≤ ∑ x ∈ univ.image t, #{j | t j = x} := by
-          refine sum_le_sum fun x hx => ?_
-          obtain ⟨j, -, rfl⟩ := mem_image.mp hx
-          have hpos : 0 < #{j' | t j' = t j} := card_pos.mpr ⟨j, by simp⟩
-          have hne1 := hex1 (t j) hx
-          omega
-        rw [← hsum, sum_const, card_univ, Fintype.card_fin, smul_eq_mul] at h2
-        omega
-      simp only [hcard_le, ↓reduceIte]
-      refine (le_abs_self _).trans ?_
-      rw [abs_prod]
-      gcongr with x hx
-      have : Nonempty Y := ⟨h (Classical.arbitrary ι) x⟩
-      have hd_ge2 : 2 ≤ #{j | t j = x} := by
-        obtain ⟨j, -, rfl⟩ := mem_image.mp hx
-        have hpos : 0 < #{j' | t j' = t j} := card_pos.mpr ⟨j, by simp⟩
-        have hne1 := hex1 (t j) hx
-        omega
-      refine (abs_expect_le _ _).trans ((Finset.expect_le_expect fun y _ => ?_).trans
-        (hZ₂ x (htS x hx)))
-      rw [abs_pow]
-      obtain ⟨k, hk⟩ : ∃ k, #{j | t j = x} = 2 + k := ⟨#{j | t j = x} - 2, by omega⟩
-      rw [hk, pow_add, sq_abs]
-      calc (Z x y) ^ 2 * |Z x y| ^ k
-          ≤ (Z x y) ^ 2 * 1 :=
-            mul_le_mul_of_nonneg_left (pow_le_one₀ (abs_nonneg _) (hZ₁ x (htS x hx) y))
-              (sq_nonneg _)
-        _ = (Z x y) ^ 2 := mul_one _
+      split_ifs
+      exacts [prod_nonneg fun z hz => hv z (htS z hz), le_rfl]
+    push Not at hex1
+    -- Every value of `t` is hit at least twice, so `t` takes at most `m` values.
+    have hge2 : ∀ x ∈ univ.image t, 2 ≤ #{j | t j = x} := fun x hx => by
+      obtain ⟨j, -, rfl⟩ := mem_image.mp hx
+      have hpos : 0 < #{j' | t j' = t j} := card_pos.mpr ⟨j, by simp⟩
+      have hne1 := hex1 (t j) hx
+      omega
+    have hcard_le : #(univ.image t) ≤ m := by
+      have h2 := sum_le_sum hge2
+      rw [← card_eq_sum_card_image, sum_const, card_univ, Fintype.card_fin, smul_eq_mul] at h2
+      omega
+    simp only [hcard_le, ↓reduceIte]
+    refine (le_abs_self _).trans ?_
+    rw [abs_prod]
+    gcongr with x hx
+    have : Nonempty Y := ⟨h (Classical.arbitrary ι) x⟩
+    refine (abs_expect_le _ _).trans ((Finset.expect_le_expect fun y _ => ?_).trans
+      (hZ₂ x (htS x hx)))
+    obtain ⟨k, hk⟩ : ∃ k, #{j | t j = x} = 2 + k :=
+      ⟨#{j | t j = x} - 2, by have := hge2 x hx; omega⟩
+    rw [abs_pow, hk, pow_add, sq_abs]
+    exact mul_le_of_le_one_right (sq_nonneg _) (pow_le_one₀ (abs_nonneg _) (hZ₁ x (htS x hx) y))
   let P_all := piFinset fun _ : Fin (2 * m) => S
   have hpart :
       (∑ t ∈ P_all, if #(univ.image t) ≤ m then ∏ x ∈ univ.image t, v x else 0) =
         ∑ r ∈ Icc 1 m,
           ∑ t ∈ P_all.filter (fun t => #(univ.image t) = r), ∏ x ∈ univ.image t, v x := by
-    rw [← sum_filter]
-    have hfilt_eq : P_all.filter (fun t => #(univ.image t) ≤ m) =
-        (Icc 1 m).biUnion (fun r => P_all.filter (fun t => #(univ.image t) = r)) := by
-      ext t
-      simp only [mem_filter, mem_biUnion, mem_Icc]
-      constructor
-      · rintro ⟨ht, hle⟩
-        have hpos : 1 ≤ #(univ.image t) := by
-          have hj : (⟨0, by omega⟩ : Fin (2 * m)) ∈ univ := mem_univ _
-          exact card_pos.mpr ⟨t ⟨0, by omega⟩, mem_image_of_mem t hj⟩
-        exact ⟨#(univ.image t), ⟨hpos, hle⟩, ht, rfl⟩
-      · rintro ⟨r, ⟨_, hle⟩, ht, rfl⟩
-        exact ⟨ht, hle⟩
-    rw [hfilt_eq, sum_biUnion]
-    intro r₁ _ r₂ _ hne
-    dsimp only [Function.onFun]
-    rw [disjoint_left]
-    intro t ht₁ ht₂
-    exact hne ((mem_filter.mp ht₁).2.symm.trans (mem_filter.mp ht₂).2)
+    rw [← sum_filter, ← sum_fiberwise_of_maps_to (g := fun t => #(univ.image t)) (t := Icc 1 m)
+      fun t ht => mem_Icc.2 ⟨card_pos.2 ((univ_nonempty_iff.2 ⟨⟨0, by omega⟩⟩).image t),
+        (mem_filter.1 ht).2⟩]
+    refine sum_congr rfl fun r hr => ?_
+    rw [filter_filter]
+    exact sum_congr (filter_congr fun t _ => ⟨And.right, fun h => ⟨h ▸ (mem_Icc.1 hr).2, h⟩⟩)
+      fun _ _ => rfl
   set V := max (∑ x ∈ S, v x) 1
   have hV_ge1 : 1 ≤ V := le_max_right _ _
   have hV_ge_sum : ∑ x ∈ S, v x ≤ V := le_max_left _ _
@@ -295,13 +206,10 @@ theorem expect_sum_pow_le_of_sq_le {m : ℕ} (hm : 1 ≤ m) (hh : IsKWiseIndepen
           refine sum_le_sum fun r hr => ?_
           exact sum_prod_image_eq_card_le S v hv (2 * m) (mem_Icc.mp hr).1
     _ ≤ ∑ _r ∈ Icc 1 m, (m : ℝ) ^ (2 * m) * V ^ m := by
-          refine sum_le_sum fun r hr => ?_
-          rcases mem_Icc.mp hr with ⟨_, hrm⟩
-          have hr_pow : (r : ℝ) ^ (2 * m) ≤ (m : ℝ) ^ (2 * m) :=
-            pow_le_pow_left₀ (Nat.cast_nonneg r) (by exact_mod_cast hrm) (2 * m)
-          have hv_pow : (∑ x ∈ S, v x) ^ r ≤ V ^ m :=
-            (pow_le_pow_left₀ hsum_nonneg hV_ge_sum r).trans (pow_le_pow_right₀ hV_ge1 hrm)
-          exact mul_le_mul hr_pow hv_pow (pow_nonneg hsum_nonneg r) (by positivity)
+          gcongr with r hr
+          · exact_mod_cast (mem_Icc.1 hr).2
+          · exact (pow_le_pow_left₀ hsum_nonneg hV_ge_sum r).trans
+              (pow_le_pow_right₀ hV_ge1 (mem_Icc.1 hr).2)
     _ = (m : ℝ) * (m : ℝ) ^ (2 * m) * V ^ m := by
           rw [sum_const, Nat.card_Icc, show m + 1 - 1 = m by omega, nsmul_eq_mul, mul_assoc]
 
@@ -399,58 +307,45 @@ theorem dens_fresh_pair_collisions_le {r : ℕ} {H : ι → Z → Y}
   let U_pts : Finset Z := univ.image a
   let V_pts : Finset Z := univ.image b
   let T : Finset Z := U_pts ∪ V_pts
-  have ha_inj : Function.Injective a := by
-    intro j k hjk
-    rcases lt_trichotomy j k with hlt | rfl | hgt
-    · exact absurd hjk.symm (hfresh j k hlt).1
-    · rfl
-    · exact absurd hjk (hfresh k j hgt).1
+  have ha_inj : Function.Injective a := fun j k hjk =>
+    le_antisymm (not_lt.1 fun h => (hfresh k j h).1 hjk)
+      (not_lt.1 fun h => (hfresh j k h).1 hjk.symm)
   have hcard_U : #U_pts = r := by
     rw [card_image_of_injective _ ha_inj, card_univ, Fintype.card_fin]
-  have hcard_T : #T ≤ 2 * r := by
-    calc #T ≤ #U_pts + #V_pts := card_union_le _ _
-      _ ≤ r + r := Nat.add_le_add (le_of_eq hcard_U) (card_image_le.trans (by simp))
-      _ = 2 * r := (two_mul r).symm
+  have hcard_T : #T ≤ 2 * r := (card_union_le _ _).trans <| by
+    rw [hcard_U, two_mul]; exact Nat.add_le_add_left (card_image_le.trans (by simp)) r
   have hU_sub : U_pts ⊆ T := subset_union_left
   let R_rest : Finset Z := T \ U_pts
   have hcard_R : #T = r + #R_rest := by
-    have hs := card_sdiff_add_card_eq_card hU_sub
-    dsimp only [R_rest]
-    omega
+    rw [← card_sdiff_add_card_eq_card hU_sub, hcard_U, add_comm]
   have hmem_a (k : Fin r) : a k ∈ T := hU_sub (mem_image_of_mem _ (mem_univ k))
   have hmem_b (k : Fin r) : b k ∈ T := subset_union_right (mem_image_of_mem _ (mem_univ k))
   let GoodF : Finset (T → Y) :=
     univ.filter fun f => ∀ k : Fin r, f ⟨a k, hmem_a k⟩ = f ⟨b k, hmem_b k⟩
-  let projR : (T → Y) → (R_rest → Y) := fun f z => f ⟨z.val, sdiff_subset z.property⟩
+  let projR : (T → Y) → (R_rest → Y) := fun f z => f ⟨z.1, sdiff_subset z.2⟩
   have hinj_proj : Set.InjOn projR (GoodF : Set (T → Y)) := by
     intro f₁ hf₁ f₂ hf₂ heq
     have hf₁_eq := (mem_filter.mp hf₁).2
     have hf₂_eq := (mem_filter.mp hf₂).2
-    have hk_eq : ∀ (n : ℕ) (k : Fin r), k.val = n →
-        f₁ ⟨a k, hmem_a k⟩ = f₂ ⟨a k, hmem_a k⟩ := by
-      intro n
-      induction n using Nat.strong_induction_on with
-      | _ n ih =>
-        intro k hk_n
+    -- `f₁` and `f₂` agree at every `a k`, by strong induction on `k`.
+    have hk_eq (k : Fin r) : f₁ ⟨a k, hmem_a k⟩ = f₂ ⟨a k, hmem_a k⟩ := by
+      induction k using WellFoundedLT.induction with
+      | _ k ih =>
         rw [hf₁_eq k, hf₂_eq k]
         by_cases hbU : b k ∈ U_pts
         · obtain ⟨j, -, hj_eq⟩ := mem_image.mp hbU
           have hj_lt : j < k := by
             rcases lt_trichotomy j k with hlt | rfl | hgt
-            · exact hlt
-            · exact absurd hj_eq (hne j)
-            · exact absurd hj_eq (hfresh k j hgt).2
-          have hsub_eq : (⟨a j, hmem_a j⟩ : T) = ⟨b k, hmem_b k⟩ := Subtype.ext hj_eq
-          rw [← hsub_eq]
-          exact ih j.val (hk_n ▸ hj_lt) j rfl
+            exacts [hlt, absurd hj_eq (hne j), absurd hj_eq (hfresh k j hgt).2]
+          rw [← (Subtype.ext hj_eq : (⟨a j, hmem_a j⟩ : T) = ⟨b k, hmem_b k⟩)]
+          exact ih j hj_lt
         · exact congrFun heq ⟨b k, mem_sdiff.mpr ⟨hmem_b k, hbU⟩⟩
     funext z
-    by_cases hzU : z.val ∈ U_pts
+    by_cases hzU : z.1 ∈ U_pts
     · obtain ⟨k, -, hk_z⟩ := mem_image.mp hzU
-      have hsub_z : (⟨a k, hmem_a k⟩ : T) = z := Subtype.ext hk_z
-      rw [← hsub_z]
-      exact hk_eq k.val k rfl
-    · exact congrFun heq ⟨z.val, mem_sdiff.mpr ⟨z.property, hzU⟩⟩
+      rw [← (Subtype.ext hk_z : (⟨a k, hmem_a k⟩ : T) = z)]
+      exact hk_eq k
+    · exact congrFun heq ⟨z.1, mem_sdiff.mpr ⟨z.2, hzU⟩⟩
   have hcard_GoodF : #GoodF ≤ Fintype.card Y ^ #R_rest := by
     calc #GoodF = #(GoodF.image projR) := (card_image_of_injOn hinj_proj).symm
       _ ≤ #(univ : Finset (R_rest → Y)) := card_le_card (subset_univ _)
@@ -469,26 +364,35 @@ theorem dens_fresh_pair_collisions_le {r : ℕ} {H : ι → Z → Y}
   have hdens_q :
       dens ({i : ι | ∀ k : Fin r, H i (a k) = H i (b k)} : Finset ι) ≤
         ((Fintype.card Y : ℚ≥0)⁻¹) ^ r := by
-    have hcard_Y_pos : 0 < (Fintype.card Y : ℚ≥0) := Nat.cast_pos.mpr Fintype.card_pos
-    have hpow_R_ne : (Fintype.card Y : ℚ≥0) ^ #R_rest ≠ 0 := pow_ne_zero _ hcard_Y_pos.ne'
+    have hpow_R_ne : (Fintype.card Y : ℚ≥0) ^ #R_rest ≠ 0 :=
+      pow_ne_zero _ (Nat.cast_ne_zero.2 Fintype.card_ne_zero)
     rw [hevent_eq, dens_biUnion_eq _ _ hdisj]
-    have hsum_eq :
-        (∑ f ∈ GoodF, dens ({i : ι | T.restrict (H i) = f} : Finset ι)) =
-          (#GoodF : ℚ≥0) * ((Fintype.card Y : ℚ≥0) ^ #T)⁻¹ := by
-      simp_rw [hh.dens_filter_restrict_eq hcard_T, sum_const, nsmul_eq_mul]
-    rw [hsum_eq]
+    simp_rw [hh.dens_filter_restrict_eq hcard_T, sum_const, nsmul_eq_mul]
     calc (#GoodF : ℚ≥0) * ((Fintype.card Y : ℚ≥0) ^ #T)⁻¹
-        ≤ ((Fintype.card Y : ℚ≥0) ^ #R_rest) *
-            (((Fintype.card Y : ℚ≥0) ^ r)⁻¹ * ((Fintype.card Y : ℚ≥0) ^ #R_rest)⁻¹) := by
-          rw [hcard_R, pow_add, mul_inv]
-          gcongr
-          exact_mod_cast hcard_GoodF
-      _ = ((Fintype.card Y : ℚ≥0) ^ r)⁻¹ *
-            ((Fintype.card Y : ℚ≥0) ^ #R_rest * ((Fintype.card Y : ℚ≥0) ^ #R_rest)⁻¹) := by
-          ring
+        ≤ (Fintype.card Y : ℚ≥0) ^ #R_rest * ((Fintype.card Y : ℚ≥0) ^ #T)⁻¹ := by
+          gcongr; exact_mod_cast hcard_GoodF
       _ = ((Fintype.card Y : ℚ≥0)⁻¹) ^ r := by
-          rw [mul_inv_cancel₀ hpow_R_ne, mul_one, inv_pow]
+          rw [hcard_R, pow_add, mul_inv, mul_left_comm, mul_inv_cancel₀ hpow_R_ne, mul_one, inv_pow]
   simpa using (NNRat.cast_le (K := ℝ)).mpr hdens_q
+
+/-- An event covered by the fresh-endpoint pair-collision events indexed by `T` has density at
+most `(N / |Y|) ^ r` whenever `#T ≤ N ^ r`. -/
+private theorem dens_le_of_subset_biUnion_fresh {α : Type*} [DecidableEq ι] {r : ℕ}
+    {H : ι → Z → Y} (hh : IsKWiseIndependentHash (2 * r) H) {E : Finset ι} (T : Finset α)
+    (a b : α → Fin r → Z) (hne : ∀ t ∈ T, ∀ k, a t k ≠ b t k)
+    (hfresh : ∀ t ∈ T, ∀ j k : Fin r, j < k → a t k ≠ a t j ∧ a t k ≠ b t j)
+    (hsub : E ⊆ T.biUnion fun t => {i : ι | ∀ k, H i (a t k) = H i (b t k)})
+    {N : ℝ} (hT : (#T : ℝ) ≤ N ^ r) :
+    (dens E : ℝ) ≤ (N / Fintype.card Y) ^ r := by
+  calc (dens E : ℝ)
+      ≤ ((T.biUnion fun t => ({i : ι | ∀ k, H i (a t k) = H i (b t k)} : Finset ι)).dens : ℝ) := by
+        exact_mod_cast dens_le_dens hsub
+    _ ≤ ∑ _t ∈ T, ((Fintype.card Y : ℝ)⁻¹) ^ r :=
+        (dens_biUnion_le_sum_real T _).trans
+          (sum_le_sum fun t ht => hh.dens_fresh_pair_collisions_le _ _ (hne t ht) (hfresh t ht))
+    _ ≤ N ^ r * ((Fintype.card Y : ℝ)⁻¹) ^ r := by
+        rw [sum_const, nsmul_eq_mul]; gcongr
+    _ = (N / Fintype.card Y) ^ r := by rw [← mul_pow, div_eq_mul_inv]
 
 /-- **Multi-salt intra-bucket collision-freedom bound**:
 Under a `2 * s_max`-wise independent family `H : ι → Fin s_max × Q → Y`, the fraction of seeds `i`
@@ -510,50 +414,16 @@ theorem dens_forall_salt_exists_collision_le {s_max : ℕ} {Q : Type*} [Decidabl
     intro i hi
     simp only [mem_filter, mem_univ, true_and] at hi
     choose u hu_mem v hv_mem hne hcoll using hi
-    refine mem_biUnion.mpr ⟨fun s => (u s, v s), ?_, ?_⟩
-    · rw [mem_piFinset]
-      intro s
-      exact mem_filter.mpr ⟨mem_product.mpr ⟨hu_mem s, hv_mem s⟩, hne s⟩
-    · simp only [mem_filter, mem_univ, true_and]
-      exact hcoll
-  have hcard_Pairs : #Pairs ≤ #S_b ^ 2 := by
-    calc #Pairs ≤ #(S_b ×ˢ S_b) := card_filter_le _ _
-      _ = #S_b ^ 2 := by rw [card_product, sq]
+    exact mem_biUnion.mpr ⟨fun s => (u s, v s), mem_piFinset.mpr fun s =>
+      mem_filter.mpr ⟨mem_product.mpr ⟨hu_mem s, hv_mem s⟩, hne s⟩, by simpa using hcoll⟩
   have hcard_Tuples : (#Tuples : ℝ) ≤ ((#S_b : ℝ) ^ 2) ^ s_max := by
-    have hc : #Tuples ≤ (#S_b ^ 2) ^ s_max := by
-      rw [card_piFinset, prod_const, card_univ, Fintype.card_fin]
-      exact Nat.pow_le_pow_left hcard_Pairs s_max
-    exact_mod_cast hc
-  have hstep1 :
-      (dens ({i : ι | ∀ s : Fin s_max, ∃ u ∈ S_b, ∃ v ∈ S_b, u ≠ v ∧ H i (s, u) = H i (s, v)} :
-        Finset ι) : ℝ) ≤
-        ∑ t ∈ Tuples,
-          (dens ({i : ι | ∀ s : Fin s_max, H i (s, (t s).1) = H i (s, (t s).2)} :
-            Finset ι) : ℝ) := by
-    have hle : (dens ({i : ι | ∀ s : Fin s_max, ∃ u ∈ S_b, ∃ v ∈ S_b,
-        u ≠ v ∧ H i (s, u) = H i (s, v)} : Finset ι) : ℝ) ≤
-        ((Tuples.biUnion (fun t =>
-          {i : ι | ∀ s : Fin s_max, H i (s, (t s).1) = H i (s, (t s).2)})).dens : ℝ) :=
-      (NNRat.cast_le (K := ℝ)).mpr (dens_le_dens hsub)
-    exact hle.trans (dens_biUnion_le_sum_real Tuples _)
-  calc (dens ({i : ι | ∀ s : Fin s_max, ∃ u ∈ S_b, ∃ v ∈ S_b, u ≠ v ∧ H i (s, u) = H i (s, v)} :
-          Finset ι) : ℝ)
-      ≤ ∑ t ∈ Tuples,
-          (dens ({i : ι | ∀ s : Fin s_max, H i (s, (t s).1) = H i (s, (t s).2)} :
-            Finset ι) : ℝ) := hstep1
-    _ ≤ ∑ _t ∈ Tuples, ((Fintype.card Y : ℝ)⁻¹) ^ s_max := by
-        refine sum_le_sum fun t ht => ?_
-        rw [mem_piFinset] at ht
-        refine hh.dens_fresh_pair_collisions_le
-          (fun s => (s, (t s).1)) (fun s => (s, (t s).2))
-          (fun s h => (mem_filter.mp (ht s)).2 (congrArg Prod.snd h))
-          (fun j k hjk => ⟨fun h => hjk.ne' (congrArg Prod.fst h),
-            fun h => hjk.ne' (congrArg Prod.fst h)⟩)
-    _ = (#Tuples : ℝ) * ((Fintype.card Y : ℝ)⁻¹) ^ s_max := by
-        rw [sum_const, nsmul_eq_mul]
-    _ ≤ ((#S_b : ℝ) ^ 2) ^ s_max * ((Fintype.card Y : ℝ)⁻¹) ^ s_max := by gcongr
-    _ = ((#S_b : ℝ) ^ 2 / Fintype.card Y) ^ s_max := by
-        rw [← mul_pow, div_eq_mul_inv]
+    rw [card_piFinset, prod_const, card_univ, Fintype.card_fin]
+    exact_mod_cast Nat.pow_le_pow_left ((card_filter_le _ _).trans (by rw [card_product, sq])) _
+  exact dens_le_of_subset_biUnion_fresh hh Tuples (fun t s => (s, (t s).1))
+    (fun t s => (s, (t s).2))
+    (fun t ht s h => (mem_filter.mp (mem_piFinset.mp ht s)).2 (congrArg Prod.snd h))
+    (fun t _ j k hjk => ⟨fun h => hjk.ne' (congrArg Prod.fst h),
+      fun h => hjk.ne' (congrArg Prod.fst h)⟩) hsub hcard_Tuples
 
 /-- Greedy extraction of `r` fresh-endpoint pairs from a finite set `B` of cardinality `≥ 2 * r`
 equipped with a partner function `vFn : Q → Q` satisfying `∀ u ∈ B, vFn u ≠ u`. -/
@@ -615,9 +485,7 @@ theorem dens_card_local_salt_colliding_ge_le {r s_max w_cap : ℕ} {Q : Type*} [
   classical
   rcases Nat.eq_zero_or_pos r with rfl | hr_pos
   · simp only [pow_zero]
-    exact_mod_cast Finset.dens_le_one (s := ({i : ι | 2 * 0 ≤
-      #(Q_set.filter fun u =>
-        ∃ v ∈ W_of u, u ≠ v ∧ ∃ s : Fin s_max, H i (s, u) = H i (s, v))} : Finset ι))
+    exact_mod_cast dens_le_one
   let Pairs := Q_set.biUnion fun u => ({u} : Finset Q) ×ˢ ((W_of u).erase u)
   let Triples := Pairs ×ˢ (univ : Finset (Fin s_max))
   let Chains := (piFinset fun _ : Fin r => Triples).filter fun t =>
@@ -633,15 +501,13 @@ theorem dens_card_local_salt_colliding_ge_le {r s_max w_cap : ℕ} {Q : Type*} [
     set B := Q_set.filter fun u =>
       ∃ v ∈ W_of u, u ≠ v ∧ ∃ s : Fin s_max, H i (s, u) = H i (s, v)
     have hB_ne : B.Nonempty := card_pos.mp (by omega)
-    have hex_wit : ∀ u, ∃ vs : Q × Fin s_max,
-        u ∈ B → vs.1 ∈ W_of u ∧ u ≠ vs.1 ∧ H i (vs.2, u) = H i (vs.2, vs.1) := by
-      intro u
-      by_cases hu : u ∈ B
-      · obtain ⟨_, v, hvW, hne_uv, s, hcoll⟩ := mem_filter.mp hu
-        exact ⟨(v, s), fun _ => ⟨hvW, hne_uv, hcoll⟩⟩
-      · have ⟨_, v₀, _, _, s₀, _⟩ := mem_filter.mp hB_ne.choose_spec
-        exact ⟨(v₀, s₀), fun h => absurd h hu⟩
-    choose vs hvs using hex_wit
+    have hex_wit : ∀ u ∈ B, ∃ vs : Q × Fin s_max,
+        vs.1 ∈ W_of u ∧ u ≠ vs.1 ∧ H i (vs.2, u) = H i (vs.2, vs.1) := fun u hu => by
+      obtain ⟨_, v, hvW, hne_uv, s, hcoll⟩ := mem_filter.mp hu
+      exact ⟨(v, s), hvW, hne_uv, hcoll⟩
+    obtain ⟨vs₀, -⟩ := hex_wit _ hB_ne.choose_spec
+    have := Nonempty.intro vs₀
+    choose! vs hvs using hex_wit
     obtain ⟨u_ch, hu_mem, hfresh⟩ := exists_fresh_chain_of_card_ge r B (fun u => (vs u).1) hi
       (fun u hu => (hvs u hu).2.1.symm)
     refine mem_biUnion.mpr ⟨fun k => ((u_ch k, (vs (u_ch k)).1), (vs (u_ch k)).2), ?_, ?_⟩
@@ -654,60 +520,25 @@ theorem dens_card_local_salt_colliding_ge_le {r s_max w_cap : ℕ} {Q : Type*} [
     · simp only [mem_filter, mem_univ, true_and]
       intro k
       exact (hvs (u_ch k) (hu_mem k)).2.2
-  have hcard_Pairs : #Pairs ≤ #Q_set * w_cap := by
-    calc #Pairs ≤ ∑ u ∈ Q_set, #( ({u} : Finset Q) ×ˢ ((W_of u).erase u) ) := card_biUnion_le
-      _ ≤ ∑ _u ∈ Q_set, w_cap := by
-          refine sum_le_sum fun u hu => ?_
-          rw [card_product, card_singleton, one_mul]
-          exact card_erase_le.trans (hw_cap u hu)
-      _ = #Q_set * w_cap := by rw [sum_const, smul_eq_mul]
-  have hcard_Triples : #Triples ≤ #Q_set * w_cap * s_max := by
-    calc #Triples = #Pairs * s_max := by simp [Triples, card_product]
-      _ ≤ (#Q_set * w_cap) * s_max := Nat.mul_le_mul_right _ hcard_Pairs
-  have hcard_Chains : (#Chains : ℝ) ≤ ((#Q_set * w_cap * s_max : ℕ) : ℝ) ^ r := by
-    have hc : #Chains ≤ (#Q_set * w_cap * s_max) ^ r := by
-      calc #Chains ≤ #(piFinset fun _ : Fin r => Triples) := card_filter_le _ _
-        _ = #Triples ^ r := by rw [card_piFinset, prod_const, card_univ, Fintype.card_fin]
-        _ ≤ (#Q_set * w_cap * s_max) ^ r := Nat.pow_le_pow_left hcard_Triples r
-    exact_mod_cast hc
-  have hstep1 :
-      (dens ({i : ι | 2 * r ≤
-        #(Q_set.filter fun u =>
-          ∃ v ∈ W_of u, u ≠ v ∧ ∃ s : Fin s_max, H i (s, u) = H i (s, v))} : Finset ι) : ℝ) ≤
-        ∑ t ∈ Chains,
-          (dens ({i : ι | ∀ k : Fin r, H i ((t k).2, (t k).1.1) = H i ((t k).2, (t k).1.2)} :
-            Finset ι) : ℝ) := by
-    have hle : (dens ({i : ι | 2 * r ≤
-        #(Q_set.filter fun u =>
-          ∃ v ∈ W_of u, u ≠ v ∧ ∃ s : Fin s_max, H i (s, u) = H i (s, v))} : Finset ι) : ℝ) ≤
-        ((Chains.biUnion (fun t =>
-          {i : ι | ∀ k : Fin r, H i ((t k).2, (t k).1.1) = H i ((t k).2, (t k).1.2)})).dens : ℝ) :=
-      (NNRat.cast_le (K := ℝ)).mpr (dens_le_dens hsub)
-    exact hle.trans (dens_biUnion_le_sum_real Chains _)
-  calc (dens ({i : ι | 2 * r ≤
-          #(Q_set.filter fun u =>
-            ∃ v ∈ W_of u, u ≠ v ∧ ∃ s : Fin s_max, H i (s, u) = H i (s, v))} : Finset ι) : ℝ)
-      ≤ ∑ t ∈ Chains,
-          (dens ({i : ι | ∀ k : Fin r, H i ((t k).2, (t k).1.1) = H i ((t k).2, (t k).1.2)} :
-            Finset ι) : ℝ) := hstep1
-    _ ≤ ∑ _t ∈ Chains, ((Fintype.card Y : ℝ)⁻¹) ^ r := by
-        refine sum_le_sum fun t ht => ?_
-        obtain ⟨ht_pi, ht_fr⟩ := mem_filter.mp ht
-        rw [mem_piFinset] at ht_pi
-        refine hh.dens_fresh_pair_collisions_le
-          (fun k => ((t k).2, (t k).1.1)) (fun k => ((t k).2, (t k).1.2))
-          (fun k h => ?_)
-          (fun j k hjk => ⟨fun h => (ht_fr j k hjk).1 (congrArg Prod.snd h),
-            fun h => (ht_fr j k hjk).2 (congrArg Prod.snd h)⟩)
-        obtain ⟨u, _, hp⟩ := mem_biUnion.mp (mem_product.mp (ht_pi k)).1
-        obtain ⟨hu_eq, hv_er⟩ := mem_product.mp hp
-        rw [mem_singleton.mp hu_eq] at h
-        exact (mem_erase.mp hv_er).1 (congrArg Prod.snd h).symm
-    _ = (#Chains : ℝ) * ((Fintype.card Y : ℝ)⁻¹) ^ r := by
-        rw [sum_const, nsmul_eq_mul]
-    _ ≤ ((#Q_set * w_cap * s_max : ℕ) : ℝ) ^ r * ((Fintype.card Y : ℝ)⁻¹) ^ r := by gcongr
-    _ = (((#Q_set * w_cap * s_max : ℕ) : ℝ) / Fintype.card Y) ^ r := by
-        rw [← mul_pow, div_eq_mul_inv]
+  have hcard_Chains : #Chains ≤ (#Q_set * w_cap * s_max) ^ r := by
+    refine (card_filter_le _ _).trans ?_
+    rw [card_piFinset, prod_const, card_univ, Fintype.card_fin]
+    refine Nat.pow_le_pow_left ?_ r
+    rw [card_product, card_univ, Fintype.card_fin]
+    refine Nat.mul_le_mul_right _ (card_biUnion_le.trans
+      ((sum_le_card_nsmul _ _ _ fun u hu => ?_).trans_eq (smul_eq_mul _ _)))
+    rw [card_product, card_singleton, one_mul]
+    exact card_erase_le.trans (hw_cap u hu)
+  refine dens_le_of_subset_biUnion_fresh hh Chains (fun t k => ((t k).2, (t k).1.1))
+    (fun t k => ((t k).2, (t k).1.2)) (fun t ht k h => ?_) (fun t ht j k hjk => ?_) hsub
+    (by exact_mod_cast hcard_Chains)
+  · obtain ⟨u, _, hp⟩ :=
+      mem_biUnion.mp (mem_product.mp (mem_piFinset.mp (mem_filter.mp ht).1 k)).1
+    obtain ⟨hu_eq, hv_er⟩ := mem_product.mp hp
+    rw [mem_singleton.mp hu_eq] at h
+    exact (mem_erase.mp hv_er).1 (congrArg Prod.snd h).symm
+  · have h := (mem_filter.mp ht).2 j k hjk
+    exact ⟨fun h' => h.1 (congrArg Prod.snd h'), fun h' => h.2 (congrArg Prod.snd h')⟩
 
 /-- **Batch salt-collision count tail bound**:
 Under a `2 * r`-wise independent family `H : ι → Fin s_max × Q → Y`, given a batch

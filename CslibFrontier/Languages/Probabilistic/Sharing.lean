@@ -69,15 +69,15 @@ to `target`, setting the last coordinate to `target - ∑ j : Fin (m - 1), init 
 def completeShares (m : ℕ) {G : Type*} [AddCommGroup G]
     (target : G) (init : Fin (m - 1) → G) : Fin m → G :=
   fun i =>
-    if h : i.val < m - 1 then
-      init ⟨i.val, h⟩
+    if h : i.1 < m - 1 then
+      init ⟨i.1, h⟩
     else
       target - ∑ j : Fin (m - 1), init j
 
 @[simp] theorem completeShares_castLE (m : ℕ) {G : Type*} [AddCommGroup G]
     (target : G) (init : Fin (m - 1) → G) (k : Fin (m - 1)) :
     completeShares m target init (Fin.castLE (Nat.sub_le m 1) k) = init k := by
-  simp [completeShares, k.isLt]
+  simp [completeShares, k.2]
 
 @[simp] theorem initOfShares_completeShares (m : ℕ) {G : Type*} [AddCommGroup G]
     (target : G) (init : Fin (m - 1) → G) :
@@ -95,23 +95,14 @@ private theorem sum_univ_eq_add_top (m : ℕ) [NeZero m] {G : Type*} [AddCommMon
     ∑ i : Fin m, f i =
       (∑ k : Fin (m - 1), f (Fin.castLE (Nat.sub_le m 1) k)) + f (⊤ : Fin m) := by
   rw [← Finset.sum_erase_add _ _ (Finset.mem_univ (⊤ : Fin m))]
-  congr 1
-  symm
-  refine Finset.sum_bij (fun (k : Fin (m - 1)) _ => Fin.castLE (Nat.sub_le m 1) k) ?_ ?_ ?_ ?_
-  · intro k _
-    rw [Finset.mem_erase]
-    refine ⟨?_, Finset.mem_univ _⟩
-    intro h
-    exact ne_of_lt k.isLt (congrArg Fin.val h)
-  · intro k₁ _ k₂ _ h
-    exact Fin.ext (congrArg (Fin.val : Fin m → ℕ) h)
+  refine congrArg (· + _) (Finset.sum_bij (fun (k : Fin (m - 1)) _ => Fin.castLE (Nat.sub_le m 1) k)
+    ?_ ?_ ?_ fun _ _ => rfl).symm
+  · exact fun k _ => Finset.mem_erase.mpr ⟨fun h => k.2.ne (congrArg Fin.val h), Finset.mem_univ _⟩
+  · exact fun _ _ _ _ h => Fin.castLE_injective _ h
   · intro i hi
-    rw [Finset.mem_erase] at hi
-    have hne : i.val ≠ m - 1 := fun h => hi.1 (Fin.ext h)
-    have hlt : i.val < m - 1 := Nat.lt_of_le_of_ne (Nat.le_sub_one_of_lt i.isLt) hne
-    exact ⟨⟨i.val, hlt⟩, Finset.mem_univ _, rfl⟩
-  · intro _ _
-    rfl
+    have hlt : i.1 < m - 1 := Nat.lt_of_le_of_ne (Nat.le_sub_one_of_lt i.2)
+      fun h => (Finset.mem_erase.mp hi).1 (Fin.ext h)
+    exact ⟨⟨i.1, hlt⟩, Finset.mem_univ _, rfl⟩
 
 @[simp] theorem sum_completeShares (m : ℕ) [NeZero m] {G : Type*} [AddCommGroup G]
     (target : G) (init : Fin (m - 1) → G) :
@@ -125,13 +116,9 @@ theorem completeShares_initOfShares (m : ℕ) [NeZero m] {G : Type*} [AddCommGro
     {target : G} {s : Fin m → G} (hs : ∑ i : Fin m, s i = target) :
     completeShares m target (initOfShares m s) = s := by
   ext i
-  by_cases h : i.val < m - 1
+  by_cases h : i.1 < m - 1
   · simp [completeShares, h, initOfShares]
-  · have hi : i = (⊤ : Fin m) := by
-      ext
-      simp only [Fin.val_top]
-      omega
-    subst hi
+  · obtain rfl : i = (⊤ : Fin m) := Fin.ext (by simp only [Fin.val_top]; omega)
     rw [completeShares_top, sub_eq_iff_eq_add', ← hs]
     exact sum_univ_eq_add_top m s
 
@@ -140,7 +127,7 @@ theorem completeShares_add (m : ℕ) {G : Type*} [AddCommGroup G]
     completeShares m (target₁ + target₂) (init₁ + init₂) =
       completeShares m target₁ init₁ + completeShares m target₂ init₂ := by
   ext i
-  by_cases h : i.val < m - 1
+  by_cases h : i.1 < m - 1
   · simp [completeShares, h]
   · simp [completeShares, h, Finset.sum_add_distrib, add_sub_add_comm]
 
@@ -155,39 +142,27 @@ theorem uniformOfFintype_map_restrict_completeShares {m : ℕ} [NeZero m]
   classical
   apply Cslib.Probability.PMF.uniformOfFintype_map_of_shift
   intro c
-  have hex : ∃ j₀ : Fin m, j₀ ∉ I := by
-    by_contra h
-    apply hI
-    ext i
-    simp only [Finset.mem_univ, iff_true]
-    by_contra hi
-    exact h ⟨i, hi⟩
-  obtain ⟨j₀, hj₀⟩ := hex
+  obtain ⟨j₀, hj₀⟩ : ∃ j₀ : Fin m, j₀ ∉ I := by
+    by_contra! h
+    exact hI (Finset.eq_univ_iff_forall.mpr h)
   let full : Fin m → G := fun i =>
     if hi : i ∈ I then c ⟨i, hi⟩
     else if i = j₀ then -∑ k : I, c k
     else 0
   have hsum : ∑ i : Fin m, full i = 0 := by
-    rw [← Finset.sum_subset (Finset.subset_univ (insert j₀ I))]
-    · rw [Finset.sum_insert hj₀]
-      have h1 : full j₀ = -∑ k : I, c k := by simp [full, hj₀]
-      have h2 : ∑ i ∈ I, full i = ∑ k : I, c k := by
-        rw [← Finset.sum_attach I]
-        refine Finset.sum_congr rfl fun k _ => ?_
-        simp [full, k.property]
-      rw [h1, h2, neg_add_cancel]
-    · intro i _ hi
+    have hzero (i) (_ : i ∈ Finset.univ) (hi : i ∉ insert j₀ I) : full i = 0 := by
       simp only [Finset.mem_insert, not_or] at hi
       simp [full, hi.1, hi.2]
-  have hfull : completeShares m 0 (initOfShares m full) = full :=
-    completeShares_initOfShares m hsum
+    rw [← Finset.sum_subset (Finset.subset_univ (insert j₀ I)) hzero, Finset.sum_insert hj₀,
+      ← Finset.sum_attach I, Finset.sum_congr rfl fun k _ => dite_eq_left k.2]
+    simp [full, hj₀]
   refine ⟨Equiv.addRight (initOfShares m full), fun init => ?_⟩
   ext ⟨i, hi⟩
   have hadd := congrFun (completeShares_add m target 0 init (initOfShares m full)) i
   change completeShares m target (init + initOfShares m full) i =
     completeShares m target init i + c ⟨i, hi⟩
   rw [add_zero] at hadd
-  rw [hadd, Pi.add_apply, hfull]
+  rw [hadd, Pi.add_apply, completeShares_initOfShares m hsum]
   simp [full, hi]
 
 /-- Sample uniform additive shares `s : Fin m → G` conditioned on `∑ i, s i = target`. -/
@@ -258,17 +233,9 @@ def completeSharesErase {m : ℕ} {G : Type} [AddCommGroup G]
 @[simp] theorem sum_completeSharesErase {m : ℕ} {G : Type} [AddCommGroup G]
     (j₀ : Fin m) (target : G) (sub : (i : Finset.univ.erase j₀) → G) :
     ∑ i : Fin m, completeSharesErase j₀ target sub i = target := by
-  rw [← Finset.add_sum_erase _ _ (Finset.mem_univ j₀)]
-  have h1 : completeSharesErase j₀ target sub j₀ =
-      target - ∑ k : Finset.univ.erase j₀, sub k := by
-    simp [completeSharesErase]
-  have h2 : ∑ i ∈ Finset.univ.erase j₀, completeSharesErase j₀ target sub i =
-      ∑ k : Finset.univ.erase j₀, sub k := by
-    rw [← Finset.sum_attach (Finset.univ.erase j₀)]
-    refine Finset.sum_congr rfl fun ⟨i, hi⟩ _ => ?_
-    have hne : i ≠ j₀ := (Finset.mem_erase.mp hi).1
-    simp [completeSharesErase, hne]
-  rw [h1, h2, sub_add_cancel]
+  rw [← Finset.add_sum_erase _ _ (Finset.mem_univ j₀), ← Finset.sum_attach,
+    Finset.sum_congr rfl fun ⟨i, hi⟩ _ => dite_eq_right (Finset.mem_erase.mp hi).1]
+  simp [completeSharesErase]
 
 theorem completeSharesErase_restrict_erase {m : ℕ} {G : Type} [AddCommGroup G]
     (j₀ : Fin m) {target : G} {s : Fin m → G} (hs : ∑ i : Fin m, s i = target) :
@@ -277,9 +244,8 @@ theorem completeSharesErase_restrict_erase {m : ℕ} {G : Type} [AddCommGroup G]
   by_cases h : i = j₀
   · subst h
     simp only [completeSharesErase, ↓reduceDIte]
-    rw [sub_eq_iff_eq_add, ← hs, ← Finset.add_sum_erase _ _ (Finset.mem_univ i)]
-    congr 1
-    rw [← Finset.sum_attach (Finset.univ.erase i)]
+    rw [sub_eq_iff_eq_add, ← hs, ← Finset.add_sum_erase _ _ (Finset.mem_univ i),
+      ← Finset.sum_attach]
     rfl
   · simp [completeSharesErase, h]
 
@@ -290,14 +256,12 @@ theorem eval_sampleAdditiveShares_eq_map_completeSharesErase {m : ℕ} [NeZero m
     eval (sampleAdditiveShares m target) =
       (PMF.uniformOfFintype ((i : Finset.univ.erase j₀) → G)).map
         (completeSharesErase j₀ target) := by
-  have hI : Finset.univ.erase j₀ ≠ Finset.univ := by
-    intro h
-    have hj : j₀ ∈ Finset.univ.erase j₀ := h.symm ▸ Finset.mem_univ j₀
-    exact (Finset.notMem_erase j₀ Finset.univ) hj
+  have hI : Finset.univ.erase j₀ ≠ Finset.univ :=
+    fun h => Finset.notMem_erase j₀ _ (h.symm ▸ Finset.mem_univ j₀)
   rw [← eval_restrict_sampleAdditiveShares (Finset.univ.erase j₀) hI target, PMF.map_comp]
   conv_lhs => rw [← PMF.map_id (eval (sampleAdditiveShares m target))]
-  refine PMF.map_congr_on_support _ _ _ fun s hs => ?_
-  exact (completeSharesErase_restrict_erase j₀ (sum_sampleAdditiveShares target hs)).symm
+  exact PMF.map_congr_on_support _ _ _ fun s hs =>
+    (completeSharesErase_restrict_erase j₀ (sum_sampleAdditiveShares target hs)).symm
 
 /-- Any distribution `p` on `Fin m → G` supported on tuples summing to `target` whose marginal on
 `Finset.univ.erase j₀` is uniform equals `eval (sampleAdditiveShares m target)`. -/

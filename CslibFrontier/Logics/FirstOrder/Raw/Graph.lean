@@ -139,8 +139,7 @@ theorem realize_tupleGadget {G : Type*} {E : G → G → Prop} {B : ℕ} {args :
     obtain ⟨b1, b2, b3, b4, b5⟩ := hb
     refine ⟨fun i => w' (B + i), b1, fun i hi => b2 i (by omega), b3, fun m hm => ?_,
       fun i hi => ?_⟩
-    · have := b4 m hm
-      rwa [show B + args.length - 1 = B + (args.length - 1) by omega] at this
+    · simpa only [show B + args.length - 1 = B + (args.length - 1) by omega] using b4 m hm
     have hx : args[i] < B := hB _ (List.getElem_mem hi)
     have := b5 i hi
     rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi, Option.getD_some,
@@ -219,8 +218,7 @@ theorem isTupleGadget_tupleGraph_iff {bs : List M} (h0 : 0 < bs.length) (hK : bs
     have hinr : ∀ i < bs.length, ∃ q, u i = .inr q := by
       intro i hi
       rcases h : u i with a | q
-      · exact (g1 i hi (by rw [h]; exact rfl)).elim
-      · exact ⟨q, rfl⟩
+      exacts [(g1 i hi (by rw [h]; exact rfl)).elim, ⟨q, rfl⟩]
     obtain ⟨q0, hq0⟩ := hinr 0 h0
     have hj0 : q0.val.2 = 0 := by
       by_contra hne
@@ -316,18 +314,13 @@ theorem atoms_toGraph (B : ℕ) (ψ : RawFormula) : ∀ a ∈ (toGraph B ψ).ato
 
 private theorem listRel_iff {G : Type*} {J : ℕ → List G → Prop} {as : List G} (h : as.length = 2) :
     J 0 as ↔ listRel (fun a b => J 0 [a, b]) as := by
-  rcases as with _ | ⟨a, _ | ⟨b, _ | ⟨c, as⟩⟩⟩
-  · simp at h
-  · simp at h
-  · exact Iff.rfl
-  · simp at h
+  rcases as with _ | ⟨a, _ | ⟨b, _ | ⟨c, as⟩⟩⟩ <;> first | exact Iff.rfl | simp at h
 
 private theorem realize_listRel_of_atoms {G : Type*} {J : ℕ → List G → Prop} {φ : RawFormula}
     (hφ : ∀ a ∈ φ.atoms, a = (0, 2)) (w : ℕ → G) :
     φ.Realize J w ↔ φ.Realize (fun _ => listRel fun a b => J 0 [a, b]) w := by
   refine realize_congr_rel φ w fun r as h => ?_
-  obtain ⟨hr, hl⟩ := Prod.mk.inj (hφ _ h)
-  subst hr
+  obtain ⟨rfl, hl⟩ := Prod.mk.inj (hφ _ h)
   exact listRel_iff hl
 
 /-- The largest arity of an atom of `φ`. -/
@@ -342,8 +335,7 @@ private theorem le_arityBound {φ : RawFormula} {a : ℕ × ℕ} (h : a ∈ φ.a
   | cons b l ih =>
     simp only [List.map_cons, List.foldr_cons]
     rcases List.mem_cons.1 h with rfl | h
-    · exact le_max_left _ _
-    · exact (ih h).trans (le_max_right _ _)
+    exacts [le_max_left _ _, (ih h).trans (le_max_right _ _)]
 
 theorem finSat_toGraph {ψ : RawFormula} (hψ : ∀ a ∈ ψ.atoms, a.1 = 0 ∧ 0 < a.2) :
     FinSat (toGraph ψ.varBound ψ) ↔ FinSat ψ := by
@@ -383,8 +375,7 @@ theorem finSat_toGraph {ψ : RawFormula} (hψ : ∀ a ∈ ψ.atoms, a.1 = 0 ∧ 
         (fun a ha => ⟨(hψ a ha).1, (hψ a ha).2, le_arityBound ha⟩) le_rfl
         (Sum.inl ∘ v) (e ∘ v) (fun x _ => rfl)).2 ((realize_equiv e I ψ v).2 h)
       intro r args w' u' hargs hwu' hQ
-      have hr : r = 0 := hQ.1
-      subst hr
+      obtain rfl : r = 0 := hQ.1
       have hmap : args.map w' = (args.map (e.symm ∘ u')).map Sum.inl := by
         rw [List.map_map]
         exact List.map_congr_left fun x hx =>

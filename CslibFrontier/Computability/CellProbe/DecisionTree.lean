@@ -41,7 +41,7 @@ namespace Cslib.CellProbe
 /-- View a 1-bit cell memory `Mem S 1` (`Fin S → Fin 2`) as a Boolean assignment `Fin S → Bool`
 (`0 ↦ false`, `1 ↦ true`). -/
 @[expose] def memToBool {S : ℕ} (m : Mem S 1) : Fin S → Bool :=
-  fun i => (m i).val == 1
+  fun i => (m i).1 == 1
 
 /-- Encode a Boolean assignment `x : Fin S → Bool` as a 1-bit cell memory `Mem S 1`
 (`false ↦ 0`, `true ↦ 1`). -/
@@ -70,7 +70,7 @@ namespace ProbeTree
   | .leaf a => pure a
   | .node i ifFalse ifTrue => do
       let v ← read i
-      if v.val == 1 then ofDecisionTree ifTrue else ofDecisionTree ifFalse
+      if v.1 == 1 then ofDecisionTree ifTrue else ofDecisionTree ifFalse
 
 @[simp]
 theorem run_ofDecisionTree {S : ℕ} {α : Type} (t : DecisionTree (Fin S) α) (m : Mem S 1) :
@@ -78,7 +78,7 @@ theorem run_ofDecisionTree {S : ℕ} {α : Type} (t : DecisionTree (Fin S) α) (
   induction t with
   | leaf a => rfl
   | node i ifFalse ifTrue ihF ihT =>
-    change (if (m i).val == 1 then ofDecisionTree ifTrue else ofDecisionTree ifFalse).run m =
+    change (if (m i).1 == 1 then ofDecisionTree ifTrue else ofDecisionTree ifFalse).run m =
       (cond (memToBool m i) (ifTrue.eval (memToBool m)) (ifFalse.eval (memToBool m)), m)
     cases hbit : memToBool m i <;> simp only [memToBool] at hbit <;> simp [hbit, ihF, ihT]
 
@@ -88,7 +88,7 @@ theorem probes_ofDecisionTree {S : ℕ} {α : Type} (t : DecisionTree (Fin S) α
   induction t with
   | leaf a => rfl
   | node i ifFalse ifTrue ihF ihT =>
-    change 1 + (if (m i).val == 1 then ofDecisionTree ifTrue
+    change 1 + (if (m i).1 == 1 then ofDecisionTree ifTrue
       else ofDecisionTree ifFalse).probes m =
       cond (memToBool m i) (ifTrue.cost (memToBool m)) (ifFalse.cost (memToBool m)) + 1
     cases hbit : memToBool m i <;> simp only [memToBool] at hbit <;>
@@ -101,7 +101,7 @@ theorem probedCells_ofDecisionTree {S : ℕ} {α : Type} (t : DecisionTree (Fin 
   induction t with
   | leaf a => rfl
   | node i ifFalse ifTrue ihF ihT =>
-    change insert i ((if (m i).val == 1 then ofDecisionTree ifTrue
+    change insert i ((if (m i).1 == 1 then ofDecisionTree ifTrue
       else ofDecisionTree ifFalse).probedCells m) =
       insert i (cond (memToBool m i) (ifTrue.queries (memToBool m)) (ifFalse.queries (memToBool m)))
     cases hbit : memToBool m i <;> simp only [memToBool] at hbit <;> simp [hbit, ihF, ihT]
@@ -113,16 +113,13 @@ theorem depth_ofDecisionTree {S : ℕ} {α : Type} (t : DecisionTree (Fin S) α)
   | leaf a => rfl
   | node i ifFalse ifTrue ihF ihT =>
     change (Finset.univ : Finset (Fin (2 ^ 1))).sup (fun v : Fin (2 ^ 1) =>
-      (if v.val == 1 then ofDecisionTree ifTrue else ofDecisionTree ifFalse).depth) + 1 =
+      (if v.1 == 1 then ofDecisionTree ifTrue else ofDecisionTree ifFalse).depth) + 1 =
       max ifFalse.depth ifTrue.depth + 1
     have huniv : (Finset.univ : Finset (Fin (2 ^ 1))) = {⟨0, by decide⟩, ⟨1, by decide⟩} := by
-      ext ⟨v, hv⟩
-      simp only [Finset.mem_univ, Finset.mem_insert, Finset.mem_singleton, Fin.ext_iff, true_iff]
-      omega
-    rw [huniv]
-    simp only [Finset.sup_insert, Finset.sup_singleton]
-    have h0 : ((⟨0, by decide⟩ : Fin (2 ^ 1)).val == 1) = false := rfl
-    have h1 : ((⟨1, by decide⟩ : Fin (2 ^ 1)).val == 1) = true := rfl
+      decide
+    rw [huniv, Finset.sup_insert, Finset.sup_singleton]
+    have h0 : ((⟨0, by decide⟩ : Fin (2 ^ 1)).1 == 1) = false := rfl
+    have h1 : ((⟨1, by decide⟩ : Fin (2 ^ 1)).1 == 1) = true := rfl
     simp only [h0, Bool.false_eq_true, ↓reduceIte, h1, ihF, ihT, Nat.max_def]
 
 end ProbeTree

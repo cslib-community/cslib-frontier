@@ -45,12 +45,10 @@ theorem Multigraph.edgeCut_sdiff_eq_empty {V E : Type*} {G : Multigraph V E} {S 
   intro e
   have hWe := G.edgeCut_eq_empty_iff.mp hW e
   by_cases heW : G.src e ∈ W
-  · have htW : G.tgt e ∈ W := hWe.mp heW
-    simp only [Set.mem_sdiff, heW, htW, not_true_eq_false, and_false]
+  · simp only [Set.mem_sdiff, heW, hWe.mp heW, not_true_eq_false, and_false]
   · have htW : G.tgt e ∉ W := mt hWe.mpr heW
-    have hnot_touch : e ∉ G.touching W := by
-      simp only [Multigraph.mem_touching, heW, htW, or_self, not_false_eq_true]
-    have hnot_cutS : e ∉ G.edgeCut S := fun h => hnot_touch (hSW h)
+    have hnot_cutS : e ∉ G.edgeCut S := fun h => by
+      simpa only [Multigraph.mem_touching, heW, htW, or_self] using hSW h
     rw [Multigraph.mem_edgeCut, not_not] at hnot_cutS
     simp only [Set.mem_sdiff, heW, htW, not_false_eq_true, and_true, hnot_cutS]
 
@@ -112,11 +110,9 @@ theorem LayoutBound.exists_layout_componentwise {d : ℕ} {A : ℝ} (h : LayoutB
   -- The components before `K`.
   set B : Set V := {u | num (Γ.connectedComponentMk u) < num K}
   have hB : G.edgeCut B = ∅ := G.edgeCut_setOf_connectedComponentMk (num · < num K)
-  have hBK (S : Set K.supp) : Disjoint B (Subtype.val '' S) := by
-    refine disjoint_left.2 fun u hu ⟨u', _, hu'⟩ => ?_
-    have hu : num (Γ.connectedComponentMk u) < num K := hu
-    rw [← hu', u'.property] at hu
-    exact lt_irrefl _ hu
+  have hBK (S : Set K.supp) : Disjoint B (Subtype.val '' S) :=
+    disjoint_left.2 fun u (hu : num (Γ.connectedComponentMk u) < num K) ⟨u', _, hu'⟩ => by
+      rw [← hu', u'.2] at hu; exact lt_irrefl _ hu
   -- The first `t` vertices are the components before `K` and the first `p` vertices of `K`.
   have hinit : π.initial t = B ∪ Subtype.val '' (ρ K).initial p := by
     ext u
@@ -127,13 +123,12 @@ theorem LayoutBound.exists_layout_componentwise {d : ℕ} {A : ℝ} (h : LayoutB
     · obtain hu := num.injective hu
       exact ⟨⟨u, hu⟩, by rwa [← hpos u K hu], rfl⟩
     · subst hu'u
-      refine ⟨congrArg num u'.property, ?_⟩
-      rwa [hpos _ K u'.property]
+      refine ⟨congrArg num u'.2, ?_⟩
+      rwa [hpos _ K u'.2]
   have hinit' : π.initial (t + 1) = B ∪ Subtype.val '' (ρ K).initial (p + 1) := by
     rw [π.initial_succ ht, hinit, (ρ K).initial_succ hp, image_insert_eq, union_insert]
     congr 1
-    change v = ((ρ K).symm (ρ K ⟨v, rfl⟩) : V)
-    rw [Equiv.symm_apply_apply]
+    exact (congrArg Subtype.val ((ρ K).symm_apply_apply ⟨v, rfl⟩)).symm
   -- Both frontiers are frontiers of the layout of `K`.
   have hfront (q : ℕ) : G.edgeCut (B ∪ Subtype.val '' (ρ K).initial q) =
       Subtype.val '' (G.induce K.supp).frontier (ρ K) q := by
@@ -145,6 +140,6 @@ theorem LayoutBound.exists_layout_componentwise {d : ℕ} {A : ℝ} (h : LayoutB
     · exact ⟨p, by rw [Multigraph.frontier, hinit, hfront]⟩
     · exact ⟨p + 1, by rw [Multigraph.frontier, hinit', hfront]⟩
   rw [hq, ncard_image_of_injective _ Subtype.val_injective]
-  exact ⟨fun _ ⟨e, _, he⟩ => he ▸ Or.inl e.property.1, hρ K q⟩
+  exact ⟨fun _ ⟨e, _, he⟩ => he ▸ Or.inl e.2.1, hρ K q⟩
 
 end Cslib.Circuits.Frontier

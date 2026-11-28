@@ -292,7 +292,7 @@ private def rrvPotential {t d : ℕ} (prev : List (Fin t → Fin d)) :
     (u : ℕ) → u ≤ t → (Fin u → Fin d) → ℕ :=
   fun u hu chosen =>
     (prev.map fun g =>
-      (∏ a : Fin u, if chosen a = g ⟨a.val, lt_of_lt_of_le a.isLt hu⟩ then 2 * d else d) *
+      (∏ a : Fin u, if chosen a = g ⟨a.1, lt_of_lt_of_le a.2 hu⟩ then 2 * d else d) *
         (d + 1) ^ (t - u)).sum
 
 private theorem rrvPotential_zero {t d : ℕ} (prev : List (Fin t → Fin d)) :
@@ -306,16 +306,16 @@ private theorem sum_rrvPotential_snoc {t d : ℕ} (prev : List (Fin t → Fin d)
   have hsingle (g : Fin t → Fin d) :
       (∑ v : Fin d,
         (∏ a : Fin (u + 1),
-          if Fin.snoc (α := fun _ => Fin d) chosen v a = g ⟨a.val, lt_of_lt_of_le a.isLt hu⟩
+          if Fin.snoc (α := fun _ => Fin d) chosen v a = g ⟨a.1, lt_of_lt_of_le a.2 hu⟩
           then 2 * d else d) *
         (d + 1) ^ (t - (u + 1))) =
-      d * ((∏ a : Fin u, if chosen a = g ⟨a.val, lt_of_lt_of_le a.isLt hu.le⟩ then 2 * d else d) *
+      d * ((∏ a : Fin u, if chosen a = g ⟨a.1, lt_of_lt_of_le a.2 hu.le⟩ then 2 * d else d) *
         (d + 1) ^ (t - u)) := by
     have hprod (v : Fin d) :
         (∏ a : Fin (u + 1),
-          if Fin.snoc (α := fun _ => Fin d) chosen v a = g ⟨a.val, lt_of_lt_of_le a.isLt hu⟩
+          if Fin.snoc (α := fun _ => Fin d) chosen v a = g ⟨a.1, lt_of_lt_of_le a.2 hu⟩
           then 2 * d else d) =
-        (∏ a : Fin u, if chosen a = g ⟨a.val, lt_of_lt_of_le a.isLt hu.le⟩ then 2 * d else d) *
+        (∏ a : Fin u, if chosen a = g ⟨a.1, lt_of_lt_of_le a.2 hu.le⟩ then 2 * d else d) *
           (if v = g ⟨u, hu⟩ then 2 * d else d) := by
       rw [Fin.prod_univ_castSucc]
       simp [Fin.snoc_castSucc, Fin.snoc_last]
@@ -330,20 +330,9 @@ private theorem sum_rrvPotential_snoc {t d : ℕ} (prev : List (Fin t → Fin d)
       simp only [Finset.mem_univ, ↓reduceIte]
       ring
     have hpow : (d + 1) ^ (t - u) = (d + 1) * (d + 1) ^ (t - (u + 1)) := by
-      have hsub : t - u = (t - (u + 1)) + 1 := by omega
-      rw [hsub, pow_succ']
-    calc ∑ v : Fin d,
-            ((∏ a : Fin u, if chosen a = g ⟨a.val, lt_of_lt_of_le a.isLt hu.le⟩ then 2 * d else d) *
-              (if v = g ⟨u, hu⟩ then 2 * d else d)) * (d + 1) ^ (t - (u + 1))
-        = (∏ a : Fin u, if chosen a = g ⟨a.val, lt_of_lt_of_le a.isLt hu.le⟩ then 2 * d else d) *
-            (d + 1) ^ (t - (u + 1)) * ∑ v : Fin d, (if v = g ⟨u, hu⟩ then 2 * d else d) := by
-          rw [Finset.mul_sum]
-          refine Finset.sum_congr rfl fun v _ => by ring
-      _ = (∏ a : Fin u, if chosen a = g ⟨a.val, lt_of_lt_of_le a.isLt hu.le⟩ then 2 * d else d) *
-            (d + 1) ^ (t - (u + 1)) * (d * (d + 1)) := by rw [hsumv]
-      _ = d * ((∏ a : Fin u,
-              if chosen a = g ⟨a.val, lt_of_lt_of_le a.isLt hu.le⟩ then 2 * d else d) *
-            (d + 1) ^ (t - u)) := by rw [hpow]; ring
+      rw [show t - u = t - (u + 1) + 1 by omega, pow_succ']
+    rw [← Finset.sum_mul, ← Finset.mul_sum, hsumv, hpow]
+    ring
   induction prev with
   | nil => simp [rrvPotential]
   | cons g gs ih =>
@@ -441,7 +430,7 @@ private theorem prod_two_mul_ite_eq {t d : ℕ} (f g : Fin t → Fin d) :
     Finset.prod_ite, Finset.prod_const_one, mul_one, Finset.prod_const]
 
 private theorem list_sum_eq_sum_fin {l : List ℕ} :
-    l.sum = ∑ i : Fin l.length, l[i.val] := by
+    l.sum = ∑ i : Fin l.length, l[i.1] := by
   induction l with
   | nil => simp
   | cons a tl ih =>
@@ -452,14 +441,14 @@ private theorem list_sum_eq_sum_fin {l : List ℕ} :
 produces a `WeakDesign (t * d) t m (((d + 1 : ℝ) / d) ^ t)` via conditional expectations. -/
 def rrvWeakDesign (t d m : ℕ) (hd : 0 < d) :
     WeakDesign (t * d) t m (((d + 1 : ℝ) / d) ^ t) where
-  block i := graphBlock ((rrvFunctions t d hd m)[i.val]'(by rw [length_rrvFunctions]; exact i.isLt))
+  block i := graphBlock ((rrvFunctions t d hd m)[i.1]'(by rw [length_rrvFunctions]; exact i.2))
   card_block i := card_graphBlock _
   sum_two_pow_inter_le i := by
-    set prev := rrvFunctions t d hd i.val
-    have hfi : (rrvFunctions t d hd m)[i.val]'(by rw [length_rrvFunctions]; exact i.isLt) =
+    set prev := rrvFunctions t d hd i.1
+    have hfi : (rrvFunctions t d hd m)[i.1]'(by rw [length_rrvFunctions]; exact i.2) =
         rrvBuildPrefix hd prev t le_rfl := by
-      have hpre := getElem_rrvFunctions_prefix (t := t) hd (Nat.succ_le_of_lt i.isLt) i.val
-        (Nat.lt_succ_self i.val)
+      have hpre := getElem_rrvFunctions_prefix (t := t) hd (Nat.succ_le_of_lt i.2) i.1
+        (Nat.lt_succ_self i.1)
       rw [hpre]
       simp only [rrvFunctions, prev]
       rw [List.getElem_append_right (by rw [length_rrvFunctions])]
@@ -469,43 +458,43 @@ def rrvWeakDesign (t d m : ℕ) (hd : 0 < d) :
     have hpot_eq : rrvPotential prev t le_rfl (rrvBuildPrefix hd prev t le_rfl) =
         d ^ t * ∑ j : Fin i,
           2 ^ #(graphBlock (rrvBuildPrefix hd prev t le_rfl) ∩
-            graphBlock ((rrvFunctions t d hd m)[j.val]'(by
-              rw [length_rrvFunctions]; exact lt_trans j.isLt i.isLt))) := by
+            graphBlock ((rrvFunctions t d hd m)[j.1]'(by
+              rw [length_rrvFunctions]; exact lt_trans j.2 i.2))) := by
       unfold rrvPotential
       simp only [Nat.sub_self, pow_zero, mul_one]
-      have hlen : prev.length = i.val := length_rrvFunctions t d hd i.val
+      have hlen : prev.length = i.1 := length_rrvFunctions t d hd i.1
       rw [list_sum_eq_sum_fin]
       have hmap_len : (prev.map fun g =>
           ∏ a : Fin t, if rrvBuildPrefix hd prev t le_rfl a = g a then 2 * d else d).length =
-          i.val := by rw [List.length_map, hlen]
+          i.1 := by rw [List.length_map, hlen]
       rw [Finset.mul_sum]
       refine Fintype.sum_equiv (finCongr hmap_len) _ _ fun j => ?_
       simp only [List.getElem_map, finCongr_apply, Fin.val_cast]
       rw [prod_two_mul_ite_eq, ← card_inter_graphBlock]
-      have hj_eq : prev[j.val]'(by rw [hlen]; exact j.isLt.trans_eq hmap_len) =
-          (rrvFunctions t d hd m)[j.val]'(by
-            rw [length_rrvFunctions]; exact lt_trans (j.isLt.trans_eq hmap_len) i.isLt) :=
-        (getElem_rrvFunctions_prefix hd i.isLt.le j.val (j.isLt.trans_eq hmap_len)).symm
+      have hj_eq : prev[j.1]'(by rw [hlen]; exact j.2.trans_eq hmap_len) =
+          (rrvFunctions t d hd m)[j.1]'(by
+            rw [length_rrvFunctions]; exact lt_trans (j.2.trans_eq hmap_len) i.2) :=
+        (getElem_rrvFunctions_prefix hd i.2.le j.1 (j.2.trans_eq hmap_len)).symm
       rw [hj_eq]
     rw [hpot_eq] at hpot
     have hd_pos : (0 : ℝ) < d := by exact_mod_cast hd
     have hpot_r : (d : ℝ) ^ t * (∑ j : Fin i,
-        (2 : ℝ) ^ #(graphBlock ((rrvFunctions t d hd m)[i.val]'(by
-          rw [length_rrvFunctions]; exact i.isLt)) ∩
-          graphBlock ((rrvFunctions t d hd m)[j.val]'(by
-            rw [length_rrvFunctions]; exact lt_trans j.isLt i.isLt)))) ≤
-        (i.val : ℝ) * ((d : ℝ) + 1) ^ t := by
+        (2 : ℝ) ^ #(graphBlock ((rrvFunctions t d hd m)[i.1]'(by
+          rw [length_rrvFunctions]; exact i.2)) ∩
+          graphBlock ((rrvFunctions t d hd m)[j.1]'(by
+            rw [length_rrvFunctions]; exact lt_trans j.2 i.2)))) ≤
+        (i.1 : ℝ) * ((d : ℝ) + 1) ^ t := by
       rw [hfi]
       exact_mod_cast hpot
     have hdiv : (∑ j : Fin i,
-        (2 : ℝ) ^ #(graphBlock ((rrvFunctions t d hd m)[i.val]'(by
-          rw [length_rrvFunctions]; exact i.isLt)) ∩
-          graphBlock ((rrvFunctions t d hd m)[j.val]'(by
-            rw [length_rrvFunctions]; exact lt_trans j.isLt i.isLt)))) ≤
-        (i.val : ℝ) * (((d : ℝ) + 1) / d) ^ t := by
+        (2 : ℝ) ^ #(graphBlock ((rrvFunctions t d hd m)[i.1]'(by
+          rw [length_rrvFunctions]; exact i.2)) ∩
+          graphBlock ((rrvFunctions t d hd m)[j.1]'(by
+            rw [length_rrvFunctions]; exact lt_trans j.2 i.2)))) ≤
+        (i.1 : ℝ) * (((d : ℝ) + 1) / d) ^ t := by
       rw [div_pow, mul_div_assoc', le_div_iff₀ (by positivity)]
       linarith
-    have him : (i.val : ℝ) ≤ m := by exact_mod_cast i.isLt.le
+    have him : (i.1 : ℝ) ≤ m := by exact_mod_cast i.2.le
     refine hdiv.trans ?_
     rw [mul_comm]
     exact mul_le_mul_of_nonneg_left him (by positivity)
@@ -528,7 +517,7 @@ def rrvWeakDesignTwo (t m : ℕ) (ht : 0 < t) : WeakDesign (t * (2 * t)) t m 2 :
             ≤ (Real.exp ((2 * (t : ℝ))⁻¹)) ^ t :=
               pow_le_pow_left₀ (by positivity)
                 (by linarith [Real.add_one_le_exp ((2 * (t : ℝ))⁻¹)]) t
-          _ = Real.exp ((t : ℝ) * (2 * (t : ℝ))⁻¹) := by rw [← Real.exp_natCast_mul]
+          _ = Real.exp ((t : ℝ) * (2 * (t : ℝ))⁻¹) := by rw [← Real.exp_nat_mul]
           _ = Real.exp ((1 : ℝ) / 2) := by congr 1; field_simp
       have hexp2 : Real.exp ((1 : ℝ) / 2) ≤ 2 := by
         have hsq : Real.exp ((1 : ℝ) / 2) ^ 2 ≤ (2 : ℝ) ^ 2 := by
@@ -563,7 +552,7 @@ private theorem rsDeg_le (n w : ℕ) (hw : 0 < w) : rsDeg n w ≤ n := by
 private noncomputable def rsChunk (n w : ℕ) (hw : w ≠ 0) (x : BitString n)
     (c : Fin (rsDeg n w)) : BinaryField w :=
   (BinaryField.equivBits hw).symm fun j : Fin w =>
-    if h : c.val * w + j.val < n then x ⟨c.val * w + j.val, h⟩ else false
+    if h : c.1 * w + j.1 < n then x ⟨c.1 * w + j.1, h⟩ else false
 
 private theorem rsChunk_add (n w : ℕ) (hw : w ≠ 0) (x y : BitString n)
     (c : Fin (rsDeg n w)) :
@@ -572,7 +561,7 @@ private theorem rsChunk_add (n w : ℕ) (hw : w ≠ 0) (x y : BitString n)
   rw [← map_add]
   congr 1
   funext j
-  by_cases h : c.val * w + j.val < n
+  by_cases h : c.1 * w + j.1 < n
   · simp [h]
   · simp [h, ← Bool.zero_eq_false]
 
@@ -581,32 +570,32 @@ private theorem rsChunk_injective (n w : ℕ) (hw : w ≠ 0) :
   intro x y h
   funext i
   have hw0 : 0 < w := Nat.pos_of_ne_zero hw
-  have hlt : i.val / w < rsDeg n w := by
+  have hlt : i.1 / w < rsDeg n w := by
     unfold rsDeg
     rw [Nat.div_lt_iff_lt_mul hw0]
-    have hrem : i.val / w * w ≤ i.val := by
-      rw [mul_comm]; exact Nat.mul_div_le i.val w
+    have hrem : i.1 / w * w ≤ i.1 := by
+      rw [mul_comm]; exact Nat.mul_div_le i.1 w
     have hdiv : n ≤ (n + w - 1) / w * w := by
       have h1 := Nat.div_add_mod (n + w - 1) w
       have h2 := Nat.mod_lt (n + w - 1) hw0
       have h3 : w * ((n + w - 1) / w) = (n + w - 1) / w * w := mul_comm _ _
       omega
-    have hi : i.val < n := i.isLt
+    have hi : i.1 < n := i.2
     have hmul_comm : w * ((n + w - 1) / w) = (n + w - 1) / w * w := mul_comm _ _
     omega
-  have hc := congrArg (BinaryField.equivBits hw) (congrFun h ⟨i.val / w, hlt⟩)
+  have hc := congrArg (BinaryField.equivBits hw) (congrFun h ⟨i.1 / w, hlt⟩)
   simp only [rsChunk, AddEquiv.apply_symm_apply] at hc
-  have hj := congrFun hc ⟨i.val % w, Nat.mod_lt i.val hw0⟩
-  have hidx : i.val / w * w + i.val % w = i.val := by
-    rw [mul_comm]; exact Nat.div_add_mod i.val w
-  have hbound : i.val / w * w + i.val % w < n := hidx.symm ▸ i.isLt
+  have hj := congrFun hc ⟨i.1 % w, Nat.mod_lt i.1 hw0⟩
+  have hidx : i.1 / w * w + i.1 % w = i.1 := by
+    rw [mul_comm]; exact Nat.div_add_mod i.1 w
+  have hbound : i.1 / w * w + i.1 % w < n := hidx.symm ▸ i.2
   simp only [hbound, ↓reduceDIte] at hj
   simpa only [Fin.ext_iff, hidx] using hj
 
 /-- Reed–Solomon polynomial evaluation over `BinaryField w` of the `n`-bit message `x`. -/
 private noncomputable def rsEval (n w : ℕ) (hw : w ≠ 0) (x : BitString n)
     (a : BinaryField w) : BinaryField w :=
-  ∑ c : Fin (rsDeg n w), rsChunk n w hw x c * a ^ c.val
+  ∑ c : Fin (rsDeg n w), rsChunk n w hw x c * a ^ c.1
 
 private theorem rsEval_add (n w : ℕ) (hw : w ≠ 0) (x y : BitString n) (a : BinaryField w) :
     rsEval n w hw (x + y) a = rsEval n w hw x a + rsEval n w hw y a := by
@@ -677,22 +666,22 @@ theorem hammingDist_rsHadamardCode_ge (n w : ℕ) (hw : w ≠ 0) {x y : BitStrin
           (((Polynomial.degreeLTEquiv (BinaryField w) (rsDeg n w)).symm (rsChunk n w hw m) :
             Polynomial (BinaryField w))).eval a = rsEval n w hw m a := by
         rw [Polynomial.eval_eq_sum_degreeLTEquiv
-          ((Polynomial.degreeLTEquiv (BinaryField w) (rsDeg n w)).symm (rsChunk n w hw m)).property,
+          ((Polynomial.degreeLTEquiv (BinaryField w) (rsDeg n w)).symm (rsChunk n w hw m)).2,
           Subtype.coe_eta, LinearEquiv.apply_symm_apply]
         rfl
       have hmem (m : BitString n) :
           rsEval n w hw m ∈ Code.reedSolomon (id : BinaryField w → BinaryField w) (rsDeg n w) := by
         refine Code.mem_reedSolomon.mpr ?_
         let P := (Polynomial.degreeLTEquiv (BinaryField w) (rsDeg n w)).symm (rsChunk n w hw m)
-        exact ⟨P.val, Polynomial.mem_degreeLT.mp P.property, funext fun a => heval m a⟩
+        exact ⟨P.1, Polynomial.mem_degreeLT.mp P.2, funext fun a => heval m a⟩
       have hne_eval : rsEval n w hw x ≠ rsEval n w hw y := by
         intro heq
         let P := (Polynomial.degreeLTEquiv (BinaryField w) (rsDeg n w)).symm (rsChunk n w hw x)
         let Q := (Polynomial.degreeLTEquiv (BinaryField w) (rsDeg n w)).symm (rsChunk n w hw y)
-        have hPQ : P.val = Q.val := by
+        have hPQ : P.1 = Q.1 := by
           refine Polynomial.eq_of_degree_sub_lt_of_eval_finset_eq Finset.univ ?_ fun a _ => ?_
-          · have hsub : (P.val - Q.val).degree < rsDeg n w :=
-              Polynomial.mem_degreeLT.mp (Submodule.sub_mem _ P.property Q.property)
+          · have hsub : (P.1 - Q.1).degree < rsDeg n w :=
+              Polynomial.mem_degreeLT.mp (Submodule.sub_mem _ P.2 Q.2)
             refine hsub.trans_le ?_
             rw [Finset.card_univ, BinaryField.card hw]
             exact_mod_cast hdeg
@@ -705,20 +694,7 @@ theorem hammingDist_rsHadamardCode_ge (n w : ℕ) (hw : w ≠ 0) {x y : BitStrin
       have hdist := Nat.cast_le.mp (Code.le_minDist_iff.mp hmin _ (hmem x) _ (hmem y) hne_eval)
       rw [BinaryField.card hw] at hdist
       omega
-    · rw [Nat.sub_eq_zero_of_le (le_of_not_ge hdeg)]
-      exact Nat.zero_le _
-  have hprod : 2 ^ (w - 1) * (2 ^ w - rsDeg n w) ≤
-      hammingDist (Code.concat (fun a : BinaryField w => hadamardCode (BinaryField.equivBits hw a))
-        (rsEval n w hw x))
-        (Code.concat (fun a : BinaryField w => hadamardCode (BinaryField.equivBits hw a))
-          (rsEval n w hw y)) :=
-    (Nat.mul_le_mul_left _ houter).trans hconcat
-  have hprod_r : ((2 ^ (w - 1) * (2 ^ w - rsDeg n w) : ℕ) : ℝ) ≤
-      (hammingDist (Code.concat (fun a : BinaryField w => hadamardCode (BinaryField.equivBits hw a))
-        (rsEval n w hw x))
-        (Code.concat (fun a : BinaryField w => hadamardCode (BinaryField.equivBits hw a))
-          (rsEval n w hw y)) : ℝ) := by exact_mod_cast hprod
-  refine le_trans ?_ hprod_r
+    · omega
   have h2w : (2 : ℝ) ^ (w - 1) * 2 = (2 : ℝ) ^ w := by
     conv_rhs => rw [show w = (w - 1) + 1 by omega, pow_succ]
   have hsub_le : (2 : ℝ) ^ w - (rsDeg n w : ℝ) ≤ ((2 ^ w - rsDeg n w : ℕ) : ℝ) := by
@@ -734,7 +710,7 @@ theorem hammingDist_rsHadamardCode_ge (n w : ℕ) (hw : w ≠ 0) {x y : BitStrin
         nlinarith [h2w]
     _ ≤ (2 : ℝ) ^ (w - 1) * ((2 ^ w - rsDeg n w : ℕ) : ℝ) :=
         mul_le_mul_of_nonneg_left hsub_le (by positivity)
-    _ = ((2 ^ (w - 1) * (2 ^ w - rsDeg n w) : ℕ) : ℝ) := by push_cast; rfl
+    _ ≤ _ := by exact_mod_cast (Nat.mul_le_mul_left _ houter).trans hconcat
 
 /-- **Binary Johnson list-decoding bound for `rsHadamardCode`**: whenever `0 ≤ δ` and
 `rsDeg n w / (2 * 2 ^ w) ≤ δ ^ 2`, every received word `recv : BitString (w + w) → Bool` agrees
@@ -786,7 +762,7 @@ private noncomputable def trevHybrid {ℓ t m n : ℕ} {r : ℝ} (D : WeakDesign
   X.bind fun x =>
     (PMF.uniformOfFintype (BitString ℓ)).bind fun z =>
       (PMF.uniformOfFintype (BitString m)).map fun u =>
-        (z, fun j : Fin m => if j.val < i then trevisanExt D enc x z j else u j)
+        (z, fun j : Fin m => if j.1 < i then trevisanExt D enc x z j else u j)
 
 private theorem trevHybrid_zero {ℓ t m n : ℕ} {r : ℝ} (D : WeakDesign ℓ t m r)
     (enc : BitString n → BitString t → Bool) (X : PMF (BitString n)) :
@@ -804,9 +780,9 @@ private theorem trevHybrid_m {ℓ t m n : ℕ} {r : ℝ} (D : WeakDesign ℓ t m
   simp only [PMF.map, Function.comp_def]
   refine congrArg ((PMF.uniformOfFintype (BitString ℓ)).bind ·) (funext fun z => ?_)
   have hfun : (fun u : BitString m =>
-      PMF.pure (z, fun j : Fin m => if j.val < m then trevisanExt D enc x z j else u j)) =
+      PMF.pure (z, fun j : Fin m => if j.1 < m then trevisanExt D enc x z j else u j)) =
       fun _ => PMF.pure (z, trevisanExt D enc x z) :=
-    funext fun _ => congrArg PMF.pure (Prod.ext rfl (funext fun j => by simp [j.isLt]))
+    funext fun _ => congrArg PMF.pure (Prod.ext rfl (funext fun j => by simp [j.2]))
   rw [hfun, PMF.bind_const]
 
 /-- Next-bit predictor for a distinguisher `T : BitString ℓ × BitString m → Bool` that observes
@@ -818,7 +794,7 @@ private def strongGuess {ℓ t m : ℕ} {r : ℝ} (D : WeakDesign ℓ t m r)
     (z_i : BitString t) : Bool :=
   let z := D.extend i z_i w
   let y : BitString m := fun j =>
-    if h : j.val < i.val then prefixBits ⟨j.val, h⟩ (fun k => z_i k.val)
+    if h : j.1 < i.1 then prefixBits ⟨j.1, h⟩ (fun k => z_i k.1)
     else if j = i then b else u j
   if T (z, y) then b else !b
 
@@ -835,7 +811,7 @@ private def overlapTables {ℓ t m n : ℕ} {r : ℝ} (D : WeakDesign ℓ t m r)
 private theorem overlapTables_eval {ℓ t m n : ℕ} {r : ℝ} (D : WeakDesign ℓ t m r)
     (enc : BitString n → BitString t → Bool) (i : Fin m) (w : BitString ℓ) (x : BitString n)
     (j : Fin i) (z_i : BitString t) :
-    overlapTables D enc i w x j (fun k => z_i k.val) =
+    overlapTables D enc i w x j (fun k => z_i k.1) =
       trevisanExt D enc x (D.extend i z_i w) (Fin.castLE i.isLt.le j) := by
   simp only [overlapTables, trevisanExt]
   exact congrArg (enc x) (D.dependsOn_restrict_extend i (Fin.castLE i.isLt.le j) w
@@ -853,14 +829,14 @@ private theorem strongGuess_avg_eq {ℓ t m n : ℕ} {r : ℝ} (D : WeakDesign �
             ((#{z_i : BitString t |
                 strongGuess D T i w b u (overlapTables D enc i w x) z_i = enc x z_i} : ℝ) /
               (2 : ℝ) ^ t) =
-      1 / 2 + (((trevHybrid D enc X (i.val + 1)).map T true).toReal -
-        ((trevHybrid D enc X i.val).map T true).toReal) := by
+      1 / 2 + (((trevHybrid D enc X (i.1 + 1)).map T true).toReal -
+        ((trevHybrid D enc X i.1).map T true).toReal) := by
   have hcard_t : (Fintype.card (BitString t) : ℝ) = (2 : ℝ) ^ t := by
     simp [Fintype.card_bool, Fintype.card_fin]
   have hinner_b (x : BitString n) (w : BitString ℓ) (u : BitString m) (z_i : BitString t) :
       let z := D.extend i z_i w
       let y_of (c : Bool) : BitString m := fun j =>
-        if j.val < i.val then trevisanExt D enc x z j else if j = i then c else u j
+        if j.1 < i.1 then trevisanExt D enc x z j else if j = i then c else u j
       ∑ b : Bool, ((PMF.uniformOfFintype Bool) b).toReal *
         (if strongGuess D T i w b u (overlapTables D enc i w x) z_i = enc x z_i
           then (1 : ℝ) else 0) =
@@ -870,24 +846,24 @@ private theorem strongGuess_avg_eq {ℓ t m n : ℕ} {r : ℝ} (D : WeakDesign �
     dsimp only
     have hy_eq (b : Bool) :
         (fun j : Fin m =>
-          if h : j.val < i.val then overlapTables D enc i w x ⟨j.val, h⟩ (fun k => z_i k.val)
+          if h : j.1 < i.1 then overlapTables D enc i w x ⟨j.1, h⟩ (fun k => z_i k.1)
           else if j = i then b else u j) =
         fun j : Fin m =>
-          if j.val < i.val then trevisanExt D enc x (D.extend i z_i w) j
+          if j.1 < i.1 then trevisanExt D enc x (D.extend i z_i w) j
           else if j = i then b else u j := by
       funext j
-      by_cases hj : j.val < i.val
+      by_cases hj : j.1 < i.1
       · simp only [hj, ↓reduceDIte, ↓reduceIte]
-        exact overlapTables_eval D enc i w x ⟨j.val, hj⟩ z_i
+        exact overlapTables_eval D enc i w x ⟨j.1, hj⟩ z_i
       · simp only [hj, ↓reduceDIte, ↓reduceIte]
     rw [Fintype.sum_bool, Fintype.sum_bool]
     simp only [strongGuess, hy_eq, PMF.uniformOfFintype_apply, Fintype.card_bool, Nat.cast_ofNat,
       ENNReal.toReal_inv, ENNReal.toReal_ofNat]
     cases enc x z_i <;> cases T (D.extend i z_i w, fun j =>
-      if j.val < i.val then trevisanExt D enc x (D.extend i z_i w) j
+      if j.1 < i.1 then trevisanExt D enc x (D.extend i z_i w) j
       else if j = i then true else u j) <;>
       cases T (D.extend i z_i w, fun j =>
-        if j.val < i.val then trevisanExt D enc x (D.extend i z_i w) j
+        if j.1 < i.1 then trevisanExt D enc x (D.extend i z_i w) j
         else if j = i then false else u j) <;>
       norm_num
   -- Rewrite `((trevHybrid ...).map T true).toReal` using `D.uniformOfFintype_bind_eq i`.
@@ -898,7 +874,7 @@ private theorem strongGuess_avg_eq {ℓ t m n : ℕ} {r : ℝ} (D : WeakDesign �
             ∑ z_i : BitString t, ((PMF.uniformOfFintype (BitString t)) z_i).toReal *
               ∑ u : BitString m, ((PMF.uniformOfFintype (BitString m)) u).toReal *
                 (if T (D.extend i z_i w, fun j : Fin m =>
-                    if j.val < k then trevisanExt D enc x (D.extend i z_i w) j else u j) = true
+                    if j.1 < k then trevisanExt D enc x (D.extend i z_i w) j else u j) = true
                   then (1 : ℝ) else 0) := by
     have hmap : (trevHybrid D enc X k).map T =
         X.bind fun x =>
@@ -906,7 +882,7 @@ private theorem strongGuess_avg_eq {ℓ t m n : ℕ} {r : ℝ} (D : WeakDesign �
             (PMF.uniformOfFintype (BitString t)).bind fun z_i =>
               (PMF.uniformOfFintype (BitString m)).map fun u =>
                 T (D.extend i z_i w, fun j : Fin m =>
-                  if j.val < k then trevisanExt D enc x (D.extend i z_i w) j else u j) := by
+                  if j.1 < k then trevisanExt D enc x (D.extend i z_i w) j else u j) := by
       unfold trevHybrid
       rw [PMF.map_bind]
       refine congrArg (X.bind ·) (funext fun x => ?_)
@@ -924,108 +900,60 @@ private theorem strongGuess_avg_eq {ℓ t m n : ℕ} {r : ℝ} (D : WeakDesign �
     refine Finset.sum_congr rfl fun z_i _ => congrArg (_ * ·) ?_
     rw [sum_map_mul]
   have hhyb_i :
-      ((trevHybrid D enc X i.val).map T true).toReal =
+      ((trevHybrid D enc X i.1).map T true).toReal =
         ∑ x : BitString n, (X x).toReal *
           ∑ w : BitString ℓ, ((PMF.uniformOfFintype (BitString ℓ)) w).toReal *
             ∑ z_i : BitString t, ((PMF.uniformOfFintype (BitString t)) z_i).toReal *
               ∑ u : BitString m, ((PMF.uniformOfFintype (BitString m)) u).toReal *
                 ∑ c : Bool, ((PMF.uniformOfFintype Bool) c).toReal *
                   (if T (D.extend i z_i w, fun j : Fin m =>
-                      if j.val < i.val then trevisanExt D enc x (D.extend i z_i w) j
+                      if j.1 < i.1 then trevisanExt D enc x (D.extend i z_i w) j
                       else if j = i then c else u j) = true
                     then (1 : ℝ) else 0) := by
-    rw [hhyb_eval i.val]
+    rw [hhyb_eval i.1]
     refine Finset.sum_congr rfl fun x _ => congrArg _ <|
       Finset.sum_congr rfl fun w _ => congrArg _ <|
         Finset.sum_congr rfl fun z_i _ => congrArg _ ?_
-    have hswap :
-        (∑ u : BitString m, ((PMF.uniformOfFintype (BitString m)) u).toReal *
-          ∑ c : Bool, ((PMF.uniformOfFintype Bool) c).toReal *
-            (if T (D.extend i z_i w, fun j : Fin m =>
-                if j.val < i.val then trevisanExt D enc x (D.extend i z_i w) j
-                else if j = i then c else u j) = true then (1 : ℝ) else 0)) =
-        ∑ c : Bool, ((PMF.uniformOfFintype Bool) c).toReal *
-          ∑ u : BitString m, ((PMF.uniformOfFintype (BitString m)) u).toReal *
-            (if T (D.extend i z_i w, fun j : Fin m =>
-                if j.val < i.val then trevisanExt D enc x (D.extend i z_i w) j
-                else if j = i then (u i + c) else u j) = true then (1 : ℝ) else 0) := by
-      simp_rw [Finset.mul_sum]
-      have hbi (u : BitString m) :
-          (∑ c : Bool, ((PMF.uniformOfFintype (BitString m)) u).toReal *
-            (((PMF.uniformOfFintype Bool) c).toReal *
-              (if T (D.extend i z_i w, fun j : Fin m =>
-                  if j.val < i.val then trevisanExt D enc x (D.extend i z_i w) j
-                  else if j = i then c else u j) = true then (1 : ℝ) else 0))) =
-          ∑ c : Bool, ((PMF.uniformOfFintype Bool) c).toReal *
-            (((PMF.uniformOfFintype (BitString m)) u).toReal *
-              (if T (D.extend i z_i w, fun j : Fin m =>
-                  if j.val < i.val then trevisanExt D enc x (D.extend i z_i w) j
-                  else if j = i then (u i + c) else u j) = true then (1 : ℝ) else 0)) := by
-        let shB : Bool ≃ Bool := Equiv.addLeft (u i)
-        refine Fintype.sum_equiv shB _ _ fun c => ?_
-        have hadd : u i + shB c = c := by
-          change u i + (u i + c) = c
-          cases u i <;> cases c <;> decide
-        change ((PMF.uniformOfFintype (BitString m)) u).toReal *
-            (((PMF.uniformOfFintype Bool) c).toReal * _) =
-          ((PMF.uniformOfFintype Bool) (shB c)).toReal *
-            (((PMF.uniformOfFintype (BitString m)) u).toReal * _)
-        rw [hadd]
-        simp only [PMF.uniformOfFintype_apply]
-        ring
-      exact (Finset.sum_congr rfl fun u _ => hbi u).trans Finset.sum_comm
-    rw [hswap]
-    have hconst (c : Bool) :
-        (∑ u : BitString m, ((PMF.uniformOfFintype (BitString m)) u).toReal *
-          (if T (D.extend i z_i w, fun j : Fin m =>
-              if j.val < i.val then trevisanExt D enc x (D.extend i z_i w) j
-              else if j = i then (u i + c) else u j) = true then (1 : ℝ) else 0)) =
-        ∑ u : BitString m, ((PMF.uniformOfFintype (BitString m)) u).toReal *
-          (if T (D.extend i z_i w, fun j : Fin m =>
-              if j.val < i.val then trevisanExt D enc x (D.extend i z_i w) j else u j) = true
-            then (1 : ℝ) else 0) := by
-      let delta : BitString m := Pi.single i c
-      let sh : BitString m ≃ BitString m := Equiv.addRight delta
-      refine Fintype.sum_equiv sh _ _ fun u => ?_
-      simp only [PMF.uniformOfFintype_apply]
-      congr 3
-      refine congrArg (fun v => T (D.extend i z_i w, v)) (funext fun j => ?_)
-      change (if j.val < i.val then trevisanExt D enc x (D.extend i z_i w) j
-          else if j = i then u i + c else u j) =
-        if j.val < i.val then trevisanExt D enc x (D.extend i z_i w) j else (u + delta) j
-      by_cases hlt : j.val < i.val
-      · simp [hlt]
-      · by_cases heq : j = i
-        · subst heq; simp [delta]
-        · simp [hlt, heq, delta]
-    simp_rw [hconst, ← Finset.sum_mul, PMF.sum_toReal, one_mul]
+    -- `(u, c) ↦ (u[i ↦ c], u i)` is a weight-preserving bijection of `BitString m × Bool`.
+    let G (v : BitString m) : ℝ := if T (D.extend i z_i w, fun j : Fin m =>
+      if j.1 < i.1 then trevisanExt D enc x (D.extend i z_i w) j else v j) = true then 1 else 0
+    let e : BitString m × Bool ≃ BitString m × Bool :=
+      ⟨fun p => (Function.update p.1 i p.2, p.1 i), fun p => (Function.update p.1 i p.2, p.1 i),
+        fun p => by simp, fun p => by simp⟩
+    calc ∑ u, ((PMF.uniformOfFintype (BitString m)) u).toReal * G u
+        = ∑ p : BitString m × Bool, ((PMF.uniformOfFintype (BitString m)) p.1).toReal *
+            (((PMF.uniformOfFintype Bool) p.2).toReal * G p.1) := by
+          rw [Fintype.sum_prod_type]
+          simp_rw [← Finset.mul_sum, ← Finset.sum_mul, PMF.sum_toReal, one_mul]
+      _ = ∑ p : BitString m × Bool, ((PMF.uniformOfFintype (BitString m)) p.1).toReal *
+            (((PMF.uniformOfFintype Bool) p.2).toReal * G (Function.update p.1 i p.2)) :=
+          (Fintype.sum_equiv e _ _ fun p => by simp [e, PMF.uniformOfFintype_apply]).symm
+      _ = _ := by
+          rw [Fintype.sum_prod_type]
+          simp only [Finset.mul_sum, G, Function.update_apply]
   have hhyb_succ :
-      ((trevHybrid D enc X (i.val + 1)).map T true).toReal =
+      ((trevHybrid D enc X (i.1 + 1)).map T true).toReal =
         ∑ x : BitString n, (X x).toReal *
           ∑ w : BitString ℓ, ((PMF.uniformOfFintype (BitString ℓ)) w).toReal *
             ∑ z_i : BitString t, ((PMF.uniformOfFintype (BitString t)) z_i).toReal *
               ∑ u : BitString m, ((PMF.uniformOfFintype (BitString m)) u).toReal *
                 (if T (D.extend i z_i w, fun j : Fin m =>
-                    if j.val < i.val then trevisanExt D enc x (D.extend i z_i w) j
+                    if j.1 < i.1 then trevisanExt D enc x (D.extend i z_i w) j
                     else if j = i then enc x z_i else u j) = true
                   then (1 : ℝ) else 0) := by
-    rw [hhyb_eval (i.val + 1)]
+    rw [hhyb_eval (i.1 + 1)]
     refine Finset.sum_congr rfl fun x _ => congrArg _ <|
       Finset.sum_congr rfl fun w _ => congrArg _ <|
         Finset.sum_congr rfl fun z_i _ => congrArg _ <|
           Finset.sum_congr rfl fun u _ => ?_
     congr 3
     refine congrArg (fun v => T (D.extend i z_i w, v)) (funext fun j => ?_)
-    by_cases hlt : j.val < i.val
-    · have hlt' : j.val < i.val + 1 := by omega
-      simp [hlt, hlt']
-    · by_cases heq : j = i
-      · subst heq
-        simp only [Nat.lt_succ_self, ↓reduceIte, lt_irrefl, trevisanExt, WeakDesign.restrict_extend]
-      · have hnot : ¬ j.val < i.val + 1 := by
-          have : j.val ≠ i.val := fun h => heq (Fin.ext h)
-          omega
-        simp [hlt, heq, hnot]
+    rcases lt_trichotomy j.1 i.1 with hlt | heq | hgt
+    · simp [hlt, Nat.lt_succ_of_lt hlt]
+    · obtain rfl := Fin.ext heq
+      simp only [Nat.lt_succ_self, ↓reduceIte, lt_irrefl, trevisanExt, WeakDesign.restrict_extend]
+    · simp [show ¬ j.1 < i.1 by omega, show ¬ j.1 < i.1 + 1 by omega,
+        Fin.ne_of_gt (show i < j from hgt)]
   -- Expand the LHS sum over `z_i` and commute sums to match `hinner_b`.
   have hcard_sum (x : BitString n) (w : BitString ℓ) (b : Bool) (u : BitString m) :
       ((#{z_i : BitString t |
@@ -1056,66 +984,14 @@ private theorem strongGuess_avg_eq {ℓ t m n : ℕ} {r : ℝ} (D : WeakDesign �
               ∑ b : Bool, ((PMF.uniformOfFintype Bool) b).toReal *
                 (if strongGuess D T i w b u (overlapTables D enc i w x) z_i = enc x z_i
                   then (1 : ℝ) else 0) := by
-    have hlhs (w : BitString ℓ) :
-        ((PMF.uniformOfFintype (BitString ℓ)) w).toReal *
-          ∑ b : Bool, ((PMF.uniformOfFintype Bool) b).toReal *
-            ∑ u : BitString m, ((PMF.uniformOfFintype (BitString m)) u).toReal *
-              ∑ x : BitString n, (X x).toReal *
-                ∑ z_i : BitString t, ((PMF.uniformOfFintype (BitString t)) z_i).toReal *
-                  (if strongGuess D T i w b u (overlapTables D enc i w x) z_i = enc x z_i
-                    then (1 : ℝ) else 0) =
-        ∑ x : BitString n, (X x).toReal *
-          (((PMF.uniformOfFintype (BitString ℓ)) w).toReal *
-            ∑ z_i : BitString t, ((PMF.uniformOfFintype (BitString t)) z_i).toReal *
-              ∑ u : BitString m, ((PMF.uniformOfFintype (BitString m)) u).toReal *
-                ∑ b : Bool, ((PMF.uniformOfFintype Bool) b).toReal *
-                  (if strongGuess D T i w b u (overlapTables D enc i w x) z_i = enc x z_i
-                    then (1 : ℝ) else 0)) := by
-      have hcomm :
-          (∑ b : Bool, ((PMF.uniformOfFintype Bool) b).toReal *
-            ∑ u : BitString m, ((PMF.uniformOfFintype (BitString m)) u).toReal *
-              ∑ x : BitString n, (X x).toReal *
-                ∑ z_i : BitString t, ((PMF.uniformOfFintype (BitString t)) z_i).toReal *
-                  (if strongGuess D T i w b u (overlapTables D enc i w x) z_i = enc x z_i
-                    then (1 : ℝ) else 0)) =
-          ∑ x : BitString n, (X x).toReal *
-            ∑ z_i : BitString t, ((PMF.uniformOfFintype (BitString t)) z_i).toReal *
-              ∑ u : BitString m, ((PMF.uniformOfFintype (BitString m)) u).toReal *
-                ∑ b : Bool, ((PMF.uniformOfFintype Bool) b).toReal *
-                  (if strongGuess D T i w b u (overlapTables D enc i w x) z_i = enc x z_i
-                    then (1 : ℝ) else 0) := by
-        calc _ = ∑ b : Bool, ∑ u : BitString m, ∑ x : BitString n, ∑ z_i : BitString t,
-                ((PMF.uniformOfFintype Bool) b).toReal *
-                  (((PMF.uniformOfFintype (BitString m)) u).toReal *
-                    ((X x).toReal *
-                      (((PMF.uniformOfFintype (BitString t)) z_i).toReal *
-                        (if strongGuess D T i w b u (overlapTables D enc i w x) z_i = enc x z_i
-                          then (1 : ℝ) else 0)))) := by
-              simp only [Finset.mul_sum]
-          _ = ∑ x : BitString n, ∑ z_i : BitString t, ∑ u : BitString m, ∑ b : Bool,
-                ((PMF.uniformOfFintype Bool) b).toReal *
-                  (((PMF.uniformOfFintype (BitString m)) u).toReal *
-                    ((X x).toReal *
-                      (((PMF.uniformOfFintype (BitString t)) z_i).toReal *
-                        (if strongGuess D T i w b u (overlapTables D enc i w x) z_i = enc x z_i
-                          then (1 : ℝ) else 0)))) := by
-              rw [Finset.sum_comm]
-              refine (Finset.sum_congr rfl fun u _ => Finset.sum_comm).trans ?_
-              rw [Finset.sum_comm]
-              refine Finset.sum_congr rfl fun x _ => ?_
-              rw [Finset.sum_comm]
-              refine (Finset.sum_congr rfl fun b _ => Finset.sum_comm).trans ?_
-              rw [Finset.sum_comm]
-              refine Finset.sum_congr rfl fun z_i _ => Finset.sum_comm
-          _ = _ := by
-              simp only [Finset.mul_sum]
-              refine Finset.sum_congr rfl fun x _ => Finset.sum_congr rfl fun z_i _ =>
-                Finset.sum_congr rfl fun u _ => Finset.sum_congr rfl fun b _ => by ring
-      rw [hcomm, Finset.mul_sum]
-      refine Finset.sum_congr rfl fun x _ => by ring
-    simp_rw [hlhs]
-    rw [Finset.sum_comm]
-    refine Finset.sum_congr rfl fun x _ => (Finset.mul_sum ..).symm
+    simp only [Finset.mul_sum, ← Fintype.sum_prod_type']
+    refine Fintype.sum_equiv
+      { toFun := fun p => (p.2.2.2.1, (p.1, (p.2.2.2.2, (p.2.2.1, p.2.1))))
+        invFun := fun q => (q.2.1, (q.2.2.2.2, (q.2.2.2.1, (q.1, q.2.2.1))))
+        left_inv := fun _ => rfl
+        right_inv := fun _ => rfl } _ _ fun p => ?_
+    simp only [Equiv.coe_fn_mk]
+    ring
   rw [hreord, hhyb_succ, hhyb_i]
   simp_rw [hinner_b]
   have hsum_const : ∀ (c : ℝ),
@@ -1159,39 +1035,24 @@ theorem isLinearStrongExtractor_trevisan {ℓ t m n : ℕ} {r k ε L : ℝ}
     rw [dist_eq_sum_filter_lt, map_apply_toReal, map_apply_toReal, ← Finset.sum_sub_distrib,
       Finset.sum_filter]
     refine Finset.sum_congr rfl fun p _ => ?_
-    by_cases h : (UnifDist p).toReal < (RealDist p).toReal
-    · simp [T, h]
-    · simp [T, h]
+    by_cases h : (UnifDist p).toReal < (RealDist p).toReal <;> simp [T, h]
   have htele : ((RealDist.map T) true).toReal - ((UnifDist.map T) true).toReal =
-      ∑ i : Fin m, (((trevHybrid D enc X (i.val + 1)).map T true).toReal -
-        ((trevHybrid D enc X i.val).map T true).toReal) := by
+      ∑ i : Fin m, (((trevHybrid D enc X (i.1 + 1)).map T true).toReal -
+        ((trevHybrid D enc X i.1).map T true).toReal) := by
     have h1 : RealDist = trevHybrid D enc X m := (trevHybrid_m D enc X).symm
     have h0 : UnifDist = trevHybrid D enc X 0 := (trevHybrid_zero D enc X).symm
     rw [h1, h0]
-    have hsum_sub : ∀ (f : ℕ → ℝ) (k : ℕ),
-        ∑ i : Fin k, (f (i.val + 1) - f i.val) = f k - f 0 := fun f k => by
-      induction k with
-      | zero => simp
-      | succ k ih =>
-        rw [Fin.sum_univ_castSucc]
-        simp only [Fin.val_castSucc, Fin.val_last]
-        rw [ih]
-        ring
-    exact (hsum_sub (fun j => ((trevHybrid D enc X j).map T true).toReal) m).symm
+    rw [Fin.sum_univ_eq_sum_range (fun j => ((trevHybrid D enc X (j + 1)).map T true).toReal -
+      ((trevHybrid D enc X j).map T true).toReal)]
+    exact (Finset.sum_range_sub (fun j => ((trevHybrid D enc X j).map T true).toReal) m).symm
   have hm_pos : (0 : ℝ) < m := by exact_mod_cast hm
   -- Pigeonhole over the `m` hybrid gaps to pick `i : Fin m` with gap `> ε / m`.
-  obtain ⟨i, hi_gap⟩ : ∃ i : Fin m,
-      ε / m < ((trevHybrid D enc X (i.val + 1)).map T true).toReal -
-        ((trevHybrid D enc X i.val).map T true).toReal := by
-    by_contra hno
-    push Not at hno
-    have hsum : ∑ i : Fin m, (((trevHybrid D enc X (i.val + 1)).map T true).toReal -
-        ((trevHybrid D enc X i.val).map T true).toReal) ≤ ε := by
-      calc ∑ i : Fin m, (((trevHybrid D enc X (i.val + 1)).map T true).toReal -
-              ((trevHybrid D enc X i.val).map T true).toReal)
-          ≤ ∑ _i : Fin m, ε / m := Finset.sum_le_sum fun i _ => hno i
-        _ = ε := by rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul,
-            mul_div_cancel₀ _ hm_pos.ne']
+  obtain ⟨i, -, hi_gap⟩ : ∃ i ∈ (Finset.univ : Finset (Fin m)),
+      ε / m < ((trevHybrid D enc X (i.1 + 1)).map T true).toReal -
+        ((trevHybrid D enc X i.1).map T true).toReal := by
+    refine Finset.exists_lt_of_sum_lt ?_
+    rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul,
+      mul_div_cancel₀ _ hm_pos.ne']
     linarith
   -- By `strongGuess_avg_eq`, some `(w₀, b₀, u₀)` achieves average agreement `> 1 / 2 + ε / m`.
   have havg := strongGuess_avg_eq D enc X T i
@@ -1205,14 +1066,9 @@ theorem isLinearStrongExtractor_trevisan {ℓ t m n : ℕ} {r k ε L : ℝ}
                 (2 : ℝ) ^ t) := by linarith
   have hex_avg {α : Type} [Fintype α] (μ : PMF α) (f : α → ℝ) {c : ℝ}
       (hc : c < ∑ a, (μ a).toReal * f a) : ∃ a, c < f a := by
-    by_contra hno
-    push Not at hno
-    have hle : ∑ a, (μ a).toReal * f a ≤ c := by
-      calc ∑ a, (μ a).toReal * f a
-          ≤ ∑ a, (μ a).toReal * c := Finset.sum_le_sum fun a _ =>
-              mul_le_mul_of_nonneg_left (hno a) ENNReal.toReal_nonneg
-        _ = c := by rw [← Finset.sum_mul, PMF.sum_toReal, one_mul]
-    linarith
+    obtain ⟨a, -, ha⟩ := Finset.exists_lt_of_sum_lt (f := fun a => (μ a).toReal * c)
+      (g := fun a => (μ a).toReal * f a) (by rwa [← Finset.sum_mul, PMF.sum_toReal, one_mul])
+    exact ⟨a, lt_of_mul_lt_mul_left ha ENNReal.toReal_nonneg⟩
   obtain ⟨w₀, hw₀⟩ := hex_avg _ _ havg_gt
   obtain ⟨b₀, hb₀⟩ := hex_avg _ _ hw₀
   obtain ⟨u₀, hu₀⟩ := hex_avg _ _ hb₀
@@ -1233,23 +1089,18 @@ theorem isLinearStrongExtractor_trevisan {ℓ t m n : ℕ} {r k ε L : ℝ}
   have hB_mass : ε / (2 * m) < ∑ x ∈ B, (X x).toReal := by
     have hsplit : ∑ x : BitString n, (X x).toReal * agree x ≤
         (∑ x ∈ B, (X x).toReal) + (1 / 2 + ε / (2 * m)) := by
-      rw [← Finset.sum_filter_add_sum_filter_not Finset.univ
-        (fun x => 1 / 2 + ε / (2 * m) ≤ agree x)]
-      have h1 : ∑ x ∈ B, (X x).toReal * agree x ≤ ∑ x ∈ B, (X x).toReal :=
-        Finset.sum_le_sum fun x _ =>
-          mul_le_of_le_one_right ENNReal.toReal_nonneg (hagree_le_one x)
-      have h2 : ∑ x ∈ Finset.univ.filter (fun x => ¬ 1 / 2 + ε / (2 * m) ≤ agree x),
-            (X x).toReal * agree x ≤ 1 / 2 + ε / (2 * m) := by
-        calc _ ≤ ∑ x ∈ Finset.univ.filter (fun x => ¬ 1 / 2 + ε / (2 * m) ≤ agree x),
-                  (X x).toReal * (1 / 2 + ε / (2 * m)) :=
-                Finset.sum_le_sum fun x hx =>
-                  mul_le_mul_of_nonneg_left (le_of_not_ge (Finset.mem_filter.mp hx).2)
-                    ENNReal.toReal_nonneg
-          _ ≤ ∑ x : BitString n, (X x).toReal * (1 / 2 + ε / (2 * m)) :=
-                Finset.sum_le_univ_sum_of_nonneg fun x =>
-                  mul_nonneg ENNReal.toReal_nonneg (by positivity)
-          _ = 1 / 2 + ε / (2 * m) := by rw [← Finset.sum_mul, PMF.sum_toReal, one_mul]
-      exact add_le_add h1 h2
+      calc _ ≤ ∑ x : BitString n, ((if 1 / 2 + ε / (2 * m) ≤ agree x then (X x).toReal else 0) +
+            (X x).toReal * (1 / 2 + ε / (2 * m))) := by
+            refine Finset.sum_le_sum fun x _ => ?_
+            have h0 := ENNReal.toReal_nonneg (a := X x)
+            have h1 := hagree_le_one x
+            have hc : (0 : ℝ) ≤ 1 / 2 + ε / (2 * m) := by positivity
+            split_ifs with h
+            · linarith only [mul_le_of_le_one_right h0 h1, mul_nonneg h0 hc]
+            · rw [zero_add]
+              exact mul_le_mul_of_nonneg_left (le_of_not_ge h) h0
+        _ = _ := by rw [Finset.sum_add_distrib, ← Finset.sum_filter, ← Finset.sum_mul,
+            PMF.sum_toReal, one_mul]
     have hhalf : ε / m = ε / (2 * m) + ε / (2 * m) := by field_simp; ring
     linarith
   -- Upper bound `#B` by `L * 2 ^ (r * m)` via overlap table enumeration + list decoding.
@@ -1280,27 +1131,19 @@ theorem isLinearStrongExtractor_trevisan {ℓ t m n : ℕ} {r k ε L : ℝ}
       rw [Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast (2 : ℝ), Nat.cast_pow, Nat.cast_ofNat]
     rw [hprod_eq]
     refine Real.rpow_le_rpow_of_exponent_le one_le_two ?_
-    have hsum_eq : ∑ j : Fin i, (2 : ℝ) ^ #(D.overlap i (Fin.castLE i.isLt.le j)) =
-        ∑ j : Fin i, (2 : ℝ) ^ #(D.block i ∩ D.block (Fin.castLE i.isLt.le j)) :=
-      Finset.sum_congr rfl fun j _ => by rw [D.card_overlap]
-    rw [hsum_eq]
-    exact D.sum_two_pow_inter_le i
+    simpa only [D.card_overlap] using D.sum_two_pow_inter_le i
   have hB_card : (#B : ℝ) ≤ L * (2 : ℝ) ^ (r * m) := by
     calc (#B : ℝ)
-        ≤ (#(Finset.univ.biUnion fun τ : TableType =>
-            Finset.univ.filter fun x : BitString n =>
-              (1 / 2 + ε / (2 * m)) * (2 : ℝ) ^ t ≤
-                #{z_i : BitString t | enc x z_i = strongGuess D T i w₀ b₀ u₀ τ z_i}) : ℝ) := by
-          exact_mod_cast Finset.card_le_card hB_sub
-      _ ≤ ∑ τ : TableType,
+        ≤ ∑ τ : TableType,
             (#(Finset.univ.filter fun x : BitString n =>
               (1 / 2 + ε / (2 * m)) * (2 : ℝ) ^ t ≤
                 #{z_i : BitString t | enc x z_i = strongGuess D T i w₀ b₀ u₀ τ z_i}) : ℝ) := by
-          exact_mod_cast Finset.card_biUnion_le
+          exact_mod_cast (Finset.card_le_card hB_sub).trans Finset.card_biUnion_le
       _ ≤ ∑ _τ : TableType, L := Finset.sum_le_sum fun τ _ => hlist (strongGuess D T i w₀ b₀ u₀ τ)
       _ = (Fintype.card TableType : ℝ) * L := by simp
-      _ ≤ (2 : ℝ) ^ (r * m) * L := mul_le_mul_of_nonneg_right hcard_table hL
-      _ = L * (2 : ℝ) ^ (r * m) := mul_comm _ _
+      _ ≤ L * (2 : ℝ) ^ (r * m) := by
+          rw [mul_comm]
+          exact mul_le_mul_of_nonneg_left hcard_table hL
   have hmass_upper : ∑ x ∈ B, (X x).toReal ≤ L * (2 : ℝ) ^ (r * m) * (2 : ℝ) ^ (-k) := by
     calc ∑ x ∈ B, (X x).toReal
         ≤ ∑ _x ∈ B, (2 : ℝ) ^ (-k) := Finset.sum_le_sum fun x _ => (le_minEntropy_iff X).mp hX x

@@ -156,7 +156,7 @@ private theorem mem_satList {n : ℕ} {T : List (ℕ × List ℕ)} {V : ℕ} :
         assign n (a.set x i) = Function.update (assign n a) x ⟨i, hi⟩ := by
       intro i hi
       funext y
-      apply Fin.ext
+      refine Fin.ext ?_
       rw [val_assign (hset i hi)]
       by_cases hyx : y = x
       · subst hyx; rw [Function.update_self, List.getD_set_self hx]
@@ -204,35 +204,26 @@ private theorem satOnFin_iff_ne_nil {n : ℕ} {φ : RawFormula} :
     let T : List (ℕ × List ℕ) :=
       (groundAtoms n φ).filter fun rt => I rt.1 (rt.2.map (Fin.ofNat (n + 1)))
     let a : List ℕ := (List.range φ.varBound).map fun x => (v x : ℕ)
-    have ha : ∀ i ∈ a, i < n + 1 := by
-      intro i hi
+    have ha : ∀ i ∈ a, i < n + 1 := fun i hi => by
       obtain ⟨x, -, rfl⟩ := List.mem_map.1 hi
       exact (v x).isLt
     have hsat : a ∈ satList n T φ.varBound φ := by
       refine (mem_satList φ le_rfl (by simp [a]) ha).2 ?_
-      have hv : ∀ x < φ.varBound, assign n a x = v x := by
-        intro x hx
-        apply Fin.ext
-        rw [val_assign ha, List.getD_map_range _ 0 hx]
+      have hv : ∀ x < φ.varBound, assign n a x = v x := fun x hx =>
+        Fin.ext <| by rw [val_assign ha, List.getD_map_range _ 0 hx]
       rw [realize_congr_var φ hv]
       refine (realize_congr_rel φ v fun r as hr => ?_).2 h
       have hofNat : (as.map Fin.val).map (Fin.ofNat (n + 1)) = as := by
         rw [List.map_map]
-        conv_rhs => rw [← List.map_id as]
-        refine List.map_congr_left fun i _ => ?_
-        apply Fin.ext
-        simp
+        exact (List.map_congr_left fun i _ => Fin.ext (by simp)).trans (List.map_id as)
       have hg : (r, as.map Fin.val) ∈ groundAtoms n φ := by
         refine mem_groundAtoms.2 ⟨by simpa using hr, fun i hi => ?_⟩
         obtain ⟨j, -, rfl⟩ := List.mem_map.1 hi
         exact j.isLt
       change (r, as.map Fin.val) ∈ T ↔ I r as
       simp [T, hg, hofNat]
-    have hmem : a ∈ satOnFinWitnesses n φ :=
-      List.mem_flatMap.2 ⟨T, List.mem_sublists.2 List.filter_sublist, hsat⟩
-    rintro hnil
-    rw [hnil] at hmem
-    simp at hmem
+    exact List.ne_nil_of_mem
+      (List.mem_flatMap.2 ⟨T, List.mem_sublists.2 List.filter_sublist, hsat⟩)
   · intro hne
     obtain ⟨T, -, ha⟩ := List.mem_flatMap.1 (List.head_mem hne)
     have ht := mem_tuples.1 (satList_sub_tuples ha)

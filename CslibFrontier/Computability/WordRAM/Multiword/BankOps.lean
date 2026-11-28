@@ -60,11 +60,8 @@ private theorem constantDigits_bounded {w : ℕ} (hw : 2 ≤ w) (z : ℕ) :
 private theorem value_constantDigits {w z : ℕ} (hz : z < radix w ^ 18) :
     Nat.ofDigits (radix w) (constantDigits w z) = z := by
   obtain ⟨cs, hcs, hval⟩ := Nat.exists_ofDigits_ofFn hz
-  have he : (fun i : Fin 18 => z / radix w ^ i.val % radix w) = cs := by
-    funext i
-    rw [← hval]
-    exact Nat.ofDigits_ofFn_div_mod cs hcs i
-  rw [constantDigits, he, hval]
+  simpa only [constantDigits, funext fun i => hval ▸ Nat.ofDigits_ofFn_div_mod cs hcs i]
+    using hval
 
 /-- Install an eighteen-digit constant, charging all eighteen constants and the final copy. -/
 def constant (w z : ℕ) (d : Fin n) : Code .standard (capacity n + 4) :=
@@ -158,17 +155,12 @@ theorem exec_clear {w : ℕ} (hw : 2 ≤ w) (x : Data (capacity n + 4)) :
     rw [hm] at hh
     exact (List.mem_replicate.mp hh).2
   refine ⟨y, by simpa only [clear, allRegs, registers, List.length_ofFn] using he,
-    ?_, hf.1, hp inputReg ?_⟩
-  · intro j
-    refine ⟨fun i hi => ?_, ?_⟩
-    · rw [hzero j i hi]
-      have := one_lt_radix hw
-      omega
-    · exact value_eq_zero_of_forall (hzero j)
-  · intro hi
-    have := registers_bounds hi
-    dsimp [inputReg] at this
-    omega
+    fun j => ⟨fun i hi => hzero j i hi ▸ Nat.zero_lt_of_lt (one_lt_radix hw),
+      value_eq_zero_of_forall (hzero j)⟩,
+    hf.1, hp inputReg fun hi => ?_⟩
+  have := registers_bounds hi
+  dsimp [inputReg] at this
+  omega
 
 /-- Load the sole input from the usual RAM input memory, then split it into a bank entry.
 The input memory contains its length at address zero and its value at address one. -/

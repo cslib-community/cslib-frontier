@@ -12,20 +12,19 @@ public import CslibFrontier.Algorithms.Lean.CSP.VariableElimination
 public import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 public import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
 public import CslibFrontier.Computability.WordRAM.Realization.WordEncoding.Equiv
-public import CslibFrontier.Computability.WordRAM.ListArray
+public import CslibFrontier.Computability.WordRAM.Realization.PrefixFrame
 import CslibFrontier.Tactic.Realize
 
 /-!
 # Monotone Memory Predicates, `memScan`, and `writeDesc`
 
-Core Word-RAM heap invariants (`PreservesBelow`, `HoldsIn`, `HoldsFactor`, `HoldsFactorList`,
-`AllDataBelow`) together with the shared linear membership scanner `memScan` and 4-word descriptor
-writer `writeDesc`.
+Factor descriptor invariants over allocated Word-RAM list blocks, together with the shared linear
+membership scanner `memScan` and 4-word descriptor writer `writeDesc`.
 
 ## Main definitions
 
-* `Cslib.Algorithms.WordRAM.VariableElimination.PreservesBelow`, `HoldsIn`, `HoldsFactor`,
-  `HoldsFactorList`, `AllDataBelow`: append-only memory layout predicates.
+* `Cslib.Algorithms.WordRAM.VariableElimination.HoldsFactor`, `HoldsFactorList`, `AllDataBelow`:
+  append-only memory layout predicates for factor descriptors.
 * `Cslib.Algorithms.WordRAM.VariableElimination.memScan`: linear array membership scan.
 * `Cslib.Algorithms.WordRAM.VariableElimination.writeDesc`: 4-word factor descriptor writer.
 -/
@@ -40,38 +39,7 @@ open Cslib.DataStructure
 open Cslib.WordRAM
 open Cslib.WordRAM.Realization
 
-/-! ### Monotone append-only memory preservation and descriptors -/
-
-/-- Append-only frame predicate: `s₁` agrees with `s₀` strictly below `F`. -/
-@[expose] def PreservesBelow (F : ℕ) (s₀ s₁ : Memory.State) : Prop :=
-  F ≤ s₀.frontier ∧ s₀.frontier ≤ s₁.frontier ∧ ∀ a < F, s₁.mem a = s₀.mem a
-
-theorem PreservesBelow.refl {F : ℕ} {s : Memory.State} (hF : F ≤ s.frontier) :
-    PreservesBelow F s s :=
-  ⟨hF, le_rfl, fun _ _ => rfl⟩
-
-theorem PreservesBelow.mono_bound {F₁ F₂ : ℕ} {s₀ s₁ : Memory.State}
-    (h : PreservesBelow F₂ s₀ s₁) (hle : F₁ ≤ F₂) : PreservesBelow F₁ s₀ s₁ :=
-  ⟨hle.trans h.1, h.2.1, fun a ha => h.2.2 a (lt_of_lt_of_le ha hle)⟩
-
-theorem PreservesBelow.trans {F : ℕ} {s₀ s₁ s₂ : Memory.State}
-    (h₁ : PreservesBelow F s₀ s₁) (h₂ : PreservesBelow F s₁ s₂) :
-    PreservesBelow F s₀ s₂ :=
-  ⟨h₁.1, h₁.2.1.trans h₂.2.1, fun a ha => (h₂.2.2 a ha).trans (h₁.2.2 a ha)⟩
-
-/-- Word-array slice `xs` sits contiguously starting at `base` inside `s`. -/
-@[expose] def HoldsIn (base : ℕ) (xs : List ℕ) (s : Memory.State) : Prop :=
-  base + xs.length ≤ s.frontier ∧ Block.HoldsList base xs s.mem
-
-theorem HoldsIn.mono {base : ℕ} {xs : List ℕ} {F : ℕ} {s₀ s₁ : Memory.State}
-    (h : HoldsIn base xs s₀) (hF : base + xs.length ≤ F) (hp : PreservesBelow F s₀ s₁) :
-    HoldsIn base xs s₁ :=
-  ⟨h.1.trans hp.2.1, h.2.frame fun a _ hhi => hp.2.2 a (lt_of_lt_of_le hhi hF)⟩
-
-theorem HoldsIn.mono_frontier {base : ℕ} {xs : List ℕ} {s₀ s₁ : Memory.State}
-    (h : HoldsIn base xs s₀) (hp : PreservesBelow s₀.frontier s₀ s₁) :
-    HoldsIn base xs s₁ :=
-  h.mono h.1 hp
+/-! ### Factor descriptors -/
 
 /-- A 4-word factor descriptor at `descAddr` points to `f`'s scope and entries. -/
 @[expose] def HoldsFactor (descAddr : ℕ) (f : FactorTable ℕ ℕ) (s : Memory.State) : Prop :=
@@ -222,12 +190,9 @@ theorem memScan_result {args : MemScanArgs} {xs : List ℕ} {s : Memory.State}
         ⟨cur + 1, if u = args.target then 1 else found⟩ := by
       rw [← hhead]; rfl
     rw [hstep_st, hstep_res, ih (cur + 1) _ htail]
-    by_cases hmem : args.target ∈ rest <;> by_cases heq : args.target = u
-    · simp [List.mem_cons, heq]
-    · simp [List.mem_cons, hmem]
-    · subst heq; simp [List.mem_cons]
-    · have hne : u ≠ args.target := Ne.symm heq
-      simp [List.mem_cons, hmem, heq, hne]
+    by_cases heq : args.target = u
+    · subst heq; simp
+    · simp [heq, Ne.symm heq]
 
 theorem memScan_realizes :
     Realizes .exact memScan WordEncoding.encode WordEncoding.encode
@@ -244,22 +209,6 @@ theorem memScan_realizes :
     · exact h.2.of_le (by omega)
   · change (st.cur + 1) + j = d.base + d.len
     omega
-
-theorem holdsIn_cons_shift {base : ℕ} {x : ℕ} {xs : List ℕ} {s : Memory.State}
-    (h : HoldsIn base (x :: xs) s) :
-    base < s.frontier ∧ s.mem base = x ∧ HoldsIn (base + 1) xs s := by
-  obtain ⟨hb, hl⟩ := h
-  simp only [List.length_cons] at hb
-  obtain ⟨hx, hxs⟩ := Block.holdsList_cons_iff.mp hl
-  exact ⟨by omega, hx, by omega, hxs⟩
-
-theorem holdsIn_append_split {base : ℕ} {xs ys : List ℕ} {s : Memory.State}
-    (h : HoldsIn base (xs ++ ys) s) :
-    HoldsIn base xs s ∧ HoldsIn (base + xs.length) ys s := by
-  obtain ⟨hb, hl⟩ := h
-  simp only [List.length_append] at hb
-  obtain ⟨hx, hy⟩ := Block.holdsList_append_iff.mp hl
-  exact ⟨⟨by omega, hx⟩, ⟨by omega, hy⟩⟩
 
 /-! ### Descriptor writer (`writeDesc`), live partitioning (`partitionLive`), and `buildOutScope` -/
 
@@ -395,6 +344,17 @@ theorem writeDesc_valid {w : ℕ} (args : WriteDescArgs) {s : Memory.State}
   refine validHistory_write_bind (by dsimp only; omega) hf2 ?_
   exact validHistory_write (by dsimp only; omega) hf3
 
+theorem writeDesc_frame (args : WriteDescArgs) (t : Memory.State) :
+    ((Memory.spec 0).clientState t (writeDesc args)).frontier = t.frontier ∧
+    ∀ a, a < args.dst ∨ args.dst + 4 ≤ a →
+      ((Memory.spec 0).clientState t (writeDesc args)).mem a = t.mem a := by
+  refine ⟨rfl, fun a ha => ?_⟩
+  change Function.update (Function.update (Function.update (Function.update t.mem
+    args.dst args.scPtr) (args.dst + 1) args.scLen) (args.dst + 2) args.enPtr)
+    (args.dst + 3) args.enLen a = t.mem a
+  rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
+    Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+
 theorem writeDesc_spec {w : ℕ} (args : WriteDescArgs) {f : FactorTable ℕ ℕ} {F : ℕ}
     {s : Memory.State} (hwf : Memory.WellFormed w s)
     (hFdst : F ≤ args.dst) (hdst : args.dst + 4 ≤ s.frontier)
@@ -411,44 +371,24 @@ theorem writeDesc_spec {w : ℕ} (args : WriteDescArgs) {f : FactorTable ℕ ℕ
       HoldsFactor args.dst f s' ∧
       s'.mem args.dst = args.scPtr ∧
       s'.mem (args.dst + 2) = args.enPtr := by
-  dsimp only
-  have hv := writeDesc_valid args hdst
+  intro s'
+  have hv := writeDesc_valid args hdst (hwf.frontier_fits.of_le (by omega))
+    (hwf.frontier_fits.of_le (by omega)) (hwf.frontier_fits.of_le (by omega))
     (hwf.frontier_fits.of_le (by omega))
-    (hwf.frontier_fits.of_le (by omega))
-    (hwf.frontier_fits.of_le (by omega))
-    (hwf.frontier_fits.of_le (by omega))
-  have hwf' : Memory.WellFormed w ((Memory.spec 0).clientState s (writeDesc args)) :=
-    wellFormed_clientState hwf hv
-  have hst : (Memory.spec 0).clientState s (writeDesc args) =
-      ⟨Function.update (Function.update (Function.update (Function.update s.mem
-        args.dst args.scPtr) (args.dst + 1) args.scLen) (args.dst + 2) args.enPtr)
-        (args.dst + 3) args.enLen, s.frontier⟩ := rfl
-  have hout : ∀ a, a < args.dst ∨ args.dst + 4 ≤ a →
-      ((Memory.spec 0).clientState s (writeDesc args)).mem a = s.mem a := by
-    intro a ha
-    rw [hst]
-    dsimp only
-    rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-      Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-  have hpres : PreservesBelow F s ((Memory.spec 0).clientState s (writeDesc args)) :=
-    ⟨by omega, by rw [hst], fun a ha => hout a (Or.inl (lt_of_lt_of_le ha hFdst))⟩
-  have hm0 : ((Memory.spec 0).clientState s (writeDesc args)).mem args.dst = args.scPtr := by
-    rw [hst]; dsimp only
-    rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-      Function.update_of_ne (by omega), Function.update_self]
-  have hm1 : ((Memory.spec 0).clientState s (writeDesc args)).mem (args.dst + 1) = args.scLen := by
-    rw [hst]; dsimp only
-    rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega), Function.update_self]
-  have hm2 : ((Memory.spec 0).clientState s (writeDesc args)).mem (args.dst + 2) = args.enPtr := by
-    rw [hst]; dsimp only
-    rw [Function.update_of_ne (by omega), Function.update_self]
-  have hm3 : ((Memory.spec 0).clientState s (writeDesc args)).mem (args.dst + 3) = args.enLen := by
-    rw [hst]; dsimp only
-    rw [Function.update_self]
-  refine ⟨hv, by rw [hst], hwf', hpres, hout, ?_, hm0, hm2⟩
+  obtain ⟨hfr, hout⟩ := writeDesc_frame args s
+  have hpres : PreservesBelow F s s' :=
+    ⟨by omega, hfr.ge, fun a ha => hout a (Or.inl (lt_of_lt_of_le ha hFdst))⟩
+  have hst : s'.mem = Function.update (Function.update (Function.update (Function.update s.mem
+      args.dst args.scPtr) (args.dst + 1) args.scLen) (args.dst + 2) args.enPtr)
+      (args.dst + 3) args.enLen := rfl
+  obtain ⟨hm0, hm1, hm2, hm3⟩ : s'.mem args.dst = args.scPtr ∧
+      s'.mem (args.dst + 1) = args.scLen ∧ s'.mem (args.dst + 2) = args.enPtr ∧
+      s'.mem (args.dst + 3) = args.enLen := by
+    simp [hst]
+  refine ⟨hv, hfr, wellFormed_clientState hwf hv, hpres, hout, ?_, hm0, hm2⟩
   unfold HoldsFactor
   rw [hm0, hm1, hm2, hm3]
-  exact ⟨by rw [hst]; exact hdst, hsc_len, hen_len, hsc.mono hscF hpres,
+  exact ⟨hfr ▸ hdst, hsc_len, hen_len, hsc.mono hscF hpres,
     hen.mono (by simpa [Array.length_toList] using henF) hpres⟩
 
 theorem writeDesc_realizes :
@@ -459,19 +399,5 @@ theorem writeDesc_realizes :
   · exact h.of_le (by omega)
   · exact h.of_le (by omega)
   · exact h
-
-theorem writeDesc_frame (args : WriteDescArgs) (t : Memory.State) :
-    ((Memory.spec 0).clientState t (writeDesc args)).frontier = t.frontier ∧
-    ∀ a, a < args.dst ∨ args.dst + 4 ≤ a →
-      ((Memory.spec 0).clientState t (writeDesc args)).mem a = t.mem a := by
-  have hst : (Memory.spec 0).clientState t (writeDesc args) =
-      ⟨Function.update (Function.update (Function.update (Function.update t.mem
-        args.dst args.scPtr) (args.dst + 1) args.scLen) (args.dst + 2) args.enPtr)
-        (args.dst + 3) args.enLen, t.frontier⟩ := rfl
-  refine ⟨by rw [hst], fun a ha => ?_⟩
-  rw [hst]
-  dsimp only
-  rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-    Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
 
 end Cslib.Algorithms.WordRAM.VariableElimination

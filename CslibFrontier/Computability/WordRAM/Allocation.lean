@@ -203,16 +203,12 @@ theorem zeroFill_exec {w : ℕ} {cur stop zero one : Fin r} {x : Data r} (hcs : 
   have h := Exec.loop (cond := .lt cur stop) xs k 2
     (fun i hi => by simp only [Cond.holds_lt, hcur, hstop]; omega)
     (by simp only [Cond.holds_lt, hcur, hstop]; omega) hbody
-  have hx : xs 0 = x := by
-    ext a
-    · simp [xs, hb]
-    · simp [xs]
+  have hx : xs 0 = x := by ext a <;> simp [xs, hb]
   have hk : xs k = ⟨Function.update x.regs cur (x.regs stop), clear x.mem b k⟩ := by
     simp only [xs]
     congr 2
     omega
-  rw [hx, hk, show k * (2 + 2) + 2 = 4 * k + 2 by omega] at h
-  exact h
+  rwa [hx, hk, show k * (2 + 2) + 2 = 4 * k + 2 by omega] at h
 
 /-- Fill the `len` cells starting at address `base` with the word in register `val`, using counter
 register `idx` and address scratch register `addr`; register `one` holds `1`. Does not modify
@@ -251,20 +247,13 @@ theorem fillConst_exec {w : ℕ} {base len val one idx addr : Fin r} {x : Data r
     have ho_i : (xs i).regs one = 1 := (hpres i one hio.symm hao.symm).trans h1
     have hadd : Fits w ((xs i).regs base + (xs i).regs idx) := by
       rw [hb_i, hidx]; exact hfit_end.of_le (by omega)
-    have e₁ := Exec.bin (f := .add) (d := addr) (i := base) (j := idx) (x := xs i) hadd
-    have e₂ := Exec.store (B := .standard) (w := w) (a := addr) (s := val)
-      (x := (xs i).set addr ((xs i).regs base + (xs i).regs idx))
-    have hinc : Fits w ((((xs i).set addr ((xs i).regs base + (xs i).regs idx)).write
-        (((xs i).set addr ((xs i).regs base + (xs i).regs idx)).regs addr)
-        (((xs i).set addr ((xs i).regs base + (xs i).regs idx)).regs val)).regs idx +
-        (((xs i).set addr ((xs i).regs base + (xs i).regs idx)).write
-        (((xs i).set addr ((xs i).regs base + (xs i).regs idx)).regs addr)
-        (((xs i).set addr ((xs i).regs base + (xs i).regs idx)).regs val)).regs one) := by
+    convert (Exec.bin (f := .add) (d := addr) (i := base) (j := idx) (x := xs i) hadd).seq
+      ((Exec.store (a := addr) (s := val)).seq
+        (Exec.bin (f := .add) (d := idx) (i := idx) (j := one) ?hinc)) using 1
+    case hinc =>
       simp only [Data.write_regs, Data.set_regs, Function.update_of_ne hai.symm,
-        Function.update_of_ne hao.symm, hidx, ho_i]
+        Function.update_of_ne hao.symm, hidx, ho_i, BinOp.eval]
       exact hfit_len.of_le (by omega)
-    have e₃ := Exec.bin (f := .add) (d := idx) (i := idx) (j := one) hinc
-    convert e₁.seq (e₂.seq e₃) using 1
     ext a
     · simp only [Data.set_regs, Data.write_regs, BinOp.eval, Function.update_apply,
         hb_i, hidx, ho_i]

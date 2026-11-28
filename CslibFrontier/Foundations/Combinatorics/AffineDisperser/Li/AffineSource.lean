@@ -334,9 +334,8 @@ theorem affineConditioning {n m k : ℕ} {X : PMF (BitString n)} (hX : IsAffineS
       simpa [AffineSubspace.mem_mk', vsub_eq_sub] using
         (mem_support_uniformAffine_iff (AffineSubspace.mk' 0 K) _ b).mp hb
     have hLb := hL.toAffineMap.map_vadd (0 : BitString n) b
-    have hker : hL.toAffineMap.linear b = 0 := hbK.2
-    rw [vadd_eq_add, add_zero, vadd_eq_add, IsAffine.coe_toAffineMap, hker, zero_add] at hLb
-    exact hLb
+    rwa [vadd_eq_add, add_zero, vadd_eq_add, IsAffine.coe_toAffineMap,
+      show hL.toAffineMap.linear b = 0 from hbK.2, zero_add] at hLb
   · intro a ha
     have haU : a -ᵥ x₀ ∈ U := by
       simpa [AffineSubspace.mem_mk'] using
@@ -552,11 +551,9 @@ theorem exists_independent_affine_sum_of_isAffineSource {n k k₁ k₂ : ℕ}
     ⟨_, _, by rw [AffineSubspace.direction_mk', hV₂_dim], rfl⟩, ?_,
     uniformAffine_eq_bind_add_of_isCompl Asub hx₀ hV₁_le hV₂_le
       ⟨by rw [inf_comm]; exact hcompl_inf, by rw [sup_comm]; exact hcompl_sup⟩⟩
-  calc (k₂ : ℝ) ≤ ((k - k₁ : ℕ) : ℝ) := by exact_mod_cast (by omega : k₂ ≤ k - k₁)
-    _ = finrank Bool (AffineSubspace.mk' (0 : BitString n) V₂).direction := by
-        rw [AffineSubspace.direction_mk', hV₂_dim]
-    _ = minEntropy _ :=
-        (minEntropy_uniformAffine (AffineSubspace.mk' (0 : BitString n) V₂) _).symm
+  refine le_trans ?_ (minEntropy_uniformAffine _ _).ge
+  rw [AffineSubspace.direction_mk', hV₂_dim]
+  exact_mod_cast (by omega : k₂ ≤ k - k₁)
 
 /-- A `(k₁, k₂, ε)` sumset extractor is a `(k, ε)` affine extractor whenever `k₁ + k₂ ≤ k`
 ([Li2023, Cor. 7.14]). -/

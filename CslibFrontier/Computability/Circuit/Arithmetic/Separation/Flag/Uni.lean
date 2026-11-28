@@ -37,7 +37,7 @@ namespace Cslib.Circuits.Arithmetic.Separation.Flag
 open Cslib.SLTower (U SL2 lo hi x)
 
 /-- The matrix of an element. -/
-abbrev mat {h : ℕ} (A : U h) : Matrix (Fin h) (Fin h) F2 := A.val.val
+abbrev mat {h : ℕ} (A : U h) : Matrix (Fin h) (Fin h) F2 := A.1.1
 
 theorem mat_inj {h : ℕ} {A B : U h} (hAB : mat A = mat B) : A = B := Subtype.ext (Subtype.ext hAB)
 
@@ -48,10 +48,9 @@ theorem mat_one {h : ℕ} : mat (1 : U h) = 1 := rfl
 theorem mat_x {h : ℕ} (j : Fin (h - 1)) : mat (x h j) = 1 + Matrix.single (lo j) (hi j) 1 := rfl
 
 theorem mat_lt {h : ℕ} (A : U h) {i j : Fin h} (hij : j < i) : mat A i j = 0 :=
-    (Cslib.SLTower.mem_U.mp A.property i j).1 hij
+    (Cslib.SLTower.mem_U.mp A.2 i j).1 hij
 
-theorem mat_diag {h : ℕ} (A : U h) (i : Fin h) : mat A i i = 1 :=
-  (Cslib.SLTower.mem_U.mp A.property i i).2
+theorem mat_diag {h : ℕ} (A : U h) (i : Fin h) : mat A i i = 1 := (Cslib.SLTower.mem_U.mp A.2 i i).2
 
 /-- An element from its matrix. -/
 @[expose] def mk {h : ℕ} (M : Matrix (Fin h) (Fin h) F2) (h0 : ∀ i j, j < i → M i j = 0)
@@ -77,15 +76,13 @@ section Win
 variable {p n h : ℕ} (hp : p + n ≤ h)
 
 /-- The place of an index of a window. -/
-@[expose] def we (i : Fin n) : Fin h := ⟨p + i.val, by omega⟩
+@[expose] def we (i : Fin n) : Fin h := ⟨p + i.1, by omega⟩
 
 theorem we_inj {i j : Fin n} : we hp i = we hp j ↔ i = j := by
-  simp only [we, Fin.ext_iff]
-  omega
+  simp only [we, Fin.ext_iff]; omega
 
 theorem we_lt {i j : Fin n} : we hp i < we hp j ↔ i < j := by
-  simp only [we, Fin.lt_def]
-  omega
+  simp only [we, Fin.lt_def]; omega
 
 /-- The window as an embedding. -/
 @[expose] def weEmb : Fin n ↪ Fin h := ⟨we hp, fun _ _ e => (we_inj hp).1 e⟩
@@ -107,24 +104,17 @@ theorem wi_mul_apply (A : Matrix (Fin n) (Fin n) F2) (i j : Fin h) :
 
 theorem wi_mul_we (A : Matrix (Fin n) (Fin n) F2) (a b : Fin n) :
     (wi hp * A * (wi hp)ᵀ) (we hp a) (we hp b) = A a b := by
-  rw [wi_mul_apply, sum_eq_single b, sum_eq_single a]
-  · simp
-  · intro c _ hc
-    simp [we_inj, hc.symm]
-  · simp
-  · intro c _ hc
-    simp [we_inj, hc.symm]
-  · simp
+  rw [wi_mul_apply, sum_eq_single b (fun c _ hc => by simp [we_inj, hc.symm]) (by simp),
+    sum_eq_single a (fun c _ hc => by simp [we_inj, hc.symm]) (by simp)]
+  simp
 
 theorem wi_mul_not (A : Matrix (Fin n) (Fin n) F2) {i : Fin h} (hi : ∀ a, i ≠ we hp a)
     (j : Fin h) : (wi hp * A * (wi hp)ᵀ) i j = 0 := by
-  rw [wi_mul_apply]
-  simp [hi]
+  simp [wi_mul_apply, hi]
 
 theorem wi_mul_not' (A : Matrix (Fin n) (Fin n) F2) {j : Fin h} (hj : ∀ a, j ≠ we hp a)
     (i : Fin h) : (wi hp * A * (wi hp)ᵀ) i j = 0 := by
-  rw [wi_mul_apply]
-  simp [hj]
+  simp [wi_mul_apply, hj]
 
 /-- The matrix of a window element. -/
 @[expose] def wm (A : Matrix (Fin n) (Fin n) F2) : Matrix (Fin h) (Fin h) F2 :=
@@ -134,9 +124,8 @@ theorem wm_one : wm hp 1 = 1 := by
   simp [wm]
 
 theorem wm_mul (A B : Matrix (Fin n) (Fin n) F2) : wm hp (A * B) = wm hp A * wm hp B := by
-  have hmul : ∀ C D : Matrix (Fin n) (Fin n) F2,
+  have hmul (C D : Matrix (Fin n) (Fin n) F2) :
       (wi hp * C * (wi hp)ᵀ) * (wi hp * D * (wi hp)ᵀ) = wi hp * (C * D) * (wi hp)ᵀ := by
-    intro C D
     simp only [Matrix.mul_assoc]
     rw [← Matrix.mul_assoc ((wi hp)ᵀ) (wi hp), wi_t_mul, Matrix.one_mul]
   unfold wm
@@ -181,7 +170,7 @@ def win : U n →* U h where
 theorem mat_win (A : U n) : mat (win hp A) = wm hp (mat A) := by rfl
 
 /-- The place of a type of a window. -/
-@[expose] def wt (j : Fin (n - 1)) : Fin (h - 1) := ⟨p + j.val, by omega⟩
+@[expose] def wt (j : Fin (n - 1)) : Fin (h - 1) := ⟨p + j.1, by omega⟩
 
 theorem win_x (j : Fin (n - 1)) : win hp (x n j) = x h (wt hp j) := by
   apply mat_inj
@@ -190,9 +179,8 @@ theorem win_x (j : Fin (n - 1)) : win hp (x n j) = x h (wt hp j) := by
       Matrix.single (lo (wt hp j)) (hi (wt hp j)) (1 : F2) := by
     ext a b
     rw [wi_mul_apply, Matrix.single_apply, sum_eq_single (hi j), sum_eq_single (lo j)]
-    · have h1 : we hp (lo j) = lo (wt hp j) := rfl
-      have h2 : we hp (hi j) = hi (wt hp j) := rfl
-      rw [h1, h2, Matrix.single_apply_same]
+    · rw [show we hp (lo j) = lo (wt hp j) from rfl, show we hp (hi j) = hi (wt hp j) from rfl,
+        Matrix.single_apply_same]
       simp only [eq_comm]
     · intro c _ hc
       rw [Matrix.single_apply_of_ne]
@@ -218,8 +206,7 @@ theorem hr : a + b ≤ a + b := le_rfl
 
 theorem wi_lr : (wi (hl (a := a) (b := b)))ᵀ * wi (hr (a := a) (b := b)) = 0 :=
   incl_t_mul_eq_zero _ _ fun i j => by
-    simp only [weEmb_apply, we, ne_eq, Fin.ext_iff]
-    omega
+    simp only [weEmb_apply, we, ne_eq, Fin.ext_iff]; omega
 
 theorem wi_rl : (wi (hr (a := a) (b := b)))ᵀ * wi (hl (a := a) (b := b)) = 0 := by
   rw [← Matrix.transpose_transpose (wi (hl (a := a) (b := b))), ← Matrix.transpose_mul, wi_lr,
@@ -227,52 +214,34 @@ theorem wi_rl : (wi (hr (a := a) (b := b)))ᵀ * wi (hl (a := a) (b := b)) = 0 :
 
 theorem wi_add : wi (hl (a := a) (b := b)) * (wi (hl (a := a) (b := b)))ᵀ +
     wi (hr (a := a) (b := b)) * (wi (hr (a := a) (b := b)))ᵀ = 1 := by
+  have hrow {p n : ℕ} (hp : p + n ≤ a + b) (k : Fin n) (j : Fin (a + b)) :
+      (wi hp * (wi hp)ᵀ) (we hp k) j =
+        (1 : Matrix (Fin (a + b)) (Fin (a + b)) F2) (we hp k) j := by
+    by_cases hj : ∃ l, j = we hp l
+    · obtain ⟨l, rfl⟩ := hj
+      have h1 := wi_mul_we hp 1 k l
+      rw [Matrix.mul_one] at h1
+      simp [h1, Matrix.one_apply, we_inj]
+    · push Not at hj
+      have h1 := wi_mul_not' hp 1 hj (we hp k)
+      rw [Matrix.mul_one] at h1
+      simp [h1, (hj k).symm]
   ext i j
-  have h1 := wi_mul_apply (hl (a := a) (b := b)) 1 i j
-  have h2 := wi_mul_apply (hr (a := a) (b := b)) 1 i j
-  rw [Matrix.mul_one] at h1 h2
-  rw [Matrix.add_apply, h1, h2]
-  clear h1 h2
-  by_cases hi : i.val < a
-  · obtain ⟨k, rfl⟩ : ∃ k, i = we (hl (a := a) (b := b)) k := ⟨⟨i.val, hi⟩, by simp [we]⟩
-    have h3 : ∀ c, we (hl (a := a) (b := b)) k ≠ we (hr (a := a) (b := b)) c := by
-      intro c
-      simp only [we, ne_eq, Fin.ext_iff]
-      omega
-    simp only [h3, false_and, ite_false, sum_const_zero, add_zero, we_inj, Matrix.one_apply]
-    rw [sum_congr rfl fun b _ => sum_eq_single k (by
-      intro c _ hc
-      simp [hc.symm]) (by simp)]
-    simp only [true_and]
-    by_cases hj : ∃ l, j = we (hl (a := a) (b := b)) l
-    · obtain ⟨l, rfl⟩ := hj
-      rw [sum_eq_single l]
-      · simp [we_inj]
-      · intro c _ hc
-        simp [we_inj, hc.symm]
-      · simp
-    · push Not at hj
-      simp [hj, (hj k).symm]
+  rw [Matrix.add_apply]
+  by_cases hi : i.1 < a
+  · obtain ⟨k, rfl⟩ : ∃ k, i = we (hl (a := a) (b := b)) k := ⟨⟨i.1, hi⟩, by simp [we]⟩
+    have hnot (c : Fin b) : we (hl (a := a) (b := b)) k ≠ we (hr (a := a) (b := b)) c := by
+      simp only [we, ne_eq, Fin.ext_iff]; omega
+    have h0 := wi_mul_not (hr (a := a) (b := b)) 1 hnot j
+    rw [Matrix.mul_one] at h0
+    rw [hrow, h0, add_zero]
   · obtain ⟨k, rfl⟩ : ∃ k, i = we (hr (a := a) (b := b)) k :=
-      ⟨⟨i.val - a, by omega⟩, by simp only [we, Fin.ext_iff]; omega⟩
-    have h3 : ∀ c, we (hr (a := a) (b := b)) k ≠ we (hl (a := a) (b := b)) c := by
-      intro c
-      simp only [we, ne_eq, Fin.ext_iff]
-      omega
-    simp only [h3, false_and, ite_false, sum_const_zero, zero_add, we_inj, Matrix.one_apply]
-    rw [sum_congr rfl fun b _ => sum_eq_single k (by
-      intro c _ hc
-      simp [hc.symm]) (by simp)]
-    simp only [true_and]
-    by_cases hj : ∃ l, j = we (hr (a := a) (b := b)) l
-    · obtain ⟨l, rfl⟩ := hj
-      rw [sum_eq_single l]
-      · simp [we_inj]
-      · intro c _ hc
-        simp [we_inj, hc.symm]
-      · simp
-    · push Not at hj
-      simp [hj, (hj k).symm]
+      ⟨⟨i.1 - a, by omega⟩, by simp only [we, Fin.ext_iff]; omega⟩
+    have hnot (c : Fin a) : we (hr (a := a) (b := b)) k ≠ we (hl (a := a) (b := b)) c := by
+      simp only [we, ne_eq, Fin.ext_iff]; omega
+    have h0 := wi_mul_not (hl (a := a) (b := b)) 1 hnot j
+    rw [Matrix.mul_one] at h0
+    rw [hrow, h0, zero_add]
 
 end Blocks
 

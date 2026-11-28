@@ -173,18 +173,12 @@ omit [MeasurableSpace α] [MeasurableSpace β] in
 private theorem prefixHypothesis_removeNth {m : ℕ} (A : OnlineLearner α β)
     (S : LabeledSample α β (m + 1)) (t : Fin (m + 1)) :
     prefixHypothesis A (t.removeNth S) t = prefixHypothesis A S t := by
-  unfold prefixHypothesis
-  congr 1
-  apply List.ext_getElem
-  · simp only [List.length_take, List.length_ofFn]
-    omega
-  · intro i h₁ h₂
-    simp only [List.length_take, List.length_ofFn] at h₁ h₂
-    simp only [List.getElem_take, List.getElem_ofFn, Fin.removeNth]
-    congr 1
-    ext
+  refine congrArg A (List.ext_getElem (by simp; omega) fun i h₁ h₂ => ?_)
+  simp only [List.length_take, List.length_ofFn] at h₁ h₂
+  simp only [List.getElem_take, List.getElem_ofFn, Fin.removeNth]
+  exact congrArg S (Fin.ext (by
     simp only [Fin.succAbove, Fin.lt_def, Fin.val_castSucc]
-    split_ifs with h <;> simp_all
+    split_ifs <;> simp_all))
 
 /-- **The expected error of a prefix hypothesis.** For i.i.d. examples, the expected error of the
 hypothesis that a measurable learner `A` holds after the first `t` of `m` examples is the
@@ -195,21 +189,15 @@ theorem lintegral_error_prefixHypothesis_eq [MeasurableEq β] {A : OnlineLearner
     ∫⁻ S, error D (prefixHypothesis A S t) ∂Measure.pi (fun _ : Fin m => D) =
       Measure.pi (fun _ : Fin (m + 1) => D)
         {S | prefixHypothesis A S t (S t).1 ≠ (S t).2} := by
-  set F : Set ((α × β) × LabeledSample α β m) :=
-    {q | prefixHypothesis A q.2 t q.1.1 ≠ q.1.2}
-  have hF : MeasurableSet F := by
-    have h := (hA.measurableSet_misclassified m t).preimage
-      (measurable_snd.prodMk measurable_fst :
-        Measurable fun q : (α × β) × LabeledSample α β m => (q.2, q.1))
-    exact h
-  have he := measurePreserving_piFinSuccAbove (fun _ : Fin (m + 1) => D) t
+  set F : Set ((α × β) × LabeledSample α β m) := {q | prefixHypothesis A q.2 t q.1.1 ≠ q.1.2}
+  have hF : MeasurableSet F :=
+    (hA.measurableSet_misclassified m t).preimage (measurable_snd.prodMk measurable_fst)
   have hset : {S : LabeledSample α β (m + 1) | prefixHypothesis A S t (S t).1 ≠ (S t).2} =
       MeasurableEquiv.piFinSuccAbove (fun _ => α × β) t ⁻¹' F := by
-    ext S
-    simp only [mem_ofPred_eq, mem_preimage, F, MeasurableEquiv.piFinSuccAbove_apply,
-      Fin.insertNthEquiv_symm_apply]
-    rw [prefixHypothesis_removeNth]
-  rw [hset, he.measure_preimage hF.nullMeasurableSet, Measure.prod_apply_symm hF]
+    ext
+    simp [F, prefixHypothesis_removeNth]
+  rw [hset, (measurePreserving_piFinSuccAbove (fun _ : Fin (m + 1) => D) t).measure_preimage
+    hF.nullMeasurableSet, Measure.prod_apply_symm hF]
   rfl
 
 /-! ### Summing over prefixes -/
@@ -222,15 +210,12 @@ private theorem mistakes_ofFn_eq_card [DecidableEq β] {m : ℕ} (A : OnlineLear
     mistakes A (List.ofFn S) =
       (Finset.univ.filter fun t : Fin m => prefixHypothesis A S t (S t).1 ≠ (S t).2).card := by
   rw [mistakes_eq_card]
-  refine Finset.card_bij (fun t _ => Fin.cast (List.length_ofFn) t) ?_ ?_ ?_
-  · intro t ht
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at ht ⊢
+  refine Finset.card_bij (fun t _ => Fin.cast List.length_ofFn t) (fun t ht => ?_)
+    (fun _ _ _ _ h => Fin.cast_injective _ h) fun t ht =>
+      ⟨Fin.cast List.length_ofFn.symm t, ?_, by simp⟩
+  · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at ht ⊢
     simpa [prefixHypothesis, Fin.cast] using ht
-  · intro a _ b _ h
-    exact Fin.cast_injective _ h
-  · intro t ht
-    refine ⟨Fin.cast List.length_ofFn.symm t, ?_, by simp⟩
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at ht ⊢
+  · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at ht ⊢
     simpa [prefixHypothesis] using ht
 
 omit [MeasurableSpace α] [MeasurableSpace β] in
@@ -264,14 +249,13 @@ theorem sum_lintegral_error_prefixHypothesis_le [MeasurableEq β] [DecidableEq �
         rw [lintegral_finsetSum _ fun t _ => measurable_one.indicator (hmeas t)]
         simp only [lintegral_indicator_one (hmeas _)]
     _ ≤ ∫⁻ _, (M : ℝ≥0∞) ∂μ := by
-        refine lintegral_mono_ae ?_
-        filter_upwards [hD.ae_realizable (m + 1)] with S hS
+        refine lintegral_mono_ae ((hD.ae_realizable (m + 1)).mono fun S hS => ?_)
         have hcount : ∑ t : Fin (m + 1),
             {S : LabeledSample α β (m + 1) | prefixHypothesis A S t (S t).1 ≠ (S t).2}.indicator
               1 S = (mistakes A (List.ofFn S) : ℝ≥0∞) := by
           rw [mistakes_ofFn_eq_card, Finset.card_filter, Nat.cast_sum]
-          refine Finset.sum_congr rfl fun t _ => ?_
-          by_cases h : prefixHypothesis A S t (S t).1 ≠ (S t).2 <;> simp [h]
+          exact Finset.sum_congr rfl fun t _ => by
+            by_cases h : prefixHypothesis A S t (S t).1 ≠ (S t).2 <;> simp [h]
         rw [hcount]
         exact_mod_cast (mistakes_le_mistakeBound (realizable_ofFn hS)).trans hM
     _ = M := by simp
@@ -317,15 +301,14 @@ private theorem mul_error_prefixMajority_le {A : OnlineLearner α Bool} (hA : Is
   have hf : Measurable f := hsum.const_mul _
   have hsub : {z : α × Bool | prefixMajority A S z.1 ≠ z.2} ⊆ {z | (m + 1 : ℝ≥0∞) ≤ f z} := by
     intro z hz
-    have h := le_two_mul_card_of_prefixMajority_ne A S hz
-    have hsum : ∑ t : Fin (m + 1), {z : α × Bool | prefixHypothesis A S t z.1 ≠ z.2}.indicator 1 z
+    have hcard : ∑ t : Fin (m + 1), {z : α × Bool | prefixHypothesis A S t z.1 ≠ z.2}.indicator 1 z
         = ((Finset.univ.filter fun t : Fin (m + 1) => prefixHypothesis A S t z.1 ≠ z.2).card :
           ℝ≥0∞) := by
       rw [Finset.card_filter, Nat.cast_sum]
-      refine Finset.sum_congr rfl fun t _ => ?_
-      by_cases ht : prefixHypothesis A S t z.1 ≠ z.2 <;> simp [ht]
-    simp only [mem_ofPred_eq, f, hsum]
-    exact_mod_cast h
+      exact Finset.sum_congr rfl fun t _ => by
+        by_cases ht : prefixHypothesis A S t z.1 ≠ z.2 <;> simp [ht]
+    simp only [mem_ofPred_eq, f, hcard]
+    exact_mod_cast le_two_mul_card_of_prefixMajority_ne A S hz
   calc (m + 1 : ℝ≥0∞) * error D (prefixMajority A S)
       ≤ (m + 1 : ℝ≥0∞) * D {z | (m + 1 : ℝ≥0∞) ≤ f z} := by
         gcongr
@@ -363,7 +346,8 @@ theorem isPACLearnerFor_prefixMajority {A : OnlineLearner α Bool} (hA : IsMeasu
   have hmeas := (hA.measurable_sum_error_prefix D m).const_mul 2
   have hint := lintegral_two_mul_sum_error_prefix_le hA hM hD m
   have hsub : {S : LabeledSample α Bool m | (ε.val : ℝ≥0∞) < error D (prefixMajority A S)} ⊆
-      {S | (ε.val : ℝ≥0∞) * (m + 1) ≤ 2 * ∑ t : Fin (m + 1), error D (prefixHypothesis A S t)} := by
+      {S | (ε.val : ℝ≥0∞) * (m + 1) ≤
+        2 * ∑ t : Fin (m + 1), error D (prefixHypothesis A S t)} := by
     intro S hS
     calc (ε.val : ℝ≥0∞) * (m + 1) ≤ error D (prefixMajority A S) * (m + 1) := by
           gcongr
@@ -380,12 +364,9 @@ theorem isPACLearnerFor_prefixMajority {A : OnlineLearner α Bool} (hA : IsMeasu
     _ ≤ 2 * M / ((ε.val : ℝ≥0∞) * (m + 1)) := by gcongr
     _ ≤ δ.val := by
         rw [ENNReal.div_le_iff (mul_ne_zero hε hpos)
-          (ENNReal.mul_ne_top ENNReal.coe_ne_top (by simp))]
-        have : ((2 * (M : ℝ≥0) : ℝ≥0) : ℝ≥0∞) ≤ ((ε.val * δ.val * (m + 1) : ℝ≥0) : ℝ≥0∞) :=
-          ENNReal.coe_le_coe.mpr hm
-        push_cast at this
-        calc (2 * M : ℝ≥0∞) ≤ ε.val * δ.val * (m + 1) := this
-          _ = δ.val * (ε.val * (m + 1)) := by ring
+          (ENNReal.mul_ne_top ENNReal.coe_ne_top (by simp)),
+          mul_left_comm (δ.val : ℝ≥0∞), ← mul_assoc]
+        exact_mod_cast hm
 
 /-- A Boolean class with a learner of finite mistake bound is PAC learnable over its realizable
 distributions, provided the learner is measurable; the sample size is `⌈2 M / (ε δ)⌉`. -/

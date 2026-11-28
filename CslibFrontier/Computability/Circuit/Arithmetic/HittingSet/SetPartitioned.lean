@@ -148,12 +148,7 @@ theorem exists_mem_setPartitionedHittingSet_eval_ne_zero {blk : σ → Fin n}
       colorPart_ne_zero (h ∘ blk) hm (hGpart m hm).1 hinj' rfl
     obtain ⟨V, hV, hfin, hrank, hgV⟩ := exists_pderiv_closed_colorPart (h ∘ blk) (w := w)
       (G := G) fun I => by
-        have hI := (hsplit (univ.filter fun j => h j ∈ I)).shift a
-        have hset : blk ⁻¹' ((univ.filter fun j => h j ∈ I : Finset (Fin n)) : Set (Fin n)) =
-            h ∘ blk ⁻¹' (I : Set (Fin m.support.card)) := by
-          ext v
-          simp
-        rwa [hset] at hI
+        simpa [Set.preimage] using (hsplit (univ.filter fun j => h j ∈ I)).shift a
     have hgdeg : (colorPart (h ∘ blk) G).totalDegree ≤ n :=
       (totalDegree_le_of_support_subset (support_colorPart_subset _ G)).trans hGdeg
     obtain ⟨b, hb, hbg⟩ := isHittingSet_logHittingSetOn (2 ^ m.support.card * w) n
@@ -170,11 +165,7 @@ theorem exists_mem_setPartitionedHittingSet_eval_ne_zero {blk : σ → Fin n}
         ⟨(a, h, J, b, t'), ?_, rfl⟩⟩), ?_⟩
     · simp only [mem_product, mem_univ, true_and]
       exact ⟨ha, hh, hb, ht'⟩
-    · have hpt : (fun v => a v + if h (blk v) ∈ J then 0 else (t' : F) * b v) =
-          fun i => (if (h ∘ blk) i ∈ J then 0 else (t' : F) * b i) + a i :=
-        funext fun v => add_comm _ _
-      rw [hpt]
-      exact hJ
+    · simpa only [Function.comp_apply, add_comm (a _)] using hJ
 
 /-- The set has at most `|A| (1 + ∑ r ≤ L, n 2 ^ (25 r) 2 ^ r (n (N (2 ^ r w)² + 2 ^ r w) + 1)
 (n + 1))` points, where `N` is the number of variables. -/

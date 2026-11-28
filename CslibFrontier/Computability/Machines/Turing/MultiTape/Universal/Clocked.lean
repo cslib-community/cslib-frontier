@@ -97,13 +97,12 @@ theorem runWord_eq_some_iff {d : Desc} {w o : List Bool} {t : ℕ} :
 theorem runWord_mono {d : Desc} {w o : List Bool} {t₁ t₂ : ℕ} (ht : t₁ ≤ t₂)
     (h : runWord d w t₁ = some o) : runWord d w t₂ = some o := by
   obtain ⟨u, hu, rfl⟩ := runWord_eq_some_iff.mp h
-  refine runWord_eq_some_iff.mpr ⟨u, ?_, rfl⟩
   obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le ht
+  refine runWord_eq_some_iff.mpr ⟨u, ?_, rfl⟩
   simp only [universal, simulate] at hu ⊢
   rcases hiter : (stepOut d (w.map eBit))^[t₁] (init d, []) with ⟨c, out⟩
-  rw [hiter] at hu
-  simp only [Prod.mk.injEq, Option.isNone_iff_eq_none] at hu
-  rcases hu with ⟨rfl, hstate⟩
+  obtain ⟨rfl, hstate⟩ : out = u ∧ c.state = none := by
+    simpa only [hiter, Prod.mk.injEq, Option.isNone_iff_eq_none] using hu
   rw [Nat.add_comm, Function.iterate_add_apply, hiter,
     Function.iterate_fixed (stepOut_of_state_eq_none hstate out)]
   simp [hstate]
@@ -112,9 +111,8 @@ theorem runWord_mono {d : Desc} {w o : List Bool} {t₁ t₂ : ℕ} (ht : t₁ �
 theorem length_le_of_runWord_eq_some {d : Desc} {w o : List Bool} {t : ℕ}
     (h : runWord d w t = some o) : o.length ≤ t := by
   obtain ⟨u, hu, rfl⟩ := runWord_eq_some_iff.mp h
-  obtain ⟨_, hlen, _⟩ := inv_iterate d (w.map eBit) t
   have hu' : ((stepOut d (w.map eBit))^[t] (init d, [])).2 = u := congrArg Prod.fst hu
-  simpa [hu'] using hlen
+  simpa [hu'] using (inv_iterate d (w.map eBit) t).2.1
 
 /-- On the description of a finite binary machine, `runWord` returns its output iff the machine has
 halted within `t` steps. -/
@@ -129,11 +127,8 @@ theorem runWord_desc {k : ℕ} {State : Type} [Fintype State] (eS : State ↪ �
   simp only [Cfg.Halted]
   cases (tm.runFrom (tm.initCfg w) t).state with
   | none =>
-    simp only [Option.isNone_none, ↓reduceIte, Option.some.injEq, List.map_map]
-    have hbit : ((· != 0) ∘ eBit) = id := by
-      funext b
-      cases b <;> rfl
-    simp [hbit]
+    have hbit : ((· != 0) ∘ eBit) = id := funext fun b => by cases b <;> rfl
+    simp [List.map_map, hbit]
   | some _ => simp
 
 /-- If a finite binary machine halts within `t` steps on `w`, then `runWord` on its description for
@@ -155,17 +150,11 @@ theorem computableInPolyTime_runWord {α : Type} {input : α ↪ List Bool}
   have hsim : ComputableInPolyTime (fun a => universal (d a, (w a).map eBit, t a)) input eOut :=
     computableInPolyTime_universal.comp
       (hd.prod ((computableInPolyTime_map_eBit.comp hw).prod ht))
-  have h1 : ComputableInPolyTime (fun a => (universal (d a, (w a).map eBit, t a)).1) input
-      (encList encUnary) :=
-    (ComputableInPolyTime.fst (encList encUnary) encBool).comp hsim
-  have h2 : ComputableInPolyTime (fun a => (universal (d a, (w a).map eBit, t a)).2) input
-      encBool :=
-    (ComputableInPolyTime.snd (encList encUnary) encBool).comp hsim
-  have hout : ComputableInPolyTime
-      (fun a => some ((universal (d a, (w a).map eBit, t a)).1.map (· != 0))) input
-      (encOption encBits) :=
-    (ComputableInPolyTime.optionSome encBits).comp (computableInPolyTime_map_ne_zero.comp h1)
-  exact ComputableInPolyTime.ite' h2 hout (ComputableInPolyTime.const none)
+  exact ComputableInPolyTime.ite'
+    ((ComputableInPolyTime.snd (encList encUnary) encBool).comp hsim)
+    ((ComputableInPolyTime.optionSome encBits).comp (computableInPolyTime_map_ne_zero.comp
+      ((ComputableInPolyTime.fst (encList encUnary) encBool).comp hsim)))
+    (ComputableInPolyTime.const none)
 
 end Universal
 
@@ -177,7 +166,7 @@ theorem IsComputable.exists_runBool {α : Type} {enc : α ↪ List Bool} {f : α
     (hf : IsComputable f enc encBool) :
     ∃ d : Desc, (∀ a t b, runBool d (enc a) t = some b → b = f a) ∧
       ∀ a, ∃ T, ∀ t, T ≤ t → runBool d (enc a) t = some (f a) := by
-  obtain ⟨k, State, hfin, tm, htm⟩ := isComputable_iff.mp hf
+  obtain ⟨k, State, _, tm, htm⟩ := isComputable_iff.mp hf
   have := Fintype.ofFinite State
   let eS : State ↪ ℕ := (Fintype.equivFin State).toEmbedding.trans Fin.valEmbedding
   refine ⟨desc eS eBit tm, fun a t b hb => ?_, fun a => ?_⟩
@@ -185,10 +174,9 @@ theorem IsComputable.exists_runBool {α : Type} {enc : α ↪ List Bool} {f : α
     rw [runBool_eq_some_iff, universal_desc, Prod.mk.injEq, Option.isNone_iff_eq_none] at hb
     obtain ⟨hb, ht⟩ := hb
     -- the runs for `t` and `u` steps have both halted, so they agree
-    have heq : tm.runFrom (tm.initCfg (enc a)) t = tm.runFrom (tm.initCfg (enc a)) u := by
-      rcases le_total t u with h | h
-      · exact (runFrom_eq_of_halt tm _ h ht).symm
-      · exact runFrom_eq_of_halt tm _ h hhalt
+    have heq : tm.runFrom (tm.initCfg (enc a)) t = tm.runFrom (tm.initCfg (enc a)) u :=
+      (le_total t u).elim (fun h => (runFrom_eq_of_halt tm _ h ht).symm)
+        (fun h => runFrom_eq_of_halt tm _ h hhalt)
     rw [heq, hout] at hb
     exact (eBit.injective (List.singleton_injective hb)).symm
   · -- past its halting time, the machine has halted with output `[f a]`

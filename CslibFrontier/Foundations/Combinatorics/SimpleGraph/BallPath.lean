@@ -129,9 +129,8 @@ theorem edist_le_iff (hφ : IsBallPath G r lo hi φ) {k : ℕ} (hk : k ≤ r) {x
   refine ⟨fun h => ?_, fun ⟨s, hs, hsk, hx⟩ => hx ▸ hφ.edist_le hs hsk⟩
   induction k generalizing x with
   | zero =>
-    refine ⟨0, ⟨hφ.lo_nonpos, hφ.hi_nonneg⟩, by simp, ?_⟩
-    have : G.edist (φ 0) x = 0 := nonpos_iff_eq_zero.1 (by exact_mod_cast h)
-    exact (edist_eq_zero_iff.1 this).symm
+    exact ⟨0, ⟨hφ.lo_nonpos, hφ.hi_nonneg⟩, by simp,
+      (edist_eq_zero_iff.1 (nonpos_iff_eq_zero.1 (by exact_mod_cast h))).symm⟩
   | succ k ih =>
     obtain ⟨d, hd⟩ : ∃ d : ℕ, G.edist (φ 0) x = d :=
       ENat.ne_top_iff_exists.1 (ne_top_of_le_ne_top (ENat.natCast_ne_top _) h) |>.imp
@@ -139,8 +138,7 @@ theorem edist_le_iff (hφ : IsBallPath G r lo hi φ) {k : ℕ} (hk : k ≤ r) {x
     rcases Nat.lt_or_ge d (k + 1) with hdk | hdk
     · obtain ⟨s, hs, hsk, rfl⟩ := ih (by omega) (by rw [hd]; exact_mod_cast (by omega : d ≤ k))
       exact ⟨s, hs, ⟨by omega, by omega⟩, rfl⟩
-    · have hd' : d = k + 1 := le_antisymm (by rw [hd] at h; exact_mod_cast h) hdk
-      subst hd'
+    · cases le_antisymm (by exact_mod_cast (hd ▸ h)) hdk
       obtain ⟨v, hvx, hv⟩ := exists_adj_edist_eq_of_edist_eq_add_one (by rw [hd]; push_cast; rfl)
       obtain ⟨s, hs, hsk, rfl⟩ := ih (by omega) hv.le
       obtain ⟨t, ht, rfl⟩ := hφ.exists_of_adj hs (by omega) (by omega) hvx
@@ -192,14 +190,11 @@ open scoped Fin.IntCast
 
 private theorem fin_intCast_eq_zero {N : ℕ} [NeZero N] {z : ℤ} (h1 : -(N : ℤ) < z)
     (h2 : z < N) : (z : Fin N) = 0 ↔ z = 0 := by
-  refine ⟨fun h => ?_, fun h => by subst h; rfl⟩
+  refine ⟨fun h => ?_, fun h => h ▸ rfl⟩
   have hv := congrArg Fin.val h
   rw [Fin.val_intCast, Fin.val_zero] at hv
-  have hN : (0 : ℤ) < N := by omega
-  have hmod : z % N = 0 := by
-    have := Int.emod_nonneg z hN.ne'
-    omega
-  exact Int.eq_zero_of_abs_lt_dvd (Int.dvd_of_emod_eq_zero hmod) (abs_lt.2 ⟨h1, h2⟩)
+  have := Int.emod_nonneg z (by omega : (N : ℤ) ≠ 0)
+  exact Int.eq_zero_of_abs_lt_dvd (Int.dvd_of_emod_eq_zero (by omega)) (abs_lt.2 ⟨h1, h2⟩)
 
 /-- Around every vertex `c` of the cycle graph on `N ≥ 2r + 2` vertices, `s ↦ c + s` is a ball
 path over `[-r, r]`. -/

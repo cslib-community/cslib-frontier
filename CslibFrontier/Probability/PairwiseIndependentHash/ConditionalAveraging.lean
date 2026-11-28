@@ -214,8 +214,7 @@ theorem isValidWrap_iff [NeZero L] {g : SpecialLinearGroup (Fin H) ℤ} {c z : F
   · have := (Int.ediv_emod_unique hL).2
       ⟨show wrapTarget g c w i + L * z i + L * -z i = wrapTarget g c w i by ring, h i⟩
     simp only [wrap, this.1, neg_neg]
-  · have hmod := Int.emod_def (wrapTarget g c w i) L
-    simp only [h, wrap, mul_neg, ← sub_eq_add_neg, ← hmod]
+  · simp only [h, wrap, mul_neg, ← sub_eq_add_neg, ← Int.emod_def]
     exact ⟨Int.emod_nonneg _ hL.ne', Int.emod_lt_of_pos _ hL⟩
 
 /-- **The wrap box**: for a value in the retention box, the valid wrap satisfies
@@ -226,29 +225,24 @@ theorem abs_wrap_le [NeZero L] (g : SpecialLinearGroup (Fin H) ℤ) (c : Fin H �
     |wrap L g c w i| ≤ ∑ j, |g i j| + |c i| := by
   have hL : (0 : ℤ) < L := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne L)
   simp only [wrap, abs_neg]
-  have hterm (j : Fin H) : |g i j * ((w j).val : ℤ)| ≤ |g i j| * L := by
-    rw [abs_mul, abs_of_nonneg (Int.natCast_nonneg _)]
-    have : ((w j).val : ℤ) ≤ L := by exact_mod_cast (mem_retentionBox.1 hw j).le
-    exact mul_le_mul_of_nonneg_left this (abs_nonneg _)
-  have hx : |wrapTarget g c w i| ≤ L * (∑ j, |g i j| + |c i|) := by
-    have h1 : |∑ j, g i j * ((w j).val : ℤ)| ≤ ∑ j, |g i j| * L :=
-      (abs_sum_le_sum_abs _ _).trans (sum_le_sum fun j _ ↦ hterm j)
-    have h2 : |c i| ≤ |c i| * L := le_mul_of_one_le_right (abs_nonneg _) hL
-    calc |wrapTarget g c w i| = |∑ j, g i j * ((w j).val : ℤ) + c i| := rfl
-      _ ≤ |∑ j, g i j * ((w j).val : ℤ)| + |c i| := abs_add_le _ _
-      _ ≤ ∑ j, |g i j| * L + |c i| * L := add_le_add h1 h2
-      _ = L * (∑ j, |g i j| + |c i|) := by rw [← sum_mul]; ring
+  have hx : |wrapTarget g c w i| ≤ L * (∑ j, |g i j| + |c i|) := calc
+    |wrapTarget g c w i| ≤ |∑ j, g i j * ((w j).val : ℤ)| + |c i| := abs_add_le _ _
+    _ ≤ ∑ j, |g i j| * L + |c i| * L := add_le_add
+        ((abs_sum_le_sum_abs _ _).trans <| sum_le_sum fun j _ ↦ by
+          rw [abs_mul, abs_of_nonneg (Int.natCast_nonneg _)]
+          exact mul_le_mul_of_nonneg_left (by exact_mod_cast (mem_retentionBox.1 hw j).le)
+            (abs_nonneg _))
+        (le_mul_of_one_le_right (abs_nonneg _) hL)
+    _ = L * (∑ j, |g i j| + |c i|) := by rw [← sum_mul]; ring
   generalize wrapTarget g c w i = x at hx ⊢
   generalize ∑ j, |g i j| + |c i| = S at hx ⊢
   have hlo := Int.mul_ediv_self_le (x := x) hL.ne'
   have hhi := Int.lt_ediv_add_one_mul_self x hL
   rw [abs_le] at hx ⊢
-  constructor
-  · by_contra h
-    have : x / L + 1 ≤ -S := by omega
+  refine ⟨?_, ?_⟩ <;> by_contra h
+  · have : x / L + 1 ≤ -S := by omega
     nlinarith
-  · by_contra h
-    have : S + 1 ≤ x / L := by omega
+  · have : S + 1 ≤ x / L := by omega
     nlinarith
 
 /-- **The valid variant is the conditional move.** On a channel retaining `y`, the variant with the

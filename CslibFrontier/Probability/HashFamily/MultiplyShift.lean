@@ -66,11 +66,8 @@ private theorem lt_or_lt_of_div_eq {u t N P : ℕ} (hP : 0 < P) (hu : u < N) (ht
   rw [← h] at h2
   generalize P * (u / P) = A at h1 h2
   rcases lt_or_ge (u + t) N with hlt | hge
-  · rw [Nat.mod_eq_of_lt hlt] at h2 h4
-    omega
-  · have hmod : (u + t) % N = u + t - N := by
-      rw [Nat.mod_eq_sub_mod hge, Nat.mod_eq_of_lt (by omega)]
-    rw [hmod] at h2 h4
+  · rw [Nat.mod_eq_of_lt hlt] at h2 h4; omega
+  · rw [Nat.mod_eq_sub_mod hge, Nat.mod_eq_of_lt (show u + t - N < N by omega)] at h2 h4
     omega
 
 /-- An odd number modulo an even modulus `2 K` stays odd: `(2 Q + 1) mod 2 K = 2 (Q mod K) + 1`. -/
@@ -89,8 +86,8 @@ private theorem card_filter_mod_eq_le {n s j z' c q : ℕ} (hn : n ≤ 2 ^ s * 2
     Nat.Coprime.pow_left j (Nat.coprime_comm.mp hz'.coprime_two_right)
   calc #{b : Fin n | ((b : ℕ) * z' + c) % 2 ^ j = q} ≤ #(range (2 ^ s)) := by
         refine card_le_card_of_injOn (fun b => (b : ℕ) / 2 ^ j) (fun b _ => ?_) ?_
-        · rw [coe_range, Set.mem_Iio]
-          exact Nat.div_lt_of_lt_mul (by rw [mul_comm]; exact b.isLt.trans_le hn)
+        · exact mem_coe.2 (mem_range.2 (Nat.div_lt_of_lt_mul (b.2.trans_le (hn.trans_eq
+            (mul_comm _ _)))))
         · intro b₁ hb₁ b₂ hb₂ h
           simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at hb₁ hb₂
           have hmod : (b₁ : ℕ) ≡ b₂ [MOD 2 ^ j] :=
@@ -116,16 +113,13 @@ private theorem mul_card_filter_bad_le {s j w M : ℕ} (hw : w = s + 1 + j) (hM 
     · exact Nat.zero_le _
     rw [mem_range] at hr
     have h1 : S ≤ S * (2 * r + 1) := Nat.le_mul_of_pos_right _ (by omega)
-    have h2 : S * (2 * r + 1) + S ≤ S * (2 * J) := by
-      rw [← Nat.mul_add_one]
-      exact Nat.mul_le_mul_left S (by omega)
+    have h2 : S * (2 * r + 1) + S ≤ S * (2 * J) :=
+      (Nat.mul_add_one _ _).symm.trans_le (Nat.mul_le_mul_left S (by omega))
     omega
   · -- The bad residues are the first `E` and the last `E`, where `2 ^ (w - M) = S (2 E)`.
     set E := 2 ^ (w - M - s - 1) with hE
     have hPE : 2 ^ (w - M) = S * (2 * E) := by
-      rw [hS, hE, ← pow_succ', ← pow_add]
-      congr 1
-      omega
+      rw [hS, hE, ← pow_succ', ← pow_add]; congr 1; omega
     have hEJ : E ≤ J := Nat.pow_le_pow_right (by norm_num) (by omega)
     rw [hPE]
     refine Nat.mul_le_mul_left S ?_
@@ -140,9 +134,7 @@ private theorem mul_card_filter_bad_le {s j w M : ℕ} (hw : w = s + 1 + j) (hM 
           · rw [← mul_tsub] at hB
             exact Or.inr ⟨by have := Nat.lt_of_mul_lt_mul_left hB; omega, hr.1⟩
       _ ≤ #(range E) + #(Ico (J - E) J) := card_union_le _ _
-      _ ≤ 2 * E := by
-          rw [card_range, Nat.card_Ico]
-          omega
+      _ ≤ 2 * E := by rw [card_range, Nat.card_Ico]; omega
 
 /-- The counting bound for inputs `y < x`. -/
 private theorem card_filter_lt {w M : ℕ} (hw : 0 < w) (hM : M ≤ w) {x y : Fin (2 ^ w)}
@@ -153,16 +145,13 @@ private theorem card_filter_lt {w M : ℕ} (hw : 0 < w) (hM : M ≤ w) {x y : Fi
   obtain ⟨s, z', hz', hz⟩ := Nat.exists_eq_two_pow_mul_odd (n := (x : ℕ) - y) (by omega)
   have hs : s < w := by
     have h1 : 2 ^ s ≤ (x : ℕ) - y := hz ▸ Nat.le_mul_of_pos_right _ hz'.pos
-    have h2 : (x : ℕ) - y < 2 ^ w := by have := x.isLt; omega
+    have h2 : (x : ℕ) - y < 2 ^ w := by have := x.2; omega
     exact (Nat.pow_lt_pow_iff_right (by norm_num)).mp (h1.trans_lt h2)
   obtain ⟨c, hc⟩ := hz'
   set j := w - s - 1 with hj
   have hwj : w = s + 1 + j := by omega
   have hNsj : 2 ^ w = 2 ^ s * (2 * 2 ^ j) := by rw [hwj, pow_add, pow_add, pow_one]; ring
-  have hw1 : 2 ^ (w - 1) = 2 ^ s * 2 ^ j := by
-    rw [← pow_add]
-    congr 1
-    omega
+  have hw1 : 2 ^ (w - 1) = 2 ^ s * 2 ^ j := by rw [← pow_add]; congr 1; omega
   -- The residue of a multiple of the difference of the inputs.
   have hkey (b : Fin (2 ^ (w - 1))) : (2 * (b : ℕ) + 1) * ((x : ℕ) - y) % 2 ^ w =
       2 ^ s * (2 * (((b : ℕ) * z' + c) % 2 ^ j) + 1) := by
@@ -189,8 +178,7 @@ private theorem card_filter_lt {w M : ℕ} (hw : 0 < w) (hM : M ≤ w) {x y : Fi
           (fun b hb => hcoll b (mem_filter.mp hb).2) _ fun r _ => ?_
         refine (card_le_card fun b hb => ?_).trans
           (card_filter_mod_eq_le (c := c) (q := r) hw1.le ⟨c, hc⟩)
-        simp only [mem_filter, mem_univ, true_and] at hb ⊢
-        exact hb.2
+        exact mem_filter.2 ⟨mem_univ _, (mem_filter.1 hb).2⟩
     _ ≤ 2 ^ (w - M) := mul_card_filter_bad_le hwj hM
 
 /-- **Multiply-shift collisions**: at most `2 ^ (w - M)` of the `2 ^ (w - 1)` odd multipliers
@@ -198,8 +186,7 @@ make two distinct `w`-bit inputs collide. -/
 theorem card_filter_multiplyShift_eq_le {w M : ℕ} (hw : 0 < w) (hM : M ≤ w) {x y : Fin (2 ^ w)}
     (hxy : x ≠ y) : #{b | multiplyShift w M b x = multiplyShift w M b y} ≤ 2 ^ (w - M) := by
   rcases lt_or_gt_of_ne hxy with h | h
-  · have h' := card_filter_lt hw hM h
-    rwa [filter_congr fun b _ => eq_comm] at h'
+  · exact (congrArg card (filter_congr fun _ _ => eq_comm)).trans_le (card_filter_lt hw hM h)
   · exact card_filter_lt hw hM h
 
 /-- **Multiply-shift is `2 / 2 ^ M`-universal**
@@ -216,7 +203,6 @@ theorem isUniversalHash_multiplyShift {w M : ℕ} (hw : 0 < w) (hM : M ≤ w) :
   push_cast
   rw [ENNReal.div_eq_div_iff (by positivity) (by simp) (by positivity) (by simp), ← pow_succ,
     ← pow_add]
-  congr 1
-  omega
+  congr 1; omega
 
 end Cslib.Probability

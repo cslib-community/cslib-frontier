@@ -62,8 +62,7 @@ private def ringRow {s : Level} (r : Fin 256 → MaskCoefficient s) : Poly :=
 
 private theorem centered {s : Level} (r : Fin 256 → MaskCoefficient s) (j : Fin 256) :
     ((ringRow r) j).valMinAbs = (r j).val := by
-  apply (ZMod.valMinAbs_spec _ _).mpr
-  refine ⟨rfl, ?_⟩
+  refine (ZMod.valMinAbs_spec _ _).mpr ⟨rfl, ?_⟩
   have bounds := Finset.mem_Ioc.mp (r j).property
   have limit : 2 * s.params.γ₁ < 8380417 := by cases s <;> decide
   constructor <;> norm_num <;> lia
@@ -74,10 +73,8 @@ private def packRow (s : Level) (r : Fin 256 → MaskCoefficient s) : FixedBytes
 
 private theorem packRow_list (s : Level) (r : Fin 256 → MaskCoefficient s) :
     (packRow s r).toList = packSigned (width s) s.params.γ₁ (fun _ : Fin 1 => ringRow r) := by
-  apply List.ext_getElem
-  · simp [packSigned]
-  · intro i hi _
-    simp only [FixedBytes.toList, List.getElem_ofFn, packRow]
+  refine List.ext_getElem (by simp [packSigned]) fun _ _ _ => ?_
+  simp only [FixedBytes.toList, List.getElem_ofFn, packRow]
 
 private theorem unpack_row (s : Level) (r : Fin 256 → MaskCoefficient s) (j : Fin 256) :
     ((unpackSigned 1 (width s) s.params.γ₁ (packRow s r).toList).get 0).get j = (ringRow r) j := by
@@ -86,7 +83,7 @@ private theorem unpack_row (s : Level) (r : Fin 256 → MaskCoefficient s) (j : 
     (fun _ : Fin 1 => ringRow r) [] ?_ 0 j)
   intro _ j
   rw [centered, range_width]
-  have bounds := Finset.mem_Ioc.mp (r j).property
+  have := Finset.mem_Ioc.mp (r j).property
   lia
 
 private noncomputable def packedEquiv (s : Level) :
@@ -171,20 +168,16 @@ private theorem read_mask_row {s : Level} {a b : ℕ} (ha : 528 ≤ a)
   let x := Keccak.bytesToBitsLE (nonceInput seed.toList nonce)
   let G := install base (Function.extend (maskPoint ha hb) (packedTable s masks) t)
   change G.read x (maskPolyBytes s) = _
-  apply List.ext_getElem
-  · rw [G.length_read, FixedBytes.length_toList]
-  · intro i hi _
-    have hit : i < maskPolyBytes s := hi.trans_le (G.length_read ..).le
-    let k : MaskByte s := (maskAddress seed nonce, ⟨i, hit⟩)
-    have hx : x.length ≤ a := (length_nonceInput_bits seed nonce).le.trans ha
-    have loc : maskPoint ha hb k = (word x hx, ⟨i, hit.trans_le hb⟩) := by
-      unfold maskPoint k
-      simp only [maskAddress_bits]
-      rfl
-    rw [ExtendableOutput.getElem_read G x hit]
-    simp only [G, byteAt_install, dite_eq_left (And.intro hx (hit.trans_le hb)), ← loc,
-      (maskPoint_injective ha hb).extend_apply, FixedBytes.toList, List.getElem_ofFn]
-    rfl
+  refine List.ext_getElem ((G.length_read x _).trans (FixedBytes.length_toList _).symm)
+    fun i hi _ => ?_
+  have hit : i < maskPolyBytes s := hi.trans_le (G.length_read ..).le
+  have hx : x.length ≤ a := (length_nonceInput_bits seed nonce).le.trans ha
+  have loc : maskPoint ha hb (maskAddress seed nonce, ⟨i, hit⟩) =
+      (word x hx, ⟨i, hit.trans_le hb⟩) := by simp only [maskPoint, maskAddress_bits]; rfl
+  rw [ExtendableOutput.getElem_read G x hit]
+  simp only [G, byteAt_install, dite_eq_left (And.intro hx (hit.trans_le hb)), ← loc,
+    (maskPoint_injective ha hb).extend_apply, FixedBytes.toList, List.getElem_ofFn]
+  rfl
 
 /-- The raw SHAKE256 read at the seed and nonce returns the FIPS packing of the supplied
 coefficients. This is also the stream available to Algorithm 33 and coherent prefix queries. -/
@@ -210,11 +203,8 @@ theorem Xofs.expandMask_of_mem_sampleWithMasks {base H : Xofs} {s : Level} {a b 
       ((masks (maskAddress seed (κ + i.val)) j).val : ZMod 8380417) := by
   simp only [Xofs.expandMask, expandMaskFrom, Vector.get_ofFn]
   rw [Xofs.read_mask_of_mem_sampleWithMasks h seed (κ + i.val)]
-  let row := masks (maskAddress seed (κ + i.val))
-  change ((unpackSigned 1 (width s) s.params.γ₁
-    (packSigned (width s) s.params.γ₁ (fun _ : Fin 1 => ringRow row))).get 0).get j = _
-  rw [← packRow_list]
-  exact unpack_row s row j
+  exact packRow_list s (masks (maskAddress seed (κ + i.val))) ▸
+    unpack_row s (masks (maskAddress seed (κ + i.val))) j
 
 private abbrev ScheduledRow (s : Level) := Fin 814 × Fin s.params.ℓ
 
@@ -265,12 +255,9 @@ private theorem Xofs.uniformPrefixes_expandMask_coefficients (base : Xofs) (s : 
   rw [← base.uniform_sampleWithMasks s ha hb, PMF.map_bind]
   refine Eq.trans ?_ eq
   simp only [PMF.map, Function.comp_def]
-  apply congrArg (PMF.bind (PMF.uniformOfFintype (MaskTable s)))
-  funext masks
-  apply PMF.bind_eq_pure_of_forall_mem_support
-  intro H hH
-  congr 1
-  funext p j
+  refine congrArg (PMF.bind (PMF.uniformOfFintype (MaskTable s))) (funext fun _ => ?_)
+  refine PMF.bind_eq_pure_of_forall_mem_support fun _ hH =>
+    congrArg PMF.pure (funext fun p => funext fun j => ?_)
   exact Xofs.expandMask_of_mem_sampleWithMasks hH seed _ p.2 j
 
 private abbrev Coefficients (s : Level) := Fin s.params.ℓ → Fin 256 → MaskCoefficient s
@@ -283,25 +270,18 @@ private theorem maskLaw_coefficients (s : Level) :
     ⟨fun i => ringRow (r i), (mem_intervalVectors s.params).2 fun i j => by
       have hj := Finset.mem_Ioc.mp (r i j).property
       exact ⟨(r i j).val, ⟨by lia, hj.2⟩, rfl⟩⟩
-  have inj : Function.Injective pack := by
-    intro r t h
-    funext i j
-    apply Subtype.ext
-    have eq := congrArg (fun v : ↥(maskSet s.params) => (v.val i j).valMinAbs) h
-    simpa only [pack, centered] using eq
-  have onto : Function.Surjective pack := by
-    intro y
-    have mem := (mem_intervalVectors s.params).mp y.property
-    choose x hx eq using mem
-    let r : Coefficients s := fun i j => ⟨x i j, Finset.mem_Ioc.mpr ⟨by have := (hx i j).1; lia,
-      (hx i j).2⟩⟩
-    exact ⟨r, Subtype.ext (funext fun i => funext fun j => eq i j)⟩
-  let e := Equiv.ofBijective pack ⟨inj, onto⟩
-  let _ : Nonempty ↥(maskSet s.params) := Finset.nonempty_coe_sort.mpr
-    (mask_nonempty s.params (by cases s <;> decide))
+  have inj : Function.Injective pack := fun r t h => funext₂ fun i j => Subtype.ext <| by
+    simpa only [pack, centered] using
+      congrArg (fun v : ↥(maskSet s.params) => (v.val i j).valMinAbs) h
+  have onto : Function.Surjective pack := fun y => by
+    choose x hx eq using (mem_intervalVectors s.params).mp y.property
+    refine ⟨fun i j => ⟨x i j, Finset.mem_Ioc.mpr ⟨?_, (hx i j).2⟩⟩, Subtype.ext (funext₂ eq)⟩
+    have := (hx i j).1
+    lia
+  let _ : Nonempty ↥(maskSet s.params) :=
+    Finset.nonempty_coe_sort.mpr (mask_nonempty s.params (by cases s <;> decide))
   have law := PMF.uniformOfFintype_finset_map_val (maskSet s.params)
-  rw [← PMF.uniformOfFintype_map_equiv e, PMF.map_comp] at law
-  exact law
+  rwa [← PMF.uniformOfFintype_map_equiv (Equiv.ofBijective pack ⟨inj, onto⟩), PMF.map_comp] at law
 
 private theorem iid_coefficients (s : Level) (k : ℕ) :
     (PMF.uniformOfFintype (Fin k × Fin s.params.ℓ → Fin 256 → MaskCoefficient s)).map
@@ -358,16 +338,12 @@ private theorem cappedReplay {X Y : Type} (p : PMF X) (μ : PMF Y) (mask : X →
     p.map (fun x => firstAccepted stride (fun nonce => finish (mask x nonce)) k 0) =
       ((List.range k).findSomeM? fun _ => μ.map (terminalReply ∘ finish)).map Option.join := by
   let run (u : Fin k → Y) := Fin.findSome? fun i => terminalReply (finish (u i))
-  have schedule := congrArg (PMF.map run) law
-  rw [PMF.map_comp] at schedule
-  have online (xs : List ℕ) (len : xs.length = k) : (PMF.iid μ k).map run =
-      xs.findSomeM? (fun _ => μ.map (terminalReply ∘ finish)) := by
+  have online (xs : List ℕ) (len : xs.length = k) :
+      (PMF.iid μ k).map run = xs.findSomeM? fun _ => μ.map (terminalReply ∘ finish) := by
     subst k
     exact PMF.iid_map_findSome μ (terminalReply ∘ finish) xs
-  rw [← online _ (List.length_range (n := k)), ← schedule, PMF.map_comp]
-  apply congrArg (fun f => PMF.map f p)
-  funext x
-  exact firstAccepted_eq_terminal stride _ k 0
+  rw [← online _ (List.length_range (n := k)), ← law, PMF.map_comp, PMF.map_comp]
+  exact congrArg (PMF.map · p) (funext fun _ => firstAccepted_eq_terminal stride _ k 0)
 
 /-- Drawing independent full-width bytes per nonce and drawing a fresh mask from the signing
 simulator's coefficient box give the same native 814-attempt signing result. The ambient
@@ -385,14 +361,12 @@ theorem Xofs.privateMaskRetries_eq_iid (H : Xofs) (s : Level) (sk : PrivateKey s
         (signingMaskLaw s.params (by cases s <;> decide)).map fun y =>
           (finish y).elim (some none) (Option.map some)).map Option.join := by
   intro finish
-  have native : H.attemptWithMask s sk A μ = finish := by
-    funext y
+  have native : H.attemptWithMask s sk A μ = finish := funext fun y => by
     simp only [Xofs.attemptWithMask, AttemptCommitment.ofMask, tabulateRingVector_eq, finish]
-  have stop : (fun y => (finish y).elim (some none) (Option.map some)) =
-      terminalReply ∘ finish := by
-    funext y
-    simp only [Function.comp_apply]
-    cases finish y <;> rfl
+  have stop : (fun y => (finish y).elim (some none) (Option.map some)) = terminalReply ∘ finish :=
+    funext fun y => by
+      dsimp only [Function.comp_apply]
+      cases finish y <;> rfl
   simp only [Xofs.signingRetries, native, stop]
   exact cappedReplay _ (signingMaskLaw s.params (by cases s <;> decide))
     (fun row nonce => ringVectorCoeffs (maskFromRow s row nonce)) finish s.params.ℓ 814

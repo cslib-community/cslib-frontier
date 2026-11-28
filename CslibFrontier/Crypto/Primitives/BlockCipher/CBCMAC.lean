@@ -279,9 +279,7 @@ private theorem card_cbcNodeSet_le {q ℓ : ℕ} (inputs : Fin q → CBCInput n 
     have h5 := (inputs i).1.isLt
     have h6 := Finset.card_le_card h1
     omega
-  calc ∑ i : Fin q, ((cbcRevBlocks (inputs i)).tails.toFinset.filter (· ≠ [])).card
-      ≤ ∑ _i : Fin q, ℓ := Finset.sum_le_sum (fun i _ => hstep i)
-    _ = q * ℓ := by simp
+  simpa using Finset.sum_le_card_nsmul Finset.univ _ ℓ fun i _ => hstep i
 private def cbcGoodFunction {q ℓ : ℕ} (inputs : Fin q → CBCInput n ℓ)
     (g : BitString n → BitString n) : Prop :=
   ∀ a ∈ cbcNodeSet inputs, ∀ a' ∈ cbcNodeSet inputs,
@@ -299,6 +297,14 @@ private theorem cbcNodeOrderKey_injective :
   fun _ _ h => List.map_injective_iff.mpr (BitString.equivFin n).injective
     (congrArg (Prod.snd ∘ ofLex) h)
 
+private theorem cbcNodeSet_of_suffix_tail {q ℓ : ℕ} {inputs : Fin q → CBCInput n ℓ}
+    {x a : List (BitString n)} (hx : x ∈ cbcNodeSet inputs) (ha : a <:+ x.tail) (hne : a ≠ []) :
+    a ∈ cbcNodeSet inputs ∧ a.length < x.length := by
+  refine ⟨cbcNodeSet_suffix hx (ha.trans (List.tail_suffix x)) hne, ?_⟩
+  have hl := ha.length_le
+  have hpos := List.length_pos_iff.2 hne
+  rw [List.length_tail] at hl
+  omega
 private theorem exists_cbcNodeCollisionEvent
     {q ℓ : ℕ} (inputs : Fin q → CBCInput n ℓ)
     (g : BitString n → BitString n) : ∀ m : ℕ, ∀ u ∈ cbcNodeSet inputs, ∀ v ∈ cbcNodeSet inputs,
@@ -334,12 +340,7 @@ private theorem exists_cbcNodeCollisionEvent
         rcases not_and_or.1 hF with h | h
         · push Not at h
           obtain ⟨a, ha, hne, he⟩ := h
-          have haN : a ∈ cbcNodeSet inputs :=
-            cbcNodeSet_suffix hu (ha.trans (List.tail_suffix u)) hne
-          have hal : a.length < u.length := by
-            have := ha.length_le; rw [List.length_tail] at this
-            have : 0 < u.length := List.length_pos_iff.2 hune
-            omega
+          obtain ⟨haN, hal⟩ := cbcNodeSet_of_suffix_tail hu ha hne
           refine ⟨a, haN, ?_, he, by omega⟩
           rintro rfl
           have hlen : a.length = u.tail.length := by
@@ -352,12 +353,7 @@ private theorem exists_cbcNodeCollisionEvent
             subst this; exact huv rfl
         · push Not at h
           obtain ⟨a, ha, hne, he⟩ := h
-          have haN : a ∈ cbcNodeSet inputs :=
-            cbcNodeSet_suffix hpN (ha.trans (List.tail_suffix p)) hne
-          have hal : a.length < p.length := by
-            have := ha.length_le; rw [List.length_tail] at this
-            have : 0 < p.length := List.length_pos_iff.2 hp
-            omega
+          obtain ⟨haN, hal⟩ := cbcNodeSet_of_suffix_tail hpN ha hne
           exact ⟨a, haN, by rintro rfl; omega, he, Nat.lt_succ_of_lt hal⟩
       obtain ⟨a, haN, hap, he, hal⟩ := hsmall
       have hm : (b :: p).length - 1 < m := by simp at hvm ⊢; omega
@@ -397,24 +393,11 @@ private theorem card_not_cbcGoodFunction {q ℓ : ℕ} (inputs : Fin q → CBCIn
     exact ⟨(u', v'), ⟨⟨hu', hv'⟩, hBefore⟩, hE⟩
   have hCount : (Finset.univ.filter
         (fun g : BitString n → BitString n => ¬ cbcGoodFunction inputs g)).card * 2 ^ n
-        ≤ pairs.card * Fintype.card (BitString n → BitString n) := calc
-    _ ≤ (pairs.biUnion
-        (fun uv => Finset.univ.filter
-          (fun g : BitString n → BitString n =>
-            cbcNodeCollisionEvent g uv.1 uv.2))).card * 2 ^ n :=
-        Nat.mul_le_mul_right _ (Finset.card_le_card hsub)
-    _ ≤ (∑ uv ∈ pairs,
-          (Finset.univ.filter (fun g : BitString n → BitString n =>
-            cbcNodeCollisionEvent g uv.1 uv.2)).card) * 2 ^ n :=
-        Nat.mul_le_mul_right _ Finset.card_biUnion_le
-    _ = ∑ uv ∈ pairs,
-          (Finset.univ.filter (fun g : BitString n → BitString n =>
-            cbcNodeCollisionEvent g uv.1 uv.2)).card * 2 ^ n :=
-        Finset.sum_mul _ _ _
-    _ ≤ ∑ _uv ∈ pairs,
-          Fintype.card (BitString n → BitString n) :=
-        Finset.sum_le_sum (fun uv _ => card_cbcNodeCollisionEvent uv.1 uv.2)
-    _ = pairs.card * Fintype.card (BitString n → BitString n) := by simp
+        ≤ pairs.card * Fintype.card (BitString n → BitString n) := by
+    refine (Nat.mul_le_mul_right _
+      ((Finset.card_le_card hsub).trans Finset.card_biUnion_le)).trans ?_
+    rw [Finset.sum_mul]
+    exact Finset.sum_le_card_nsmul _ _ _ fun uv _ => card_cbcNodeCollisionEvent uv.1 uv.2
   rw [mul_assoc]
   exact (Nat.mul_le_mul_left 2 hCount).trans (by
     rw [← mul_assoc]

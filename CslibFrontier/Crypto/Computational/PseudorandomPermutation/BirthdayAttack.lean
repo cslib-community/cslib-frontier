@@ -98,10 +98,9 @@ def wordBirthdayDistinguisher (blockLen Q : ℕ → ℕ) : OracleDistinguisher :
 theorem injective_birthdayQueries {m q : ℕ} (hq : q ≤ 2 ^ m) :
     Function.Injective (birthdayQueries m q) := by
   intro i j hij
-  have hij' := congrArg List.ofFn hij
-  simp only [birthdayQueries, BitString.ofFn_ofList (BitString.length_lowBits m _)] at hij'
-  exact Fin.ext
-    (BitString.lowBits_injective_of_lt (i.isLt.trans_le hq) (j.isLt.trans_le hq) hij')
+  refine Fin.ext (BitString.lowBits_injective_of_lt (i.isLt.trans_le hq) (j.isLt.trans_le hq) ?_)
+  simpa only [birthdayQueries, BitString.ofFn_ofList (BitString.length_lowBits m _)] using
+    congrArg List.ofFn hij
 
 /-- `birthdayQueries m (2 ^ m)` enumerates every `m`-bit string bijectively. -/
 theorem bijective_birthdayQueries {m : ℕ} :
@@ -122,18 +121,11 @@ private theorem isOraclePPTOn_wordBirthdayStep {blockLen : ℕ → ℕ}
     encPair encUnary (encPair (encList encBits) encBool)
   have hn : ComputableInPolyTime (fun p : ℕ × (List (List Bool) × Bool) => p.1) inp encUnary :=
     .fst _ _
-  have hst : ComputableInPolyTime (fun p : ℕ × (List (List Bool) × Bool) => p.2) inp
-      (encPair (encList encBits) encBool) := .snd _ _
-  have hseen : ComputableInPolyTime (fun p : ℕ × (List (List Bool) × Bool) => p.2.1) inp
-      (encList encBits) := .fst' hst
-  have hlen : ComputableInPolyTime (fun p : ℕ × (List (List Bool) × Bool) => p.2.1.length) inp
-      encUnary := (ComputableInPolyTime.length_list encBits).comp hseen
-  have hidx : ComputableInPolyTime (fun p : ℕ × (List (List Bool) × Bool) => p.2.1.length) inp
-      encNat := ComputableInPolyTime.unary_to_binary.comp hlen
   have hq : ComputableInPolyTime
       (fun p : ℕ × (List (List Bool) × Bool) => BitString.lowBits (blockLen p.1) p.2.1.length)
       inp encBits :=
-    ComputableInPolyTime.bitsLow (hblockLen.comp hn) hidx
+    ComputableInPolyTime.bitsLow (hblockLen.comp hn) (ComputableInPolyTime.unary_to_binary.comp
+      ((ComputableInPolyTime.length_list encBits).comp (.fst' (.snd _ _))))
   have hquery : IsOraclePPTOn inp (encPair inp encBits)
       (fun p => (fun r => (p, r)) <$>
         (List.take (blockLen p.1) <$>
@@ -144,33 +136,15 @@ private theorem isOraclePPTOn_wordBirthdayStep {blockLen : ℕ → ℕ}
       (fun q : (ℕ × (List (List Bool) × Bool)) × List Bool =>
         (q.2 :: q.1.2.1, q.1.2.2 || q.1.2.1.any fun prev => decide (prev = q.2)))
       (encPair inp encBits) (encPair (encList encBits) encBool) := by
-    have hp : ComputableInPolyTime
-        (fun q : (ℕ × (List (List Bool) × Bool)) × List Bool => q.1)
-        (encPair inp encBits) inp := .fst _ _
-    have hr : ComputableInPolyTime
-        (fun q : (ℕ × (List (List Bool) × Bool)) × List Bool => q.2)
-        (encPair inp encBits) encBits := .snd _ _
     have hqseen : ComputableInPolyTime
         (fun q : (ℕ × (List (List Bool) × Bool)) × List Bool => q.1.2.1)
-        (encPair inp encBits) (encList encBits) := .fst' (.snd' hp)
-    have hqflag : ComputableInPolyTime
-        (fun q : (ℕ × (List (List Bool) × Bool)) × List Bool => q.1.2.2)
-        (encPair inp encBits) encBool := .snd' (.snd' hp)
+        (encPair inp encBits) (encList encBits) := by fun_prop
     have hany : ComputableInPolyTime
         (fun q : (ℕ × (List (List Bool) × Bool)) × List Bool =>
           q.1.2.1.any fun prev => decide (prev = q.2))
-        (encPair inp encBits) encBool := by
-      refine ComputableInPolyTime.anyWithInput hqseen ?_
-      exact (ComputableInPolyTime.decide_eq'
-        (ComputableInPolyTime.snd _ _)
-        (ComputableInPolyTime.snd _ _ |>.comp (ComputableInPolyTime.fst _ _)))
-    have hor : ComputableInPolyTime
-        (fun q : (ℕ × (List (List Bool) × Bool)) × List Bool =>
-          q.1.2.2 || q.1.2.1.any fun prev => decide (prev = q.2))
         (encPair inp encBits) encBool :=
-      (ComputableInPolyTime.of_finite (encIn := encPair encBool encBool) (encOut := encBool)
-        fun p : Bool × Bool => p.1 || p.2).comp (hqflag.prod hany)
-    exact (hr.cons' hqseen).prod hor
+      hqseen.anyWithInput (by fun_prop)
+    fun_prop
   convert hquery.map hmap using 1
   funext pair
   simp [wordBirthdayStep, bind_pure_comp]
@@ -183,32 +157,19 @@ theorem isOraclePPT_wordBirthdayDistinguisher {blockLen Q : ℕ → ℕ}
     IsOraclePPT encBool (wordBirthdayDistinguisher blockLen Q) := by
   have hcount : ComputableInPolyTime (fun n => min (Q n) (2 ^ blockLen n)) encUnary encUnary :=
     ComputableInPolyTime.binary_min_unary' hQ (ComputableInPolyTime.binary_two_pow.comp hblockLen)
-  have hinit : ComputableInPolyTime (fun _ : ℕ => (([] : List (List Bool)), false))
-      encUnary (encPair (encList encBits) encBool) := ComputableInPolyTime.const _
-  have hpoly : PolyBounded (fun n => (encUnary n).length) (fun n => 4 * blockLen n + 10) := by
-    growth_poly
   have hgrowth : ∀ n (state next : List (List Bool) × Bool),
       next ∈ OracleComp.support (wordBirthdayStep blockLen n state) →
       (encPair (encList encBits) encBool next).length ≤
         (encPair (encList encBits) encBool state).length + (4 * blockLen n + 10) := by
-    intro n state next hnext
-    obtain ⟨seen, collided⟩ := state
-    simp only [wordBirthdayStep, OracleComp.mem_supportWith_bind_iff] at hnext
-    rcases hnext with ⟨raw, -, hnext⟩
-    rcases OracleComp.eq_of_mem_supportWith_pure hnext with rfl
+    rintro n ⟨seen, collided⟩ next hnext
+    obtain ⟨raw, -, hnext⟩ := OracleComp.mem_supportWith_bind_iff.mp hnext
+    obtain rfl := OracleComp.eq_of_mem_supportWith_pure hnext
     have hlen : (raw.take (blockLen n)).length ≤ blockLen n := List.length_take_le _ _
-    have hencBool : ∀ b : Bool, (encBool b).length = 1 := by intro b; cases b <;> rfl
+    have hencBool : ∀ b : Bool, (encBool b).length = 1 := fun b => by cases b <;> rfl
     enc_len [hencBool]
-  have hiter : IsOraclePPTOn encUnary (encPair (encList encBits) encBool)
-      (fun n => OracleComp.iterate (min (Q n) (2 ^ blockLen n))
-        (wordBirthdayStep blockLen n) ([], false)) :=
-    IsOraclePPTOn.iterateWith_of_bounded_growth hcount hinit
-      (isOraclePPTOn_wordBirthdayStep hblockLen) hpoly hgrowth
-  have hres : IsOraclePPTOn encUnary encBool
-      (fun n => Prod.snd <$> OracleComp.iterate (min (Q n) (2 ^ blockLen n))
-        (wordBirthdayStep blockLen n) ([], false)) :=
-    hiter.map (by fun_prop)
-  exact (hres.preprocess (ComputableInPolyTime.fst encUnary encBits)).isOraclePPT
+  exact (((IsOraclePPTOn.iterateWith_of_bounded_growth hcount (ComputableInPolyTime.const _)
+    (isOraclePPTOn_wordBirthdayStep hblockLen) (by growth_poly) hgrowth).map
+    (by fun_prop)).preprocess (ComputableInPolyTime.fst encUnary encBits)).isOraclePPT
 
 end PolyTime
 
@@ -227,18 +188,17 @@ oracle queries. -/
 theorem isQueryBounded_wordBirthdayDistinguisher (blockLen Q : ℕ → ℕ) (n : ℕ) (aux : List Bool) :
     ProbOracleComp.IsQueryBounded (wordBirthdayDistinguisher blockLen Q n aux)
       (min (Q n) (2 ^ blockLen n)) := by
-  have hiter : ∀ k, ProbOracleComp.IsQueryBounded
+  have hiter (k : ℕ) : ProbOracleComp.IsQueryBounded
       (OracleComp.iterate k (wordBirthdayStep blockLen n) ([], false) :
         WordOracleComp Unit (List (List Bool) × Bool)) k := by
-    intro k
     induction k with
     | zero => exact OracleComp.IsCostBounded.pure _ 0
     | succ k ih =>
-      rw [OracleComp.iterate_succ]
-      exact OracleComp.IsCostBounded.bind ih (isQueryBounded_wordBirthdayStep blockLen n)
-  rw [wordBirthdayDistinguisher, ← bind_pure_comp, ← Nat.add_zero (min (Q n) (2 ^ blockLen n))]
-  exact OracleComp.IsCostBounded.bind (hiter (min (Q n) (2 ^ blockLen n)))
-    (fun _ => OracleComp.IsCostBounded.pure _ 0)
+      exact OracleComp.iterate_succ .. ▸
+        OracleComp.IsCostBounded.bind ih (isQueryBounded_wordBirthdayStep blockLen n)
+  simpa only [wordBirthdayDistinguisher, ← bind_pure_comp, Nat.add_zero] using
+    OracleComp.IsCostBounded.bind (hiter (min (Q n) (2 ^ blockLen n)))
+      fun _ => OracleComp.IsCostBounded.pure _ 0
 
 private theorem run_iterate_wordBirthdayStep (blockLen : ℕ → ℕ) (n : ℕ)
     (f : List Bool → List Bool) (k : ℕ) :
@@ -250,27 +210,17 @@ private theorem run_iterate_wordBirthdayStep (blockLen : ℕ → ℕ) (n : ℕ)
         decide (¬ Function.Injective (fun j : Fin k =>
           (f (BitString.lowBits (blockLen n) j)).take (blockLen n)))) := by
   induction k with
-  | zero =>
-    change ProbOracleComp.run (spec := fun _ : Unit × List Bool => List Bool)
-        (pure ([], false)) (fun req => pure (f req.2)) =
-      pure ([], decide (¬ Function.Injective (Fin.elim0 : Fin 0 → List Bool)))
-    simp [Function.injective_of_subsingleton]
+  | zero => simp [OracleComp.iterate, ProbOracleComp.run_pure, Function.injective_of_subsingleton]
   | succ k ih =>
     rw [OracleComp.iterate_succ, ProbOracleComp.run_bind, ih]
-    have hpb : ∀ {α β : Type} (x : α) (g : α → ProbComp β),
-        (pure x >>= g : ProbComp β) = g x := fun x g => pure_bind x g
-    rw [hpb]
     simp only [wordBirthdayStep, ProbOracleComp.run_bind, ProbOracleComp.run_query,
-      ProbOracleComp.run_pure, List.length_ofFn]
-    rw [hpb]
+      ProbOracleComp.run_pure]
     refine congrArg (pure : _ → ProbComp _) (Prod.ext ?_ ?_)
     · rw [List.ofFn_succ]
-      refine congrArg₂ List.cons ?_ ?_
-      · simp
-      · refine congrArg List.ofFn (funext fun j => ?_)
-        simp only [Fin.val_succ]
-        congr 3
-        omega
+      refine congrArg₂ List.cons (by simp) (congrArg List.ofFn (funext fun j => ?_))
+      simp only [Fin.val_succ]
+      congr 3
+      omega
     · -- The new reply extends the earlier ones (`Fin.snoc`), which the state stores in reverse.
       have hg : (fun j : Fin (k + 1) => (f (BitString.lowBits (blockLen n) j)).take (blockLen n)) =
           Fin.snoc (fun j : Fin k => (f (BitString.lowBits (blockLen n) j)).take (blockLen n))
@@ -279,15 +229,14 @@ private theorem run_iterate_wordBirthdayStep (blockLen : ℕ → ℕ) (n : ℕ)
       have hrev : (fun j : Fin k =>
             (f (BitString.lowBits (blockLen n) (k - 1 - j))).take (blockLen n)) =
           (fun j : Fin k => (f (BitString.lowBits (blockLen n) j)).take (blockLen n)) ∘
-            Fin.rev := by
-        funext j
+            Fin.rev := funext fun j => by
         simp only [Function.comp_apply, Fin.val_rev]
         congr 3
         omega
       rw [Bool.eq_iff_iff]
-      simp only [Bool.or_eq_true, decide_eq_true_eq, List.any_eq_true, hrev, List.mem_ofFn',
-        Fin.rev_surjective.range_comp, exists_eq_right, hg, Fin.snoc_injective_iff, not_and_or,
-        not_not]
+      simp only [Bool.or_eq_true, decide_eq_true_eq, List.any_eq_true, List.length_ofFn, hrev,
+        List.mem_ofFn', Fin.rev_surjective.range_comp, exists_eq_right, hg, Fin.snoc_injective_iff,
+        not_and_or, not_not]
 
 /-- Deterministic execution of `wordBirthdayDistinguisher` against an arbitrary word oracle `f`. -/
 theorem run_wordBirthdayDistinguisher (blockLen Q : ℕ → ℕ) (n : ℕ)
@@ -295,8 +244,7 @@ theorem run_wordBirthdayDistinguisher (blockLen Q : ℕ → ℕ) (n : ℕ)
     (wordBirthdayDistinguisher blockLen Q n []).run (fun req => pure (f req.2)) =
       pure (decide (¬ Function.Injective (fun j : Fin (min (Q n) (2 ^ blockLen n)) =>
         (f (BitString.lowBits (blockLen n) j)).take (blockLen n)))) := by
-  rw [wordBirthdayDistinguisher, ProbOracleComp.run_map, run_iterate_wordBirthdayStep]
-  simp
+  simp [wordBirthdayDistinguisher, ProbOracleComp.run_map, run_iterate_wordBirthdayStep]
 
 /-- Against `randomFunctionOracle`, `wordBirthdayDistinguisher` matches the finite distinguisher
 `PRP.birthdayDistinguisher` on `birthdayQueries`. -/
@@ -309,18 +257,12 @@ theorem run_wordBirthdayDistinguisher_randomFunctionOracle (blockLen Q : ℕ →
         (fun d => pure (f d)) := by
   rw [run_wordBirthdayDistinguisher, PRP.run_birthdayDistinguisher]
   congr 2
-  refine propext (not_congr ?_)
-  constructor
-  · intro hinj i j hij
-    apply hinj
-    have hij' := congrArg List.ofFn hij
-    simpa [randomFunctionOracle, BitString.length_lowBits, birthdayQueries,
-      List.take_of_length_le List.length_ofFn.le] using hij'
-  · intro hinj i j hij
-    apply hinj
-    have hij' := congrArg (BitString.ofList (blockLen n)) hij
-    simpa [randomFunctionOracle, BitString.length_lowBits, birthdayQueries,
-      List.take_of_length_le List.length_ofFn.le, BitString.ofList_ofFn] using hij'
+  refine propext (not_congr ⟨fun hinj i j hij => hinj ?_, fun hinj i j hij => hinj ?_⟩)
+  · simpa [randomFunctionOracle, BitString.length_lowBits, birthdayQueries,
+      List.take_of_length_le List.length_ofFn.le] using congrArg List.ofFn hij
+  · simpa [randomFunctionOracle, BitString.length_lowBits, birthdayQueries,
+      List.take_of_length_le List.length_ofFn.le, BitString.ofList_ofFn] using
+      congrArg (BitString.ofList (blockLen n)) hij
 
 /-- Output distribution of `wordBirthdayDistinguisher` in `E.prpRealGame` coincides with
 `PRP.realExperiment` on `E.permEquiv`. -/
@@ -331,25 +273,13 @@ theorem eval_prpRealGame_wordBirthdayDistinguisher (E : BlockCipher) (Q : ℕ �
         (PRP.birthdayDistinguisher
           (birthdayQueries (E.blockLen n) (min (Q n) (2 ^ E.blockLen n))))) := by
   rw [BlockCipher.prpRealGame, ProbComp.eval_bind, BitString.eval_sampleList,
-    PRP.realExperiment, PRF.eval_realExperiment]
-  have hmap : BitString.uniformList (E.keyLen n) =
-      (PMF.uniformOfFintype (BitString (E.keyLen n))).map List.ofFn := by
-    simp [BitString.uniformList]
-  rw [hmap, PMF.bind_map]
+    BitString.uniformList, PMF.bind_map, PRP.realExperiment, PRF.eval_realExperiment]
   congr 1 with key : 1
-  simp only [Function.comp_def, ProbOracleComp.eval_run]
-  have horacle :
-      (fun request : Unit × List Bool =>
-        (pure (E.prpOracle n (List.ofFn key) request.2) : ProbComp (List Bool))) =
-      fun request => pure (randomFunctionOracle (E.blockLen n)
-        ⇑(E.permEquiv n (List.ofFn key) List.length_ofFn) request.2) := by
-    funext request
-    rw [E.prpOracle_eq_randomPermOracle (hkey := List.length_ofFn), randomPermOracle]
-  have hrun := congrArg ProbComp.eval
-    ((congrArg (ProbOracleComp.run (wordBirthdayDistinguisher E.blockLen Q n [])) horacle).trans
-      (run_wordBirthdayDistinguisher_randomFunctionOracle E.blockLen Q n
-        ⇑(E.permEquiv n (List.ofFn key) List.length_ofFn)))
-  simpa only [ProbOracleComp.eval_run, ProbComp.eval_pure] using hrun
+  dsimp only [Function.comp_def]
+  simp_rw [E.prpOracle_eq_randomPermOracle (hkey := List.length_ofFn), randomPermOracle]
+  simpa only [ProbOracleComp.eval_run, ProbComp.eval_pure] using
+    congrArg ProbComp.eval (run_wordBirthdayDistinguisher_randomFunctionOracle E.blockLen Q n
+      ⇑(E.permEquiv n (List.ofFn key) List.length_ofFn))
 
 /-- In `E.prpRealGame`, `wordBirthdayDistinguisher` outputs `false` almost surely. -/
 theorem eval_prpRealGame_wordBirthdayDistinguisher_pure_false (E : BlockCipher) (Q : ℕ → ℕ)
@@ -368,9 +298,8 @@ theorem eval_prfIdealGame_wordBirthdayDistinguisher (blockLen Q : ℕ → ℕ) (
           (birthdayQueries (blockLen n) (min (Q n) (2 ^ blockLen n))))) := by
   rw [prfIdealGame, ProbComp.eval_bind, ProbComp.eval_uniform, PRF.eval_idealExperiment]
   congr 1 with f : 1
-  have hrun := congrArg ProbComp.eval
-    (run_wordBirthdayDistinguisher_randomFunctionOracle blockLen Q n f)
-  simpa only [ProbOracleComp.eval_run, ProbComp.eval_pure] using hrun
+  simpa only [ProbOracleComp.eval_run, ProbComp.eval_pure] using
+    congrArg ProbComp.eval (run_wordBirthdayDistinguisher_randomFunctionOracle blockLen Q n f)
 
 /-- Exact real-valued advantage of `wordBirthdayDistinguisher` between `E.prpRealGame` and
 `prfIdealGame`. -/
@@ -409,13 +338,11 @@ theorem half_le_advantage_wordBirthdayDistinguisher (E : BlockCipher) (Q : ℕ �
         (ProbComp.eval (prfIdealGame E.blockLen E.blockLen
           (wordBirthdayDistinguisher E.blockLen Q) n)) := by
   rw [eval_prpRealGame_wordBirthdayDistinguisher, eval_prfIdealGame_wordBirthdayDistinguisher]
-  have hmin : min (Q n) (2 ^ E.blockLen n) = 2 ^ E.blockLen n := min_eq_right hQ
   have hcard : 2 ≤ Fintype.card (BitString (E.blockLen n)) := by
     simpa [BitString.card] using Nat.pow_le_pow_right Nat.two_pos hpos
-  have h := PRP.half_le_advantage_birthdayDistinguisher_of_bijective
+  exact_mod_cast PRP.half_le_advantage_birthdayDistinguisher_of_bijective
     (fun k : BitString (E.keyLen n) => E.permEquiv n (List.ofFn k) List.length_ofFn)
-    (hmin ▸ bijective_birthdayQueries) hcard
-  exact_mod_cast h
+    (min_eq_right hQ ▸ bijective_birthdayQueries) hcard
 
 /-- Exact real-valued PRF advantage of `wordBirthdayDistinguisher` for a `BlockCipher` with
 `E.keyLen = id`. -/
@@ -473,26 +400,20 @@ private theorem exists_freq_le_poly_of_not_negligible_inv_two_pow {f : ℕ → �
   obtain ⟨k, δ, hδ, hfreq⟩ := hf
   refine ⟨k, Nat.ceil (δ⁻¹ : ℝ≥0) + 1, Nat.succ_pos _, Filter.frequently_atTop.mpr fun m => ?_⟩
   obtain ⟨n, hn_ge, hn⟩ := hfreq m
-  refine ⟨n, hn_ge, ?_⟩
-  by_cases h0 : f n = 0
-  · simp only [h0, ↓reduceIte, mul_zero] at hn
-    exact absurd hn (not_le_of_gt hδ)
-  · simp only [h0, ↓reduceIte] at hn
-    refine ⟨Nat.one_le_iff_ne_zero.mpr h0, ?_⟩
-    have hpow : (2 : ℝ≥0) ^ f n ≤ δ⁻¹ * (n : ℝ≥0) ^ k := by
-      calc (2 : ℝ≥0) ^ f n = δ⁻¹ * δ * (2 : ℝ≥0) ^ f n := by rw [inv_mul_cancel₀ hδ.ne', one_mul]
-        _ ≤ δ⁻¹ * ((n : ℝ≥0) ^ k * ((2 : ℝ≥0) ^ f n)⁻¹) * (2 : ℝ≥0) ^ f n := by gcongr
-        _ = δ⁻¹ * (n : ℝ≥0) ^ k := by
-          rw [mul_assoc, mul_assoc, inv_mul_cancel₀ (pow_ne_zero _ two_ne_zero), mul_one]
-    have hc : δ⁻¹ ≤ ((Nat.ceil (δ⁻¹ : ℝ≥0) + 1 : ℕ) : ℝ≥0) := by
-      calc δ⁻¹ ≤ (Nat.ceil (δ⁻¹ : ℝ≥0) : ℝ≥0) := Nat.le_ceil _
-        _ ≤ ((Nat.ceil (δ⁻¹ : ℝ≥0) + 1 : ℕ) : ℝ≥0) := by exact_mod_cast Nat.le_add_right _ 1
-    have hnn : (n : ℝ≥0) ≤ ((n : ℝ≥0) + 1) := le_add_of_nonneg_right zero_le
-    have hreal : ((2 ^ f n : ℕ) : ℝ≥0) ≤
-        ((Nat.ceil (δ⁻¹ : ℝ≥0) + 1 : ℕ) : ℝ≥0) * ((n + 1 : ℕ) : ℝ≥0) ^ k := by
-      push_cast at hc ⊢
-      exact hpow.trans (mul_le_mul' hc (pow_le_pow_left' hnn k))
-    exact_mod_cast hreal
+  have h0 : f n ≠ 0 := fun h0 => by simp [h0, not_le_of_gt hδ] at hn
+  simp only [h0, ↓reduceIte] at hn
+  refine ⟨n, hn_ge, Nat.one_le_iff_ne_zero.mpr h0, ?_⟩
+  have hpow : (2 : ℝ≥0) ^ f n ≤ δ⁻¹ * (n : ℝ≥0) ^ k := by
+    calc (2 : ℝ≥0) ^ f n = δ⁻¹ * δ * (2 : ℝ≥0) ^ f n := by rw [inv_mul_cancel₀ hδ.ne', one_mul]
+      _ ≤ δ⁻¹ * ((n : ℝ≥0) ^ k * ((2 : ℝ≥0) ^ f n)⁻¹) * (2 : ℝ≥0) ^ f n := by gcongr
+      _ = δ⁻¹ * (n : ℝ≥0) ^ k := by
+        rw [mul_assoc, mul_assoc, inv_mul_cancel₀ (pow_ne_zero _ two_ne_zero), mul_one]
+  have hc : δ⁻¹ ≤ ((Nat.ceil (δ⁻¹ : ℝ≥0) + 1 : ℕ) : ℝ≥0) := by
+    calc δ⁻¹ ≤ (Nat.ceil (δ⁻¹ : ℝ≥0) : ℝ≥0) := Nat.le_ceil _
+      _ ≤ ((Nat.ceil (δ⁻¹ : ℝ≥0) + 1 : ℕ) : ℝ≥0) := by exact_mod_cast Nat.le_add_right _ 1
+  push_cast at hc
+  exact_mod_cast hpow.trans
+    (mul_le_mul' hc (pow_le_pow_left' (le_add_of_nonneg_right zero_le_one) k))
 
 /-- If `((2 : ℝ≥0) ^ E.blockLen n)⁻¹` on nonzero blocks is not negligible, `E.prpRealGame` and
 `prfIdealGame` are not indistinguishable for PPT adversaries: some PPT adversary distinguishes them,
@@ -526,16 +447,10 @@ theorem BlockCipher.not_pseudorandomFunctionOver_of_not_negligible {E : BlockCip
     ¬ PseudorandomFunctionOver E.blockLen E.blockLen
       (fun key query => E.encrypt key.length key query) := by
   have hnot' : ¬ Negligible fun n =>
-      if E.blockLen n = 0 then (0 : ℝ≥0) else ((2 : ℝ≥0) ^ E.blockLen n)⁻¹ := by
-    intro hzero
-    apply hnot
-    refine hzero.congr' ?_
-    exact hpos.mono fun n hn => by simp [Nat.ne_of_gt hn]
-  intro hprf
-  apply E.not_indistinguishable_prpRealGame_prfIdealGame hnot'
-  intro A hA
-  have hsec := hprf.secure A hA
-  simpa only [eval_prpRealGame_eq_eval_prfRealGame hkey A] using hsec
+      if E.blockLen n = 0 then (0 : ℝ≥0) else ((2 : ℝ≥0) ^ E.blockLen n)⁻¹ := fun hzero =>
+    hnot (hzero.congr' (hpos.mono fun _ hn => by simp [Nat.ne_of_gt hn]))
+  refine fun hprf => E.not_indistinguishable_prpRealGame_prfIdealGame hnot' fun A hA => ?_
+  simpa only [eval_prpRealGame_eq_eval_prfRealGame hkey A] using hprf.secure A hA
 
 end Asymptotics
 

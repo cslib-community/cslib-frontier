@@ -437,9 +437,7 @@ private theorem shiftEntry_parent_lt {m n : ℕ} (off : ℕ) (hlen : off + m ≤
   dsimp only [shiftEntry]
   split_ifs with hj
   · exact Fin.lt_def.2 (by dsimp; omega)
-  · have := hchild j hj
-    rw [Fin.lt_def] at this
-    exact Fin.lt_def.2 (by dsimp; omega)
+  · exact Fin.lt_def.2 (by have := Fin.lt_def.1 (hchild j hj); dsimp; omega)
 
 private def unaryRootedData (rootBag : Finset V) (child : NiceTree V)
     (dChild : Fin (child.sizePred + 1) → Fin (child.sizePred + 1) × Finset V)
@@ -919,14 +917,10 @@ def contractStep {n : ℕ} (R : G.RootedTreeDecomposition (n + 1)) (c : Fin (n +
     parent_zero := hp0
     parent_lt := hplt
     bag := fun j => R.bag (c.succAbove j)
-    exists_mem_bag := fun v => by
-      obtain ⟨i, hi⟩ := R.exists_mem_bag v
-      obtain ⟨j, hj⟩ := hcov i
-      exact ⟨j, hj hi⟩
-    exists_adj_mem_bag := fun _ _ huv => by
-      obtain ⟨i, hu, hv⟩ := R.exists_adj_mem_bag huv
-      obtain ⟨j, hj⟩ := hcov i
-      exact ⟨j, hj hu, hj hv⟩
+    exists_mem_bag := fun v =>
+      (R.exists_mem_bag v).elim fun i hi => (hcov i).imp fun _ hj => hj hi
+    exists_adj_mem_bag := fun _ _ huv =>
+      (R.exists_adj_mem_bag huv).elim fun i ⟨hu, hv⟩ => (hcov i).imp fun _ hj => ⟨hj hu, hj hv⟩
     top_unique := fun v _ _ hi hit hj hjt => by
       have htop_ne : R.top v ≠ c := fun htc => by
         have htop := R.isTop_iff_mem.1 (R.isTop_top v)
@@ -977,13 +971,8 @@ theorem not_subset_parent_of_prune :
     rw [prune]
     split <;> dsimp only at *
     · rename_i hnone
-      intro c hc hsub
-      have hmem : c ∈ Finset.univ.filter fun c : Fin (n + 2) =>
-          c ≠ 0 ∧ R.bag c ⊆ R.bag (R.parent c) :=
-        Finset.mem_filter.2 ⟨Finset.mem_univ _, hc, hsub⟩
-      have := Finset.min_le hmem
-      rw [hnone] at this
-      exact absurd this (not_le_of_gt (WithTop.coe_lt_top _))
+      exact fun c hc hsub => Finset.eq_empty_iff_forall_notMem.1 (Finset.min_eq_top.1 hnone) c
+        (Finset.mem_filter.2 ⟨Finset.mem_univ _, hc, hsub⟩)
     · rename_i c' hsome
       intro c hc
       have hc' := (Finset.mem_filter.1 (Finset.mem_of_min hsome)).2
@@ -1288,10 +1277,7 @@ private theorem foldr_max_le_of_forall {α : Type*} (f : α → ℕ) (k : ℕ) :
 omit [DecidableEq V] in
 private theorem children_eq_empty_of_sort_nil {n : ℕ} {R : G.RootedTreeDecomposition n}
     {i : Fin (n + 1)} (hcs : (R.children i).sort (· ≤ ·) = []) : R.children i = ∅ :=
-  Finset.eq_empty_of_forall_notMem fun _ hc => by
-    have := (Finset.mem_sort (· ≤ ·)).2 hc
-    rw [hcs] at this
-    exact List.not_mem_nil this
+  Finset.eq_empty_of_forall_notMem fun _ hc => by simpa [hcs] using (Finset.mem_sort (· ≤ ·)).2 hc
 
 private theorem niceStep_props {toList : Finset V → List V} (hs : ListSpec toList)
     {n : ℕ} {R : G.RootedTreeDecomposition n} {i c : Fin (n + 1)} (hc : c ∈ R.children i)
@@ -1341,8 +1327,7 @@ private theorem toNiceSubtreeCore_props_nil (toList : Finset V → List V) (hs :
       (∀ j, R.IsDescendant j i → (introduceChain (toList (R.bag i)) .leaf).CoversFinset
         (R.bag j)) := by
   have hempty := children_eq_empty_of_sort_nil hcs
-  have hno : ∀ c, c ∉ R.children i := fun c hc => by
-    rw [hempty] at hc; exact Finset.notMem_empty c hc
+  have hno : ∀ c, c ∉ R.children i := fun c => hempty ▸ Finset.notMem_empty c
   have hsub_eq : R.subtreeVerts i = R.bag i :=
     Finset.Subset.antisymm (fun v hv => by_contra fun hvi => by
       obtain ⟨c, hc, -⟩ := R.exists_mem_children_of_mem_subtreeVerts hv hvi
@@ -1412,12 +1397,11 @@ private theorem joinBranches_props {n : ℕ} {R : G.RootedTreeDecomposition n}
       (fun u w => Disjoint (u.subtreeVerts \ R.bag i) w.subtreeVerts) := by
     rw [← List.map_cons, List.pairwise_map]
     refine hpair_nd.imp_of_mem fun {c₁ c₂} hc₁ hc₂ hne => ?_
-    have hc₁' := (hmem_sort c₁).1 hc₁
-    have hc₂' := (hmem_sort c₂).1 hc₂
-    rw [(hbr c₁ hc₁').2.1, (hbr c₂ hc₂').2.1, Finset.disjoint_left]
+    rw [hmem_sort] at hc₁ hc₂
+    rw [(hbr c₁ hc₁).2.1, (hbr c₂ hc₂).2.1, Finset.disjoint_left]
     intro v hv₁ hv₂
     obtain ⟨h1, hvnot⟩ := Finset.mem_sdiff.1 hv₁
-    exact hne (R.eq_of_mem_subtreeVerts_of_mem_children hc₁' hc₂'
+    exact hne (R.eq_of_mem_subtreeVerts_of_mem_children hc₁ hc₂
       ((Finset.mem_union.1 h1).resolve_left hvnot)
       ((Finset.mem_union.1 hv₂).resolve_left hvnot) hvnot)
   refine ⟨(bag_joinTrees _ _).trans (hbr c₀ hc₀).1,
@@ -1467,9 +1451,8 @@ omit [DecidableEq V] in
 open scoped Classical in
 private theorem subtreeNodes_zero {n : ℕ} (R : G.RootedTreeDecomposition n) :
     subtreeNodes R 0 = n + 1 := by
-  have : Finset.univ.filter (R.IsDescendant · (0 : Fin (n + 1))) = Finset.univ :=
-    Finset.ext fun j => by simp [R.isDescendant_zero j]
-  rw [subtreeNodes, this, Finset.card_univ, Fintype.card_fin]
+  rw [subtreeNodes, Finset.filter_true_of_mem fun j _ => R.isDescendant_zero j, Finset.card_univ,
+    Fintype.card_fin]
 
 omit [DecidableEq V] in
 open scoped Classical in
@@ -1490,10 +1473,8 @@ private theorem subtreeNodes_eq {n : ℕ} (R : G.RootedTreeDecomposition n) (i :
     exact fun c hc hci => absurd (R.lt_of_mem_children hc) (not_lt.2 hci.le)
   have hdisj : Set.PairwiseDisjoint (R.children i : Set (Fin (n + 1)))
       fun c => Finset.univ.filter (R.IsDescendant · c) := by
-    intro c₁ hc₁ c₂ hc₂ hne s h1 h2 j hj
-    have hj1 := (Finset.mem_filter.1 (h1 hj)).2
-    have hj2 := (Finset.mem_filter.1 (h2 hj)).2
-    exact absurd (R.eq_of_mem_children hc₁ hc₂ hj1 hj2) hne
+    exact fun c₁ hc₁ c₂ hc₂ hne s h1 h2 j hj => absurd (R.eq_of_mem_children hc₁ hc₂
+      (Finset.mem_filter.1 (h1 hj)).2 (Finset.mem_filter.1 (h2 hj)).2) hne
   rw [subtreeNodes, hpart, Finset.card_insert_of_notMem hnot, Finset.card_biUnion hdisj,
     Nat.add_comm]
   rfl

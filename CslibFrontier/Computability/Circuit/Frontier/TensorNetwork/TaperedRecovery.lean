@@ -415,8 +415,7 @@ theorem exists_taperedRecovery_eq_add (B : Subring K) (hB : ∀ c ∈ ℤ₍₂�
   have hE0 : -(6 * (h : ℤ) * 2 ^ (a - padicValInt 2 t)) ≤ padicValRat 2 E0 := by
     have := neg_le_padicValRat_eval_zero_hermiteBasis_taper (a := a) u h
       (mem_of_mem_erase (by rw [← recoveryNodes_eq]; exact ht)) (ne_of_mem_erase ht)
-    rw [← recoveryNodes_eq] at this
-    exact this
+    rwa [← recoveryNodes_eq] at this
   have hxv : -((a : ℤ) + 1) ≤ padicValRat 2 (-(t : ℚ) / 2 ^ (a + 1)) := by
     rw [padicValRat.div (neg_ne_zero.mpr ht0) (by positivity), padicValRat.neg,
       padicValRat.of_int, padicValRat.pow, padicValRat_two]

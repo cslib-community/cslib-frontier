@@ -103,12 +103,8 @@ private theorem cauchyPDFReal_le {γ : ℝ≥0} (hγ : γ ≠ 0) (y : ℝ) :
     cauchyPDFReal 0 γ y ≤ (π * γ)⁻¹ := by
   have hγpos : (0 : ℝ) < γ := NNReal.coe_pos.2 (pos_iff_ne_zero.2 hγ)
   rw [cauchyPDFReal_def, sub_zero]
-  have hinv : (y ^ 2 + (γ : ℝ) ^ 2)⁻¹ ≤ ((γ : ℝ) ^ 2)⁻¹ :=
-    inv_anti₀ (by positivity) (by linarith [sq_nonneg y])
-  calc π⁻¹ * (γ : ℝ) * (y ^ 2 + (γ : ℝ) ^ 2)⁻¹
-      ≤ π⁻¹ * (γ : ℝ) * ((γ : ℝ) ^ 2)⁻¹ :=
-        mul_le_mul_of_nonneg_left hinv (by positivity)
-    _ = (π * γ)⁻¹ := by field_simp [pi_ne_zero, hγpos.ne']
+  calc _ ≤ π⁻¹ * (γ : ℝ) * ((γ : ℝ) ^ 2)⁻¹ := by gcongr; exact le_add_of_nonneg_left (sq_nonneg y)
+    _ = (π * γ)⁻¹ := by field_simp
 
 /-- The product of two centered Cauchy densities is integrable on `ℝ`. -/
 private theorem integrable_cauchyPDFReal_mul {a b : ℝ≥0} (ha : a ≠ 0) (hb : b ≠ 0) (x : ℝ) :
@@ -124,21 +120,15 @@ private theorem integrable_cauchyPDFReal_mul {a b : ℝ≥0} (ha : a ≠ 0) (hb 
 private theorem tendsto_div_sq_add_atTop_atBot {a : ℝ} (ha : 0 < a) :
     Tendsto (fun t : ℝ => t / (t ^ 2 + a ^ 2)) atTop (𝓝 0) ∧
       Tendsto (fun t : ℝ => t / (t ^ 2 + a ^ 2)) atBot (𝓝 0) := by
-  have hrew : ∀ t : ℝ, t ≠ 0 → t / (t ^ 2 + a ^ 2) = t⁻¹ / (1 + a ^ 2 * (t⁻¹) ^ 2) := by
-    intro t ht
-    field_simp [ht]
-  have htop : (fun t : ℝ => t / (t ^ 2 + a ^ 2)) =ᶠ[atTop]
-      fun t => t⁻¹ / (1 + a ^ 2 * (t⁻¹) ^ 2) :=
-    (eventually_gt_atTop (0 : ℝ)).mono fun t ht => hrew t ht.ne'
-  have hbot : (fun t : ℝ => t / (t ^ 2 + a ^ 2)) =ᶠ[atBot]
-      fun t => t⁻¹ / (1 + a ^ 2 * (t⁻¹) ^ 2) :=
-    (eventually_lt_atBot (0 : ℝ)).mono fun t ht => hrew t ht.ne
+  have hrew (t : ℝ) (ht : t ≠ 0) : t⁻¹ / (1 + a ^ 2 * (t⁻¹) ^ 2) = t / (t ^ 2 + a ^ 2) := by
+    field_simp
   have hfun : Tendsto (fun u : ℝ => u / (1 + a ^ 2 * u ^ 2)) (𝓝 0) (𝓝 0) := by
-    have hcont : ContinuousAt (fun u : ℝ => u / (1 + a ^ 2 * u ^ 2)) 0 := by
-      fun_prop (disch := norm_num)
-    simpa using hcont.tendsto
-  exact ⟨(hfun.comp tendsto_inv_atTop_zero).congr' htop.symm,
-    (hfun.comp tendsto_inv_atBot_zero).congr' hbot.symm⟩
+    simpa using (show ContinuousAt (fun u : ℝ => u / (1 + a ^ 2 * u ^ 2)) 0 by
+      fun_prop (disch := norm_num)).tendsto
+  exact ⟨(hfun.comp tendsto_inv_atTop_zero).congr'
+      ((eventually_gt_atTop 0).mono fun t ht => hrew t ht.ne'),
+    (hfun.comp tendsto_inv_atBot_zero).congr'
+      ((eventually_lt_atBot 0).mono fun t ht => hrew t ht.ne)⟩
 
 /-- Convolution identity in the repeated-root case `x = 0` and `a = b`. -/
 private theorem integral_cauchyPDFReal_mul_self_zero {a : ℝ≥0} (ha : a ≠ 0) :
@@ -169,10 +159,8 @@ private theorem integral_cauchyPDFReal_mul_self_zero {a : ℝ≥0} (ha : a ≠ 0
         simpa using (hasDerivAt_pow 2 t).add_const ((a : ℝ) ^ 2)
       have hd := ((hasDerivAt_id t).div hsq hden).const_mul (2 * π ^ 2)⁻¹
       exact hd.congr_deriv (by dsimp only [g]; rw [id_eq]; field_simp [hden]; ring)
-    have hg_int : IntervalIntegrable g volume (-R) R := by
-      refine Continuous.intervalIntegrable ?_ _ _
-      exact continuous_const.mul ((continuous_const.sub (continuous_pow 2)).div
-        (((continuous_pow 2).add continuous_const).pow 2) fun t => by positivity)
+    have hg_int : IntervalIntegrable g volume (-R) R :=
+      Continuous.intervalIntegrable (by simp only [g]; fun_prop (disch := intro; positivity)) _ _
     have hm_int : IntervalIntegrable (fun t => (2 * π * (a : ℝ))⁻¹ * cauchyPDFReal 0 a t)
         volume (-R) R :=
       hmain.intervalIntegrable
@@ -186,21 +174,10 @@ private theorem integral_cauchyPDFReal_mul_self_zero {a : ℝ≥0} (ha : a ≠ 0
     rw [hfun, intervalIntegral.integral_add hm_int hg_int,
       intervalIntegral.integral_eq_sub_of_hasDerivAt hderiv hg_int, mul_sub]
   obtain ⟨htop, hbot⟩ := tendsto_div_sq_add_atTop_atBot ha'
-  have hlimD : Tendsto (fun R : ℝ =>
-      (2 * π ^ 2)⁻¹ * (R / (R ^ 2 + (a : ℝ) ^ 2) - (-R) / ((-R) ^ 2 + (a : ℝ) ^ 2)))
-      atTop (𝓝 0) := by
-    have hz : (2 * π ^ 2)⁻¹ * ((0 : ℝ) - 0) = 0 := by ring
-    have hneg : Tendsto (fun R : ℝ => (-R) / ((-R) ^ 2 + (a : ℝ) ^ 2)) atTop (𝓝 0) :=
-      hbot.comp tendsto_neg_atTop_atBot
-    have hlim := (htop.sub hneg).const_mul (2 * π ^ 2)⁻¹
-    simpa only [hz] using hlim
-  have htendR : Tendsto (fun R : ℝ =>
-      ∫ t in (-R)..R, cauchyPDFReal 0 a t * cauchyPDFReal 0 a (0 - t))
-      atTop (𝓝 (cauchyPDFReal 0 (a + a) 0)) := by
-    have := htendM.add hlimD
-    rw [add_zero] at this
-    exact this.congr fun R => (hsplit R).symm
-  exact tendsto_nhds_unique htendL htendR
+  have hlimD := (htop.sub (hbot.comp tendsto_neg_atTop_atBot)).const_mul (2 * π ^ 2)⁻¹
+  rw [sub_zero, mul_zero] at hlimD
+  refine tendsto_nhds_unique htendL ?_
+  simpa only [add_zero, id_eq] using (htendM.add hlimD).congr fun R => (hsplit R).symm
 
 /-- Limit as `|t| → ∞` of `log (t ^ 2 + a ^ 2) - log ((t - x) ^ 2 + b ^ 2)` is `0`. -/
 private theorem tendsto_log_sub_log_sq_atTop_atBot {a b x : ℝ} (ha : 0 < a) (hb : 0 < b) :
@@ -208,19 +185,12 @@ private theorem tendsto_log_sub_log_sq_atTop_atBot {a b x : ℝ} (ha : 0 < a) (h
       atTop (𝓝 0) ∧
       Tendsto (fun t : ℝ => Real.log (t ^ 2 + a ^ 2) - Real.log ((t - x) ^ 2 + b ^ 2))
         atBot (𝓝 0) := by
-  have hrew : ∀ t : ℝ, t ≠ 0 →
-      Real.log (t ^ 2 + a ^ 2) - Real.log ((t - x) ^ 2 + b ^ 2) =
-        Real.log ((1 + a ^ 2 * (t⁻¹) ^ 2) / ((1 - x * t⁻¹) ^ 2 + b ^ 2 * (t⁻¹) ^ 2)) := by
-    intro t ht
+  have hrew (t : ℝ) (ht : t ≠ 0) :
+      Real.log ((1 + a ^ 2 * (t⁻¹) ^ 2) / ((1 - x * t⁻¹) ^ 2 + b ^ 2 * (t⁻¹) ^ 2)) =
+        Real.log (t ^ 2 + a ^ 2) - Real.log ((t - x) ^ 2 + b ^ 2) := by
     rw [← Real.log_div (by positivity) (by positivity)]
     congr 1
-    field_simp [ht]
-  have htop_eq : (fun t : ℝ => Real.log (t ^ 2 + a ^ 2) - Real.log ((t - x) ^ 2 + b ^ 2)) =ᶠ[atTop]
-      fun t => Real.log ((1 + a ^ 2 * (t⁻¹) ^ 2) / ((1 - x * t⁻¹) ^ 2 + b ^ 2 * (t⁻¹) ^ 2)) :=
-    (eventually_gt_atTop (0 : ℝ)).mono fun t ht => hrew t ht.ne'
-  have hbot_eq : (fun t : ℝ => Real.log (t ^ 2 + a ^ 2) - Real.log ((t - x) ^ 2 + b ^ 2)) =ᶠ[atBot]
-      fun t => Real.log ((1 + a ^ 2 * (t⁻¹) ^ 2) / ((1 - x * t⁻¹) ^ 2 + b ^ 2 * (t⁻¹) ^ 2)) :=
-    (eventually_lt_atBot (0 : ℝ)).mono fun t ht => hrew t ht.ne
+    field_simp
   have hfun : Tendsto (fun u : ℝ =>
       Real.log ((1 + a ^ 2 * u ^ 2) / ((1 - x * u) ^ 2 + b ^ 2 * u ^ 2))) (𝓝 0) (𝓝 0) := by
     have hcont : ContinuousAt
@@ -228,8 +198,10 @@ private theorem tendsto_log_sub_log_sq_atTop_atBot {a b x : ℝ} (ha : 0 < a) (h
       refine ContinuousAt.log ?_ (by norm_num)
       fun_prop (disch := norm_num)
     simpa using hcont.tendsto
-  exact ⟨(hfun.comp tendsto_inv_atTop_zero).congr' htop_eq.symm,
-    (hfun.comp tendsto_inv_atBot_zero).congr' hbot_eq.symm⟩
+  exact ⟨(hfun.comp tendsto_inv_atTop_zero).congr'
+      ((eventually_gt_atTop 0).mono fun t ht => hrew t ht.ne'),
+    (hfun.comp tendsto_inv_atBot_zero).congr'
+      ((eventually_lt_atBot 0).mono fun t ht => hrew t ht.ne)⟩
 
 /-- Convolution of two centered Cauchy densities equals the summed-scale Cauchy density. -/
 private theorem integral_cauchyPDFReal_mul {a b : ℝ≥0} (ha : a ≠ 0) (hb : b ≠ 0) (x : ℝ) :
@@ -285,30 +257,15 @@ private theorem integral_cauchyPDFReal_mul {a b : ℝ≥0} (ha : a ≠ 0) (hb : 
         (∫ t in (-R)..R, (((b : ℝ) * B / π) * cauchyPDFReal 0 a t +
           ((a : ℝ) * D / π) * cauchyPDFReal 0 b (x - t))) + (fLog R - fLog (-R)) := by
     intro R
-    have hderiv : ∀ t ∈ uIcc (-R) R, HasDerivAt fLog (gLog t) t := by
-      intro t _
-      have h1d : HasDerivAt (fun s : ℝ => Real.log (s ^ 2 + (a : ℝ) ^ 2))
-          ((2 * t) / (t ^ 2 + (a : ℝ) ^ 2)) t := by
-        have hpos : t ^ 2 + (a : ℝ) ^ 2 ≠ 0 := by positivity
-        have hsq : HasDerivAt (fun s : ℝ => s ^ 2 + (a : ℝ) ^ 2) (2 * t) t := by
-          simpa using (hasDerivAt_pow 2 t).add_const ((a : ℝ) ^ 2)
-        simpa [div_eq_mul_inv] using hsq.log hpos
-      have h2d : HasDerivAt (fun s : ℝ => Real.log ((s - x) ^ 2 + (b : ℝ) ^ 2))
-          ((2 * (t - x)) / ((t - x) ^ 2 + (b : ℝ) ^ 2)) t := by
-        have hpos : (t - x) ^ 2 + (b : ℝ) ^ 2 ≠ 0 := by positivity
-        have hsub : HasDerivAt (fun s : ℝ => s - x) 1 t := (hasDerivAt_id t).sub_const x
-        have hsq : HasDerivAt (fun s : ℝ => (s - x) ^ 2 + (b : ℝ) ^ 2) (2 * (t - x)) t := by
-          simpa using ((hasDerivAt_pow 2 (t - x)).comp t hsub).add_const ((b : ℝ) ^ 2)
-        simpa [div_eq_mul_inv] using hsq.log hpos
-      exact (h1d.sub h2d).const_mul cLog
-    have hg_int : IntervalIntegrable gLog volume (-R) R := by
-      refine Continuous.intervalIntegrable ?_ _ _
-      exact continuous_const.mul (((continuous_const.mul continuous_id).div
-        ((continuous_pow 2).add continuous_const)
-          fun t => (add_pos_of_nonneg_of_pos (sq_nonneg t) (pow_pos ha' 2)).ne').sub
-        ((continuous_const.mul (continuous_id.sub continuous_const)).div
-        (((continuous_id.sub continuous_const).pow 2).add continuous_const)
-          fun t => (add_pos_of_nonneg_of_pos (sq_nonneg _) (pow_pos hb' 2)).ne'))
+    have hderiv : ∀ t ∈ uIcc (-R) R, HasDerivAt fLog (gLog t) t := fun t _ => by
+      have h1 := (((hasDerivAt_id t).pow 2).add_const ((a : ℝ) ^ 2)).log
+        (by positivity : t ^ 2 + (a : ℝ) ^ 2 ≠ 0)
+      have h2 := ((((hasDerivAt_id t).sub_const x).pow 2).add_const ((b : ℝ) ^ 2)).log
+        (by positivity : (t - x) ^ 2 + (b : ℝ) ^ 2 ≠ 0)
+      exact ((h1.sub h2).const_mul cLog).congr_deriv (by simp [gLog])
+    have hg_int : IntervalIntegrable gLog volume (-R) R :=
+      Continuous.intervalIntegrable (by simp only [gLog]; fun_prop (disch := intro; positivity))
+        _ _
     have hfun : (fun t : ℝ => cauchyPDFReal 0 a t * cauchyPDFReal 0 b (x - t)) =
         fun t => (((b : ℝ) * B / π) * cauchyPDFReal 0 a t +
           ((a : ℝ) * D / π) * cauchyPDFReal 0 b (x - t)) + gLog t := by
@@ -326,20 +283,10 @@ private theorem integral_cauchyPDFReal_mul {a b : ℝ≥0} (ha : a ≠ 0) (hb : 
     rw [hfun, intervalIntegral.integral_add hm_int hg_int,
       intervalIntegral.integral_eq_sub_of_hasDerivAt hderiv hg_int]
   obtain ⟨htop, hbot⟩ := tendsto_log_sub_log_sq_atTop_atBot ha' hb'
-  have hfLog0 : Tendsto (fun R : ℝ => fLog R - fLog (-R)) atTop (𝓝 0) := by
-    have ht1 : Tendsto fLog atTop (𝓝 0) := by
-      simpa only [mul_zero] using htop.const_mul cLog
-    have ht2 : Tendsto (fun R : ℝ => fLog (-R)) atTop (𝓝 0) := by
-      simpa only [Function.comp_def, fLog, mul_zero] using
-        (hbot.comp tendsto_neg_atTop_atBot).const_mul cLog
-    simpa only [sub_zero] using ht1.sub ht2
-  have htendR : Tendsto (fun R : ℝ =>
-      ∫ t in (-R)..R, cauchyPDFReal 0 a t * cauchyPDFReal 0 b (x - t))
-      atTop (𝓝 (cauchyPDFReal 0 (a + b) x)) := by
-    have := htendM.add hfLog0
-    rw [add_zero] at this
-    exact this.congr fun R => (hsplit R).symm
-  exact tendsto_nhds_unique htendL htendR
+  have hfLog0 := (htop.const_mul cLog).sub ((hbot.comp tendsto_neg_atTop_atBot).const_mul cLog)
+  rw [mul_zero, sub_zero] at hfLog0
+  refine tendsto_nhds_unique htendL ?_
+  simpa only [add_zero, id_eq] using (htendM.add hfLog0).congr fun R => (hsplit R).symm
 
 /-- The sum of two independent centered Cauchy random variables is Cauchy with the sum of the
 scales. -/

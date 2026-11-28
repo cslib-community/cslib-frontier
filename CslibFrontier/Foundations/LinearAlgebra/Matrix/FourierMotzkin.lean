@@ -92,25 +92,10 @@ theorem combination_inr (a : ι → K) (p : {p // 0 < a p}) (q : {q // a q < 0})
 theorem combination_nonneg [IsStrictOrderedRing K] (a : ι → K) (r : Row a) (i : ι) :
     0 ≤ combination a r i := by
   rcases r with i' | ⟨p, q⟩
-  · rw [combination_inl]
-    by_cases h : i = i'
-    · subst h
-      simp
-    · simp [h]
-  · rw [combination_inr, Pi.add_apply]
-    have hp := p.property
-    have hq := q.property
-    apply add_nonneg
-    · by_cases h : i = p
-      · subst h
-        rw [Pi.single_eq_same]
-        linarith
-      · simp [h]
-    · by_cases h : i = q
-      · subst h
-        rw [Pi.single_eq_same]
-        exact hp.le
-      · simp [h]
+  · rw [combination_inl, Pi.single_apply]
+    split_ifs <;> norm_num
+  · rw [combination_inr, Pi.add_apply, Pi.single_apply, Pi.single_apply]
+    split_ifs <;> linarith [p.2, q.2]
 
 variable [Fintype ι]
 
@@ -130,9 +115,8 @@ theorem combination_mulVec_inr (a v : ι → K) (p : {p // 0 < a p}) (q : {q // 
 theorem combination_mulVec_self (a : ι → K) : combination a *ᵥ a = 0 := by
   funext r
   rcases r with i | ⟨p, q⟩
-  · rw [combination_mulVec_inl]
-    exact i.property
-  · rw [combination_mulVec_inr, Pi.zero_apply]
+  · exact (combination_mulVec_inl a a i).trans i.2
+  · simp only [combination_mulVec_inr, Pi.zero_apply]
     ring
 
 variable [IsStrictOrderedRing K]
@@ -141,13 +125,13 @@ omit [DecidableEq ι] [Fintype ι] [IsStrictOrderedRing K] in
 /-- Between two finite families, with every lower value below every upper value, lies a point. -/
 private theorem exists_between_of_le {α β : Type*} [Finite α] [Finite β] (f : α → K) (g : β → K)
     (h : ∀ a b, f a ≤ g b) : ∃ t, (∀ a, f a ≤ t) ∧ ∀ b, t ≤ g b := by
-  rcases isEmpty_or_nonempty α with hα | hα
-  · rcases isEmpty_or_nonempty β with hβ | hβ
-    · exact ⟨0, fun a => (IsEmpty.false a).elim, fun b => (IsEmpty.false b).elim⟩
+  rcases isEmpty_or_nonempty α with _ | _
+  · rcases isEmpty_or_nonempty β with _ | _
+    · exact ⟨0, isEmptyElim, isEmptyElim⟩
     · obtain ⟨b₀, hb₀⟩ := Finite.exists_min g
-      exact ⟨g b₀, fun a => (IsEmpty.false a).elim, hb₀⟩
+      exact ⟨g b₀, isEmptyElim, hb₀⟩
   · obtain ⟨a₀, ha₀⟩ := Finite.exists_max f
-    exact ⟨f a₀, ha₀, fun b => h a₀ b⟩
+    exact ⟨f a₀, ha₀, h a₀⟩
 
 /-- **One step of Fourier–Motzkin elimination**: the system `t • a + v ≤ b` is solvable in `t`
 exactly when the combined system without `t` holds. -/
@@ -155,32 +139,22 @@ theorem exists_smul_add_le_iff (a v b : ι → K) :
     (∃ t : K, t • a + v ≤ b) ↔ combination a *ᵥ v ≤ combination a *ᵥ b := by
   constructor
   · rintro ⟨t, ht⟩ r
-    have hmono : combination a *ᵥ (t • a + v) ≤ combination a *ᵥ b := fun r =>
+    have hle : (combination a *ᵥ (t • a + v)) r ≤ (combination a *ᵥ b) r :=
       Finset.sum_le_sum fun i _ => mul_le_mul_of_nonneg_left (ht i) (combination_nonneg a r i)
-    have := hmono r
-    rwa [mulVec_add, mulVec_smul, combination_mulVec_self, smul_zero, zero_add] at this
+    rwa [mulVec_add, mulVec_smul, combination_mulVec_self, smul_zero, zero_add] at hle
   · intro h
-    have hpq : ∀ (p : {p // 0 < a p}) (q : {q // a q < 0}),
-        (b q - v q) / a q ≤ (b p - v p) / a p := by
-      intro p q
-      have := h (.inr (p, q))
-      rw [combination_mulVec_inr, combination_mulVec_inr] at this
-      rw [div_le_iff_of_neg q.property, div_mul_eq_mul_div, div_le_iff₀ p.property]
-      nlinarith [p.property, q.property]
-    obtain ⟨t, hlo, hhi⟩ := exists_between_of_le _ _ fun q p => hpq p q
+    obtain ⟨t, hlo, hhi⟩ := exists_between_of_le (fun q : {q // a q < 0} => (b q - v q) / a q)
+      (fun p : {p // 0 < a p} => (b p - v p) / a p) fun q p => by
+        have := h (.inr (p, q))
+        rw [combination_mulVec_inr, combination_mulVec_inr] at this
+        rw [div_le_iff_of_neg q.2, div_mul_eq_mul_div, div_le_iff₀ p.2]
+        nlinarith [p.2, q.2]
     refine ⟨t, fun i => ?_⟩
     rw [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
     rcases lt_trichotomy (a i) 0 with hi | hi | hi
-    · have := hlo ⟨i, hi⟩
-      rw [div_le_iff_of_neg hi] at this
-      linarith
-    · have := h (.inl ⟨i, hi⟩)
-      rw [combination_mulVec_inl, combination_mulVec_inl] at this
-      rw [hi, mul_zero, zero_add]
-      exact this
-    · have := hhi ⟨i, hi⟩
-      rw [le_div_iff₀ hi] at this
-      linarith
+    · linarith [(div_le_iff_of_neg hi).1 (hlo ⟨i, hi⟩)]
+    · simpa [hi, combination_mulVec_inl] using h (.inl ⟨i, hi⟩)
+    · linarith [(le_div_iff₀ hi).1 (hhi ⟨i, hi⟩)]
 
 omit [LinearOrder K] [DecidableEq ι] [Fintype ι] [IsStrictOrderedRing K] in
 /-- Split off the `none` column of a matrix indexed by `Option α`. -/
@@ -213,40 +187,23 @@ private theorem Eliminable.of_equiv {α β : Type v} [Fintype α] [Fintype β] (
     (h : Eliminable.{u} K μ α) : Eliminable.{u} K μ β := by
   intro ι _ A B b
   obtain ⟨ρ, _, T, hT, hTA, hiff⟩ := h ι (A.submatrix id e) B b
-  refine ⟨ρ, inferInstance, T, hT, ?_, fun z => ?_⟩
-  · ext r j
-    have h := congr_fun (congr_fun hTA r) (e.symm j)
-    rw [Matrix.mul_apply] at h ⊢
-    simp only [submatrix_apply, id, Equiv.apply_symm_apply] at h
-    exact h
-  · rw [← hiff z]
-    constructor
-    · rintro ⟨y, hy⟩
-      refine ⟨y ∘ e, ?_⟩
-      rwa [submatrix_mulVec_equiv, Function.comp_assoc, e.self_comp_symm, Function.comp_id,
-        Function.comp_id]
-    · rintro ⟨y, hy⟩
-      refine ⟨y ∘ e.symm, ?_⟩
-      rwa [submatrix_mulVec_equiv, Function.comp_id] at hy
+  refine ⟨ρ, inferInstance, T, hT, Matrix.ext fun r j => ?_, fun z => Iff.trans ⟨?_, ?_⟩ (hiff z)⟩
+  · simpa [Matrix.mul_apply] using congr_fun (congr_fun hTA r) (e.symm j)
+  · rintro ⟨y, hy⟩
+    exact ⟨y ∘ e, by simpa [submatrix_mulVec_equiv, Function.comp_assoc] using hy⟩
+  · rintro ⟨y, hy⟩
+    exact ⟨y ∘ e.symm, by simpa [submatrix_mulVec_equiv] using hy⟩
 
 /-- With no variables to eliminate, the system itself (`T = 1`) is its own projection. -/
 private theorem eliminable_pEmpty : Eliminable.{u} K μ PEmpty.{v + 1} := by
   classical
   intro ι _ A B b
-  refine ⟨ι, inferInstance, (1 : Matrix ι ι K), fun r i => ?_, ?_, fun z => ?_⟩
+  have h0 (y : PEmpty.{v + 1} → K) : A *ᵥ y = 0 := funext fun _ => by simp [mulVec, dotProduct]
+  have : Nonempty (PEmpty.{v + 1} → K) := ⟨PEmpty.elim⟩
+  refine ⟨ι, inferInstance, 1, fun r i => ?_, Matrix.ext fun _ j => j.elim, fun z => ?_⟩
   · rw [Matrix.one_apply]
     split_ifs <;> norm_num
-  · ext _ j
-    exact j.elim
-  · rw [Matrix.one_mul, one_mulVec]
-    have h0 : ∀ y : PEmpty → K, A *ᵥ y = 0 := fun y => by
-      funext i
-      simp [mulVec, dotProduct]
-    constructor
-    · rintro ⟨y, hy⟩
-      rwa [h0, zero_add] at hy
-    · intro hz
-      exact ⟨fun j => j.elim, by rwa [h0, zero_add]⟩
+  · simp [h0]
 
 /-- **One more variable.** If `α` can be eliminated, so can `Option α`: one Fourier–Motzkin step
 (`exists_smul_add_le_iff`) removes the variable `none`, and the remaining variables are then
@@ -260,10 +217,10 @@ private theorem Eliminable.option {α : Type v} [Fintype α]
   set A₀ : Matrix ι α K := A.submatrix id some
   obtain ⟨ρ, _, T, hT, hTA, hiff⟩ :=
     h (Row a) (combination a * A₀) (combination a * B) (combination a *ᵥ b)
-  refine ⟨ρ, inferInstance, T * combination a, fun r i => ?_, ?_, fun z => ?_⟩
-  · exact Finset.sum_nonneg fun s _ => mul_nonneg (hT r s) (combination_nonneg a s i)
-  · ext r j
-    cases j with
+  refine ⟨ρ, inferInstance, T * combination a,
+    fun r i => Finset.sum_nonneg fun s _ => mul_nonneg (hT r s) (combination_nonneg a s i),
+    Matrix.ext fun r j => ?_, fun z => ?_⟩
+  · cases j with
     | none =>
       change ((T * combination a) *ᵥ a) r = 0
       rw [← mulVec_mulVec, combination_mulVec_self, mulVec_zero, Pi.zero_apply]
@@ -272,19 +229,9 @@ private theorem Eliminable.option {α : Type v} [Fintype α]
       rw [Matrix.mul_assoc, hTA]
       rfl
   · rw [mulVec_mulVec] at hiff
-    rw [Matrix.mul_assoc, ← hiff z]
-    constructor
-    · rintro ⟨y, hy⟩
-      refine ⟨y ∘ some, ?_⟩
-      rw [← mulVec_mulVec, ← mulVec_mulVec, ← mulVec_add, ← exists_smul_add_le_iff]
-      refine ⟨y none, ?_⟩
-      rwa [← add_assoc, ← mulVec_option]
-    · rintro ⟨y₀, hy₀⟩
-      rw [← mulVec_mulVec, ← mulVec_mulVec, ← mulVec_add, ← exists_smul_add_le_iff] at hy₀
-      obtain ⟨t, ht⟩ := hy₀
-      refine ⟨fun j => j.elim t y₀, ?_⟩
-      rw [mulVec_option, add_assoc]
-      exact ht
+    simp_rw [Matrix.mul_assoc, ← hiff z, ← mulVec_mulVec, ← mulVec_add, ← exists_smul_add_le_iff]
+    exact ⟨fun ⟨y, hy⟩ => ⟨y ∘ some, y none, by rwa [← add_assoc, ← mulVec_option]⟩,
+      fun ⟨y₀, t, ht⟩ => ⟨fun j => j.elim t y₀, by rwa [mulVec_option, add_assoc]⟩⟩
 
 /-- **Fourier–Motzkin projection.** Eliminating a finite block of variables `y` from the system
 `A *ᵥ y + B *ᵥ z ≤ b` yields a finite system `(T * B) *ᵥ z ≤ T *ᵥ b` in the remaining variables

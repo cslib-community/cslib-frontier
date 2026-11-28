@@ -218,35 +218,11 @@ variable {A : Type*} [Fintype A] [DecidableEq A]
 
 private theorem card_fin_lt {n : ℕ} (m : Fin n) :
     (Finset.univ.filter (fun k : Fin n => k < m)).card = (m : ℕ) := by
-  let emb : Fin (m : ℕ) ↪ Fin n :=
-    ⟨fun x => ⟨x.val, x.isLt.trans m.isLt⟩, fun a b h => Fin.ext (Fin.mk.inj h)⟩
-  have heq : Finset.univ.filter (fun k : Fin n => k < m) =
-      (Finset.univ : Finset (Fin (m : ℕ))).map emb := by
-    ext k
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_map, emb]
-    exact ⟨fun hk => ⟨⟨k.val, hk⟩, rfl⟩, fun ⟨x, hx⟩ => hx ▸ x.isLt⟩
-  rw [heq, Finset.card_map, Finset.card_univ, Fintype.card_fin]
+  rw [Finset.filter_gt_eq_Iio, Fin.card_Iio]
 
 private theorem card_fin_gt {n : ℕ} (m : Fin n) :
     (Finset.univ.filter (fun k : Fin n => m < k)).card = n - 1 - (m : ℕ) := by
-  have hpart : (Finset.univ : Finset (Fin n)) =
-      insert m (Finset.univ.filter (fun k : Fin n => k < m) ∪
-        Finset.univ.filter (fun k : Fin n => m < k)) := by
-    ext k
-    simp only [Finset.mem_univ, Finset.mem_insert, Finset.mem_union, Finset.mem_filter, true_and]
-    exact ⟨fun _ => lt_trichotomy k m |>.elim (Or.inr ∘ Or.inl)
-      (fun h => h.elim Or.inl (Or.inr ∘ Or.inr)), fun _ => trivial⟩
-  have hnot : m ∉ Finset.univ.filter (fun k : Fin n => k < m) ∪
-      Finset.univ.filter (fun k : Fin n => m < k) := by
-    simp
-  have hdisj : Disjoint (Finset.univ.filter (fun k : Fin n => k < m))
-      (Finset.univ.filter (fun k : Fin n => m < k)) :=
-    Finset.disjoint_filter.2 fun k _ h₁ h₂ => (h₁.trans h₂).false
-  have hcard := congr_arg Finset.card hpart
-  rw [Finset.card_univ, Fintype.card_fin, Finset.card_insert_of_notMem hnot,
-    Finset.card_union_of_disjoint hdisj, card_fin_lt] at hcard
-  have hm := m.isLt
-  omega
+  rw [Finset.filter_lt_eq_Ioi, Fin.card_Ioi]
 
 omit [DecidableEq A] in
 private theorem card_orderPredecessors (σ : Fin (Fintype.card A) ≃ A) (i : A) :
@@ -317,24 +293,24 @@ private theorem card_filter_orderPredecessors_eq (i : A) {S : Finset A}
             right_inv := fun ⟨x, _⟩ => Subtype.ext (σ.apply_symm_apply x) } )
       invFun := fun ⟨eL, eG⟩ =>
         let fwd : Fin n → A := fun k =>
-          if hlt : k < iPos then (eL ⟨k, hlt⟩).val
-          else if hgt : iPos < k then (eG ⟨k, hgt⟩).val
+          if hlt : k < iPos then (eL ⟨k, hlt⟩).1
+          else if hgt : iPos < k then (eG ⟨k, hgt⟩).1
           else i
         have hmemR : ∀ x : A, x ∉ S → x ≠ i → x ∈ R := fun x hxS hxi =>
           Finset.mem_sdiff.2 ⟨Finset.mem_erase.2 ⟨hxi, Finset.mem_univ x⟩, hxS⟩
         let bwd : A → Fin n := fun x =>
-          if hxS : x ∈ S then (eL.symm ⟨x, hxS⟩).val
+          if hxS : x ∈ S then (eL.symm ⟨x, hxS⟩).1
           else if hxi : x = i then iPos
-          else (eG.symm ⟨x, hmemR x hxS hxi⟩).val
+          else (eG.symm ⟨x, hmemR x hxS hxi⟩).1
         have hleft : Function.LeftInverse bwd fwd := fun k => by
           dsimp only [fwd, bwd]
           by_cases hlt : k < iPos
-          · have hmemS : (eL ⟨k, hlt⟩).val ∈ S := (eL ⟨k, hlt⟩).property
+          · have hmemS : (eL ⟨k, hlt⟩).1 ∈ S := (eL ⟨k, hlt⟩).2
             simp only [hlt, hmemS, ↓reduceDIte, Subtype.eta, Equiv.symm_apply_apply]
           · by_cases hgt : iPos < k
-            · have hmemG : (eG ⟨k, hgt⟩).val ∈ R := (eG ⟨k, hgt⟩).property
-              have hnotS : (eG ⟨k, hgt⟩).val ∉ S := (Finset.mem_sdiff.1 hmemG).2
-              have hnei : (eG ⟨k, hgt⟩).val ≠ i :=
+            · have hmemG : (eG ⟨k, hgt⟩).1 ∈ R := (eG ⟨k, hgt⟩).2
+              have hnotS : (eG ⟨k, hgt⟩).1 ∉ S := (Finset.mem_sdiff.1 hmemG).2
+              have hnei : (eG ⟨k, hgt⟩).1 ≠ i :=
                 (Finset.mem_erase.1 (Finset.mem_sdiff.1 hmemG).1).1
               simp only [hlt, hgt, hnotS, hnei, ↓reduceDIte, Subtype.eta,
                 Equiv.symm_apply_apply]
@@ -344,14 +320,14 @@ private theorem card_filter_orderPredecessors_eq (i : A) {S : Finset A}
         have hright : Function.RightInverse bwd fwd := fun x => by
           dsimp only [fwd, bwd]
           by_cases hxS : x ∈ S
-          · have hklt : (eL.symm ⟨x, hxS⟩).val < iPos := (eL.symm ⟨x, hxS⟩).property
+          · have hklt : (eL.symm ⟨x, hxS⟩).1 < iPos := (eL.symm ⟨x, hxS⟩).2
             simp only [hxS, hklt, ↓reduceDIte, Subtype.eta, Equiv.apply_symm_apply]
           · by_cases hxi : x = i
             · subst hxi
               simp only [hxS, ↓reduceDIte, lt_irrefl]
-            · have hkgt : iPos < (eG.symm ⟨x, hmemR x hxS hxi⟩).val :=
-                (eG.symm ⟨x, hmemR x hxS hxi⟩).property
-              have hnotlt : ¬ (eG.symm ⟨x, hmemR x hxS hxi⟩).val < iPos := not_lt_of_gt hkgt
+            · have hkgt : iPos < (eG.symm ⟨x, hmemR x hxS hxi⟩).1 :=
+                (eG.symm ⟨x, hmemR x hxS hxi⟩).2
+              have hnotlt : ¬ (eG.symm ⟨x, hmemR x hxS hxi⟩).1 < iPos := not_lt_of_gt hkgt
               simp only [hxS, hxi, hnotlt, hkgt, ↓reduceDIte, Subtype.eta,
                 Equiv.apply_symm_apply]
         ⟨⟨fwd, bwd, hleft, hright⟩, by
@@ -362,12 +338,12 @@ private theorem card_filter_orderPredecessors_eq (i : A) {S : Finset A}
           rw [hbwdi]
           dsimp only [bwd]
           by_cases hxS : x ∈ S
-          · simp only [hxS, ↓reduceDIte, (eL.symm ⟨x, hxS⟩).property]
+          · simp only [hxS, ↓reduceDIte, (eL.symm ⟨x, hxS⟩).2]
           · simp only [hxS, ↓reduceDIte, iff_false]
             by_cases hxi : x = i
             · simp only [hxi, ↓reduceDIte, lt_irrefl, not_false_eq_true]
             · simp only [hxi, ↓reduceDIte]
-              exact not_lt_of_gt (eG.symm ⟨x, hmemR x hxS hxi⟩).property⟩
+              exact not_lt_of_gt (eG.symm ⟨x, hmemR x hxS hxi⟩).2⟩
       left_inv := fun ⟨σ, hσ⟩ => by
         ext k
         have hpos_eq : σ.symm i = iPos := by
@@ -381,12 +357,12 @@ private theorem card_filter_orderPredecessors_eq (i : A) {S : Finset A}
           rw [heq, ← hpos_eq, σ.apply_symm_apply]
       right_inv := fun ⟨eL, eG⟩ => by
         ext ⟨k, hk⟩
-        · change (if hlt : k < iPos then (eL ⟨k, hlt⟩).val
-            else if hgt : iPos < k then (eG ⟨k, hgt⟩).val else i) = (eL ⟨k, hk⟩).val
+        · change (if hlt : k < iPos then (eL ⟨k, hlt⟩).1
+            else if hgt : iPos < k then (eG ⟨k, hgt⟩).1 else i) = (eL ⟨k, hk⟩).1
           split_ifs
           rfl
-        · change (if hlt : k < iPos then (eL ⟨k, hlt⟩).val
-            else if hgt : iPos < k then (eG ⟨k, hgt⟩).val else i) = (eG ⟨k, hk⟩).val
+        · change (if hlt : k < iPos then (eL ⟨k, hlt⟩).1
+            else if hgt : iPos < k then (eG ⟨k, hgt⟩).1 else i) = (eG ⟨k, hk⟩).1
           have hnotlt : ¬ k < iPos := not_lt_of_gt hk
           split_ifs
           rfl }
@@ -484,54 +460,15 @@ theorem example15_24_shapleyValue :
   refine ⟨?_, ?_, ?_⟩
   · rw [shapleyValue, hcardA, her0]
     repeat rw [Finset.sum_insert (by decide)]
-    rw [Finset.sum_singleton]
-    change shapleyWeight 3 (∅ : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {0} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost ∅) +
-      (shapleyWeight 3 ({1} : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {0, 1} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost {1}) +
-      (shapleyWeight 3 ({2} : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {0, 2} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost {2}) +
-      shapleyWeight 3 ({1, 2} : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {0, 1, 2} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost {1, 2}))) = 23 / 6
-    rw [huniv3]
+    rw [Finset.sum_singleton, Finset.insert_empty, huniv3]
     norm_num [hw0, hw1, hw2, hc0, h0, h1, h2, h01, h12, h02, huniv]
   · rw [shapleyValue, hcardA, her1]
     repeat rw [Finset.sum_insert (by decide)]
-    rw [Finset.sum_singleton]
-    change shapleyWeight 3 (∅ : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {1} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost ∅) +
-      (shapleyWeight 3 ({0} : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {1, 0} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost {0}) +
-      (shapleyWeight 3 ({2} : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {1, 2} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost {2}) +
-      shapleyWeight 3 ({0, 2} : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {1, 0, 2} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost {0, 2}))) = 11 / 6
-    rw [h10, h102]
+    rw [Finset.sum_singleton, Finset.insert_empty, h10, h102]
     norm_num [hw0, hw1, hw2, hc0, h0, h1, h2, h01, h12, h02, huniv]
   · rw [shapleyValue, hcardA, her2]
     repeat rw [Finset.sum_insert (by decide)]
-    rw [Finset.sum_singleton]
-    change shapleyWeight 3 (∅ : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {2} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost ∅) +
-      (shapleyWeight 3 ({0} : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {2, 0} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost {0}) +
-      (shapleyWeight 3 ({1} : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {2, 1} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost {1}) +
-      shapleyWeight 3 ({0, 1} : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {2, 0, 1} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost {0, 1}))) = 7 / 3
-    rw [h20, h21, h201]
+    rw [Finset.sum_singleton, Finset.insert_empty, h20, h21, h201]
     norm_num [hw0, hw1, hw2, hc0, h0, h1, h2, h01, h12, h02, huniv]
 
 /-- **Example 15.24** ([JainMahdian2007], p. 403): the Shapley value `(23 / 6, 11 / 6, 7 / 3)` of
@@ -761,19 +698,18 @@ games over all nonempty coalitions `T`, weighted by the subset Möbius transform
 `Cslib.BitString.subsetMobius G.cost T`. -/
 theorem eq_sum_unanimityGame (G : CostSharingGame A) :
     G = ∑ x ∈ ((Finset.univ : Finset A).powerset.filter Finset.Nonempty).attach,
-      unanimityGame x.val (Finset.mem_filter.1 x.property).2
-        (Cslib.BitString.subsetMobius G.cost x.val) := by
+      unanimityGame x.1 (Finset.mem_filter.1 x.2).2 (Cslib.BitString.subsetMobius G.cost x.1) := by
   ext S
   rw [CostSharingGame.sum_cost]
   have hsum_pow :
       (∑ x ∈ ((Finset.univ : Finset A).powerset.filter Finset.Nonempty).attach,
-          (unanimityGame x.val (Finset.mem_filter.1 x.property).2
-            (Cslib.BitString.subsetMobius G.cost x.val)).cost S) =
+          (unanimityGame x.1 (Finset.mem_filter.1 x.2).2
+            (Cslib.BitString.subsetMobius G.cost x.1)).cost S) =
         ∑ T ∈ S.powerset, Cslib.BitString.subsetMobius G.cost T := by
     have hattach :
         (∑ x ∈ ((Finset.univ : Finset A).powerset.filter Finset.Nonempty).attach,
-            (unanimityGame x.val (Finset.mem_filter.1 x.property).2
-              (Cslib.BitString.subsetMobius G.cost x.val)).cost S) =
+            (unanimityGame x.1 (Finset.mem_filter.1 x.2).2
+              (Cslib.BitString.subsetMobius G.cost x.1)).cost S) =
           ∑ T ∈ (Finset.univ : Finset A).powerset.filter Finset.Nonempty,
             if T ⊆ S then Cslib.BitString.subsetMobius G.cost T else 0 :=
       Finset.sum_attach _ (fun T => if T ⊆ S then Cslib.BitString.subsetMobius G.cost T else 0)
@@ -945,9 +881,9 @@ theorem shapleyScheme_isBudgetBalanced (G : CostSharingGame A) :
   intro T
   calc
     ∑ i ∈ T, G.shapleyScheme.share T i
-      = ∑ x : {x // x ∈ T}, G.shapleyScheme.share T x.val := (Finset.sum_coe_sort T _).symm
+      = ∑ x : {x // x ∈ T}, G.shapleyScheme.share T x.1 := (Finset.sum_coe_sort T _).symm
     _ = ∑ x : {x // x ∈ T}, shapleyValue (G.restrict T) x :=
-        Finset.sum_congr rfl fun x _ => G.shapleyScheme_eq_restrict x.property
+        Finset.sum_congr rfl fun x _ => G.shapleyScheme_eq_restrict x.2
     _ = (G.restrict T).cost Finset.univ := shapleyValue_isEfficient (G.restrict T)
     _ = G.cost T := by
         rw [restrict_cost]
@@ -1485,11 +1421,11 @@ theorem eq_nashBargainingSolution_of_axioms {φ : BargainingProblem → ℝ × �
     rw [nashBargainingSolution_isScaleInvariant]
     ext
     · change u₁⁻¹ * x.1 + -(u₁⁻¹ * d.1) = 1
-      have : u₁⁻¹ * x.1 + -(u₁⁻¹ * d.1) = u₁⁻¹ * u₁ := by dsimp only [u₁]; ring
-      rw [this, inv_mul_cancel₀ hu₁.ne']
+      rw [← sub_eq_add_neg, ← mul_sub]
+      exact inv_mul_cancel₀ hu₁.ne'
     · change u₂⁻¹ * x.2 + -(u₂⁻¹ * d.2) = 1
-      have : u₂⁻¹ * x.2 + -(u₂⁻¹ * d.2) = u₂⁻¹ * u₂ := by dsimp only [u₂]; ring
-      rw [this, inv_mul_cancel₀ hu₂.ne']
+      rw [← sub_eq_add_neg, ← mul_sub]
+      exact inv_mul_cancel₀ hu₂.ne'
   have hsum_le : ∀ y ∈ B'.feasible, y.1 + y.2 ≤ 2 :=
     fun _ hy => sum_le_two_of_unit_nashMax hd' hx' hy
   -- Enclose `B'.feasible` inside a compact, convex, symmetric triangle `H`.
@@ -1562,22 +1498,14 @@ theorem eq_nashBargainingSolution_of_axioms {φ : BargainingProblem → ℝ × �
     (hscale B a₁ a₂ ha₁ ha₂ b₁ b₂).symm.trans hφB'
   have hc₁ : u₁⁻¹ * (φ B).1 + -(u₁⁻¹ * d.1) = 1 := congr_arg Prod.fst hφB_scale
   have hc₂ : u₂⁻¹ * (φ B).2 + -(u₂⁻¹ * d.2) = 1 := congr_arg Prod.snd hφB_scale
-  have hu₁_ne : u₁ ≠ 0 := hu₁.ne'
-  have hu₂_ne : u₂ ≠ 0 := hu₂.ne'
   ext
-  · have hmul := congr_arg (u₁ * ·) hc₁
-    have hsimp : u₁ * (u₁⁻¹ * (φ B).1 + -(u₁⁻¹ * d.1)) = (φ B).1 - d.1 := by
-      field_simp
-      ring
-    rw [hsimp, mul_one] at hmul
-    dsimp only [u₁] at hmul
+  · have h := (inv_mul_eq_one₀ (b := (φ B).1 - d.1) hu₁.ne').1
+      (by rw [mul_sub, sub_eq_add_neg]; exact hc₁)
+    dsimp only [u₁] at h
     linarith
-  · have hmul := congr_arg (u₂ * ·) hc₂
-    have hsimp : u₂ * (u₂⁻¹ * (φ B).2 + -(u₂⁻¹ * d.2)) = (φ B).2 - d.2 := by
-      field_simp
-      ring
-    rw [hsimp, mul_one] at hmul
-    dsimp only [u₂] at hmul
+  · have h := (inv_mul_eq_one₀ (b := (φ B).2 - d.2) hu₂.ne').1
+      (by rw [mul_sub, sub_eq_add_neg]; exact hc₂)
+    dsimp only [u₂] at h
     linarith
 
 /-- **Theorem 15.28 (Nash's bargaining theorem, existence and uniqueness)** ([JainMahdian2007],

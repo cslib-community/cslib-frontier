@@ -212,10 +212,8 @@ private theorem find_mate_eq (inst : SparseInstance) (v : Fin inst.r) :
       have hfalse := (List.find?_eq_none.mp hf) u₀ (List.mem_finRange u₀)
       simp [p, mem_mateMatching, hm] at hfalse
     | some u₁ =>
-      have hp₁ : p u₁ = true := List.find?_some hf
-      have hu₁ : (u₁, v) ∈ mateMatching mate := of_decide_eq_true hp₁
-      have hu₀ : (u₀, v) ∈ mateMatching mate := mem_mateMatching.mpr hm
-      exact congrArg some (hM.2.2 u₁ u₀ v hu₁ hu₀)
+      have hp₁ := List.find?_some hf
+      exact congrArg some (hM.2.2 u₁ u₀ v (of_decide_eq_true hp₁) (mem_mateMatching.mpr hm))
 
 /-- `inst.matchingPairs` agrees with filtering the final `hkLoop` right-vertex mate vector. -/
 theorem matchingPairs_eq_mate_filterMap (inst : SparseInstance) :
@@ -237,16 +235,9 @@ theorem toFinset_matchingPairs (inst : SparseInstance) :
   set mate := (hkLoop inst.graph inst.adj (inst.m + 1) 0 (Vector.replicate inst.r none)).mate
   ext ⟨u, v⟩
   simp only [List.mem_toFinset, List.mem_filterMap, List.mem_finRange, true_and, mem_mateMatching]
-  constructor
-  · rintro ⟨v', hm⟩
-    cases h : vget mate v' with
-    | none => simp [h] at hm
-    | some u' =>
-      simp only [h, Option.some.injEq, Prod.mk.injEq] at hm
-      obtain ⟨rfl, rfl⟩ := hm
-      exact h
-  · intro hm
-    exact ⟨v, by simp [hm]⟩
+  refine ⟨?_, fun hm => ⟨v, by simp [hm]⟩⟩
+  rintro ⟨v', hm⟩
+  cases h : vget mate v' <;> simp_all
 
 theorem isMaxMatching_matchingPairs (inst : SparseInstance) :
     IsMaxMatching inst.graph inst.matchingPairs.toFinset := by
@@ -257,15 +248,8 @@ theorem nodup_matchingPairs (inst : SparseInstance) : inst.matchingPairs.Nodup :
   rw [inst.matchingPairs_eq_mate_filterMap]
   set mate := (hkLoop inst.graph inst.adj (inst.m + 1) 0 (Vector.replicate inst.r none)).mate
   refine List.Nodup.filterMap ?_ (List.nodup_finRange inst.r)
-  intro v₁ v₂ e h₁ h₂
-  cases hm₁ : vget mate v₁
-  · simp [hm₁] at h₁
-  cases hm₂ : vget mate v₂
-  · simp [hm₂] at h₂
-  simp only [hm₁, Option.mem_def, Option.some.injEq] at h₁
-  simp only [hm₂, Option.mem_def, Option.some.injEq] at h₂
-  subst h₁
-  exact (Prod.mk.inj h₂).2.symm
+  rintro v₁ v₂ ⟨u, v⟩ h₁ h₂
+  cases hm₁ : vget mate v₁ <;> cases hm₂ : vget mate v₂ <;> simp_all [Option.mem_def]
 
 theorem length_matchingPairs (inst : SparseInstance) :
     inst.matchingPairs.length = inst.maxMatchingCard := by
@@ -316,15 +300,11 @@ theorem hasPerfectMatching_iff (inst : SparseInstance) :
     inst.HasPerfectMatching ↔ inst.m = inst.r ∧ inst.maxMatchingCard = inst.m := by
   rcases inst with ⟨m, r, adj⟩
   dsimp only [HasPerfectMatching, maxMatchingCard]
-  constructor
-  · rintro ⟨rfl, hpm⟩
-    have hiff := decidePerfectMatchingHK_eq_true_iff (bipAdjValid_graph ⟨m, m, adj⟩)
-    simp only [decidePerfectMatchingHK, decide_eq_true_iff] at hiff
-    exact ⟨rfl, hiff.mpr hpm⟩
-  · rintro ⟨rfl, hcard⟩
-    have hiff := decidePerfectMatchingHK_eq_true_iff (bipAdjValid_graph ⟨m, m, adj⟩)
-    simp only [decidePerfectMatchingHK, decide_eq_true_iff] at hiff
-    exact ⟨rfl, hiff.mp hcard⟩
+  by_cases hmr : m = r
+  · subst hmr
+    simpa [decidePerfectMatchingHK] using
+      (decidePerfectMatchingHK_eq_true_iff (bipAdjValid_graph ⟨m, m, adj⟩)).symm
+  · simp [hmr]
 
 instance (inst : SparseInstance) : Decidable inst.HasPerfectMatching :=
   decidable_of_iff (inst.m = inst.r ∧ inst.maxMatchingCard = inst.m)
@@ -333,11 +313,7 @@ instance (inst : SparseInstance) : Decidable inst.HasPerfectMatching :=
 theorem maxMatchingCard_le_min (inst : SparseInstance) :
     inst.maxMatchingCard ≤ min inst.m inst.r := by
   have hM := (hopcroftKarp_correct inst.bipAdjValid_graph).1.1
-  have hl : inst.maxMatchingCard ≤ inst.m := by
-    simpa [maxMatchingCard] using hM.card_le_card_left
-  have hr : inst.maxMatchingCard ≤ inst.r := by
-    simpa [maxMatchingCard] using hM.card_le_card_right
-  omega
+  simpa [maxMatchingCard] using le_min hM.card_le_card_left hM.card_le_card_right
 
 end SparseInstance
 

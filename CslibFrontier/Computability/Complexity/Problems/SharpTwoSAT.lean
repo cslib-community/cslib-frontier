@@ -30,6 +30,7 @@ import CslibFrontier.Foundations.Data.List.OfFn
 import CslibFrontier.Foundations.Data.Polynomial.FiniteDifference
 import CslibFrontier.Logics.Propositional.CNF.PolyTime
 import CslibFrontier.Logics.Propositional.CNF.UnsatVal
+import CslibFrontier.Tactic.PolyTime
 import Mathlib.Algebra.Polynomial.Degree.Lemmas
 import Mathlib.Data.Nat.Choose.Basic
 
@@ -169,35 +170,35 @@ private theorem two_mul_ne_uVar (v r i j : ℕ) : 2 * v ≠ uVar r i j := by
   unfold uVar
   omega
 
+/-- Decoding of an odd auxiliary index `2 * (i * (r + 1) + k) + 1` with `k ≤ r`. -/
+private theorem auxVar_decode {r i k w : ℕ} (hk : k < r + 1)
+    (hw : w = 2 * (i * (r + 1) + k) + 1) :
+    w % 2 ≠ 0 ∧ (w - 1) / 2 / (r + 1) = i ∧ (w - 1) / 2 % (r + 1) = k :=
+  ⟨by omega, (Nat.div_mod_unique (by omega)).mpr ⟨by rw [Nat.mul_comm]; omega, hk⟩⟩
+
+private theorem zVar_decode (r i : ℕ) :
+    zVar r i % 2 ≠ 0 ∧ (zVar r i - 1) / 2 / (r + 1) = i ∧ (zVar r i - 1) / 2 % (r + 1) = 0 :=
+  auxVar_decode (Nat.succ_pos r) (by unfold zVar; omega)
+
+private theorem uVar_decode {r j : ℕ} (i : ℕ) (hj : j < r - 1) :
+    uVar r i j % 2 ≠ 0 ∧ (uVar r i j - 1) / 2 / (r + 1) = i ∧
+      (uVar r i j - 1) / 2 % (r + 1) = j + 1 :=
+  auxVar_decode (by omega) (by unfold uVar; omega)
+
 private theorem zVar_ne_uVar {r i₁ i₂ j : ℕ} (hj : j < r - 1) :
-    zVar r i₁ ≠ uVar r i₂ j := by
-  unfold zVar uVar
-  intro h
-  have h1 : i₁ * (r + 1) = i₂ * (r + 1) + (j + 1) := by omega
-  have hmod := congrArg (· % (r + 1)) h1
-  rw [Nat.mul_mod_left, Nat.add_comm (i₂ * _), Nat.add_mul_mod_self_right,
-    Nat.mod_eq_of_lt (by omega)] at hmod
+    zVar r i₁ ≠ uVar r i₂ j := fun h => by
+  have h1 := (zVar_decode r i₁).2.2
+  rw [h, (uVar_decode i₂ hj).2.2] at h1
   omega
 
 private theorem zVar_inj {r i₁ i₂ : ℕ} (h : zVar r i₁ = zVar r i₂) : i₁ = i₂ := by
-  unfold zVar at h
-  have h1 : i₁ * (r + 1) = i₂ * (r + 1) := by omega
-  exact Nat.eq_of_mul_eq_mul_right (Nat.succ_pos r) h1
+  rw [← (zVar_decode r i₁).2.1, h, (zVar_decode r i₂).2.1]
 
 private theorem uVar_inj {r i₁ i₂ j₁ j₂ : ℕ} (hj₁ : j₁ < r - 1) (hj₂ : j₂ < r - 1)
     (h : uVar r i₁ j₁ = uVar r i₂ j₂) : i₁ = i₂ ∧ j₁ = j₂ := by
-  unfold uVar at h
-  have h1 : i₁ * (r + 1) + (j₁ + 1) = i₂ * (r + 1) + (j₂ + 1) := by omega
-  have hdiv := congrArg (· / (r + 1)) h1
-  have hmod := congrArg (· % (r + 1)) h1
-  rw [Nat.add_comm (i₁ * _), Nat.add_comm (i₂ * _),
-    Nat.mul_comm i₁ _, Nat.mul_comm i₂ _,
-    Nat.add_mul_div_left _ _ (Nat.succ_pos r), Nat.add_mul_div_left _ _ (Nat.succ_pos r),
-    Nat.div_eq_of_lt (by omega), Nat.div_eq_of_lt (by omega), Nat.zero_add, Nat.zero_add] at hdiv
-  rw [Nat.add_comm (i₁ * _), Nat.add_comm (i₂ * _),
-    Nat.add_mul_mod_self_right, Nat.add_mul_mod_self_right,
-    Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)] at hmod
-  exact ⟨hdiv, by omega⟩
+  have h1 := (uVar_decode i₁ hj₁).2.2
+  rw [h, (uVar_decode i₂ hj₂).2.2] at h1
+  exact ⟨by rw [← (uVar_decode i₁ hj₁).2.1, h, (uVar_decode i₂ hj₂).2.1], by omega⟩
 
 private theorem mem_vars_clauseWeightTwoSAT (φ : CNF ℕ) (r w : ℕ) :
     w ∈ (clauseWeightTwoSAT φ r).vars ↔
@@ -227,69 +228,44 @@ private theorem mem_vars_clauseWeightTwoSAT (φ : CNF ℕ) (r w : ℕ) :
         · exact Or.inr ⟨i, hi, Or.inl rfl⟩
         · exact Or.inl ⟨lit.1, List.mem_map.mpr
             ⟨lit, List.mem_flatten.mpr ⟨cl, hclMem, hlit⟩, rfl⟩, rfl⟩
-      · split_ifs at hc with hr0 hr1
-        · simp only [List.mem_singleton] at hc
-          subst hc
-          simp only [List.mem_singleton] at hl
-          cases hl
-          exact Or.inr ⟨i, hi, Or.inl rfl⟩
-        · simp only [List.mem_singleton] at hc
-          subst hc
+      · refine Or.inr ⟨i, hi, ?_⟩
+        split_ifs at hc with hr0 hr1 <;> simp only [List.mem_append, List.mem_cons,
+          List.not_mem_nil, or_false, List.mem_map, List.mem_range] at hc
+        · subst hc
           simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
-          rcases hl with rfl | rfl <;> exact Or.inr ⟨i, hi, Or.inl rfl⟩
-        · simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false, List.mem_map] at hc
-          rcases hc with (rfl | rfl) | ⟨j, hj, rfl⟩
-          · simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
-            rcases hl with rfl | rfl <;> exact Or.inr ⟨i, hi, Or.inl rfl⟩
-          · simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
-            rcases hl with rfl | rfl
-            · exact Or.inr ⟨i, hi, Or.inl rfl⟩
-            · exact Or.inr ⟨i, hi, Or.inr ⟨0, by omega, rfl⟩⟩
-          · rw [List.mem_range] at hj
-            simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
-            rcases hl with rfl | rfl
-            · exact Or.inr ⟨i, hi, Or.inr ⟨j, by omega, rfl⟩⟩
-            · exact Or.inr ⟨i, hi, Or.inr ⟨j + 1, by omega, rfl⟩⟩
-  · rintro (⟨v, hv, rfl⟩ | ⟨i, hi, hzi | ⟨j, hj, rfl⟩⟩)
-    · have hv' : v ∈ φ.distinctVars := CNF.mem_distinctVars.mpr hv
+          subst hl
+          exact Or.inl rfl
+        all_goals
+          rcases hc with (rfl | rfl) | ⟨j, hj, rfl⟩ <;>
+            simp only [List.mem_cons, List.not_mem_nil, or_false] at hl <;> rcases hl with rfl | rfl
+        all_goals first | exact Or.inl rfl | exact Or.inr ⟨0, by omega, rfl⟩ |
+          (refine Or.inr ⟨_, ?_, rfl⟩; omega)
+  · have hgad (i : ℕ) (hi : i < φ.length) (cl : Clause ℕ)
+        (hcl : cl ∈ clauseWeightGadget r (φ[i], i))
+        (l : Literal ℕ) (hl : l ∈ cl) : l.1 ∈ (clauseWeightTwoSAT φ r).vars := by
       rw [clauseWeightTwoSAT, CNF.vars, List.mem_map]
+      exact ⟨l, List.mem_flatten.mpr ⟨cl, List.mem_append_right _ (List.mem_flatMap.mpr ⟨(φ[i], i),
+        List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_some_iff.mpr ⟨hi, rfl⟩), hcl⟩), hl⟩, rfl⟩
+    rintro (⟨v, hv, rfl⟩ | ⟨i, hi, rfl | ⟨j, hj, rfl⟩⟩)
+    · rw [clauseWeightTwoSAT, CNF.vars, List.mem_map]
       refine ⟨(2 * v, true), List.mem_flatten.mpr ⟨[(2 * v, true), (2 * v, false)], ?_,
         List.mem_cons_self ..⟩, rfl⟩
-      exact List.mem_append_left _ (List.mem_map.mpr ⟨v, hv', rfl⟩)
-    · subst hzi
-      have hci : (φ[i], i) ∈ φ.zipIdx :=
-        List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_some_iff.mpr ⟨hi, rfl⟩)
-      rw [clauseWeightTwoSAT, CNF.vars, List.mem_map]
-      by_cases hr0 : r = 0
-      · refine ⟨(zVar r i, false), List.mem_flatten.mpr ⟨[(zVar r i, false)],
-          List.mem_append_right _ (List.mem_flatMap.mpr ⟨(φ[i], i), hci, ?_⟩),
-          List.mem_cons_self ..⟩, rfl⟩
-        simp only [clauseWeightGadget, hr0, ↓reduceIte, List.mem_append, List.mem_singleton,
-          or_true]
-      · refine ⟨(zVar r i, false), List.mem_flatten.mpr
-          ⟨[(zVar r i, true), (zVar r i, false)],
-            List.mem_append_right _ (List.mem_flatMap.mpr ⟨(φ[i], i), hci, ?_⟩),
-            List.mem_cons_of_mem _ (List.mem_cons_self ..)⟩, rfl⟩
-        simp only [clauseWeightGadget, List.mem_append]
-        right
-        by_cases hr1 : r = 1 <;> simp [hr0, hr1]
-    · have hci : (φ[i], i) ∈ φ.zipIdx :=
-        List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_some_iff.mpr ⟨hi, rfl⟩)
-      rw [clauseWeightTwoSAT, CNF.vars, List.mem_map]
-      have hr0 : r ≠ 0 := by omega
+      exact List.mem_append_left _ (List.mem_map.mpr ⟨v, CNF.mem_distinctVars.mpr hv, rfl⟩)
+    · by_cases hr0 : r = 0
+      · exact hgad i hi [(zVar r i, false)] (by simp [clauseWeightGadget, hr0]) _
+          (List.mem_cons_self ..)
+      · exact hgad i hi [(zVar r i, true), (zVar r i, false)]
+          (by by_cases hr1 : r = 1 <;> simp [clauseWeightGadget, hr0, hr1]) (zVar r i, false)
+          (by simp)
+    · have hr0 : r ≠ 0 := by omega
       have hr1 : r ≠ 1 := by omega
       cases j with
       | zero =>
-        refine ⟨(uVar r i 0, false), List.mem_flatten.mpr
-          ⟨[(zVar r i, true), (uVar r i 0, false)],
-            List.mem_append_right _ (List.mem_flatMap.mpr ⟨(φ[i], i), hci, ?_⟩),
-            List.mem_cons_of_mem _ (List.mem_cons_self ..)⟩, rfl⟩
-        simp [clauseWeightGadget, hr0, hr1]
+        exact hgad i hi [(zVar r i, true), (uVar r i 0, false)]
+          (by simp [clauseWeightGadget, hr0, hr1]) (uVar r i 0, false) (by simp)
       | succ k =>
-        refine ⟨(uVar r i (k + 1), false), List.mem_flatten.mpr
-          ⟨[(uVar r i k, true), (uVar r i (k + 1), false)],
-            List.mem_append_right _ (List.mem_flatMap.mpr ⟨(φ[i], i), hci, ?_⟩),
-            List.mem_cons_of_mem _ (List.mem_cons_self ..)⟩, rfl⟩
+        refine hgad i hi [(uVar r i k, true), (uVar r i (k + 1), false)] ?_
+          (uVar r i (k + 1), false) (by simp)
         simp only [clauseWeightGadget, hr0, ↓reduceIte, hr1, List.mem_append, List.mem_cons,
           List.not_mem_nil, or_false, List.mem_map, List.mem_range]
         exact Or.inr (Or.inr ⟨k, by omega, rfl⟩)
@@ -373,23 +349,23 @@ private theorem mono_all_false {m : ℕ} {u : Fin m → Bool}
 
 private def monoBoolsStepEquiv (m : ℕ) : MonoBools (m + 1) ≃ Unit ⊕ MonoBools m where
   toFun u :=
-    if h0 : u.val ⟨0, Nat.succ_pos m⟩ = false then
+    if h0 : u.1 ⟨0, Nat.succ_pos m⟩ = false then
       Sum.inl ()
     else
-      Sum.inr ⟨fun j => u.val j.succ, fun j hj hfalse => by
-        simpa [Fin.succ] using u.property (j + 1) (Nat.succ_lt_succ hj) hfalse⟩
+      Sum.inr ⟨fun j => u.1 j.succ, fun j hj hfalse => by
+        simpa [Fin.succ] using u.2 (j + 1) (Nat.succ_lt_succ hj) hfalse⟩
   invFun
     | Sum.inl () => ⟨fun _ => false, fun _ _ _ => rfl⟩
     | Sum.inr tail =>
-      ⟨Fin.cons true tail.val, fun j hj hfalse => by
+      ⟨Fin.cons true tail.1, fun j hj hfalse => by
         cases j with
         | zero => simp at hfalse
         | succ k =>
-          change (Fin.cons true tail.val : Fin (m + 1) → Bool)
+          change (Fin.cons true tail.1 : Fin (m + 1) → Bool)
             (Fin.succ (⟨k, by omega⟩ : Fin m)) = false at hfalse
           rw [Fin.cons_succ] at hfalse
-          have ht := tail.property k (Nat.lt_of_succ_lt_succ hj) hfalse
-          change (Fin.cons true tail.val : Fin (m + 1) → Bool)
+          have ht := tail.2 k (Nat.lt_of_succ_lt_succ hj) hfalse
+          change (Fin.cons true tail.1 : Fin (m + 1) → Bool)
             (Fin.succ (⟨k + 1, by omega⟩ : Fin m)) = false
           rw [Fin.cons_succ]
           exact ht⟩
@@ -461,7 +437,7 @@ private theorem card_clauseAuxPred (r : ℕ) (sat : Bool) :
   · subst hr1
     cases sat
     · have e : {p : Bool × (Fin (1 - 1) → Bool) // clauseAuxPred 1 false p} ≃ Bool :=
-        { toFun := fun p => p.val.1
+        { toFun := fun p => p.1.1
           invFun := fun b => ⟨(b, Fin.elim0), by simp [clauseAuxPred]⟩
           left_inv := fun ⟨⟨z, u⟩, _⟩ =>
             Subtype.ext (Prod.ext rfl (funext fun i => Fin.elim0 i))
@@ -489,9 +465,9 @@ private theorem card_clauseAuxPred (r : ℕ) (sat : Bool) :
           invFun
             | Sum.inl () => ⟨(false, fun _ => false), by
                 simp [clauseAuxPred, hr0, hr1]⟩
-            | Sum.inr u => ⟨(true, u.val), by
+            | Sum.inr u => ⟨(true, u.1), by
                 simp only [clauseAuxPred, hr0, ↓reduceDIte, hr1]
-                exact ⟨fun _ => trivial, fun h => Bool.noConfusion h, u.property⟩⟩
+                exact ⟨fun _ => trivial, fun h => Bool.noConfusion h, u.2⟩⟩
           left_inv := fun ⟨⟨z, u⟩, hp⟩ => by
             simp only [clauseAuxPred, hr0, ↓reduceDIte, hr1] at hp
             dsimp only
@@ -525,20 +501,19 @@ private def clauseWeightVarEquiv (φ : CNF ℕ) (r : ℕ) :
     ((clauseWeightTwoSAT φ r).vars.toFinset → Bool) ≃
       (φ.vars.toFinset → Bool) × (∀ _ : Fin φ.length, Bool × (Fin (r - 1) → Bool)) where
   toFun τ :=
-    (fun v => τ ⟨2 * v.val, List.mem_toFinset.mpr
-        ((mem_vars_clauseWeightTwoSAT φ r _).mpr
-          (Or.inl ⟨v.val, List.mem_toFinset.mp v.property, rfl⟩))⟩,
+    (fun v => τ ⟨2 * v.1, List.mem_toFinset.mpr
+        ((mem_vars_clauseWeightTwoSAT φ r _).mpr (Or.inl ⟨v.1, List.mem_toFinset.mp v.2, rfl⟩))⟩,
       fun i =>
-        (τ ⟨zVar r i.val, List.mem_toFinset.mpr
-            ((mem_vars_clauseWeightTwoSAT φ r _).mpr (Or.inr ⟨i.val, i.isLt, Or.inl rfl⟩))⟩,
-          fun j => τ ⟨uVar r i.val j.val, List.mem_toFinset.mpr
+        (τ ⟨zVar r i.1, List.mem_toFinset.mpr
+            ((mem_vars_clauseWeightTwoSAT φ r _).mpr (Or.inr ⟨i.1, i.isLt, Or.inl rfl⟩))⟩,
+          fun j => τ ⟨uVar r i.1 j.1, List.mem_toFinset.mpr
             ((mem_vars_clauseWeightTwoSAT φ r _).mpr
-              (Or.inr ⟨i.val, i.isLt, Or.inr ⟨j.val, j.isLt, rfl⟩⟩))⟩))
+              (Or.inr ⟨i.1, i.isLt, Or.inr ⟨j.1, j.isLt, rfl⟩⟩))⟩))
   invFun p w :=
-    if hev : w.val % 2 = 0 then
-      let v₀ := w.val / 2
+    if hev : w.1 % 2 = 0 then
+      let v₀ := w.1 / 2
       have hv₀ : v₀ ∈ φ.vars.toFinset := by
-        have hw := (mem_vars_clauseWeightTwoSAT φ r w.val).mp (List.mem_toFinset.mp w.property)
+        have hw := (mem_vars_clauseWeightTwoSAT φ r w.1).mp (List.mem_toFinset.mp w.2)
         rcases hw with ⟨v, hv, hwv⟩ | ⟨i, _, hwz | ⟨j, _, hwu⟩⟩
         · have : v₀ = v := by omega
           exact this ▸ List.mem_toFinset.mpr hv
@@ -546,70 +521,46 @@ private def clauseWeightVarEquiv (φ : CNF ℕ) (r : ℕ) :
         · rw [hwu] at hev; unfold uVar at hev; omega
       p.1 ⟨v₀, hv₀⟩
     else
-      let q := (w.val - 1) / 2
+      let q := (w.1 - 1) / 2
       let i := q / (r + 1)
       let k := q % (r + 1)
       have hi : i < φ.length := by
-        have hw := (mem_vars_clauseWeightTwoSAT φ r w.val).mp (List.mem_toFinset.mp w.property)
+        have hw := (mem_vars_clauseWeightTwoSAT φ r w.1).mp (List.mem_toFinset.mp w.2)
+        change (w.1 - 1) / 2 / (r + 1) < φ.length
         rcases hw with ⟨v, _, hwv⟩ | ⟨i', hi', hwz | ⟨j, hj, hwu⟩⟩
         · omega
-        · have hq : q = i' * (r + 1) := by dsimp only [q]; rw [hwz]; unfold zVar; omega
-          have hdiv : q / (r + 1) = i' := by
-            rw [hq, Nat.mul_div_cancel _ (Nat.succ_pos r)]
-          change q / (r + 1) < φ.length
-          rw [hdiv]
-          exact hi'
-        · have hq : q = i' * (r + 1) + (j + 1) := by dsimp only [q]; rw [hwu]; unfold uVar; omega
-          have hdiv : q / (r + 1) = i' := by
-            rw [hq, Nat.add_comm (i' * _), Nat.mul_comm i' _,
-              Nat.add_mul_div_left _ _ (Nat.succ_pos r), Nat.div_eq_of_lt (by omega), Nat.zero_add]
-          change q / (r + 1) < φ.length
-          rw [hdiv]
-          exact hi'
+        · rwa [hwz, (zVar_decode r i').2.1]
+        · rwa [hwu, (uVar_decode i' hj).2.1]
       if hk : k = 0 then
         (p.2 ⟨i, hi⟩).1
       else
         have hklt : k - 1 < r - 1 := by
-          have hw := (mem_vars_clauseWeightTwoSAT φ r w.val).mp (List.mem_toFinset.mp w.property)
+          have hw := (mem_vars_clauseWeightTwoSAT φ r w.1).mp (List.mem_toFinset.mp w.2)
+          change (w.1 - 1) / 2 % (r + 1) = 0 → False at hk
+          change (w.1 - 1) / 2 % (r + 1) - 1 < r - 1
           rcases hw with ⟨v, _, hwv⟩ | ⟨i', _, hwz | ⟨j, hj, hwu⟩⟩
           · omega
-          · have hq : q = i' * (r + 1) := by dsimp only [q]; rw [hwz]; unfold zVar; omega
-            have hmod : q % (r + 1) = 0 := by rw [hq, Nat.mul_mod_left]
-            exact absurd hmod hk
-          · have hq : q = i' * (r + 1) + (j + 1) := by
-              dsimp only [q]; rw [hwu]; unfold uVar; omega
-            have hmod : q % (r + 1) = j + 1 := by
-              rw [hq, Nat.add_comm (i' * _), Nat.add_mul_mod_self_right,
-                Nat.mod_eq_of_lt (by omega)]
-            change q % (r + 1) - 1 < r - 1
-            rw [hmod]
+          · exact absurd (by rw [hwz, (zVar_decode r i').2.2]) hk
+          · rw [hwu, (uVar_decode i' hj).2.2]
             omega
         (p.2 ⟨i, hi⟩).2 ⟨k - 1, hklt⟩
   left_inv τ := by
     ext w
-    have hw := (mem_vars_clauseWeightTwoSAT φ r w.val).mp (List.mem_toFinset.mp w.property)
+    have hw := (mem_vars_clauseWeightTwoSAT φ r w.1).mp (List.mem_toFinset.mp w.2)
     rcases hw with ⟨v, hv, hwv⟩ | ⟨i, hi, hwz | ⟨j, hj, hwu⟩⟩
-    · have hev : w.val % 2 = 0 := by omega
+    · have hev : w.1 % 2 = 0 := by omega
       simp only [hev, ↓reduceDIte]
       congr 1
       ext
       dsimp only
       omega
-    · have hodd : w.val % 2 ≠ 0 := by rw [hwz]; unfold zVar; omega
-      have hq : (w.val - 1) / 2 = i * (r + 1) := by rw [hwz]; unfold zVar; omega
-      have hdiv : (w.val - 1) / 2 / (r + 1) = i := by
-        rw [hq, Nat.mul_div_cancel _ (Nat.succ_pos r)]
-      have hmod : (w.val - 1) / 2 % (r + 1) = 0 := by rw [hq, Nat.mul_mod_left]
+    · obtain ⟨hodd, hdiv, hmod⟩ := zVar_decode r i
+      rw [← hwz] at hodd hdiv hmod
       simp only [hodd, ↓reduceDIte, hmod]
       congr 1
       exact Subtype.ext (by dsimp only; rw [hdiv, ← hwz])
-    · have hodd : w.val % 2 ≠ 0 := by rw [hwu]; unfold uVar; omega
-      have hq : (w.val - 1) / 2 = i * (r + 1) + (j + 1) := by rw [hwu]; unfold uVar; omega
-      have hdiv : (w.val - 1) / 2 / (r + 1) = i := by
-        rw [hq, Nat.add_comm (i * _), Nat.mul_comm i _,
-          Nat.add_mul_div_left _ _ (Nat.succ_pos r), Nat.div_eq_of_lt (by omega), Nat.zero_add]
-      have hmod : (w.val - 1) / 2 % (r + 1) = j + 1 := by
-        rw [hq, Nat.add_comm (i * _), Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt (by omega)]
+    · obtain ⟨hodd, hdiv, hmod⟩ := uVar_decode i hj
+      rw [← hwu] at hodd hdiv hmod
       simp only [hodd, ↓reduceDIte, hmod, Nat.succ_ne_zero, Nat.add_sub_cancel]
       congr 1
       exact Subtype.ext (by dsimp only; rw [hdiv, ← hwu])
@@ -617,29 +568,18 @@ private def clauseWeightVarEquiv (φ : CNF ℕ) (r : ℕ) :
     obtain ⟨σ, aux⟩ := p
     refine Prod.ext (funext fun x => ?_) (funext fun i => Prod.ext ?_ (funext fun j => ?_))
     · dsimp only
-      have hev : (2 * x.val) % 2 = 0 := by omega
+      have hev : (2 * x.1) % 2 = 0 := by omega
       simp only [hev, ↓reduceDIte]
       congr 1
       ext
       dsimp only
       omega
     · dsimp only
-      have hodd : zVar r i.val % 2 ≠ 0 := by unfold zVar; omega
-      have hq : (zVar r i.val - 1) / 2 = i.val * (r + 1) := by unfold zVar; omega
-      have hdiv : (zVar r i.val - 1) / 2 / (r + 1) = i.val := by
-        rw [hq, Nat.mul_div_cancel _ (Nat.succ_pos r)]
-      have hmod : (zVar r i.val - 1) / 2 % (r + 1) = 0 := by rw [hq, Nat.mul_mod_left]
+      obtain ⟨hodd, hdiv, hmod⟩ := zVar_decode r i.1
       simp only [hodd, ↓reduceDIte, hmod]
       exact congrArg (fun k => (aux k).1) (Fin.ext hdiv)
     · dsimp only
-      have hodd : uVar r i.val j.val % 2 ≠ 0 := by unfold uVar; omega
-      have hq : (uVar r i.val j.val - 1) / 2 = i.val * (r + 1) + (j.val + 1) := by
-        unfold uVar; omega
-      have hdiv : (uVar r i.val j.val - 1) / 2 / (r + 1) = i.val := by
-        rw [hq, Nat.add_comm (i.val * _), Nat.mul_comm i.val _,
-          Nat.add_mul_div_left _ _ (Nat.succ_pos r), Nat.div_eq_of_lt (by omega), Nat.zero_add]
-      have hmod : (uVar r i.val j.val - 1) / 2 % (r + 1) = j.val + 1 := by
-        rw [hq, Nat.add_comm (i.val * _), Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt (by omega)]
+      obtain ⟨hodd, hdiv, hmod⟩ := uVar_decode i.1 j.2
       simp only [hodd, ↓reduceDIte, hmod, Nat.succ_ne_zero, Nat.add_sub_cancel]
       exact congr (congrArg (fun k => (aux k).2) (Fin.ext hdiv)) (Fin.ext rfl)
 
@@ -658,18 +598,17 @@ private theorem eval_clauseWeightTwoSAT_iff (φ : CNF ℕ) (r : ℕ)
     have hw : 2 * v ∈ (clauseWeightTwoSAT φ r).vars.toFinset :=
       List.mem_toFinset.mpr ((mem_vars_clauseWeightTwoSAT φ r _).mpr (Or.inl ⟨v, hv, rfl⟩))
     simp only [τExt, σExt, hv', hw, ↓reduceDIte, p, clauseWeightVarEquiv, Equiv.coe_fn_mk]
-  have hzEq : ∀ i : Fin φ.length, τExt (zVar r i.val) = (p.2 i).1 := by
+  have hzEq : ∀ i : Fin φ.length, τExt (zVar r i.1) = (p.2 i).1 := by
     intro i
-    have hw : zVar r i.val ∈ (clauseWeightTwoSAT φ r).vars.toFinset :=
+    have hw : zVar r i.1 ∈ (clauseWeightTwoSAT φ r).vars.toFinset :=
       List.mem_toFinset.mpr
-        ((mem_vars_clauseWeightTwoSAT φ r _).mpr (Or.inr ⟨i.val, i.isLt, Or.inl rfl⟩))
+        ((mem_vars_clauseWeightTwoSAT φ r _).mpr (Or.inr ⟨i.1, i.isLt, Or.inl rfl⟩))
     simp only [τExt, hw, ↓reduceDIte, p, clauseWeightVarEquiv, Equiv.coe_fn_mk]
-  have huEq : ∀ (i : Fin φ.length) (j : Fin (r - 1)), τExt (uVar r i.val j.val) = (p.2 i).2 j := by
+  have huEq : ∀ (i : Fin φ.length) (j : Fin (r - 1)), τExt (uVar r i.1 j.1) = (p.2 i).2 j := by
     intro i j
-    have hw : uVar r i.val j.val ∈ (clauseWeightTwoSAT φ r).vars.toFinset :=
+    have hw : uVar r i.1 j.1 ∈ (clauseWeightTwoSAT φ r).vars.toFinset :=
       List.mem_toFinset.mpr
-        ((mem_vars_clauseWeightTwoSAT φ r _).mpr
-          (Or.inr ⟨i.val, i.isLt, Or.inr ⟨j.val, j.isLt, rfl⟩⟩))
+        ((mem_vars_clauseWeightTwoSAT φ r _).mpr (Or.inr ⟨i.1, i.isLt, Or.inr ⟨j.1, j.isLt, rfl⟩⟩))
     simp only [τExt, hw, ↓reduceDIte, p, clauseWeightVarEquiv, Equiv.coe_fn_mk]
   rw [clauseWeightTwoSAT, CNF.eval_append, Bool.and_eq_true, CNF.eval_flatMap_eq_true_iff]
   have htaut : (clauseWeightVarTauts φ).eval τExt = true := by
@@ -680,7 +619,7 @@ private theorem eval_clauseWeightTwoSAT_iff (φ : CNF ℕ) (r : ℕ)
   rw [iff_true_intro htaut, true_and]
   constructor
   · intro h i
-    have hci := h (φ[i], i.val)
+    have hci := h (φ[i], i.1)
       (List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_some_iff.mpr ⟨i.isLt, rfl⟩))
     rw [clauseWeightGadget, CNF.eval_append, Bool.and_eq_true] at hci
     have hlit : (p.2 i).1 = true → φ[i].eval σExt = false := by
@@ -691,7 +630,7 @@ private theorem eval_clauseWeightTwoSAT_iff (φ : CNF ℕ) (r : ℕ)
       obtain ⟨l, hl, hleval⟩ := hsat'
       have hmem : l.1 ∈ φ.vars :=
         List.mem_map.mpr ⟨l, List.mem_flatten.mpr ⟨φ[i], List.getElem_mem .., hl⟩, rfl⟩
-      have hcl : Clause.eval τExt [(zVar r i.val, false), (2 * l.1, !l.2)] = true :=
+      have hcl : Clause.eval τExt [(zVar r i.1, false), (2 * l.1, !l.2)] = true :=
         (CNF.eval_eq_true_iff τExt _).mp hci.1 _ (List.mem_map.mpr ⟨l, hl, rfl⟩)
       simp only [Clause.eval_cons, Clause.eval_nil, Bool.or_false, Bool.or_eq_true, Literal.eval,
         beq_iff_eq, hzEq i, hz, Bool.true_eq_false, false_or, hσEq l.1 hmem] at hcl
@@ -790,17 +729,17 @@ theorem modelCount_clauseWeightTwoSAT (φ : CNF ℕ) (r : ℕ) :
           ⟨(clauseWeightVarEquiv φ r τ).2 i,
             (eval_clauseWeightTwoSAT_iff φ r τ).mp (by simpa using hτ) i⟩⟩
       invFun := fun ⟨σ, aux⟩ =>
-        ⟨(clauseWeightVarEquiv φ r).symm (σ, fun i => (aux i).val), by
+        ⟨(clauseWeightVarEquiv φ r).symm (σ, fun i => (aux i).1), by
           refine (eval_clauseWeightTwoSAT_iff φ r _).mpr fun i => ?_
-          have hp := (clauseWeightVarEquiv φ r).apply_symm_apply (σ, fun i => (aux i).val)
+          have hp := (clauseWeightVarEquiv φ r).apply_symm_apply (σ, fun i => (aux i).1)
           exact (congrArg (fun p : (φ.vars.toFinset → Bool) ×
               (∀ _ : Fin φ.length, Bool × (Fin (r - 1) → Bool)) =>
             clauseAuxPred r (φ[i].eval fun v =>
               if hv : v ∈ φ.vars.toFinset then p.1 ⟨v, hv⟩ else false) (p.2 i)) hp).mpr
-              (aux i).property⟩
+              (aux i).2⟩
       left_inv := fun ⟨τ, hτ⟩ => Subtype.ext ((clauseWeightVarEquiv φ r).symm_apply_apply τ)
       right_inv := fun ⟨σ, aux⟩ => by
-        have hp := (clauseWeightVarEquiv φ r).apply_symm_apply (σ, fun i => (aux i).val)
+        have hp := (clauseWeightVarEquiv φ r).apply_symm_apply (σ, fun i => (aux i).1)
         dsimp only
         refine Sigma.ext (congrArg Prod.fst hp) ?_
         refine Function.hfunext rfl fun i j hij => ?_
@@ -968,283 +907,30 @@ theorem clauseWeightCombine_spec (φ : CNF ℕ) :
 
 /-! ### Polynomial-time certificates and `#P`-completeness of `#2SAT` -/
 
-private theorem computableInPolyTime_zVar :
-    ComputableInPolyTime (fun p : ℕ × ℕ => zVar p.1 p.2)
-      (encPair encUnary encUnary) encNat := by
+@[local fun_prop]
+private theorem computableInPolyTime_zVar {α : Type} {enc : α ↪ List Bool} {f g : α → ℕ}
+    (hf : ComputableInPolyTime f enc encUnary) (hg : ComputableInPolyTime g enc encUnary) :
+    ComputableInPolyTime (fun a => zVar (f a) (g a)) enc encNat := by
   unfold zVar
   exact ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
 
-private theorem computableInPolyTime_uVar :
-    ComputableInPolyTime (fun p : (ℕ × ℕ) × ℕ => uVar p.1.1 p.1.2 p.2)
-      (encPair (encPair encUnary encUnary) encUnary) encNat := by
+@[local fun_prop]
+private theorem computableInPolyTime_uVar {α : Type} {enc : α ↪ List Bool} {f g h : α → ℕ}
+    (hf : ComputableInPolyTime f enc encUnary) (hg : ComputableInPolyTime g enc encUnary)
+    (hh : ComputableInPolyTime h enc encUnary) :
+    ComputableInPolyTime (fun a => uVar (f a) (g a) (h a)) enc encNat := by
   unfold uVar
   exact ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
-
-private theorem computableInPolyTime_clauseWeightVarTauts :
-    ComputableInPolyTime clauseWeightVarTauts encCNF encCNF := by
-  unfold clauseWeightVarTauts
-  have hd : ComputableInPolyTime (CNF.distinctVars (V := ℕ)) encCNF (encList encNat) :=
-    SAT.computableInPolyTime_distinctVars
-  have hmap : ComputableInPolyTime
-      (fun v : ℕ => ([(2 * v, true), (2 * v, false)] : Clause ℕ))
-      encNat (encClause encNat) := by
-    have hv : ComputableInPolyTime (fun v : ℕ => 2 * v) encNat encNat := by
-      have h : ComputableInPolyTime (fun v : ℕ => v + v) encNat encNat :=
-        ComputableInPolyTime.binary_add' ComputableInPolyTime.id' ComputableInPolyTime.id'
-      convert h using 1
-      funext v
-      omega
-    fun_prop
-  exact (ComputableInPolyTime.map hmap).comp hd
-
-private theorem computableInPolyTime_clauseWeightGadget :
-    ComputableInPolyTime (fun p : ℕ × (Clause ℕ × ℕ) => clauseWeightGadget p.1 p.2)
-      (encPair encUnary (encPair (encClause encNat) encUnary)) encCNF := by
-  unfold clauseWeightGadget
-  have hz : ComputableInPolyTime
-      (fun p : ℕ × (Clause ℕ × ℕ) => zVar p.1 p.2.2)
-      (encPair encUnary (encPair (encClause encNat) encUnary)) encNat :=
-    computableInPolyTime_zVar.comp
-      ((ComputableInPolyTime.fst _ _).prod
-        ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.snd _ _)))
-  have hlit : ComputableInPolyTime
-      (fun p : ℕ × (Clause ℕ × ℕ) =>
-        p.2.1.map fun l => [(zVar p.1 p.2.2, false), (2 * l.1, !l.2)])
-      (encPair encUnary (encPair (encClause encNat) encUnary)) encCNF := by
-    have hlist : ComputableInPolyTime
-        (fun p : ℕ × (Clause ℕ × ℕ) => p.2.1)
-        (encPair encUnary (encPair (encClause encNat) encUnary))
-        (encList (encPair encNat encBool)) :=
-      (ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _)
-    have hbody : ComputableInPolyTime
-        (fun q : (ℕ × (Clause ℕ × ℕ)) × Literal ℕ =>
-          ([(zVar q.1.1 q.1.2.2, false), (2 * q.2.1, !q.2.2)] : Clause ℕ))
-        (encPair (encPair encUnary (encPair (encClause encNat) encUnary))
-          (encPair encNat encBool))
-        (encClause encNat) := by
-      have hz' : ComputableInPolyTime
-          (fun q : (ℕ × (Clause ℕ × ℕ)) × Literal ℕ => zVar q.1.1 q.1.2.2)
-          (encPair (encPair encUnary (encPair (encClause encNat) encUnary))
-            (encPair encNat encBool)) encNat :=
-        hz.comp (ComputableInPolyTime.fst _ _)
-      have hv2 : ComputableInPolyTime
-          (fun q : (ℕ × (Clause ℕ × ℕ)) × Literal ℕ => 2 * q.2.1)
-          (encPair (encPair encUnary (encPair (encClause encNat) encUnary))
-            (encPair encNat encBool)) encNat := by
-        have h : ComputableInPolyTime
-            (fun q : (ℕ × (Clause ℕ × ℕ)) × Literal ℕ => q.2.1 + q.2.1)
-            (encPair (encPair encUnary (encPair (encClause encNat) encUnary))
-              (encPair encNat encBool)) encNat := by
-          have hv : ComputableInPolyTime
-              (fun q : (ℕ × (Clause ℕ × ℕ)) × Literal ℕ => q.2.1)
-              (encPair (encPair encUnary (encPair (encClause encNat) encUnary))
-                (encPair encNat encBool)) encNat :=
-            (ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _)
-          exact ComputableInPolyTime.binary_add' hv hv
-        convert h using 1
-        funext q
-        omega
-      fun_prop
-    exact ComputableInPolyTime.mapWithInput hlist hbody
-  have haux : ComputableInPolyTime
-      (fun p : ℕ × (Clause ℕ × ℕ) =>
-        if p.1 = 0 then [[(zVar p.1 p.2.2, false)]]
-        else if p.1 = 1 then [[(zVar p.1 p.2.2, true), (zVar p.1 p.2.2, false)]]
-        else
-          [[(zVar p.1 p.2.2, true), (zVar p.1 p.2.2, false)],
-              [(zVar p.1 p.2.2, true), (uVar p.1 p.2.2 0, false)]] ++
-            (List.range (p.1 - 2)).map fun j =>
-              [(uVar p.1 p.2.2 j, true), (uVar p.1 p.2.2 (j + 1), false)])
-      (encPair encUnary (encPair (encClause encNat) encUnary)) encCNF := by
-    have hu0 : ComputableInPolyTime
-        (fun p : ℕ × (Clause ℕ × ℕ) => uVar p.1 p.2.2 0)
-        (encPair encUnary (encPair (encClause encNat) encUnary)) encNat :=
-      computableInPolyTime_uVar.comp
-        (((ComputableInPolyTime.fst _ _).prod
-          ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.snd _ _))).prod
-          (ComputableInPolyTime.const 0))
-    have hchain : ComputableInPolyTime
-        (fun p : ℕ × (Clause ℕ × ℕ) =>
-          (List.range (p.1 - 2)).map fun j =>
-            [(uVar p.1 p.2.2 j, true), (uVar p.1 p.2.2 (j + 1), false)])
-        (encPair encUnary (encPair (encClause encNat) encUnary)) encCNF := by
-      have hr : ComputableInPolyTime
-          (fun p : ℕ × (Clause ℕ × ℕ) => List.range (p.1 - 2))
-          (encPair encUnary (encPair (encClause encNat) encUnary)) (encList encUnary) := by
-        fun_prop
-      have hb : ComputableInPolyTime
-          (fun q : (ℕ × (Clause ℕ × ℕ)) × ℕ =>
-            ([(uVar q.1.1 q.1.2.2 q.2, true),
-              (uVar q.1.1 q.1.2.2 (q.2 + 1), false)] : Clause ℕ))
-          (encPair (encPair encUnary (encPair (encClause encNat) encUnary)) encUnary)
-          (encClause encNat) := by
-        have hu1 : ComputableInPolyTime
-            (fun q : (ℕ × (Clause ℕ × ℕ)) × ℕ => uVar q.1.1 q.1.2.2 q.2)
-            (encPair (encPair encUnary (encPair (encClause encNat) encUnary)) encUnary) encNat :=
-          computableInPolyTime_uVar.comp
-            ((((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _)).prod
-              ((ComputableInPolyTime.snd _ _).comp
-                ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _)))).prod
-              (ComputableInPolyTime.snd _ _))
-        have hu2 : ComputableInPolyTime
-            (fun q : (ℕ × (Clause ℕ × ℕ)) × ℕ => uVar q.1.1 q.1.2.2 (q.2 + 1))
-            (encPair (encPair encUnary (encPair (encClause encNat) encUnary)) encUnary) encNat :=
-          computableInPolyTime_uVar.comp
-            ((((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _)).prod
-              ((ComputableInPolyTime.snd _ _).comp
-                ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _)))).prod
-              (ComputableInPolyTime.unary_add.comp
-                ((ComputableInPolyTime.snd _ _).prod
-                  (ComputableInPolyTime.const 1))))
-        fun_prop
-      exact ComputableInPolyTime.mapWithInput hr hb
-    let E := encPair encUnary (encPair (encClause encNat) encUnary)
-    have hzt : ComputableInPolyTime (fun p : ℕ × (Clause ℕ × ℕ) => (zVar p.1 p.2.2, true))
-        E (encPair encNat encBool) := hz.prod (ComputableInPolyTime.const true)
-    have hzf : ComputableInPolyTime (fun p : ℕ × (Clause ℕ × ℕ) => (zVar p.1 p.2.2, false))
-        E (encPair encNat encBool) := hz.prod (ComputableInPolyTime.const false)
-    have hu0f : ComputableInPolyTime (fun p : ℕ × (Clause ℕ × ℕ) => (uVar p.1 p.2.2 0, false))
-        E (encPair encNat encBool) := hu0.prod (ComputableInPolyTime.const false)
-    have hcl0 : ComputableInPolyTime
-        (fun p : ℕ × (Clause ℕ × ℕ) => ([[(zVar p.1 p.2.2, false)]] : CNF ℕ)) E encCNF :=
-      (hzf.cons' (ComputableInPolyTime.const ([] : Clause ℕ))).cons'
-        (ComputableInPolyTime.const ([] : CNF ℕ))
-    have hcl1 : ComputableInPolyTime
-        (fun p : ℕ × (Clause ℕ × ℕ) =>
-          ([[(zVar p.1 p.2.2, true), (zVar p.1 p.2.2, false)]] : CNF ℕ)) E encCNF :=
-      (hzt.cons' (hzf.cons' (ComputableInPolyTime.const ([] : Clause ℕ)))).cons'
-        (ComputableInPolyTime.const ([] : CNF ℕ))
-    have hbranch : ComputableInPolyTime
-        (fun p : ℕ × (Clause ℕ × ℕ) =>
-          [[(zVar p.1 p.2.2, true), (zVar p.1 p.2.2, false)],
-              [(zVar p.1 p.2.2, true), (uVar p.1 p.2.2 0, false)]] ++
-            (List.range (p.1 - 2)).map fun j =>
-              [(uVar p.1 p.2.2 j, true), (uVar p.1 p.2.2 (j + 1), false)])
-        E encCNF :=
-      ComputableInPolyTime.listAppend'
-        ((hzt.cons' (hzf.cons' (ComputableInPolyTime.const ([] : Clause ℕ)))).cons'
-          ((hzt.cons' (hu0f.cons' (ComputableInPolyTime.const ([] : Clause ℕ)))).cons'
-            (ComputableInPolyTime.const ([] : CNF ℕ))))
-        hchain
-    have hr0 : ComputableInPolyTime
-        (fun p : ℕ × (Clause ℕ × ℕ) => decide (p.1 = 0)) E encBool :=
-      ComputableInPolyTime.decide_eq'
-        (ComputableInPolyTime.fst _ _) (ComputableInPolyTime.const (encOut := encUnary) 0)
-    have hr1 : ComputableInPolyTime
-        (fun p : ℕ × (Clause ℕ × ℕ) => decide (p.1 = 1)) E encBool :=
-      ComputableInPolyTime.decide_eq'
-        (ComputableInPolyTime.fst _ _) (ComputableInPolyTime.const (encOut := encUnary) 1)
-    exact ComputableInPolyTime.ite_decide hr0 hcl0
-      (ComputableInPolyTime.ite_decide hr1 hcl1 hbranch)
-  exact (ComputableInPolyTime.listAppend (encClause encNat)).comp (hlit.prod haux)
 
 private theorem computableInPolyTime_clauseWeightTwoSAT :
     ComputableInPolyTime (fun p : CNF ℕ × ℕ => clauseWeightTwoSAT p.1 p.2)
       (encPair encCNF encUnary) encCNF := by
-  unfold clauseWeightTwoSAT
-  have htaut : ComputableInPolyTime (fun p : CNF ℕ × ℕ => clauseWeightVarTauts p.1)
-      (encPair encCNF encUnary) encCNF :=
-    computableInPolyTime_clauseWeightVarTauts.comp (ComputableInPolyTime.fst _ _)
-  have hflat : ComputableInPolyTime
-      (fun p : CNF ℕ × ℕ => p.1.zipIdx.flatMap (clauseWeightGadget p.2))
-      (encPair encCNF encUnary) encCNF := by
-    refine ComputableInPolyTime.flatMapWith computableInPolyTime_clauseWeightGadget
-      (ComputableInPolyTime.snd _ _) ?_
-    exact (ComputableInPolyTime.zipIdx (encClause encNat)).comp (ComputableInPolyTime.fst _ _)
-  exact (ComputableInPolyTime.listAppend (encClause encNat)).comp (htaut.prod hflat)
-
-private theorem computableInPolyTime_clauseWeightParitySum (wantOdd : Bool) :
-    ComputableInPolyTime
-      (fun p : CNF ℕ × List ℕ =>
-        ((p.2.zipIdx).map fun x =>
-          if x.2.testBit 0 == wantOdd then (p.1.length + 1).choose (x.2 + 1) * x.1 else 0).sum)
-      (encPair encCNF (encList encNat)) encNat := by
-  have hzip : ComputableInPolyTime
-      (fun p : CNF ℕ × List ℕ => p.2.zipIdx)
-      (encPair encCNF (encList encNat)) (encList (encPair encNat encUnary)) :=
-    (ComputableInPolyTime.zipIdx encNat).comp (ComputableInPolyTime.snd _ _)
-  have hterm : ComputableInPolyTime
-      (fun q : (CNF ℕ × List ℕ) × (ℕ × ℕ) =>
-        if q.2.2.testBit 0 == wantOdd then (q.1.1.length + 1).choose (q.2.2 + 1) * q.2.1 else 0)
-      (encPair (encPair encCNF (encList encNat)) (encPair encNat encUnary)) encNat := by
-    have hlen : ComputableInPolyTime
-        (fun q : (CNF ℕ × List ℕ) × (ℕ × ℕ) => q.1.1.length + 1)
-        (encPair (encPair encCNF (encList encNat)) (encPair encNat encUnary)) encUnary :=
-      ComputableInPolyTime.unary_add'
-        ((SAT.computableInPolyTime_length (ComputableInPolyTime.fst _ _)).comp
-          (ComputableInPolyTime.fst _ _))
-        (ComputableInPolyTime.const 1)
-    have hr1 : ComputableInPolyTime
-        (fun q : (CNF ℕ × List ℕ) × (ℕ × ℕ) => q.2.2 + 1)
-        (encPair (encPair encCNF (encList encNat)) (encPair encNat encUnary)) encUnary :=
-      ComputableInPolyTime.unary_add'
-        ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.snd _ _))
-        (ComputableInPolyTime.const 1)
-    have hch : ComputableInPolyTime
-        (fun q : (CNF ℕ × List ℕ) × (ℕ × ℕ) => (q.1.1.length + 1).choose (q.2.2 + 1))
-        (encPair (encPair encCNF (encList encNat)) (encPair encNat encUnary)) encNat :=
-      ComputableInPolyTime.binary_choose' hlen hr1
-    have hmul : ComputableInPolyTime
-        (fun q : (CNF ℕ × List ℕ) × (ℕ × ℕ) =>
-          (q.1.1.length + 1).choose (q.2.2 + 1) * q.2.1)
-        (encPair (encPair encCNF (encList encNat)) (encPair encNat encUnary)) encNat :=
-      ComputableInPolyTime.binary_mul' hch
-        ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _))
-    have hbit : ComputableInPolyTime
-        (fun q : (CNF ℕ × List ℕ) × (ℕ × ℕ) => q.2.2.testBit 0 == wantOdd)
-        (encPair (encPair encCNF (encList encNat)) (encPair encNat encUnary)) encBool := by
-      have hrBin : ComputableInPolyTime
-          (fun q : (CNF ℕ × List ℕ) × (ℕ × ℕ) => q.2.2)
-          (encPair (encPair encCNF (encList encNat)) (encPair encNat encUnary)) encNat :=
-        ComputableInPolyTime.unary_to_binary.comp
-          ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.snd _ _))
-      have htb : ComputableInPolyTime
-          (fun q : (CNF ℕ × List ℕ) × (ℕ × ℕ) => q.2.2.testBit 0)
-          (encPair (encPair encCNF (encList encNat)) (encPair encNat encUnary)) encBool :=
-        ComputableInPolyTime.binary_testBit hrBin (ComputableInPolyTime.const 0)
-      exact ComputableInPolyTime.beq htb (ComputableInPolyTime.const wantOdd)
-    exact hbit.ite hmul (ComputableInPolyTime.const 0)
-  exact ComputableInPolyTime.binary_sum.comp
-    (ComputableInPolyTime.mapWithInput hzip hterm)
-
-private theorem computableInPolyTime_clauseWeightCombine :
-    ComputableInPolyTime clauseWeightCombine (encPair encCNF (encList encNat)) encNat := by
-  unfold clauseWeightCombine
-  have hpos : ComputableInPolyTime
-      (fun p : CNF ℕ × List ℕ =>
-        ((p.2.zipIdx).map fun x =>
-          if !x.2.testBit 0 then (p.1.length + 1).choose (x.2 + 1) * x.1 else 0).sum)
-      (encPair encCNF (encList encNat)) encNat := by
-    have heq :
-        (fun p : CNF ℕ × List ℕ =>
-          ((p.2.zipIdx).map fun x =>
-            if !x.2.testBit 0 then (p.1.length + 1).choose (x.2 + 1) * x.1 else 0).sum) =
-          (fun p : CNF ℕ × List ℕ =>
-            ((p.2.zipIdx).map fun x =>
-              if x.2.testBit 0 == false then (p.1.length + 1).choose (x.2 + 1) * x.1
-              else 0).sum) :=
-      funext fun p => congrArg List.sum (List.map_congr_left fun x _ => by
-        cases x.2.testBit 0 <;> rfl)
-    rw [heq]
-    exact computableInPolyTime_clauseWeightParitySum false
-  have hneg : ComputableInPolyTime
-      (fun p : CNF ℕ × List ℕ =>
-        ((p.2.zipIdx).map fun x =>
-          if x.2.testBit 0 then (p.1.length + 1).choose (x.2 + 1) * x.1 else 0).sum)
-      (encPair encCNF (encList encNat)) encNat := by
-    have heq :
-        (fun p : CNF ℕ × List ℕ =>
-          ((p.2.zipIdx).map fun x =>
-            if x.2.testBit 0 then (p.1.length + 1).choose (x.2 + 1) * x.1 else 0).sum) =
-          (fun p : CNF ℕ × List ℕ =>
-            ((p.2.zipIdx).map fun x =>
-              if x.2.testBit 0 == true then (p.1.length + 1).choose (x.2 + 1) * x.1
-              else 0).sum) :=
-      funext fun p => congrArg List.sum (List.map_congr_left fun x _ => by
-        cases x.2.testBit 0 <;> rfl)
-    rw [heq]
-    exact computableInPolyTime_clauseWeightParitySum true
-  exact ComputableInPolyTime.binary_sub' hpos hneg
+  have hd : ComputableInPolyTime (CNF.distinctVars (V := ℕ)) encCNF (encList encNat) :=
+    SAT.computableInPolyTime_distinctVars
+  have hgadget : ComputableInPolyTime (fun p : ℕ × (Clause ℕ × ℕ) => clauseWeightGadget p.1 p.2)
+      (encPair encUnary (encPair (encClause encNat) encUnary)) encCNF := by
+    polytime [clauseWeightGadget]
+  polytime [clauseWeightTwoSAT, clauseWeightVarTauts]
 
 /-- **`#SAT` reduces to `#2SAT` on general `2-CNF` formulas by a polynomial-time counting Turing
 reduction.** The reduction queries `clauseWeightTwoSAT φ r` for `r = 0, …, φ.length`; these
@@ -1256,20 +942,14 @@ theorem countingTuringReducible_SharpSAT_SharpTwoSAT :
   let bound (φ : CNF ℕ) : ℕ :=
     φ.vars.length + φ.length * (φ.length + 1) + 1
   have hqueries : ComputableInPolyTime queries encCNF (encList encCNF) := by
-    have hlist : ComputableInPolyTime (fun φ : CNF ℕ => List.range (φ.length + 1))
-        encCNF (encList encUnary) := by
-      have hlen : ComputableInPolyTime (fun φ : CNF ℕ => φ.length + 1) encCNF encUnary :=
-        ComputableInPolyTime.unary_add'
-          (SAT.computableInPolyTime_length ComputableInPolyTime.id')
-          (ComputableInPolyTime.const 1)
-      exact ComputableInPolyTime.range.comp hlen
-    exact ComputableInPolyTime.mapWithInput hlist computableInPolyTime_clauseWeightTwoSAT
+    have := computableInPolyTime_clauseWeightTwoSAT
+    polytime
   have hbound : ComputableInPolyTime bound encCNF encUnary := by
     have hv := SAT.computableInPolyTime_vars_length ComputableInPolyTime.id'
     have hm := SAT.computableInPolyTime_length ComputableInPolyTime.id'
     fun_prop
   refine PolyTimeOracleProgram.of_batchNatBits queries bound clauseWeightCombine
-    hqueries hbound computableInPolyTime_clauseWeightCombine ?_
+    hqueries hbound (by polytime [clauseWeightCombine]) ?_
     (fun φ => by
       simpa only [queries, List.map_map, Function.comp_def] using clauseWeightCombine_spec φ)
   intro φ ψ hψ

@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Data.Int.Radix
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.IntegerKernel
 public import CslibFrontier.GameTheory.Bimatrix.BestResponsePolytope
 public import CslibFrontier.GameTheory.Bimatrix.ShapleyOrientation
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Cramer
 import Mathlib.LinearAlgebra.Matrix.AbsoluteValue
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -186,11 +187,11 @@ section Polytopes
 
 /-- Perturbed integer right-hand side `[0; K^n + K^(n-1-j)]` for `P_ε`. -/
 @[expose] def pertRhsPInt (m n : ℕ) (K : ℤ) : Fin m ⊕ Fin n → ℤ :=
-  Sum.elim 0 (fun j => K ^ n + K ^ (n - 1 - j.val))
+  Sum.elim 0 (fun j => K ^ n + K ^ (n - 1 - j.1))
 
 /-- Perturbed integer right-hand side `[K^m + K^(m-1-i); 0]` for `Q_ε`. -/
 @[expose] def pertRhsQInt (m n : ℕ) (K : ℤ) : Fin m ⊕ Fin n → ℤ :=
-  Sum.elim (fun i => K ^ m + K ^ (m - 1 - i.val)) 0
+  Sum.elim (fun i => K ^ m + K ^ (m - 1 - i.1)) 0
 
 @[simp]
 theorem intMatP_inl {m n : ℕ} (B : Matrix (Fin m) (Fin n) ℤ) (i i' : Fin m) :
@@ -362,26 +363,26 @@ theorem abs_intMatQ_le {m n H : ℕ} {A : Matrix (Fin m) (Fin n) ℤ} (hH : 1 �
 
 private lemma eq_zero_of_sum_pert_weights {n B : ℕ} {K_B : ℤ}
     (hK : (B : ℤ) * (n + 1) < K_B) {c : Fin n → ℤ} (hbd : ∀ j, |c j| ≤ B)
-    (hsum : ∑ j : Fin n, c j * (K_B ^ n + K_B ^ (n - 1 - j.val)) = 0) (j : Fin n) : c j = 0 := by
+    (hsum : ∑ j : Fin n, c j * (K_B ^ n + K_B ^ (n - 1 - j.1)) = 0) (j : Fin n) : c j = 0 := by
   have hn : 0 < n := j.pos
   let a : ℕ → ℤ := fun k =>
     if hk : k < n then c ⟨n - 1 - k, by omega⟩
     else if k = n then ∑ j : Fin n, c j else 0
-  have hlow : ∑ k ∈ Finset.range n, a k * K_B ^ k = ∑ j : Fin n, c j * K_B ^ (n - 1 - j.val) := by
-    refine Finset.sum_nbij' (fun k => if hk : k < n then ⟨n - 1 - k, by omega⟩ else ⟨0, hn⟩)
-      (fun j => n - 1 - j.val) (fun _ _ => Finset.mem_univ _)
-      (fun j _ => Finset.mem_range.2 (by omega))
+  have hlow : ∑ k ∈ Finset.range n, a k * K_B ^ k = ∑ j : Fin n, c j * K_B ^ (n - 1 - j.1) :=
+    Finset.sum_nbij' (fun k => if hk : k < n then ⟨n - 1 - k, by omega⟩ else ⟨0, hn⟩)
+      (fun j => n - 1 - j.1) (fun _ _ => Finset.mem_univ _)
+      (fun _ _ => Finset.mem_range.2 (by omega))
       (fun k hk => by
         simp only [Finset.mem_range] at hk
-        simp only [hk, ↓reduceDIte]
-        omega)
+        simp only [hk, ↓reduceDIte]; omega)
       (fun j _ => Fin.ext (by
-        simp only [show n - 1 - j.val < n by omega, ↓reduceDIte]
-        omega))
+        have hj : n - 1 - j.1 < n := by omega
+        simp only [hj, ↓reduceDIte]; omega))
       fun k hk => by
         simp only [Finset.mem_range] at hk
         simp only [a, hk, ↓reduceDIte]
-        congr 2; omega
+        congr 2
+        omega
   have hradix : ∑ k ∈ Finset.range (n + 1), a k * K_B ^ k = 0 := by
     rw [Finset.sum_range_succ, hlow]
     simp only [a, Nat.lt_irrefl, ↓reduceDIte, ↓reduceIte, Finset.sum_mul, ← Finset.sum_add_distrib]
@@ -389,16 +390,15 @@ private lemma eq_zero_of_sum_pert_weights {n B : ℕ} {K_B : ℤ}
   have ha_bd : ∀ k < n + 1, |a k| < K_B := fun k hk => by
     by_cases hkn : k < n
     · simp only [a, hkn, ↓reduceDIte]; exact (hbd _).trans_lt (by nlinarith)
-    · have hkeq : k = n := by omega
-      rw [hkeq]
+    · rw [show k = n by omega]
       simp only [a, Nat.lt_irrefl, ↓reduceDIte, ↓reduceIte]
       have hs : |∑ j : Fin n, c j| ≤ (n : ℤ) * B :=
         (Finset.abs_sum_le_sum_abs _ _).trans <|
           (Finset.sum_le_sum fun j _ => hbd j).trans_eq (by simp)
       nlinarith
-  have hk0 := Int.eq_zero_of_sum_mul_pow_eq_zero ha_bd hradix (n - 1 - j.val) (by omega)
-  simp only [a, show n - 1 - j.val < n by omega, ↓reduceDIte] at hk0
-  rwa [show (⟨n - 1 - (n - 1 - j.val), by omega⟩ : Fin n) = j from Fin.ext (by dsimp; omega)] at hk0
+  have hk0 := Int.eq_zero_of_sum_mul_pow_eq_zero ha_bd hradix (n - 1 - j.1) (by omega)
+  simp only [a, show n - 1 - j.1 < n by omega, ↓reduceDIte] at hk0
+  rwa [show (⟨n - 1 - (n - 1 - j.1), by omega⟩ : Fin n) = j from Fin.ext (by dsimp; omega)] at hk0
 
 /-- **Nondegeneracy of `P_ε`.** Over any ordered field `K`, if `kernelVecBound m H * (n + 1) < K_B`,
 then `intMatP B *ᵥ x ≤ pertRhsPInt m n K_B` is nondegenerate. -/
@@ -410,46 +410,43 @@ theorem isNondegenerateSystem_pertP {m n H : ℕ} {B : Matrix (Fin m) (Fin n) �
       (fun r => (pertRhsPInt m n K_B r : K)) := by
   rw [isNondegenerateSystem_iff]
   intro x _
-  by_contra hlt; push Not at hlt; rw [Fintype.card_fin] at hlt
+  by_contra hlt
+  push Not at hlt
+  rw [Fintype.card_fin] at hlt
   set T := tightRows ((intMatP B).map Int.cast : Matrix (Fin m ⊕ Fin n) (Fin m) K)
     (fun r => (pertRhsPInt m n K_B r : K)) x
-  let M : Matrix (Fin m) T ℤ := fun i r => intMatP B r.val i
+  let M : Matrix (Fin m) T ℤ := fun i r => intMatP B r.1 i
   obtain ⟨c, hc0, hMc, hc_bd⟩ := Matrix.exists_int_mulVec_eq_zero_of_card_lt M
-    (fun i r => abs_intMatP_le hH hB r.val i) (by simp [Fintype.card_coe, hlt])
+    (fun i r => abs_intMatP_le hH hB r.1 i) (by simp [Fintype.card_coe, hlt])
   rw [Fintype.card_fin] at hc_bd
-  have hsumK : ∑ r : T, (c r : K) * (pertRhsPInt m n K_B r.val : K) = 0 := by
-    calc ∑ r : T, (c r : K) * (pertRhsPInt m n K_B r.val : K)
-        = ∑ r : T, (c r : K) *
-            (((intMatP B).map Int.cast : Matrix (Fin m ⊕ Fin n) (Fin m) K) *ᵥ x) r.val :=
-          Finset.sum_congr rfl fun r _ => by rw [mem_tightRows.1 r.property]
-      _ = ∑ i : Fin m, x i * ∑ r : T, (M i r : K) * (c r : K) := by
-          simp only [mulVec, dotProduct, Matrix.map_apply, Finset.mul_sum, M]
-          rw [Finset.sum_comm]
-          exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring
-      _ = 0 := Finset.sum_eq_zero fun i _ => by
-          have hi : ∑ r : T, (M i r : K) * (c r : K) = 0 := by
-            simpa only [mulVec, dotProduct, Pi.zero_apply, Int.cast_sum, Int.cast_mul,
-              Int.cast_zero] using congrArg (Int.cast : ℤ → K) (congrFun hMc i)
-          rw [hi, mul_zero]
+  have hsumK : ∑ r : T, (c r : K) * (pertRhsPInt m n K_B r.1 : K) = 0 := calc
+    ∑ r : T, (c r : K) * (pertRhsPInt m n K_B r.1 : K)
+      = ∑ r : T, (c r : K) *
+          (((intMatP B).map Int.cast : Matrix (Fin m ⊕ Fin n) (Fin m) K) *ᵥ x) r.1 :=
+        Finset.sum_congr rfl fun r _ => by rw [mem_tightRows.1 r.2]
+    _ = ∑ i : Fin m, x i * ∑ r : T, (M i r : K) * (c r : K) := by
+        simp only [mulVec, dotProduct, Matrix.map_apply, Finset.mul_sum, M]
+        rw [Finset.sum_comm]
+        exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring
+    _ = 0 := Finset.sum_eq_zero fun i _ => by
+        have hi : ∑ r : T, (M i r : K) * (c r : K) = 0 := by
+          simpa [mulVec, dotProduct] using congrArg (Int.cast : ℤ → K) (congrFun hMc i)
+        rw [hi, mul_zero]
   let cFull : Fin m ⊕ Fin n → ℤ := fun r => if hr : r ∈ T then c ⟨r, hr⟩ else 0
   have hsum_lift (f : Fin m ⊕ Fin n → ℤ) :
-      ∑ r : T, c r * f r.val = ∑ r : Fin m ⊕ Fin n, cFull r * f r := by
+      ∑ r : T, c r * f r.1 = ∑ r : Fin m ⊕ Fin n, cFull r * f r := by
     rw [← Finset.sum_subset (Finset.subset_univ T) fun r _ hr => by simp [cFull, hr],
       ← Finset.sum_coe_sort T]
-    exact Finset.sum_congr rfl fun r _ => by simp [cFull, r.property]
-  have hsumZ : ∑ j : Fin n, cFull (.inr j) * (K_B ^ n + K_B ^ (n - 1 - j.val)) = 0 := by
-    have hz : ∑ r : T, c r * pertRhsPInt m n K_B r.val = 0 :=
-      Int.cast_injective (α := K)
-        (by simpa only [Int.cast_sum, Int.cast_mul, Int.cast_zero] using hsumK)
-    rw [hsum_lift, Fintype.sum_sum_type] at hz
-    simpa [pertRhsPInt] using hz
+    exact Finset.sum_congr rfl fun r _ => by simp [cFull, r.2]
+  have hz : ∑ r : T, c r * pertRhsPInt m n K_B r.1 = 0 :=
+    Int.cast_injective (α := K) (by simpa using hsumK)
+  rw [hsum_lift, Fintype.sum_sum_type] at hz
   have hc_inr0 : ∀ j : Fin n, cFull (.inr j) = 0 :=
     eq_zero_of_sum_pert_weights (by exact_mod_cast hK)
-      (fun j => by by_cases hj : (.inr j : Fin m ⊕ Fin n) ∈ T
-                   · simpa [cFull, hj] using hc_bd ⟨.inr j, hj⟩
-                   · simp [cFull, hj]) hsumZ
+      (fun j => by by_cases hj : (.inr j : Fin m ⊕ Fin n) ∈ T <;> simp [cFull, hj, hc_bd])
+      (by simpa [pertRhsPInt] using hz)
   have hc_inl0 : ∀ i : Fin m, cFull (.inl i) = 0 := fun i => by
-    have hi : ∑ r : T, c r * intMatP B r.val i = 0 := by
+    have hi : ∑ r : T, c r * intMatP B r.1 i = 0 := by
       simpa [M, mulVec, dotProduct, mul_comm] using congrFun hMc i
     rw [hsum_lift (fun r => intMatP B r i), Fintype.sum_sum_type] at hi
     simpa [hc_inr0, intMatP_inl] using hi
@@ -631,8 +628,8 @@ theorem exists_isFeasibleBasis_of_isVertex {k : ℕ} {M_int : Matrix κ (Fin k) 
     Matrix.mulVec_injective_of_det_ne_zero hdetK <| funext fun i => by
       change ((M_int.map Int.cast : Matrix κ (Fin k) K) *ᵥ x) (T.orderIsoOfFin hT i : κ) =
         ((M_int.map Int.cast : Matrix κ (Fin k) K) *ᵥ _) (T.orderIsoOfFin hT i : κ)
-      rw [mem_tightRows.1 (T.orderIsoOfFin hT i).property,
-        ratBasisSol_tight hdetZ (T.orderIsoOfFin hT i).property]
+      rw [mem_tightRows.1 (T.orderIsoOfFin hT i).2,
+        ratBasisSol_tight hdetZ (T.orderIsoOfFin hT i).2]
   have hleQ : (M_int.map Int.cast : Matrix κ (Fin k) ℚ) *ᵥ ratBasisSol M_int b_int T hT ≤
       fun r => (b_int r : ℚ) := fun r => by
     rw [← Rat.cast_le (K := K)]
@@ -654,11 +651,8 @@ theorem abs_cramerVec_le {k H : ℕ} {M_int : Matrix κ (Fin k) ℤ} {b_int : κ
     (hM : ∀ r c, |M_int r c| ≤ H) (hb : ∀ r, |b_int r| ≤ H) (T : Finset κ) (hT : T.card = k)
     (i : Fin k) :
     |cramerVec M_int b_int T hT i| ≤ (k.factorial * H ^ k : ℕ) := by
-  rw [cramerVec, Matrix.cramer_apply]
-  refine (Matrix.det_le (abv := AbsoluteValue.abs) (x := (H : ℤ)) fun r c => ?_).trans_eq (by simp)
-  by_cases hc : c = i
-  · subst hc; simp [Matrix.updateCol_self, hb]
-  · simp [Matrix.updateCol_ne hc, hM, basisMat]
+  simpa only [cramerVec, Fintype.card_fin] using Matrix.abs_cramer_le (A := basisMat M_int T hT)
+    (b := fun j => b_int (T.orderIsoOfFin hT j : κ)) (fun r c => hM _ c) (fun r => hb _) i
 
 omit [Fintype κ] [DecidableEq κ] in
 private theorem abs_basisSignNum_le {k H : ℕ} {M_int : Matrix κ (Fin k) ℤ} {b_int : κ → ℤ}
@@ -733,9 +727,8 @@ theorem unperturbed_feasible_of_pert {k H p : ℕ} {M_int : Matrix κ (Fin k) �
   have hpert_div_le (r : κ) :
       (b_pert r : ℚ) / (K_B : ℚ) ^ p ≤ (b_unpert r : ℚ) + (K_B : ℚ)⁻¹ := by
     have hbd : (b_pert r : ℚ) ≤ (K_B : ℚ) ^ p * b_unpert r + (K_B : ℚ) ^ (p - 1) := by
-      have : (b_pert r : ℚ) - (K_B : ℚ) ^ p * b_unpert r ≤ (K_B : ℚ) ^ (p - 1) := by
-        exact_mod_cast (hb_pert_diff r).2
-      linarith
+      linarith [show (b_pert r : ℚ) - (K_B : ℚ) ^ p * b_unpert r ≤ (K_B : ℚ) ^ (p - 1) from
+        by exact_mod_cast (hb_pert_diff r).2]
     refine (div_le_div_of_nonneg_right hbd hKp_pos.le).trans_eq ?_
     rw [show (K_B : ℚ) ^ p = (K_B : ℚ) * (K_B : ℚ) ^ (p - 1) by
           rw [← pow_succ', Nat.sub_add_cancel hp]]
@@ -751,29 +744,25 @@ theorem unperturbed_feasible_of_pert {k H p : ℕ} {M_int : Matrix κ (Fin k) �
   have hres (i : Fin k) :
       |((M.map Int.cast : Matrix (Fin k) (Fin k) ℚ) *ᵥ (u - v)) i| ≤ (K_B : ℚ)⁻¹ := by
     let ri : κ := (T.orderIsoOfFin hT i : κ)
-    have hri : ri ∈ T := (T.orderIsoOfFin hT i).property
+    have hri : ri ∈ T := (T.orderIsoOfFin hT i).2
     have hδ : ((M.map Int.cast : Matrix (Fin k) (Fin k) ℚ) *ᵥ (u - v)) i =
         (b_pert ri : ℚ) / (K_B : ℚ) ^ p - b_unpert ri := by
       rw [mulVec_sub, Pi.sub_apply]
-      have hqt_p : ((M_int.map Int.cast : Matrix κ (Fin k) ℚ) *ᵥ
-          ratBasisSol M_int b_pert T hT) ri = b_pert ri := by
-        simpa only [Rat.cast_id] using ratBasisSol_tight hdet hri (K := ℚ)
-      have hqt_u : ((M_int.map Int.cast : Matrix κ (Fin k) ℚ) *ᵥ v) ri = b_unpert ri := by
-        simpa only [Rat.cast_id] using ratBasisSol_tight hdet hri (K := ℚ)
       change ((M_int.map Int.cast : Matrix κ (Fin k) ℚ) *ᵥ u) ri -
         ((M_int.map Int.cast : Matrix κ (Fin k) ℚ) *ᵥ v) ri = _
-      rw [mulVec_smul, Pi.smul_apply, smul_eq_mul, inv_mul_eq_div, hqt_p, hqt_u]
-    rw [hδ, abs_of_nonneg (sub_nonneg.2 <| (le_div_iff₀ hKp_pos).2 <| by
-      have : (0 : ℚ) ≤ (b_pert ri : ℚ) - (K_B : ℚ) ^ p * b_unpert ri := by
-        exact_mod_cast (hb_pert_diff ri).1
-      linarith), sub_le_iff_le_add']
+      rw [mulVec_smul, Pi.smul_apply, smul_eq_mul, inv_mul_eq_div]
+      simpa only [Rat.cast_id] using congr_arg₂ (fun a b => a / (K_B : ℚ) ^ p - b)
+        (ratBasisSol_tight hdet hri (K := ℚ)) (ratBasisSol_tight hdet hri (K := ℚ))
+    have hlo : (0 : ℚ) ≤ (b_pert ri : ℚ) - (K_B : ℚ) ^ p * b_unpert ri := by
+      exact_mod_cast (hb_pert_diff ri).1
+    rw [hδ, abs_of_nonneg (sub_nonneg.2 <| (le_div_iff₀ hKp_pos).2 (by linarith)),
+      sub_le_iff_le_add']
     exact hpert_div_le ri
   have hdiff_bd := cramer_pert_le hH hK_pos hdet (fun _ c => hM _ c) hres
   refine ⟨hdet, fun r hr => Int.cast_injective (α := ℚ) ?_, fun r => ?_⟩
-  · have ht : ((M_int.map Int.cast : Matrix κ (Fin k) ℚ) *ᵥ
-        ratBasisSol M_int b_unpert T hT) r = b_unpert r := by
-      simpa only [Rat.cast_id] using ratBasisSol_tight (b_int := b_unpert) hdet hr (K := ℚ)
-    rw [Int.cast_mul, ← basisAbsDet_mul_ratBasisSol (b_int := b_unpert) hdet r, ht]
+  · rw [Int.cast_mul, ← basisAbsDet_mul_ratBasisSol (b_int := b_unpert) hdet r]
+    simpa only [Rat.cast_id] using congrArg ((basisAbsDet M_int T hT : ℚ) * ·)
+      (ratBasisSol_tight (b_int := b_unpert) hdet hr (K := ℚ))
   · have hrow_diff : |((M_int.map Int.cast : Matrix κ (Fin k) ℚ) *ᵥ v) r -
         ((M_int.map Int.cast : Matrix κ (Fin k) ℚ) *ᵥ u) r| ≤
         (k : ℚ) * H * (((k.factorial * H ^ k : ℕ) : ℚ) / K_B) := by
@@ -785,12 +774,10 @@ theorem unperturbed_feasible_of_pert {k H p : ℕ} {M_int : Matrix κ (Fin k) �
       exact mul_le_mul (by exact_mod_cast hM r j) (hdiff_bd j) (abs_nonneg _) (Nat.cast_nonneg _)
     have hv_le : ((M_int.map Int.cast : Matrix κ (Fin k) ℚ) *ᵥ v) r - b_unpert r ≤
         ((1 + k * k.factorial * H ^ (k + 1) : ℕ) : ℚ) / K_B := by
-      have h1 := (abs_sub_le_iff.1 hrow_diff).1
-      have h2 := hu_le r
       have hrhs : (K_B : ℚ)⁻¹ + (k : ℚ) * H * (((k.factorial * H ^ k : ℕ) : ℚ) / K_B) =
           ((1 + k * k.factorial * H ^ (k + 1) : ℕ) : ℚ) / K_B := by
         push_cast; rw [pow_succ']; field_simp [hK_posQ.ne']
-      linarith
+      linarith [(abs_sub_le_iff.1 hrow_diff).1, hu_le r]
     have hD_le : (basisAbsDet M_int T hT : ℚ) ≤ ((k.factorial * H ^ k : ℕ) : ℚ) := by
       exact_mod_cast abs_det_basisMat_le hM T hT
     have hD_pos : (0 : ℚ) < basisAbsDet M_int T hT := by exact_mod_cast abs_pos.2 hdet
@@ -818,7 +805,7 @@ private lemma pertRhsPInt_diff (m n : ℕ) {K_B : ℤ} (hK : 0 < K_B) (r : Fin m
     exact ⟨le_rfl, pow_nonneg hK.le _⟩
   | inr j =>
     simp only [pertRhsPInt, intRhsP, Sum.elim_inr, Pi.one_apply, mul_one, add_sub_cancel_left]
-    exact ⟨pow_nonneg hK.le _, pow_le_pow_right₀ (by omega) (Nat.sub_le (n - 1) j.val)⟩
+    exact ⟨pow_nonneg hK.le _, pow_le_pow_right₀ (by omega) (Nat.sub_le (n - 1) j.1)⟩
 
 private lemma finset_eq_image_of_forall_mem {α β : Type*} [Fintype β] [DecidableEq α]
     {S : Finset α} {f : β → α} (hf : Function.Injective f) (hcard : S.card = Fintype.card β)
@@ -865,24 +852,22 @@ private lemma exists_mixed_of_partition {m n : ℕ} {T₁ T₂ : Finset (Fin m �
         Fintype.card_fin] at huc
       omega
   have hT₁_ne : T₁ ≠ Finset.univ.image Sum.inl := fun h1 => hne0 (Prod.ext h1 <|
-    finset_eq_image_of_forall_mem Sum.inr_injective (by simpa using hT₂) fun r hr => by
-      rcases r with i | j
-      · exact absurd hr (Finset.disjoint_left.1 hdisj (h1 ▸ by simp))
-      · exact ⟨j, rfl⟩)
-  refine ⟨by
+    finset_eq_image_of_forall_mem Sum.inr_injective (by simpa using hT₂) fun
+      | .inl i, hr => absurd hr (Finset.disjoint_left.1 hdisj (h1 ▸ by simp))
+      | .inr j, _ => ⟨j, rfl⟩)
+  have hex_inr : ∃ j : Fin n, Sum.inr j ∈ T₁ := by
     by_contra h; push Not at h
     exact hT₁_ne <| finset_eq_image_of_forall_mem Sum.inl_injective (by simpa using hT₁) fun
       | .inl i, _ => ⟨i, rfl⟩
-      | .inr j, hr => absurd hr (h j),
-    by
+      | .inr j, hr => absurd hr (h j)
+  refine ⟨hex_inr, by
     by_contra h; push Not at h
     have h2 : T₂ = Finset.univ.image Sum.inr := finset_eq_image_of_forall_mem
       Sum.inr_injective (by simpa using hT₂) fun
         | .inl i, hr => absurd hr (h i)
         | .inr j, _ => ⟨j, rfl⟩
-    exact hT₁_ne <| finset_eq_image_of_forall_mem Sum.inl_injective (by simpa using hT₁) fun
-      | .inl i, _ => ⟨i, rfl⟩
-      | .inr j, hr => absurd hr (Finset.disjoint_right.1 hdisj (h2 ▸ by simp))⟩
+    obtain ⟨j, hj⟩ := hex_inr
+    exact Finset.disjoint_left.1 hdisj hj (h2 ▸ by simp)⟩
 
 /-- Exact Nash equilibrium extraction from any nonzero completely labelled basis pair `(T₁, T₂)`
 of `(P_ε, Q_ε)` with `K_B = 2 ^ bitBound m n H`. -/

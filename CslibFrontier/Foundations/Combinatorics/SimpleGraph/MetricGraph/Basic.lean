@@ -297,11 +297,7 @@ private theorem rawRel_equivalence {V : Type u} (G : SimpleGraph V) :
       injection hqt with hd ht
       subst hd ht
       refine ⟨d₁, t₁, d₃, t₃, rfl, rfl, ?_⟩
-      rcases h12 with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> rcases h23 with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-      · exact Or.inl ⟨rfl, rfl⟩
-      · exact Or.inr ⟨rfl, rfl⟩
-      · exact Or.inr ⟨rfl, rfl⟩
-      · exact Or.inl ⟨Dart.symm_symm _, unitInterval.symm_symm _⟩
+      rcases h12 with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> rcases h23 with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> simp
     · exact hpq.trans hqr
 
 private def rawSetoid {V : Type u} (G : SimpleGraph V) : Setoid (RawPoint G) :=
@@ -726,6 +722,22 @@ private theorem rawDist_le_viaEndpoints (W : WeightedGraph V) (p q : RawPoint W.
     · exact min_le_right _ _
     · exact le_rfl
 
+private theorem rawDist_cases (W : WeightedGraph V) (p q : RawPoint W.graph) :
+    rawDist W p q = viaEndpoints W p q ∨ ∃ d₁ t₁ d₂ t₂, p = .edge d₁ t₁ ∧ q = .edge d₂ t₂ ∧
+      d₁.edge = d₂.edge ∧ rawDist W p q = directDist W d₁ d₂ t₁ t₂ := by
+  cases p <;> cases q <;> simp only [rawDist, true_or]
+  split_ifs with he
+  · rcases min_choice (directDist W _ _ _ _) (viaEndpoints W _ _) with h | h
+    · exact Or.inr ⟨_, _, _, _, rfl, rfl, he, h⟩
+    · exact Or.inl h
+  · exact Or.inl rfl
+
+private theorem rawDist_le_directDist (W : WeightedGraph V) {d₁ d₂ : W.graph.Dart}
+    (he : d₁.edge = d₂.edge) (t₁ t₂ : unitInterval) :
+    rawDist W (.edge d₁ t₁) (.edge d₂ t₂) ≤ directDist W d₁ d₂ t₁ t₂ := by
+  rw [rawDist, ite_eq_left he]
+  exact min_le_left _ _
+
 private theorem rawDist_self (W : WeightedGraph V) (p : RawPoint W.graph) :
     rawDist W p p = 0 := by
   classical
@@ -755,14 +767,8 @@ private theorem rawDist_comm (W : WeightedGraph V) (p q : RawPoint W.graph) :
 
 private theorem rawDist_nonneg (W : WeightedGraph V) (p q : RawPoint W.graph) :
     0 ≤ rawDist W p q := by
-  classical
-  cases p <;> cases q <;> simp only [rawDist]
-  · exact viaEndpoints_nonneg W _ _
-  · exact viaEndpoints_nonneg W _ _
-  · exact viaEndpoints_nonneg W _ _
-  · split_ifs
-    · exact le_min (directDist_nonneg W _ _ _ _) (viaEndpoints_nonneg W _ _)
-    · exact viaEndpoints_nonneg W _ _
+  rcases rawDist_cases W p q with h | ⟨_, _, _, _, -, -, -, h⟩ <;> rw [h]
+  exacts [viaEndpoints_nonneg W _ _, directDist_nonneg W _ _ _ _]
 
 private theorem viaEndpoints_case (W : WeightedGraph V) (p q : RawPoint W.graph) :
     ∃ a b : Bool, viaEndpoints W p q =
@@ -800,95 +806,32 @@ private theorem rawDist_triangle (W : WeightedGraph V) (p q r : RawPoint W.graph
     obtain ⟨c, e, hce⟩ := viaEndpoints_case W q r
     rw [hab, hce]
     exact viaEndpoints_le_branch_add_branch W p q r a b c e
-  have hdv : ∀ d₁ t₁ d₂ t₂, d₁.edge = d₂.edge →
+  have hdv : ∀ (r : RawPoint W.graph) d₁ t₁ d₂ t₂, d₁.edge = d₂.edge →
       viaEndpoints W (.edge d₁ t₁) r ≤
         directDist W d₁ d₂ t₁ t₂ + viaEndpoints W (.edge d₂ t₂) r := by
-    intro d₁ t₁ d₂ t₂ he
+    intro r d₁ t₁ d₂ t₂ he
     obtain ⟨c, e, hce⟩ := viaEndpoints_case W (.edge d₂ t₂) r
     rw [hce]
     obtain ⟨hoff, hv⟩ := endOff_le_directDist_add_endOff W he t₁ t₂ c
     have hle := viaEndpoints_le W (.edge d₁ t₁) r (if d₁ = d₂ then c else !c) e
     rw [hv] at hle
     linarith
-  have hvd : ∀ (p r : RawPoint W.graph) d₂ t₂ d₃ t₃, d₂.edge = d₃.edge →
+  have hvd : ∀ (p : RawPoint W.graph) d₂ t₂ d₃ t₃, d₂.edge = d₃.edge →
       viaEndpoints W p (.edge d₃ t₃) ≤
         viaEndpoints W p (.edge d₂ t₂) + directDist W d₂ d₃ t₂ t₃ := by
-    intro p r d₂ t₂ d₃ t₃ he
+    intro p d₂ t₂ d₃ t₃ he
     rw [viaEndpoints_comm W p (.edge d₃ t₃), viaEndpoints_comm W p (.edge d₂ t₂), add_comm,
       directDist_comm W he]
-    obtain ⟨c, e, hce⟩ := viaEndpoints_case W (.edge d₂ t₂) p
-    rw [hce]
-    obtain ⟨hoff, hv⟩ := endOff_le_directDist_add_endOff W he.symm t₃ t₂ c
-    have hle := viaEndpoints_le W (.edge d₃ t₃) p (if d₃ = d₂ then c else !c) e
-    rw [hv] at hle
-    linarith
-  cases p with
-  | vertex u =>
-    cases q with
-    | vertex v => exact (rawDist_le_viaEndpoints W _ _).trans hvv
-    | edge d₂ t₂ =>
-      cases r with
-      | vertex w => exact (rawDist_le_viaEndpoints W _ _).trans hvv
-      | edge d₃ t₃ =>
-        simp only [rawDist] at hvv ⊢
-        split_ifs with he23
-        · rcases min_choice (directDist W d₂ d₃ t₂ t₃)
-              (viaEndpoints W (.edge d₂ t₂) (.edge d₃ t₃)) with h | h <;> rw [h]
-          · exact hvd (.vertex u) (.vertex u) d₂ t₂ d₃ t₃ he23
-          · exact hvv
-        · exact hvv
-  | edge d₁ t₁ =>
-    cases q with
-    | vertex v => exact (rawDist_le_viaEndpoints W _ _).trans hvv
-    | edge d₂ t₂ =>
-      cases r with
-      | vertex w =>
-        simp only [rawDist] at hvv ⊢
-        split_ifs with he12
-        · rcases min_choice (directDist W d₁ d₂ t₁ t₂)
-              (viaEndpoints W (.edge d₁ t₁) (.edge d₂ t₂)) with h | h <;> rw [h]
-          · exact hdv d₁ t₁ d₂ t₂ he12
-          · exact hvv
-        · exact hvv
-      | edge d₃ t₃ =>
-        simp only [rawDist]
-        by_cases he12 : d₁.edge = d₂.edge <;>
-          by_cases he23 : d₂.edge = d₃.edge <;>
-          by_cases he13 : d₁.edge = d₃.edge
-        · rw [ite_eq_left he13, ite_eq_left he12, ite_eq_left he23]
-          rcases min_choice (directDist W d₁ d₂ t₁ t₂)
-              (viaEndpoints W (.edge d₁ t₁) (.edge d₂ t₂)) with h1 | h1 <;>
-            rcases min_choice (directDist W d₂ d₃ t₂ t₃)
-              (viaEndpoints W (.edge d₂ t₂) (.edge d₃ t₃)) with h2 | h2 <;> rw [h1, h2]
-          · exact (min_le_left _ _).trans (directDist_triangle W he12 he23 t₁ t₂ t₃)
-          · exact (min_le_right _ _).trans (hdv d₁ t₁ d₂ t₂ he12)
-          · exact (min_le_right _ _).trans (hvd (.edge d₁ t₁) (.edge d₁ t₁) d₂ t₂ d₃ t₃ he23)
-          · exact (min_le_right _ _).trans hvv
-        · exact absurd (he12.trans he23) he13
-        · rw [ite_eq_left he13, ite_eq_left he12, ite_eq_right he23]
-          rcases min_choice (directDist W d₁ d₂ t₁ t₂)
-              (viaEndpoints W (.edge d₁ t₁) (.edge d₂ t₂)) with h1 | h1 <;> rw [h1]
-          · exact (min_le_right _ _).trans (hdv d₁ t₁ d₂ t₂ he12)
-          · exact (min_le_right _ _).trans hvv
-        · rw [ite_eq_right he13, ite_eq_left he12, ite_eq_right he23]
-          rcases min_choice (directDist W d₁ d₂ t₁ t₂)
-              (viaEndpoints W (.edge d₁ t₁) (.edge d₂ t₂)) with h1 | h1 <;> rw [h1]
-          · exact hdv d₁ t₁ d₂ t₂ he12
-          · exact hvv
-        · rw [ite_eq_left he13, ite_eq_right he12, ite_eq_left he23]
-          rcases min_choice (directDist W d₂ d₃ t₂ t₃)
-              (viaEndpoints W (.edge d₂ t₂) (.edge d₃ t₃)) with h2 | h2 <;> rw [h2]
-          · exact (min_le_right _ _).trans (hvd (.edge d₁ t₁) (.edge d₁ t₁) d₂ t₂ d₃ t₃ he23)
-          · exact (min_le_right _ _).trans hvv
-        · rw [ite_eq_right he13, ite_eq_right he12, ite_eq_left he23]
-          rcases min_choice (directDist W d₂ d₃ t₂ t₃)
-              (viaEndpoints W (.edge d₂ t₂) (.edge d₃ t₃)) with h2 | h2 <;> rw [h2]
-          · exact hvd (.edge d₁ t₁) (.edge d₁ t₁) d₂ t₂ d₃ t₃ he23
-          · exact hvv
-        · rw [ite_eq_left he13, ite_eq_right he12, ite_eq_right he23]
-          exact (min_le_right _ _).trans hvv
-        · rw [ite_eq_right he13, ite_eq_right he12, ite_eq_right he23]
-          exact hvv
+    exact hdv p d₃ t₃ d₂ t₂ he.symm
+  rcases rawDist_cases W q r with h2 | ⟨d₂, t₂, d₃, t₃, rfl, rfl, he23, h2⟩
+  · rcases rawDist_cases W p q with h1 | ⟨d₁, t₁, d₂, t₂, rfl, rfl, he12, h1⟩ <;> rw [h1, h2]
+    · exact (rawDist_le_viaEndpoints W _ _).trans hvv
+    · exact (rawDist_le_viaEndpoints W _ _).trans (hdv _ _ _ _ _ he12)
+  · rcases rawDist_cases W p (.edge d₂ t₂) with h1 | ⟨d₁, t₁, d₂', t₂', rfl, ⟨⟩, he12, h1⟩ <;>
+      rw [h1, h2]
+    · exact (rawDist_le_viaEndpoints W _ _).trans (hvd p _ _ _ _ he23)
+    · exact (rawDist_le_directDist W (he12.trans he23) _ _).trans
+        (directDist_triangle W he12 he23 _ _ _)
 
 private theorem rawDist_eq_zero_of_rel (W : WeightedGraph V) {p q : RawPoint W.graph}
     (h : rawRel p q) : rawDist W p q = 0 := by
@@ -911,11 +854,9 @@ private theorem rawDist_eq_zero_of_rel (W : WeightedGraph V) {p q : RawPoint W.g
           exact ⟨false, rfl, rfl⟩
         | edge d t =>
           simp only [RawPoint.toVertex?] at hr
-          split_ifs at hr with ht0 ht1
-          · subst ht0; simp only [Option.some.injEq] at hr; subst hr
-            exact ⟨false, rfl, by simp [RawPoint.endOff]⟩
-          · subst ht1; simp only [Option.some.injEq] at hr; subst hr
-            exact ⟨true, rfl, by simp [RawPoint.endOff]⟩
+          split_ifs at hr with ht0 ht1 <;> cases hr
+          · exact ⟨false, rfl, by simp [RawPoint.endOff, ht0]⟩
+          · exact ⟨true, rfl, by simp [RawPoint.endOff, ht1]⟩
       obtain ⟨bp, hvp, hop⟩ := end_of_some p hp
       obtain ⟨bq, hvq, hoq⟩ := end_of_some q hq
       refine le_antisymm ?_ (rawDist_nonneg W p q)
@@ -932,8 +873,7 @@ private theorem rawDist_eq_zero_of_rel (W : WeightedGraph V) {p q : RawPoint W.g
       refine le_antisymm ?_ (rawDist_nonneg W _ _)
       rcases hpair with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
       · exact (rawDist_self W _).le
-      · simp only [rawDist, Dart.edge_symm, ↓reduceIte]
-        refine (min_le_left _ _).trans ?_
+      · refine (rawDist_le_directDist W (Dart.edge_symm d₂) _ _).trans ?_
         have hne : d₂.symm ≠ d₂ := d₂.symm_ne
         simp [directDist, hne]
 
@@ -972,53 +912,30 @@ private theorem rel_of_rawDist_eq_zero [Finite V] (W : WeightedGraph V)
       cases r with
       | vertex v => cases br <;> rfl
       | edge d t =>
-        have hpos := W.dart_weight_pos d
-        cases br
-        · simp only [RawPoint.endOff, mul_eq_zero] at hbr
-          have ht : t = 0 := Subtype.ext (hbr.resolve_right hpos.ne')
-          simp [RawPoint.toVertex?, RawPoint.endV, ht]
-        · simp only [RawPoint.endOff, mul_eq_zero] at hbr
-          have ht : (1 : ℝ) - t = 0 := hbr.resolve_right hpos.ne'
-          have ht1 : t = 1 := Subtype.ext (by change (t : ℝ) = 1; linarith)
-          simp [RawPoint.toVertex?, RawPoint.endV, ht1]
+        cases br <;>
+          simp only [RawPoint.endOff, mul_eq_zero, (W.dart_weight_pos d).ne', or_false] at hbr
+        · simp [RawPoint.toVertex?, RawPoint.endV, (Subtype.ext hbr : t = 0)]
+        · simp [RawPoint.toVertex?, RawPoint.endV, (Subtype.ext (sub_eq_zero.mp hbr).symm : t = 1)]
     have haV := toVertex_of_endOff a ba h1
     have hbV := toVertex_of_endOff b bb h3
     simp only [rawRel, haV, hbV, heqV]
-  cases p with
-  | vertex u => exact hvia_zero _ _ h
-  | edge d₁ t₁ =>
-    cases q with
-    | vertex v => exact hvia_zero _ _ h
-    | edge d₂ t₂ =>
-      simp only [rawDist] at h
-      split_ifs at h with he
-      · rcases min_choice (directDist W d₁ d₂ t₁ t₂)
-            (viaEndpoints W (.edge d₁ t₁) (.edge d₂ t₂)) with hmin | hmin
-        · rw [hmin] at h
-          have hpos := W.dart_weight_pos d₁
-          have ht : (d₁ = d₂ ∧ t₁ = t₂) ∨ (d₁ = d₂.symm ∧ t₁ = unitInterval.symm t₂) := by
-            rcases (dart_edge_eq_iff d₁ d₂).mp he with rfl | rfl
-            · simp only [directDist, ↓reduceIte, mul_eq_zero] at h
-              have ht' : |(t₁ : ℝ) - t₂| = 0 := h.resolve_right hpos.ne'
-              exact Or.inl ⟨rfl, Subtype.ext (sub_eq_zero.mp (abs_eq_zero.mp ht'))⟩
-            · have hne : d₂.symm ≠ d₂ := d₂.symm_ne
-              have hpos' : 0 < W.weight d₂.edge := W.dart_weight_pos d₂
-              simp only [directDist, hne, ↓reduceIte, Dart.edge_symm, mul_eq_zero] at h
-              have ht' : |(t₁ : ℝ) - (1 - t₂)| = 0 := h.resolve_right hpos'.ne'
-              exact Or.inr ⟨rfl, Subtype.ext (sub_eq_zero.mp (abs_eq_zero.mp ht'))⟩
-          rcases ht with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-          · exact (rawRel_equivalence W.graph).refl _
-          · by_cases ht0 : t₂ = 0
-            · subst ht0; simp [rawRel, RawPoint.toVertex?]
-            · by_cases ht1 : t₂ = 1
-              · subst ht1; simp [rawRel, RawPoint.toVertex?]
-              · have hs0 : unitInterval.symm t₂ ≠ 0 := by simp [ht1]
-                have hs1 : unitInterval.symm t₂ ≠ 1 := by simp [ht0]
-                simp only [rawRel, RawPoint.toVertex?, ht0, ht1, hs0, hs1, ↓reduceIte]
-                exact ⟨d₂.symm, unitInterval.symm t₂, d₂, t₂, rfl, rfl, Or.inr ⟨rfl, rfl⟩⟩
-        · rw [hmin] at h
-          exact hvia_zero _ _ h
-      · exact hvia_zero _ _ h
+  rcases rawDist_cases W p q with h' | ⟨d₁, t₁, d₂, t₂, rfl, rfl, he, h'⟩
+  · exact hvia_zero _ _ (h' ▸ h)
+  rw [h'] at h
+  have hpos := W.dart_weight_pos d₁
+  have ht : (d₁ = d₂ ∧ t₁ = t₂) ∨ (d₁ = d₂.symm ∧ t₁ = unitInterval.symm t₂) := by
+    rcases (dart_edge_eq_iff d₁ d₂).mp he with rfl | rfl
+    · simp only [directDist, ↓reduceIte, mul_eq_zero] at h
+      have ht' : |(t₁ : ℝ) - t₂| = 0 := h.resolve_right hpos.ne'
+      exact Or.inl ⟨rfl, Subtype.ext (sub_eq_zero.mp (abs_eq_zero.mp ht'))⟩
+    · have hne : d₂.symm ≠ d₂ := d₂.symm_ne
+      have hpos' : 0 < W.weight d₂.edge := W.dart_weight_pos d₂
+      simp only [directDist, hne, ↓reduceIte, Dart.edge_symm, mul_eq_zero] at h
+      have ht' : |(t₁ : ℝ) - (1 - t₂)| = 0 := h.resolve_right hpos'.ne'
+      exact Or.inr ⟨rfl, Subtype.ext (sub_eq_zero.mp (abs_eq_zero.mp ht'))⟩
+  rcases ht with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  · exact (rawRel_equivalence W.graph).refl _
+  · exact Quotient.exact (edgePoint_symm d₂ t₂)
 
 /-- Geodesic distance on `MetricGraph W`. -/
 noncomputable def metricDist (W : WeightedGraph V) : MetricGraph W → MetricGraph W → ℝ :=

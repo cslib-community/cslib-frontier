@@ -154,8 +154,7 @@ theorem base_succ (u : Fin n → List Γ) (k : Fin n) :
 
 private theorem ofFn_split (u : Fin n → List Γ) (k : Fin n) :
     List.ofFn u = (List.ofFn u).take k ++ u k :: (List.ofFn u).drop (k + 1) := by
-  have hk : (k : ℕ) < (List.ofFn u).length := by simp
-  conv_lhs => rw [← List.take_append_drop k (List.ofFn u), List.drop_eq_getElem_cons hk]
+  conv_lhs => rw [← List.take_append_drop k (List.ofFn u), List.drop_eq_getElem_cons (by simp)]
   simp
 
 theorem wordOf_getElem (u : Fin n → List Γ) (k : Fin n) (p : ℕ) :
@@ -177,22 +176,13 @@ private theorem eq_of_prefix (l m : List Γ) (r : List (Option Γ))
     (h : ∀ p ≤ m.length, (l.map some ++ none :: r)[p]? = (m.map some ++ [none])[p]?) :
     l = m := by
   induction m generalizing l with
-  | nil =>
-    cases l with
-    | nil => rfl
-    | cons a l =>
-      have h0 := h 0 (by simp)
-      simp at h0
+  | nil => cases l with | nil => rfl | cons a l => simpa using h 0 (by simp)
   | cons b m ih =>
-    have h0 := h 0 (by simp)
     cases l with
-    | nil => simp at h0
+    | nil => simpa using h 0 (by simp)
     | cons a l =>
-      simp only [List.map_cons, List.cons_append, List.getElem?_cons_zero, Option.some.injEq] at h0
-      subst h0
-      rw [ih l fun p hp => ?_]
-      have hp' := h (p + 1) (by simpa using hp)
-      simpa using hp'
+      obtain rfl : a = b := by simpa using h 0 (by simp)
+      exact congrArg (a :: ·) (ih l fun p hp => by simpa using h (p + 1) (by simpa using hp))
 
 /-- A code that agrees with `v` at all positions of `v` represents `v`. -/
 theorem eq_of_read (u v : Fin n → List Γ)

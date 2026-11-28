@@ -272,22 +272,16 @@ theorem IsMatching.xor_of_odd_ncard_neighborSet_symmDiff (hM : M.IsMatching)
     have hN : (M.spanningCoe ∆ M'.spanningCoe).neighborSet x =
         if a = b then ∅ else {a, b} := by
       ext y
+      have h₁ : M.Adj x y ↔ y = a := ⟨ha' y, by rintro rfl; exact ha⟩
+      have h₂ : M'.Adj x y ↔ y = b := ⟨hb' y, by rintro rfl; exact hb⟩
       rw [SimpleGraph.mem_neighborSet, SimpleGraph.symmDiff_adj]
-      simp only [spanningCoe_adj]
+      simp only [spanningCoe_adj, h₁, h₂]
       split_ifs with hab
-      · subst hab
-        simp only [Set.mem_empty_iff_false, iff_false]
-        rintro (⟨h, h'⟩ | ⟨h, h'⟩)
-        · exact h' (ha' y h ▸ hb)
-        · exact h' (hb' y h ▸ ha)
+      · subst hab; simp
       · simp only [Set.mem_insert_iff, Set.mem_singleton_iff]
         constructor
-        · rintro (⟨h, -⟩ | ⟨h, -⟩)
-          · exact Or.inl (ha' y h)
-          · exact Or.inr (hb' y h)
-        · rintro (rfl | rfl)
-          · exact Or.inl ⟨ha, fun h => hab (hb' y h)⟩
-          · exact Or.inr ⟨hb, fun h => hab (ha' y h).symm⟩
+        · rintro (⟨h, -⟩ | ⟨h, -⟩) <;> simp [h]
+        · rintro (rfl | rfl) <;> simp [hab, Ne.symm hab]
     rw [hN] at hodd
     split_ifs at hodd with hab
     · simp at hodd
@@ -295,16 +289,12 @@ theorem IsMatching.xor_of_odd_ncard_neighborSet_symmDiff (hM : M.IsMatching)
       exact absurd hodd (by decide)
   · exact Or.inl ⟨hx, hx'⟩
   · exact Or.inr ⟨hx', hx⟩
-  · exfalso
-    have hN : (M.spanningCoe ∆ M'.spanningCoe).neighborSet x = ∅ := by
-      ext y
-      rw [SimpleGraph.mem_neighborSet, SimpleGraph.symmDiff_adj]
-      simp only [spanningCoe_adj, Set.mem_empty_iff_false, iff_false]
-      rintro (⟨h, -⟩ | ⟨h, -⟩)
-      · exact hx (M.edge_vert h)
-      · exact hx' (M'.edge_vert h)
-    rw [hN, Set.ncard_empty] at hodd
-    exact absurd hodd (by decide)
+  · have hN : (M.spanningCoe ∆ M'.spanningCoe).neighborSet x = ∅ :=
+      Set.eq_empty_of_forall_notMem fun y h => by
+        rw [SimpleGraph.mem_neighborSet, SimpleGraph.symmDiff_adj] at h
+        simp only [spanningCoe_adj] at h
+        exact h.elim (fun h => hx (M.edge_vert h.1)) fun h => hx' (M'.edge_vert h.1)
+    simp [hN] at hodd
 
 /-- **Berge's lemma**, hard direction ([Berge1957], Theorem 1; [Schrijver2017], Theorem 3.2): if
 a matching `M'` covers more vertices than a matching `M`, then there is an `M`-augmenting path. -/
@@ -335,20 +325,14 @@ theorem IsMatching.exists_isAugmentingPath_of_ncard_lt [Finite V] (hM : M.IsMatc
       ext y
       rw [SimpleGraph.mem_neighborSet, SimpleGraph.mem_neighborSet, c.adj_spanningCoe_toSimpleGraph]
       exact ⟨fun h => h.2, fun h => ⟨hx, h⟩⟩
-    have hK' : ∀ x, x ∉ c.supp → K.neighborSet x = ∅ := fun x hx => by
-      ext y
-      rw [SimpleGraph.mem_neighborSet, c.adj_spanningCoe_toSimpleGraph]
-      simp [hx]
+    have hK' : ∀ x, x ∉ c.supp → K.neighborSet x = ∅ := fun x hx =>
+      Set.eq_empty_of_forall_notMem fun y h => hx (c.adj_spanningCoe_toSimpleGraph.1 h).1
     obtain ⟨b, hb⟩ := hM'.exists_neighborSet_symmDiff_eq_singleton hd hd'
     have hdeg : Odd (K.degree d) := by
-      rw [← ncard_neighborSet, hK d rfl, hb, Set.ncard_singleton]
-      exact odd_one
+      rw [← ncard_neighborSet, hK d rfl, hb, Set.ncard_singleton]; exact odd_one
     obtain ⟨w, hwd, hw⟩ := K.exists_ne_odd_degree_of_exists_odd_degree d hdeg
     rw [← ncard_neighborSet] at hw
-    have hwc : w ∈ c.supp := by
-      by_contra hwc
-      rw [hK' w hwc, Set.ncard_empty] at hw
-      exact absurd hw (by decide)
+    have hwc : w ∈ c.supp := by_contra fun hwc => by simp [hK' w hwc] at hw
     rw [hK w hwc] at hw
     have hdw : H.Reachable d w := (ConnectedComponent.exact hwc).symm
     rcases hM.xor_of_odd_ncard_neighborSet_symmDiff hM' hw with h | h
@@ -358,12 +342,9 @@ theorem IsMatching.exists_isAugmentingPath_of_ncard_lt [Finite V] (hM : M.IsMatc
   have hle : (M'.verts \ M.verts).ncard ≤ (M.verts \ M'.verts).ncard := by
     have : Nonempty V := ⟨(Set.nonempty_of_ncard_ne_zero (by omega : M'.verts.ncard ≠ 0)).some⟩
     choose! f hf₁ hf₂ hf₃ using reach
-    refine Set.ncard_le_ncard_of_injOn f (fun d hd => ⟨hf₁ d hd.2 hd.1, hf₂ d hd.2 hd.1⟩) ?_
-    intro d₁ hd₁ d₂ hd₂ heq
-    by_contra hne
-    refine key d₁ d₂ hne hd₁.2 hd₂.2 ((hf₃ d₁ hd₁.2 hd₁.1).trans ?_)
-    rw [heq]
-    exact (hf₃ d₂ hd₂.2 hd₂.1).symm
+    refine Set.ncard_le_ncard_of_injOn f (fun d hd => ⟨hf₁ d hd.2 hd.1, hf₂ d hd.2 hd.1⟩)
+      fun d₁ hd₁ d₂ hd₂ heq => by_contra fun hne => key d₁ d₂ hne hd₁.2 hd₂.2
+        ((hf₃ d₁ hd₁.2 hd₁.1).trans (heq ▸ (hf₃ d₂ hd₂.2 hd₂.1).symm))
   have h₁ := Set.ncard_inter_add_ncard_sdiff_eq_ncard M.verts M'.verts
   have h₂ := Set.ncard_inter_add_ncard_sdiff_eq_ncard M'.verts M.verts
   rw [Set.inter_comm] at h₂

@@ -101,12 +101,10 @@ the indicator of `B`. In probabilistic terms, `p_ℓ = 𝔼_y μ̂(y) ^ ℓ`. -/
 theorem card_filter_sum_eq_zero_mul_two_pow (B : Finset (ι → ZMod 2)) (ℓ : ℕ) :
     (#{t ∈ Fintype.piFinset (fun _ : Fin ℓ => B) | ∑ i, t i = 0} : ℝ) * 2 ^ Fintype.card ι =
       ∑ y, charSum B y ^ ℓ := by
-  have hpow : ∀ y, charSum B y ^ ℓ =
+  have hpow (y) : charSum B y ^ ℓ =
       ∑ t ∈ Fintype.piFinset (fun _ : Fin ℓ => B), (-1 : ℝ) ^ (y ⬝ᵥ ∑ i, t i).val := by
-    intro y
     rw [charSum, ← Fin.prod_const, prod_univ_sum]
-    refine sum_congr rfl fun t _ => ?_
-    rw [dotProduct_sum, neg_one_pow_val_sum]
+    exact sum_congr rfl fun t _ => by rw [dotProduct_sum, neg_one_pow_val_sum]
   simp_rw [hpow]
   rw [sum_comm]
   simp_rw [sum_neg_one_pow_val_dotProduct]
@@ -122,24 +120,20 @@ theorem card_filter_sum_eq_zero_mul_factorial_le {V : Type*} [AddCommMonoid V] [
   set 𝒮 := {S ∈ B.powerset | #S = ℓ ∧ ∑ x ∈ S, x = 0}
   set T := {t ∈ Fintype.piFinset (fun _ : Fin ℓ => B) | ∑ i, t i = 0}
   let img : (Fin ℓ → V) → Finset V := fun t => univ.image t
-  have hfiber : ∀ S ∈ 𝒮, ℓ.factorial ≤ #{t ∈ T | img t = S} := by
-    intro S hS
+  have hfiber : ∀ S ∈ 𝒮, ℓ.factorial ≤ #{t ∈ T | img t = S} := fun S hS => by
     obtain ⟨hSB, hcard, hsum⟩ := by simpa [𝒮] using hS
     have e : Fin ℓ ≃ S := (S.equivFinOfCardEq hcard).symm
-    calc ℓ.factorial = Fintype.card (Fin ℓ ≃ S) := by rw [Fintype.card_equiv e, Fintype.card_fin]
-      _ = #(univ : Finset (Fin ℓ ≃ S)) := card_univ.symm
+    calc ℓ.factorial = #(univ : Finset (Fin ℓ ≃ S)) := by
+          rw [card_univ, Fintype.card_equiv e, Fintype.card_fin]
       _ ≤ _ := by
-        refine card_le_card_of_injOn (fun e i => (e i : V)) (fun e _ => ?_) fun e₁ _ e₂ _ h => ?_
-        · have himg : img (fun i => (e i : V)) = S := by
-            ext x
-            simp only [img, mem_image, mem_univ, true_and]
-            exact ⟨fun ⟨i, hi⟩ => hi ▸ (e i).property, fun hx => ⟨e.symm ⟨x, hx⟩, by simp⟩⟩
-          refine mem_filter.2 ⟨mem_filter.2
-              ⟨Fintype.mem_piFinset.2 fun i => hSB (e i).property, ?_⟩,
-            himg⟩
-          rw [Equiv.sum_comp e (fun x : S => (x : V))]
-          exact (sum_coe_sort S fun x : V => x).trans hsum
-        · exact Equiv.ext fun i => Subtype.ext (congr_fun h i)
+        refine card_le_card_of_injOn (fun e i => (e i : V)) (fun e _ => ?_)
+          fun _ _ _ _ h => Equiv.ext fun i => Subtype.ext (congr_fun h i)
+        refine mem_filter.2 ⟨mem_filter.2 ⟨Fintype.mem_piFinset.2 fun i => hSB (e i).2, ?_⟩,
+          Finset.ext fun x => ?_⟩
+        · exact (Equiv.sum_comp e fun x : S => (x : V)).trans
+            ((sum_coe_sort S fun x : V => x).trans hsum)
+        · simp only [img, mem_image, mem_univ, true_and]
+          exact ⟨fun ⟨i, hi⟩ => hi ▸ (e i).2, fun hx => ⟨e.symm ⟨x, hx⟩, by simp⟩⟩
   calc #𝒮 * ℓ.factorial = ∑ _S ∈ 𝒮, ℓ.factorial := by rw [sum_const, smul_eq_mul]
     _ ≤ ∑ S ∈ 𝒮, #{t ∈ T | img t = S} := sum_le_sum hfiber
     _ = #{t ∈ T | img t ∈ 𝒮} := sum_card_fiberwise_eq_card_filter _ _ _
@@ -171,36 +165,29 @@ theorem sum_odd_circuit_le_sum_sinh_sub_self {B : Finset (ι → ZMod 2)} (h0 : 
   -- The `k`-th term of the series collects the odd circuits of size `2 (k + 1) + 1`.
   set R : ℕ → ℝ := fun k =>
     q / 2 ^ n * ∑ y, (charSum B y / q) ^ (2 * (k + 1) + 1) / (2 * (k + 1) + 1).factorial
-  have hR : ∀ k, R k = (#{t ∈ Fintype.piFinset (fun _ : Fin (2 * (k + 1) + 1) => B) |
+  have hR (k) : R k = (#{t ∈ Fintype.piFinset (fun _ : Fin (2 * (k + 1) + 1) => B) |
       ∑ i, t i = 0} : ℝ) / (2 * (k + 1) + 1).factorial * q⁻¹ ^ (2 * (k + 1)) := by
-    intro k
-    have h := card_filter_sum_eq_zero_mul_two_pow B (2 * (k + 1) + 1)
     simp only [R, div_pow]
-    rw [← sum_div, ← sum_div, ← h, pow_succ, inv_pow]
+    rw [← sum_div, ← sum_div, ← card_filter_sum_eq_zero_mul_two_pow B (2 * (k + 1) + 1),
+      pow_succ, inv_pow]
     field_simp
     exact mul_comm _ _
-  have hR0 : ∀ k, 0 ≤ R k := fun k => by rw [hR]; positivity
-  have hsum : HasSum R (q / 2 ^ n * ∑ y, (sinh (charSum B y / q) - charSum B y / q)) := by
-    refine HasSum.mul_left _ ?_
-    refine hasSum_sum fun y _ => ?_
-    have h := (hasSum_nat_add_iff' 1).2 (Real.hasSum_sinh (charSum B y / q))
-    simpa using h
+  have hR0 (k) : 0 ≤ R k := by rw [hR]; positivity
+  have hsum : HasSum R (q / 2 ^ n * ∑ y, (sinh (charSum B y / q) - charSum B y / q)) :=
+    HasSum.mul_left _ <| hasSum_sum fun y _ => by
+      simpa using (hasSum_nat_add_iff' 1).2 (Real.hasSum_sinh (charSum B y / q))
   -- Group the circuits by size.
-  have hmaps : ∀ S ∈ C, #S / 2 - 1 ∈ range #B := by
-    intro S hS
+  have hmaps : ∀ S ∈ C, #S / 2 - 1 ∈ range #B := fun S hS => by
     obtain ⟨hSB, -, j, hj⟩ := mem_filter.1 hS
     have := card_le_card (mem_powerset.1 hSB)
-    rw [mem_range]
-    omega
+    rw [mem_range]; omega
   rw [← sum_fiberwise_of_maps_to hmaps]
   refine le_trans (sum_le_sum fun k _ => ?_) (sum_le_hasSum _ (fun k _ => hR0 k) hsum)
   -- Fibre `k`: circuits of size `2 (k + 1) + 1`.
-  have hcardS : ∀ S ∈ {S ∈ C | #S / 2 - 1 = k}, #S = 2 * (k + 1) + 1 := by
-    intro S hS
+  have hcardS : ∀ S ∈ {S ∈ C | #S / 2 - 1 = k}, #S = 2 * (k + 1) + 1 := fun S hS => by
     obtain ⟨hSC, hk⟩ := mem_filter.1 hS
-    obtain ⟨hSB, hcirc, hodd⟩ := mem_filter.1 hSC
-    have h3 := three_le_card_of_isZeroSumCircuit hcirc hodd fun h => h0 (mem_powerset.1 hSB h)
-    obtain ⟨j, hj⟩ := hodd
+    obtain ⟨hSB, hcirc, j, hj⟩ := mem_filter.1 hSC
+    have := three_le_card_of_isZeroSumCircuit hcirc ⟨j, hj⟩ fun h => h0 (mem_powerset.1 hSB h)
     omega
   calc ∑ S ∈ {S ∈ C | #S / 2 - 1 = k}, q⁻¹ ^ (#S - 1)
       = #{S ∈ C | #S / 2 - 1 = k} * q⁻¹ ^ (2 * (k + 1)) := by
@@ -210,8 +197,8 @@ theorem sum_odd_circuit_le_sum_sinh_sub_self {B : Finset (ι → ZMod 2)} (h0 : 
         gcongr
         intro S hS
         obtain ⟨hSC, -⟩ := mem_filter.1 hS
-        obtain ⟨hSB, hcirc, -⟩ := mem_filter.1 hSC
-        exact mem_filter.2 ⟨hSB, hcardS S hS, hcirc.sum_eq_zero⟩
+        exact mem_filter.2
+          ⟨(mem_filter.1 hSC).1, hcardS S hS, (mem_filter.1 hSC).2.1.sum_eq_zero⟩
     _ ≤ _ := by
         rw [hR]
         gcongr
@@ -303,17 +290,14 @@ theorem exists_le_minDist_parityCheckCode_of_moment_tail (d m : ℕ)
   · simp [hBe, filter_singleton]
   have hV : (0 : ℝ) < #B := by exact_mod_cast hBne.card_pos
   refine (sum_odd_circuit_le_moment_add_tail h0 hq).trans_lt (lt_of_eq_of_lt ?_ h)
-  have hcount : (#{y | (2 : ℝ) ^ m < charSum B y} : ℝ) =
-      #{y | 1 / (#B / (2 : ℝ) ^ m) < charSum B y / #B} := by
-    congr 2
-    refine filter_congr fun y _ => ?_
-    rw [one_div, inv_div, div_lt_div_iff_of_pos_right hV]
-  rw [hcount]
-  have habs : ∀ y, |charSum B y / 2 ^ m| ^ 3 = (#B / 2 ^ m) ^ 3 * |charSum B y / #B| ^ 3 := by
-    intro y
+  have hcount : #{y | (2 : ℝ) ^ m < charSum B y} =
+      #{y | 1 / (#B / (2 : ℝ) ^ m) < charSum B y / #B} :=
+    congrArg card <| filter_congr fun y _ => by
+      rw [one_div, inv_div, div_lt_div_iff_of_pos_right hV]
+  have habs (y) : |charSum B y / 2 ^ m| ^ 3 = (#B / 2 ^ m) ^ 3 * |charSum B y / #B| ^ 3 := by
     rw [show charSum B y / 2 ^ m = #B / 2 ^ m * (charSum B y / #B) by field_simp, abs_mul,
       mul_pow, abs_of_pos (div_pos hV hq)]
-  simp_rw [habs, ← mul_sum]
+  simp_rw [hcount, habs, ← mul_sum]
   field_simp
 
 end CharSum

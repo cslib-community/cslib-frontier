@@ -321,6 +321,15 @@ private theorem mem_of_satisfiable (h : φ.Satisfiable) :
     intro v
     simp only [O, Finset.mem_image, Finset.mem_univ, true_and]
     exact ⟨fun ⟨i, he⟩ => ⟨i, he.symm⟩, fun ⟨i, he⟩ => ⟨i, he.symm⟩⟩
+  -- the set holds only the chosen occurrence of each clause
+  have hocc : ∀ {i k} (hi : i < φ.length), occurrenceVertex i k ∈ L ∪ O → k = J ⟨i, hi⟩ :=
+    fun _ hk => by
+      rcases Finset.mem_union.1 hk with hk | hk
+      · obtain ⟨x, -, hx⟩ := hL.1 hk
+        exact (literalVertex_ne_occurrenceVertex _ _ _ hx.symm).elim
+      · obtain ⟨i', hi'⟩ := hO.1 hk
+        obtain ⟨rfl, rfl⟩ := occurrenceVertex_inj.1 hi'
+        rfl
   rw [mem_IndependentSet_iff]
   refine ⟨L ∪ O, fun v hv => ?_, ⟨fun u hu v hv huv hadj => ?_, ?_⟩⟩
   · change v ∈ vertices φ
@@ -352,27 +361,13 @@ private theorem mem_of_satisfiable (h : φ.Satisfiable) :
       · obtain ⟨i, hi, j, hj, j', hj', he⟩ := mem_cliqueEdges.1 he
         simp only [Prod.mk.injEq] at he
         obtain ⟨rfl, rfl⟩ := he
-        have hocc : ∀ {k}, occurrenceVertex i k ∈ L ∪ O → k = J ⟨i, hi⟩ := fun hk => by
-          rcases Finset.mem_union.1 hk with hk | hk
-          · obtain ⟨x, -, hx⟩ := hL.1 hk
-            exact (literalVertex_ne_occurrenceVertex _ _ _ hx.symm).elim
-          · obtain ⟨i', hi'⟩ := hO.1 hk
-            obtain ⟨rfl, rfl⟩ := occurrenceVertex_inj.1 hi'
-            rfl
-        exact huv (by rw [hocc hu, hocc hv])
+        exact huv (by rw [hocc hi hu, hocc hi hv])
       · obtain ⟨i, hi, j, hj, he⟩ := mem_conflictEdges.1 he
         simp only [Prod.mk.injEq] at he
         obtain ⟨rfl, rfl⟩ := he
         have hx := mem_vars hi hj
-        have hj₀ : j = J ⟨i, hi⟩ := by
-          rcases Finset.mem_union.1 hu with hu | hu
-          · obtain ⟨x, -, hx⟩ := hL.1 hu
-            exact (literalVertex_ne_occurrenceVertex _ _ _ hx.symm).elim
-          · obtain ⟨i', hi'⟩ := hO.1 hu
-            obtain ⟨rfl, rfl⟩ := occurrenceVertex_inj.1 hi'
-            rfl
         have hσj : σ φ[i][j].1 = φ[i][j].2 := by
-          subst hj₀
+          obtain rfl := hocc hi hu
           exact hJ ⟨i, hi⟩
         rcases Finset.mem_union.1 hv with hv | hv
         · obtain ⟨y, -, hy⟩ := hL.1 hv

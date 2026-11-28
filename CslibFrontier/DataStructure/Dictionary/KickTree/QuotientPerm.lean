@@ -342,7 +342,7 @@ theorem dist_concreteCaseA_restrict_le {a m b_aux c n : ℕ}
     {S T : Finset (Fin (2 ^ a))} (hS : #S ≤ n) (hTS : T ⊆ S)
     (hT : #T ≤ quotientPermInd c n) :
     dist ((PMF.uniformOfFintype (QuotientPermSeed a m b_aux c n)).map fun θ (u : T) =>
-        (concreteBucket hma θ u.val, concreteAux hma θ u.val))
+        (concreteBucket hma θ u.1, concreteAux hma θ u.1))
       (PMF.uniformOfFintype (T → Fin (2 ^ m) × Fin (2 ^ b_aux))) ≤
       1 / (n : ℝ) ^ (c + 1) := by
   classical
@@ -365,20 +365,20 @@ theorem dist_concreteCaseA_restrict_le {a m b_aux c n : ℕ}
       left_inv := fun θ => by cases θ; rfl
       right_inv := fun p => by rcases p with ⟨⟨_, _, _, _, _⟩, ⟨_, _, _⟩⟩; rfl }
   have hmarg : ((PMF.uniformOfFintype (QuotientPermSeed a m b_aux c n)).map fun θ (u : T) =>
-      (concreteBucket hma θ u.val, concreteAux hma θ u.val)) =
+      (concreteBucket hma θ u.1, concreteAux hma θ u.1)) =
       (PMF.uniformOfFintype Top).bind fun τ =>
         (PMF.uniformOfFintype (Fin (2 ^ (m - 1)))).bind fun α₀ =>
           (PMF.uniformOfFintype BotA₀).bind fun botA₀ =>
             (PMF.uniformOfFintype (Fin (2 ^ (a - m - 1)))).bind fun α₁ =>
               (PMF.uniformOfFintype BotA₁₂).map fun botA₁₂ (u : T) =>
                 caseABucketAux hma (reducedDoubleTab c n m (a - m) α₀ τ botA₀)
-                  (reducedDoubleTab c n (a - m) (m + b_aux) α₁ τ botA₁₂) u.val := by
+                  (reducedDoubleTab c n (a - m) (m + b_aux) α₁ τ botA₁₂) u.1 := by
     let F : Top × (Fin (2 ^ (m - 1)) × BotA₀ × Fin (2 ^ (a - m - 1)) × BotA₁₂) →
         T → Fin (2 ^ m) × Fin (2 ^ b_aux) :=
       fun p u => caseABucketAux hma (reducedDoubleTab c n m (a - m) p.2.1 p.1 p.2.2.1)
-        (reducedDoubleTab c n (a - m) (m + b_aux) p.2.2.2.1 p.1 p.2.2.2.2) u.val
+        (reducedDoubleTab c n (a - m) (m + b_aux) p.2.2.2.1 p.1 p.2.2.2.2) u.1
     have hfun : (fun θ : QuotientPermSeed a m b_aux c n => fun u : T =>
-        (concreteBucket hma θ u.val, concreteAux hma θ u.val)) = (F ∘ Prod.fst ∘ eA) := by
+        (concreteBucket hma θ u.1, concreteAux hma θ u.1)) = (F ∘ Prod.fst ∘ eA) := by
       ext θ u : 2
       simp [concreteBucket, concreteAux, quotientPermEquiv, concreteRounds, hgap, caseABucketAux,
         F, eA]
@@ -412,11 +412,11 @@ theorem dist_concreteCaseB_shardTuple_le {a m b_aux c n : ℕ}
     (yEmb : T ↪ Fin (2 ^ suffixBits a m)) :
     haveI : Nonempty (T ↪ Fin (2 ^ suffixBits a m)) := ⟨yEmb⟩
     dist ((PMF.uniformOfFintype (QuotientPermSeed a m b_aux c n)).map fun θ =>
-        ((fun u : T => (bitDomainEquiv (shardBits_le_of_le hma) u.val).1 ^^^
+        ((fun u : T => (bitDomainEquiv (shardBits_le_of_le hma) u.1).1 ^^^
             (concreteRounds θ).caseB.fShard (yEmb u)),
           ((Equiv.refl T).embeddingCongr
             (nrComposedEquiv (suffixBits a m) (nrRounds c) (concreteRounds θ).caseB.nrBlocks) yEmb,
-            fun u : T => concreteAux hma θ u.val)))
+            fun u : T => concreteAux hma θ u.1)))
       (PMF.uniformOfFintype
         ((T → Fin (2 ^ shardBits m)) ×
           ((T ↪ Fin (2 ^ suffixBits a m)) × (T → Fin (2 ^ b_aux))))) ≤
@@ -478,34 +478,34 @@ theorem dist_concreteCaseB_shardTuple_le {a m b_aux c n : ℕ}
     doubleTabHash (quotientPermChars c) (quotientPermInter c) (quotientPermCharBits n)
       (2 ^ a) b_aux τ b
   have hmarg : ((PMF.uniformOfFintype (QuotientPermSeed a m b_aux c n)).map fun θ =>
-      ((fun u : T => (bitDomainEquiv (shardBits_le_of_le hma) u.val).1 ^^^
+      ((fun u : T => (bitDomainEquiv (shardBits_le_of_le hma) u.1).1 ^^^
           (concreteRounds θ).caseB.fShard (yEmb u)),
         ((Equiv.refl T).embeddingCongr
           (nrComposedEquiv (suffixBits a m) (nrRounds c) (concreteRounds θ).caseB.nrBlocks) yEmb,
-          fun u : T => concreteAux hma θ u.val))) =
+          fun u : T => concreteAux hma θ u.1))) =
       (PMF.uniformOfFintype Top).bind fun τ =>
         (PMF.uniformOfFintype BotSh).bind fun s_sh =>
           (nrComposedSeedDist (suffixBits a m) (nrRounds c)
               (h_nr₀ τ) (h_nr₁ τ) (h_nr₂ τ)).bind fun π =>
             (PMF.uniformOfFintype BotAux).map fun s_aux =>
-              ((fun u : T => (bitDomainEquiv (shardBits_le_of_le hma) u.val).1 ^^^
+              ((fun u : T => (bitDomainEquiv (shardBits_le_of_le hma) u.1).1 ^^^
                   h_sh τ s_sh (yEmb u)),
-                ((Equiv.refl T).embeddingCongr π yEmb, fun u : T => h_aux τ s_aux u.val)) := by
+                ((Equiv.refl T).embeddingCongr π yEmb, fun u : T => h_aux τ s_aux u.1)) := by
     let G : Top × (BotSh × (NRComposedSeed (nrRounds c) NR₀ NR₁ NR₂ × BotAux)) →
         (T → Fin (2 ^ shardBits m)) × ((T ↪ Fin (2 ^ suffixBits a m)) × (T → Fin (2 ^ b_aux))) :=
       fun q =>
-        ((fun u : T => (bitDomainEquiv (shardBits_le_of_le hma) u.val).1 ^^^
+        ((fun u : T => (bitDomainEquiv (shardBits_le_of_le hma) u.1).1 ^^^
             h_sh q.1 q.2.1 (yEmb u)),
           ((Equiv.refl T).embeddingCongr (nrComposedEquiv (suffixBits a m) (nrRounds c) (fun r =>
               ⟨h_nr₀ q.1 (q.2.2.1.blocks r).s₀, h_nr₁ q.1 (q.2.2.1.blocks r).s₁,
                 h_nr₂ q.1 (q.2.2.1.blocks r).s₂⟩)) yEmb,
-            fun u : T => h_aux q.1 q.2.2.2 u.val))
+            fun u : T => h_aux q.1 q.2.2.2 u.1))
     have hfun : (fun θ : QuotientPermSeed a m b_aux c n =>
-        ((fun u : T => (bitDomainEquiv (shardBits_le_of_le hma) u.val).1 ^^^
+        ((fun u : T => (bitDomainEquiv (shardBits_le_of_le hma) u.1).1 ^^^
             (concreteRounds θ).caseB.fShard (yEmb u)),
           ((Equiv.refl T).embeddingCongr
             (nrComposedEquiv (suffixBits a m) (nrRounds c) (concreteRounds θ).caseB.nrBlocks) yEmb,
-            fun u : T => concreteAux hma θ u.val))) = (G ∘ Prod.fst ∘ eB) := by
+            fun u : T => concreteAux hma θ u.1))) = (G ∘ Prod.fst ∘ eB) := by
       ext θ : 1
       simp [G, eB, concreteRounds, concreteAux, hnotA, h_sh, h_nr₀, h_nr₁, h_nr₂, h_aux]
     rw [hfun, ← PMF.map_comp, ← PMF.map_comp, uniformOfFintype_map_equiv eB,
@@ -626,12 +626,11 @@ private theorem prob_concreteQuotientPerm_master_le {a m b_aux c n : ℕ}
     (hcaseB_emb : ¬ (m + caseAGap c n ≤ a) →
       ∀ hinj : Set.InjOn (keySuffix hma) (T : Set (Fin (2 ^ a))),
         haveI : Nonempty (T ↪ Fin (2 ^ suffixBits a m)) :=
-          ⟨⟨fun u => keySuffix hma u.val, fun u₁ u₂ h => Subtype.ext
-              (hinj u₁.property u₂.property h)⟩⟩
+          ⟨⟨fun u => keySuffix hma u.1, fun u₁ u₂ h => Subtype.ext (hinj u₁.2 u₂.2 h)⟩⟩
         ((1 : ℝ) / (2 ^ shardBits m : ℝ)) ^ Fintype.card T *
           ((PMF.uniformOfFintype (T ↪ Fin (2 ^ suffixBits a m))).toOuterMeasure
-            {e | ∀ i : T, e i ∈ intraShardSuffixSet hma (B i.val)}).toReal *
-          (∏ u : T, ((#(A u.val) : ℝ) / (2 ^ b_aux : ℝ))) ≤
+            {e | ∀ i : T, e i ∈ intraShardSuffixSet hma (B i.1)}).toReal *
+          (∏ u : T, ((#(A u.1) : ℝ) / (2 ^ b_aux : ℝ))) ≤
           c_mult * (∏ u ∈ T, (((#(B u) : ℝ) / (2 ^ m : ℝ)) * ((#(A u) : ℝ) / (2 ^ b_aux : ℝ))))) :
     ((PMF.uniformOfFintype (QuotientPermSeed a m b_aux c n)).toOuterMeasure
       {θ | ∀ u ∈ T, concreteBucket hma θ u ∈ B u ∧ concreteAux hma θ u ∈ A u}).toReal ≤
@@ -645,9 +644,9 @@ private theorem prob_concreteQuotientPerm_master_le {a m b_aux c n : ℕ}
     Finset.prod_nonneg fun _ _ => by positivity
   by_cases hgap : m + caseAGap c n ≤ a
   · let Φ (θ : QuotientPermSeed a m b_aux c n) (u : T) :=
-      (concreteBucket hma θ u.val, concreteAux hma θ u.val)
+      (concreteBucket hma θ u.1, concreteAux hma θ u.1)
     let E : Set (T → Fin (2 ^ m) × Fin (2 ^ b_aux)) :=
-      {f | ∀ u : T, (f u).1 ∈ B u.val ∧ (f u).2 ∈ A u.val}
+      {f | ∀ u : T, (f u).1 ∈ B u.1 ∧ (f u).2 ∈ A u.1}
     have hmap : μ.toOuterMeasure
         {θ | ∀ u ∈ T, concreteBucket hma θ u ∈ B u ∧ concreteAux hma θ u ∈ A u} =
         (μ.map Φ).toOuterMeasure E := by
@@ -657,7 +656,7 @@ private theorem prob_concreteQuotientPerm_master_le {a m b_aux c n : ℕ}
       (PMF.uniformOfFintype (T → Fin (2 ^ m) × Fin (2 ^ b_aux))) E
     have hd := dist_concreteCaseA_restrict_le (b_aux := b_aux) hma hgap hn hS hTS hT
     have hunif := prob_uniformOfFintype_pi_prod_forall_mem
-      (T := T) (fun u => B u.val) (fun u => A u.val)
+      (T := T) (fun u => B u.1) (fun u => A u.1)
     simp only [Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat] at hunif
     rw [Finset.prod_coe_sort T
       (fun u => (((#(B u) : ℝ) / (2 ^ m : ℝ)) * ((#(A u) : ℝ) / (2 ^ b_aux : ℝ))))] at hunif
@@ -668,18 +667,18 @@ private theorem prob_concreteQuotientPerm_master_le {a m b_aux c n : ℕ}
   · have hcaseB : a < m + caseAGap c n := not_le.mp hgap
     by_cases hinj : Set.InjOn (keySuffix hma) (T : Set (Fin (2 ^ a)))
     · let yEmb : T ↪ Fin (2 ^ suffixBits a m) :=
-        ⟨fun u => keySuffix hma u.val, fun u₁ u₂ h => Subtype.ext (hinj u₁.property u₂.property h)⟩
+        ⟨fun u => keySuffix hma u.1, fun u₁ u₂ h => Subtype.ext (hinj u₁.2 u₂.2 h)⟩
       have : Nonempty (T ↪ Fin (2 ^ suffixBits a m)) := ⟨yEmb⟩
-      let Q (u : T) := intraShardSuffixSet hma (B u.val)
+      let Q (u : T) := intraShardSuffixSet hma (B u.1)
       let Ψ (θ : QuotientPermSeed a m b_aux c n) :=
-        ((fun u : T => (bitDomainEquiv (shardBits_le_of_le hma) u.val).1 ^^^
+        ((fun u : T => (bitDomainEquiv (shardBits_le_of_le hma) u.1).1 ^^^
             (concreteRounds θ).caseB.fShard (yEmb u)),
           ((Equiv.refl T).embeddingCongr
             (nrComposedEquiv (suffixBits a m) (nrRounds c) (concreteRounds θ).caseB.nrBlocks) yEmb,
-            fun u : T => concreteAux hma θ u.val))
+            fun u : T => concreteAux hma θ u.1))
       let S_all : Set ((T → Fin (2 ^ shardBits m)) ×
           ((T ↪ Fin (2 ^ suffixBits a m)) × (T → Fin (2 ^ b_aux)))) :=
-        {p | let (sh, emb, aux) := p; ∀ u : T, sh u = σ ∧ emb u ∈ Q u ∧ aux u ∈ A u.val}
+        {p | let (sh, emb, aux) := p; ∀ u : T, sh u = σ ∧ emb u ∈ Q u ∧ aux u ∈ A u.1}
       have hmap : μ.toOuterMeasure
           {θ | ∀ u ∈ T, concreteBucket hma θ u ∈ B u ∧ concreteAux hma θ u ∈ A u} =
           (μ.map Ψ).toOuterMeasure S_all := by
@@ -696,13 +695,11 @@ private theorem prob_concreteQuotientPerm_master_le {a m b_aux c n : ℕ}
       rw [hmap]
       have habs := abs_toOuterMeasure_toReal_sub_le_dist (μ.map Ψ) (PMF.uniformOfFintype _) S_all
       have hd := dist_concreteCaseB_shardTuple_le (b_aux := b_aux) hma hcaseB hn hm_lo hm_hi hT yEmb
-      have hprod := prob_shardTuple_event_eq (T := T) σ Q (fun u => A u.val)
+      have hprod := prob_shardTuple_event_eq (T := T) σ Q (fun u => A u.1)
       have hmain := hcaseB_emb hgap hinj
-      have hd_le : 1 / (4 * (n : ℝ) ^ (c + 2)) ≤ 1 / (n : ℝ) ^ (c + 1) := by
-        refine one_div_le_one_div_of_le (by positivity) ?_
-        calc (n : ℝ) ^ (c + 1) ≤ (n : ℝ) ^ (c + 1) * (4 * (n : ℝ)) :=
-              le_mul_of_one_le_right (by positivity) (by linarith)
-          _ = 4 * (n : ℝ) ^ (c + 2) := by ring
+      have hd_le : 1 / (4 * (n : ℝ) ^ (c + 2)) ≤ 1 / (n : ℝ) ^ (c + 1) :=
+        one_div_le_one_div_of_le (by positivity) (by
+          rw [pow_succ _ (c + 1)]; nlinarith [pow_pos (by positivity : (0 : ℝ) < n) (c + 1)])
       linarith [(le_abs_self _).trans habs]
     · have hemp : {θ : QuotientPermSeed a m b_aux c n |
           ∀ u ∈ T, concreteBucket hma θ u ∈ B u ∧ concreteAux hma θ u ∈ A u} = ∅ := by
@@ -712,12 +709,8 @@ private theorem prob_concreteQuotientPerm_master_le {a m b_aux c n : ℕ}
         have h1 := (hmem u hu).1
         simp only [concreteBucket, quotientPermEquiv, hgap, ↓reduceIte] at h1
         exact hB u hu _ h1
-      have hzero : univ.filter (· ∈ (∅ : Set (QuotientPermSeed a m b_aux c n))) = ∅ :=
-        filter_eq_empty_iff.mpr fun _ _ h => h
-      rw [hemp, toOuterMeasure_uniformOfFintype_toReal, hzero, Finset.card_empty, Nat.cast_zero,
-        zero_div]
-      have hc_nn : 0 ≤ c_mult := by linarith
-      exact add_nonneg (mul_nonneg hc_nn hprod_nonneg) (by positivity)
+      rw [hemp, MeasureTheory.measure_empty, ENNReal.toReal_zero]
+      exact add_nonneg (mul_nonneg (by linarith) hprod_nonneg) (by positivity)
 
 /-- **Unified `Fin (2 ^ a)` multiplicative tail bound across Case A and Case B** (shared intra-shard
 target bucket set `B` and auxiliary set `A`). -/
@@ -735,7 +728,7 @@ theorem prob_concreteQuotientPerm_forall_mem_le {a m b_aux c n : ℕ}
   have hmst := prob_concreteQuotientPerm_master_le hma hn hm_lo hm_hi hS hTS hT σ
     (fun _ => B) (fun _ _ => hB) (fun _ => A) (c_mult := 1) le_rfl fun _ hinj => by
       let yEmb : T ↪ Fin (2 ^ suffixBits a m) :=
-        ⟨fun u => keySuffix hma u.val, fun u₁ u₂ h => Subtype.ext (hinj u₁.property u₂.property h)⟩
+        ⟨fun u => keySuffix hma u.1, fun u₁ u₂ h => Subtype.ext (hinj u₁.2 u₂.2 h)⟩
       have : Nonempty (T ↪ Fin (2 ^ suffixBits a m)) := ⟨yEmb⟩
       let Q₀ := intraShardSuffixSet hma B
       have hcardT : Fintype.card T ≤ Fintype.card (Fin (2 ^ suffixBits a m)) :=
@@ -772,9 +765,9 @@ theorem prob_concreteQuotientPerm_forall_mem_perKey_le {a m b_aux c n : ℕ}
   exact prob_concreteQuotientPerm_master_le hma hn hm_lo hm_hi hS hTS hT σ B hB A
     (c_mult := 2) (by norm_num) fun _ hinj => by
       let yEmb : T ↪ Fin (2 ^ suffixBits a m) :=
-        ⟨fun u => keySuffix hma u.val, fun u₁ u₂ h => Subtype.ext (hinj u₁.property u₂.property h)⟩
+        ⟨fun u => keySuffix hma u.1, fun u₁ u₂ h => Subtype.ext (hinj u₁.2 u₂.2 h)⟩
       have : Nonempty (T ↪ Fin (2 ^ suffixBits a m)) := ⟨yEmb⟩
-      let Q (u : T) := intraShardSuffixSet hma (B u.val)
+      let Q (u : T) := intraShardSuffixSet hma (B u.1)
       obtain ⟨_, _, _, h2κ2⟩ := quotientPermInd_le_self_of_threshold hn
       have ha'_b : quotientPermCharBits n ≤ suffixBits a m := by wram_omega [hm_lo]
       have hcard2 : 2 * (Fintype.card T) ^ 2 ≤ Fintype.card (Fin (2 ^ suffixBits a m)) := by
@@ -785,26 +778,21 @@ theorem prob_concreteQuotientPerm_forall_mem_perKey_le {a m b_aux c n : ℕ}
       simp only [Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat] at hemb
       calc _ ≤ ((1 : ℝ) / (2 ^ shardBits m : ℝ)) ^ Fintype.card T *
               (2 * ∏ u : T, ((#(Q u) : ℝ) / (2 ^ suffixBits a m : ℝ))) *
-              (∏ u : T, ((#(A u.val) : ℝ) / (2 ^ b_aux : ℝ))) :=
+              (∏ u : T, ((#(A u.1) : ℝ) / (2 ^ b_aux : ℝ))) :=
             by gcongr
-        _ = 2 * (((∏ _u : T, ((1 : ℝ) / (2 ^ shardBits m : ℝ))) *
-              (∏ u : T, ((#(Q u) : ℝ) / (2 ^ suffixBits a m : ℝ)))) *
-              (∏ u : T, ((#(A u.val) : ℝ) / (2 ^ b_aux : ℝ)))) := by
-            rw [Finset.prod_const, Finset.card_univ]; ring
         _ = 2 * ∏ u : T, ((((1 : ℝ) / (2 ^ shardBits m : ℝ)) *
               ((#(Q u) : ℝ) / (2 ^ suffixBits a m : ℝ))) *
-              ((#(A u.val) : ℝ) / (2 ^ b_aux : ℝ))) := by
-            rw [← Finset.prod_mul_distrib, ← Finset.prod_mul_distrib]
-        _ = 2 * ∏ u : T, (((#(B u.val) : ℝ) / (2 ^ m : ℝ)) *
-              ((#(A u.val) : ℝ) / (2 ^ b_aux : ℝ))) := by
+              ((#(A u.1) : ℝ) / (2 ^ b_aux : ℝ))) := by
+            rw [Finset.prod_mul_distrib, Finset.prod_mul_distrib, Finset.prod_const,
+              Finset.card_univ]; ring
+        _ = 2 * ∏ u : T, (((#(B u.1) : ℝ) / (2 ^ m : ℝ)) *
+              ((#(A u.1) : ℝ) / (2 ^ b_aux : ℝ))) := by
             congr 1; refine Finset.prod_congr rfl fun u _ => ?_
-            have hQc : (#(Q u) : ℝ) = ((#(B u.val) * 2 ^ (a - m) : ℕ) : ℝ) :=
-              congrArg Nat.cast (card_intraShardSuffixSet hma σ (hB u.val u.property))
-            rw [hQc, shard_suffix_ratio_eq hma #(B u.val)]
-        _ = 2 * (∏ u ∈ T, (((#(B u) : ℝ) / (2 ^ m : ℝ)) *
-              ((#(A u) : ℝ) / (2 ^ b_aux : ℝ)))) := by
-            rw [Finset.prod_coe_sort T
-              (fun u => (((#(B u) : ℝ) / (2 ^ m : ℝ)) * ((#(A u) : ℝ) / (2 ^ b_aux : ℝ))))]
+            have hQc : (#(Q u) : ℝ) = ((#(B u.1) * 2 ^ (a - m) : ℕ) : ℝ) :=
+              congrArg Nat.cast (card_intraShardSuffixSet hma σ (hB u.1 u.2))
+            rw [hQc, shard_suffix_ratio_eq hma #(B u.1)]
+        _ = _ := congrArg (2 * ·) (Finset.prod_coe_sort T
+              fun u => ((#(B u) : ℝ) / (2 ^ m : ℝ)) * ((#(A u) : ℝ) / (2 ^ b_aux : ℝ)))
 
 /-- Full-quotient bucket index `Fin (2 ^ bucketIndexBits n)` of `u : Fin U` (`n ≤ U`). -/
 @[expose] def fullBucket {U b_aux c n : ℕ} (hnU : n ≤ U)

@@ -90,8 +90,7 @@ private theorem eval_run_comp_eq_of_represent {ιJ : Type} {J : ιJ → Type} (A
   · intro q s
     change PMF.map _ (Machine.closeProgram (Functor.map (β := E q × (A.comp P).State)
       ⇑(Equiv.prodAssoc (E q) A.State P.State) (P.runFrom ((A.handle q).run s.1) s.2))).eval = _
-    refine (eval_closeProgram_map_map _ _ _).trans ?_
-    exact step q s.1 s.2
+    exact (eval_closeProgram_map_map _ _ _).trans (step q s.1 s.2)
 
 /-! ### Filling in one coordinate -/
 
@@ -113,30 +112,26 @@ private theorem glue_of_ne (r : (j : Fin m) → j ≠ j₀ → β j) (t : β j�
 private theorem update_glue_self (r : (j : Fin m) → j ≠ j₀ → β j) (t t' : β j₀) :
     Function.update (glue r t) j₀ t' = glue r t' := by
   funext j
-  by_cases h : j = j₀
-  · subst h
-    rw [Function.update_self, glue_self]
+  rcases eq_or_ne j j₀ with rfl | h
+  · rw [Function.update_self, glue_self]
   · rw [Function.update_of_ne h, glue_of_ne r t h, glue_of_ne r t' h]
 
 private theorem update_glue_of_ne (r : (j : Fin m) → j ≠ j₀ → β j) (t : β j₀) {j : Fin m}
     (hj : j ≠ j₀) (s : β j) :
     Function.update (glue r t) j s = glue (Function.update r j fun _ => s) t := by
   funext i
-  by_cases hi : i = j₀
-  · subst hi
-    rw [Function.update_of_ne (Ne.symm hj), glue_self, glue_self]
-  · rw [glue_of_ne _ _ hi]
-    by_cases hij : i = j
-    · subst hij
-      rw [Function.update_self, Function.update_self]
-    · rw [Function.update_of_ne hij, Function.update_of_ne hij, glue_of_ne _ _ hi]
+  rcases eq_or_ne i j₀ with rfl | hi
+  · rw [Function.update_of_ne (Ne.symm hj), glue_self, glue_self]
+  · rcases eq_or_ne i j with rfl | hij
+    · rw [glue_of_ne _ _ hi, Function.update_self, Function.update_self]
+    · rw [glue_of_ne _ _ hi, Function.update_of_ne hij, Function.update_of_ne hij,
+        glue_of_ne _ _ hi]
 
 private theorem glue_const (r : (j : Fin m) → β j) (t : β j₀) :
     glue (fun j _ => r j) t = Function.update r j₀ t := by
   funext j
-  by_cases h : j = j₀
-  · subst h
-    rw [glue_self, Function.update_self]
+  rcases eq_or_ne j j₀ with rfl | h
+  · rw [glue_self, Function.update_self]
   · rw [glue_of_ne _ _ h, Function.update_of_ne h]
 
 /-- Sampling the coordinates other than `j₀` of a product of independent programs, then the
@@ -203,8 +198,8 @@ private theorem hybridReduction_handle_of_ne {m : ℕ} {j₀ : Fin m}
 `G j₀` itself, behaves as the sessions `G`. -/
 private theorem eval_run_hybridReduction_comp_self {m : ℕ}
     (G : Fin m → Machine OracleSpec.empty E) (j₀ : Fin m) (A : ProbOracleComp (sessionSpec m E) α) :
-    (((hybridReduction j₀ fun i => G i.val).comp (G j₀)).run A).eval = ((parFin G).run A).eval := by
-  refine eval_run_comp_eq_of_represent (hybridReduction j₀ fun i => G i.val) (G j₀) (parFin G)
+    (((hybridReduction j₀ fun i => G i.1).comp (G j₀)).run A).eval = ((parFin G).run A).eval := by
+  refine eval_run_comp_eq_of_represent (hybridReduction j₀ fun i => G i.1) (G j₀) (parFin G)
     (fun r t => glue (β := fun j => (G j).State) r t) ?_ ?_ A
   · exact (eval_bind_pi_except (fun j => (G j).init) j₀ PMF.pure).trans (PMF.bind_pure _)
   · rintro ⟨j, e⟩ r t
@@ -227,13 +222,12 @@ private theorem eval_run_hybridReduction_comp_self {m : ℕ}
 replaced by `Q`. -/
 theorem eval_run_hybridReduction_comp {m : ℕ} (G : Fin m → Machine OracleSpec.empty E)
     (j₀ : Fin m) (Q : Machine OracleSpec.empty E) (A : ProbOracleComp (sessionSpec m E) α) :
-    (((hybridReduction j₀ fun i => G i.val).comp Q).run A).eval =
+    (((hybridReduction j₀ fun i => G i.1).comp Q).run A).eval =
       ((parFin (Function.update G j₀ Q)).run A).eval := by
-  have hF : (fun i : {j : Fin m // j ≠ j₀} => G i.val) = fun i => Function.update G j₀ Q i.val :=
-    funext fun i => (Function.update_of_ne i.property Q G).symm
-  have h := eval_run_hybridReduction_comp_self (Function.update G j₀ Q) j₀ A
-  rw [Function.update_self, ← hF] at h
-  exact h
+  have hF : (fun i : {j : Fin m // j ≠ j₀} => G i.1) = fun i => Function.update G j₀ Q i.1 :=
+    funext fun i => (Function.update_of_ne i.2 Q G).symm
+  simpa only [Function.update_self, ← hF] using
+    eval_run_hybridReduction_comp_self (Function.update G j₀ Q) j₀ A
 
 /-- The `k`-th hybrid between two families: the sessions below `k` take the ideal component and
 the others the real one. -/
@@ -253,9 +247,8 @@ private theorem update_hybridFamily_real {m : ℕ} {β : Type*} (real ideal : Fi
     Function.update (hybridFamily real ideal j₀.val) j₀ (real j₀) =
       hybridFamily real ideal j₀.val := by
   funext j
-  by_cases h : j = j₀
-  · subst h
-    simp [hybridFamily]
+  rcases eq_or_ne j j₀ with rfl | h
+  · simp [hybridFamily]
   · rw [Function.update_of_ne h]
 
 private theorem update_hybridFamily_ideal {m : ℕ} {β : Type*} (real ideal : Fin m → β)
@@ -263,19 +256,18 @@ private theorem update_hybridFamily_ideal {m : ℕ} {β : Type*} (real ideal : F
     Function.update (hybridFamily real ideal j₀.val) j₀ (ideal j₀) =
       hybridFamily real ideal (j₀.val + 1) := by
   funext j
-  by_cases h : j = j₀
-  · subst h
-    simp [hybridFamily]
-  · have hv : j.val ≠ j₀.val := fun hv => h (Fin.ext hv)
+  rcases eq_or_ne j j₀ with rfl | h
+  · simp [hybridFamily]
+  · have hv : j.val ≠ j₀.val := Fin.val_ne_of_ne h
     rw [Function.update_of_ne h]
     simp only [hybridFamily]
-    split_ifs <;> first | rfl | (exfalso; omega)
+    split_ifs <;> first | rfl | omega
 
 /-- The single-session distinguisher of the hop at the session `j₀`: it runs `A` against the
 reduction whose sessions below `j₀` are ideal and whose sessions above `j₀` are real. -/
 @[expose] def hybridDistinguisher {m : ℕ} (real ideal : Fin m → Machine OracleSpec.empty E)
     (A : ProbOracleComp (sessionSpec m E) Bool) (j₀ : Fin m) : ProbOracleComp E Bool :=
-  (hybridReduction j₀ fun i => hybridFamily real ideal j₀.val i.val).link A
+  (hybridReduction j₀ fun i => hybridFamily real ideal j₀.val i.1).link A
 
 /-- **Hybrid hop.** Replacing the session `j₀` of the hybrid is exactly distinguishing the real
 package of that session from the ideal one, by the single-session distinguisher. -/
@@ -297,10 +289,8 @@ theorem advantage_parFin_le_sum {m : ℕ} (real ideal : Fin m → Machine Oracle
     advantage A (parFin real) (parFin ideal) ≤
       ∑ j : Fin m, advantage (hybridDistinguisher real ideal A j) (real j) (ideal j) := by
   have h := advantage_le_sum_range A (fun k => parFin (hybridFamily real ideal k)) m
-  simp only [hybridFamily_zero, hybridFamily_self] at h
-  refine h.trans_eq ?_
-  rw [← Fin.sum_univ_eq_sum_range]
-  exact Finset.sum_congr rfl fun j _ => advantage_hybridFamily_succ real ideal A j
+  simp only [hybridFamily_zero, hybridFamily_self, ← Fin.sum_univ_eq_sum_range] at h
+  exact h.trans_eq (Finset.sum_congr rfl fun j _ => advantage_hybridFamily_succ real ideal A j)
 
 /-- The hybrid reduction for session `j₀` of `m` sessions, each with call budget `t`, has call
 budget `m * t + 1`. -/
@@ -313,9 +303,8 @@ theorem isBounded_hybridReduction {m : ℕ} (j₀ : Fin m)
       exact .pure _ _
     · rw [dite_eq_right h]
       exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (hF ⟨j, h⟩).1
-  · by_cases h : j = j₀
-    · subst h
-      rw [hybridReduction_handle_self]
+  · rcases eq_or_ne j j₀ with rfl | h
+    · rw [hybridReduction_handle_self]
       exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
         ((OracleComp.IsCostBounded.query _).mono (by omega))
     · rw [hybridReduction_handle_of_ne F h]
@@ -335,7 +324,7 @@ theorem isQueryBounded_hybridDistinguisher {m : ℕ}
     (hybridDistinguisher real ideal A j₀).IsQueryBounded (m * t + 1 + qA * (m * t + 2)) :=
   Machine.isQueryBounded_link (isBounded_hybridReduction j₀ _ fun j => by
     dsimp only [hybridFamily]
-    split_ifs <;> [exact hideal j.val; exact hreal j.val]) hA
+    split_ifs <;> [exact hideal j.1; exact hreal j.1]) hA
 
 end Stateful
 
@@ -501,23 +490,21 @@ private theorem globalWorld_handle_inr {m : ℕ} (P : Fin m → Machine I E)
 the single-session world of `P j₀`, behaves as the sessions `P` sharing the global package. -/
 private theorem eval_run_globalReduction_comp_self {m : ℕ} (P : Fin m → Machine I E)
     (G : Machine OracleSpec.empty I) (j₀ : Fin m) (A : ProbOracleComp (sessionSpec m E ⊕ₒ I) α) :
-    (((globalReduction j₀ fun i => P i.val).comp (eucWorld (P j₀) G)).run A).eval =
+    (((globalReduction j₀ fun i => P i.1).comp (eucWorld (P j₀) G)).run A).eval =
       ((globalWorld P G).run A).eval := by
-  refine eval_run_comp_eq_of_represent (globalReduction j₀ fun i => P i.val) (eucWorld (P j₀) G)
+  refine eval_run_comp_eq_of_represent (globalReduction j₀ fun i => P i.1) (eucWorld (P j₀) G)
     (globalWorld P G) (fun r s => ((glue (β := fun j => (P j).State) r s.1.1, s.1.2), s.2)) ?_ ?_
     A
   · rw [eval_eucWorld_init, eval_globalWorld_init]
     simp only [PMF.bind_bind]
     refine congrArg (ProbComp.eval G.init).bind (funext fun g => ?_)
-    refine Eq.trans ?_ (eval_bind_pi_except (fun j => (P j).init) j₀
-      fun r => PMF.pure (α := (globalWorld P G).State) ((r, PUnit.unit), g))
-    refine congrArg (ProbComp.eval (P j₀).init).bind (funext fun t => ?_)
-    exact PMF.pure_bind _ _
+    refine Eq.trans (congrArg (ProbComp.eval (P j₀).init).bind (funext fun _ => PMF.pure_bind _ _))
+      (eval_bind_pi_except (fun j => (P j).init) j₀
+        fun r => PMF.pure (α := (globalWorld P G).State) ((r, PUnit.unit), g))
   · rintro (⟨j, e⟩ | i) r s
     · rw [globalWorld_handle_inl P G j e (glue (β := fun j => (P j).State) r s.1.1) s.1.2 s.2]
-      by_cases h : j = j₀
-      · subst h
-        rw [globalReduction_handle_inl_self j (fun k => P k.val) e r, Machine.runFrom_map,
+      rcases eq_or_ne j j₀ with rfl | h
+      · rw [globalReduction_handle_inl_self j (fun k => P k.1) e r, Machine.runFrom_map,
           Machine.runFrom_query, eucWorld_handle (P j) G (.inl e) s,
           par_handle_inl (P j) (Machine.id I) e s.1]
         simp only [Machine.runFrom_map, glue_self (β := fun j => (P j).State) r s.1.1,
@@ -530,7 +517,7 @@ private theorem eval_run_globalReduction_comp_self {m : ℕ} (P : Fin m → Mach
           ProbComp.eval_map, PMF.map_comp]
         rfl
     · rw [globalWorld_handle_inr P G i (glue (β := fun j => (P j).State) r s.1.1) s.1.2 s.2,
-        globalReduction_handle_inr j₀ (fun k => P k.val) i r, Machine.runFrom_map,
+        globalReduction_handle_inr j₀ (fun k => P k.1) i r, Machine.runFrom_map,
         Machine.runFrom_query, eucWorld_handle (P j₀) G (.inr i) s,
         par_handle_inr (P j₀) (Machine.id I) i s.1]
       simp only [Machine.runFrom_map, Machine.runFrom_query, id_handle,
@@ -543,20 +530,19 @@ sessions `P` with the session `j₀` replaced by `Q`, sharing the global package
 theorem eval_run_globalReduction_comp {m : ℕ} (P : Fin m → Machine I E)
     (G : Machine OracleSpec.empty I) (j₀ : Fin m) (Q : Machine I E)
     (A : ProbOracleComp (sessionSpec m E ⊕ₒ I) α) :
-    (((globalReduction j₀ fun i => P i.val).comp (eucWorld Q G)).run A).eval =
+    (((globalReduction j₀ fun i => P i.1).comp (eucWorld Q G)).run A).eval =
       ((globalWorld (Function.update P j₀ Q) G).run A).eval := by
-  have hF : (fun i : {j : Fin m // j ≠ j₀} => P i.val) = fun i => Function.update P j₀ Q i.val :=
-    funext fun i => (Function.update_of_ne i.property Q P).symm
-  have h := eval_run_globalReduction_comp_self (Function.update P j₀ Q) G j₀ A
-  rw [Function.update_self, ← hF] at h
-  exact h
+  have hF : (fun i : {j : Fin m // j ≠ j₀} => P i.1) = fun i => Function.update P j₀ Q i.1 :=
+    funext fun i => (Function.update_of_ne i.2 Q P).symm
+  simpa only [Function.update_self, ← hF] using
+    eval_run_globalReduction_comp_self (Function.update P j₀ Q) G j₀ A
 
 /-- The single-session distinguisher of the hop at the session `j₀` with a global package: it runs
 `A` against the reduction whose sessions below `j₀` are ideal and whose sessions above `j₀` are
 real. -/
 @[expose] def globalDistinguisher {m : ℕ} (real ideal : Fin m → Machine I E)
     (A : ProbOracleComp (sessionSpec m E ⊕ₒ I) Bool) (j₀ : Fin m) : ProbOracleComp (E ⊕ₒ I) Bool :=
-  (globalReduction j₀ fun i => hybridFamily real ideal j₀.val i.val).link A
+  (globalReduction j₀ fun i => hybridFamily real ideal j₀.val i.1).link A
 
 /-- **Hybrid hop with a global package.** Replacing the session `j₀` of the hybrid is exactly
 distinguishing the single-session worlds of the real and the ideal package of that session. -/
@@ -582,10 +568,9 @@ theorem advantage_globalWorld_le_sum {m : ℕ} (real ideal : Fin m → Machine I
       ∑ j : Fin m, advantage (globalDistinguisher real ideal A j) (eucWorld (real j) G)
         (eucWorld (ideal j) G) := by
   have h := advantage_le_sum_range A (fun k => globalWorld (hybridFamily real ideal k) G) m
-  simp only [hybridFamily_zero, hybridFamily_self] at h
-  refine h.trans_eq ?_
-  rw [← Fin.sum_univ_eq_sum_range]
-  exact Finset.sum_congr rfl fun j _ => advantage_globalWorld_hybridFamily_succ real ideal G A j
+  simp only [hybridFamily_zero, hybridFamily_self, ← Fin.sum_univ_eq_sum_range] at h
+  exact h.trans_eq
+    (Finset.sum_congr rfl fun j _ => advantage_globalWorld_hybridFamily_succ real ideal G A j)
 
 end Global
 

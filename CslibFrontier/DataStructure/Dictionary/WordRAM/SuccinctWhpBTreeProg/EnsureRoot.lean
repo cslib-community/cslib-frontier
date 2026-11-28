@@ -109,24 +109,18 @@ private theorem realizes_splitFullRootBody :
   realize
   all_goals
     rcases d with ⟨⟨⟨cp, base⟩, sIdx⟩, ⟨⟨alloc, root⟩, ⟨mW, ⟨kW, vW⟩⟩⟩⟩
-    dsimp only [SplitFullRootPre] at h
-    obtain ⟨c, U, V, w₀, n_max, henv, rfl, hsIdx, halloc2, hrt_lt⟩ := h
+    obtain ⟨c, U, V, _, n_max, henv, rfl, hsIdx, halloc2, hrt_lt⟩ := h
+    rcases henv.2.2.1 with rfl
     have hth := henv.2.2.2.1
-    have hw_eq := henv.2.2.1
-    subst hw_eq
     have ht8 := eight_le_tMinWhp hth
     have hns_lt_n := (large_bounds_lt_n_max hth).2.1
     obtain ⟨_, _, _, hns_lt_v⟩ := (btree_slice_param_bounds hth).1
     have hkw_lt : 2 * tMinWhp n_max * keyLaneBitsWhp n_max < w := henv.keysWordBits_lt_w
     have hvw_lt : 2 * tMinWhp n_max * valLaneBitsWhp n_max < w := henv.valsWordBits_lt_w
-    simp only [wp_large_M hth] at *
-    try simp only [wp_large_nSlice hth] at *
-    try simp only [wp_large_wVal hth] at *
+    simp only [wp_large_M hth, wp_large_nSlice hth, wp_large_wVal hth] at *
     have h2v : alloc + ((alloc + 1) <<< valLaneBitsWhp n_max) <
         2 ^ (2 * valLaneBitsWhp n_max) := by
       rw [Nat.shiftLeft_eq, two_mul, Nat.pow_add]
-      have h0 : alloc < 2 ^ valLaneBitsWhp n_max :=
-        (by omega : alloc < nSliceWhp n_max).trans hns_lt_v
       have h1 : alloc + 2 ≤ 2 ^ valLaneBitsWhp n_max :=
         (by omega : alloc + 1 < nSliceWhp n_max).trans hns_lt_v
       calc alloc + (alloc + 1) * 2 ^ valLaneBitsWhp n_max
@@ -231,26 +225,19 @@ theorem ensureAndSplitRootGenProg_spec {c U V w n_max base sIdx insCount : ℕ}
   have h64 := sixty_four_le_nSliceWhp n_max
   obtain ⟨ht3, hmeta_cap, _, hns_lt⟩ := (btree_slice_param_bounds hth).1
   obtain ⟨hcs_h, hres_h, hmc_h, hvp_h⟩ := readSliceHeaderGenProg_spec hth hw hsIdx hrep (s := s)
-  dsimp only at hcs_h hres_h hmc_h hvp_h
+  have hH := bind_of_readOnly hcs_h hres_h hvp_h
   unfold ensureAndSplitRootGenProg initEmptyRootOpProg initEmptyRootBody
     splitFullRootOpProg splitFullRootBody writeNodeOpProg splitNodeOpProg
   simp only [wp_large_tMin hth, wp_large_wVal hth, pure_bind]
+  rw [(hH _ _).1, (hH _ _).2.1, (hH _ _).2.2.1, (hH _ _).2.2.2, hmc_h]
   obtain ⟨halloc_lt, ⟨ha0, rfl⟩ | ⟨ha_pos, T, hrt, hht_T, _, _, hT⟩⟩ :=
     hv.alloc_and_height_lt hth hins
   · -- Case 1: `sl.alloc = 0` (`ensureRootSlice` creates a 1-node empty leaf, no root split)
     have hsl1_eq : splitRootIfFull (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
         (ensureRootSlice sl) =
         { alloc := 1, root := 0, nodes := Function.update sl.nodes 0 ⟨1, 0, 0⟩ } := by
-      have hens : ensureRootSlice sl =
-          { alloc := 1, root := 0, nodes := Function.update sl.nodes 0 ⟨1, 0, 0⟩ } := by
-        simp [ensureRootSlice, ha0, mkNodeMeta]
-      rw [hens]
-      unfold splitRootIfFull
-      have hmc0 : metaCount ((Function.update sl.nodes 0 ⟨1, 0, 0⟩ 0).metaWord) = 0 := by
-        simp [metaCount]
-      have hne0 : (0 == 2 * tMinWhp n_max - 1) = false := by simp; omega
-      dsimp only
-      rw [hmc0, hne0]; rfl
+      have hne0 : 0 ≠ 2 * tMinWhp n_max - 1 := by omega
+      simp [ensureRootSlice, splitRootIfFull, ha0, mkNodeMeta, metaCount, hne0]
     set p0 := (mkWhpCoreParams c U V w n_max, base)
     set wN := writeBTreeNodeGenProg (((p0, sIdx), 0), (1, (0, 0)))
     set wH := writeSliceHeaderGenProg ((p0, sIdx), (1, 0))
@@ -276,54 +263,24 @@ theorem ensureAndSplitRootGenProg_spec {c U V w n_max base sIdx insCount : ℕ}
         (nodes := Function.update sl.nodes 0 ⟨1, 0, 0⟩)
         henv hsIdx (by omega) (by omega) hnodes_s1 (s := s1)
     have hoff := largeOffsetChain c U V w n_max
-    have hs'_eq : (Memory.spec 0).clientState s
-        (readSliceHeaderGenProg (p0, sIdx) >>= fun hdr =>
-          if hdr.1 = 0 then wN >>= fun _ => wH >>= fun _ => pure (1, 0)
-          else
-            readBTreeNodeGenProg ((p0, sIdx), hdr.2) >>= fun rootNd =>
-            if rootNd.1 / 2 = 2 * tMinWhp n_max - 1 then
-              splitFullNodeGenProg (p0.1, rootNd) >>= fun sp =>
-              writeSplitFourOpProg ((p0, sIdx),
-                (((hdr.1, sp.1), (hdr.1 + 1, sp.2.2)),
-                 ((hdr.2, (2, (sp.2.1, hdr.1 + ((hdr.1 + 1) <<< valLaneBitsWhp n_max)))),
-                  hdr.1 + 2))) >>= fun _ =>
-              pure (hdr.1 + 2, hdr.2)
-            else pure hdr) =
-        (Memory.spec 0).clientState s1 wH := by
-      rw [clientState_bind, hcs_h, hres_h]
-      simp only [ha0, ↓reduceIte]
-      rw [clientState_bind, clientState_bind_pure]
-    rw [hs'_eq, hsl1_eq]
-    refine ⟨hfrH.trans hfrN, ?_, ?_, ?_, hrepH, by dsimp only; rw [hMaxBTree_eq]; omega,
-      ?_, ?_, ?_, ?_⟩
-    · rw [clientResult_bind, hcs_h, hres_h]
-      simp only [ha0, ↓reduceIte]
-      rw [clientResult_bind, clientResult_bind_pure]
-    · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hcs_h, hmc_h, hres_h]
-      simp only [ha0, ↓reduceIte]
-      rw [← PFunctor.FreeM.bind_eq_bind]
-      rw [memoryCost_bind, memoryCost_bind]
-      dsimp only [wN, wH, p0]
-      rw [hmcN, hmcH, memoryCost_pure]; omega
-    · refine validProg_bind hvp_h ?_
-      rw [hcs_h, hres_h]; simp only [ha0, ↓reduceIte]
-      refine validProg_bind hvpN ?_
-      exact validProg_bind hvpH (validProg_pure _)
-    · refine ⟨.leaf 0 0, rfl, by simp [BTreeTree.height], ?_, ?_⟩
-      · simp [metaCount]; omega
-      · dsimp only [ValidSubtree]
-        rw [Function.update_self]
-        refine ⟨by omega, rfl, by omega, by positivity, by positivity,
-          fun _ hj => absurd hj (Nat.not_lt_zero _),
-          fun _ _ _ hj => absurd hj (Nat.not_lt_zero _),
-          fun _ _ _ => Or.inr ⟨fun _ hj => absurd hj (Nat.not_lt_zero _), rfl⟩⟩
-    · intro sIdx' hsIdx' hne sl₂ hr₂
-      exact hothH sIdx' hsIdx' hne sl₂ (hothN sIdx' hsIdx' hne sl₂ hr₂)
-    · intro idx hidx h1 h2
-      exact (hbmH idx hidx h1 h2).trans
-        (readPacked_congr hw (hidx := hidx) fun a ⟨_, ha2⟩ => houtN a (Or.inl (by omega)))
-    · intro a ha
-      rcases ha with ha1 | ⟨ha2, ha3⟩ | ha4
+    simp only [ha0, ↓reduceIte]
+    rw [clientState_bind, clientState_bind_pure, clientResult_bind, clientResult_bind_pure, hsl1_eq]
+    refine ⟨hfrH.trans hfrN, rfl, ?_, validProg_bind hvpN (validProg_bind hvpH (validProg_pure _)),
+      hrepH, by simp only [hMaxBTree_eq]; omega, ?_,
+      fun sIdx' hsIdx' hne sl₂ hr₂ => hothH sIdx' hsIdx' hne sl₂ (hothN sIdx' hsIdx' hne sl₂ hr₂),
+      fun idx hidx h1 h2 => (hbmH idx hidx h1 h2).trans
+        (readPacked_congr hw (hidx := hidx) fun a ⟨_, ha2⟩ => houtN a (Or.inl (by omega))), ?_⟩
+    · dsimp only [wN, wH, p0]
+      rw [memoryCost_bind', memoryCost_bind', hmcN, hmcH, memoryCost_pure]; omega
+    · refine ⟨.leaf 0 0, rfl, by simp [BTreeTree.height],
+        by simp [metaCount]; omega, ?_⟩
+      dsimp only [ValidSubtree]
+      rw [Function.update_self]
+      exact ⟨by omega, rfl, by omega, by positivity, by positivity,
+        fun _ hj => absurd hj (Nat.not_lt_zero _),
+        fun _ _ _ hj => absurd hj (Nat.not_lt_zero _),
+        fun _ _ _ => Or.inr ⟨fun _ hj => absurd hj (Nat.not_lt_zero _), rfl⟩⟩
+    · rintro a (ha1 | ⟨ha2, ha3⟩ | ha4)
       · exact (houtH a (Or.inl ha1)).trans (houtN a (Or.inl (by omega)))
       · exact (houtH a (Or.inr ha2)).trans (houtN a (Or.inl ha3))
       · exact (houtH a (Or.inr (by omega))).trans (houtN a (Or.inr ha4))
@@ -343,6 +300,9 @@ theorem ensureAndSplitRootGenProg_spec {c U V w n_max base sIdx insCount : ℕ}
       splitRootIfFull_spec ht3 ha_pos halloc_val hrt hT
     set sl1 := splitRootIfFull (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max) sl
     have hcnt_div : (sl.nodes sl.root).metaWord / 2 = metaCount (sl.nodes sl.root).metaWord := rfl
+    have hN := bind_of_readOnly hnd_st hnd_res hnd_vp
+    simp only [ha_ne, ↓reduceIte]
+    rw [(hN _ _).1, (hN _ _).2.1, (hN _ _).2.2.1, (hN _ _).2.2.2, hnd_mc, hcnt_div]
     by_cases hfull : metaCount (sl.nodes sl.root).metaWord = 2 * tMinWhp n_max - 1
     · -- Subcase 2a: Full root (`splitRootIfFull` splits into `sl.alloc`, `sl.alloc + 1`, `sl.root`)
       set spPure := splitFullNode (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
@@ -350,24 +310,19 @@ theorem ensureAndSplitRootGenProg_spec {c U V w n_max base sIdx insCount : ℕ}
       obtain ⟨hlM, hlK, hlV, hsep_lt, hrM, hrK, hrV⟩ := splitFullNode_bits_lt hth hk_rt hv_rt
       let newVals := sl.alloc + ((sl.alloc + 1) <<< valLaneBitsWhp n_max)
       let newRootNd : BTreeNode := ⟨2, spPure.sep, newVals⟩
-      have hm3 : newRootNd.metaWord < 2 ^ nodeMetaBitsWhp n_max := by
-        dsimp only [newRootNd]; omega
-      have hk3 : newRootNd.keysWord < 2 ^ keysWordBitsWhp n_max := by
-        dsimp only [newRootNd]
-        unfold keysWordBitsWhp
-        exact hsep_lt.trans_le
-          (Nat.pow_le_pow_right (by decide) (Nat.le_mul_of_pos_left _ (by omega)))
+      have hm3 : newRootNd.metaWord < 2 ^ nodeMetaBitsWhp n_max := by dsimp only [newRootNd]; omega
+      have hk3 : newRootNd.keysWord < 2 ^ keysWordBitsWhp n_max :=
+        hsep_lt.trans_le (Nat.pow_le_pow_right (by decide) (Nat.le_mul_of_pos_left _ (by omega)))
       have hv3 : newRootNd.valsWord < 2 ^ valsWordBitsWhp n_max := by
         dsimp only [newRootNd, newVals]
         have h2v : sl.alloc + ((sl.alloc + 1) <<< valLaneBitsWhp n_max) <
             2 ^ (2 * valLaneBitsWhp n_max) := by
           rw [Nat.shiftLeft_eq, two_mul, Nat.pow_add]
-          have h0 : sl.alloc < 2 ^ valLaneBitsWhp n_max := by omega
-          have h1 : sl.alloc + 2 ≤ 2 ^ valLaneBitsWhp n_max := halloc_val
           calc sl.alloc + (sl.alloc + 1) * 2 ^ valLaneBitsWhp n_max
               < 2 ^ valLaneBitsWhp n_max + (sl.alloc + 1) * 2 ^ valLaneBitsWhp n_max := by omega
             _ = (sl.alloc + 2) * 2 ^ valLaneBitsWhp n_max := by ring
-            _ ≤ 2 ^ valLaneBitsWhp n_max * 2 ^ valLaneBitsWhp n_max := Nat.mul_le_mul_right _ h1
+            _ ≤ 2 ^ valLaneBitsWhp n_max * 2 ^ valLaneBitsWhp n_max :=
+              Nat.mul_le_mul_right _ halloc_val
         unfold valsWordBitsWhp
         exact h2v.trans_le
           (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right _ (by omega)))
@@ -380,130 +335,26 @@ theorem ensureAndSplitRootGenProg_spec {c U V w n_max base sIdx insCount : ℕ}
       have hsl1_def : sl1 = ⟨sl.alloc + 2, sl.root,
           Function.update (Function.update (Function.update sl.nodes sl.alloc spPure.left)
             (sl.alloc + 1) spPure.right) sl.root newRootNd⟩ := by
-        dsimp only [sl1, splitRootIfFull]
-        have hc : (metaCount (sl.nodes sl.root).metaWord == 2 * tMinWhp n_max - 1) = true := by
-          simp [hfull]
-        rw [hc]; simp only [↓reduceIte, mkNodeMeta, Bool.false_eq_true, Nat.zero_add]; rfl
-      set p0 := (mkWhpCoreParams c U V w n_max, base)
-      set w4prog :=
-        writeBTreeNodeGenProg (((p0, sIdx), sl.alloc),
-          (spPure.left.metaWord, (spPure.left.keysWord, spPure.left.valsWord))) >>= fun _ =>
-        writeBTreeNodeGenProg (((p0, sIdx), sl.alloc + 1),
-          (spPure.right.metaWord, (spPure.right.keysWord, spPure.right.valsWord))) >>= fun _ =>
-        writeBTreeNodeGenProg (((p0, sIdx), sl.root),
-          (newRootNd.metaWord, (newRootNd.keysWord, newRootNd.valsWord))) >>= fun _ =>
-        writeSliceAllocGenProg ((p0, sIdx), sl.alloc + 2)
+        simp [sl1, splitRootIfFull, hfull, mkNodeMeta]; rfl
       have hsp_res := clientResult_splitFullNodeGenProg (U := U) (V := V) (w := w)
         hth (sl.nodes sl.root) s
       dsimp only at hsp_res
-      have hs'_eq : (Memory.spec 0).clientState s
-          (readSliceHeaderGenProg (p0, sIdx) >>= fun hdr =>
-            if hdr.1 = 0 then
-              writeBTreeNodeGenProg (((p0, sIdx), 0), (1, (0, 0))) >>= fun _ =>
-              writeSliceHeaderGenProg ((p0, sIdx), (1, 0)) >>= fun _ =>
-              pure (1, 0)
-            else
-              readBTreeNodeGenProg ((p0, sIdx), hdr.2) >>= fun rootNd =>
-              if rootNd.1 / 2 = 2 * tMinWhp n_max - 1 then
-                splitFullNodeGenProg (p0.1, rootNd) >>= fun sp =>
-                writeSplitFourOpProg ((p0, sIdx),
-                  (((hdr.1, sp.1), (hdr.1 + 1, sp.2.2)),
-                   ((hdr.2, (2, (sp.2.1, hdr.1 + ((hdr.1 + 1) <<< valLaneBitsWhp n_max)))),
-                    hdr.1 + 2))) >>= fun _ =>
-                pure (hdr.1 + 2, hdr.2)
-              else pure hdr) =
-          (Memory.spec 0).clientState s w4prog := by
-        rw [clientState_bind, hcs_h, hres_h]
-        simp only [ha_ne, ↓reduceIte]
-        rw [clientState_bind, hnd_st, hnd_res]
-        dsimp only
-        rw [hcnt_div]
-        simp only [hfull, ↓reduceIte]
-        rw [clientState_bind, clientState_splitFullNodeGenProg, hsp_res]
-        dsimp only
-        rw [clientState_bind_pure, writeSplitFourOpProg_eq]
+      have hS := bind_of_readOnly (clientState_splitFullNodeGenProg _ s) hsp_res
+        (validWhpProg_splitFullNodeGenProg (w := w) (F := base + largeSpaceWhp c U V w n_max) _)
+      simp only [hfull, ↓reduceIte]
+      rw [(hS _ _).1, (hS _ _).2.1, (hS _ _).2.2.1, (hS _ _).2.2.2, memoryCost_splitFullNodeGenProg]
+      dsimp only
+      rw [clientState_bind_pure, clientResult_bind_pure, memoryCost_bind', memoryCost_pure,
+        writeSplitFourOpProg_eq]
       dsimp only [sl1] at hsl1_def ha1_le hrt1 hT1_rt hT1_nf hv1
-      rw [hens, hs'_eq]
-      refine ⟨hfr4, ?_, ?_, ?_, hsl1_def.symm ▸ hrep4, by omega,
-        ⟨T1, hT1_rt, by omega, hT1_nf, hv1⟩, hoth4,
+      rw [hens]
+      refine ⟨hfr4, by rw [hsl1_def], by rw [hmc4], validProg_bind hvp4 (validProg_pure _),
+        hsl1_def.symm ▸ hrep4, by omega, ⟨T1, hT1_rt, by omega, hT1_nf, hv1⟩, hoth4,
         fun idx hidx h1 _ => hbm4 idx hidx h1, hout4⟩
-      · rw [clientResult_bind, hcs_h, hres_h]
-        simp only [ha_ne, ↓reduceIte]
-        rw [clientResult_bind, hnd_st, hnd_res]
-        dsimp only
-        rw [hcnt_div]
-        simp only [hfull, ↓reduceIte]
-        rw [clientResult_bind, clientState_splitFullNodeGenProg, hsp_res]
-        dsimp only
-        rw [clientResult_bind_pure, hsl1_def]
-      · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hcs_h, hmc_h, hres_h]
-        simp only [ha_ne, ↓reduceIte]
-        rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hnd_st, hnd_mc, hnd_res]
-        dsimp only
-        rw [hcnt_div]
-        simp only [hfull, ↓reduceIte]
-        rw [← PFunctor.FreeM.bind_eq_bind]
-        rw [memoryCost_bind, clientState_splitFullNodeGenProg, memoryCost_splitFullNodeGenProg,
-          hsp_res]
-        dsimp only
-        rw [← PFunctor.FreeM.bind_eq_bind]
-        rw [memoryCost_bind, memoryCost_pure, Nat.add_zero, writeSplitFourOpProg_eq]
-        dsimp only [w4prog] at hmc4
-        rw [hmc4]
-      · refine validProg_bind hvp_h ?_
-        rw [hcs_h, hres_h]; simp only [ha_ne, ↓reduceIte]
-        refine validProg_bind hnd_vp ?_
-        rw [hnd_st, hnd_res]; dsimp only; rw [hcnt_div]; simp only [hfull, ↓reduceIte]
-        refine validProg_bind (validWhpProg_splitFullNodeGenProg _) ?_
-        rw [clientState_splitFullNodeGenProg, hsp_res]; dsimp only
-        rw [writeSplitFourOpProg_eq]
-        exact validProg_bind hvp4 (validProg_pure _)
     · -- Subcase 2b: Non-full root (`splitRootIfFull sl = sl`)
-      have hsl1_eq : sl1 = sl := by
-        dsimp only [sl1, splitRootIfFull]
-        have hc : (metaCount (sl.nodes sl.root).metaWord == 2 * tMinWhp n_max - 1) = false := by
-          simp [hfull]
-        rw [hc]; rfl
-      set p0 := (mkWhpCoreParams c U V w n_max, base)
-      have hs'_eq : (Memory.spec 0).clientState s
-          (readSliceHeaderGenProg (p0, sIdx) >>= fun hdr =>
-            if hdr.1 = 0 then
-              writeBTreeNodeGenProg (((p0, sIdx), 0), (1, (0, 0))) >>= fun _ =>
-              writeSliceHeaderGenProg ((p0, sIdx), (1, 0)) >>= fun _ =>
-              pure (1, 0)
-            else
-              readBTreeNodeGenProg ((p0, sIdx), hdr.2) >>= fun rootNd =>
-              if rootNd.1 / 2 = 2 * tMinWhp n_max - 1 then
-                splitFullNodeGenProg (p0.1, rootNd) >>= fun sp =>
-                writeSplitFourOpProg ((p0, sIdx),
-                  (((hdr.1, sp.1), (hdr.1 + 1, sp.2.2)),
-                   ((hdr.2, (2, (sp.2.1, hdr.1 + ((hdr.1 + 1) <<< valLaneBitsWhp n_max)))),
-                    hdr.1 + 2))) >>= fun _ =>
-                pure (hdr.1 + 2, hdr.2)
-              else pure hdr) = s := by
-        rw [clientState_bind, hcs_h, hres_h]
-        simp only [ha_ne, ↓reduceIte]
-        rw [clientState_bind, hnd_st, hnd_res]
-        dsimp only; rw [hcnt_div]; simp only [hfull, ↓reduceIte]; rfl
-      dsimp only [sl1] at hsl1_eq
-      rw [hens, hs'_eq, hsl1_eq]
-      refine ⟨rfl, ?_, ?_, ?_, hrep, by omega,
-        ⟨T, hrt, hht_T.le, by omega, hT⟩,
+      simp only [hfull, hens, splitRootIfFull, beq_iff_eq, ↓reduceIte, memoryCost_pure]
+      exact ⟨rfl, rfl, by omega, validProg_pure _, hrep, by omega, ⟨T, hrt, hht_T.le, by omega, hT⟩,
         fun _ _ _ _ hr => hr, fun _ _ _ _ => rfl, fun _ _ => rfl⟩
-      · rw [clientResult_bind, hcs_h, hres_h]
-        simp only [ha_ne, ↓reduceIte]
-        rw [clientResult_bind, hnd_st, hnd_res]
-        dsimp only; rw [hcnt_div]; simp only [hfull, ↓reduceIte,
-          StateTransitionSpec.clientResult_pure]
-      · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hcs_h, hmc_h, hres_h]
-        simp only [ha_ne, ↓reduceIte]
-        rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hnd_st, hnd_mc, hnd_res]
-        dsimp only; rw [hcnt_div]; simp only [hfull, ↓reduceIte, memoryCost_pure]; omega
-      · refine validProg_bind hvp_h ?_
-        rw [hcs_h, hres_h]; simp only [ha_ne, ↓reduceIte]
-        refine validProg_bind hnd_vp ?_
-        rw [hnd_st, hnd_res]; dsimp only; rw [hcnt_div]; simp only [hfull, ↓reduceIte]
-        exact validProg_pure _
 
 theorem realizes_ensureAndSplitRootGen :
     Realizes .exact ensureAndSplitRootGenProg
@@ -519,21 +370,13 @@ theorem realizes_ensureAndSplitRootGen :
   realize
   all_goals
     rcases d with ⟨⟨cp, base⟩, sIdx⟩
-    dsimp only [EnsureRootGenPre] at h
-    obtain ⟨c, U, V, w₀, n_max, insCount, sl, mapFn,
-      henv, rfl, hsIdx, hins, hrep, hv⟩ := h
+    obtain ⟨c, U, V, _, n_max, insCount, sl, mapFn, henv, rfl, hsIdx, hins, hrep, hv⟩ := h
+    rcases henv.2.2.1 with rfl
     have hth := henv.2.2.2.1
-    have hw_eq := henv.2.2.1
-    subst hw_eq
     have ht8 := eight_le_tMinWhp hth
     have h64 := sixty_four_le_nSliceWhp n_max
     obtain ⟨hcs_h, hres_h, _, _⟩ := readSliceHeaderGenProg_spec hth henv.2.1 hsIdx hrep (s := s)
-    dsimp only at hcs_h hres_h
-    simp only [hcs_h] at *
-    simp only [hres_h] at *
-    try simp only [wp_large_M hth] at *
-    try simp only [wp_large_nSlice hth] at *
-    try simp only [wp_large_tMin hth] at *
+    simp only [hcs_h, hres_h, wp_large_M hth, wp_large_nSlice hth, wp_large_tMin hth] at *
     obtain ⟨halloc_lt, ⟨ha0, _⟩ | ⟨ha_pos, T, hrt, _, _, _, hT⟩⟩ :=
       hv.alloc_and_height_lt hth hins
     · first
@@ -542,13 +385,10 @@ theorem realizes_ensureAndSplitRootGen :
       | exact ⟨c, U, V, w, n_max, henv, rfl⟩
     · have hhi : 2 ^ fpBitsWhp n_max - 1 < 2 ^ fpBitsWhp n_max :=
         Nat.sub_lt (Nat.two_pow_pos _) one_pos
-      obtain ⟨hrt_lt, _, _, _, _, _, _⟩ := validSubtree_root_bounds hth hhi hT
-      rw [hrt] at hrt_lt
+      have hrt_lt : sl.root < sl.alloc := hrt ▸ (validSubtree_root_bounds hth hhi hT).1
       obtain ⟨hnd_st, hnd_res, _, _⟩ := readBTreeNodeGenProg_spec hth henv.2.1 hsIdx hrt_lt hrep
         (s := s)
-      dsimp only at hnd_st hnd_res
-      simp only [hnd_st] at *
-      simp only [hnd_res] at *
+      simp only [hnd_st, hnd_res] at *
       have hkw_lt : 2 * tMinWhp n_max * keyLaneBitsWhp n_max < w := henv.keysWordBits_lt_w
       try dsimp only [SplitFullRootPre]
       first

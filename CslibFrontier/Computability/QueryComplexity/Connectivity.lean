@@ -80,36 +80,24 @@ private theorem free_card_le_depth {n : ℕ} (t : DecisionTree (Fin (edgeCount n
   classical
   induction t generalizing ρ with
   | leaf b =>
-    have heval : connectivity n (ρ.fill fun _ => false) =
-        connectivity n (ρ.fill fun _ => true) :=
-      (ht (ρ.fill fun _ => false) (ρ.agrees_fill _)).symm.trans
-        (ht (ρ.fill fun _ => true) (ρ.agrees_fill _))
-    have hL : (lowerGraph ρ).Connected := connectivity_eq_true.mp
-      (heval.trans (connectivity_eq_true.mpr hU))
-    have heq : lowerGraph ρ = upperGraph ρ :=
+    have hL : (lowerGraph ρ).Connected := connectivity_eq_true.mp <|
+      ((ht (ρ.fill fun _ => false) (ρ.agrees_fill _)).symm.trans
+        (ht (ρ.fill fun _ => true) (ρ.agrees_fill _))).trans (connectivity_eq_true.mpr hU)
+    have hwords := graph_injective <|
       hL.preconnected.eq_of_forall_isBridge (lowerGraph_le_upperGraph ρ) hbridge
-    have hwords := graph_injective heq
-    have hfree : ρ.free = ∅ := by
-      apply Finset.eq_empty_iff_forall_notMem.mpr
-      intro i hi
-      have h := congrFun hwords i
-      simp [PartialAssignment.fill, PartialAssignment.mem_free.mp hi] at h
+    have hfree : ρ.free = ∅ := Finset.eq_empty_iff_forall_notMem.mpr fun i hi => by
+      simpa [PartialAssignment.fill, PartialAssignment.mem_free.mp hi] using congrFun hwords i
     simp [hfree]
   | node i left right ihl ihr =>
-    have hdepthl : left.depth ≤ (DecisionTree.node i left right).depth := by
-      simp only [DecisionTree.depth_node]; omega
-    have hdepthr : right.depth ≤ (DecisionTree.node i left right).depth := by
-      simp only [DecisionTree.depth_node]; omega
     cases hρi : ρ i with
     | some b =>
-      have hquery (x) (hx : ρ.Agrees x) : x i = b := hx i b hρi
-      cases b with
-      | false =>
-        apply (ihl ρ (fun x hx => ?_) hU hbridge).trans hdepthl
-        simpa only [DecisionTree.eval_node, hquery x hx, Bool.cond_false] using ht x hx
-      | true =>
-        apply (ihr ρ (fun x hx => ?_) hU hbridge).trans hdepthr
-        simpa only [DecisionTree.eval_node, hquery x hx, Bool.cond_true] using ht x hx
+      cases b
+      · refine (ihl ρ (fun x hx => ?_) hU hbridge).trans
+          (by simp only [DecisionTree.depth_node]; omega)
+        simpa only [DecisionTree.eval_node, hx i false hρi, Bool.cond_false] using ht x hx
+      · refine (ihr ρ (fun x hx => ?_) hU hbridge).trans
+          (by simp only [DecisionTree.depth_node]; omega)
+        simpa only [DecisionTree.eval_node, hx i true hρi, Bool.cond_true] using ht x hx
     | none =>
       have hi : i ∈ ρ.free := PartialAssignment.mem_free.mpr hρi
       have hbranch (b : Bool) (x) (hx : PartialAssignment.Agrees (Function.update ρ i (some b)) x) :
@@ -118,53 +106,43 @@ private theorem free_card_le_depth {n : ℕ} (t : DecisionTree (Fin (edgeCount n
         have hxρ : ρ.Agrees x := ((PartialAssignment.Extends.refl ρ).update_some hi b).agrees hx
         cases b <;> simpa only [DecisionTree.eval_node, hxi, Bool.cond_false, Bool.cond_true]
           using ht x hxρ
+      -- It suffices to bound the branch taken after fixing the queried edge.
+      suffices ∃ b, (PartialAssignment.free (Function.update ρ i (some b))).card ≤
+          (cond b right left).depth by
+        obtain ⟨b, hb⟩ := this
+        rw [PartialAssignment.free_update] at hb
+        have hcard := Finset.card_erase_add_one hi
+        cases b <;> simp only [DecisionTree.depth_node, Bool.cond_false, Bool.cond_true] at hb ⊢ <;>
+          omega
       let e : Edge n := (edgeEquiv n).symm i
-      by_cases hb : (upperGraph ρ).IsBridge e.val
+      by_cases hb : (upperGraph ρ).IsBridge e.1
       · have hUeq : upperGraph (Function.update ρ i (some true)) = upperGraph ρ := by
           simp only [upperGraph, PartialAssignment.fill_update]
           rw [Function.update_eq_self_iff.mpr
             (PartialAssignment.fill_of_eq_none hρi (fun _ => true)).symm]
-        have hB : ∀ a ∈ (lowerGraph (Function.update ρ i (some true))).edgeSet,
-            (upperGraph (Function.update ρ i (some true))).IsBridge a := by
-          intro a ha
-          rw [hUeq]
-          have hdiag := (lowerGraph (Function.update ρ i (some true))).not_isDiag_of_mem_edgeSet ha
-          have hbit := (mem_edgeSet_graph _ ⟨a, hdiag⟩).mp ha
-          change PartialAssignment.fill (Function.update ρ i (some true)) (fun _ => false)
-            (edgeEquiv n ⟨a, hdiag⟩) = true at hbit
-          rw [PartialAssignment.fill_update] at hbit
-          by_cases hai : edgeEquiv n ⟨a, hdiag⟩ = i
-          · have hae : a = e.val := congrArg Subtype.val
-              ((edgeEquiv n).injective (hai.trans (Equiv.apply_symm_apply _ _).symm))
-            exact hae ▸ hb
-          · rw [Function.update_of_ne hai] at hbit
-            exact hbridge a ((mem_edgeSet_graph _ ⟨a, hdiag⟩).mpr hbit)
-        have hbound := ihr _ (hbranch true) (hUeq ▸ hU) hB
-        rw [PartialAssignment.free_update] at hbound
-        have hcard := Finset.card_erase_add_one hi
-        simp only [DecisionTree.depth_node]
-        omega
+        refine ⟨true, ihr _ (hbranch true) (hUeq ▸ hU) fun a ha => ?_⟩
+        rw [hUeq]
+        simp only [lowerGraph, PartialAssignment.fill_update] at ha
+        have hdiag := SimpleGraph.not_isDiag_of_mem_edgeSet _ ha
+        have hbit := (mem_edgeSet_graph _ ⟨a, hdiag⟩).mp ha
+        by_cases hai : edgeEquiv n ⟨a, hdiag⟩ = i
+        · have hae : a = e.1 := congrArg Subtype.val ((Equiv.eq_symm_apply _).mpr hai)
+          exact hae ▸ hb
+        · rw [Function.update_of_ne hai] at hbit
+          exact hbridge a ((mem_edgeSet_graph _ ⟨a, hdiag⟩).mpr hbit)
       · have hUeq : upperGraph (Function.update ρ i (some false)) =
-            (upperGraph ρ).deleteEdges {e.val} := by
+            (upperGraph ρ).deleteEdges {e.1} := by
           simp only [upperGraph, PartialAssignment.fill_update, graph_update_false, e]
         have hLeq : lowerGraph (Function.update ρ i (some false)) = lowerGraph ρ := by
           simp only [lowerGraph, PartialAssignment.fill_update]
           rw [Function.update_eq_self_iff.mpr
             (PartialAssignment.fill_of_eq_none hρi (fun _ => false)).symm]
-        have hconn : (upperGraph (Function.update ρ i (some false))).Connected := by
-          rw [hUeq]
+        refine ⟨false, ihl _ (hbranch false) ?_ fun a ha => ?_⟩
+        · rw [hUeq]
           exact hU.preconnected.connected_deleteEdges_of_not_isBridge hb
-        have hB : ∀ a ∈ (lowerGraph (Function.update ρ i (some false))).edgeSet,
-            (upperGraph (Function.update ρ i (some false))).IsBridge a := by
-          intro a ha
-          rw [hLeq] at ha
+        · rw [hLeq] at ha
           rw [hUeq]
           exact (hbridge a ha).anti (SimpleGraph.deleteEdges_le _)
-        have hbound := ihl _ (hbranch false) hconn hB
-        rw [PartialAssignment.free_update] at hbound
-        have hcard := Finset.card_erase_add_one hi
-        simp only [DecisionTree.depth_node]
-        omega
 
 /-- **Connectivity is evasive:** deciding connectivity of a labelled undirected simple graph
 requires every possible edge in the worst case [AroraBarak07] (public draft, Theorem 11.4). -/

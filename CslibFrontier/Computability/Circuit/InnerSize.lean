@@ -271,13 +271,10 @@ private theorem Program.exists_dedup {U : Type*} (I : Interpretation σ U)
   induction p with
   | empty =>
     refine ⟨0, .empty, id, fun | .input i => .inr (.inr i, id) | .gate k => k.elim0,
-      fun _ _ => rfl, fun _ _ => trivial, le_rfl, ?_, ?_⟩
-    · intro x w'
-      cases w' with
-      | input i => rfl
-      | gate k => exact k.elim0
-    · intro k' _
-      exact k'.elim0
+      fun _ _ => rfl, fun _ _ => trivial, le_rfl, fun _ w' => ?_, fun k' _ => k'.elim0⟩
+    cases w' with
+    | input i => rfl
+    | gate k => exact k.elim0
   | @gate g p line ih =>
     obtain ⟨g', p', remap, tag, htrace, hfan, hmult, htag, hinj⟩ := ih
     let line' : Line σ n g' := line.mapWires remap
@@ -318,8 +315,7 @@ private theorem Program.exists_dedup {U : Type*} (I : Interpretation σ U)
           · simp only [remap'', Fin.lastCases_castSucc, p'', Program.trace_gate_castSucc]
             exact (htrace x (.gate j)).trans
               (Program.trace_gate_castSucc p line I x (.gate j)).symm
-      · intro r ⟨hfp, hfl⟩
-        exact ⟨hfan r hfp, hfl⟩
+      · exact fun r h => ⟨hfan r h.1, h.2⟩
       · intro x w'
         cases w' with
         | input i => rfl
@@ -328,24 +324,16 @@ private theorem Program.exists_dedup {U : Type*} (I : Interpretation σ U)
           · simpa only [tag'', Fin.lastCases_last, p''] using ht_last x
           · simp only [tag'', Fin.lastCases_castSucc, evalDedupTag_lift, p'']
             exact (Program.trace_gate_castSucc p' line' I x (.gate j')).trans (htag x (.gate j'))
-      · intro k₁ hk₁ k₂ hk₂ heq
-        refine Fin.lastCases ?_ (fun j₁ => ?_) k₁ hk₁ heq
-        · intro hk₁'
-          refine Fin.lastCases (fun _ _ => rfl) (fun j₂ hk₂' heq' => ?_) k₂ hk₂
-          simp only [tag'', Fin.lastCases_last, Fin.lastCases_castSucc] at heq'
-          have hj₂ : j₂ ∉ p'.multiaryGates :=
-            fun h => hk₂' ((Program.mem_multiaryGates_gate_castSucc p' line' j₂).mpr h)
-          exact (hinj_last j₂ hj₂ hk₁' heq').elim
-        · intro hk₁'
-          have hj₁ : j₁ ∉ p'.multiaryGates :=
-            fun h => hk₁' ((Program.mem_multiaryGates_gate_castSucc p' line' j₁).mpr h)
-          refine Fin.lastCases (fun hk₂' heq' => ?_) (fun j₂ hk₂' heq' => ?_) k₂ hk₂
-          · simp only [tag'', Fin.lastCases_last, Fin.lastCases_castSucc] at heq'
-            exact (hinj_last j₁ hj₁ hk₂' heq'.symm).elim
-          · simp only [tag'', Fin.lastCases_castSucc] at heq'
-            have hj₂ : j₂ ∉ p'.multiaryGates :=
-              fun h => hk₂' ((Program.mem_multiaryGates_gate_castSucc p' line' j₂).mpr h)
-            exact congrArg Fin.castSucc (hinj hj₁ hj₂ (liftDedupTag_injective p' line' heq'))
+      · have hnm {j : Fin g'} (h : j.castSucc ∉ p''.multiaryGates) : j ∉ p'.multiaryGates :=
+          mt (Program.mem_multiaryGates_gate_castSucc p' line' j).mpr h
+        intro k₁ hk₁ k₂ hk₂ heq
+        induction k₁ using Fin.lastCases <;> induction k₂ using Fin.lastCases <;>
+          simp only [tag'', Fin.lastCases_last, Fin.lastCases_castSucc] at heq
+        · rfl
+        · exact (hinj_last _ (hnm hk₂) hk₁ heq).elim
+        · exact (hinj_last _ (hnm hk₁) hk₂ heq.symm).elim
+        · exact congrArg Fin.castSucc
+            (hinj (hnm hk₁) (hnm hk₂) (liftDedupTag_injective p' line' heq))
     by_cases h2 : 2 ≤ σ.Arity line.op
     · -- Multiary gate: always emit `line'`.
       have hlast_mem : Fin.last g' ∈ (p'.gate line').multiaryGates :=
@@ -360,11 +348,8 @@ private theorem Program.exists_dedup {U : Type*} (I : Interpretation σ U)
           ∀ x, line'.eval I x (p'.eval I x) = evalDedupTag I p' x t_new := by
         rcases (by omega : σ.Arity line.op = 0 ∨ σ.Arity line.op = 1) with h0 | h1
         · have h0' : σ.Arity line'.op = 0 := h0
-          refine ⟨.inl (I line'.op fun a => absurd a.isLt (by omega)), fun x => ?_⟩
-          change I line'.op _ = I line'.op _
-          congr 1
-          funext a
-          exact absurd a.isLt (by omega)
+          exact ⟨.inl (I line'.op fun a => absurd a.isLt (by omega)), fun x =>
+            congrArg (I line'.op) (funext fun a => absurd a.isLt (by omega))⟩
         · have h1' : σ.Arity line'.op = 1 := h1
           let a₀ : Fin (σ.Arity line'.op) := ⟨0, by omega⟩
           let w₀ : Wire n g' := line'.wires a₀
@@ -397,10 +382,8 @@ private theorem Program.exists_dedup {U : Type*} (I : Interpretation σ U)
             · simp only [remap'', Fin.lastCases_castSucc]
               exact (htrace x (.gate j)).trans
                 (Program.trace_gate_castSucc p line I x (.gate j)).symm
-        · intro r ⟨hfp, _⟩
-          exact hfan r hfp
-        · rw [Program.card_multiaryGates_gate_of_lt p line h2]
-          exact hmult
+        · exact fun r h => hfan r h.1
+        · exact hmult.trans_eq (Program.card_multiaryGates_gate_of_lt p line h2).symm
       · -- Fresh tag: emit `line'` and record `t_new`.
         refine appendGate (liftDedupTag p' line' t_new)
           (fun x => by simp only [evalDedupTag_lift, ← ht_new x, Program.trace_gateWire,
@@ -435,18 +418,14 @@ theorem Circuit.exists_eval_eq_multiarySize_size_le {U : Type*} [Finite U]
       omega
     have hnonmult : (Finset.univ \ p'.multiaryGates).card ≤ Fintype.card (DedupTag U p') := by
       rw [← Finset.card_univ (α := DedupTag U p')]
-      refine Finset.card_le_card_of_injOn (fun k' => tag (.gate k'))
-        (fun _ _ => Finset.mem_univ _) ?_
-      intro k₁ hk₁ k₂ hk₂ heq
-      exact hinj (Finset.mem_sdiff.mp hk₁).2 (Finset.mem_sdiff.mp hk₂).2 heq
+      exact Finset.card_le_card_of_injOn (fun k' => tag (.gate k'))
+        (fun _ _ => Finset.mem_univ _) fun k₁ hk₁ k₂ hk₂ heq =>
+          hinj (Finset.mem_sdiff.mp hk₁).2 (Finset.mem_sdiff.mp hk₂).2 heq
     have hcard_tag : Fintype.card (DedupTag U p') =
         Nat.card U + (p'.multiaryGates.card + n) * Nat.card U ^ Nat.card U := by
       simp only [DedupTag, Fintype.card_sum, Fintype.card_prod, Fintype.card_coe,
         Fintype.card_fin, Fintype.card_pi, Finset.prod_const, Finset.card_univ,
         Nat.card_eq_fintype_card]
-    have h1 : g' ≤ p'.multiaryGates.card +
-        (Nat.card U + (p'.multiaryGates.card + n) * Nat.card U ^ Nat.card U) := by
-      omega
     have h2 : (p'.multiaryGates.card + n) * Nat.card U ^ Nat.card U ≤
         (c.multiarySize + n) * Nat.card U ^ Nat.card U :=
       Nat.mul_le_mul_right _ (Nat.add_le_add_right hmult n)

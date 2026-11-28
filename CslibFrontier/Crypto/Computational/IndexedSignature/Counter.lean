@@ -146,9 +146,9 @@ theorem counterVerify_of_mem_support_counterSigningOracle (n : ℕ) (keys : List
     (hresult :
       result ∈ (ProbComp.eval (S.counterSigningOracle n keys.2 request (j, signed))).support) :
     S.counterVerify keys.1 request.2 result.1 = true ∧ result.2 = (j + 1, request.2 :: signed) := by
-  simp only [counterSigningOracle, hj, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hresult
-  obtain ⟨sig, hsig, rfl⟩ := hresult
+  obtain ⟨sig, hsig, rfl⟩ := (by
+    simpa only [counterSigningOracle, hj, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
+      PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] using hresult)
   exact ⟨counterVerify_sign n keys hkeys hj request.2 sig hsig, rfl⟩
 
 /-! ### Efficiency of the game -/
@@ -213,14 +213,13 @@ theorem isPPTOn_run_counterSigningOracle {adversary : Forger}
         2 * S.capacity caller.1 + 2 * query.length + 4)
     (by fun_prop) hhandler (ComputableInPolyTime.const (0, []))
     (fun _ _ => True) (fun _ => trivial) (by fun_prop)
-  intro caller request state _ result hresult
-  obtain ⟨j, signed⟩ := state
+  intro caller request ⟨j, signed⟩ _ result hresult
   unfold counterSigningOracle at hresult
   dsimp only at hresult
   split_ifs at hresult with hj
-  · simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
-      PMF.mem_support_pure_iff] at hresult
-    obtain ⟨sig, hsig, rfl⟩ := hresult
+  · obtain ⟨sig, hsig, rfl⟩ := (by
+      simpa only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
+        PMF.mem_support_pure_iff] using hresult)
     have hsigLen := hlen (caller.2.2, j, request.2) sig hsig
     simp only [encBits_apply, encUnary_apply, length_encPair, List.length_replicate] at hsigLen
     have hpow : c * (2 * caller.2.2.length + 1 + (2 * j + 1 + request.2.length) + 1) ^ d ≤
@@ -229,8 +228,8 @@ theorem isPPTOn_run_counterSigningOracle {adversary : Forger}
     refine ⟨trivial, ?_, ?_⟩
     · enc_len
     · enc_len
-  · simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hresult
-    subst hresult
+  · obtain rfl : result = ([], j, signed) := by
+      simpa only [ProbComp.eval_pure, PMF.mem_support_pure_iff] using hresult
     exact ⟨trivial, by simp, by lia⟩
 
 /-- The whole counter EUF-CMA experiment is uniformly strict PPT in its unary security parameter
@@ -271,9 +270,8 @@ theorem CounterEUFCMA.of_negligible
     (h : ∀ adversary, IsOraclePPT (encPair encBits encBits) adversary →
       Negligible (fun n =>
         Game.succProbability (ProbComp.eval (S.counterEufCmaGame adversary n)))) :
-    S.CounterEUFCMA := by
-  intro adversary hadversary
-  simpa only [Game.advantage_pure_false] using h adversary hadversary
+    S.CounterEUFCMA :=
+  fun a ha => by simpa only [Game.advantage_pure_false] using h a ha
 
 /-! ### The reduction to indexed forgery -/
 
@@ -325,9 +323,8 @@ private theorem jointOracle_of_lt {n : ℕ} {sk : List Bool} {bound : ℕ → �
           (j, w) :: signed) := by
   have hmapApply : ∀ {σ β γ : Type} (f : β → γ) (p : StateT σ PMF β) (state : σ),
       (f <$> p) state = (p state).map (fun r => (f r.1, r.2)) := fun _ _ _ => rfl
-  have hnot : j ∉ signed.map Prod.fst := by
-    simp only [List.mem_map, not_exists, not_and]
-    exact fun e he heq => (hinv e he).ne heq
+  have hnot : j ∉ signed.map Prod.fst :=
+    mt List.mem_map.mp fun ⟨e, he, heq⟩ => (hinv e he).ne heq
   simp only [jointOracle, counterHandler, StateT.run, hj, ↓reduceIte, OracleComp.interpret_map,
     ProbOracleComp.interpret_query, hmapApply, indexedSigningOracle, requestDecoder.decode_enc,
     hnot, not_false_eq_true, and_self, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind,
@@ -361,24 +358,20 @@ private theorem map_run_jointOracle {n : ℕ} {sk : List Bool} {bound : ℕ → 
     (by simp)
   · rintro ⟨⟨⟩, w⟩ ⟨j, signed⟩ hinv a ⟨j', signed'⟩ hmem
     by_cases hj : j < S.capacity n
-    · rw [jointOracle_of_lt hj hinv] at hmem
-      simp only [PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-      obtain ⟨σ, -, -, rfl, rfl⟩ := hmem
-      intro e he
-      rcases List.mem_cons.mp he with rfl | he
-      · exact Nat.lt_succ_self _
-      · exact (hinv e he).trans (Nat.lt_succ_self _)
-    · rw [jointOracle_of_le hj] at hmem
-      simp only [PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-      obtain ⟨-, rfl, rfl⟩ := hmem
+    · rw [jointOracle_of_lt hj hinv, PMF.mem_support_bind_iff] at hmem
+      obtain ⟨_, -, hmem⟩ := hmem
+      cases (PMF.mem_support_pure_iff _ _).mp hmem
+      exact List.forall_mem_cons.2 ⟨Nat.lt_succ_self _,
+        fun e he => (hinv e he).trans (Nat.lt_succ_self _)⟩
+    · cases (PMF.mem_support_pure_iff _ _).mp (jointOracle_of_le hj ▸ hmem)
       exact hinv
   · rintro ⟨⟨⟩, w⟩ ⟨j, signed⟩ hinv
     by_cases hj : j < S.capacity n
     · rw [jointOracle_of_lt hj hinv]
       simp only [counterSigningOracle, hj, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
         PMF.map_bind, PMF.pure_map, List.map_cons]
-      refine PMF.bind_congr_on_support _ _ _ fun σ hσ => ?_
-      rw [List.take_of_length_le (hbound j hj w σ hσ)]
+      exact PMF.bind_congr_on_support _ _ _ fun σ hσ => by
+        rw [List.take_of_length_le (hbound j hj w σ hσ)]
     · rw [jointOracle_of_le hj]
       simp only [counterSigningOracle, hj, ↓reduceIte, ProbComp.eval_pure, PMF.pure_map]
 
@@ -440,14 +433,12 @@ theorem succProbability_counterEufCmaGame_le {bound : ℕ → ℕ → ℕ} {n : 
   refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) ?_
   rw [eval_counterEufCmaGame_eq hbound adversary, eval_indexedEufCmaGame_counterForger,
     PMF.bind_apply, PMF.bind_apply]
-  refine tsum_le_tsum fun keys => mul_le_mul_right ?_ _
-  refine PMF.map_true_mono _ fun r _ hwin => ?_
+  refine tsum_le_tsum fun keys => mul_le_mul_right (PMF.map_true_mono _ fun r _ hwin => ?_) _
   simp only [indexedWin, counterVerify, Bool.and_eq_true, Bool.not_eq_eq_eq_not,
     Bool.not_true] at hwin ⊢
   obtain ⟨⟨hcap, hfresh⟩, hverify⟩ := hwin
-  refine ⟨⟨hcap, ?_⟩, hverify⟩
   rw [← Bool.not_eq_true, List.contains_iff_mem] at hfresh ⊢
-  exact fun hmem => hfresh (List.mem_map.mpr ⟨_, hmem, rfl⟩)
+  exact ⟨⟨hcap, fun hmem => hfresh (List.mem_map.mpr ⟨_, hmem, rfl⟩)⟩, hverify⟩
 
 /-! ### Efficiency of the reduction -/
 
@@ -492,8 +483,7 @@ private theorem counterHandler_bound {bound : ℕ → ℕ → ℕ} (c : ℕ × L
     obtain ⟨raw, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hsig
     have htake := List.length_take_le (bound c.1 request.2.length) raw
     enc_len
-  · have h := OracleComp.eq_of_mem_supportWith_pure hresult
-    subst h
+  · obtain rfl := OracleComp.eq_of_mem_supportWith_pure hresult
     enc_len
 
 /-- The counter forger's reduction is uniformly strict oracle PPT for every oracle-PPT forger and
@@ -542,12 +532,9 @@ at the counter's index and the forgery with its index; it is certified (`isOracl
 and has loss `1` (`succProbability_counterEufCmaGame_le`). -/
 theorem IndexedEUFCMA.counterEUFCMA (h : S.IndexedEUFCMA) : S.CounterEUFCMA := by
   obtain ⟨bound, hboundPoly, hbound⟩ := S.exists_sign_length_bound
-  apply CounterEUFCMA.of_negligible
-  intro adversary hadversary
-  exact negligible_of_le
-    (h.negligible (S.counterForger bound adversary)
-      (isOraclePPT_counterForger hboundPoly hadversary))
-    fun n => succProbability_counterEufCmaGame_le (hbound n) adversary
+  exact CounterEUFCMA.of_negligible fun adversary hadversary =>
+    negligible_of_le (h.negligible _ (isOraclePPT_counterForger hboundPoly hadversary))
+      fun n => succProbability_counterEufCmaGame_le (hbound n) adversary
 
 end IndexedSignatureScheme
 

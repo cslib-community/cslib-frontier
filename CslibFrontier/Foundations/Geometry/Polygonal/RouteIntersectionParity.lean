@@ -16,7 +16,8 @@ import CslibFrontier.Foundations.Geometry.Polygonal.RayParityDirection
 
 `Route.intersectionParity` counts pairs of indexed segments whose open interiors meet.
 The count retains both occurrences of any retraced segment. It is symmetric and
-invariant under nonzero complex multiplication. When the listed nodes of each route
+invariant under reversal and nonzero complex multiplication. The parity of a concatenated
+route is the sum of the parities of its two parts. When the listed nodes of each route
 avoid the other route, observing a closed route at the ends of a second route computes
 this parity. Two finite families of routes with nondegenerate segments and even endpoint
 incidence have even total intersection parity when the selected families avoid each other's
@@ -42,6 +43,30 @@ theorem intersectionParity_symm (p q : Route) :
   rw [Finset.sum_comm]
   simp only [Set.inter_comm]
 
+/-- Reversal permutes the indexed segments and reverses the ends of each one. -/
+theorem intersectionParity_reverse_left (p q : Route) :
+    p.reverse.intersectionParity q = p.intersectionParity q := by
+  classical
+  unfold intersectionParity
+  refine Fintype.sum_equiv (Fin.revPerm : Equiv.Perm (Fin p.segments)) _ _ fun i => ?_
+  apply Finset.sum_congr rfl
+  intro j _
+  simp only [Fin.revPerm_apply]
+  change decide ((openSegment ℝ (p.point i.castSucc.rev) (p.point i.succ.rev) ∩
+    openSegment ℝ (q.point j.castSucc) (q.point j.succ)).Nonempty) =
+    decide ((openSegment ℝ (p.point i.rev.castSucc) (p.point i.rev.succ) ∩
+      openSegment ℝ (q.point j.castSucc) (q.point j.succ)).Nonempty)
+  rw [Fin.rev_castSucc, Fin.rev_succ, openSegment_symm ℝ (p.point i.rev.succ)]
+
+/-- Joining two routes with matching ends adds their indexed crossing parities against a
+third route. No disjointness of the first two supports is needed. -/
+theorem intersectionParity_concat_left (p q s : Route) (h : p.finish = q.start) :
+    (p.concat q).intersectionParity s = p.intersectionParity s + q.intersectionParity s := by
+  classical
+  exact sum_segments_concat p q h fun a b =>
+    ∑ j : Fin s.segments, decide
+      ((openSegment ℝ a b ∩ openSegment ℝ (s.point j.castSucc) (s.point j.succ)).Nonempty)
+
 open Classical in
 /-- Two straight routes have one indexed pair of segments, so their intersection parity
 is exactly the test for a common point of the two open segments. -/
@@ -50,26 +75,22 @@ theorem intersectionParity_line_line (a b c d : ℂ) :
       decide ((openSegment ℝ a b ∩ openSegment ℝ c d).Nonempty) := by
   unfold intersectionParity
   change (∑ i : Fin 1, ∑ j : Fin 1, _) = _
-  rw [Fin.sum_univ_one, Fin.sum_univ_one]
-  rfl
+  rw [Fin.sum_univ_one, Fin.sum_univ_one]; rfl
 
 /-- Nonzero complex multiplication preserves incidence of the open segment pairs. -/
 theorem intersectionParity_mulComplex (p q : Route) {u : ℂ} (hu : u ≠ 0) :
     (mulComplex u p).intersectionParity (mulComplex u q) = p.intersectionParity q := by
   classical
   let f : ℂ →ₗ[ℝ] ℂ := (LinearMap.mulLeft ℂ u).restrictScalars ℝ
-  have hf : Function.Injective f := fun _ _ h => mul_left_cancel₀ hu h
+  have hf : Function.Injective f.toAffineMap := fun _ _ h => mul_left_cancel₀ hu h
   unfold intersectionParity
   change (∑ i : Fin p.segments, ∑ j : Fin q.segments, _) = _
-  apply Finset.sum_congr rfl
-  intro i _
-  apply Finset.sum_congr rfl
-  intro j _
+  refine Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j _ => ?_
   change decide ((openSegment ℝ (f.toAffineMap (p.point i.castSucc))
     (f.toAffineMap (p.point i.succ))) ∩ openSegment ℝ
     (f.toAffineMap (q.point j.castSucc)) (f.toAffineMap (q.point j.succ))).Nonempty = _
   rw [← image_openSegment ℝ f.toAffineMap, ← image_openSegment ℝ f.toAffineMap,
-    ← Set.image_inter (show Function.Injective f.toAffineMap from hf), Set.image_nonempty]
+    ← Set.image_inter hf, Set.image_nonempty]
 
 /-- A finite family of routes with nondegenerate pieces admits one coordinate factor
 making every piece nonhorizontal. -/
@@ -129,11 +150,8 @@ theorem sum_intersectionParity_eq_false_of_even {ι κ : Type*} [Fintype ι] [Fi
     (∑ j, y j * ∑ i, x i * (p i).intersectionParity (q j)) = false := by
   classical
   let routes : ι ⊕ κ → Route := Sum.elim p q
-  have hne (i : ι ⊕ κ) (k : Fin (routes i).segments) :
-      (routes i).point k.castSucc ≠ (routes i).point k.succ := by
-    cases i with
-    | inl i => exact hp i k
-    | inr j => exact hq j k
+  have hne : ∀ i (k : Fin (routes i).segments),
+      (routes i).point k.castSucc ≠ (routes i).point k.succ := Sum.rec hp hq
   obtain ⟨u, hu, hheight⟩ := exists_mul_im_ne_of_segments_ne routes hne
   let a (k : (i : ι) × Fin (p i).segments) := u * (p k.1).point k.2.castSucc
   let b (k : (i : ι) × Fin (p i).segments) := u * (p k.1).point k.2.succ
@@ -154,20 +172,14 @@ theorem sum_intersectionParity_eq_false_of_even {ι κ : Type*} [Fintype ι] [Fi
       exact ⟨pointP _, pointP _, pointQ _, pointQ _⟩)
     (even_mul_segment_endpoints p x hu hx) (even_mul_segment_endpoints q y hu hy)
   rw [← Bool.zero_eq_false, ← h, Fintype.sum_sigma]
-  apply Finset.sum_congr rfl
-  intro j _
+  refine Finset.sum_congr rfl fun j _ => ?_
   simp only [Fintype.sum_sigma, Finset.mul_sum]
   rw [Finset.sum_comm]
-  apply Finset.sum_congr rfl
-  intro i _
+  refine Finset.sum_congr rfl fun i _ => ?_
   rw [← intersectionParity_mulComplex (p i) (q j) hu, intersectionParity]
   simp only [Finset.mul_sum]
   rw [Finset.sum_comm]
-  apply Finset.sum_congr rfl
-  intro l _
-  apply Finset.sum_congr rfl
-  intro k _
-  congr 2
+  exact Finset.sum_congr rfl fun l _ => Finset.sum_congr rfl fun k _ => by congr 2
 
 /-- The ray-parity difference of a closed route at the ends of a second route equals
 their indexed intersection parity. Each route's listed nodes avoid the other support,

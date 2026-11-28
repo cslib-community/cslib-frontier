@@ -183,55 +183,26 @@ theorem Clause.sum_falsifyMonomials (c : Clause V) (σ : V → Bool) :
   change ∑ M ∈ (if Disjoint pos neg then pos.powerset.image fun S => S ∪ neg else ∅),
       monomial (ZMod 2) M σ = bitVal (ZMod 2) (!c.eval σ)
   split_ifs with hdisj
-  · have hinj : Set.InjOn (fun S : Finset V => S ∪ neg) pos.powerset := by
-      intro S₁ hS₁ S₂ hS₂ heq
-      dsimp only at heq
-      have hS₁' : S₁ ⊆ pos := Finset.mem_powerset.mp (Finset.mem_coe.mp hS₁)
-      have hS₂' : S₂ ⊆ pos := Finset.mem_powerset.mp (Finset.mem_coe.mp hS₂)
-      ext v
-      constructor
-      · intro hv
-        have hv_un : v ∈ S₂ ∪ neg := by
-          rw [← heq]
-          exact Finset.mem_union_left _ hv
-        exact (Finset.mem_union.mp hv_un).resolve_right
-          (Finset.disjoint_left.mp hdisj (hS₁' hv))
-      · intro hv
-        have hv_un : v ∈ S₁ ∪ neg := by
-          rw [heq]
-          exact Finset.mem_union_left _ hv
-        exact (Finset.mem_union.mp hv_un).resolve_right
-          (Finset.disjoint_left.mp hdisj (hS₂' hv))
+  · have hinj : Set.InjOn (fun S : Finset V => S ∪ neg) pos.powerset := fun S₁ hS₁ S₂ hS₂ heq => by
+      rw [← Finset.union_sdiff_cancel_right (hdisj.mono_left (Finset.mem_powerset.mp hS₁)),
+        show S₁ ∪ neg = S₂ ∪ neg from heq,
+        Finset.union_sdiff_cancel_right (hdisj.mono_left (Finset.mem_powerset.mp hS₂))]
     rw [Finset.sum_image hinj]
     have hmul : ∀ S ∈ pos.powerset,
         monomial (ZMod 2) (S ∪ neg) σ = monomial (ZMod 2) S σ * monomial (ZMod 2) neg σ := by
       intro S _
       simpa only [Pi.mul_apply] using congrFun (monomial_mul (R := ZMod 2) S neg).symm σ
     rw [Finset.sum_congr rfl hmul, ← Finset.sum_mul]
-    let posTrue := pos.filter fun v => σ v = true
     have hpos_sum : ∑ S ∈ pos.powerset, monomial (ZMod 2) S σ =
         if ∀ v ∈ pos, σ v = false then 1 else 0 := by
-      have hfilt : (pos.powerset.filter fun S => ∀ v ∈ S, σ v = true) = posTrue.powerset := by
+      have hfilt : (pos.powerset.filter fun S => ∀ v ∈ S, σ v = true) =
+          (pos.filter fun v => σ v = true).powerset := by
         ext S
-        simp only [posTrue, Finset.mem_filter, Finset.mem_powerset]
-        exact ⟨fun ⟨hSp, hSσ⟩ v hv => Finset.mem_filter.mpr ⟨hSp hv, hSσ v hv⟩,
-          fun hS => ⟨fun v hv => (Finset.mem_filter.mp (hS hv)).1,
-            fun v hv => (Finset.mem_filter.mp (hS hv)).2⟩⟩
-      simp only [monomial_apply, Finset.sum_boole, hfilt, Finset.card_powerset]
-      split_ifs with hall
-      · have hempty : posTrue = ∅ := by
-          rw [Finset.eq_empty_iff_forall_notMem]
-          intro v hv
-          obtain ⟨hvp, hvσ⟩ := Finset.mem_filter.mp hv
-          rw [hall v hvp] at hvσ
-          exact Bool.false_ne_true hvσ
-        simp [hempty]
-      · push Not at hall
-        obtain ⟨v, hvp, hvσ⟩ := hall
-        have hne : #posTrue ≠ 0 := Finset.card_ne_zero.mpr
-          ⟨v, Finset.mem_filter.mpr ⟨hvp, Bool.eq_true_of_not_eq_false hvσ⟩⟩
-        rw [Nat.cast_pow, ZMod.natCast_self, zero_pow hne]
-    rw [hpos_sum, monomial_apply]
+        simp only [Finset.mem_filter, Finset.mem_powerset, Finset.subset_iff, ← forall₂_and]
+      simp only [monomial_apply, Finset.sum_boole, hfilt, Finset.card_powerset, Nat.cast_pow,
+        ZMod.natCast_self, zero_pow_eq, Finset.card_eq_zero, Finset.filter_eq_empty_iff,
+        Bool.not_eq_true]
+    rw [hpos_sum, monomial_apply, ite_zero_mul_ite_zero, one_mul]
     have hfals : c.eval σ = false ↔
         (∀ v ∈ pos, σ v = false) ∧ (∀ v ∈ neg, σ v = true) := by
       rw [Clause.eval_eq_false_iff]
@@ -241,17 +212,10 @@ theorem Clause.sum_falsifyMonomials (c : Clause V) (σ : V → Bool) :
       · rintro ⟨hp, hn⟩ ⟨v, _ | _⟩ hl
         · exact hn v (hmem_neg.mpr hl)
         · exact hp v (hmem_pos.mpr hl)
-    split_ifs with hp hn
-    · rw [hfals.mpr ⟨hp, hn⟩]
+    by_cases h : c.eval σ = false
+    · rw [ite_eq_left (hfals.mp h), h]
       decide
-    · have hct : c.eval σ = true := Bool.eq_true_of_not_eq_false fun h => hn (hfals.mp h).2
-      rw [hct]
-      decide
-    · have hct : c.eval σ = true := Bool.eq_true_of_not_eq_false fun h => hp (hfals.mp h).1
-      rw [hct]
-      decide
-    · have hct : c.eval σ = true := Bool.eq_true_of_not_eq_false fun h => hp (hfals.mp h).1
-      rw [hct]
+    · rw [ite_eq_right (mt hfals.mpr h), Bool.eq_true_of_not_eq_false h]
       decide
   · rw [Finset.not_disjoint_iff] at hdisj
     obtain ⟨v, hvp, hvn⟩ := hdisj
@@ -458,17 +422,10 @@ theorem CNF.sum_parityRowMonomials (φ : CNF V) (r : Fin φ.length → Bool) (σ
           ({e : Fin φ.length | r e = true ∧ M ∈ (φ.get e).falsifyMonomials} : Finset _) := by
         ext e
         simp [s]
-      rw [hfilt, Finset.sum_const, nsmul_eq_mul]
-      set c := #{e : Fin φ.length | r e = true ∧ M ∈ (φ.get e).falsifyMonomials}
-      rcases Nat.mod_two_eq_zero_or_one c with hc0 | hc1
-      · have h0 : (c : ZMod 2) = 0 :=
-          (ZMod.natCast_eq_zero_iff c 2).mpr (Nat.dvd_of_mod_eq_zero hc0)
-        simp [hc0, h0]
-      · have h1 : (c : ZMod 2) = 1 := by
-          rw [← Nat.div_add_mod c 2, hc1]
-          push_cast
-          simp [CharTwo.two_eq_zero]
-        simp [hc1, h1]
+      rw [hfilt, Finset.sum_const, nsmul_eq_mul, ← ZMod.natCast_mod _ 2]
+      rcases Nat.mod_two_eq_zero_or_one
+        #{e : Fin φ.length | r e = true ∧ M ∈ (φ.get e).falsifyMonomials} with hc | hc <;>
+        rw [hc] <;> simp
     rw [Finset.sum_congr rfl hcoeff, ← Finset.sum_filter]
     rfl
   rw [← hdouble]

@@ -291,43 +291,30 @@ theorem InfiniteExec.active_of_no_completion {sys : ProgressSystem P} (exec : sy
     {p : P} {n₁ n₂ : ℕ} (hle : n₁ ≤ n₂) (hact : sys.Active (exec.states n₁) p)
     (hno : ∀ m, n₁ ≤ m → m < n₂ → (exec.labels m).isCompleted = false) :
     sys.Active (exec.states n₂) p := by
-  induction n₂ with
-  | zero =>
-    have : n₁ = 0 := by omega
-    subst this
-    exact hact
-  | succ m ih =>
-    by_cases hlt : n₁ ≤ m
-    · have hm_act := ih hlt (fun j hj₁ hj₂ => hno j hj₁ (by omega))
-      have htr := exec.valid m
-      have hnc := hno m hlt (Nat.lt_succ_self m)
-      cases hlbl : exec.labels m with
-      | invoke q =>
-        rw [hlbl] at htr
-        have hqp : p ≠ q := fun h => by
-          subst h
-          exact sys.invoke_only_idle htr hm_act
-        exact (sys.invoke_frame_active htr hqp).mpr hm_act
-      | exec q done =>
-        rw [hlbl] at htr hnc
-        simp only [StepLabel.isCompleted_exec] at hnc
-        subst hnc
-        obtain ⟨hq_act, hstep⟩ := htr
-        by_cases hqp : p = q
-        · subst hqp
-          have h1 : (sys.step (exec.states m) p).1 = exec.states (m + 1) :=
-            congrArg Prod.fst hstep
-          have h2 : (sys.step (exec.states m) p).2 = false :=
-            congrArg Prod.snd hstep
-          rw [← h1]
-          exact sys.active_after_step_false hm_act h2
-        · have h1 : (sys.step (exec.states m) q).1 = exec.states (m + 1) :=
-            congrArg Prod.fst hstep
-          rw [← h1]
-          exact (sys.step_frame_active hq_act hqp).mpr hm_act
-    · have : n₁ = m + 1 := by omega
-      subst this
-      exact hact
+  induction n₂, hle using Nat.le_induction with
+  | base => exact hact
+  | succ m hlt ih =>
+    have hm_act := ih (fun j hj₁ hj₂ => hno j hj₁ (by omega))
+    have htr := exec.valid m
+    have hnc := hno m hlt (Nat.lt_succ_self m)
+    cases hlbl : exec.labels m with
+    | invoke q =>
+      rw [hlbl] at htr
+      have hqp : p ≠ q := fun h => by
+        subst h
+        exact sys.invoke_only_idle htr hm_act
+      exact (sys.invoke_frame_active htr hqp).mpr hm_act
+    | exec q done =>
+      rw [hlbl] at htr hnc
+      simp only [StepLabel.isCompleted_exec] at hnc
+      subst hnc
+      obtain ⟨hq_act, hstep⟩ := htr
+      have h1 : (sys.step (exec.states m) q).1 = exec.states (m + 1) := congrArg Prod.fst hstep
+      rw [← h1]
+      by_cases hqp : p = q
+      · subst hqp
+        exact sys.active_after_step_false hm_act (congrArg Prod.snd hstep)
+      · exact (sys.step_frame_active hq_act hqp).mpr hm_act
 
 /-- Without completions in `[N, ∞)`, no process can invoke more than once at or after `N`. -/
 theorem InfiniteExec.invoke_injective_of_no_completion {sys : ProgressSystem P}
@@ -373,6 +360,14 @@ private theorem chooseGeSeq_spec {P : ℕ → Prop} (hex : ∀ M, ∃ n ≥ M, P
       subst this
       exact hstep k₁
 
+/-- An infinite fiber of `f : ℕ → P` contains arbitrarily large indices. -/
+private theorem exists_ge_of_infinite_fiber {f : ℕ → P} {p : P} (h : Infinite (f ⁻¹' {p}))
+    (K : ℕ) : ∃ k ≥ K, f k = p := by
+  by_contra hbdd
+  refine Set.infinite_coe_iff.mp h ((Set.finite_lt_nat K).subset fun k hk => ?_)
+  by_contra hge
+  exact hbdd ⟨k, Nat.le_of_not_lt hge, hk⟩
+
 /-- Over finitely many processes `[Finite P]`, if no operation completes at or after `N`, then
 eventually every transition is an implementation step (`.exec`). -/
 theorem InfiniteExec.eventually_isExec_of_no_completion [Finite P] {sys : ProgressSystem P}
@@ -382,12 +377,8 @@ theorem InfiniteExec.eventually_isExec_of_no_completion [Finite P] {sys : Progre
   have hex : ∀ M, ∃ n ≥ M, N ≤ n ∧ (exec.labels n).isExec = false := by
     intro M
     by_contra hnone
-    apply hnot
-    refine ⟨max N M, Nat.le_max_left N M, fun n hn => ?_⟩
-    cases hb : (exec.labels n).isExec
-    · exfalso
-      exact hnone ⟨n, by omega, by omega, hb⟩
-    · rfl
+    exact hnot ⟨max N M, Nat.le_max_left N M, fun n hn =>
+      Bool.of_not_eq_false fun hb => hnone ⟨n, by omega, by omega, hb⟩⟩
   let idx := chooseGeSeq hex
   obtain ⟨hspec, hmono⟩ := chooseGeSeq_spec hex
   have hinv : ∀ k, exec.labels (idx k) = .invoke (exec.labels (idx k)).proc := by
@@ -395,9 +386,7 @@ theorem InfiniteExec.eventually_isExec_of_no_completion [Finite P] {sys : Progre
     have hf := (hspec k).2
     cases hlbl : exec.labels (idx k) with
     | invoke _ => rfl
-    | exec _ _ =>
-      rw [hlbl, StepLabel.isExec_exec] at hf
-      exact Bool.noConfusion hf
+    | exec _ _ => rw [hlbl, StepLabel.isExec_exec] at hf; cases hf
   obtain ⟨k₁, k₂, hkne, hpeq⟩ :=
     Finite.exists_ne_map_eq_of_infinite (fun k => (exec.labels (idx k)).proc)
   rcases Nat.lt_or_gt_of_ne hkne with h₁₂ | h₂₁
@@ -414,12 +403,8 @@ theorem InfiniteExec.infinitely_many_isExec [Finite P] {sys : ProgressSystem P}
   by_cases hcomp : ∃ n ≥ M, (exec.labels n).isCompleted = true
   · obtain ⟨n, hn, hc⟩ := hcomp
     exact ⟨n, hn, StepLabel.isExec_of_isCompleted hc⟩
-  · have hno : ∀ n ≥ M, (exec.labels n).isCompleted = false := by
-      intro n hn
-      cases hb : (exec.labels n).isCompleted
-      · rfl
-      · exfalso; exact hcomp ⟨n, hn, hb⟩
-    obtain ⟨N₁, hN₁, hall⟩ := exec.eventually_isExec_of_no_completion hno
+  · obtain ⟨N₁, hN₁, hall⟩ := exec.eventually_isExec_of_no_completion
+      fun n hn => Bool.of_not_eq_true fun hb => hcomp ⟨n, hn, hb⟩
     exact ⟨N₁, hN₁, hall N₁ (Nat.le_refl N₁)⟩
 
 /-! ### The Non-Blocking Progress Hierarchy (`IsWaitFree → IsLockFree → IsObstructionFree`) -/
@@ -432,62 +417,34 @@ theorem IsWaitFree.isLockFree [Finite P] {sys : ProgressSystem P} (hwf : sys.IsW
     sys.IsLockFree := by
   intro exec hexec M
   by_contra hnone
-  have hno : ∀ n ≥ M, (exec.labels n).isCompleted = false := by
-    intro n hn
-    cases hb : (exec.labels n).isCompleted
-    · rfl
-    · exfalso; exact hnone ⟨n, hn, hb⟩
   have hex : ∀ K, ∃ n ≥ K, M ≤ n ∧ (exec.labels n).isExec = true := by
     intro K
     obtain ⟨n, hn, he⟩ := hexec (max M K)
     exact ⟨n, by omega, by omega, he⟩
   let idx := chooseGeSeq hex
   obtain ⟨hspec, hmono⟩ := chooseGeSeq_spec hex
-  have idx_ge : ∀ k, k ≤ idx k := by
-    intro k
+  have idx_ge : ∀ k, k ≤ idx k := fun k => by
     induction k with
     | zero => omega
-    | succ k' ih =>
-      have hlt : idx k' < idx (k' + 1) := hmono k' (k' + 1) (Nat.lt_succ_self k')
-      omega
+    | succ k ih => have : idx k < idx (k + 1) := hmono k (k + 1) (by omega); omega
   let procOf : ℕ → P := fun k => (exec.labels (idx k)).proc
   obtain ⟨p, hinf_fiber⟩ := Finite.exists_infinite_fiber procOf
-  have hp_unbdd : ∀ K, ∃ k ≥ K, procOf k = p := by
-    intro K
-    by_contra hbdd
-    have hlt_K : ∀ x : procOf ⁻¹' {p}, x.val < K := by
-      intro x
-      by_contra hge
-      exact hbdd ⟨x.val, by omega, x.property⟩
-    let toFin : procOf ⁻¹' {p} → Fin K := fun x => ⟨x.val, hlt_K x⟩
-    obtain ⟨x₁, x₂, hxne, hfeq⟩ := Finite.exists_ne_map_eq_of_infinite toFin
-    exact hxne (Subtype.ext (Fin.mk.inj hfeq))
-  obtain ⟨k₀, _, hk₀_p⟩ := hp_unbdd 0
+  have hp_unbdd := exists_ge_of_infinite_fiber hinf_fiber
+  obtain ⟨k₀, -, hk₀_p⟩ := hp_unbdd 0
   let t₀ := idx k₀
-  have ht₀_M : M ≤ t₀ := (hspec k₀).1
   have ht₀_act : sys.Active (exec.states t₀) p := by
     have htr := exec.valid t₀
     have he := (hspec k₀).2
     cases hlbl : exec.labels t₀ with
-    | invoke _ =>
-      rw [hlbl, StepLabel.isExec_invoke] at he
-      exact Bool.noConfusion he
+    | invoke _ => rw [hlbl, StepLabel.isExec_invoke] at he; cases he
     | exec q done =>
       rw [hlbl] at htr
-      have hqp : q = p := by
-        simpa only [procOf, t₀, hlbl, StepLabel.proc_exec] using hk₀_p
-      subst hqp
+      obtain rfl : q = p := by simpa only [procOf, t₀, hlbl, StepLabel.proc_exec] using hk₀_p
       exact htr.1
-  have hp_inf : ∀ K ≥ t₀, ∃ n ≥ K, (exec.labels n).isExec = true ∧ (exec.labels n).proc = p := by
-    intro K _
-    obtain ⟨k, hk, hkp⟩ := hp_unbdd K
-    refine ⟨idx k, Nat.le_trans hk (idx_ge k), (hspec k).2, hkp⟩
-  obtain ⟨n, hn, hdone⟩ := hwf exec p t₀ ht₀_act hp_inf
-  have hc : (exec.labels n).isCompleted = true := by
-    rw [hdone]; rfl
-  have hnc := hno n (by omega)
-  rw [hc] at hnc
-  exact Bool.noConfusion hnc
+  obtain ⟨n, hn, hdone⟩ := hwf exec p t₀ ht₀_act fun K _ =>
+    let ⟨k, hk, hkp⟩ := hp_unbdd K
+    ⟨idx k, hk.trans (idx_ge k), (hspec k).2, hkp⟩
+  exact hnone ⟨n, by have : M ≤ t₀ := (hspec k₀).1; omega, by rw [hdone]; rfl⟩
 
 private def nonCompletingSoloExec {sys : ProgressSystem P} {s : sys.State} {p : P}
     (hs : sys.Reachable s) (hact : sys.Active s p)
@@ -564,66 +521,48 @@ theorem isLockFree_of_bounded_shared_changes [Finite P] {sys : ProgressSystem P}
     sys.IsLockFree := by
   intro exec _ M
   by_contra hnone
-  have hno : ∀ n ≥ M, (exec.labels n).isCompleted = false := by
-    intro n hn
-    cases hb : (exec.labels n).isCompleted
-    · rfl
-    · exfalso; exact hnone ⟨n, hn, hb⟩
+  have hno : ∀ n ≥ M, (exec.labels n).isCompleted = false :=
+    fun n hn => Bool.of_not_eq_true fun hb => hnone ⟨n, hn, hb⟩
   -- Step 1: Beyond `N₁ ≥ M`, all transitions are non-completing `.exec p false` steps.
   obtain ⟨N₁, hN₁_M, honly_exec⟩ := exec.eventually_isExec_of_no_completion hno
-  have hstep_at : ∀ n ≥ N₁, ∃ p, exec.labels n = .exec p false ∧
-      sys.Active (exec.states n) p ∧
-      sys.step (exec.states n) p = (exec.states (n + 1), false) := by
+  have hstep_at : ∀ n ≥ N₁, ∃ p, exec.labels n = .exec p false ∧ sys.Active (exec.states n) p ∧
+      (sys.step (exec.states n) p).1 = exec.states (n + 1) ∧
+      (sys.step (exec.states n) p).2 = false := by
     intro n hn
     have he := honly_exec n hn
     have hc := hno n (by omega)
     have htr := exec.valid n
     cases hlbl : exec.labels n with
-    | invoke _ =>
-      rw [hlbl, StepLabel.isExec_invoke] at he
-      exact Bool.noConfusion he
+    | invoke _ => simp [hlbl] at he
     | exec p done =>
       rw [hlbl] at hc htr
       simp only [StepLabel.isCompleted_exec] at hc
       subst hc
-      exact ⟨p, rfl, htr.1, htr.2⟩
+      exact ⟨p, rfl, htr.1, congrArg Prod.fst htr.2, congrArg Prod.snd htr.2⟩
   -- Step 2: `Committed` persists across all steps `≥ N₁` (because a `Committed` thread cannot step
   -- without producing `done = true`!).
   have hcomm_persist : ∀ {n₁ n₂ p}, N₁ ≤ n₁ → n₁ ≤ n₂ →
       Committed (exec.states n₁) p → Committed (exec.states n₂) p := by
     intro n₁ n₂ p hN₁ hle hcomm
-    induction n₂ with
-    | zero =>
-      have : n₁ = 0 := by omega
-      subst this; exact hcomm
-    | succ m ih =>
-      by_cases hlt : n₁ ≤ m
-      · have hm_c := ih hlt
-        obtain ⟨q, _, hq_act, hq_step⟩ := hstep_at m (by omega)
-        have hq1 : (sys.step (exec.states m) q).1 = exec.states (m + 1) := congrArg Prod.fst hq_step
-        have hq2 : (sys.step (exec.states m) q).2 = false := congrArg Prod.snd hq_step
-        have hpq : p ≠ q := fun h => by
-          subst h
-          have htrue := complete_of_committed hq_act hm_c
-          rw [htrue] at hq2
-          exact Bool.noConfusion hq2
-        rw [← hq1]
-        exact committed_frame hq_act hq2 hpq hm_c
-      · have : n₁ = m + 1 := by omega
-        subst this; exact hcomm
+    induction n₂, hle using Nat.le_induction with
+    | base => exact hcomm
+    | succ m hlt ih =>
+      obtain ⟨q, _, hq_act, hq1, hq2⟩ := hstep_at m (by omega)
+      have hpq : p ≠ q := by
+        rintro rfl
+        simp [complete_of_committed hq_act ih] at hq2
+      rw [← hq1]
+      exact committed_frame hq_act hq2 hpq ih
   -- Step 3: Consequently, `shared` changes at most once per process after `N₁`, hence freezes
   -- permanently from some `N₂ ≥ N₁` onwards!
   have hshared_freeze : ∃ N₂ ≥ N₁, ∀ n ≥ N₂,
       shared (exec.states (n + 1)) = shared (exec.states n) := by
     by_contra hnot_fr
+    push Not at hnot_fr
     have hex_chg : ∀ K, ∃ n ≥ K, N₁ ≤ n ∧
-        shared (exec.states (n + 1)) ≠ shared (exec.states n) := by
-      intro K
-      by_contra hno_chg
-      apply hnot_fr
-      refine ⟨max N₁ K, Nat.le_max_left N₁ K, fun n hn => ?_⟩
-      by_contra hne
-      exact hno_chg ⟨n, by omega, by omega, hne⟩
+        shared (exec.states (n + 1)) ≠ shared (exec.states n) := fun K =>
+      let ⟨n, hn, hne⟩ := hnot_fr (max N₁ K) (Nat.le_max_left N₁ K)
+      ⟨n, by omega, by omega, hne⟩
     let idx := chooseGeSeq hex_chg
     obtain ⟨hspec, hmono⟩ := chooseGeSeq_spec hex_chg
     obtain ⟨k₁, k₂, hkne, hpeq⟩ :=
@@ -633,92 +572,55 @@ theorem isLockFree_of_bounded_shared_changes [Finite P] {sys : ProgressSystem P}
       intro u v huv hpuv
       have hu_N₁ : N₁ ≤ idx u := (hspec u).1
       have huv_idx : idx u < idx v := hmono u v huv
-      obtain ⟨pu, hlu, hact_u, hstep_u⟩ := hstep_at (idx u) hu_N₁
-      obtain ⟨pv, hlv, hact_v, hstep_v⟩ := hstep_at (idx v) (by omega)
-      have hpu_eq : pu = pv := by
-        simpa only [hlu, hlv, StepLabel.proc_exec] using hpuv
-      subst hpu_eq
-      have hu1 : (sys.step (exec.states (idx u)) pu).1 = exec.states (idx u + 1) :=
-        congrArg Prod.fst hstep_u
-      have hu2 : (sys.step (exec.states (idx u)) pu).2 = false :=
-        congrArg Prod.snd hstep_u
-      have hchg_u : shared (sys.step (exec.states (idx u)) pu).1 ≠
-          shared (exec.states (idx u)) := by
-        rw [hu1]; exact (hspec u).2
+      obtain ⟨pu, hlu, hact_u, hu1, hu2⟩ := hstep_at (idx u) hu_N₁
+      obtain ⟨pv, hlv, hact_v, -, hv2⟩ := hstep_at (idx v) (by omega)
+      obtain rfl : pu = pv := by simpa only [hlu, hlv, StepLabel.proc_exec] using hpuv
       have hcomm_u : Committed (exec.states (idx u + 1)) pu := by
-        rw [← hu1]; exact committed_of_shared_ne hact_u hu2 hchg_u
-      have hcomm_v : Committed (exec.states (idx v)) pu :=
-        hcomm_persist (by omega) (by omega) hcomm_u
-      have htrue := complete_of_committed hact_v hcomm_v
-      have hv2 : (sys.step (exec.states (idx v)) pu).2 = false := congrArg Prod.snd hstep_v
-      rw [htrue] at hv2
-      exact Bool.noConfusion hv2
-    rcases Nat.lt_or_gt_of_ne hkne with h₁₂ | h₂₁
-    · exact hconflict k₁ k₂ h₁₂ hpeq
-    · exact hconflict k₂ k₁ h₂₁ hpeq.symm
+        rw [← hu1]
+        exact committed_of_shared_ne hact_u hu2 (by rw [hu1]; exact (hspec u).2)
+      simp [complete_of_committed hact_v (hcomm_persist (by omega) (by omega) hcomm_u)] at hv2
+    exact (Nat.lt_or_gt_of_ne hkne).elim (hconflict _ _ · hpeq) (hconflict _ _ · hpeq.symm)
   obtain ⟨N₂, hN₂_N₁, hfrozen⟩ := hshared_freeze
   -- Step 4: After `N₂`, sum/pigeonhole: some process `p` steps infinitely often, strictly
   -- decreasing `rank (exec.states n) p` on its own steps while other steps never increase it!
   obtain ⟨p, hinf_p⟩ :=
     Finite.exists_infinite_fiber (fun k : ℕ => (exec.labels (N₂ + k)).proc)
-  have hp_unbdd : ∀ K, ∃ k ≥ K, (exec.labels (N₂ + k)).proc = p := by
-    intro K
-    by_contra hbdd
-    let toFin : ((fun k : ℕ => (exec.labels (N₂ + k)).proc) ⁻¹' {p}) → Fin K :=
-      fun x => ⟨x.val, by by_contra hge; exact hbdd ⟨x.val, by omega, x.property⟩⟩
-    obtain ⟨x₁, x₂, hxne, hfeq⟩ := Finite.exists_ne_map_eq_of_infinite toFin
-    exact hxne (Subtype.ext (Fin.mk.inj hfeq))
+  have hp_unbdd := exists_ge_of_infinite_fiber hinf_p
+  have hstep_frozen : ∀ m ≥ N₂, ∃ q, exec.labels m = .exec q false ∧
+      (q = p → rank (exec.states (m + 1)) p < rank (exec.states m) p) ∧
+      rank (exec.states (m + 1)) p ≤ rank (exec.states m) p := by
+    intro m hm
+    obtain ⟨q, hlq, hq_act, hq1, hq2⟩ := hstep_at m (by omega)
+    have hsh : shared (sys.step (exec.states m) q).1 = shared (exec.states m) := by
+      rw [hq1]; exact hfrozen m hm
+    have hlt : q = p → rank (exec.states (m + 1)) p < rank (exec.states m) p := by
+      rintro rfl
+      rw [← hq1]
+      exact rank_lt_of_shared_eq hq_act hq2 hsh
+    refine ⟨q, hlq, hlt, ?_⟩
+    by_cases hqp : q = p
+    · exact (hlt hqp).le
+    · rw [← hq1]
+      exact rank_le_of_shared_eq_ne hq_act hq2 hsh (Ne.symm hqp)
   have hrank_mono : ∀ {a b}, N₂ ≤ a → a ≤ b →
       rank (exec.states b) p ≤ rank (exec.states a) p := by
     intro a b ha hab
-    induction b with
-    | zero =>
-      have : a = 0 := by omega
-      subst this; exact Nat.le_refl _
-    | succ m ih =>
-      by_cases hlt : a ≤ m
-      · have hm_le := ih hlt
-        obtain ⟨q, _, hq_act, hq_step⟩ := hstep_at m (by omega)
-        have hq1 : (sys.step (exec.states m) q).1 = exec.states (m + 1) := congrArg Prod.fst hq_step
-        have hq2 : (sys.step (exec.states m) q).2 = false := congrArg Prod.snd hq_step
-        have hsh : shared (sys.step (exec.states m) q).1 = shared (exec.states m) := by
-          rw [hq1]; exact hfrozen m (by omega)
-        by_cases hpq : p = q
-        · subst hpq
-          have hdec := rank_lt_of_shared_eq hq_act hq2 hsh
-          rw [hq1] at hdec
-          omega
-        · have hle_q := rank_le_of_shared_eq_ne hq_act hq2 hsh hpq
-          rw [hq1] at hle_q
-          omega
-      · have : a = m + 1 := by omega
-        subst this; exact Nat.le_refl _
+    induction b, hab using Nat.le_induction with
+    | base => exact Nat.le_refl _
+    | succ m hlt ih => exact ((hstep_frozen m (by omega)).choose_spec.2.2).trans ih
   -- Construct `R + 1` steps of `p` after `N₂`, where `R = rank (exec.states N₂) p`, to force
   -- `rank < 0`, contradiction!
   have hdrop : ∀ r : ℕ, ∃ k, rank (exec.states (N₂ + k)) p + r ≤ rank (exec.states N₂) p := by
     intro r
     induction r with
-    | zero => exact ⟨0, by simp only [Nat.add_zero, Nat.le_refl]⟩
+    | zero => exact ⟨0, Nat.le_refl _⟩
     | succ r' ih =>
       obtain ⟨k₀, hk₀⟩ := ih
       obtain ⟨k₁, hk₁_ge, hk₁_p⟩ := hp_unbdd k₀
-      have hle_01 := hrank_mono (a := N₂ + k₀) (b := N₂ + k₁) (by omega)
-        (Nat.add_le_add_left hk₁_ge N₂)
-      obtain ⟨q, hlq, hq_act, hq_step⟩ := hstep_at (N₂ + k₁) (by omega)
-      have hqp : q = p := by
-        simpa only [hlq, StepLabel.proc_exec] using hk₁_p
-      subst hqp
-      have hq1 : (sys.step (exec.states (N₂ + k₁)) q).1 = exec.states (N₂ + (k₁ + 1)) := by
-        have := congrArg Prod.fst hq_step
-        simpa only [Nat.add_assoc] using this
-      have hq2 : (sys.step (exec.states (N₂ + k₁)) q).2 = false := congrArg Prod.snd hq_step
-      have hsh : shared (sys.step (exec.states (N₂ + k₁)) q).1 =
-          shared (exec.states (N₂ + k₁)) := by
-        rw [hq1]
-        simpa only [Nat.add_assoc] using hfrozen (N₂ + k₁) (by omega)
-      have hdec := rank_lt_of_shared_eq hq_act hq2 hsh
-      rw [hq1] at hdec
-      exact ⟨k₁ + 1, by omega⟩
+      have hle_01 := hrank_mono (a := N₂ + k₀) (b := N₂ + k₁) (by omega) (by omega)
+      obtain ⟨q, hlq, hlt, -⟩ := hstep_frozen (N₂ + k₁) (by omega)
+      have hdec := hlt (by simpa only [hlq, StepLabel.proc_exec] using hk₁_p)
+      exact ⟨k₁ + 1, by rw [← Nat.add_assoc N₂]; omega⟩
   obtain ⟨k_bad, hk_bad⟩ := hdrop (rank (exec.states N₂) p + 1)
   omega
 
@@ -974,26 +876,15 @@ theorem casCounterSystem_not_isWaitFree (P : Type*) [DecidableEq P] [Nontrivial 
     | 2 => .exec fast false
     | 3 => .exec fast true
     | _ => .exec slow false
-  have hmk_slow : ∀ sp fp, mkThreads sp fp slow = sp := by
-    intro sp fp
+  have hmk_slow : ∀ sp fp, mkThreads sp fp slow = sp := fun sp fp => by
     simp only [mkThreads, Function.update_of_ne hne, Function.update_self]
-  have hmk_fast : ∀ sp fp, mkThreads sp fp fast = fp := by
-    intro sp fp
+  have hmk_fast : ∀ sp fp, mkThreads sp fp fast = fp := fun sp fp => by
     simp only [mkThreads, Function.update_self]
   have hupd_slow : ∀ sp fp sp',
-      Function.update (mkThreads sp fp) slow sp' = mkThreads sp' fp := by
-    intro sp fp sp'
-    funext q
-    by_cases hqf : q = fast
-    · subst hqf
-      simp only [mkThreads, Function.update_of_ne hne.symm, Function.update_self]
-    · by_cases hqs : q = slow
-      · subst hqs
-        simp only [mkThreads, Function.update_self, Function.update_of_ne hne]
-      · simp only [mkThreads, Function.update_of_ne hqf, Function.update_of_ne hqs]
+      Function.update (mkThreads sp fp) slow sp' = mkThreads sp' fp := fun sp fp sp' => by
+    simp only [mkThreads, Function.update_comm hne.symm, Function.update_idem]
   have hupd_fast : ∀ sp fp fp',
-      Function.update (mkThreads sp fp) fast fp' = mkThreads sp fp' := by
-    intro sp fp fp'
+      Function.update (mkThreads sp fp) fast fp' = mkThreads sp fp' := fun sp fp fp' => by
     simp only [mkThreads, Function.update_idem]
   have hreach₀ : (casCounterSystem P).Reachable (stateAt 0) := by
     have htr₀ :
@@ -1048,13 +939,7 @@ theorem casCounterSystem_not_isWaitFree (P : Type*) [DecidableEq P] [Nontrivial 
     simp only [exec, labelAt, hm, StepLabel.isExec_exec, StepLabel.proc_exec, and_self]
   obtain ⟨n, _, hdone⟩ := hwf exec slow 0 hact₀ hinf_slow
   have hmod_cases : n % 5 = 0 ∨ n % 5 = 1 ∨ n % 5 = 2 ∨ n % 5 = 3 ∨ n % 5 = 4 := by omega
-  rcases hmod_cases with hm | hm | hm | hm | hm
-  · simp only [exec, labelAt, hm, StepLabel.exec.injEq, Bool.false_eq_true, and_false] at hdone
-  · simp only [exec, labelAt, hm, reduceCtorEq] at hdone
-  · simp only [exec, labelAt, hm, StepLabel.exec.injEq, Bool.false_eq_true, and_false] at hdone
-  · simp only [exec, labelAt, hm, StepLabel.exec.injEq, and_true] at hdone
-    exact hne hdone.symm
-  · simp only [exec, labelAt, hm, StepLabel.exec.injEq, Bool.false_eq_true, and_false] at hdone
+  rcases hmod_cases with hm | hm | hm | hm | hm <;> simp [exec, labelAt, hm, hne.symm] at hdone
 
 /-- Original concrete `ProgressSystem` separation of lock-freedom from wait-freedom (illustrating
 [MoirShavit2007], §1.1.3, p. 1-6): there exists a finite-process concurrent-object transition
@@ -1187,26 +1072,15 @@ theorem racingClaimSystem_not_isLockFree (P : Type*) [DecidableEq P] [Nontrivial
   -- `r = 3`: `p₁` sees `some p₀ ≠ some p₁` (`verifyClaim → writeClaim`)
   let mkThreads (ph₀ ph₁ : ClaimPhase) : P → ClaimPhase :=
     Function.update (Function.update (fun _ : P => ClaimPhase.idle) p₀ ph₀) p₁ ph₁
-  have hmk₀ : ∀ ph₀ ph₁, mkThreads ph₀ ph₁ p₀ = ph₀ := by
-    intro ph₀ ph₁
+  have hmk₀ : ∀ ph₀ ph₁, mkThreads ph₀ ph₁ p₀ = ph₀ := fun ph₀ ph₁ => by
     simp only [mkThreads, Function.update_of_ne hne, Function.update_self]
-  have hmk₁ : ∀ ph₀ ph₁, mkThreads ph₀ ph₁ p₁ = ph₁ := by
-    intro ph₀ ph₁
+  have hmk₁ : ∀ ph₀ ph₁, mkThreads ph₀ ph₁ p₁ = ph₁ := fun ph₀ ph₁ => by
     simp only [mkThreads, Function.update_self]
   have hupd₀ : ∀ ph₀ ph₁ ph₀',
-      Function.update (mkThreads ph₀ ph₁) p₀ ph₀' = mkThreads ph₀' ph₁ := by
-    intro ph₀ ph₁ ph₀'
-    funext q
-    by_cases hq₁ : q = p₁
-    · subst hq₁
-      simp only [mkThreads, Function.update_of_ne hne.symm, Function.update_self]
-    · by_cases hq₀ : q = p₀
-      · subst hq₀
-        simp only [mkThreads, Function.update_self, Function.update_of_ne hne]
-      · simp only [mkThreads, Function.update_of_ne hq₁, Function.update_of_ne hq₀]
+      Function.update (mkThreads ph₀ ph₁) p₀ ph₀' = mkThreads ph₀' ph₁ := fun ph₀ ph₁ ph₀' => by
+    simp only [mkThreads, Function.update_comm hne.symm, Function.update_idem]
   have hupd₁ : ∀ ph₀ ph₁ ph₁',
-      Function.update (mkThreads ph₀ ph₁) p₁ ph₁' = mkThreads ph₀ ph₁' := by
-    intro ph₀ ph₁ ph₁'
+      Function.update (mkThreads ph₀ ph₁) p₁ ph₁' = mkThreads ph₀ ph₁' := fun ph₀ ph₁ ph₁' => by
     simp only [mkThreads, Function.update_idem]
   let stateAt (n : ℕ) : RacingClaimState P :=
     match n % 4 with

@@ -153,7 +153,7 @@ private theorem pairwiseDisjoint_componentGates :
   rw [Function.onFun, disjoint_left]
   intro j hj hj'
   rw [mem_componentGates] at hj hj'
-  obtain ⟨u, hu⟩ := ne_empty_iff_nonempty.mp hj.1
+  obtain ⟨u, hu⟩ := nonempty_iff_ne_empty.mpr hj.1
   have h1 := (mem_componentInputs p).mp (hj.2 hu)
   have h2 := (mem_componentInputs p).mp (hj'.2 hu)
   exact hcc' (h1.symm.trans h2)
@@ -166,7 +166,7 @@ private theorem inputGates_eq_biUnion_componentGates :
   simp only [mem_biUnion, mem_univ, true_and, mem_componentGates, ← inputSupport_ne_empty_iff]
   constructor
   · intro hj
-    obtain ⟨u, hu⟩ := ne_empty_iff_nonempty.mp hj
+    obtain ⟨u, hu⟩ := nonempty_iff_ne_empty.mpr hj
     exact ⟨_, hj, inputSupport_subset_componentInputs p hu⟩
   · rintro ⟨_, hj, -⟩
     exact hj
@@ -185,8 +185,8 @@ private theorem exists_gate_of_edge (h2 : ∀ j, (inputSupport p j).card ≤ 2)
   induction e using Sym2.ind with
   | h a b =>
     rw [SimpleGraph.mem_edgeSet] at he
-    obtain ⟨hne, j, ha, hb⟩ : (supportGraph p).Adj a.val b.val := he
-    have hab : ({a.val, b.val} : Finset (Fin n)) = inputSupport p j := by
+    obtain ⟨hne, j, ha, hb⟩ : (supportGraph p).Adj a.1 b.1 := he
+    have hab : ({a.1, b.1} : Finset (Fin n)) = inputSupport p j := by
       apply eq_of_subset_of_card_le
       · intro u hu
         rw [mem_insert, mem_singleton] at hu
@@ -195,12 +195,12 @@ private theorem exists_gate_of_edge (h2 : ∀ j, (inputSupport p j).card ≤ 2)
         exact h2 j
     refine ⟨j, ?_, fun u => ?_⟩
     · rw [mem_componentGates]
-      refine ⟨ne_empty_iff_nonempty.mpr ⟨_, ha⟩, fun u hu => ?_⟩
+      refine ⟨nonempty_iff_ne_empty.mp ⟨_, ha⟩, fun u hu => ?_⟩
       rw [← hab, mem_insert, mem_singleton] at hu
       rw [mem_componentInputs]
       rcases hu with rfl | rfl
-      · exact (SimpleGraph.ConnectedComponent.mem_supp_iff _ _).mp a.property
-      · exact (SimpleGraph.ConnectedComponent.mem_supp_iff _ _).mp b.property
+      · exact (SimpleGraph.ConnectedComponent.mem_supp_iff _ _).mp a.2
+      · exact (SimpleGraph.ConnectedComponent.mem_supp_iff _ _).mp b.2
     · rw [← hab, Sym2.map_mk, mem_insert, mem_singleton, Sym2.mem_iff]
 
 /-- When every gate has aggregated input support of size at most `2`, every connected component
@@ -216,13 +216,13 @@ theorem card_componentInputs_le (h2 : ∀ j, (inputSupport p j).card ≤ 2)
   have hE : Nat.card c.toSimpleGraph.edgeSet ≤ (componentGates p c).card := by
     rw [← Nat.card_eq_finsetCard]
     refine Nat.card_le_card_of_injective
-      (fun e => ⟨(exists_gate_of_edge p h2 c e.val e.property).choose,
-        (exists_gate_of_edge p h2 c e.val e.property).choose_spec.1⟩) ?_
+      (fun e => ⟨(exists_gate_of_edge p h2 c e.1 e.2).choose,
+        (exists_gate_of_edge p h2 c e.1 e.2).choose_spec.1⟩) ?_
     intro e e' hee'
-    have hj := (exists_gate_of_edge p h2 c e.val e.property).choose_spec.2
-    have hj' := (exists_gate_of_edge p h2 c e'.val e'.property).choose_spec.2
-    have heq : (exists_gate_of_edge p h2 c e.val e.property).choose =
-        (exists_gate_of_edge p h2 c e'.val e'.property).choose := congrArg Subtype.val hee'
+    have hj := (exists_gate_of_edge p h2 c e.1 e.2).choose_spec.2
+    have hj' := (exists_gate_of_edge p h2 c e'.1 e'.2).choose_spec.2
+    have heq : (exists_gate_of_edge p h2 c e.1 e.2).choose =
+        (exists_gate_of_edge p h2 c e'.1 e'.2).choose := congrArg Subtype.val hee'
     rw [heq] at hj
     apply Subtype.ext
     apply Sym2.map.injective Subtype.val_injective
@@ -258,10 +258,8 @@ theorem exists_split_of_inputSupport_card_le_two (p : Program signature n g)
   obtain ⟨𝒯, h𝒯, hcard⟩ := exists_subset_card_eq hT
   refine ⟨𝒯.biUnion (componentInputs p), fun j => ?_, ?_⟩
   · by_cases hj : inputSupport p j = ∅
-    · left
-      rw [hj]
-      exact empty_subset _
-    obtain ⟨u, hu⟩ := ne_empty_iff_nonempty.mp hj
+    · exact Or.inl (hj ▸ empty_subset _)
+    obtain ⟨u, hu⟩ := nonempty_iff_ne_empty.mpr hj
     have hsub := inputSupport_subset_componentInputs p hu
     by_cases hc : (supportGraph p).connectedComponentMk u ∈ 𝒯
     · left
@@ -270,11 +268,8 @@ theorem exists_split_of_inputSupport_card_le_two (p : Program signature n g)
       intro v hv
       rw [mem_compl, mem_biUnion]
       rintro ⟨c, hc𝒯, hvc⟩
-      have h1 := (mem_componentInputs p).mp (hsub hv)
-      have h2 := (mem_componentInputs p).mp hvc
-      apply hc
-      rw [h1.symm.trans h2]
-      exact hc𝒯
+      exact hc (((mem_componentInputs p).mp (hsub hv)).symm.trans
+        ((mem_componentInputs p).mp hvc) ▸ hc𝒯)
   · have hdisjI : (𝒯 : Set (supportGraph p).ConnectedComponent).PairwiseDisjoint
         (componentInputs p) :=
       (pairwiseDisjoint_componentInputs p).subset (coe_subset.mpr (subset_univ _))
@@ -288,7 +283,7 @@ theorem exists_split_of_inputSupport_card_le_two (p : Program signature n g)
       simp only [mem_filter, mem_univ, true_and, mem_biUnion, mem_componentGates]
       constructor
       · rintro ⟨hsub, hne⟩
-        obtain ⟨u, hu⟩ := ne_empty_iff_nonempty.mp hne
+        obtain ⟨u, hu⟩ := nonempty_iff_ne_empty.mpr hne
         obtain ⟨c, hc, huc⟩ := mem_biUnion.mp (hsub hu)
         rw [mem_componentInputs] at huc
         refine ⟨c, hc, hne, ?_⟩
@@ -472,10 +467,7 @@ theorem lt_of_blocks (p : Program signature n g)
   have hbU : 𝓑.biUnion id = Fᶜ := by
     ext i
     simp only [mem_biUnion, id, mem_compl]
-    constructor
-    · rintro ⟨b, hb, hi⟩
-      exact disjoint_left.mp (hF b hb) hi
-    · exact hcover i
+    exact ⟨fun ⟨b, hb, hi⟩ => disjoint_left.mp (hF b hb) hi, hcover i⟩
   have hFn : F.card ≤ n := by simpa using card_le_univ F
   have hsumcard : ∑ b ∈ 𝓑, b.card = n - F.card := by
     calc ∑ b ∈ 𝓑, b.card = (𝓑.biUnion id).card := (card_biUnion hdisj).symm
@@ -489,25 +481,16 @@ theorem lt_of_blocks (p : Program signature n g)
     omega
   obtain ⟨𝒢, h𝒢, hk1, hk2⟩ := Finset.exists_subset_sum_ge 𝓑
     (fun b => b.card - (residualGates p F b).card) M k
-    (fun b hb => by
-      have := hM b hb
-      omega) hφtot
+    (fun b hb => by have := hM b hb; omega) hφtot
   set U := 𝒢.biUnion id with hU
   set A := (𝒢.filter fun b => b.card ≤ (residualGates p F b).card).biUnion id with hA
   set B₀ := ((𝓑 \ 𝒢).filter fun b => b.card ≤ (residualGates p F b).card).biUnion id with hB₀
-  have hdisjU : ∀ b ∈ 𝓑, b ∉ 𝒢 → Disjoint b U := by
-    intro b hb hbG
-    rw [hU, disjoint_biUnion_right]
-    intro b' hb'
-    exact hdisj hb (h𝒢 hb') fun h => hbG (h ▸ hb')
-  have hFU : Disjoint F U := by
-    rw [hU, disjoint_biUnion_right]
-    intro b' hb'
-    exact (hF b' (h𝒢 hb')).symm
-  have hdisjFB₀ : Disjoint F B₀ := by
-    rw [hB₀, disjoint_biUnion_right]
-    intro b hb
-    exact (hF b (sdiff_subset (mem_filter.mp hb).1)).symm
+  have hdisjU : ∀ b ∈ 𝓑, b ∉ 𝒢 → Disjoint b U := fun b hb hbG =>
+    (disjoint_biUnion_right _ _ _).mpr fun b' hb' => hdisj hb (h𝒢 hb') fun h => hbG (h ▸ hb')
+  have hFU : Disjoint F U :=
+    (disjoint_biUnion_right _ _ _).mpr fun b' hb' => (hF b' (h𝒢 hb')).symm
+  have hdisjFB₀ : Disjoint F B₀ :=
+    (disjoint_biUnion_right _ _ _).mpr fun b hb => (hF b (sdiff_subset (mem_filter.mp hb).1)).symm
   obtain ⟨P, Q, v, hv, hP, hQ⟩ := exists_rectangle_of_cut_with_fixed p U A (F ∪ B₀)
   have hconst : ∀ x ∈ P, ∀ y ∈ Q, f (glue U x y) = readout v := by
     intro x hx y hy
@@ -519,9 +502,7 @@ theorem lt_of_blocks (p : Program signature n g)
     card_biUnion (hdisj.subset (coe_subset.mpr ((filter_subset _ _).trans h𝒢)))
   have hgP := card_filter_not_subset_le_sum_residualGates p F 𝓑 𝒢 hblocks U A
     (fun i hiU hiF => (disjoint_left.mp hFU hiF hiU).elim)
-    (fun b hb i hi hiU => by
-      by_contra hbG
-      exact disjoint_left.mp (hdisjU b hb hbG) hi hiU)
+    (fun b hb i hi hiU => by_contra fun hbG => disjoint_left.mp (hdisjU b hb hbG) hi hiU)
     (fun b hb hsat => subset_biUnion_of_mem id (mem_filter.mpr ⟨hb, hsat⟩))
   have hdecompP := sum_eq_sum_filter_add_sum_tsub_add_sum 𝒢 Finset.card
     fun b => (residualGates p F b).card

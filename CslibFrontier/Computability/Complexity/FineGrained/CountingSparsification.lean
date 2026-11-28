@@ -7,6 +7,7 @@ Authors: OpenAI, Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Complexity.AcceptCount
 public import CslibFrontier.Computability.Complexity.FineGrained.Exponents
 public import CslibFrontier.Computability.Complexity.FineGrained.SparsificationRounds
 public import CslibFrontier.Logics.Propositional.CNF.ModelCount.Declared
@@ -101,6 +102,10 @@ parameter uniformity and the native subexponential counting endpoint remain sepa
   the same invariant-restricted correctness contract for declared-variable counting, with either
   occurring-variable or declared-variable leaf counts. These are semantic extensions; native
   totality and resource certificates remain separate requirements.
+* `Cslib.Complexity.CountingSparsify.acceptCount_search_pos_error_le`: a shared-seed error bound
+  for detecting satisfiability by testing the search result for positivity.
+* `Cslib.Complexity.CountingSparsify.searchDeclaredWith_pos_iff_of_normalized`: search
+  positivity is a satisfiability test when the leaf routine only detects satisfiability.
 * `Cslib.Complexity.CountingSparsify.exists_computableInO_search`: native `ComputableInO ... T T`
   time-and-space transfer certificate for `CountingSparsify.search`.
 * `Cslib.Complexity.CountingSparsify.exists_computableInO_search_polySpace`: the same time envelope
@@ -114,6 +119,7 @@ parameter uniformity and the native subexponential counting endpoint remain sepa
 
 * [OpenAI, *The Exponential Time Hypothesis is False*][OpenAI2026ETH], Section 6.4,
   Lemma 6.3 and Proposition 6.4 (pp. 43–44) and Appendix A (pp. 44–47).
+* [MITHardnessGroup2026SH], v2, §2.2, Corollary 2.3.
 -/
 
 @[expose] public section
@@ -188,20 +194,14 @@ private theorem step_map (g : CNF ℕ → ℕ) (n : ℕ)
     (stk : List {ψ : CNF ℕ // CountingNormalized K ψ}) (acc : ℕ) :
     step M K g (n, (stk.map Subtype.val, acc)) =
       (n, Prod.map (List.map Subtype.val) id
-        ((rule hM hK).tree.searchStep
-            (fun acc t => min (2 ^ n) (acc + leafWeight n t.val (g t.val)))
+        ((rule hM hK).tree.searchStep (fun acc t => min (2 ^ n) (acc + leafWeight n t.1 (g t.1)))
           (stk, acc))) := by
   cases stk with
   | nil => rfl
   | cons s rest =>
-    have hiff := isSparse_eq_true_iff (one_le_countingThreshold hM) s.property.toNormalized
-    by_cases hs : ClauseSet.Sparsification.Sparse (countingThreshold M) s.val.toClauseSet
-    · have hs' : isSparse (countingThreshold M) K s.val = true := hiff.mpr hs
-      simp [step, leafUpdate, BinaryBranching.searchStep, hs, hs', rule,
-        CNF.Sparsification.countingRule]
-    · have hs' : isSparse (countingThreshold M) K s.val = false := by
-        simpa using fun h => hs (hiff.mp h)
-      simp [step, BinaryBranching.searchStep, hs, hs', rule,
+    have hiff := isSparse_eq_true_iff (one_le_countingThreshold hM) s.2.toNormalized
+    cases hsp : isSparse (countingThreshold M) K s.1 <;>
+      simp [step, leafUpdate, BinaryBranching.searchStep, ← hiff, hsp, rule,
         CNF.Sparsification.countingRule]
 
 include hM hK in
@@ -210,13 +210,13 @@ private theorem iterate_step_map (g : CNF ℕ → ℕ) (r n : ℕ)
     (step M K g)^[r] (n, (stk.map Subtype.val, acc)) =
       (n, Prod.map (List.map Subtype.val) id
         (((rule hM hK).tree.searchStep
-          (fun acc t => min (2 ^ n) (acc + leafWeight n t.val (g t.val))))^[r] (stk, acc))) := by
+          (fun acc t => min (2 ^ n) (acc + leafWeight n t.1 (g t.1))))^[r] (stk, acc))) := by
   induction r generalizing stk acc with
   | zero => rfl
   | succ r ih =>
     rw [Function.iterate_succ_apply, Function.iterate_succ_apply, step_map hM hK]
     obtain ⟨stk', acc'⟩ :=
-      (rule hM hK).tree.searchStep (fun acc t => min (2 ^ n) (acc + leafWeight n t.val (g t.val)))
+      (rule hM hK).tree.searchStep (fun acc t => min (2 ^ n) (acc + leafWeight n t.1 (g t.1)))
         (stk, acc)
     exact ih stk' acc'
 
@@ -242,9 +242,7 @@ private theorem length_le_of_mem_root (k : ℕ) (φ : CNF ℕ) {C : Clause ℕ} 
   split_ifs at hC with h
   · simp only [List.all_eq_true, decide_eq_true_eq] at h
     exact (countingNormalized_countingNormalize h).length_le C hC
-  · simp only [List.mem_singleton] at hC
-    subst hC
-    exact Nat.zero_le k
+  · simp_all
 
 private theorem length_root_le (k : ℕ) (φ : CNF ℕ) : (root k φ).length ≤ φ.length + 1 := by
   unfold root
@@ -263,9 +261,7 @@ private theorem mem_vars_of_mem_root {k : ℕ} {φ : CNF ℕ} :
   split_ifs at hC with h
   · exact mem_vars_of_mem_countingNormalize C.toFinset (mem_toClauseSet.mpr ⟨C, hC, rfl⟩)
       l (List.mem_toFinset.mpr hl)
-  · simp only [List.mem_singleton] at hC
-    subst hC
-    simp at hl
+  · simp_all
 
 /-! ### The states of the tree -/
 
@@ -279,55 +275,53 @@ variable {k : ℕ} (hkK : k ≤ K) {φ : CNF ℕ} {w : List Bool}
 include hM hK hkK
 
 private theorem mem_vars_of_mem_walk (w : List Bool) :
-    ∀ C ∈ ((rule hM hK).tree.walk (rootState hkK φ) w).val, ∀ l ∈ C, l.1 ∈ φ.vars.toFinset :=
+    ∀ C ∈ ((rule hM hK).tree.walk (rootState hkK φ) w).1, ∀ l ∈ C, l.1 ∈ φ.vars.toFinset :=
   support_walk_countingRule (one_le_countingThreshold hM) hK mem_vars_of_mem_root w
 
 theorem vars_walk_subset (w : List Bool) :
-    ((rule hM hK).tree.walk (rootState hkK φ) w).val.vars.toFinset ⊆ φ.vars.toFinset := by
+    ((rule hM hK).tree.walk (rootState hkK φ) w).1.vars.toFinset ⊆ φ.vars.toFinset := by
   intro v hv
   obtain ⟨l, hl, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hv)
   obtain ⟨C, hC, hlC⟩ := List.mem_flatten.mp hl
   exact mem_vars_of_mem_walk hM hK hkK w C hC l hlC
 
 theorem numVars_walk_le (w : List Bool) :
-    ((rule hM hK).tree.walk (rootState hkK φ) w).val.numVars ≤ φ.numVars :=
+    ((rule hM hK).tree.walk (rootState hkK φ) w).1.numVars ≤ φ.numVars :=
   Finset.card_le_card (vars_walk_subset hM hK hkK w)
 
 /-- Every state reached along a node word of length at most `h` has at most `φ.length + 1 + K * h`
 clauses. -/
 theorem length_walk_le (hw : (rule hM hK).tree.IsNodeWord (rootState hkK φ) w)
     {h : ℕ} (hwlen : w.length ≤ h) :
-    ((rule hM hK).tree.walk (rootState hkK φ) w).val.length ≤ φ.length + 1 + K * h := by
-  have hcard : (((rule hM hK).tree.walk (rootState hkK φ) w).val.toClauseSet).card ≤
-      (rootState hkK φ).val.toClauseSet.card + K * w.length :=
-    CountingBranchingRule.card_walk_le (one_le_countingThreshold hM)
-      (rootState hkK φ).property.card_le hw
-  rw [((rule hM hK).tree.walk (rootState hkK φ) w).property.card_toClauseSet,
-    (rootState hkK φ).property.card_toClauseSet] at hcard
+    ((rule hM hK).tree.walk (rootState hkK φ) w).1.length ≤ φ.length + 1 + K * h := by
+  have hcard : (((rule hM hK).tree.walk (rootState hkK φ) w).1.toClauseSet).card ≤
+      (rootState hkK φ).1.toClauseSet.card + K * w.length :=
+    CountingBranchingRule.card_walk_le (one_le_countingThreshold hM) (rootState hkK φ).2.card_le hw
+  rw [((rule hM hK).tree.walk (rootState hkK φ) w).2.card_toClauseSet,
+    (rootState hkK φ).2.card_toClauseSet] at hcard
   exact hcard.trans (Nat.add_le_add (length_root_le k φ) (Nat.mul_le_mul_left K hwlen))
 
 /-- **Sparse leaves are small.** The sparse states of the counting-sparsification tree have at most
 `occBound K M * φ.numVars + 1` clauses. -/
 theorem length_walk_le_of_isSparse
-    (hs : isSparse (countingThreshold M) K
-        ((rule hM hK).tree.walk (rootState hkK φ) w).val = true) :
-    ((rule hM hK).tree.walk (rootState hkK φ) w).val.length ≤ occBound K M * φ.numVars + 1 := by
+    (hs : isSparse (countingThreshold M) K ((rule hM hK).tree.walk (rootState hkK φ) w).1 = true) :
+    ((rule hM hK).tree.walk (rootState hkK φ) w).1.length ≤ occBound K M * φ.numVars + 1 := by
   set ψ := (rule hM hK).tree.walk (rootState hkK φ) w
-  have hsparse := (isSparse_eq_true_iff (one_le_countingThreshold hM) ψ.property.toNormalized).mp hs
-  rw [← ψ.property.card_toClauseSet]
+  have hsparse := (isSparse_eq_true_iff (one_le_countingThreshold hM) ψ.2.toNormalized).mp hs
+  rw [← ψ.2.card_toClauseSet]
   refine ClauseSet.Sparsification.card_le_of_sparse (one_le_countingThreshold hM) hsparse
-    ψ.property.card_le φ.vars.toFinset fun C' hC' l hl => ?_
+    ψ.2.card_le φ.vars.toFinset fun C' hC' l hl => ?_
   obtain ⟨C, hC, rfl⟩ := mem_toClauseSet.mp hC'
   exact mem_vars_of_mem_walk hM hK hkK w C hC l (List.mem_toFinset.mp hl)
 
 /-- Every state of the tree has clause width at most `k` (for every `φ : CNF ℕ` and every `k : ℕ`,
 including `k = 0`). -/
 theorem length_le_of_mem_walk (hw : (rule hM hK).tree.IsNodeWord (rootState hkK φ) w)
-    {C : Clause ℕ} (hC : C ∈ ((rule hM hK).tree.walk (rootState hkK φ) w).val) : C.length ≤ k := by
+    {C : Clause ℕ} (hC : C ∈ ((rule hM hK).tree.walk (rootState hkK φ) w).1) : C.length ≤ k := by
   set ψ := (rule hM hK).tree.walk (rootState hkK φ) w
   rcases Nat.eq_zero_or_pos k with rfl | hk
   · have hsparse : ClauseSet.Sparsification.Sparse (countingThreshold M)
-        (rootState hkK φ).val.toClauseSet := by
+        (rootState hkK φ).1.toClauseSet := by
       intro c H hH
       obtain ⟨D', hD'⟩ := hH.flower_nonempty (one_le_countingThreshold hM)
       obtain ⟨hD'root, rfl, -⟩ := ClauseSet.Sparsification.mem_flower.mp hD'
@@ -346,7 +340,7 @@ theorem length_le_of_mem_walk (hw : (rule hM hK).tree.IsNodeWord (rootState hkK 
         (mem_toClauseSet.mpr ⟨C, hC, rfl⟩)
       obtain ⟨D, hD, rfl⟩ := mem_toClauseSet.mp hD'
       exact (List.toFinset_card_le D).trans (length_le_of_mem_root k φ hD)
-    rwa [List.toFinset_card_of_nodup (ψ.property.nodup C hC)] at hcard
+    rwa [List.toFinset_card_of_nodup (ψ.2.nodup C hC)] at hcard
 
 end Tree
 
@@ -363,7 +357,7 @@ most `2 ^ (N / B + 1)`. `countingTreeBound_of_budget` proves them with
 `M = countingThresholdBase K B` for every `1 ≤ B`. -/
 def CountingTreeBound (M K B L_coeff : ℕ) (hM : 1 ≤ M) (hK : 1 ≤ K) : Prop :=
   ∀ (ψ : {ψ : CNF ℕ // CountingNormalized K ψ}) (declared : Finset ℕ),
-    (∀ C ∈ ψ.val, ∀ l ∈ C, l.1 ∈ declared) →
+    (∀ C ∈ ψ.1, ∀ l ∈ C, l.1 ∈ declared) →
     (∀ w, (rule hM hK).tree.IsLeafWord ψ w → w.length ≤ L_coeff * declared.card) ∧
     ∀ W : Finset (List Bool), (∀ w ∈ W, (rule hM hK).tree.IsLeafWord ψ w) →
       W.card ≤ 2 ^ (declared.card / B + 1)
@@ -381,8 +375,8 @@ theorem iterate_step (hM2 : 2 ≤ M) {k B L_coeff : ℕ} (hkK : k ≤ K)
       (step M K g)^[rounds B φ] (init k φ) =
         (φ.distinctVars.length, ([], min (2 ^ φ.distinctVars.length)
           (∑ w ∈ W, leafWeight φ.distinctVars.length
-            ((rule hM hK).tree.walk (rootState hkK φ) w).val
-            (g ((rule hM hK).tree.walk (rootState hkK φ) w).val))))) ∧
+            ((rule hM hK).tree.walk (rootState hkK φ) w).1
+            (g ((rule hM hK).tree.walk (rootState hkK φ) w).1))))) ∧
     ∀ i, ∃ (stk : List {ψ : CNF ℕ // CountingNormalized K ψ}) (acc : ℕ),
       (step M K g)^[i] (init k φ) = (φ.distinctVars.length, (stk.map Subtype.val, acc)) ∧
       stk.length ≤ L_coeff * φ.numVars + 1 ∧
@@ -396,7 +390,7 @@ theorem iterate_step (hM2 : 2 ≤ M) {k B L_coeff : ℕ} (hkK : k ≤ K)
   obtain ⟨hlen, hWbound⟩ := hTB s₀ φ.vars.toFinset mem_vars_of_mem_root
   obtain ⟨L, hnd, hL, N, hN, h⟩ := R.tree.exists_iterate_searchStep
     (CountingBranchingRule.tree_terminating fun _ => two_le_countingThreshold hM2)
-    (fun acc t => min (2 ^ n) (acc + leafWeight n t.val (g t.val))) s₀ hlen
+    (fun acc t => min (2 ^ n) (acc + leafWeight n t.1 (g t.1))) s₀ hlen
   have hW (w : List Bool) : w ∈ L.toFinset ↔ R.tree.IsLeafWord s₀ w := by
     rw [List.mem_toFinset, hL]
   have hWcard : L.length ≤ 2 ^ (φ.numVars / B + 1) := by
@@ -408,13 +402,13 @@ theorem iterate_step (hM2 : 2 ≤ M) {k B L_coeff : ℕ} (hkK : k ≤ K)
   have hinit : init k φ = (n, ([s₀].map Subtype.val, 0)) := rfl
   obtain ⟨hfin, hmid⟩ := h [] 0
   have hsum : (L.map (R.tree.walk s₀)).foldl
-      (fun acc t => min (2 ^ n) (acc + leafWeight n t.val (g t.val))) 0 =
+      (fun acc t => min (2 ^ n) (acc + leafWeight n t.1 (g t.1))) 0 =
       min (2 ^ n)
-        (∑ w ∈ L.toFinset, leafWeight n (R.tree.walk s₀ w).val (g (R.tree.walk s₀ w).val)) := by
+        (∑ w ∈ L.toFinset, leafWeight n (R.tree.walk s₀ w).1 (g (R.tree.walk s₀ w).1)) := by
     rw [List.foldl_min_add_eq _ _ (Nat.zero_le _), zero_add, List.sum_toFinset _ hnd, List.map_map]
     rfl
   have hN' : (step M K g)^[N] (init k φ) = (n, ([], min (2 ^ n)
-      (∑ w ∈ L.toFinset, leafWeight n (R.tree.walk s₀ w).val (g (R.tree.walk s₀ w).val)))) := by
+      (∑ w ∈ L.toFinset, leafWeight n (R.tree.walk s₀ w).1 (g (R.tree.walk s₀ w).1)))) := by
     rw [hinit, iterate_step_map hM hK, hfin, hsum]
     simp
   refine ⟨⟨L.toFinset, hW, ?_⟩, fun i => ?_⟩
@@ -423,13 +417,13 @@ theorem iterate_step (hM2 : 2 ≤ M) {k B L_coeff : ℕ} (hkK : k ≤ K)
   · by_cases hi : i ≤ N
     · obtain ⟨stk, L', -, heq, hstk, hmem⟩ := hmid i hi
       refine ⟨stk, (L'.map (R.tree.walk s₀)).foldl
-        (fun acc t => min (2 ^ n) (acc + leafWeight n t.val (g t.val))) 0, ?_, hstk, ?_, hmem⟩
+        (fun acc t => min (2 ^ n) (acc + leafWeight n t.1 (g t.1))) 0, ?_, hstk, ?_, hmem⟩
       · rw [hinit, iterate_step_map hM hK, heq]
         simp
       · rw [List.foldl_min_add_eq _ _ (Nat.zero_le _), ← hn_eq]
         exact Nat.min_le_left _ _
     · refine ⟨[], min (2 ^ n)
-        (∑ w ∈ L.toFinset, leafWeight n (R.tree.walk s₀ w).val (g (R.tree.walk s₀ w).val)),
+        (∑ w ∈ L.toFinset, leafWeight n (R.tree.walk s₀ w).1 (g (R.tree.walk s₀ w).1)),
         ?_, by simp, hn_eq ▸ Nat.min_le_left _ _, by simp⟩
       rw [show i = (i - N) + N by omega, Function.iterate_add_apply, hN', iterate_step_nil]
       rfl
@@ -454,27 +448,22 @@ theorem search_eq_ite_modelCount_of_normalized (hM2 : 2 ≤ M) {k B L_coeff : �
   rw [search, hfin]
   dsimp only
   have hleaf (w : List Bool) (hw : R.tree.IsLeafWord s₀ w) :
-      leafWeight φ.distinctVars.length (R.tree.walk s₀ w).val (g (R.tree.walk s₀ w).val) =
-        (R.tree.walk s₀ w).val.modelCountOn φ.vars.toFinset := by
+      leafWeight φ.distinctVars.length (R.tree.walk s₀ w).1 (g (R.tree.walk s₀ w).1) =
+        (R.tree.walk s₀ w).1.modelCountOn φ.vars.toFinset := by
     set ψ := R.tree.walk s₀ w
-    have hsparse : isSparse (countingThreshold M) K ψ.val = true :=
-      (isSparse_eq_true_iff (one_le_countingThreshold hM) ψ.property.toNormalized).mpr
-          hw.isLeaf_walk
-    have hwidth : ∀ c ∈ ψ.val, c.length ≤ k :=
-      fun c hc => length_le_of_mem_walk hM hK hkK hw.isNodeWord hc
-    have hsub : ψ.val.vars.toFinset ⊆ φ.vars.toFinset :=
-      vars_walk_subset hM hK hkK w
-    have hlength : ψ.val.length ≤ occBound K M * φ.numVars + 1 :=
-      length_walk_le_of_isSparse hM hK hkK hsparse
-    rw [leafWeight, hg ψ.val ψ.property hwidth hsparse hsub hlength,
+    have hsparse : isSparse (countingThreshold M) K ψ.1 = true :=
+      (isSparse_eq_true_iff (one_le_countingThreshold hM) ψ.2.toNormalized).mpr hw.isLeaf_walk
+    have hsub := vars_walk_subset hM hK hkK (φ := φ) w
+    rw [leafWeight, hg ψ.1 ψ.2 (fun _ hc => length_le_of_mem_walk hM hK hkK hw.isNodeWord hc)
+      hsparse hsub (length_walk_le_of_isSparse hM hK hkK hsparse),
       CNF.length_distinctVars, CNF.length_distinctVars]
-    exact (CNF.modelCountOn_eq_mul_modelCount ψ.val φ.vars.toFinset hsub).symm
+    exact (CNF.modelCountOn_eq_mul_modelCount ψ.1 φ.vars.toFinset hsub).symm
   have hsum : ∑ w ∈ W,
-      leafWeight φ.distinctVars.length (R.tree.walk s₀ w).val (g (R.tree.walk s₀ w).val) =
+      leafWeight φ.distinctVars.length (R.tree.walk s₀ w).1 (g (R.tree.walk s₀ w).1) =
       (root k φ).modelCountOn φ.vars.toFinset :=
     sum_leafWords_countingRule_modelCountOn (one_le_countingThreshold hM)
       (fun _ => two_le_countingThreshold hM2) hK φ.vars.toFinset
-      (f := fun t => leafWeight φ.distinctVars.length t.val (g t.val)) s₀ hleaf hW
+      (f := fun t => leafWeight φ.distinctVars.length t.1 (g t.1)) s₀ hleaf hW
   rw [hsum, CNF.length_distinctVars]
   unfold root
   split_ifs with hφ
@@ -522,6 +511,44 @@ theorem search_eq_modelCount (hM2 : 2 ≤ M) {k B L_coeff : ℕ} (hkK : k ≤ K)
   rw [search_eq_ite_modelCount hM hK hM2 hkK hTB hg φ,
     ite_eq_left_iff.mpr fun h =>
       absurd (List.all_eq_true.mpr fun c hc => decide_eq_true (hφ c hc)) h]
+
+include hM hK in
+private theorem search_pos_iff_exists_leaf (hM2 : 2 ≤ M) {k B L_coeff : ℕ} (hkK : k ≤ K)
+    (hTB : CountingTreeBound M K B L_coeff hM hK) (g : CNF ℕ → ℕ) (φ : CNF ℕ)
+    {W : Finset (List Bool)}
+    (hW : ∀ w, w ∈ W ↔ (rule hM hK).tree.IsLeafWord (rootState hkK φ) w) :
+    0 < search M K k B g φ ↔
+      ∃ w ∈ W, 0 < g ((rule hM hK).tree.walk (rootState hkK φ) w).1 := by
+  obtain ⟨⟨U, hU, hfin⟩, -⟩ := iterate_step hM hK hM2 hkK hTB g φ
+  have hUW : U = W := Finset.ext fun w => (hU w).trans (hW w).symm
+  subst U
+  simp only [search, hfin, lt_min_iff, Nat.two_pow_pos, true_and, Finset.sum_pos_iff,
+    leafWeight, CanonicallyOrderedAdd.mul_pos]
+
+include hM hK in
+private theorem search_pos_iff_of_normalized (hM2 : 2 ≤ M) {k B L_coeff : ℕ} (hkK : k ≤ K)
+    (hTB : CountingTreeBound M K B L_coeff hM hK) {g : CNF ℕ → ℕ} {φ : CNF ℕ}
+    (hφ : ∀ c ∈ φ, c.length ≤ k)
+    (hg : ∀ ψ : CNF ℕ, CountingNormalized K ψ → (∀ c ∈ ψ, c.length ≤ k) →
+      isSparse (countingThreshold M) K ψ = true →
+      ψ.vars.toFinset ⊆ φ.vars.toFinset →
+      ψ.length ≤ occBound K M * φ.numVars + 1 → (0 < g ψ ↔ ψ.Satisfiable)) :
+    0 < search M K k B g φ ↔ φ.Satisfiable := by
+  classical
+  have hcount : search M K k B CNF.modelCount φ = φ.modelCount :=
+    search_eq_modelCount hM hK hM2 hkK hTB (fun _ _ _ => rfl) hφ
+  rw [← CNF.modelCount_pos_iff, ← hcount]
+  obtain ⟨⟨W, hW, -⟩, -⟩ := iterate_step hM hK hM2 hkK hTB g φ
+  rw [search_pos_iff_exists_leaf hM hK hM2 hkK hTB g φ hW,
+    search_pos_iff_exists_leaf hM hK hM2 hkK hTB CNF.modelCount φ hW]
+  refine exists_congr fun w => and_congr_right fun hw => ?_
+  let ψ := (rule hM hK).tree.walk (rootState hkK φ) w
+  have hleaf := (hW w).mp hw
+  have hsp : isSparse (countingThreshold M) K ψ.1 = true :=
+    (isSparse_eq_true_iff (one_le_countingThreshold hM) ψ.2.toNormalized).mpr hleaf.isLeaf_walk
+  exact (hg ψ.1 ψ.2 (fun _ hc => length_le_of_mem_walk hM hK hkK hleaf.isNodeWord hc)
+    hsp (vars_walk_subset hM hK hkK w)
+    (length_walk_le_of_isSparse hM hK hkK hsp)).trans CNF.modelCount_pos_iff.symm
 
 /-! ### Polynomial-time parts -/
 
@@ -620,14 +647,22 @@ private theorem polyBounded_numVars :
     PolyBounded (fun φ : CNF ℕ => (encCNF φ).length) CNF.numVars :=
   PolyBounded.self.mono fun φ => φ.numVars_le_length_vars.trans (SAT.length_vars_le φ)
 
-/-- `nodeBound` is polynomial in the encoded length of the formula. -/
+/-- The encoded-node bound is polynomial in any input size that polynomially bounds both the
+encoded formula length and the tree-depth coefficient. -/
+theorem nodeBound_polyBounded {α : Type*} {size depth : α → ℕ} {φ : α → CNF ℕ} (K : ℕ)
+    (hφ : PolyBounded size (fun x => (encCNF (φ x)).length))
+    (hdepth : PolyBounded size depth) :
+    PolyBounded size (fun x => nodeBound K (depth x) (φ x)) := by
+  have hm := hφ.mono fun x => length_le_length_encList _ (φ x)
+  have hn := hφ.mono fun x => (φ x).numVars_le_length_vars.trans (SAT.length_vars_le (φ x))
+  exact ((hm.add (.const 1)).add ((PolyBounded.const K).mul (hdepth.mul hn))).mul
+    (((PolyBounded.const 2).mul ((PolyBounded.const K).mul
+      (((PolyBounded.const 2).mul hφ).add (.const 1)))).add (.const 1))
+
+/-- `nodeBound` is polynomial in the encoded length of the formula at fixed depth coefficient. -/
 theorem polyBounded_nodeBound (K L_coeff : ℕ) :
-    PolyBounded (fun φ : CNF ℕ => (encCNF φ).length) (nodeBound K L_coeff) := by
-  have hn := polyBounded_numVars
-  have hm : PolyBounded (fun φ : CNF ℕ => (encCNF φ).length) List.length :=
-    PolyBounded.self.mono fun φ => length_le_length_encList _ φ
-  unfold nodeBound
-  with_reducible growth_poly
+    PolyBounded (fun φ : CNF ℕ => (encCNF φ).length) (nodeBound K L_coeff) :=
+  nodeBound_polyBounded K PolyBounded.self (PolyBounded.const L_coeff)
 
 /-- `stateBound` is polynomial in the encoded length of the formula. -/
 theorem polyBounded_stateBound (K L_coeff : ℕ) :
@@ -650,10 +685,8 @@ private theorem length_encLiteral_le_of_mem_vars {φ : CNF ℕ} {l : Literal ℕ
     (hl : l.1 ∈ φ.vars.toFinset) : (encPair encNat encBool l).length ≤ (encCNF φ).length := by
   obtain ⟨l', hl'F, hl'eq⟩ := List.mem_map.mp (List.mem_toFinset.mp hl)
   obtain ⟨D, hD, hl'D⟩ := List.mem_flatten.mp hl'F
-  have hlen_eq : (encPair encNat encBool l).length = (encPair encNat encBool l').length := by
-    simp only [length_encPair, encBool_apply, List.length_singleton, hl'eq]
-  rw [hlen_eq]
-  exact (length_le_encList_of_mem _ hl'D).trans (length_le_encList_of_mem _ hD)
+  simpa only [encCNF, length_encPair, encBool_apply, List.length_singleton, hl'eq] using
+    (length_le_encList_of_mem (encPair encNat encBool) hl'D).trans (length_le_encList_of_mem _ hD)
 
 section Sizes
 
@@ -663,12 +696,12 @@ include hM hK hkK
 theorem length_encCNF_walk_le {w : List Bool}
     (hw : (rule hM hK).tree.IsNodeWord (rootState hkK φ) w)
     (hwlen : w.length ≤ L_coeff * φ.numVars) :
-    (encCNF ((rule hM hK).tree.walk (rootState hkK φ) w).val).length ≤ nodeBound K L_coeff φ := by
+    (encCNF ((rule hM hK).tree.walk (rootState hkK φ) w).1).length ≤ nodeBound K L_coeff φ := by
   set ψ := (rule hM hK).tree.walk (rootState hkK φ) w
-  refine (length_encList_le _ ψ.val (b := K * (2 * (encCNF φ).length + 1)) fun C hC => ?_).trans
+  refine (length_encList_le _ ψ.1 (b := K * (2 * (encCNF φ).length + 1)) fun C hC => ?_).trans
     (Nat.mul_le_mul_right _ (length_walk_le hM hK hkK hw hwlen))
   refine (length_encList_le _ C (b := (encCNF φ).length) fun l hl => ?_).trans
-    (Nat.mul_le_mul_right _ (ψ.property.length_le C hC))
+    (Nat.mul_le_mul_right _ (ψ.2.length_le C hC))
   exact length_encLiteral_le_of_mem_vars (mem_vars_of_mem_walk hM hK hkK w C hC l hl)
 
 theorem length_encState_le {stk : List {ψ : CNF ℕ // CountingNormalized K ψ}} {acc : ℕ}
@@ -728,6 +761,79 @@ theorem iterate_step_prefix_bounds (hM2 : 2 ≤ M) {k B L_coeff : ℕ} (hkK : k 
       numVars_walk_le hM hK hkK w,
       length_walk_le_of_isSparse hM hK hkK hc.2,
       length_encCNF_walk_le hM hK hkK hw hwlen⟩
+
+include hM hK in
+/-- The counting-sparsification search detects satisfiability by testing its output for
+positivity. With a shared seed, its error fraction is at most
+`2 ^ (φ.numVars / B + 1) * ε` when each leaf routine has error fraction at most `ε`.
+The leaf contract includes the root's variable support, the leaf clause bound, and the
+encoded-length bound, so a shared seed can cover lengths that depend on the leaf encoding.
+For a valid declared input the same positivity test applies to `searchDeclaredWith` by
+`searchDeclaredWith_eq_ite_mul`. -/
+theorem acceptCount_search_pos_error_le (hM2 : 2 ≤ M) {k B L_coeff : ℕ}
+    (hkK : k ≤ K) (hTB : CountingTreeBound M K B L_coeff hM hK)
+    {φ : CNF ℕ} (hφ : ∀ c ∈ φ, c.length ≤ k)
+    (V : CNF ℕ × List Bool → ℕ) (width : CNF ℕ → ℕ) (n : ℕ) {ε : ℝ} (hε : 0 ≤ ε)
+    (hleaf : ∀ ψ : CNF ℕ, CountingNormalized K ψ → (∀ c ∈ ψ, c.length ≤ k) →
+      isSparse (countingThreshold M) K ψ = true → ψ.vars.toFinset ⊆ φ.vars.toFinset →
+      ψ.length ≤ occBound K M * φ.numVars + 1 → (encCNF ψ).length ≤ nodeBound K L_coeff φ →
+      width ψ ≤ n ∧ (acceptCount (fun p => decide (0 < V p) != decide (0 < p.1.modelCount))
+        ψ (width ψ) : ℝ) ≤ ε * (2 : ℝ) ^ width ψ) :
+    (acceptCount (fun p => decide (0 < search M K k B
+      (fun ψ => V (ψ, p.2.take (width ψ))) p.1) != decide (0 < p.1.modelCount)) φ n : ℝ) ≤
+      (2 : ℝ) ^ (φ.numVars / B + 1) * (ε * (2 : ℝ) ^ n) := by
+  classical
+  obtain ⟨⟨W, hW, -⟩, -⟩ := iterate_step hM hK hM2 hkK hTB CNF.modelCount φ
+  obtain ⟨hlen, hcard⟩ := hTB (rootState hkK φ) φ.vars.toFinset mem_vars_of_mem_root
+  have hcardW : W.card ≤ 2 ^ (φ.numVars / B + 1) :=
+    hcard W fun w hw => (hW w).mp hw
+  let leaf (w : List Bool) := ((rule hM hK).tree.walk (rootState hkK φ) w).1
+  let bad (w : List Bool) (p : CNF ℕ × List Bool) :=
+    decide (0 < V (leaf w, p.2)) != decide (0 < (leaf w).modelCount)
+  have hbounds (w : List Bool) (hw : w ∈ W) :
+      width (leaf w) ≤ n ∧
+        (acceptCount (bad w) φ (width (leaf w)) : ℝ) ≤ ε * (2 : ℝ) ^ width (leaf w) := by
+    let ψ := (rule hM hK).tree.walk (rootState hkK φ) w
+    have hw' := (hW w).mp hw
+    have hs : isSparse (countingThreshold M) K ψ.1 = true :=
+      (isSparse_eq_true_iff (one_le_countingThreshold hM) ψ.2.toNormalized).mpr hw'.isLeaf_walk
+    exact hleaf ψ.1 ψ.2 (fun _ hc => length_le_of_mem_walk hM hK hkK hw'.isNodeWord hc)
+      hs (vars_walk_subset hM hK hkK w) (length_walk_le_of_isSparse hM hK hkK hs)
+      (length_encCNF_walk_le hM hK hkK hw'.isNodeWord (hlen w hw'))
+  let err (p : CNF ℕ × List Bool) := decide (0 < search M K k B
+    (fun ψ => V (ψ, p.2.take (width ψ))) p.1) != decide (0 < p.1.modelCount)
+  have hcover (seed : List Bool) (_ : seed.length = n) (herr : err (φ, seed) = true) :
+      ∃ w ∈ W, bad w (φ, seed.take (width (leaf w))) = true := by
+    by_contra hnone
+    let g (ψ : CNF ℕ) := V (ψ, seed.take (width ψ))
+    have heq (w : List Bool) (hw : w ∈ W) :
+        (0 < g (leaf w)) ↔ 0 < (leaf w).modelCount := by
+      have hdec : decide (0 < g (leaf w)) = decide (0 < (leaf w).modelCount) := by
+        by_contra hne
+        exact hnone ⟨w, hw, bne_iff_ne.mpr hne⟩
+      simpa only [decide_eq_true_eq] using Bool.eq_iff_iff.mp hdec
+    have hpos : 0 < search M K k B g φ ↔ 0 < search M K k B CNF.modelCount φ :=
+      (search_pos_iff_exists_leaf hM hK hM2 hkK hTB g φ hW).trans <|
+        (exists_congr fun w => and_congr_right (heq w)).trans
+          (search_pos_iff_exists_leaf hM hK hM2 hkK hTB CNF.modelCount φ hW).symm
+    rw [search_eq_modelCount hM hK hM2 hkK hTB (fun _ _ _ => rfl) hφ] at hpos
+    exact (bne_iff_ne.mp herr) (Bool.eq_iff_iff.mpr
+      (by simpa only [decide_eq_true_eq] using hpos))
+  have hcount := acceptCount_le_sum_of_take_cover W bad (width ∘ leaf) err φ n
+    (fun w hw => (hbounds w hw).1) hcover
+  change (acceptCount err φ n : ℝ) ≤ _
+  calc
+    _ ≤ ∑ w ∈ W, (2 : ℝ) ^ (n - width (leaf w)) *
+        (acceptCount (bad w) φ (width (leaf w)) : ℝ) := by exact_mod_cast hcount
+    _ ≤ ∑ _w ∈ W, ε * (2 : ℝ) ^ n := by
+      refine Finset.sum_le_sum fun w hw => ?_
+      calc
+        _ ≤ (2 : ℝ) ^ (n - width (leaf w)) * (ε * (2 : ℝ) ^ width (leaf w)) :=
+          mul_le_mul_of_nonneg_left (hbounds w hw).2 (by positivity)
+        _ = ε * (2 : ℝ) ^ n := by
+          rw [mul_left_comm, ← pow_add, Nat.sub_add_cancel (hbounds w hw).1]
+    _ = (W.card : ℝ) * (ε * (2 : ℝ) ^ n) := by simp only [Finset.sum_const, nsmul_eq_mul]
+    _ ≤ _ := mul_le_mul_of_nonneg_right (by exact_mod_cast hcardW) (by positivity)
 
 /-! ### Independent time and workspace of the counting-sparsification search -/
 
@@ -963,28 +1069,15 @@ theorem exists_computableInO_search (hM2 : 2 ≤ M) {k B L_coeff : ℕ} (hkK : k
   obtain ⟨d, dn, di, h⟩ :=
     exists_computableInO_search_rounds hM hK hM2 hkK hTB hg hg_le hδ ht
   obtain ⟨C₀, E, hT⟩ := search_time_bound K M B L_coeff d dn di hδ c e
-  set T : CNF ℕ → ℕ := fun φ =>
-    ((encCNF φ).length + 1) ^ dn + ((encCNF φ).length + 1) ^ di +
-      (rounds B φ + 1) * (2 * (2 * stateBound K L_coeff φ + 1) ^ d +
-        leafTime K M L_coeff δ c e φ +
-        stateBound K L_coeff φ + ((encNat (rounds B φ)).length + 1) ^ 2)
-  have h_mono : ComputableInO (search M K k B g) encCNF encNat T T :=
-    h.mono_le (fun _ => le_rfl) fun φ => by
-      dsimp only [T]
-      have h1 : 2 * (2 * stateBound K L_coeff φ + 1) ^ d + leafTime K M L_coeff δ c e φ +
-          stateBound K L_coeff φ + (encNat (rounds B φ)).length ≤
-          2 * (2 * stateBound K L_coeff φ + 1) ^ d + leafTime K M L_coeff δ c e φ +
-            stateBound K L_coeff φ + ((encNat (rounds B φ)).length + 1) ^ 2 := by
-        have : (encNat (rounds B φ)).length ≤ ((encNat (rounds B φ)).length + 1) ^ 2 :=
-          (Nat.le_succ _).trans (Nat.le_self_pow two_ne_zero _)
-        omega
-      have h2 := Nat.le_mul_of_pos_left
-        (2 * (2 * stateBound K L_coeff φ + 1) ^ d + leafTime K M L_coeff δ c e φ +
-          stateBound K L_coeff φ + ((encNat (rounds B φ)).length + 1) ^ 2)
-        (Nat.succ_pos (rounds B φ))
-      simp only [Nat.succ_eq_add_one] at h2
-      omega
-  exact ⟨T, C₀, E, h_mono, hT⟩
+  refine ⟨_, C₀, E, h.mono_le (fun _ => le_rfl) fun φ => ?_, hT⟩
+  have h1 : (encNat (rounds B φ)).length ≤ ((encNat (rounds B φ)).length + 1) ^ 2 :=
+    (Nat.le_succ _).trans (Nat.le_self_pow two_ne_zero _)
+  have h2 := Nat.le_mul_of_pos_left
+    (2 * (2 * stateBound K L_coeff φ + 1) ^ d + leafTime K M L_coeff δ c e φ +
+      stateBound K L_coeff φ + ((encNat (rounds B φ)).length + 1) ^ 2)
+    (Nat.succ_pos (rounds B φ))
+  simp only [Nat.succ_eq_add_one] at h2
+  omega
 
 include hM hK in
 /-- **Independent polynomial workspace for counting sparsification.** A single total leaf machine
@@ -1110,6 +1203,34 @@ theorem searchDeclaredWith_eq_ite_mul (NOf MOf BOf : P → ℕ) (K k : ℕ) (g :
   rw [searchDeclaredWith, searchWith_eq_search, Nat.shiftLeft_eq, CNF.length_distinctVars,
     Nat.mul_comm]
 
+/-- The declared search detects satisfiability if the leaf routine returns a positive value
+exactly on satisfiable normalized sparse leaves within the declared support and clause bound.
+An invalid width or support fails the test. This gives the semantic step for using a leaf
+decision routine toward the decision transfer in
+[MITHardnessGroup2026SH, v2, §2.2, Corollary 2.3], tracked in #8457. -/
+theorem searchDeclaredWith_pos_iff_of_normalized
+    {NOf MOf BOf : P → ℕ} {K k L_coeff : ℕ}
+    {p : P} (hM : 1 ≤ MOf p) (hK : 1 ≤ K) (hM2 : 2 ≤ MOf p) (hkK : k ≤ K)
+    (hTB : CountingTreeBound (MOf p) K (BOf p) L_coeff hM hK)
+    {g : P × CNF ℕ → ℕ}
+    (hg : ∀ ψ : CNF ℕ, CountingNormalized K ψ → (∀ c ∈ ψ, c.length ≤ k) →
+      isSparse (countingThreshold (MOf p)) K ψ = true →
+      ψ.vars.toFinset ⊆ Finset.range (NOf p) →
+      ψ.length ≤ occBound K (MOf p) * NOf p + 1 → (0 < g (p, ψ) ↔ ψ.Satisfiable))
+    (φ : CNF ℕ) :
+    0 < searchDeclaredWith NOf MOf BOf K k g p φ ↔
+      validDeclaredInput k (NOf p) φ = true ∧ φ.Satisfiable := by
+  rw [searchDeclaredWith_eq_ite_mul]
+  by_cases hvalid : validDeclaredInput k (NOf p) φ = true
+  · obtain ⟨hw, hsub⟩ := validDeclaredInput_eq_true_iff.mp hvalid
+    have hn : φ.numVars ≤ NOf p := by
+      simpa only [CNF.numVars, Finset.card_range] using Finset.card_le_card hsub
+    simp only [hvalid, ↓reduceIte, CanonicallyOrderedAdd.mul_pos, Nat.two_pow_pos, true_and]
+    exact search_pos_iff_of_normalized hM hK hM2 hkK hTB hw
+      (fun ψ hnorm hψw hsp hψsub hlen => hg ψ hnorm hψw hsp (hψsub.trans hsub)
+        (hlen.trans (Nat.add_le_add_right (Nat.mul_le_mul_left _ hn) 1)))
+  · simp [hvalid]
+
 /-- **Declared-variable correctness from normalized bounded leaves.** The occurring-variable
 counter need only be exact on normalized sparse width-`≤ k` formulas supported on the declared
 range and having at most `occBound K (MOf p) * NOf p + 1` clauses. -/
@@ -1130,14 +1251,12 @@ theorem searchDeclaredWith_eq_ite_modelCountOn_of_normalized
   · obtain ⟨hw, hsub⟩ := validDeclaredInput_eq_true_iff.mp hvalid
     have hn : φ.numVars ≤ NOf p := by
       simpa only [CNF.numVars, Finset.card_range] using Finset.card_le_card hsub
-    have hsearch : search (MOf p) K k (BOf p) (fun ψ => g (p, ψ)) φ = φ.modelCount := by
-      rw [search_eq_ite_modelCount_of_normalized hM hK hM2 hkK hTB
-        (fun ψ hnorm hψw hsp hψsub hlen => hg ψ hnorm hψw hsp (hψsub.trans hsub)
-          (hlen.trans (Nat.add_le_add_right (Nat.mul_le_mul_left _ hn) 1))),
-        ite_eq_left_iff.mpr fun h =>
-          absurd (List.all_eq_true.mpr fun c hc => decide_eq_true (hw c hc)) h]
-    rw [hsearch, CNF.modelCountOn_eq_mul_modelCount φ (Finset.range (NOf p)) hsub,
-      Finset.card_range]
+    rw [search_eq_ite_modelCount_of_normalized hM hK hM2 hkK hTB
+      (fun ψ hnorm hψw hsp hψsub hlen => hg ψ hnorm hψw hsp (hψsub.trans hsub)
+        (hlen.trans (Nat.add_le_add_right (Nat.mul_le_mul_left _ hn) 1))),
+      ite_eq_left_iff.mpr fun h =>
+        absurd (List.all_eq_true.mpr fun c hc => decide_eq_true (hw c hc)) h,
+      CNF.modelCountOn_eq_mul_modelCount φ (Finset.range (NOf p)) hsub, Finset.card_range]
   · rfl
 
 /-- Declared-variable correctness on valid inputs, from the invariants of sparse leaves. -/

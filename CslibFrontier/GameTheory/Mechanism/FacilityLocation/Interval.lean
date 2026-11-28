@@ -152,12 +152,9 @@ variable {ι : Type*} [Fintype ι] {a b : ℝ} (E : MoulinScheme ι a b)
 private noncomputable def evalVal (x : ι → Set.Icc a b) : ℝ :=
   finMin b Finset.univ fun S => max (E.alpha S) (finMax a S fun i => (x i : ℝ))
 
-private lemma evalVal_mem_Icc (x : ι → Set.Icc a b) : E.evalVal x ∈ Set.Icc a b := by
-  refine ⟨?_, ?_⟩
-  · refine le_finMin ?_ fun S _ => ?_
-    · exact (E.mem_Icc Finset.univ).1.trans (E.mem_Icc Finset.univ).2
-    · exact le_max_of_le_left (E.mem_Icc S).1
-  · exact finMin_le_base b Finset.univ _
+private lemma evalVal_mem_Icc (x : ι → Set.Icc a b) : E.evalVal x ∈ Set.Icc a b :=
+  ⟨le_finMin ((E.mem_Icc Finset.univ).1.trans (E.mem_Icc Finset.univ).2) fun S _ =>
+    le_max_of_le_left (E.mem_Icc S).1, finMin_le_base b Finset.univ _⟩
 
 /-- Evaluates a `MoulinScheme` on an agent profile `x : ι → Set.Icc a b`, returning
 `min_{S} max(α_S, max(a, sup_{i ∈ S} x_i)) ∈ Set.Icc a b`. -/
@@ -187,13 +184,13 @@ theorem eval_const [Nonempty ι] (y : Set.Icc a b) : E.eval (fun _ => y) = y := 
   · have hle := E.eval_le_branch (fun _ => y) Finset.univ
     have hmax : (finMax a Finset.univ fun _ : ι => (y : ℝ)) = y := by
       obtain ⟨i₀⟩ := ‹Nonempty ι›
-      exact le_antisymm (finMax_le y.property.1 fun _ _ => le_rfl)
+      exact le_antisymm (finMax_le y.2.1 fun _ _ => le_rfl)
         (mem_le_finMax a (fun _ => (y : ℝ)) (Finset.mem_univ i₀))
-    rwa [E.boundary_univ, hmax, max_eq_right y.property.1] at hle
-  · refine le_finMin y.property.2 fun S _ => ?_
+    rwa [E.boundary_univ, hmax, max_eq_right y.2.1] at hle
+  · refine le_finMin y.2.2 fun S _ => ?_
     rcases eq_or_ne S ∅ with rfl | hS
-    · rw [E.boundary_empty]; exact le_max_of_le_left y.property.2
-    · obtain ⟨i₀, hi₀⟩ := Finset.ne_empty_iff_nonempty.mp hS
+    · rw [E.boundary_empty]; exact le_max_of_le_left y.2.2
+    · obtain ⟨i₀, hi₀⟩ := Finset.nonempty_iff_ne_empty.mpr hS
       exact le_max_of_le_right (mem_le_finMax a (fun _ => (y : ℝ)) hi₀)
 
 theorem eval_surjective [Nonempty ι] : Function.Surjective E.eval :=
@@ -213,7 +210,7 @@ theorem lt_eval_iff (x : ι → Set.Icc a b) (y : Set.Icc a b) :
   constructor
   · intro hy
     have hmax : (finMax a Sle fun i => (x i : ℝ)) ≤ y :=
-      finMax_le y.property.1 fun i hi => (Finset.mem_filter.mp hi).2
+      finMax_le y.2.1 fun i hi => (Finset.mem_filter.mp hi).2
     exact (lt_max_iff.mp (hy.trans_le (E.eval_le_branch x Sle))).resolve_right (not_lt.mpr hmax)
   · intro hy
     obtain ⟨S₀, hS₀⟩ := E.exists_eval_witness x
@@ -247,35 +244,29 @@ theorem eval_isGroupStrategyProof [DecidableEq ι] [MeasurableSpace (Set.Icc a b
   rintro x z A ⟨hle, i₀, _, hlt⟩
   let y : ℝ := (E.eval x : ℝ)
   let y' : ℝ := (E.eval (A.piecewise z x) : ℝ)
-  have hne : y ≠ y' := fun heq => hlt.ne <| by
-    rw [Subtype.dist_eq, Subtype.dist_eq]; change dist (x i₀ : ℝ) y' = dist (x i₀ : ℝ) y; rw [heq]
+  have hne : y ≠ y' := fun heq => hlt.ne (by rw [Subtype.ext heq])
   have hdist_le : ∀ i ∈ A, |y' - (x i : ℝ)| ≤ |y - (x i : ℝ)| := fun i hi => by
     simpa [Subtype.dist_eq, Real.dist_eq, abs_sub_comm, y, y'] using hle i hi
   rcases lt_or_gt_of_ne hne with hy_lt | hy'_lt
-  · have hA_gt : ∀ i ∈ A, y < (x i : ℝ) := fun i hi => by
-      have hsq := sq_le_sq.mpr (hdist_le i hi)
-      nlinarith
+  · have hA_gt (i : ι) (hi : i ∈ A) : y < (x i : ℝ) := by nlinarith [sq_le_sq.mpr (hdist_le i hi)]
     obtain ⟨S₀, hS₀⟩ := E.exists_eval_witness x
     have hdisj : ∀ j ∈ S₀, j ∉ A := fun j hjS hjA => (hA_gt j hjA).not_ge <|
       (le_max_of_le_right (mem_le_finMax a (fun k => (x k : ℝ)) hjS)).trans_eq hS₀
     have hfin_eq : (finMax a S₀ fun j => ((A.piecewise z x j : Set.Icc a b) : ℝ)) =
         finMax a S₀ fun j => (x j : ℝ) :=
       finMax_eq_of_eqOn a S₀ fun j hj => by simp [Finset.piecewise_eq_of_notMem _ _ _ (hdisj j hj)]
-    have hy' : y' ≤ y := (E.eval_le_branch (A.piecewise z x) S₀).trans_eq (by rw [hfin_eq, hS₀])
-    exact hy_lt.not_ge hy'
-  · have hA_lt : ∀ i ∈ A, (x i : ℝ) < y := fun i hi => by
-      have hsq := sq_le_sq.mpr (hdist_le i hi)
-      nlinarith
+    exact hy_lt.not_ge ((E.eval_le_branch (A.piecewise z x) S₀).trans_eq (by rw [hfin_eq, hS₀]))
+  · have hA_lt (i : ι) (hi : i ∈ A) : (x i : ℝ) < y := by nlinarith [sq_le_sq.mpr (hdist_le i hi)]
     obtain ⟨S₁, hS₁⟩ := E.exists_eval_witness (A.piecewise z x)
     have hα : E.alpha (S₁ ∪ A) < y := (E.antitone Finset.subset_union_left).trans_lt <|
       ((le_max_left _ _).trans_eq hS₁).trans_lt hy'_lt
     have hmem_lt : ∀ j ∈ S₁ ∪ A, (x j : ℝ) < y := fun j hj => by
       by_cases hjA : j ∈ A
       · exact hA_lt j hjA
-      · have hjS : j ∈ S₁ := (Finset.mem_union.mp hj).resolve_right hjA
-        have heq : (x j : ℝ) = ((A.piecewise z x j : Set.Icc a b) : ℝ) := by
-          simp [Finset.piecewise_eq_of_notMem _ _ _ hjA]
-        exact heq.symm ▸ ((le_max_of_le_right (mem_le_finMax a _ hjS)).trans_eq hS₁).trans_lt hy'_lt
+      · simpa [Finset.piecewise_eq_of_notMem _ _ _ hjA] using
+          ((le_max_of_le_right
+            (mem_le_finMax a _ ((Finset.mem_union.mp hj).resolve_right hjA))).trans_eq hS₁).trans_lt
+            hy'_lt
     exact (E.eval_le_branch x (S₁ ∪ A)).not_gt
       (max_lt hα (finMax_lt ((E.mem_Icc _).1.trans_lt hα) hmem_lt))
 
@@ -303,16 +294,11 @@ private lemma evalVal_update_eq [DecidableEq ι] (x : ι → Set.Icc a b) (i₀ 
     split_ifs with hi
     · have hfin : (finMax a S fun j => ((Function.update x i₀ z j : Set.Icc a b) : ℝ)) =
           max (z : ℝ) (finMax a (S.erase i₀) fun j => (x j : ℝ)) := by
-        let gz : ι → ℝ := fun j => ((Function.update x i₀ z j : Set.Icc a b) : ℝ)
-        refine le_antisymm (finMax_le (le_max_of_le_right (le_finMax a _ _)) fun j hj => ?_)
-          (max_le (by simpa only [gz, Function.update_self] using mem_le_finMax a gz hi)
-            (finMax_le (le_finMax a S gz) fun j hj => by
-              simpa only [gz, Function.update_of_ne (Finset.ne_of_mem_erase hj)] using
-                mem_le_finMax a gz (Finset.erase_subset _ _ hj)))
-        by_cases hji : j = i₀
-        · subst hji; simp
-        · exact le_max_of_le_right <| by
-            simpa [hji] using mem_le_finMax a (fun k => (x k : ℝ)) (Finset.mem_erase.mpr ⟨hji, hj⟩)
+        dsimp only [finMax]
+        conv_lhs => rw [← Finset.insert_erase hi]
+        rw [Finset.fold_insert (Finset.notMem_erase _ _), Function.update_self]
+        exact congrArg _ (Finset.fold_congr fun j hj => by
+          rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)])
       rw [hfin]; dsimp only [g]; rw [max_left_comm, max_comm]
     · dsimp only [g]; rw [Finset.erase_eq_of_notMem hi]; congr 1
       exact finMax_eq_of_eqOn a S fun j hj => by simp [show j ≠ i₀ from fun h => hi (h ▸ hj)]
@@ -328,7 +314,7 @@ private lemma evalVal_update_eq [DecidableEq ι] (x : ι → Set.Icc a b) (i₀ 
     have hT1 : finMin b T₁ (fun S => max (E.alpha S)
         (finMax a S fun j => ((Function.update x i₀ z j : Set.Icc a b) : ℝ))) =
         max (finMin b T₁ g) (z : ℝ) := by
-      rw [← finMin_max_right b T₁ g z.property.2]
+      rw [← finMin_max_right b T₁ g z.2.2]
       exact finMin_eq_of_eqOn b fun S hS => by
         rw [hxz z S, ite_eq_left (Finset.mem_filter.mp hS).2]
     rw [hT0, hT1]
@@ -495,26 +481,22 @@ private lemma coord_no_right_jump [DecidableEq ι] {f : (ι → Set.Icc a b) →
     exact ht'g.trans (hg_mono (show (t' : ℝ) ≤ t by linarith))
   set v₀ := sInf S with hv₀_def
   have hu₀_le_v₀ : u₀ + ε ≤ v₀ := le_csInf hS_ne hS_lo
-  have hu₀_ge_a : a ≤ u₀ := (f (Function.update x i₀ t₀)).property.1
+  have hu₀_ge_a : a ≤ u₀ := (f (Function.update x i₀ t₀)).2.1
   have hv₀_le_b : v₀ ≤ b :=
-    (csInf_le ⟨u₀ + ε, hS_lo⟩ ⟨t₁, ht₁, rfl⟩).trans (f (Function.update x i₀ t₁)).property.2
+    (csInf_le ⟨u₀ + ε, hS_lo⟩ ⟨t₁, ht₁, rfl⟩).trans (f (Function.update x i₀ t₁)).2.2
   have ht₀_eq : (t₀ : ℝ) = (u₀ + v₀) / 2 := by
     rcases lt_trichotomy (t₀ : ℝ) ((u₀ + v₀) / 2) with hlt | heq | hgt
     · let t' := ((t₀ : ℝ) + min ((u₀ + v₀) / 2) (t₁ : ℝ)) / 2
-      have ht'_def : t' = ((t₀ : ℝ) + min ((u₀ + v₀) / 2) (t₁ : ℝ)) / 2 := rfl
-      have hmin_gt : (t₀ : ℝ) < min ((u₀ + v₀) / 2) (t₁ : ℝ) := lt_min hlt ht₁
-      have hmin_l : min ((u₀ + v₀) / 2) (t₁ : ℝ) ≤ (u₀ + v₀) / 2 := min_le_left _ _
-      have hmin_r : min ((u₀ + v₀) / 2) (t₁ : ℝ) ≤ t₁ := min_le_right _ _
-      have ht'_gt : (t₀ : ℝ) < t' := by linarith [ht'_def, hmin_gt]
-      have ht'_le : t' ≤ t₁ := by linarith [ht'_def, hmin_r]
-      have ht'_lt : t' < (u₀ + v₀) / 2 := by linarith [ht'_def, hmin_l]
-      have ht'_mem : t' ∈ Set.Icc a b := ⟨t₀.property.1.trans ht'_gt.le, ht'_le.trans t₁.property.2⟩
+      have ht'_gt : (t₀ : ℝ) < t' := by dsimp only [t']; linarith [lt_min hlt ht₁]
+      have ht'_le : t' ≤ t₁ := by dsimp only [t']; linarith [min_le_right ((u₀ + v₀) / 2) (t₁ : ℝ)]
+      have ht'_lt : t' < (u₀ + v₀) / 2 := by
+        dsimp only [t']; linarith [min_le_left ((u₀ + v₀) / 2) (t₁ : ℝ)]
+      have ht'_mem : t' ∈ Set.Icc a b := ⟨t₀.2.1.trans ht'_gt.le, ht'_le.trans t₁.2.2⟩
       have hv_le : v₀ ≤ g ⟨t', ht'_mem⟩ :=
         csInf_le ⟨u₀ + ε, hS_lo⟩ ⟨⟨t', ht'_mem⟩, ht'_gt, rfl⟩
-      have hsp' := hg_sp ⟨t', ht'_mem⟩ t₀
       have h1 : v₀ - t' ≤ |g ⟨t', ht'_mem⟩ - t'| := by rw [abs_of_nonneg (by linarith)]; linarith
       have h2 : |u₀ - t'| < v₀ - t' := abs_lt.mpr ⟨by linarith, by linarith⟩
-      linarith
+      linarith [hg_sp ⟨t', ht'_mem⟩ t₀]
     · exact heq
     · obtain ⟨_, ⟨t, ht_gt, rfl⟩, hy_lt⟩ :=
         (csInf_lt_iff ⟨u₀ + ε, hS_lo⟩ hS_ne).mp
@@ -523,23 +505,21 @@ private lemma coord_no_right_jump [DecidableEq ι] {f : (ι → Set.Icc a b) →
       have h1 : |g t - (t₀ : ℝ)| < (t₀ : ℝ) - u₀ := abs_lt.mpr ⟨by linarith, by linarith⟩
       have h2 : |u₀ - (t₀ : ℝ)| = (t₀ : ℝ) - u₀ := by rw [abs_of_neg (by linarith)]; ring
       linarith [hg_sp t₀ t]
-  let η := (v₀ - u₀) / 16
-  have hη_def : η = (v₀ - u₀) / 16 := rfl
+  set η := (v₀ - u₀) / 16 with hη_def
   have hη : 0 < η := by linarith [hu₀_le_v₀, hε, hη_def]
   have htplus_mem : (t₀ : ℝ) + η / 4 ∈ Set.Icc a b :=
-    ⟨t₀.property.1.trans (by linarith),
+    ⟨t₀.2.1.trans (by linarith),
       (by linarith [hη_def, ht₀_eq] : (t₀ : ℝ) + η / 4 ≤ v₀).trans hv₀_le_b⟩
   have hm1_mem : (t₀ : ℝ) - η ∈ Set.Icc a b :=
     ⟨hu₀_ge_a.trans (by linarith [hη_def, ht₀_eq]),
-      (by linarith : (t₀ : ℝ) - η ≤ t₀).trans t₀.property.2⟩
+      (by linarith : (t₀ : ℝ) - η ≤ t₀).trans t₀.2.2⟩
   have hm2_mem : (t₀ : ℝ) + η ∈ Set.Icc a b :=
-    ⟨t₀.property.1.trans (by linarith),
-      (by linarith [hη_def, ht₀_eq] : (t₀ : ℝ) + η ≤ v₀).trans hv₀_le_b⟩
+    ⟨t₀.2.1.trans (by linarith), (by linarith [hη_def, ht₀_eq] : (t₀ : ℝ) + η ≤ v₀).trans hv₀_le_b⟩
   have hft_lo : (t₀ : ℝ) + 8 * η ≤ g ⟨(t₀ : ℝ) + η / 4, htplus_mem⟩ := by
     rw [show (t₀ : ℝ) + 8 * η = v₀ by linarith [hη_def, ht₀_eq]]
     exact csInf_le ⟨u₀ + ε, hS_lo⟩ ⟨⟨(t₀ : ℝ) + η / 4, htplus_mem⟩,
       show (t₀ : ℝ) < (t₀ : ℝ) + η / 4 by linarith, rfl⟩
-  exact no_jump_at_midpoint hf_sp hf_unan x i₀ hη t₀.property htplus_mem hm1_mem hm2_mem
+  exact no_jump_at_midpoint hf_sp hf_unan x i₀ hη t₀.2 htplus_mem hm1_mem hm2_mem
     (by linarith) le_rfl (by linarith) (by linarith)
     (by change _ < g t₀; linarith [hu₀_def, hη_def, ht₀_eq])
     (by change g t₀ ≤ _; linarith [hu₀_def, hη_def, ht₀_eq]) hft_lo
@@ -577,9 +557,9 @@ private lemma coord_continuous_of_sp [DecidableEq ι] {f : (ι → Set.Icc a b) 
   rcases hcases with hR | hL
   · exact coord_no_right_jump hf_sp hf_unan x i₀ t₀ hε hR
   · let negPt : Set.Icc (-b) (-a) → Set.Icc a b := fun z =>
-      ⟨-z, by linarith [z.property.2], by linarith [z.property.1]⟩
+      ⟨-z, by linarith [z.2.2], by linarith [z.2.1]⟩
     let posPt : Set.Icc a b → Set.Icc (-b) (-a) := fun z =>
-      ⟨-z, by linarith [z.property.2], by linarith [z.property.1]⟩
+      ⟨-z, by linarith [z.2.2], by linarith [z.2.1]⟩
     let f' : (ι → Set.Icc (-b) (-a)) → Set.Icc (-b) (-a) :=
       fun z => posPt (f (fun i => negPt (z i)))
     have hf'_sp : ∀ z i w, dist (f' z) (z i) ≤ dist (f' (Function.update z i w)) (z i) :=
@@ -634,14 +614,14 @@ private lemma coord_clamp_eq [DecidableEq ι]
   rcases le_or_gt (t : ℝ) u with htu | hut
   · rw [max_eq_left htu, min_eq_right huv]
     have ha_le : u ≤ (f (Function.update x i₀ t) : ℝ) :=
-      coord_mono_of_sp hf_sp x i₀ (z₁ := aPt) (z₂ := t) t.property.1
+      coord_mono_of_sp hf_sp x i₀ (z₁ := aPt) (z₂ := t) t.2.1
     have hsp' := hg_sp aPt
     rw [abs_of_nonneg (by linarith), abs_of_nonneg (by linarith)] at hsp'
     linarith
   · rcases le_or_gt v (t : ℝ) with hvt | htv
     · rw [max_eq_right (huv.trans hvt), min_eq_left hvt]
       have hb_ge : (f (Function.update x i₀ t) : ℝ) ≤ v :=
-        coord_mono_of_sp hf_sp x i₀ (z₁ := t) (z₂ := bPt) t.property.2
+        coord_mono_of_sp hf_sp x i₀ (z₁ := t) (z₂ := bPt) t.2.2
       have hsp' := hg_sp bPt
       rw [abs_of_nonpos (by linarith), abs_of_nonpos (by linarith)] at hsp'
       linarith
@@ -678,13 +658,11 @@ theorem isStrategyProof_and_surjective_iff_exists_moulinScheme
     let indProf : Finset ι → ι → Set.Icc a b := fun S i => if i ∈ S then aPt else bPt
     let E : MoulinScheme ι a b :=
       { alpha := fun S => (f (indProf S) : ℝ)
-        mem_Icc := fun S => (f (indProf S)).property
+        mem_Icc := fun S => (f (indProf S)).2
         antitone := fun S T hST => profile_mono_of_sp hf_sp' fun i => by
-          by_cases hT : i ∈ T <;> by_cases hS : i ∈ S
-          · simp [indProf, hT, hS]
-          · simpa [indProf, hT, hS, aPt, bPt] using hab
-          · exact absurd (hST hS) hT
-          · simp [indProf, hT, hS]
+          by_cases hS : i ∈ S
+          · simp [indProf, hS, hST hS]
+          · by_cases hT : i ∈ T <;> simp [indProf, hS, hT, aPt, bPt, hab]
         boundary_empty := by
           rw [show indProf ∅ = fun _ => bPt by ext; simp [indProf], hf_unan]
         boundary_univ := by
@@ -709,37 +687,33 @@ theorem isStrategyProof_and_surjective_iff_exists_moulinScheme
       rw [hy_eq]
       dsimp only [MoulinScheme.evalVal, E]
       refine le_antisymm ?_ ?_
-      · refine le_finMin (f (indProf S)).property.2 fun T _ => ?_
+      · refine le_finMin (f (indProf S)).2.2 fun T _ => ?_
         by_cases hTS : T ⊆ S
         · exact le_max_of_le_left (E.antitone hTS)
         · obtain ⟨j, hjT, hjS⟩ := Finset.not_subset.mp hTS
           have hjb : indProf S j = bPt := by
             simp only [S, Finset.mem_filter, Finset.mem_univ, true_and] at hjS
             simp [indProf, S, hjS]
-          exact le_max_of_le_right ((f (indProf S)).property.2.trans <| by
+          exact le_max_of_le_right ((f (indProf S)).2.2.trans <| by
             simpa [hjb, bPt] using mem_le_finMax a (fun k => (indProf S k : ℝ)) hjT)
       · refine (finMin_le b (T := Finset.univ)
           (fun T => max (E.alpha T) (finMax a T fun k => (indProf S k : ℝ)))
           (Finset.mem_univ S)).trans_eq ?_
         have hmax : (finMax a S fun k => (indProf S k : ℝ)) = a :=
           le_antisymm (finMax_le le_rfl fun k hk => by simp [indProf, hk, aPt]) (le_finMax a S _)
-        simp [E, hmax, max_eq_left (f (indProf S)).property.1]
+        simp [E, hmax, max_eq_left (f (indProf S)).2.1]
     | succ k ih =>
       intro y hcard
       obtain ⟨i₀, hi₀⟩ := Finset.card_pos.mp (by rw [hcard]; exact Nat.succ_pos k)
-      have hcard_upd : ∀ z : Set.Icc a b, z = aPt ∨ z = bPt →
+      have hcard_upd (z : Set.Icc a b) (hz : z = aPt ∨ z = bPt) :
           (Finset.univ.filter fun i =>
             Function.update y i₀ z i ≠ aPt ∧ Function.update y i₀ z i ≠ bPt).card = k := by
-        intro z hz
-        have hsub : (Finset.univ.filter fun i =>
+        suffices (Finset.univ.filter fun i =>
             Function.update y i₀ z i ≠ aPt ∧ Function.update y i₀ z i ≠ bPt) =
-            (Finset.univ.filter fun i => y i ≠ aPt ∧ y i ≠ bPt).erase i₀ := by
-          ext j
-          simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_erase]
-          by_cases hj : j = i₀
-          · subst hj; rcases hz with rfl | rfl <;> simp
-          · simp [hj]
-        rw [hsub, Finset.card_erase_of_mem hi₀, hcard]; simp
+            (Finset.univ.filter fun i => y i ≠ aPt ∧ y i ≠ bPt).erase i₀ by
+          rw [this, Finset.card_erase_of_mem hi₀, hcard]; rfl
+        ext j
+        rcases eq_or_ne j i₀ with rfl | hj <;> rcases hz with rfl | rfl <;> simp [*]
       have hy_upd : Function.update y i₀ (y i₀) = y := Function.update_eq_self i₀ y
       calc
         (f y : ℝ) = (f (Function.update y i₀ (y i₀)) : ℝ) := by rw [hy_upd]
@@ -799,9 +773,9 @@ theorem moulinScheme_finTwo_eq {a b : ℝ} (E : MoulinScheme (Fin 2) a b)
   classical
   have hmem : ∀ j : Fin 2, max (E.alpha {j}) (finMax a {j} fun i => (x i : ℝ)) =
       max (E.alpha {j}) (x j : ℝ) := fun j => by
-    simp [finMax, max_eq_left (x j).property.1]
+    simp [finMax, max_eq_left (x j).2.1]
   have hu : (finMax a Finset.univ fun i => (x i : ℝ)) = max (x 0 : ℝ) (x 1 : ℝ) :=
-    le_antisymm (finMax_le (le_max_of_le_left (x 0).property.1) fun i _ => by
+    le_antisymm (finMax_le (le_max_of_le_left (x 0).2.1) fun i _ => by
       fin_cases i; exacts [le_max_left _ _, le_max_right _ _])
       (max_le (mem_le_finMax a (fun i => (x i : ℝ)) (Finset.mem_univ (0 : Fin 2)))
         (mem_le_finMax a (fun i => (x i : ℝ)) (Finset.mem_univ (1 : Fin 2))))
@@ -810,9 +784,8 @@ theorem moulinScheme_finTwo_eq {a b : ℝ} (E : MoulinScheme (Fin 2) a b)
   · exact (E.eval_le_branch x {0}).trans_eq (hmem 0)
   · exact (E.eval_le_branch x {1}).trans_eq (hmem 1)
   · exact (E.eval_le_branch x Finset.univ).trans_eq <| by
-      rw [E.boundary_univ, hu, max_eq_right (le_max_of_le_left (x 0).property.1)]
-  · exact (min_le_right _ _).trans
-      ((min_le_right _ _).trans (max_le (x 0).property.2 (x 1).property.2))
+      rw [E.boundary_univ, hu, max_eq_right (le_max_of_le_left (x 0).2.1)]
+  · exact (min_le_right _ _).trans ((min_le_right _ _).trans (max_le (x 0).2.2 (x 1).2.2))
   · by_cases h0 : (0 : Fin 2) ∈ S <;> by_cases h1 : (1 : Fin 2) ∈ S
     · exact (min_le_right _ _).trans <| (min_le_right _ _).trans <| le_max_of_le_right <|
         max_le (mem_le_finMax a (fun i => (x i : ℝ)) h0)
@@ -830,7 +803,7 @@ theorem moulinScheme_finTwo_eq {a b : ℝ} (E : MoulinScheme (Fin 2) a b)
         fin_cases i; exacts [h0 hi, h1 hi]
       rw [hemp, E.boundary_empty]
       exact (min_le_right _ _).trans <| (min_le_right _ _).trans <|
-        (max_le (x 0).property.2 (x 1).property.2).trans (le_max_left _ _)
+        (max_le (x 0).2.2 (x 1).2.2).trans (le_max_left _ _)
 
 end Characterization
 

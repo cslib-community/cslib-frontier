@@ -84,41 +84,20 @@ lemma no_shrunk_subspace {w q e : ℕ} (he : 0 < e)
     (V W : Submodule F (Fin q → F))
     (hVW : ∀ i, V.map (A i).mulVecLin ≤ W) : finrank F V ≤ finrank F W := by
   let g : (Fin e → V) →ₗ[F] (Fin e → W) :=
-    { toFun := fun v β => ⟨∑ i, ∑ δ, X i β δ • (A i).mulVec (v δ), by
-        apply W.sum_mem
-        intro i _
-        apply W.sum_mem
-        intro δ _
-        exact W.smul_mem _ (hVW i ⟨v δ, (v δ).property, rfl⟩)⟩
-      map_add' := by
-        intro v u
-        funext β
-        apply Subtype.ext
-        simp only [Submodule.coe_add, Pi.add_apply, Matrix.mulVec_add,
-          smul_add, Finset.sum_add_distrib]
-      map_smul' := by
-        intro c v
-        funext β
-        apply Subtype.ext
-        simp only [Submodule.coe_smul, Pi.smul_apply, RingHom.id_apply,
-          Matrix.mulVec_smul, Finset.smul_sum, smul_smul]
-        apply Finset.sum_congr rfl
-        intro i _
-        apply Finset.sum_congr rfl
-        intro δ _
-        rw [mul_comm] }
-  have hg : Function.Injective g := by
-    intro v u h
-    have hh : blockEval A X (fun δ => (v δ : Fin q → F)) =
-        blockEval A X (fun δ => (u δ : Fin q → F)) := by
-      funext β
-      exact congrArg Subtype.val (congrFun h β)
-    have heq := hX hh
-    funext δ
-    exact Subtype.ext (congrFun heq δ)
-  have hd := LinearMap.finrank_le_finrank_of_injective hg
-  simp only [Module.finrank_pi_fintype, Finset.sum_const,
-    Finset.card_univ, Fintype.card_fin, nsmul_eq_mul] at hd
+    { toFun := fun v β => ⟨∑ i, ∑ δ, X i β δ • (A i).mulVec (v δ),
+        W.sum_mem fun i _ => W.sum_mem fun δ _ => W.smul_mem _ (hVW i ⟨v δ, (v δ).2, rfl⟩)⟩
+      map_add' := fun v u => funext fun β => Subtype.ext <| by
+        simp only [Submodule.coe_add, Pi.add_apply, Matrix.mulVec_add, smul_add,
+          Finset.sum_add_distrib]
+      map_smul' := fun c v => funext fun β => Subtype.ext <| by
+        simp only [Submodule.coe_smul, Pi.smul_apply, RingHom.id_apply, Matrix.mulVec_smul,
+          Finset.smul_sum, smul_smul]
+        exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ =>
+          congrArg (· • _) (mul_comm _ _) }
+  have hd := LinearMap.finrank_le_finrank_of_injective (f := g) fun v u h => funext fun δ =>
+    Subtype.ext <| congrFun (hX <| funext fun β => congrArg Subtype.val (congrFun h β)) δ
+  simp only [Module.finrank_pi_fintype, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
+    nsmul_eq_mul] at hd
   exact Nat.le_of_mul_le_mul_left hd he
 
 variable {P Q : Type*} [AddCommGroup P] [Module F P]
@@ -145,14 +124,12 @@ private lemma span_component_top {q : ℕ} (f : Fin q → P) :
 
 private lemma rank_coefficientMatrix {q k : ℕ} (f : Fin q → P)
     (b : Basis (Fin k) F (componentSpace (F := F) f)) : (coefficientMatrix f b).rank = k := by
-  have hs : Submodule.span F (Set.range (coefficientMatrix f b)) = ⊤ := by
-    have hh := congrArg (Submodule.map b.equivFun.toLinearMap) (span_component_top f)
-    rw [Submodule.map_span, ← Set.range_comp, Submodule.map_top,
-      LinearMap.range_eq_top.mpr b.equivFun.surjective] at hh
-    exact hh
-  rw [← Matrix.finrank_span_range_row]
-  change finrank F (Submodule.span F (Set.range (coefficientMatrix f b))) = k
-  rw [hs]
+  have hh := congrArg (Submodule.map b.equivFun.toLinearMap) (span_component_top f)
+  rw [Submodule.map_span, ← Set.range_comp, Submodule.map_top,
+    LinearMap.range_eq_top.mpr b.equivFun.surjective] at hh
+  rw [Matrix.rank_eq_finrank_span_row]
+  change finrank F (Submodule.span F (Set.range (b.equivFun.toLinearMap ∘ component f))) = k
+  rw [hh]
   simp
 
 private lemma coefficientMatrix_expansion {q k : ℕ} (f : Fin q → P)
@@ -194,19 +171,13 @@ private lemma rank_concat_lt {w q k : ℕ}
     (hex : (w - 1) * k < finrank F (imageCombination T (fun j => (b j : P))).range)
     (hw : 1 ≤ w) : (concatMatrix A (coefficientMatrix f b)).rank < k := by
   let H := imageCombination T (fun j => (b j : P))
-  have hle : Submodule.span F (Set.range (concatMatrix A (coefficientMatrix f b)).row) ≤
-      H.ker := by
-    rw [Submodule.span_le]
-    rintro _ ⟨α, rfl⟩
-    exact concat_row_relation A T f b hker α
+  have hle : Submodule.span F (Set.range (concatMatrix A (coefficientMatrix f b)).row) ≤ H.ker :=
+    Submodule.span_le.mpr fun _ ⟨α, h⟩ => h ▸ concat_row_relation A T f b hker α
   have hr := Submodule.finrank_mono hle
-  rw [Matrix.finrank_span_range_row] at hr
+  rw [← Matrix.rank_eq_finrank_span_row] at hr
   have hd := H.finrank_range_add_finrank_ker
   simp only [Module.finrank_pi, Fintype.card_prod, Fintype.card_fin] at hd
-  have hw' : (w - 1) * k + k = w * k := by
-    calc
-      _ = (w - 1 + 1) * k := by ring
-      _ = _ := by congr 1; omega
+  have hw' : (w - 1) * k + k = w * k := by rw [← Nat.add_one_mul, Nat.sub_add_cancel hw]
   change (w - 1) * k < finrank F H.range at hex
   omega
 
@@ -216,10 +187,8 @@ private lemma coefficient_image_le_concat {w q k : ℕ}
       Submodule.span F (Set.range (concatMatrix A P).col) := by
   rw [Submodule.map_span, Submodule.span_le]
   rintro _ ⟨v, ⟨j, rfl⟩, rfl⟩
-  apply Submodule.subset_span
-  refine ⟨(i, j), ?_⟩
-  funext α
-  simp [concatMatrix, Matrix.mulVec, Matrix.mul_apply, dotProduct]
+  exact Submodule.subset_span ⟨(i, j), funext fun α => by
+    simp [concatMatrix, Matrix.mulVec, Matrix.mul_apply, dotProduct]⟩
 
 private lemma component_image_le_range {w q k : ℕ} (T : Fin w → P →ₗ[F] Q)
     (f : Fin q → P) (b : Basis (Fin k) F (componentSpace (F := F) f)) (i : Fin w) :
@@ -231,11 +200,9 @@ private lemma component_image_le_range {w q k : ℕ} (T : Fin w → P →ₗ[F] 
     simpa only [Submodule.coe_sum, Submodule.coe_smul] using
       congrArg Subtype.val (b.sum_repr ⟨x, hx⟩)
   rw [← he, map_sum]
-  apply Submodule.sum_mem
-  intro j _
+  refine Submodule.sum_mem _ fun j _ => ?_
   rw [map_smul]
-  apply Submodule.smul_mem
-  exact Submodule.subset_span ⟨(i, j), rfl⟩
+  exact Submodule.smul_mem _ _ (Submodule.subset_span ⟨(i, j), rfl⟩)
 
 /-- A kernel vector with sufficiently expansive component span contradicts
 any invertible block evaluation of the same coefficient matrices. -/
@@ -247,20 +214,13 @@ theorem kernel_impossible {w q k e : ℕ} (hw : 1 ≤ w) (he : 0 < e)
     (hker : ∀ α, ∑ i, ∑ γ, A i α γ • T i (f γ) = 0)
     (hex : (w - 1) * k < finrank F (imageCombination T (fun j => (b j : P))).range) :
     False := by
-  let Pmat := coefficientMatrix f b
-  let Cmat := concatMatrix A Pmat
-  let V := Submodule.span F (Set.range Pmat.col)
-  let W := Submodule.span F (Set.range Cmat.col)
-  have hVW : ∀ i, V.map (A i).mulVecLin ≤ W :=
-    fun i => coefficient_image_le_concat A Pmat i
-  have hd := no_shrunk_subspace he A X hX V W hVW
-  have hV : finrank F V = k := by
-    rw [Matrix.finrank_span_range_col]
-    exact rank_coefficientMatrix f b
-  have hW : finrank F W < k := by
-    rw [Matrix.finrank_span_range_col]
-    exact rank_concat_lt A T f b hker hex hw
-  omega
+  have hd := no_shrunk_subspace he A X hX
+    (Submodule.span F (Set.range (coefficientMatrix f b).col))
+    (Submodule.span F (Set.range (concatMatrix A (coefficientMatrix f b)).col))
+    (coefficient_image_le_concat A (coefficientMatrix f b))
+  rw [← Matrix.rank_eq_finrank_span_cols, ← Matrix.rank_eq_finrank_span_cols,
+    rank_coefficientMatrix f b] at hd
+  exact absurd (rank_concat_lt A T f b hker hex hw) (by omega)
 
 /-- The block matrix obtained as a sum of Kronecker products. -/
 def blockMatrix {w q e : ℕ} (A : Fin w → Matrix (Fin q) (Fin q) F)
@@ -280,28 +240,19 @@ private lemma blockMatrix_mulVec {w q e : ℕ} (A : Fin w → Matrix (Fin q) (Fi
   rw [Finset.sum_comm]
   conv_lhs => arg 2; ext δ; rw [Finset.sum_comm]
   rw [Finset.sum_comm]
-  apply Finset.sum_congr rfl
-  intro i _
-  apply Finset.sum_congr rfl
-  intro δ _
-  apply Finset.sum_congr rfl
-  intro γ _
-  ring
+  exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ =>
+    Finset.sum_congr rfl fun _ _ => by ring
 
 /-- If `blockMatrix A X` is a unit, then `blockEval A X` is injective. -/
 lemma blockEval_injective_of_isUnit {w q e : ℕ}
     (A : Fin w → Matrix (Fin q) (Fin q) F)
     (X : Fin w → Matrix (Fin e) (Fin e) F) (h : IsUnit (blockMatrix A X)) :
-    Function.Injective (blockEval A X) := by
-  have hh := Matrix.mulVec_injective_iff_isUnit.mpr h
-  intro v u hv
-  have hflat : (fun j : Fin q × Fin e => v j.2 j.1) = (fun j => u j.2 j.1) := by
-    apply hh
-    funext j
-    rw [blockMatrix_mulVec, blockMatrix_mulVec]
-    exact congrFun (congrFun hv j.2) j.1
-  funext β α
-  exact congrFun hflat (α, β)
+    Function.Injective (blockEval A X) := fun v u hv => by
+  have hflat : (fun j : Fin q × Fin e => v j.2 j.1) = fun j => u j.2 j.1 :=
+    Matrix.mulVec_injective_iff_isUnit.mpr h <| funext fun j => by
+      rw [blockMatrix_mulVec, blockMatrix_mulVec]
+      exact congrFun (congrFun hv j.2) j.1
+  exact funext fun β => funext fun α => congrFun hflat (α, β)
 
 end
 end Rational.Rectangular
@@ -330,27 +281,22 @@ theorem rectangular_kernel_zero (w B M N q e : ℕ) (hw : 1 ≤ w) (hN : 1 ≤ N
     by_contra! hh
     exact hn (funext hh)
   let U := componentSpace (F := F K) f
-  let k := finrank (F K) U
   let b := Module.finBasis (F K) U
   let T := fun i => testMap M (points i)
-  let W := (imageCombination T (fun j => (b j : Fin M → F K))).range
-  have hk : 1 ≤ k := by
-    apply finrank_pos_iff_exists_ne_zero.mpr
-    refine ⟨component (F := F K) f α, ?_⟩
-    intro hz
-    exact hα (congrArg Subtype.val hz)
-  have hkq : k ≤ q := by
+  have hk : 1 ≤ finrank (F K) U := finrank_pos_iff_exists_ne_zero.mpr
+    ⟨component (F := F K) f α, fun hz => hα (congrArg Subtype.val hz)⟩
+  have hkq : finrank (F K) U ≤ q := by
     simpa using finrank_le_of_span_eq_top (span_component_top (F := F K) f)
-  have hU : ∀ x ∈ U, ∀ j : Fin M, N ≤ j.val → x j = 0 := by
-    intro x hx
+  have hU (x : Fin M → F K) (hx : x ∈ U) : ∀ j : Fin M, N ≤ j.val → x j = 0 := by
     induction hx using Submodule.span_induction with
     | mem x hx => obtain ⟨α, rfl⟩ := hx; exact hf α
-    | zero => intro j _; rfl
-    | add x y _ _ hx hy => intro j hj; simp [hx j hj, hy j hj]
-    | smul c x _ hx => intro j hj; simp [hx j hj]
-  have hW : ∀ i, U.map (T i) ≤ W := fun i => component_image_le_range T f b i
-  have hex := small_expansion w B M N hw hN hMN points hp U W hU hW hk (hkq.trans hq)
-  exact kernel_impossible hw he A T X hX f b hker hex
+    | zero => exact fun _ _ => rfl
+    | add _ _ _ _ hx hy => exact fun j hj => by simp [hx j hj, hy j hj]
+    | smul _ _ _ hx => exact fun j hj => by simp [hx j hj]
+  exact kernel_impossible hw he A T X hX f b hker <|
+    small_expansion w B M N hw hN hMN points hp U
+      (imageCombination T fun j => (b j : Fin M → F K)).range hU
+      (component_image_le_range T f b) hk (hkq.trans hq)
 
 end
 end Rational.RectangularExpansion

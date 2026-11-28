@@ -365,19 +365,15 @@ theorem polyBounded_optionElim {value : α → Option β} {u : α → ℕ} {v : 
     PolyBounded (fun a => (ei a).length)
       (fun a => (value a).elim (u a) (fun b => v (a, b))) := by
   obtain ⟨c, d, hcd⟩ := hv.exists_le
-  have hbody : PolyBounded (fun a => (ei a).length)
-      (fun a => c * (2 * (ei a).length + (encOption eb (value a)).length + 1) ^ d) := by
-    growth_poly
-  refine (hu.add hbody).mono fun a => ?_
+  refine (hu.add (by growth_poly : PolyBounded _
+    fun a => c * (2 * (ei a).length + (encOption eb (value a)).length + 1) ^ d)).mono fun a => ?_
   cases value a with
   | none => exact Nat.le_add_right _ _
   | some b =>
     have hb := hcd (a, b)
-    have hpair : (encPair ei eb (a, b)).length =
-        2 * (ei a).length + (encOption eb (Option.some b)).length := by
-      simp only [length_encPair, encOption_some, List.length_cons]; omega
-    rw [hpair] at hb
-    simp only [Option.elim_some]
+    simp only [length_encPair, encOption_some, List.length_cons, Option.elim_some] at hb ⊢
+    rw [show 2 * (ei a).length + 1 + (eb b).length =
+      2 * (ei a).length + ((eb b).length + 1) by omega] at hb
     omega
 
 theorem linear_isPolynomial {f : α → β}
@@ -475,14 +471,11 @@ theorem iterate_isPolynomial {n : α → ℕ} {init : α → β} {step : β → 
     {B : α → ℕ} (hB : PolyBounded (fun a => (ei a).length) B)
     (hstate : ∀ a, ∀ j ≤ n a, (eb (step^[j] (init a))).length ≤ B a) :
     (iterate cn cinit cstep).IsPolynomial := by
-  have hmaxB : PolyBounded (fun a => (ei a).length)
-      (fun a => maxStateLength eb step (n a) (init a)) :=
+  have hmaxB : PolyBounded _ fun a => maxStateLength eb step (n a) (init a) :=
     polyBounded_listMax_iterate .self hB hstate
-  have hmaxT : PolyBounded (fun a => (ei a).length)
-      (fun a => maxRoundTime cstep (n a) (init a)) :=
+  have hmaxT : PolyBounded _ fun a => maxRoundTime cstep (n a) (init a) :=
     polyBounded_listMax_iterate hcstep.1 hB hstate
-  have hmaxS : PolyBounded (fun a => (ei a).length)
-      (fun a => maxRoundSpace cstep (n a) (init a)) :=
+  have hmaxS : PolyBounded _ fun a => maxRoundSpace cstep (n a) (init a) :=
     polyBounded_listMax_iterate hcstep.2 hB hstate
   exact ⟨by growth_poly, by growth_poly⟩
 

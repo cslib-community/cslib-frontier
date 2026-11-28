@@ -189,12 +189,7 @@ theorem step?_eq_some_iff (machine : MultiTapeCTM k Symbol State)
     machine.step? cfg index = some final ↔
       ∃ h : index < (machine.actions cfg).length,
         (machine.actions cfg)[index].apply cfg = final := by
-  simp only [step?, Option.map_eq_some_iff, List.getElem?_eq_some_iff]
-  constructor
-  · rintro ⟨action, ⟨h, rfl⟩, heq⟩
-    exact ⟨h, heq⟩
-  · rintro ⟨h, heq⟩
-    exact ⟨_, ⟨h, rfl⟩, heq⟩
+  simp [step?, Option.map_eq_some_iff, List.getElem?_eq_some_iff]
 
 /-- Before halting, a step of the unlabelled machine is precisely a valid occurrence. -/
 theorem step_toNTM_iff (M : MultiTapeCTM k Symbol State)
@@ -204,18 +199,16 @@ theorem step_toNTM_iff (M : MultiTapeCTM k Symbol State)
   | none => exact (hrun hstate).elim
   | some q =>
     simp only [MultiTapeNTM.Step, hstate, toNTM, step?_eq_some_iff]
-    constructor
+    refine ⟨?_, ?_⟩
     · rintro ⟨act, hact, rfl⟩
       have hm : act ∈ M.actions cfg := by
-        simp only [actions, hstate, List.mem_map]
-        exact ⟨_, hact, Equiv.apply_symm_apply _ _⟩
+        simpa only [actions, hstate] using List.mem_map.mpr ⟨_, hact, Equiv.apply_symm_apply _ _⟩
       obtain ⟨i, hi, he⟩ := List.mem_iff_getElem.mp hm
       exact ⟨i, hi, congrArg (Turing.Action.apply · cfg) he⟩
     · rintro ⟨i, hi, rfl⟩
-      have hm := List.getElem_mem hi
-      simp only [actions, hstate, List.mem_map] at hm
-      obtain ⟨act, hact, he⟩ := hm
-      exact ⟨_, by simp only [actions, hstate, ← he, Equiv.symm_apply_apply]; exact hact, rfl⟩
+      obtain ⟨act, hact, he⟩ := List.mem_map.mp
+        (by simpa only [actions, hstate] using List.getElem_mem hi)
+      exact ⟨_, by simpa only [actions, hstate, ← he, Equiv.symm_apply_apply] using hact, rfl⟩
 
 @[simp]
 theorem nil_mem_branches (machine : MultiTapeCTM k Symbol State)
@@ -399,11 +392,8 @@ theorem HaltsWithin.branches_eq {machine : MultiTapeCTM k Symbol State}
     machine.branches larger cfg = machine.branches fuel cfg := by
   ext choices
   simp only [mem_branches_iff]
-  constructor
-  · rintro ⟨_, final, hrun, hhalt⟩
-    exact ⟨h.length_le hrun, final, hrun, hhalt⟩
-  · rintro ⟨hlen, hrun⟩
-    exact ⟨hlen.trans hle, hrun⟩
+  exact ⟨fun ⟨_, f, hr, hh⟩ => ⟨h.length_le hr, f, hr, hh⟩,
+    fun ⟨hlen, hrun⟩ => ⟨hlen.trans hle, hrun⟩⟩
 
 /-- The no-stuck condition guarantees at least one terminal branch. -/
 theorem HaltsWithin.branches_nonempty {machine : MultiTapeCTM k Symbol State}
@@ -458,11 +448,10 @@ theorem branchCount_add_not (machine : MultiTapeCTM k Symbol State)
       (machine.branches fuel cfg).filter (fun choices =>
         (machine.runBranch cfg choices).any (fun final => !verdict final.output)) =
       (machine.branches fuel cfg).filter (fun choices =>
-        ¬(machine.runBranch cfg choices).any (fun final => verdict final.output)) := by
-    apply Finset.filter_congr
-    intro choices hchoices
-    obtain ⟨_, final, hrun, _⟩ := (machine.mem_branches_iff cfg fuel choices).mp hchoices
-    simp [hrun]
+        ¬(machine.runBranch cfg choices).any (fun final => verdict final.output)) :=
+    Finset.filter_congr fun choices hchoices => by
+      obtain ⟨_, _, hrun, _⟩ := (machine.mem_branches_iff cfg fuel choices).mp hchoices
+      simp [hrun]
   rw [hfilter]
   exact Finset.card_filter_add_card_filter_not _
 

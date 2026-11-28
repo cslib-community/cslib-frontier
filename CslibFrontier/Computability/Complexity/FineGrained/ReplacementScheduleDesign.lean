@@ -158,54 +158,36 @@ theorem one_le_rowBound (hF : Feasible β n b w M) : 1 ≤ rowBound β n := by
 
 /-- `rowBound β n < numNodes n` holds under `Feasible β n b w M`. -/
 theorem rowBound_lt_numNodes (hF : Feasible β n b w M) : rowBound β n < numNodes n := by
-  have h1 := hF.thirtyTwo_le_rowBound
-  have h2 := hF.six_mul_rowBound_le_numNodes
+  have := hF.thirtyTwo_le_rowBound
+  have := hF.six_mul_rowBound_le_numNodes
   omega
 
 /-- `0 < tauRat n` holds under `Feasible β n b w M`. -/
 theorem tauRat_pos (hF : Feasible β n b w M) : 0 < tauRat n := by
-  have h : (0 : ℝ) < (tauRat n : ℝ) := by
-    rw [cast_tauRat]
-    exact hF.tau_pos
-  exact_mod_cast h
+  exact_mod_cast (cast_tauRat n).symm ▸ hF.tau_pos
 
 /-- `tauRat n ≤ 1 / 2` holds under `Feasible β n b w M`. -/
 theorem tauRat_le_half (hF : Feasible β n b w M) : tauRat n ≤ 1 / 2 := by
-  have h : (tauRat n : ℝ) ≤ ((1 / 2 : ℚ) : ℝ) := by
-    rw [cast_tauRat]
-    simpa only [Rat.cast_div, Rat.cast_one, Rat.cast_ofNat] using hF.tau_le_half
-  exact_mod_cast h
+  rw [← Rat.cast_le (K := ℝ), cast_tauRat]
+  simpa only [Rat.cast_div, Rat.cast_one, Rat.cast_ofNat] using hF.tau_le_half
 
 /-- Every shift `intervalStart β n + a` for `a < rowBound β n` lies in `[0, numNodes n]`. -/
 theorem intervalStart_add_le_numNodes (hF : Feasible β n b w M) {a : ℕ}
     (ha : a < rowBound β n) :
-    intervalStart β n + a ≤ numNodes n := by
-  have hmem : intervalStart β n + a ∈ interval β n := by
-    simp only [interval, mem_Icc]
-    omega
-  have hrng := mem_range.mp (hF.interval_subset hmem)
-  omega
+    intervalStart β n + a ≤ numNodes n :=
+  Nat.lt_succ_iff.mp (mem_range.mp
+    (hF.interval_subset (by simp only [interval, mem_Icc]; omega)))
 
 /-- Under `Feasible β n b w M`, the rational binomial tail probability satisfies Lemma 4.7's
 strict threshold `binomTailProb < tauRat n / (numGroups n * b)`. -/
 theorem binomTailProb_lt (hF : Feasible β n b w M) :
     binomTailProb (numNodes n) (numGroups n) (intervalStart β n) (rowBound β n) <
       tauRat n / ((numGroups n : ℚ) * b) := by
-  have hr1 : 1 ≤ numGroups n := by
-    have := hF.two_le_numGroups
-    omega
-  have hlt :
-      (binomTailProb (numNodes n) (numGroups n) (intervalStart β n) (rowBound β n) : ℝ) <
-        ((tauRat n / ((numGroups n : ℚ) * b) : ℚ) : ℝ) := by
-    rw [cast_binomTailProb_eq_binomTail hr1 hF.one_le_rowBound]
-    have hrhs :
-        ((tauRat n / ((numGroups n : ℚ) * b) : ℚ) : ℝ) = tailBudget b n := by
-      rw [tailBudget_eq_tau_div, ← cast_tauRat]
-      push_cast
-      rfl
-    rw [hrhs]
-    exact hF.binomTail_lt
-  exact_mod_cast hlt
+  rw [← Rat.cast_lt (K := ℝ),
+    cast_binomTailProb_eq_binomTail (Nat.le_trans (by decide) hF.two_le_numGroups)
+      hF.one_le_rowBound]
+  simpa only [tailBudget_eq_tau_div, ← cast_tauRat, Rat.cast_div, Rat.cast_mul, Rat.cast_natCast]
+    using hF.binomTail_lt
 
 /-- **Lemma 4.7 + Lemma 4.8 concrete replacement design existence**:
 Given `hF : Feasible β n b w (∑ f, #(scope f))` on a factor scope family

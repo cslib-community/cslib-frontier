@@ -112,12 +112,8 @@ theorem eventually_abs_correlation_quadForm_le_multiarySize {A c τ γ : ℝ} (h
   set η := δ / (2 * K) with hηdef
   have hη : 0 < η := by positivity
   have hηK : η * K = δ / 2 := by rw [hηdef]; field_simp
-  have hηθ : η * (21 * c + 15 + θ) ≤ δ / 2 := by
-    rw [← hηK]
-    refine mul_le_mul_of_nonneg_left ?_ hη.le
-    have := le_abs_self θ
-    rw [hKdef]
-    linarith
+  have hηθ : η * (21 * c + 15 + θ) ≤ δ / 2 :=
+    hηK ▸ mul_le_mul_of_nonneg_left (by linarith [le_abs_self θ]) hη.le
   obtain ⟨C₀, hC₀⟩ := hlayout η hη
   set R := (2 / δ) * (3 / 2 + A + 12 * η + |C₀|) with hRdef
   have hlarge : ∀ᶠ n : ℕ in atTop, R ≤ (n : ℝ) :=
@@ -126,8 +122,7 @@ theorem eventually_abs_correlation_quadForm_le_multiarySize {A c τ γ : ℝ} (h
   intro σ I Acc C hfan hsize
   obtain ⟨C', heval, hfan', hmult', hsize'⟩ := C.exists_eval_eq_multiarySize_size_le I
   have hfan2 : C'.FanInAtMost 2 := hfan' 2 hfan
-  have heval_set : {x | C.eval I x 0 ∈ Acc} = {x | C'.eval I x 0 ∈ Acc} := by rw [heval]
-  rw [heval_set]
+  rw [← heval]
   have hn0 : (0 : ℝ) ≤ n := Nat.cast_nonneg n
   have hRn' : 3 / 2 + A + 12 * η + |C₀| ≤ δ / 2 * n := by
     have : δ / 2 * R = 3 / 2 + A + 12 * η + |C₀| := by rw [hRdef]; field_simp
@@ -160,24 +155,17 @@ theorem eventually_abs_correlation_quadForm_le_multiarySize {A c τ γ : ℝ} (h
   · -- Few unread inputs: the frontier bound.
     push Not at hd
     have hread : n / 2 ≤ N.read.ncard := by
-      have : ((n / 2 : ℕ) : ℝ) < N.read.ncard := by linarith
-      exact_mod_cast this.le
+      exact_mod_cast (show ((n / 2 : ℕ) : ℝ) < N.read.ncard by linarith).le
     have hrank : ((Compiler.graph C').cycleRank : ℝ) + N.read.ncard ≤ s + 1 := by
       have H := Compiler.cycleRank_add_ncard_read_le_multiarySize I (fun _ => Acc) hfan2
         (Compiler.connected C')
       simp only [Nat.add_one_sub_one, one_mul] at H
-      have H' : (Compiler.graph C').cycleRank + N.read.ncard ≤ s + 1 :=
-        H.trans (Nat.add_le_add_right hmult' 1)
-      exact_mod_cast H'
+      exact_mod_cast H.trans (Nat.add_le_add_right hmult' 1)
     have hV : (Nat.card (Compiler.Vertex C') : ℝ) ≤ 20 * s + 16 * n + 11 := by
       have H := Compiler.card_vertex_le (c := C') hfan2
-      have hcard_bool : Nat.card Bool = 2 := by rw [Nat.card_eq_fintype_card, Fintype.card_bool]
-      rw [hcard_bool] at hsize'
-      have hinner : C'.innerSize ≤ 5 * s + 4 * n + 2 := by
-        have := C'.innerSize_le_size
-        omega
-      have hV_nat : Nat.card (Compiler.Vertex C') ≤ 20 * s + 16 * n + 11 := by omega
-      exact_mod_cast hV_nat
+      have := C'.innerSize_le_size
+      rw [Nat.card_eq_fintype_card (α := Bool), Fintype.card_bool] at hsize'
+      exact_mod_cast (by omega : Nat.card (Compiler.Vertex C') ≤ 20 * s + 16 * n + 11)
     obtain ⟨π, hπ⟩ := hC₀ _ _ (Compiler.graph C') (Compiler.connected C') Compiler.loopless
       (Compiler.maxDegreeLE le_rfl hfan2)
     set B := (A + η) * (Compiler.graph C').cycleRank + η * Nat.card (Compiler.Vertex C') + C₀
@@ -187,18 +175,11 @@ theorem eventually_abs_correlation_quadForm_le_multiarySize {A c τ γ : ℝ} (h
     refine H.trans (Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_)
     have hfloor : (⌊B⌋₊ : ℝ) ≤ B := Nat.floor_le hB
     have hcycle : ((Compiler.graph C').cycleRank : ℝ) ≤ (c - 1 + θ) * n + 1 := by
-      have : (c - 1 + θ) * n = c * n - n + θ * n := by ring
-      linarith
-    have hcyc0 : (0 : ℝ) ≤ (Compiler.graph C').cycleRank := Nat.cast_nonneg _
+      nlinarith only [hrank, hcompl, hd, hsize]
     have hBle : B ≤ (A + η) * ((c - 1 + θ) * n + 1) + η * ((20 * c + 16) * n + 11) + C₀ := by
-      have h1 := mul_le_mul_of_nonneg_left hcycle (by positivity : (0 : ℝ) ≤ A + η)
-      have h2 : η * (Nat.card (Compiler.Vertex C') : ℝ) ≤ η * ((20 * c + 16) * n + 11) := by
-        refine mul_le_mul_of_nonneg_left ?_ hη.le
-        have : (20 * c + 16) * n = 20 * (c * n) + 16 * n := by ring
-        linarith
-      change (A + η) * (Compiler.graph C').cycleRank +
-        η * Nat.card (Compiler.Vertex C') + C₀ ≤ _
-      linarith
+      have hV' : (Nat.card (Compiler.Vertex C') : ℝ) ≤ (20 * c + 16) * n + 11 := by
+        nlinarith only [hV, hsize]
+      nlinarith only [hcycle, hV', hA, hη]
     have hexp : (A + η) * ((c - 1 + θ) * n + 1) + η * ((20 * c + 16) * n + 11) =
         (A * (c - 1 + θ) - 1 / 2) * n + n / 2 + η * (21 * c + 15 + θ) * n + A + 12 * η := by
       ring
@@ -250,9 +231,7 @@ theorem eventually_abs_correlation_quadForm_le_of_isLittleO_multiarySize {A c γ
   refine eventually_abs_correlation_quadForm_le_multiarySize hA hlayout hc (τ := τ)
     (by rw [hτ]; linarith) Q ?_
   filter_upwards [hQ, he.bound hτpos] with n hQn hen U hU
-  have h₁ := hQn U hU
-  have h₂ : e n ≤ τ * n := by grind [Real.norm_eq_abs, Nat.abs_cast]
-  linarith
+  linarith [hQn U hU, (le_abs_self (e n)).trans (by simpa [Real.norm_eq_abs] using hen)]
 
 /-- **Exponentially small correlation, sublinear deficiency.** Under `LayoutBound 3 A`, if every
 set of `⌊n/2⌋` coordinates has cut rank at least `⌊n/2⌋ - o(n)` in `Q_n + Q_nᵀ`, then for every

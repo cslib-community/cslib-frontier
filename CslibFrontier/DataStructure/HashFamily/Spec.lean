@@ -137,14 +137,12 @@ theorem length_lt_of_afterCurrentEpoch_eq_some {U : ℕ} {ops rest : List (Op U)
     (h : afterCurrentEpoch ops = some rest) : rest.length < ops.length := by
   induction ops with
   | nil => cases h
-  | cons o tail ih =>
+  | cons o _ ih =>
     cases o with
     | resample =>
-      injection h with hEq
-      subst hEq
+      cases h
       exact Nat.lt_succ_self _
-    | eval u =>
-      exact Nat.lt_succ_of_lt (ih h)
+    | eval _ => exact Nat.lt_succ_of_lt (ih h)
 
 /-- Number of `.resample` operations in `ops`. -/
 @[expose] def resampleCount {U : ℕ} : List (Op U) → ℕ
@@ -164,7 +162,7 @@ theorem resampleCount_eq_zero_of_afterCurrentEpoch_eq_none {U : ℕ} {ops : List
     (h : afterCurrentEpoch ops = none) : resampleCount ops = 0 := by
   induction ops with
   | nil => rfl
-  | cons o tail ih =>
+  | cons o _ ih =>
     cases o with
     | resample => cases h
     | eval _ => exact ih h
@@ -173,11 +171,10 @@ theorem resampleCount_eq_succ_of_afterCurrentEpoch_eq_some {U : ℕ} {ops rest :
     (h : afterCurrentEpoch ops = some rest) : resampleCount ops = 1 + resampleCount rest := by
   induction ops with
   | nil => cases h
-  | cons o tail ih =>
+  | cons o _ ih =>
     cases o with
     | resample =>
-      injection h with hEq
-      subst hEq
+      cases h
       rfl
     | eval _ => exact ih h
 
@@ -199,15 +196,12 @@ theorem BoundedEpochKeys.card_currentEpochKeys_le {U : ℕ} {k : ℕ} {ops : Lis
 theorem BoundedEpochKeys.of_afterCurrentEpoch_eq_some {U : ℕ} {k : ℕ}
     {ops rest : List (Op U)} (h : BoundedEpochKeys k ops)
     (hafter : afterCurrentEpoch ops = some rest) : BoundedEpochKeys k rest := by
-  rw [BoundedEpochKeys] at h
-  have h₂ := h.2
-  rw [hafter] at h₂
-  exact h₂
+  rw [BoundedEpochKeys, hafter] at h
+  exact h.2
 
 @[simp]
 theorem boundedEpochKeys_nil {U : ℕ} (k : ℕ) : BoundedEpochKeys k ([] : List (Op U)) := by
-  rw [BoundedEpochKeys]
-  simp
+  simp [BoundedEpochKeys]
 
 /-- Deterministic transcript of the current epoch of `ops` (before the first `.resample`),
 determined by the restriction `g : currentEpochKeys ops → Fin m` of the hash function to the keys
@@ -288,16 +282,14 @@ theorem transcriptMatches_of_mem_support_evalOpsFromSeed {Seed : Type u} {U m : 
   induction ops generalizing θ with
   | nil =>
     intro out hout
-    rcases (PMF.mem_support_pure_iff _ _).mp hout with rfl
-    rfl
+    exact (PMF.mem_support_pure_iff _ _).mp hout ▸ rfl
   | cons o rest ih =>
+    intro out hout
     cases o with
     | eval u =>
-      intro out hout
       obtain ⟨tailOut, htail, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hout
       exact (transcriptMatches_cons (.eval u) (eval θ u) rest tailOut).mpr (ih θ tailOut htail)
     | resample =>
-      intro out hout
       obtain ⟨θ', _, hout'⟩ := (PMF.mem_support_bind_iff _ _ _).mp hout
       obtain ⟨tailOut, htail, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hout'
       exact (transcriptMatches_cons .resample PUnit.unit rest tailOut).mpr (ih θ' tailOut htail)
@@ -397,15 +389,14 @@ theorem kWiseSpec_contract_evalOps {Seed : Type u} {k U m : ℕ}
     (kWiseSpec k U m).Contract ops
       (evalOps (PMF.uniformOfFintype Seed) eval ops) := by
   change evalOps (PMF.uniformOfFintype Seed) eval ops = idealTranscriptPMF m ops
-  have hcard : (currentEpochKeys ops).card ≤ k := hv.card_currentEpochKeys_le
-  have hrest_unif := uniformOfFintype_map_restrict_eq hk hcard
+  have hrest_unif := uniformOfFintype_map_restrict_eq hk hv.card_currentEpochKeys_le
   rw [idealTranscriptPMF]
   cases hafter : afterCurrentEpoch ops with
   | none =>
     rw [evalOps_eq_of_afterCurrentEpoch_eq_none _ _ hafter, hrest_unif]
   | some rest =>
-    have ih := kWiseSpec_contract_evalOps hk (hv.of_afterCurrentEpoch_eq_some hafter)
-    change evalOps (PMF.uniformOfFintype Seed) eval rest = idealTranscriptPMF m rest at ih
+    have ih : evalOps (PMF.uniformOfFintype Seed) eval rest = idealTranscriptPMF m rest :=
+      kWiseSpec_contract_evalOps hk (hv.of_afterCurrentEpoch_eq_some hafter)
     rw [evalOps_eq_of_afterCurrentEpoch_eq_some _ _ hafter, hrest_unif, ih]
 termination_by ops.length
 decreasing_by exact length_lt_of_afterCurrentEpoch_eq_some hafter
@@ -417,11 +408,8 @@ theorem whpKWiseSpec_contract_of_kWiseSpec {k U m : ℕ} [NeZero m] (δ : ℝ≥
     {ops : List (Op U)} {μ : PMF (List (Label U m))}
     (hmatch : ∀ out ∈ μ.support, TranscriptMatches ops out)
     (hk : (kWiseSpec k U m).Contract ops μ) :
-    (whpKWiseSpec k U m δ).Contract ops μ := by
-  refine ⟨hmatch, ?_⟩
-  change μ = idealTranscriptPMF m ops at hk
-  rw [hk]
-  exact (CoupledWithin.refl _).mono (by simp)
+    (whpKWiseSpec k U m δ).Contract ops μ :=
+  ⟨hmatch, hk ▸ (CoupledWithin.refl _).mono (by simp)⟩
 
 private theorem coupledWithin_evalOps_prod {TopSeed : Type u} {BotSeed : Type v}
     {k U m : ℕ} [Fintype TopSeed] [Nonempty TopSeed] [DecidableEq TopSeed]
@@ -436,36 +424,21 @@ private theorem coupledWithin_evalOps_prod {TopSeed : Type u} {BotSeed : Type v}
       ((epochCount ops : ℝ≥0∞) *
         (((Finset.univ \ GoodTop).card : ℝ≥0∞) / Fintype.card TopSeed)) := by
   let δ : ℝ≥0∞ := ((Finset.univ \ GoodTop).card : ℝ≥0∞) / Fintype.card TopSeed
-  have hcard : (currentEpochKeys ops).card ≤ k := hv.card_currentEpochKeys_le
-  have hepoch :
-      CoupledWithin
-        (((PMF.uniformOfFintype (TopSeed × BotSeed)).map
-          (fun p => (currentEpochKeys ops).restrict (eval p.1 p.2))).map
-            (currentEpochPrefixTranscript m ops))
-        ((PMF.uniformOfFintype (currentEpochKeys ops → Fin m)).map
-          (currentEpochPrefixTranscript m ops))
-        δ :=
-    (coupledWithin_uniformOfFintype_prod_restrict eval GoodTop hgood hcard).map
-      (currentEpochPrefixTranscript m ops)
+  have hepoch := (coupledWithin_uniformOfFintype_prod_restrict eval GoodTop hgood
+    hv.card_currentEpochKeys_le).map (currentEpochPrefixTranscript m ops)
   rw [idealTranscriptPMF]
   cases hafter : afterCurrentEpoch ops with
   | none =>
     rw [evalOps_eq_of_afterCurrentEpoch_eq_none _ _ hafter]
-    have hepoch_cnt : (epochCount ops : ℝ≥0∞) * δ = δ := by
-      simp [epochCount, resampleCount_eq_zero_of_afterCurrentEpoch_eq_none hafter]
-    rw [hepoch_cnt]
-    exact hepoch
+    simpa [epochCount, resampleCount_eq_zero_of_afterCurrentEpoch_eq_none hafter] using hepoch
   | some rest =>
-    rw [evalOps_eq_of_afterCurrentEpoch_eq_some _ _ hafter]
-    have ih := coupledWithin_evalOps_prod eval GoodTop hgood
-      (hv.of_afterCurrentEpoch_eq_some hafter)
-    have hcomb := hepoch.map₂ ih (fun pref tailOut => pref ++ (⟨.resample, PUnit.unit⟩ :: tailOut))
-    have hepoch_cnt :
-        δ + (epochCount rest : ℝ≥0∞) * δ = (epochCount ops : ℝ≥0∞) * δ := by
+    have hepoch_cnt : (epochCount ops : ℝ≥0∞) * δ = δ + (epochCount rest : ℝ≥0∞) * δ := by
       simp only [epochCount, resampleCount_eq_succ_of_afterCurrentEpoch_eq_some hafter]
-      push_cast
-      ring
-    rwa [hepoch_cnt] at hcomb
+      push_cast; ring
+    rw [evalOps_eq_of_afterCurrentEpoch_eq_some _ _ hafter, hepoch_cnt]
+    exact hepoch.map₂
+      (coupledWithin_evalOps_prod eval GoodTop hgood (hv.of_afterCurrentEpoch_eq_some hafter))
+      fun pref tailOut => pref ++ (⟨.resample, PUnit.unit⟩ :: tailOut)
 termination_by ops.length
 decreasing_by exact length_lt_of_afterCurrentEpoch_eq_some hafter
 
@@ -499,14 +472,10 @@ theorem evalOpsFromSeed_map_equiv {Seed₁ : Type u} {Seed₂ : Type v} {U m : �
   | nil => rfl
   | cons o rest ih =>
     cases o with
-    | eval u =>
-      simp [evalOpsFromSeed, ih θ]
+    | eval _ => simp [evalOpsFromSeed, ih θ]
     | resample =>
-      dsimp only [evalOpsFromSeed]
-      rw [PMF.bind_map]
-      refine congrArg (seedLaw.bind ·) (funext fun θ' => ?_)
-      dsimp only [Function.comp_def]
-      rw [ih θ']
+      simp only [evalOpsFromSeed, PMF.bind_map, Function.comp_def]
+      exact congrArg (seedLaw.bind ·) (funext fun θ' => by rw [ih θ'])
 
 /-- Transport `whpKWiseSpec_contract_evalOps_prod` along a seed equivalence
 `e : Seed ≃ (TopSeed × BotSeed)`. -/
@@ -523,16 +492,11 @@ theorem whpKWiseSpec_contract_evalOps_equiv {Seed : Type w}
     (whpKWiseSpec k U m
       (((Finset.univ \ GoodTop).card : ℝ≥0∞) / Fintype.card TopSeed)).Contract ops
       (evalOps (PMF.uniformOfFintype Seed) eval ops) := by
-  have hlaw : (PMF.uniformOfFintype Seed).map e = PMF.uniformOfFintype (TopSeed × BotSeed) :=
-    Cslib.Probability.PMF.uniformOfFintype_map_equiv e
-  have heq :
-      evalOps (PMF.uniformOfFintype Seed) eval ops =
-        evalOps (PMF.uniformOfFintype (TopSeed × BotSeed)) (fun p => eval (e.symm p)) ops := by
-    rw [← hlaw]
-    dsimp only [evalOps]
-    rw [PMF.bind_map]
-    refine congrArg ((PMF.uniformOfFintype Seed).bind ·) (funext fun θ₀ => ?_)
-    exact evalOpsFromSeed_map_equiv _ _ e θ₀ ops
+  have heq : evalOps (PMF.uniformOfFintype Seed) eval ops =
+      evalOps (PMF.uniformOfFintype (TopSeed × BotSeed)) (fun p => eval (e.symm p)) ops := by
+    rw [← Cslib.Probability.PMF.uniformOfFintype_map_equiv e, evalOps, evalOps, PMF.bind_map]
+    exact congrArg ((PMF.uniformOfFintype Seed).bind ·)
+      (funext fun θ₀ => evalOpsFromSeed_map_equiv _ _ e θ₀ ops)
   rw [heq]
   exact whpKWiseSpec_contract_evalOps_prod (fun α β => eval (e.symm (α, β)))
     GoodTop hgood hv

@@ -237,10 +237,10 @@ theorem evalWith_seqBatchOT (k : ℕ) (M : Type) (x : (i : Fin 2) → (batchOTSp
       PMF.pure (fun i => ⟨x i, (), seqOTReceived k i (batchOTRoundAnswers i (batchOTAnswer x i))⟩,
         batchOTAnswer x) := by
   rw [Protocol.evalWith_eq]
-  refine (congrArg _ (funext fun r => ?_)).trans (PMF.bind_const _ _)
+  refine (congrArg _ (funext fun _ => ?_)).trans (PMF.bind_const _ _)
   simp only [seqBatchOT, evalWith_seqOTSteps, PMF.pure_map, otOutputs_batchOTQueryAt]
-  refine congrArg PMF.pure (Prod.ext rfl (funext fun i => ?_))
-  exact (outputAt_seqOTSteps k _ _ i _ _).trans (batchOTAnswerOfRounds_batchOTRoundAnswers i _)
+  exact congrArg PMF.pure (Prod.ext rfl (funext fun i =>
+    (outputAt_seqOTSteps k _ _ i _ _).trans (batchOTAnswerOfRounds_batchOTRoundAnswers i _)))
 
 /-- **`seqBatchOT k M` is perfectly semi-honest private in the single-transfer hybrid model**: for
 every coalition, the simulator `seqBatchOTSim k M` on the coalition's inputs and outputs of
@@ -329,10 +329,10 @@ theorem semiHonestAdvantage_seqBatchOT_compose_le_sum_roundGame (k : ℕ) (M : T
             j).bind (roundGame fun op J q => ProbComp.eval (idealJoint (otWorld M op) J (S₂ J) q)))
           ((composeRoundEnv (seqBatchOT k M) (otWorld M) W₂ (fun _ => Sub) (fun _ => S₂) I x D
             j).bind (roundGame fun _ J q => Sub.realJoint W₂ J q)) := by
-  have h := semiHonestAdvantage_compose_le_sum_roundGame (seqBatchOT k M) (otWorld M) W₂
-    (fun _ => Sub) (fun _ => S₂) I x D (batchOTFunctionality k M) (seqBatchOTSim k M)
-  rwa [(perfectSemiHonestPrivate_seqBatchOT k M).semiHonestAdvantage_eq_zero, zero_add,
-    oracleRounds_seqBatchOTSchedule] at h
+  simpa only [(perfectSemiHonestPrivate_seqBatchOT k M).semiHonestAdvantage_eq_zero, zero_add,
+    oracleRounds_seqBatchOTSchedule] using
+    semiHonestAdvantage_compose_le_sum_roundGame (seqBatchOT k M) (otWorld M) W₂
+      (fun _ => Sub) (fun _ => S₂) I x D (batchOTFunctionality k M) (seqBatchOTSim k M)
 
 /-- **The environment of transfer `j` of call `i`**, for an outer protocol `P` that calls the
 batched transfer `batchOTSpec k M`, with every call run by `seqBatchOT k M` over a protocol `Sub`

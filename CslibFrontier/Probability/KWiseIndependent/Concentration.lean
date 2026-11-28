@@ -116,31 +116,30 @@ private theorem sum_prod_image_card_eq_le {X : Type*} [DecidableEq X]
   let Cod := (univ : Finset (Fin n_tup → Fin r)) ×ˢ piFinset (fun _ : Fin r => R)
   let eqvOf (t : Fin n_tup → X) (ht : #(univ.image t) = r) : univ.image t ≃ Fin r :=
     (univ.image t).equivFin.trans (finCongr ht)
-  let htOf (item : {pair // pair ∈ Dom}) : #(univ.image item.val.1) = r :=
-    (mem_filter.mp (mem_product.mp item.property).1).2
+  let htOf (item : {pair // pair ∈ Dom}) : #(univ.image item.1.1) = r :=
+    (mem_filter.mp (mem_product.mp item.2).1).2
   let Ψ (item : {pair // pair ∈ Dom}) : (Fin n_tup → Fin r) × (Fin r → X) :=
-    let t := item.val.1
-    let σ := item.val.2
+    let t := item.1.1
+    let σ := item.1.2
     let e := eqvOf t (htOf item)
     (fun j => σ (e ⟨t j, mem_image_of_mem t (mem_univ j)⟩),
-     fun k => (e.symm (σ.symm k)).val)
+     fun k => (e.symm (σ.symm k)).1)
   have hmaps : Dom.attach.image Ψ ⊆ Cod := by
     intro qv hqv
     obtain ⟨item, -, rfl⟩ := mem_image.mp hqv
     refine mem_product.mpr ⟨mem_univ _, mem_piFinset.mpr fun k => ?_⟩
-    have htR := mem_piFinset.mp (mem_filter.mp (mem_product.mp item.property).1).1
-    obtain ⟨j, -, hj⟩ :=
-      mem_image.mp ((eqvOf item.val.1 (htOf item)).symm (item.val.2.symm k)).property
+    have htR := mem_piFinset.mp (mem_filter.mp (mem_product.mp item.2).1).1
+    obtain ⟨j, -, hj⟩ := mem_image.mp ((eqvOf item.1.1 (htOf item)).symm (item.1.2.symm k)).2
     simpa only [Ψ, ← hj] using htR j
   have hinj : Set.InjOn Ψ (Dom.attach : Set {pair // pair ∈ Dom}) := by
     intro item₁ _ item₂ _ heq
     have hq := congrArg Prod.fst heq
     have hv := congrArg Prod.snd heq
-    have ht_eq : item₁.val.1 = item₂.val.1 := by
+    have ht_eq : item₁.1.1 = item₂.1.1 := by
       funext j
-      have hj₁ : (Ψ item₁).2 ((Ψ item₁).1 j) = item₁.val.1 j := by
+      have hj₁ : (Ψ item₁).2 ((Ψ item₁).1 j) = item₁.1.1 j := by
         simp [Ψ]
-      have hj₂ : (Ψ item₂).2 ((Ψ item₂).1 j) = item₂.val.1 j := by
+      have hj₂ : (Ψ item₂).2 ((Ψ item₂).1 j) = item₂.1.1 j := by
         simp [Ψ]
       rw [← hj₁, ← hj₂, hq, hv]
     rcases item₁ with ⟨⟨t₁, σ₁⟩, h₁⟩
@@ -160,10 +159,10 @@ private theorem sum_prod_image_card_eq_le {X : Type*} [DecidableEq X]
       exact (eqvOf t₁ ht₁).symm.injective hsub
     exact Equiv.symm_bijective.injective hsymm
   have hwt (item : {pair // pair ∈ Dom}) :
-      ∏ k : Fin r, p ((Ψ item).2 k) = ∏ z ∈ univ.image item.val.1, p z := by
+      ∏ k : Fin r, p ((Ψ item).2 k) = ∏ z ∈ univ.image item.1.1, p z := by
     dsimp only [Ψ]
-    rw [Equiv.prod_comp item.val.2.symm (fun j => p ((eqvOf item.val.1 (htOf item)).symm j).val),
-      Equiv.prod_comp (eqvOf item.val.1 (htOf item)).symm (fun x => p x.val), prod_coe_sort]
+    rw [Equiv.prod_comp item.1.2.symm (fun j => p ((eqvOf item.1.1 (htOf item)).symm j).1),
+      Equiv.prod_comp (eqvOf item.1.1 (htOf item)).symm (fun x => p x.1), prod_coe_sort]
   have hnonneg : ∀ qv ∈ Cod, qv ∉ Dom.attach.image Ψ → 0 ≤ ∏ k : Fin r, p (qv.2 k) := by
     intro qv hqv _
     have hvR := mem_piFinset.mp (mem_product.mp hqv).2
@@ -269,58 +268,35 @@ theorem expect_sum_sub_expect_pow_le {ι X Y : Type*} [Fintype ι] [Fintype Y] [
       ((1 : ℝ) / 2) ^ (m - r) * (3 * (m : ℝ) * μ) ^ m := by
     intro r hr
     rcases mem_Icc.mp hr with ⟨hr1, hrm⟩
-    have hfac_pos : (0 : ℝ) < r.factorial := by exact_mod_cast Nat.factorial_pos r
-    have hstep := sum_prod_image_card_eq_le R p hp0 (2 * m) r
-    have hpow_μ : (∑ z ∈ R, p z) ^ r ≤ μ ^ r := pow_le_pow_left₀ hsum_p0 hmean r
     have hr_pow : r ^ (2 * m) ≤ 3 ^ r * r.factorial * m ^ (2 * m - r) := by
-      have hsplit : 2 * m = r + (2 * m - r) := by omega
-      calc r ^ (2 * m) = r ^ r * r ^ (2 * m - r) := by
-            conv_lhs => rw [hsplit]
-            rw [pow_add]
-        _ ≤ (3 ^ r * r.factorial) * m ^ (2 * m - r) :=
-            Nat.mul_le_mul (Nat.pow_self_le_three_pow_mul_factorial r)
-              (Nat.pow_le_pow_left hrm _)
-    have hr_real : (r : ℝ) ^ (2 * m) * (∑ z ∈ R, p z) ^ r ≤
-        (r.factorial : ℝ) * ((3 : ℝ) ^ r * (m : ℝ) ^ (2 * m - r) * μ ^ r) := by
-      calc (r : ℝ) ^ (2 * m) * (∑ z ∈ R, p z) ^ r
-          ≤ (r : ℝ) ^ (2 * m) * μ ^ r := by gcongr
-        _ ≤ ((3 ^ r * r.factorial * m ^ (2 * m - r) : ℕ) : ℝ) * μ ^ r := by
-            gcongr; exact_mod_cast hr_pow
-        _ = (r.factorial : ℝ) * ((3 : ℝ) ^ r * (m : ℝ) ^ (2 * m - r) * μ ^ r) := by
-            push_cast; ring
+      rw [← Nat.add_sub_cancel' (by omega : r ≤ 2 * m), pow_add, Nat.add_sub_cancel_left]
+      exact Nat.mul_le_mul (Nat.pow_self_le_three_pow_mul_factorial r) (Nat.pow_le_pow_left hrm _)
     have hdiv : ∑ t ∈ {t ∈ piFinset (fun _ : Fin (2 * m) => R) | #(univ.image t) = r},
           ∏ z ∈ univ.image t, p z ≤
-        (3 : ℝ) ^ r * (m : ℝ) ^ (2 * m - r) * μ ^ r :=
-      le_of_mul_le_mul_left (hstep.trans hr_real) hfac_pos
-    refine hdiv.trans ?_
-    have h2mr : 2 * m - r = m + (m - r) := by omega
-    have hm_sub : (2 * (m : ℝ)) ^ (m - r) * (3 * μ) ^ r ≤ (3 * μ) ^ m := by
-      calc (2 * (m : ℝ)) ^ (m - r) * (3 * μ) ^ r
-          ≤ (3 * μ) ^ (m - r) * (3 * μ) ^ r := by gcongr
-        _ = (3 * μ) ^ m := by rw [← pow_add, Nat.sub_add_cancel hrm]
-    have hhalf : (m : ℝ) ^ (m - r) * (3 * μ) ^ r ≤ ((1 : ℝ) / 2) ^ (m - r) * (3 * μ) ^ m := by
-      have hpos2 : (0 : ℝ) < 2 ^ (m - r) := by positivity
-      apply le_of_mul_le_mul_left _ hpos2
-      calc (2 : ℝ) ^ (m - r) * ((m : ℝ) ^ (m - r) * (3 * μ) ^ r)
-          = (2 * (m : ℝ)) ^ (m - r) * (3 * μ) ^ r := by rw [mul_pow]; ring
-        _ ≤ (3 * μ) ^ m := hm_sub
-        _ = (2 : ℝ) ^ (m - r) * (((1 : ℝ) / 2) ^ (m - r) * (3 * μ) ^ m) := by
-            rw [← mul_assoc, ← mul_pow]; norm_num
-    calc (3 : ℝ) ^ r * (m : ℝ) ^ (2 * m - r) * μ ^ r
-        = (m : ℝ) ^ m * ((m : ℝ) ^ (m - r) * (3 * μ) ^ r) := by
-          rw [h2mr, pow_add, mul_pow]; ring
-      _ ≤ (m : ℝ) ^ m * (((1 : ℝ) / 2) ^ (m - r) * (3 * μ) ^ m) := by gcongr
-      _ = ((1 : ℝ) / 2) ^ (m - r) * (3 * (m : ℝ) * μ) ^ m := by rw [mul_pow]; ring
+        (3 : ℝ) ^ r * (m : ℝ) ^ (2 * m - r) * μ ^ r := by
+      refine le_of_mul_le_mul_left ((sum_prod_image_card_eq_le R p hp0 (2 * m) r).trans ?_)
+        (by positivity : (0 : ℝ) < r.factorial)
+      calc (r : ℝ) ^ (2 * m) * (∑ z ∈ R, p z) ^ r
+          ≤ ((3 ^ r * r.factorial * m ^ (2 * m - r) : ℕ) : ℝ) * μ ^ r := by
+            gcongr; exact_mod_cast hr_pow
+        _ = _ := by push_cast; ring
+    have hmμ' : (m : ℝ) ≤ 1 / 2 * (3 * μ) := by linarith
+    calc ∑ t ∈ {t ∈ piFinset (fun _ : Fin (2 * m) => R) | #(univ.image t) = r},
+          ∏ z ∈ univ.image t, p z
+        ≤ (3 : ℝ) ^ r * (m : ℝ) ^ (2 * m - r) * μ ^ r := hdiv
+      _ = (m : ℝ) ^ m * ((m : ℝ) ^ (m - r) * (3 * μ) ^ r) := by
+          rw [show 2 * m - r = m + (m - r) by omega, pow_add, mul_pow]; ring
+      _ ≤ (m : ℝ) ^ m * ((1 / 2 * (3 * μ)) ^ (m - r) * (3 * μ) ^ r) := by gcongr
+      _ = ((1 : ℝ) / 2) ^ (m - r) * (3 * (m : ℝ) * μ) ^ m := by
+          rw [mul_pow, mul_assoc, ← pow_add, Nat.sub_add_cancel hrm, mul_pow]; ring
   have hgeom : ∑ r ∈ Icc 1 m, ((1 : ℝ) / 2) ^ (m - r) ≤ 2 := by
-    have hbij : ∑ r ∈ Icc 1 m, ((1 : ℝ) / 2) ^ (m - r) = ∑ j ∈ range m, ((1 : ℝ) / 2) ^ j := by
-      refine sum_nbij' (fun r => m - r) (fun j => m - j) ?_ ?_ ?_ ?_ ?_
-      · intro r hr; rw [mem_Icc] at hr; rw [mem_range]; omega
-      · intro j hj; rw [mem_range] at hj; rw [mem_Icc]; omega
-      · intro r hr; rw [mem_Icc] at hr; omega
-      · intro j hj; rw [mem_range] at hj; omega
-      · intro _ _; rfl
-    rw [hbij]
-    exact sum_geometric_two_le m
+    rw [sum_nbij' (fun r => m - r) (fun j => m - j) (t := range m)
+      (g := fun j => ((1 : ℝ) / 2) ^ j) ?_ ?_ ?_ ?_ fun _ _ => rfl]
+    · exact sum_geometric_two_le m
+    all_goals
+      intro x hx
+      simp only [mem_Icc, mem_range] at hx ⊢
+      omega
   calc ∑ t ∈ piFinset (fun _ : Fin (2 * m) => R), 𝔼 i, ∏ j, Z (t j) (h i (t j))
       ≤ ∑ t ∈ piFinset (fun _ : Fin (2 * m) => R),
           if #(univ.image t) ≤ m then ∏ z ∈ univ.image t, p z else 0 := sum_le_sum hterm
@@ -401,30 +377,18 @@ theorem dens_abs_sum_restrict_sub_expect_le {ι α β Y : Type*} [Fintype ι] [F
   have : Nonempty (X' × Fin K → Y) := ⟨fun _ => Classical.arbitrary Y⟩
   let hSum (s : ι') : α ⊕ (X' × Fin K) → Y := Sum.elim (h s.1) s.2
   have hSum_ind : IsKWiseIndependentHash k_indep hSum := ⟨fun {T} hT w => by
-    let T₁ : Finset α := T.preimage Sum.inl Sum.inl_injective.injOn
-    let T₂ : Finset (X' × Fin K) := T.preimage Sum.inr Sum.inr_injective.injOn
-    have hcard : #T₁ + #T₂ = #T := by
-      have h1 : #T₁ = #{u ∈ T | u.isLeft} := Finset.card_bij (fun a _ => Sum.inl a)
-        (fun a ha => Finset.mem_filter.mpr ⟨Finset.mem_preimage.mp ha, rfl⟩)
-        (fun _ _ _ _ h => Sum.inl.inj h) fun u hu => by
-          rcases u with a | _; · exact ⟨a, Finset.mem_preimage.mpr (Finset.mem_filter.mp hu).1, rfl⟩
-          · cases (Finset.mem_filter.mp hu).2
-      have h2 : #T₂ = #{u ∈ T | ¬ u.isLeft} := Finset.card_bij (fun p _ => Sum.inr p)
-        (fun p hp => Finset.mem_filter.mpr ⟨Finset.mem_preimage.mp hp, by simp⟩)
-        (fun _ _ _ _ h => Sum.inr.inj h) fun u hu => by
-          rcases u with _ | p; · exact absurd rfl (Finset.mem_filter.mp hu).2
-          · exact ⟨p, Finset.mem_preimage.mpr (Finset.mem_filter.mp hu).1, rfl⟩
-      rw [h1, h2, Finset.card_filter_add_card_filter_not]
-    let w₁ : T₁ → Y := fun ⟨a, ha⟩ => w ⟨Sum.inl a, Finset.mem_preimage.mp ha⟩
-    let w₂ : T₂ → Y := fun ⟨p, hp⟩ => w ⟨Sum.inr p, Finset.mem_preimage.mp hp⟩
+    let T₁ : Finset α := T.toLeft
+    let T₂ : Finset (X' × Fin K) := T.toRight
+    let w₁ : T₁ → Y := fun ⟨a, ha⟩ => w ⟨Sum.inl a, Finset.mem_toLeft.mp ha⟩
+    let w₂ : T₂ → Y := fun ⟨p, hp⟩ => w ⟨Sum.inr p, Finset.mem_toRight.mp hp⟩
     have hiff (s : ι') : T.restrict (hSum s) = w ↔
         T₁.restrict (h s.1) = w₁ ∧ T₂.restrict s.2 = w₂ :=
-      ⟨fun hs => ⟨funext fun ⟨a, ha⟩ => congrFun hs ⟨Sum.inl a, Finset.mem_preimage.mp ha⟩,
-          funext fun ⟨p, hp⟩ => congrFun hs ⟨Sum.inr p, Finset.mem_preimage.mp hp⟩⟩,
+      ⟨fun hs => ⟨funext fun ⟨a, ha⟩ => congrFun hs ⟨Sum.inl a, Finset.mem_toLeft.mp ha⟩,
+          funext fun ⟨p, hp⟩ => congrFun hs ⟨Sum.inr p, Finset.mem_toRight.mp hp⟩⟩,
         fun ⟨h1, h2⟩ => funext fun ⟨u, hu⟩ => by
           rcases u with a | p
-          · exact congrFun h1 ⟨a, Finset.mem_preimage.mpr hu⟩
-          · exact congrFun h2 ⟨p, Finset.mem_preimage.mpr hu⟩⟩
+          · exact congrFun h1 ⟨a, Finset.mem_toLeft.mpr hu⟩
+          · exact congrFun h2 ⟨p, Finset.mem_toRight.mpr hu⟩⟩
     have hd0 := Fintype.expect_boole (𝕜 := ℚ≥0) (fun s : ι' => T.restrict (hSum s) = w)
     rw [NNRat.cast_id] at hd0; rw [← hd0]
     have hprod (s : ι') : (if T.restrict (hSum s) = w then (1 : ℚ≥0) else 0) =
@@ -440,23 +404,23 @@ theorem dens_abs_sum_restrict_sub_expect_le {ι α β Y : Type*} [Fintype ι] [F
         dens {ξ : X' × Fin K → Y | T₂.restrict ξ = w₂} := by
       rw [← Finset.mul_expect, Fintype.expect_boole]; rfl
     simp_rw [hpull]; rw [← Finset.expect_mul, Fintype.expect_boole]
-    have hd1 := (hh.mono (by omega : #T₁ ≤ k_indep)).dens_filter_restrict_eq le_rfl w₁
+    have hd1 := (hh.mono (Finset.card_toLeft_le.trans hT)).dens_filter_restrict_eq le_rfl w₁
     have hd2 := (isKWiseIndependentHash_id (X := X' × Fin K) (Y := Y) #T₂).dens_filter_restrict_eq
       le_rfl w₂
     dsimp only [id] at hd2; simp only [NNRat.cast_id]
-    rw [hd1, hd2, ← mul_inv, ← pow_add, hcard]⟩
-  let e (z : X') : B z.val ≃ Fin #(B z.val) := (B z.val).equivFin
+    rw [hd1, hd2, ← mul_inv, ← pow_add, Finset.card_toLeft_add_card_toRight]⟩
+  let e (z : X') : B z.1 ≃ Fin #(B z.1) := (B z.1).equivFin
   let emb (p : X' × Fin K) : α ⊕ (X' × Fin K) :=
-    if hj : p.2.val < #(B p.1.val) then Sum.inl ((e p.1).symm ⟨p.2.val, hj⟩).val else Sum.inr p
+    if hj : p.2.val < #(B p.1.1) then Sum.inl ((e p.1).symm ⟨p.2.val, hj⟩).1 else Sum.inr p
   have hemb : Function.Injective emb := by
     rintro ⟨z₁, j₁⟩ ⟨z₂, j₂⟩ heq
-    by_cases h₁ : j₁.val < #(B z₁.val) <;> by_cases h₂ : j₂.val < #(B z₂.val) <;>
+    by_cases h₁ : j₁.val < #(B z₁.1) <;> by_cases h₂ : j₂.val < #(B z₂.1) <;>
       simp only [emb, h₁, h₂, ↓reduceDIte] at heq
     · have ha := Sum.inl.inj heq
       have hz : z₁ = z₂ := by
         by_contra hne
-        exact Finset.disjoint_left.mp (hdisj z₁.property z₂.property (Subtype.coe_ne_coe.mpr hne))
-          ((e z₁).symm ⟨j₁.val, h₁⟩).property (ha ▸ ((e z₂).symm ⟨j₂.val, h₂⟩).property)
+        exact Finset.disjoint_left.mp (hdisj z₁.2 z₂.2 (Subtype.coe_ne_coe.mpr hne))
+          ((e z₁).symm ⟨j₁.val, h₁⟩).2 (ha ▸ ((e z₂).symm ⟨j₂.val, h₂⟩).2)
       subst hz; exact Prod.ext rfl (Fin.ext (Fin.mk.inj ((e z₁).symm.injective (Subtype.ext ha))))
     · cases heq
     · cases heq
@@ -475,21 +439,21 @@ theorem dens_abs_sum_restrict_sub_expect_le {ι α β Y : Type*} [Fintype ι] [F
     rw [hset, hFlat_ind.dens_filter_restrict_eq (hc ▸ Nat.mul_le_mul_right K hT) wp, hc,
       mul_comm #T K, pow_mul, Fintype.card_fun, Fintype.card_fin, Nat.cast_pow]⟩
   let g' (z : X') (v : Y') : ℝ :=
-    score z.val (fun x => v ⟨(e z x).val, (e z x).isLt.trans_le (hB z.val z.property)⟩)
-  have hg'_H (s : ι') (z : X') : g' z (H s z) = score z.val ((B z.val).restrict (h s.1)) := by
+    score z.1 (fun x => v ⟨(e z x).val, (e z x).isLt.trans_le (hB z.1 z.2)⟩)
+  have hg'_H (s : ι') (z : X') : g' z (H s z) = score z.1 ((B z.1).restrict (h s.1)) := by
     dsimp only [g', H, emb, hSum]; congr 1; funext x; simp [(e z x).isLt, Finset.restrict]
-  have hexp_g' (z : X') : (𝔼 v : Y', g' z v) = 𝔼 θ : ι, score z.val ((B z.val).restrict (h θ)) := by
+  have hexp_g' (z : X') : (𝔼 v : Y', g' z v) = 𝔼 θ : ι, score z.1 ((B z.1).restrict (h θ)) := by
     have h1 := (hH_ind.mono (by omega : 1 ≤ 2 * m)).expect_prod (T := {z}) (by simp)
       (fun _ v => g' z v)
     simp only [Finset.prod_singleton] at h1; rw [← h1]; simp_rw [hg'_H]
     exact Fintype.expect_comp_fst (α := ι) (β := X' × Fin K → Y)
-      (fun θ => score z.val ((B z.val).restrict (h θ)))
+      (fun θ => score z.1 ((B z.1).restrict (h θ)))
   have hmean' : ∑ z ∈ (Finset.univ : Finset X'), (𝔼 v : Y', g' z v) ≤ μ := by
     simp_rw [hexp_g']
     simpa only [X', Finset.univ_eq_attach,
       Finset.sum_attach R (fun b => 𝔼 θ, score b ((B b).restrict (h θ)))] using hmean
   have hconc := dens_abs_sum_sub_expect_le hm hH_ind Finset.univ g'
-    (fun z _ _ => hscore z.val z.property _) hmean' hmμ ha
+    (fun z _ _ => hscore z.1 z.2 _) hmean' hmμ ha
   have hev : (dens {s : ι' | a ≤ |∑ z : X', (g' z (H s z) - 𝔼 v, g' z v)|} : ℝ) =
       dens {θ : ι | a ≤ |∑ b ∈ R,
         (score b ((B b).restrict (h θ)) - 𝔼 θ', score b ((B b).restrict (h θ')))|} := by

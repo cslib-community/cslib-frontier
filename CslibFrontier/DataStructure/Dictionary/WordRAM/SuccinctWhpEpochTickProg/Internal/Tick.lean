@@ -53,9 +53,8 @@ private theorem stage1CursorTail_preserve (fs sMid : FastState)
       epochTickStage1Finish fsW else fsW
     out.curEp = fs.curEp ∧ out.epochClock = fs.epochClock ∧ out.rebStage ≤ 3 := by
   dsimp only
-  by_cases hd : (fs.buf fs.oldEp).itemAlloc ≤ fs.stageCursor + 1
-  · rw [ite_eq_left hd]; exact stage1Finish_preserve fs _ h1 h2 h3
-  · rw [ite_eq_right hd]; exact ⟨h1, h2, h3⟩
+  split_ifs
+  exacts [stage1Finish_preserve fs _ h1 h2 h3, ⟨h1, h2, h3⟩]
 
 private theorem tickStageAllPure_clk_and_stage5 (c U n_max : ℕ) (θ : SeedWhp c U n_max)
     {fs : FastState} (hst_le : fs.rebStage ≤ 5) :
@@ -89,17 +88,20 @@ private theorem tickStageAllPure_clk_and_stage5 (c U n_max : ℕ) (θ : SeedWhp 
         cases bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor with
         | none => exact stage1CursorTail_preserve fs fs rfl rfl (by omega)
         | some p =>
-          rcases p with ⟨b, _⟩; dsimp only
+          rcases p with ⟨b, _⟩
+          dsimp only
           by_cases hq : fs.rebQueued b = 0
           · rw [ite_eq_left hq]
             exact stage1CursorTail_preserve fs
               { fs with
                 rebQueued := Function.update fs.rebQueued b 1
                 dirtyBuckets := Function.update fs.dirtyBuckets fs.dirtyCount b
-                dirtyCount := fs.dirtyCount + 1 } rfl rfl (by dsimp only; omega)
+                dirtyCount := fs.dirtyCount + 1 } rfl rfl
+              (Nat.le_succ_of_le (Nat.le_succ_of_le hs1.le))
           · rw [ite_eq_right hq]
             exact stage1CursorTail_preserve fs fs rfl rfl (by omega)
-      · rw [ite_eq_right hlt]; exact stage1Finish_preserve fs fs rfl rfl (by omega)
+      · rw [ite_eq_right hlt]
+        exact stage1Finish_preserve fs fs rfl rfl (by omega)
     exact ⟨hclk.1, hclk.2.1, by omega⟩
   rw [ite_eq_right hs1]
   by_cases hs2 : fs.rebStage = 2
@@ -108,21 +110,13 @@ private theorem tickStageAllPure_clk_and_stage5 (c U n_max : ℕ) (θ : SeedWhp 
         (epochTickStage2 c U n_max θ fs).epochClock = fs.epochClock ∧
         (epochTickStage2 c U n_max θ fs).rebStage ≤ 3 := by
       dsimp only [epochTickStage2]
-      by_cases h1 : fs.dirtyIdx < fs.dirtyCount
-      · rw [ite_eq_left h1]
-        by_cases h2 : fs.rebCandSalt < sMaxWhp c n_max
-        · rw [ite_eq_left h2]
-          set b := fs.dirtyBuckets fs.dirtyIdx
-          have hp := rebScanSteps_preserved θ b 16 fs
-          unfold epochTickStage2PostScan epochTickStage2AfterSwap epochTickStage2Swap
-          dsimp only
-          split_ifs
-          · exact ⟨hp.curEp, hp.epochClock, by rw [hp.rebStage]; omega⟩
-          · exact ⟨hp.curEp, hp.epochClock, le_rfl⟩
-          · exact ⟨hp.curEp, hp.epochClock, by rw [hp.rebStage]; omega⟩
-          · exact ⟨hp.curEp, hp.epochClock, by rw [hp.rebStage]; omega⟩
-        · rw [ite_eq_right h2]; exact ⟨rfl, rfl, by omega⟩
-      · rw [ite_eq_right h1]; exact ⟨rfl, rfl, le_rfl⟩
+      split_ifs with h1 h2
+      · have hp := rebScanSteps_preserved θ (fs.dirtyBuckets fs.dirtyIdx) 16 fs
+        have := hp.rebStage
+        unfold epochTickStage2PostScan epochTickStage2AfterSwap epochTickStage2Swap
+        split_ifs <;> try dsimp only
+        all_goals exact ⟨hp.curEp, hp.epochClock, by omega⟩
+      exacts [⟨rfl, rfl, by omega⟩, ⟨rfl, rfl, le_rfl⟩]
     exact ⟨hclk.1, hclk.2.1, by omega⟩
   rw [ite_eq_right hs2]
   by_cases hs3 : fs.rebStage = 3
@@ -141,10 +135,7 @@ private theorem tickStageAllPure_clk_and_stage5 (c U n_max : ℕ) (θ : SeedWhp 
   by_cases hs4 : fs.rebStage = 4
   · rw [ite_eq_left hs4]
     dsimp only [epochTickStage4]
-    refine ⟨rfl, rfl, ?_⟩
-    by_cases h8 : (fs.buf fs.oldEp).nodeAlloc ≤ 8
-    · rw [decide_eq_true h8]; simp [hs4, h8]
-    · rw [decide_eq_false h8]; simp [hs4, h8]
+    by_cases h8 : (fs.buf fs.oldEp).nodeAlloc ≤ 8 <;> simp [hs4, h8]
   rw [ite_eq_right hs4]
   have hs5 : fs.rebStage = 5 := by omega
   exact ⟨rfl, rfl, by simp [hs5]⟩
@@ -159,12 +150,9 @@ theorem epochTick_isSome_iff {c U n_max : ℕ} (θ : SeedWhp c U n_max) {fs : Fa
   dsimp only [epochTickRollover, epochTickWillSucceed]
   rw [hclk]
   by_cases hlt : fs.epochClock + 1 < qEpochWhp n_max
-  · rw [ite_eq_right (Nat.not_le.mpr hlt), decide_eq_true (Or.inl hlt)]; rfl
-  · rw [ite_eq_left (Nat.le_of_not_lt hlt)]
-    by_cases hs5 : (epochTickStage c U n_max θ fs).rebStage = 5
-    · rw [ite_eq_left hs5, decide_eq_true (Or.inr (hs5_iff.mp hs5))]; rfl
-    · rw [ite_eq_right hs5, decide_eq_false (fun h => h.elim hlt (fun h' => hs5 (hs5_iff.mpr h')))]
-      rfl
+  · simp [Nat.not_le.mpr hlt, hlt]
+  · by_cases hs5 : (epochTickStage c U n_max θ fs).rebStage = 5 <;>
+      simp [Nat.le_of_not_lt hlt, hlt, hs5, ← hs5_iff]
 
 /-- Dispatch Stages `0 .. 5` of `epochTick` (`d = (wp, base)`). -/
 @[irreducible] private def epochTickStageAllGenProg :
@@ -203,13 +191,8 @@ private theorem realizes_epochTickStageAllGen :
           ValidEpochStagePreTick c U n_max θ fs)
       (fun _ _ => 0) := by
   unfold epochTickStageAllGenProg
-  have hrh := realizes_readHdr
-  have hs0 := realizes_epochTickStage0Gen
-  have hs1 := realizes_epochTickStage1Gen
-  have hs2 := realizes_epochTickStage2Gen
-  have hs3 := realizes_epochTickStage3Gen
-  have hs4 := realizes_epochTickStage4Gen
-  realize
+  realize [realizes_readHdr, realizes_epochTickStage0Gen, realizes_epochTickStage1Gen,
+    realizes_epochTickStage2Gen, realizes_epochTickStage3Gen, realizes_epochTickStage4Gen]
   all_goals (
     rcases d with ⟨wp, base⟩
     dsimp only at *
@@ -218,15 +201,13 @@ private theorem realizes_epochTickStageAllGen :
     have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
     have hth := henv.2.2.2.1
     have hh := fastMemHdrs hrep
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       simp [mkWhpParams, Nat.not_lt.mpr hth]
-    obtain ⟨hst_st, hst_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebStage)
-      (by dsimp [hdrRebStage]; omega) (s := s)
+    obtain ⟨hst_st, hst_res, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrRebStage) (s := s) (by decide)
     rw [hh.rebStage] at hst_res
-    simp only [hcp_eq] at *
-    simp only [hst_st, hst_res] at *
+    simp only [hcp_eq, hst_st, hst_res] at *
     first
     | exact henv.fits_const (by decide)
     | exact henv.fits_hdr_addr (by dsimp [hdrRebStage]; omega)
@@ -234,6 +215,28 @@ private theorem realizes_epochTickStageAllGen :
     | exact ⟨c, U, V, w, n_max, θ, fs, dict, henv, rfl, hseed, hrep, hcore, hpre, by assumption⟩
     | exact ⟨c, U, V, w, n_max, θ, fs, dict, henv, rfl, hseed, hrep, hcore, by assumption⟩
   )
+
+private theorem readHdr_bind_fastStep {c U V w n_max base hdrOff v cost : ℕ}
+    {θ : SeedWhp c U n_max} {fs' : FastState} {s : Memory.State}
+    {k : ℕ → Memory.Prog Unit}
+    (hoff : hdrOff < largeSpaceWhp c U V w n_max) (hval : s.mem (base + hdrOff) = v)
+    (hk : memoryCost (k v) s ≤ cost ∧
+      ValidProg w (base + largeSpaceWhp c U V w n_max) s (k v) ∧
+      FastStateStep base c U V w n_max θ fs' s ((Memory.spec 0).clientState s (k v))) :
+    let prog := readHdrProg (base, hdrOff) >>= k
+    memoryCost prog s ≤ cost + 1 ∧
+    ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
+    FastStateStep base c U V w n_max θ fs' s ((Memory.spec 0).clientState s prog) := by
+  obtain ⟨hst, hres, hmc, hvp⟩ := readHdrProg_spec (w := w)
+    (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrOff)
+    (Nat.add_lt_add_left hoff base) (s := s)
+  rw [hval] at hres
+  dsimp only
+  refine ⟨?_, validProg_bind hvp (by simpa only [hst, hres] using hk.2.1), ?_⟩
+  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, hres, hmc, Nat.add_comm 1]
+    exact Nat.add_le_add_right hk.1 1
+  · rw [clientState_bind, hst, hres]
+    exact hk.2.2
 
 private theorem epochTickStageAllGenProg_fastStep {c U V w n_max base : ℕ}
     {θ : SeedWhp c U n_max} {fs : FastState} {dict : State U} {s : Memory.State}
@@ -249,93 +252,23 @@ private theorem epochTickStageAllGenProg_fastStep {c U V w n_max base : ℕ}
     FastStateStep base c U V w n_max θ (epochTickStage c U n_max θ fs) s s' := by
   have hth := henv.2.2.2.1
   have hh := fastMemHdrs hrep
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
   have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
     simp [mkWhpParams, Nat.not_lt.mpr hth]
-  set cp := mkWhpCoreParams c U V w n_max
-  obtain ⟨hst_st, hst_res, hst_mc, hst_vp⟩ := readHdrProg_spec (w := w)
-    (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebStage)
-    (by dsimp [hdrRebStage]; omega) (s := s)
-  rw [hh.rebStage] at hst_res
   dsimp only
-  unfold epochTickStageAllGenProg; dsimp only
-  rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-  simp only [pure_bind]
+  unfold epochTickStageAllGenProg
+  simp only [pure_bind, hwp1]
+  refine readHdr_bind_fastStep (cost := 2 * cTabWhp c + 32 * hashEvalCostWhp c + 43949)
+    (by dsimp [hdrRebStage, largeSpaceWhp]; omega) hh.rebStage ?_
   dsimp only [epochTickStage]
-  by_cases hs0 : fs.rebStage = 0
-  · rw [ite_eq_left hs0]
-    obtain ⟨hmc0, hvp0, hstep0⟩ :=
-      epochTickStage0GenProg_fastStep henv hcore hs0 hseed hrep (s := s)
-    rw [clientState_bind, hst_st, hst_res, ite_eq_left hs0]
-    refine ⟨?_, ?_, hstep0⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hst_st, hst_res, hst_mc, ite_eq_left hs0]
-      dsimp only [cp] at hmc0 ⊢; omega
-    · refine validProg_bind hst_vp ?_; rw [hst_st, hst_res, ite_eq_left hs0]; exact hvp0
-  rw [ite_eq_right hs0]
-  by_cases hs1 : fs.rebStage = 1
-  · rw [ite_eq_left hs1]
-    obtain ⟨hmc1, hvp1, hstep1⟩ :=
-      epochTickStage1GenProg_fastStep henv hcore hpre hs1 hseed hrep (s := s)
-    rw [clientState_bind, hst_st, hst_res, ite_eq_right hs0, ite_eq_left hs1]
-    refine ⟨?_, ?_, hstep1⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hst_st, hst_res, hst_mc, ite_eq_right hs0, ite_eq_left hs1]
-      dsimp only [cp] at hmc1 ⊢; omega
-    · refine validProg_bind hst_vp ?_; rw [hst_st, hst_res, ite_eq_right hs0, ite_eq_left hs1]
-      exact hvp1
-  rw [ite_eq_right hs1]
-  by_cases hs2 : fs.rebStage = 2
-  · rw [ite_eq_left hs2]
-    obtain ⟨hmc2, hvp2, hstep2⟩ :=
-      epochTickStage2GenProg_fastStep henv hcore hpre hs2 hseed hrep (s := s)
-    rw [clientState_bind, hst_st, hst_res, ite_eq_right hs0, ite_eq_right hs1, ite_eq_left hs2]
-    refine ⟨?_, ?_, hstep2⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hst_st, hst_res, hst_mc, ite_eq_right hs0, ite_eq_right hs1, ite_eq_left hs2]; omega
-    · refine validProg_bind hst_vp ?_
-      rw [hst_st, hst_res, ite_eq_right hs0, ite_eq_right hs1, ite_eq_left hs2]; exact hvp2
-  rw [ite_eq_right hs2]
-  by_cases hs3 : fs.rebStage = 3
-  · rw [ite_eq_left hs3]
-    obtain ⟨hmc3, hvp3, hstep3⟩ :=
-      epochTickStage3GenProg_fastStep henv hcore hs3 hseed hrep (s := s)
-    rw [clientState_bind, hst_st, hst_res, ite_eq_right hs0, ite_eq_right hs1,
-      ite_eq_right hs2, ite_eq_left hs3]
-    refine ⟨?_, ?_, hstep3⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hst_st, hst_res, hst_mc, ite_eq_right hs0, ite_eq_right hs1, ite_eq_right hs2,
-        ite_eq_left hs3]; omega
-    · refine validProg_bind hst_vp ?_
-      rw [hst_st, hst_res, ite_eq_right hs0, ite_eq_right hs1, ite_eq_right hs2, ite_eq_left hs3]
-      exact hvp3
-  rw [ite_eq_right hs3]
-  by_cases hs4 : fs.rebStage = 4
-  · rw [ite_eq_left hs4]
-    obtain ⟨hmc4, hvp4, hstep4⟩ :=
-      epochTickStage4GenProg_fastStep henv hcore hs4 hseed hrep (s := s)
-    rw [clientState_bind, hst_st, hst_res, ite_eq_right hs0, ite_eq_right hs1,
-      ite_eq_right hs2, ite_eq_right hs3, ite_eq_left hs4]
-    refine ⟨?_, ?_, hstep4⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hst_st, hst_res, hst_mc, ite_eq_right hs0, ite_eq_right hs1, ite_eq_right hs2,
-        ite_eq_right hs3, ite_eq_left hs4]
-      dsimp only [cp] at hmc4 ⊢; omega
-    · refine validProg_bind hst_vp ?_
-      rw [hst_st, hst_res, ite_eq_right hs0, ite_eq_right hs1, ite_eq_right hs2,
-        ite_eq_right hs3, ite_eq_left hs4]
-      exact hvp4
-  rw [ite_eq_right hs4]
-  rw [clientState_bind, hst_st, hst_res, ite_eq_right hs0, ite_eq_right hs1,
-    ite_eq_right hs2, ite_eq_right hs3, ite_eq_right hs4]
-  refine ⟨?_, ?_, FastStateStep.refl hseed hrep⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hst_st, hst_res, hst_mc, ite_eq_right hs0, ite_eq_right hs1, ite_eq_right hs2,
-      ite_eq_right hs3, ite_eq_right hs4, memoryCost_pure]; omega
-  · refine validProg_bind hst_vp ?_
-    rw [hst_st, hst_res, ite_eq_right hs0, ite_eq_right hs1, ite_eq_right hs2,
-      ite_eq_right hs3, ite_eq_right hs4]
-    exact validProg_pure _
+  split_ifs with hs0 hs1 hs2 hs3 hs4
+  · exact (epochTickStage0GenProg_fastStep henv hcore hs0 hseed hrep).imp_left fun _ => by omega
+  · exact (epochTickStage1GenProg_fastStep henv hcore hpre hs1 hseed hrep).imp_left
+      fun _ => by omega
+  · exact (epochTickStage2GenProg_fastStep henv hcore hpre hs2 hseed hrep).imp_left
+      fun _ => by omega
+  · exact (epochTickStage3GenProg_fastStep henv hcore hs3 hseed hrep).imp_left fun _ => by omega
+  · exact (epochTickStage4GenProg_fastStep henv hcore hs4 hseed hrep).imp_left fun _ => by omega
+  · exact ⟨by simp [memoryCost_pure], validProg_pure _, FastStateStep.refl hseed hrep⟩
 
 /-- Execute the epoch-clock increment / rollover of `epochTick` when rollover is known to succeed
 (`d = (cp, base)`). -/
@@ -370,9 +303,7 @@ private theorem realizes_epochTickRolloverGen :
           fs1.epochClock < qEpochWhp n_max)
       (fun _ _ => 0) := by
   unfold epochTickRolloverGenProg
-  have hrh := realizes_readHdr
-  have hwh := realizes_writeHdr
-  realize
+  realize [realizes_readHdr, realizes_writeHdr]
   all_goals (
     rcases d with ⟨cp, base⟩
     dsimp only at *
@@ -380,14 +311,12 @@ private theorem realizes_epochTickRolloverGen :
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
     have hh := fastMemHdrs hrep
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have hq_lt := (large_bounds_lt_n_max hth).2.2.2.2.2.2.1
-    obtain ⟨hck_st, hck_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrEpochClock)
-      (by dsimp [hdrEpochClock]; omega) (s := s)
-    obtain ⟨hce_st, hce_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrCurEp)
-      (by dsimp [hdrCurEp]; omega) (s := s)
+    obtain ⟨hck_st, hck_res, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrEpochClock) (s := s) (by decide)
+    obtain ⟨hce_st, hce_res, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrCurEp) (s := s) (by decide)
     rw [hh.epochClock] at hck_res
     rw [hh.curEp] at hce_res
     simp only [hck_st, hck_res, hce_st, hce_res] at *
@@ -417,25 +346,14 @@ private theorem epochTickRolloverGenProg_fastStep {c U V w n_max base : ℕ}
   have _ := hclk_lt
   have hth := henv.2.2.2.1
   have hh := fastMemHdrs hrep
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   have hq_lt := (large_bounds_lt_n_max hth).2.2.2.2.2.2.1
-  set cp := mkWhpCoreParams c U V w n_max
-  have hq_cp : wpQEpoch cp = qEpochWhp n_max := wp_large_qEpoch hth
-  obtain ⟨hck_st, hck_res, hck_mc, hck_vp⟩ := readHdrProg_spec (w := w)
-    (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrEpochClock)
-    (by dsimp [hdrEpochClock]; omega) (s := s)
-  rw [hh.epochClock] at hck_res
-  dsimp only
-  unfold epochTickRolloverGenProg; simp only [pure_bind, hq_cp]
   dsimp only [epochTickRollover]
+  unfold epochTickRolloverGenProg
+  simp only [pure_bind, wp_large_qEpoch hth]
   by_cases hroll : qEpochWhp n_max ≤ fs1.epochClock + 1
   · rw [ite_eq_left hroll, ite_eq_left (hroll_ok hroll)]
-    obtain ⟨hce_st, hce_res, hce_mc, hce_vp⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrCurEp)
-      (by dsimp [hdrCurEp]; omega) (s := s)
-    rw [hh.curEp] at hce_res
-    have hfit_new : Fits w (1 - fs1.curEp) :=
-      (henv.fits_const (by decide)).of_le (Nat.sub_le 1 _)
+    have hfit_new : Fits w (1 - fs1.curEp) := (henv.fits_const (by decide)).of_le (Nat.sub_le 1 _)
     have hw1 := writeHdrStep (fs := fs1) henv (by dsimp [hdrCurEp]; decide) hfit_new
       (fun h6 => by dsimp [hdrCurEp] at h6; omega) hseed hrep (hdrOff := hdrCurEp)
       (val := 1 - fs1.curEp) (s := s)
@@ -452,27 +370,19 @@ private theorem epochTickRolloverGenProg_fastStep {c U V w n_max base : ℕ}
     have hw4 := writeHdrZeroStep (fs := fs4) henv (by dsimp [hdrStageCursor]; decide)
       hw3.2.2.2.1 hw3.2.2.2.2.1 (hdrOff := hdrStageCursor) (s := sc3)
     have hwc := seqUnitProg_fastStep hw1 (seqUnitProg_fastStep hw2 (seqUnitProg_fastStep hw3 hw4))
-    refine ⟨_, rfl, ?_, ?_, ?_⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hck_st, hck_res, hck_mc, ite_eq_left hroll]; simp only [memoryCost_bind]
-      rw [hce_st, hce_res, hce_mc]
-      have hwm := hwc.1
-      simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind] at hwm; omega
-    · refine validProg_bind hck_vp ?_; rw [hck_st, hck_res, ite_eq_left hroll]
-      refine validProg_bind hce_vp ?_; rw [hce_st, hce_res]
-      exact hwc.2.1
-    · rw [clientState_bind, hck_st, hck_res, ite_eq_left hroll,
-        clientState_bind, hce_st, hce_res]
-      exact hwc.2.2
+    refine ⟨_, rfl,
+      readHdr_bind_fastStep (cost := 9) (by dsimp [hdrEpochClock]; omega) hh.epochClock ?_⟩
+    rw [ite_eq_left hroll]
+    exact readHdr_bind_fastStep (cost := 8) (by dsimp [hdrCurEp]; omega) hh.curEp
+      ⟨by have := hwc.1; omega, hwc.2.1, hwc.2.2⟩
   · rw [ite_eq_right hroll]
     have hw := writeHdrStep (fs := fs1) henv (by dsimp [hdrEpochClock]; decide)
       (henv.fits_of_le_n_max (by omega)) (fun h6 => by dsimp [hdrEpochClock] at h6; omega)
       hseed hrep (hdrOff := hdrEpochClock) (val := fs1.epochClock + 1) (s := s)
-    refine ⟨_, rfl, ?_, ?_, ?_⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hck_st, hck_res, hck_mc, ite_eq_right hroll]; have hwm := hw.1; omega
-    · refine validProg_bind hck_vp ?_; rw [hck_st, hck_res, ite_eq_right hroll]; exact hw.2.1
-    · rw [clientState_bind, hck_st, hck_res, ite_eq_right hroll]; exact hw.2.2
+    refine ⟨_, rfl,
+      readHdr_bind_fastStep (cost := 9) (by dsimp [hdrEpochClock]; omega) hh.epochClock ?_⟩
+    rw [ite_eq_right hroll]
+    exact ⟨by have := hw.1; omega, hw.2.1, hw.2.2⟩
 
 /-- Execute `epochTick` when `epochTickWillSucceed n_max fs` holds (`d = (wp, base)`). -/
 @[irreducible] def epochTickGenProg : WhpParams × ℕ → Memory.Prog Unit
@@ -495,9 +405,7 @@ theorem realizes_epochTickGen :
           ValidEpochStagePreTick c U n_max θ fs)
       (fun _ _ => 0) := by
   unfold epochTickGenProg
-  have hsa := realizes_epochTickStageAllGen
-  have hro := realizes_epochTickRolloverGen
-  realize
+  realize [realizes_epochTickStageAllGen, realizes_epochTickRolloverGen]
   all_goals (
     rcases d with ⟨wp, base⟩
     dsimp only at *
@@ -544,29 +452,17 @@ theorem epochTickGenProg_fastStep {c U V w n_max base : ℕ}
   set fs1 := epochTickStage c U n_max θ fs
   obtain ⟨hce1, hclk_eq, hs5_iff⟩ :=
     tickStageAllPure_clk_and_stage5 c U n_max θ hcore.rebStage_le
-  have hroll_ok : qEpochWhp n_max ≤ fs1.epochClock + 1 → fs1.rebStage = 5 := by
-    intro hge
-    rw [hclk_eq] at hge
-    dsimp only [epochTickWillSucceed] at hok
-    have hdisj := of_decide_eq_true hok
-    rcases hdisj with hlt | h54
-    · omega
-    · exact hs5_iff.mpr h54
+  have hroll_ok : qEpochWhp n_max ≤ fs1.epochClock + 1 → fs1.rebStage = 5 := fun hge =>
+    (of_decide_eq_true hok).elim (fun hlt => absurd (hclk_eq ▸ hge) (not_le.mpr hlt)) hs5_iff.mpr
   obtain ⟨fs', hro_eq, hro_mc, hro_vp, hro_step⟩ :=
     epochTickRolloverGenProg_fastStep (fs1 := fs1) henv (hce1 ▸ hcore.curEp_or)
       (hclk_eq ▸ hcore.epochClock_lt) hroll_ok hsa_step.2.1 hsa_step.2.2.1 (s := s1)
-  unfold epochTick
-  refine ⟨fs', hro_eq, ?_, ?_, ?_⟩
-  · unfold epochTickGenProg; dsimp only
-    rw [show (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max from hwp1]
-    simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+  unfold epochTick epochTickGenProg
+  simp only [hwp1]
+  refine ⟨fs', hro_eq, ?_, validProg_bind hsa_vp hro_vp, ?_⟩
+  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
     dsimp only [s1] at hsa_mc hro_mc ⊢; omega
-  · unfold epochTickGenProg; dsimp only
-    rw [show (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max from hwp1]
-    exact validProg_bind hsa_vp hro_vp
-  · unfold epochTickGenProg; dsimp only
-    rw [show (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max from hwp1,
-      clientState_bind]
+  · rw [clientState_bind]
     exact hsa_step.trans hro_step
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.EpochTickInternal

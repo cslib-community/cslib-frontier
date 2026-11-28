@@ -97,7 +97,7 @@ theorem indexedCommunication_eq (S : Type) [Fintype S] (Q A : S → Type)
     [∀ s, Fintype (Q s)] [∀ s, Fintype (A s)] :
     indexedCommunication S Q A =
       ∑ s : S, (Nat.clog 2 (Fintype.card (Q s)) + Nat.clog 2 (Fintype.card (A s))) := by
-  rw [indexedCommunication]
+  rfl
 
 /-- On constant query and answer types, `indexedCommunication` coincides with `PIR.communication`.
 -/
@@ -143,8 +143,8 @@ def serverQuery (s : S) (i : ι) : ProbComp (Q s) :=
   (fun ⟨_, q⟩ => q s) <$> P.query i
 
 /-- The joint query marginal seen by a coalition `T : Finset S` when the user requests `i`. -/
-def coalitionQuery (T : Finset S) (i : ι) : ProbComp ((s : T) → Q s.val) :=
-  (fun ⟨_, q⟩ (s : T) => q s.val) <$> P.query i
+def coalitionQuery (T : Finset S) (i : ι) : ProbComp ((s : T) → Q s.1) :=
+  (fun ⟨_, q⟩ (s : T) => q s.1) <$> P.query i
 
 /-- The joint query marginal seen by an indexed tuple `servers : τ → S` of servers. -/
 def tupleQuery {τ : Type} (servers : τ → S) (i : ι) : ProbComp ((j : τ) → Q (servers j)) :=
@@ -166,18 +166,15 @@ def IsTPrivate (t : ℕ) : Prop :=
     ProbComp.eval (P.coalitionQuery T i) = ProbComp.eval (P.coalitionQuery T i')
 
 theorem serverQuery_eq (s : S) (i : ι) :
-    P.serverQuery s i = (fun ⟨_, q⟩ => q s) <$> P.query i := by
-  rw [serverQuery]
+    P.serverQuery s i = (fun ⟨_, q⟩ => q s) <$> P.query i := by rfl
 
 theorem coalitionQuery_eq (T : Finset S) (i : ι) :
-    P.coalitionQuery T i = (fun ⟨_, q⟩ (s : T) => q s.val) <$> P.query i := by
-  rw [coalitionQuery]
+    P.coalitionQuery T i = (fun ⟨_, q⟩ (s : T) => q s.1) <$> P.query i := by rfl
 
 theorem eval_run (x : ι → β) (i : ι) :
     ProbComp.eval (P.run x i) = (ProbComp.eval (P.query i)).map
       (fun rq => P.reconstruct i rq.1 fun s => P.answer s x (rq.2 s)) := by
-  rw [run, ProbComp.eval_bind]
-  rfl
+  rw [run, ProbComp.eval_bind]; rfl
 
 theorem eval_serverQuery (s : S) (i : ι) :
     ProbComp.eval (P.serverQuery s i) = (ProbComp.eval (P.query i)).map (fun rq => rq.2 s) := by
@@ -185,7 +182,7 @@ theorem eval_serverQuery (s : S) (i : ι) :
 
 theorem eval_coalitionQuery (T : Finset S) (i : ι) :
     ProbComp.eval (P.coalitionQuery T i) =
-      (ProbComp.eval (P.query i)).map (fun rq (s : T) => rq.2 s.val) := by
+      (ProbComp.eval (P.query i)).map (fun rq (s : T) => rq.2 s.1) := by
   rw [coalitionQuery, ProbComp.eval_map]
 
 theorem eval_tupleQuery {τ : Type} (servers : τ → S) (i : ι) :
@@ -200,13 +197,11 @@ theorem isCorrect_iff : P.IsCorrect ↔ ∀ x i r q, (r, q) ∈ (ProbComp.eval (
   exact ⟨fun h r q hrq => h (r, q) hrq, fun h rq hrq => h rq.1 rq.2 hrq⟩
 
 theorem isPrivate_iff : P.IsPrivate ↔
-    ∀ s i i', ProbComp.eval (P.serverQuery s i) = ProbComp.eval (P.serverQuery s i') := by
-  rw [IsPrivate]
+    ∀ s i i', ProbComp.eval (P.serverQuery s i) = ProbComp.eval (P.serverQuery s i') := by rfl
 
 theorem isTPrivate_iff (t : ℕ) : P.IsTPrivate t ↔
     ∀ T : Finset S, T.card ≤ t → ∀ i i',
-      ProbComp.eval (P.coalitionQuery T i) = ProbComp.eval (P.coalitionQuery T i') := by
-  rw [IsTPrivate]
+      ProbComp.eval (P.coalitionQuery T i) = ProbComp.eval (P.coalitionQuery T i') := by rfl
 
 end Defs
 
@@ -255,7 +250,7 @@ private theorem querySigmaScheme_isTPrivate_iff (P : IndexedScheme ι S R Q A β
   rw [Scheme.isTPrivate_iff, P.isTPrivate_iff]
   refine forall_congr' fun T => imp_congr_right fun _ =>
     forall_congr' fun i => forall_congr' fun i' => ?_
-  let embed : ((s : T) → Q s.val) → (T → Σ u, Q u) := fun f s => ⟨s.val, f s⟩
+  let embed : ((s : T) → Q s.1) → (T → Σ u, Q u) := fun f s => ⟨s.1, f s⟩
   have hinj : Function.Injective embed := fun f g hfg =>
     funext fun s => sigma_mk_injective (congrFun hfg s)
   have hmap (idx : ι) : ProbComp.eval (P.querySigmaScheme.coalitionQuery T idx) =
@@ -279,20 +274,18 @@ noncomputable def toSigmaScheme [DecidableEq S] (P : IndexedScheme ι S R Q A β
 theorem eval_run_toSigmaScheme [DecidableEq S] (P : IndexedScheme ι S R Q A β)
     (defaultA : (s : S) → A s) (fallback : β) (x : ι → β) (i : ι) :
     ProbComp.eval ((P.toSigmaScheme defaultA fallback).run x i) = ProbComp.eval (P.run x i) := by
-  let S' := P.toSigmaScheme defaultA fallback
-  change ProbComp.eval (S'.run x i) = ProbComp.eval (P.run x i)
-  have hquery : S'.query i = (fun ⟨r, q⟩ => (r, fun s => ⟨s, q s⟩)) <$> P.query i := rfl
-  rw [Scheme.eval_run, hquery, ProbComp.eval_map, PMF.map_comp, P.eval_run]
+  rw [Scheme.eval_run, show (P.toSigmaScheme defaultA fallback).query i =
+    (fun ⟨r, q⟩ => (r, fun s => ⟨s, q s⟩)) <$> P.query i from rfl,
+    ProbComp.eval_map, PMF.map_comp, P.eval_run]
   congr 1
   funext ⟨r, q⟩
   simp only [Function.comp_apply]
-  have hans : (fun s => S'.answer s x ⟨s, q s⟩) = fun s => ⟨s, P.answer s x (q s)⟩ :=
-    funext fun s => by simp [S', toSigmaScheme]
-  rw [hans]
-  dsimp only [S', toSigmaScheme]
+  rw [show (fun s => (P.toSigmaScheme defaultA fallback).answer s x ⟨s, q s⟩) =
+    fun s => ⟨s, P.answer s x (q s)⟩ from funext fun s => by simp [toSigmaScheme]]
+  dsimp only [toSigmaScheme]
   split_ifs with h
   · rfl
-  · exact False.elim (h fun _ => rfl)
+  · exact (h fun _ => rfl).elim
 
 @[simp] theorem isCorrect_toSigmaScheme_iff [DecidableEq S] (P : IndexedScheme ι S R Q A β)
     (defaultA : (s : S) → A s) (fallback : β) :
@@ -303,23 +296,14 @@ theorem eval_run_toSigmaScheme [DecidableEq S] (P : IndexedScheme ι S R Q A β)
 @[simp] theorem isTPrivate_toSigmaScheme_iff [DecidableEq S] (P : IndexedScheme ι S R Q A β)
     (defaultA : (s : S) → A s) (fallback : β) (t : ℕ) :
     (P.toSigmaScheme defaultA fallback).IsTPrivate t ↔ P.IsTPrivate t := by
-  have hiff : (P.toSigmaScheme defaultA fallback).IsTPrivate t ↔
-      P.querySigmaScheme.IsTPrivate t := by
-    rw [Scheme.isTPrivate_iff, Scheme.isTPrivate_iff]
-    refine forall_congr' fun T => imp_congr_right fun _ =>
-      forall_congr' fun i => forall_congr' fun i' => ?_
-    simp only [Scheme.eval_coalitionQuery, toSigmaScheme, querySigmaScheme]
-  exact hiff.trans (P.querySigmaScheme_isTPrivate_iff t)
+  refine Iff.trans ?_ (P.querySigmaScheme_isTPrivate_iff t)
+  simp only [Scheme.isTPrivate_iff, Scheme.eval_coalitionQuery, toSigmaScheme, querySigmaScheme]
 
 @[simp] theorem isPrivate_toSigmaScheme_iff [DecidableEq S] (P : IndexedScheme ι S R Q A β)
     (defaultA : (s : S) → A s) (fallback : β) :
     (P.toSigmaScheme defaultA fallback).IsPrivate ↔ P.IsPrivate := by
-  have hiff : (P.toSigmaScheme defaultA fallback).IsPrivate ↔
-      P.querySigmaScheme.IsPrivate := by
-    rw [Scheme.isPrivate_iff, Scheme.isPrivate_iff]
-    refine forall_congr' fun s => forall_congr' fun i => forall_congr' fun i' => ?_
-    simp only [Scheme.eval_serverQuery, toSigmaScheme, querySigmaScheme]
-  exact hiff.trans P.querySigmaScheme_isPrivate_iff
+  refine Iff.trans ?_ P.querySigmaScheme_isPrivate_iff
+  simp only [Scheme.isPrivate_iff, Scheme.eval_serverQuery, toSigmaScheme, querySigmaScheme]
 
 end SigmaBridge
 
@@ -444,25 +428,22 @@ theorem exists_injective_answers_of_card_le [Fintype S] [Nonempty ι] {t : ℕ}
     ∃ q : (s : S) → Q s, Function.Injective fun x s => P.answer s x (q s) := by
   classical
   obtain ⟨i₀⟩ := ‹Nonempty ι›
-  obtain ⟨⟨r₀, q₀⟩, _⟩ := (ProbComp.eval (P.query i₀)).support_nonempty
-  by_cases hβ : Nonempty β
+  obtain ⟨⟨_, q₀⟩, _⟩ := (ProbComp.eval (P.query i₀)).support_nonempty
+  rcases isEmpty_or_nonempty β with hβ | hβ
+  · exact ⟨q₀, fun x => isEmptyElim (x i₀)⟩
   · obtain ⟨b₀⟩ := hβ
     let defaultA : (s : S) → A s := fun s => P.answer s (fun _ => b₀) (q₀ s)
-    let Psig := P.toSigmaScheme defaultA b₀
-    obtain ⟨qsig, hqsig⟩ := Psig.exists_injective_answers_of_card_le
+    obtain ⟨qsig, hqsig⟩ := (P.toSigmaScheme defaultA b₀).exists_injective_answers_of_card_le
       ((P.isCorrect_toSigmaScheme_iff defaultA b₀).mpr hcorrect)
       ((P.isTPrivate_toSigmaScheme_iff defaultA b₀ t).mpr hprivate) hcard
     refine ⟨fun s => if h : (qsig s).1 = s then h ▸ (qsig s).2 else q₀ s, fun x y hxy => hqsig ?_⟩
     funext s
-    change Psig.answer s x (qsig s) = Psig.answer s y (qsig s)
-    dsimp only [Psig, toSigmaScheme]
+    dsimp only [toSigmaScheme]
     by_cases hs : (qsig s).1 = s
     · have hxy_s := congrFun hxy s
       simp only [dite_eq_left hs] at hxy_s ⊢
       exact congrArg (Sigma.mk s) hxy_s
     · simp only [dite_eq_right hs]
-  · let _ : IsEmpty β := not_nonempty_iff.mp hβ
-    exact ⟨q₀, fun x => isEmptyElim (x i₀)⟩
 
 /-- A correct `t`-private Boolean `IndexedScheme` with `|S| ≤ t` satisfies
 `2 ^ |ι| ≤ ∏ s : S, |A s|`. -/
@@ -483,19 +464,15 @@ theorem card_le_indexedCommunication_of_card_le [Fintype S] [Fintype ι]
     (hcorrect : P.IsCorrect) (hprivate : P.IsTPrivate t) (hcard : Fintype.card S ≤ t) :
     Fintype.card ι ≤ indexedCommunication S Q A := by
   rcases isEmpty_or_nonempty ι with hι | hι
-  · rw [Fintype.card_eq_zero]
-    exact Nat.zero_le _
+  · simp [Fintype.card_eq_zero]
   · rcases isEmpty_or_nonempty S with hS | ⟨_⟩
     · exact (not_isCorrect_of_isEmpty hcorrect).elim
-    · have hpow := two_pow_card_le_prod_card_answer_of_card_le hcorrect hprivate hcard
-      have hprod : ∏ s : S, Fintype.card (A s) ≤
-          2 ^ ∑ s : S, Nat.clog 2 (Fintype.card (A s)) := by
-        rw [← Finset.prod_pow_eq_pow_sum]
-        exact Finset.prod_le_prod fun s _ => Nat.le_pow_clog (by norm_num : 1 < 2) _
-      have hle : Fintype.card ι ≤ ∑ s : S, Nat.clog 2 (Fintype.card (A s)) :=
-        (Nat.pow_le_pow_iff_right (by norm_num : 1 < 2)).mp (hpow.trans hprod)
+    · have hpow := (two_pow_card_le_prod_card_answer_of_card_le hcorrect hprivate hcard).trans
+        ((Finset.prod_le_prod fun s _ => Nat.le_pow_clog (by norm_num : 1 < 2) _).trans_eq
+          (Finset.prod_pow_eq_pow_sum _ _ 2))
       rw [indexedCommunication_eq]
-      exact hle.trans (Finset.sum_le_sum fun s _ => Nat.le_add_left _ _)
+      exact ((Nat.pow_le_pow_iff_right (by norm_num)).mp hpow).trans
+        (Finset.sum_le_sum fun _ _ => Nat.le_add_left _ _)
 
 /-- **Single-server lower bound for heterogeneous schemes**: with one server, any perfectly correct
 and perfectly private Boolean `IndexedScheme` communicates at least `|ι|` bits. -/
@@ -573,14 +550,14 @@ theorem hasIndexedScheme_iff {ι β : Type} {k c : ℕ} :
       ∃ (S R : Type) (Q A : S → Type) (_ : Fintype S) (_ : ∀ s, Fintype (Q s))
         (_ : ∀ s, Fintype (A s)) (P : IndexedScheme ι S R Q A β),
         P.IsCorrect ∧ P.IsPrivate ∧ Fintype.card S = k ∧ indexedCommunication S Q A ≤ c := by
-  rw [HasIndexedScheme]
+  rfl
 
 theorem hasTPrivateIndexedScheme_iff {ι β : Type} {t k c : ℕ} :
     HasTPrivateIndexedScheme ι t k c β ↔
       ∃ (S R : Type) (Q A : S → Type) (_ : Fintype S) (_ : ∀ s, Fintype (Q s))
         (_ : ∀ s, Fintype (A s)) (P : IndexedScheme ι S R Q A β),
         P.IsCorrect ∧ P.IsTPrivate t ∧ Fintype.card S = k ∧ indexedCommunication S Q A ≤ c := by
-  rw [HasTPrivateIndexedScheme]
+  rfl
 
 theorem hasTPrivateIndexedScheme_one_iff {ι β : Type} {k c : ℕ} :
     HasTPrivateIndexedScheme ι 1 k c β ↔ HasIndexedScheme ι k c β := by
@@ -625,27 +602,18 @@ theorem HasTPrivateIndexedScheme.hasIndexedScheme {ι β : Type} {t k c : ℕ} (
 /-- Every uniform `HasScheme` witness is also a `HasIndexedScheme` witness at the same cost. -/
 theorem HasScheme.hasIndexedScheme {ι β : Type} {k c : ℕ} (h : HasScheme ι k c β) :
     HasIndexedScheme ι k c β := by
-  obtain ⟨S, R, Q, A, instS, instQ, instA, P, hcorrect, hprivate, hk, hcomm⟩ := hasScheme_iff.mp h
-  let _ := instS
-  let _ := instQ
-  let _ := instA
-  refine hasIndexedScheme_iff.mpr ⟨S, R, fun _ => Q, fun _ => A, instS, fun _ => instQ,
-    fun _ => instA, P.toIndexed, P.isCorrect_toIndexed_iff.mpr hcorrect,
-    P.isPrivate_toIndexed_iff.mpr hprivate, hk, ?_⟩
-  rwa [indexedCommunication_const]
+  obtain ⟨S, R, Q, A, _, _, _, P, hcorrect, hprivate, hk, hcomm⟩ := hasScheme_iff.mp h
+  exact hasIndexedScheme_iff.mpr ⟨S, R, fun _ => Q, fun _ => A, _, _, _, P.toIndexed,
+    P.isCorrect_toIndexed_iff.mpr hcorrect, P.isPrivate_toIndexed_iff.mpr hprivate, hk,
+    (indexedCommunication_const S Q A).trans_le hcomm⟩
 
 /-- Every uniform `HasTPrivateScheme` witness is also a `HasTPrivateIndexedScheme` witness. -/
 theorem HasTPrivateScheme.hasTPrivateIndexedScheme {ι β : Type} {t k c : ℕ}
     (h : HasTPrivateScheme ι t k c β) : HasTPrivateIndexedScheme ι t k c β := by
-  obtain ⟨S, R, Q, A, instS, instQ, instA, P, hcorrect, hprivate, hk, hcomm⟩ :=
-    hasTPrivateScheme_iff.mp h
-  let _ := instS
-  let _ := instQ
-  let _ := instA
-  refine hasTPrivateIndexedScheme_iff.mpr ⟨S, R, fun _ => Q, fun _ => A, instS, fun _ => instQ,
-    fun _ => instA, P.toIndexed, P.isCorrect_toIndexed_iff.mpr hcorrect,
-    (P.isTPrivate_toIndexed_iff t).mpr hprivate, hk, ?_⟩
-  rwa [indexedCommunication_const]
+  obtain ⟨S, R, Q, A, _, _, _, P, hcorrect, hprivate, hk, hcomm⟩ := hasTPrivateScheme_iff.mp h
+  exact hasTPrivateIndexedScheme_iff.mpr ⟨S, R, fun _ => Q, fun _ => A, _, _, _, P.toIndexed,
+    P.isCorrect_toIndexed_iff.mpr hcorrect, (P.isTPrivate_toIndexed_iff t).mpr hprivate, hk,
+    (indexedCommunication_const S Q A).trans_le hcomm⟩
 
 theorem HasTPrivateIndexedScheme.card_le_of_le {ι : Type} [Fintype ι] {t k c : ℕ}
     (h : HasTPrivateIndexedScheme ι t k c) (hkt : k ≤ t) : Fintype.card ι ≤ c := by

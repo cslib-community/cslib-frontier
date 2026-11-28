@@ -209,11 +209,14 @@ private lemma exists_five_pow_two_pow_eq (m : ℕ) :
     _ = 1 + 2 ^ m * 4 * (1 + 2 * y) := hy
     _ = 1 + 2 ^ (m + 2) * (1 + 2 * y) := by ring
 
+private lemma orderOf_five_zmod_two_pow {r : ℕ} (hr : 2 ≤ r) :
+    orderOf (5 : ZMod (2 ^ r)) = 2 ^ (r - 2) := by
+  have hord := ZMod.orderOf_five (r - 2)
+  rwa [Nat.sub_add_cancel hr] at hord
+
 private lemma five_pow_two_pow_sub_two_zmod {r : ℕ} (hr : 2 ≤ r) :
     (5 : ZMod (2 ^ r)) ^ (2 ^ (r - 2)) = 1 := by
-  have hord := ZMod.orderOf_five (r - 2)
-  rw [Nat.sub_add_cancel hr] at hord
-  rw [← hord, pow_orderOf_eq_one]
+  rw [← orderOf_five_zmod_two_pow hr, pow_orderOf_eq_one]
 
 /-- After `j ≤ m` bit-extraction steps over `List.range m`, the base-`5` discrete-logarithm
 accumulator is strictly less than `2 ^ j`. -/
@@ -244,90 +247,64 @@ private lemma dlogFiveStep_preserves {r x' a i : ℕ} (hr : 3 ≤ r) (hi : i < r
       (x' : ZMod (2 ^ (i + 3))) = (5 : ZMod (2 ^ (i + 3))) ^ dlogFiveStep r x' a i := by
   have ha_lt : a < 2 ^ (r - 2) := ha.trans_le (Nat.pow_le_pow_right (by decide) (by omega))
   set w := 5 ^ (2 ^ (r - 2) - a) % 2 ^ r * x' % 2 ^ r
-  have hw_zmod_r : (w : ZMod (2 ^ r)) * (5 : ZMod (2 ^ r)) ^ a = (x' : ZMod (2 ^ r)) := by
-    simp only [w, ZMod.natCast_mod, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]
-    calc (5 : ZMod (2 ^ r)) ^ (2 ^ (r - 2) - a) * (x' : ZMod (2 ^ r)) * 5 ^ a
-        = (5 : ZMod (2 ^ r)) ^ (2 ^ (r - 2) - a + a) * x' := by rw [pow_add]; ring
-      _ = (5 : ZMod (2 ^ r)) ^ (2 ^ (r - 2)) * x' := by rw [Nat.sub_add_cancel ha_lt.le]
-      _ = x' := by rw [five_pow_two_pow_sub_two_zmod (by omega), one_mul]
-  have hdvd_i2 : 2 ^ (i + 2) ∣ 2 ^ r := Nat.pow_dvd_pow 2 (by omega)
-  have hdvd_i3 : 2 ^ (i + 3) ∣ 2 ^ r := Nat.pow_dvd_pow 2 (by omega)
-  have hw_zmod_i3 : (w : ZMod (2 ^ (i + 3))) * (5 : ZMod (2 ^ (i + 3))) ^ a =
-      (x' : ZMod (2 ^ (i + 3))) := by
-    have hmap := congrArg (ZMod.castHom hdvd_i3 (ZMod (2 ^ (i + 3)))) hw_zmod_r
-    simpa only [map_mul, map_pow, map_ofNat, ZMod.castHom_apply, ZMod.cast_natCast hdvd_i3]
-      using hmap
+  -- `w ≡ 5 ^ (-a) * x' (mod 2 ^ k)` for every `k ≤ r`.
+  have hw_zmod (k : ℕ) (hk : k ≤ r) :
+      (w : ZMod (2 ^ k)) * (5 : ZMod (2 ^ k)) ^ a = (x' : ZMod (2 ^ k)) := by
+    have hdvd : 2 ^ k ∣ 2 ^ r := Nat.pow_dvd_pow 2 hk
+    have hwr : (w : ZMod (2 ^ r)) * (5 : ZMod (2 ^ r)) ^ a = (x' : ZMod (2 ^ r)) := by
+      simp only [w, ZMod.natCast_mod, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]
+      rw [mul_right_comm, ← pow_add, Nat.sub_add_cancel ha_lt.le,
+        five_pow_two_pow_sub_two_zmod (by omega), one_mul]
+    simpa only [map_mul, map_pow, map_ofNat, ZMod.castHom_apply, ZMod.cast_natCast hdvd]
+      using congrArg (ZMod.castHom hdvd (ZMod (2 ^ k))) hwr
   have hw_mod_i2 : w % 2 ^ (i + 2) = 1 := by
-    have hmap := congrArg (ZMod.castHom hdvd_i2 (ZMod (2 ^ (i + 2)))) hw_zmod_r
-    simp only [map_mul, map_pow, map_ofNat, ZMod.castHom_apply, ZMod.cast_natCast hdvd_i2,
-      hcong] at hmap
-    have hunit : IsUnit ((5 : ZMod (2 ^ (i + 2))) ^ a) := by
-      apply IsUnit.pow
-      rw [show (5 : ZMod (2 ^ (i + 2))) = ((5 : ℕ) : ZMod (2 ^ (i + 2))) from rfl,
-        ZMod.isUnit_iff_coprime]
-      exact (by decide : Nat.Coprime 5 2).pow_right (i + 2)
+    have hunit : IsUnit ((5 : ZMod (2 ^ (i + 2))) ^ a) :=
+      ((ZMod.isUnit_iff_coprime 5 _).mpr ((by decide : Nat.Coprime 5 2).pow_right _)).pow a
     have hw1 : (w : ZMod (2 ^ (i + 2))) = ((1 : ℕ) : ZMod (2 ^ (i + 2))) :=
-      hunit.mul_right_cancel (by simpa only [Nat.cast_one, one_mul] using hmap)
-    have h1lt : 1 < 2 ^ (i + 2) := one_lt_pow₀ (by decide) (by omega)
-    simpa only [Nat.mod_eq_of_lt h1lt] using (ZMod.natCast_eq_natCast_iff' w 1 (2 ^ (i + 2))).mp hw1
-  set q := w / 2 ^ (i + 2)
-  have hw_decomp : w = 1 + 2 ^ (i + 2) * q := by
-    have hdiv := Nat.div_add_mod w (2 ^ (i + 2))
-    rw [hw_mod_i2] at hdiv
-    dsimp only [q]
-    omega
-  have h2dvd : 2 ∣ 2 ^ (i + 2) := dvd_pow_self 2 (by omega)
-  have hpuv : 2 * 2 ^ (i + 2) * 2 ∣ (2 ^ (i + 2)) ^ 2 := by
-    rw [← pow_mul, show 2 * 2 ^ (i + 2) * 2 = 2 ^ (i + 4) by ring]
-    exact Nat.pow_dvd_pow 2 (by omega)
+      hunit.mul_right_cancel (by rw [hw_zmod (i + 2) (by omega), hcong, Nat.cast_one, one_mul])
+    exact ((ZMod.natCast_eq_natCast_iff' w 1 _).mp hw1).trans
+      (Nat.mod_eq_of_lt (one_lt_pow₀ (by decide) (by omega)))
+  obtain ⟨q, hw_decomp⟩ : ∃ q, w = 1 + 2 ^ (i + 2) * q :=
+    ⟨w / 2 ^ (i + 2), by have := Nat.div_add_mod w (2 ^ (i + 2)); omega⟩
   obtain ⟨y, hy⟩ := ZMod.exists_one_add_mul_pow_prime_pow_eq (R := ℕ) (u := 2 ^ (i + 2)) (v := 2)
-    Nat.prime_two h2dvd hpuv q (r - 3 - i)
+    Nat.prime_two (dvd_pow_self 2 (by omega))
+    (show 2 * 2 ^ (i + 2) * 2 ∣ (2 ^ (i + 2)) ^ 2 from ⟨2 ^ i, by ring⟩) q (r - 3 - i)
   have hpow_eq : w ^ (2 ^ (r - 3 - i)) = 1 + 2 ^ (r - 1) * (q + 2 * y) := by
-    simp only [Nat.cast_id] at hy
-    rw [hw_decomp, hy]
-    have hexp : 2 ^ (r - 3 - i) * 2 ^ (i + 2) = 2 ^ (r - 1) := by
-      rw [← pow_add]
-      congr 1
-      omega
-    rw [hexp]
+    rw [hw_decomp, hy, Nat.cast_id, ← pow_add, show r - 3 - i + (i + 2) = r - 1 by omega]
   have h2r_split : 2 ^ r = 2 * 2 ^ (r - 1) := by
-    rw [← pow_succ']
-    congr 1
-    omega
+    rw [← pow_succ', Nat.sub_add_cancel (by omega : 1 ≤ r)]
   have h1lt_half : 1 < 2 ^ (r - 1) := one_lt_pow₀ (by decide) (by omega)
-  rcases Nat.even_or_odd q with ⟨s, hs⟩ | ⟨s, hs⟩
-  · have hu_mod : w ^ (2 ^ (r - 3 - i)) % 2 ^ r = 1 := by
-      have hmul : w ^ (2 ^ (r - 3 - i)) = 1 + 2 ^ r * (s + y) := by
-        rw [hpow_eq, hs, h2r_split]
-        ring
-      rw [hmul, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (by omega)]
-    have hne : w ^ (2 ^ (r - 3 - i)) % 2 ^ r ≠ 2 ^ (r - 1) + 1 := by omega
+  -- The bit `q % 2` decides whether `w ≡ 1` or `w ≡ 5 ^ (2 ^ i) (mod 2 ^ (i + 3))`.
+  have h0 : (2 : ZMod (2 ^ (i + 3))) ^ (i + 3) = 0 := by
+    exact_mod_cast ZMod.natCast_self (2 ^ (i + 3))
+  have hwR : (w : ZMod (2 ^ (i + 3))) = 1 + 2 ^ (i + 2) * q := by
+    exact_mod_cast congrArg (Nat.cast : ℕ → ZMod (2 ^ (i + 3))) hw_decomp
+  rw [← hw_zmod (i + 3) (by omega), hwR]
+  rcases Nat.even_or_odd q with ⟨s, rfl⟩ | ⟨s, rfl⟩
+  · have hne : w ^ (2 ^ (r - 3 - i)) % 2 ^ r ≠ 2 ^ (r - 1) + 1 := by
+      rw [hpow_eq, h2r_split, show 1 + 2 ^ (r - 1) * (s + s + 2 * y) =
+        1 + 2 * 2 ^ (r - 1) * (s + y) by ring, Nat.add_mul_mod_self_left,
+        Nat.mod_eq_of_lt (by omega)]
+      omega
     have hstep : dlogFiveStep r x' a i = a := by
       simp only [dlogFiveStep, Nat.powMod_def, w, hne, ↓reduceIte]
     refine ⟨by rw [hstep, Nat.pow_succ]; omega, ?_⟩
-    rw [hstep, ← hw_zmod_i3]
-    have hw_i3 : (w : ZMod (2 ^ (i + 3))) = 1 := by
-      have hw_s : w = 1 + 2 ^ (i + 3) * s := by rw [hw_decomp, hs]; ring
-      rw [hw_s, Nat.cast_add, Nat.cast_one, Nat.cast_mul, ZMod.natCast_self, zero_mul, add_zero]
-    rw [hw_i3, one_mul]
+    rw [hstep]
+    push_cast
+    linear_combination (5 : ZMod (2 ^ (i + 3))) ^ a * s * h0
   · have hu_mod : w ^ (2 ^ (r - 3 - i)) % 2 ^ r = 2 ^ (r - 1) + 1 := by
-      have hmul : w ^ (2 ^ (r - 3 - i)) = (2 ^ (r - 1) + 1) + 2 ^ r * (s + y) := by
-        rw [hpow_eq, hs, h2r_split]
-        ring
-      rw [hmul, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (by omega)]
+      rw [hpow_eq, h2r_split, show 1 + 2 ^ (r - 1) * (2 * s + 1 + 2 * y) =
+        (2 ^ (r - 1) + 1) + 2 * 2 ^ (r - 1) * (s + y) by ring, Nat.add_mul_mod_self_left,
+        Nat.mod_eq_of_lt (by omega)]
     have hstep : dlogFiveStep r x' a i = a + 2 ^ i := by
       simp only [dlogFiveStep, Nat.powMod_def, w, hu_mod, ↓reduceIte]
     refine ⟨by rw [hstep, Nat.pow_succ]; omega, ?_⟩
     obtain ⟨y', hy'⟩ := exists_five_pow_two_pow_eq i
-    have hw_s : w = (1 + 2 ^ (i + 2)) + 2 ^ (i + 3) * s := by rw [hw_decomp, hs]; ring
-    have h5_s : 5 ^ (2 ^ i) = (1 + 2 ^ (i + 2)) + 2 ^ (i + 3) * y' := by rw [hy']; ring
-    have hcast_w : (w : ZMod (2 ^ (i + 3))) = ((1 + 2 ^ (i + 2) : ℕ) : ZMod (2 ^ (i + 3))) := by
-      rw [hw_s, Nat.cast_add, Nat.cast_mul, ZMod.natCast_self, zero_mul, add_zero]
-    have hcast_5 : ((5 : ZMod (2 ^ (i + 3))) ^ (2 ^ i)) =
-        ((1 + 2 ^ (i + 2) : ℕ) : ZMod (2 ^ (i + 3))) := by
-      rw [← Nat.cast_ofNat (n := 5), ← Nat.cast_pow, h5_s, Nat.cast_add, Nat.cast_mul,
-        ZMod.natCast_self, zero_mul, add_zero]
-    rw [hstep, ← hw_zmod_i3, mul_comm (w : ZMod (2 ^ (i + 3))), hcast_w, ← hcast_5, ← pow_add]
+    have h5 : (5 : ZMod (2 ^ (i + 3))) ^ 2 ^ i = 1 + 2 ^ (i + 2) * (1 + 2 * y') := by
+      exact_mod_cast congrArg (Nat.cast : ℕ → ZMod (2 ^ (i + 3))) hy'
+    rw [hstep, pow_add (5 : ZMod (2 ^ (i + 3))) a (2 ^ i), h5]
+    push_cast
+    linear_combination (5 : ZMod (2 ^ (i + 3))) ^ a * (s - y') * h0
 
 private lemma foldl_dlogFiveStep_spec {r x' : ℕ} (hr : 3 ≤ r)
     (hx' : (x' : ZMod 4) = 1) (j : ℕ) (hj : j ≤ r - 2) :
@@ -355,43 +332,25 @@ theorem zmod_eq_neg_one_pow_mul_five_pow_dlogFiveModTwoPow {r x : ℕ} (hr : 3 �
         (5 : ZMod (2 ^ r)) ^ dlogFiveModTwoPow r x := by
   set x' := if x % 4 = 1 then x % 2 ^ r else (2 ^ r - x % 2 ^ r) % 2 ^ r
   have : NeZero (2 ^ r) := ⟨(Nat.two_pow_pos r).ne'⟩
-  have h4dvd : 4 ∣ 2 ^ r := by
-    rw [show 4 = 2 ^ 2 from rfl]
-    exact Nat.pow_dvd_pow 2 (by omega)
-  have hx_mod2 : x % 2 = 1 := Nat.odd_iff.mp hx
-  have hx_mod4 : x % 4 = 1 ∨ x % 4 = 3 := by omega
+  have h4dvd : 4 ∣ 2 ^ r := Nat.pow_dvd_pow 2 (by omega : 2 ≤ r)
+  have hx_mod4 : x % 4 = 1 ∨ x % 4 = 3 := by have := Nat.odd_iff.mp hx; omega
   have hx'_cast : (x' : ZMod (2 ^ r)) =
       (-1 : ZMod (2 ^ r)) ^ (if x % 4 = 1 then 0 else 1) * (x : ZMod (2 ^ r)) := by
     rcases hx_mod4 with h1 | h3
     · simp only [x', h1, ↓reduceIte, ZMod.natCast_mod, pow_zero, one_mul]
-    · have hne : x % 4 ≠ 1 := by omega
-      simp only [x', hne, ↓reduceIte, ZMod.natCast_mod, ZMod.natCast_sub_mod_eq_neg, pow_one,
-        neg_one_mul]
+    · simp only [x', show x % 4 ≠ 1 by omega, ↓reduceIte, ZMod.natCast_mod,
+        ZMod.natCast_sub_mod_eq_neg, pow_one, neg_one_mul]
   have hx'_mod4 : (x' : ZMod 4) = 1 := by
     have hmap := congrArg (ZMod.castHom h4dvd (ZMod 4)) hx'_cast
     simp only [map_mul, map_pow, map_neg, map_one, ZMod.castHom_apply,
       ZMod.cast_natCast h4dvd] at hmap
-    rw [hmap]
-    rcases hx_mod4 with h1 | h3
-    · have hite : (if x % 4 = 1 then 0 else 1) = 0 := by simp only [h1, ↓reduceIte]
-      rw [hite, pow_zero, one_mul, ← ZMod.natCast_mod x 4, h1, Nat.cast_one]
-    · have hne : x % 4 ≠ 1 := by omega
-      have hite : (if x % 4 = 1 then 0 else 1) = 1 := by simp only [hne, ↓reduceIte]
-      rw [hite, pow_one, ← ZMod.natCast_mod x 4, h3]
-      decide
-  have hfold := (foldl_dlogFiveStep_spec hr hx'_mod4 (r - 2) le_rfl).2
-  have htake : (List.range (r - 2)).take (r - 2) = List.range (r - 2) := by simp
-  rw [htake, Nat.sub_add_cancel (by omega : 2 ≤ r)] at hfold
-  have hdlog : (x' : ZMod (2 ^ r)) = (5 : ZMod (2 ^ r)) ^ dlogFiveModTwoPow r x := hfold
-  calc (x : ZMod (2 ^ r))
-      = (-1 : ZMod (2 ^ r)) ^ (if x % 4 = 1 then 0 else 1) *
-          ((-1 : ZMod (2 ^ r)) ^ (if x % 4 = 1 then 0 else 1) * (x : ZMod (2 ^ r))) := by
-        split_ifs <;> ring
-    _ = (-1 : ZMod (2 ^ r)) ^ (if x % 4 = 1 then 0 else 1) * (x' : ZMod (2 ^ r)) := by
-        rw [hx'_cast]
-    _ = (-1 : ZMod (2 ^ r)) ^ (if x % 4 = 1 then 0 else 1) *
-          (5 : ZMod (2 ^ r)) ^ dlogFiveModTwoPow r x := by
-        rw [hdlog]
+    rw [hmap, ← ZMod.natCast_mod x 4]
+    rcases hx_mod4 with h | h <;> rw [h] <;> decide
+  have hdlog : (x' : ZMod (2 ^ r)) = (5 : ZMod (2 ^ r)) ^ dlogFiveModTwoPow r x := by
+    have hfold := (foldl_dlogFiveStep_spec hr hx'_mod4 (r - 2) le_rfl).2
+    rwa [show (List.range (r - 2)).take (r - 2) = List.range (r - 2) by simp,
+      Nat.sub_add_cancel (by omega : 2 ≤ r)] at hfold
+  rw [← hdlog, hx'_cast, ← mul_assoc, ← mul_pow, neg_one_mul, neg_neg, one_pow, one_mul]
 
 /-- Unique `(-1) ^ j · 5 ^ h` representation of odd residues modulo `2 ^ r` for `r ≥ 3`
 ([Sergeev2023BkSequence], p. 2): every odd integer `x` has a unique pair
@@ -402,32 +361,24 @@ theorem existsUnique_neg_one_pow_mul_five_pow_eq {r x : ℕ} (hr : 3 ≤ r) (hx 
   let j₀ : Fin 2 := if x % 4 = 1 then 0 else 1
   let h₀ : Fin (2 ^ (r - 2)) := ⟨dlogFiveModTwoPow r x, dlogFiveModTwoPow_lt r x⟩
   have hex : (x : ZMod (2 ^ r)) = (-1) ^ (j₀ : ℕ) * (5 : ZMod (2 ^ r)) ^ (h₀ : ℕ) := by
-    have hj₀ : (j₀ : ℕ) = if x % 4 = 1 then 0 else 1 := by
-      dsimp only [j₀]
-      split_ifs <;> rfl
-    rw [hj₀]
+    rw [show (j₀ : ℕ) = if x % 4 = 1 then 0 else 1 by dsimp only [j₀]; split_ifs <;> rfl]
     exact zmod_eq_neg_one_pow_mul_five_pow_dlogFiveModTwoPow hr hx
   refine ⟨(j₀, h₀), hex, ?_⟩
   rintro ⟨j, h⟩ hjh
   have heq : (-1 : ZMod (2 ^ r)) ^ (j : ℕ) * (5 : ZMod (2 ^ r)) ^ (h : ℕ) =
       (-1 : ZMod (2 ^ r)) ^ (j₀ : ℕ) * (5 : ZMod (2 ^ r)) ^ (h₀ : ℕ) := hjh.symm.trans hex
-  have h4dvd : 4 ∣ 2 ^ r := by
-    rw [show 4 = 2 ^ 2 from rfl]
-    exact Nat.pow_dvd_pow 2 (by omega)
+  have h4dvd : 4 ∣ 2 ^ r := Nat.pow_dvd_pow 2 (by omega : 2 ≤ r)
   have hj_eq : j = j₀ := by
     have hmap := congrArg (ZMod.castHom h4dvd (ZMod 4)) heq
-    have h5_mod4 : (5 : ZMod 4) = 1 := by decide
-    simp only [map_mul, map_pow, map_neg, map_one, map_ofNat, h5_mod4, one_pow, mul_one] at hmap
+    simp only [map_mul, map_pow, map_neg, map_one, map_ofNat, show (5 : ZMod 4) = 1 by decide,
+      one_pow, mul_one] at hmap
     have hfin2 : ∀ a b : Fin 2, (-1 : ZMod 4) ^ (a : ℕ) = (-1 : ZMod 4) ^ (b : ℕ) → a = b := by
       decide
     exact hfin2 j j₀ hmap
   subst hj_eq
-  have hpow_eq : (5 : ZMod (2 ^ r)) ^ (h : ℕ) = (5 : ZMod (2 ^ r)) ^ (h₀ : ℕ) := by
-    have hunit : IsUnit ((-1 : ZMod (2 ^ r)) ^ (j₀ : ℕ)) := IsUnit.pow _ isUnit_one.neg
-    exact hunit.mul_left_cancel heq
-  have hord : orderOf (5 : ZMod (2 ^ r)) = 2 ^ (r - 2) := by
-    have := ZMod.orderOf_five (r - 2)
-    rwa [Nat.sub_add_cancel (by omega : 2 ≤ r)] at this
+  have hpow_eq : (5 : ZMod (2 ^ r)) ^ (h : ℕ) = (5 : ZMod (2 ^ r)) ^ (h₀ : ℕ) :=
+    (isUnit_one.neg.pow _).mul_left_cancel heq
+  have hord := orderOf_five_zmod_two_pow (by omega : 2 ≤ r)
   have hh_eq : (h : ℕ) = (h₀ : ℕ) :=
     pow_injOn_Iio_orderOf (x := (5 : ZMod (2 ^ r))) (by rw [Set.mem_Iio, hord]; exact h.isLt)
       (by rw [Set.mem_Iio, hord]; exact h₀.isLt) hpow_eq
@@ -605,9 +556,7 @@ private lemma multiset_primes_eq_of_dlog_sum_zmod_eq {n k : ℕ} (hk : 1 ≤ k)
   set T := (t.map (dlogFiveModTwoPow r)).sum
   have hmod_ST : S % 2 ^ (r - 2) = T % 2 ^ (r - 2) :=
     (ZMod.natCast_eq_natCast_iff' S T (2 ^ (r - 2))).mp hsum
-  have hord : orderOf (5 : ZMod (2 ^ r)) = 2 ^ (r - 2) := by
-    have := ZMod.orderOf_five (r - 2)
-    rwa [Nat.sub_add_cancel (by omega : 2 ≤ r)] at this
+  have hord := orderOf_five_zmod_two_pow (by omega : 2 ≤ r)
   have h5_ST : (5 : ZMod (2 ^ r)) ^ S = (5 : ZMod (2 ^ r)) ^ T := by
     rw [← pow_mod_orderOf (x := (5 : ZMod (2 ^ r))) S,
       ← pow_mod_orderOf (x := (5 : ZMod (2 ^ r))) T, hord, hmod_ST]
@@ -635,31 +584,20 @@ private lemma multiset_primes_eq_of_dlog_sum_zmod_eq {n k : ℕ} (hk : 1 ≤ k)
       ((s.prod + t.prod : ℕ) : ZMod (2 ^ r)) = 0 := by
     rw [Nat.cast_add, hs_zmod, ht_zmod, h5_ST]
     rcases neg_one_pow_eq_or (ZMod (2 ^ r)) (s.map sgn).sum with h1 | h1 <;>
-      rcases neg_one_pow_eq_or (ZMod (2 ^ r)) (t.map sgn).sum with h2 | h2 <;> rw [h1, h2]
-    · exact Or.inl rfl
-    · right; ring
-    · right; ring
-    · exact Or.inl rfl
-  have hs_pos : 0 < s.prod := Multiset.prod_pos fun p hp =>
-    (prime_and_two_lt_of_mem_firstOddPrimes (hs p hp)).1.pos
-  have ht_pos : 0 < t.prod := Multiset.prod_pos fun q hq =>
-    (prime_and_two_lt_of_mem_firstOddPrimes (ht q hq)).1.pos
-  have hs_lt : s.prod < 2 ^ (r - 1) := by
-    calc s.prod ≤ pLast ^ s.card :=
-          Multiset.prod_le_pow_card s pLast fun p hp => hle_pLast p (hs p hp)
-      _ = pLast ^ k := by rw [hsc]
-      _ < 2 ^ (r - 1) := hpLast_pow_lt
-  have ht_lt : t.prod < 2 ^ (r - 1) := by
-    calc t.prod ≤ pLast ^ t.card :=
-          Multiset.prod_le_pow_card t pLast fun q hq => hle_pLast q (ht q hq)
-      _ = pLast ^ k := by rw [htc]
-      _ < 2 ^ (r - 1) := hpLast_pow_lt
+      rcases neg_one_pow_eq_or (ZMod (2 ^ r)) (t.map sgn).sum with h2 | h2 <;> rw [h1, h2] <;>
+      first | exact Or.inl rfl | (right; ring)
+  have hpos {u : Multiset ℕ} (hu : ∀ p ∈ u, p ∈ firstOddPrimes n) : 0 < u.prod :=
+    Multiset.prod_pos fun p hp => (prime_and_two_lt_of_mem_firstOddPrimes (hu p hp)).1.pos
+  have hlt {u : Multiset ℕ} (hu : ∀ p ∈ u, p ∈ firstOddPrimes n) (huc : u.card = k) :
+      u.prod < 2 ^ (r - 1) :=
+    (Multiset.prod_le_pow_card u pLast fun p hp => hle_pLast p (hu p hp)).trans_lt
+      (huc ▸ hpLast_pow_lt)
+  have hs_pos := hpos hs
+  have ht_pos := hpos ht
+  have hs_lt := hlt hs hsc
+  have ht_lt := hlt ht htc
   have h2r_split : 2 ^ r = 2 ^ (r - 1) + 2 ^ (r - 1) := by
-    have : 2 ^ r = 2 * 2 ^ (r - 1) := by
-      rw [← pow_succ']
-      congr 1
-      omega
-    omega
+    rw [← two_mul, ← pow_succ', Nat.sub_add_cancel (by omega : 1 ≤ r)]
   have hprod_eq : s.prod = t.prod := by
     rcases hpm_prod with heq | hsum0
     · have hmod := (ZMod.natCast_eq_natCast_iff' s.prod t.prod (2 ^ r)).mp heq
@@ -692,25 +630,17 @@ theorem isBkSequence_map_zmod_sergeevBkSequence (n : ℕ) {k : ℕ} (hk : 1 ≤ 
     intro p hp q hq hpq
     let sp : Multiset ℕ := p ::ₘ Multiset.replicate (k - 1) p
     let sq : Multiset ℕ := q ::ₘ Multiset.replicate (k - 1) p
+    have hrep : ∀ x ∈ Multiset.replicate (k - 1) p, x ∈ firstOddPrimes n :=
+      fun x hx => (Multiset.eq_of_mem_replicate hx).symm ▸ hp
     have hsp_eq_sq : sp = sq := by
-      apply multiset_primes_eq_of_dlog_sum_zmod_eq hk
-      · intro x hx
-        rcases Multiset.mem_cons.mp hx with rfl | hx'
-        · exact hp
-        · exact (Multiset.eq_of_mem_replicate hx').symm ▸ hp
-      · intro x hx
-        rcases Multiset.mem_cons.mp hx with rfl | hx'
-        · exact hq
-        · exact (Multiset.eq_of_mem_replicate hx').symm ▸ hp
-      · simp only [sp, Multiset.card_cons, Multiset.card_replicate]
-        omega
-      · simp only [sq, Multiset.card_cons, Multiset.card_replicate]
-        omega
-      · simp only [sp, sq, Multiset.map_cons, Multiset.sum_cons, Nat.cast_add]
-        exact congrArg (· + ((Multiset.map (dlogFiveModTwoPow r)
-          (Multiset.replicate (k - 1) p)).sum : ZMod (2 ^ (r - 2)))) hpq
-    have hq_in_sp : q ∈ sp := hsp_eq_sq ▸ Multiset.mem_cons_self q _
-    rcases Multiset.mem_cons.mp hq_in_sp with hqp | hq_rep
+      refine multiset_primes_eq_of_dlog_sum_zmod_eq hk (Multiset.forall_mem_cons.mpr ⟨hp, hrep⟩)
+        (Multiset.forall_mem_cons.mpr ⟨hq, hrep⟩)
+        (by simp only [sp, Multiset.card_cons, Multiset.card_replicate]; omega)
+        (by simp only [sq, Multiset.card_cons, Multiset.card_replicate]; omega) ?_
+      simp only [sp, sq, Multiset.map_cons, Multiset.sum_cons, Nat.cast_add]
+      exact congrArg (· + ((Multiset.map (dlogFiveModTwoPow r)
+        (Multiset.replicate (k - 1) p)).sum : ZMod (2 ^ (r - 2)))) hpq
+    rcases Multiset.mem_cons.mp (hsp_eq_sq ▸ Multiset.mem_cons_self q _ : q ∈ sp) with hqp | hq_rep
     · exact hqp.symm
     · exact (Multiset.eq_of_mem_replicate hq_rep).symm
   · intro u v hu hv huc hvc hsum
@@ -720,25 +650,17 @@ theorem isBkSequence_map_zmod_sergeevBkSequence (n : ℕ) {k : ℕ} (hk : 1 ≤ 
     have hmap_pre : ∀ (w : Multiset (ZMod (2 ^ (r - 2))))
         (hw : ∀ z ∈ w, z ∈ (firstOddPrimes n).map f),
         ((w.pmap Subtype.mk hw).map pre).map f = w := fun w hw => by
-      calc ((w.pmap Subtype.mk hw).map pre).map f
-          = (w.pmap Subtype.mk hw).map (f ∘ pre) := Multiset.map_map f pre _
-        _ = (w.pmap Subtype.mk hw).map Subtype.val :=
-            Multiset.map_congr rfl fun z _ => hpre_eq z
-        _ = w := by simp only [Multiset.map_pmap, Multiset.pmap_eq_map, Multiset.map_id']
+      simp only [hpre_eq, Multiset.map_pmap, Multiset.pmap_eq_map, Multiset.map_id']
     let s : Multiset ℕ := (u.pmap Subtype.mk hu).map pre
     let t : Multiset ℕ := (v.pmap Subtype.mk hv).map pre
     have hs_f : s.map f = u := hmap_pre u hu
     have ht_f : t.map f = v := hmap_pre v hv
     have hst : s = t := by
-      apply multiset_primes_eq_of_dlog_sum_zmod_eq hk
-      · intro p hp
-        obtain ⟨z, _, rfl⟩ := Multiset.mem_map.mp hp
-        exact hpre_mem z
-      · intro q hq
-        obtain ⟨z, _, rfl⟩ := Multiset.mem_map.mp hq
-        exact hpre_mem z
-      · simp only [s, Multiset.card_map, Multiset.card_pmap, huc]
-      · simp only [t, Multiset.card_map, Multiset.card_pmap, hvc]
+      refine multiset_primes_eq_of_dlog_sum_zmod_eq hk
+        (Multiset.forall_mem_map_iff.mpr fun z _ => hpre_mem z)
+        (Multiset.forall_mem_map_iff.mpr fun z _ => hpre_mem z)
+        (by simp only [s, Multiset.card_map, Multiset.card_pmap, huc])
+        (by simp only [t, Multiset.card_map, Multiset.card_pmap, hvc]) ?_
       · have hcast_sum : ∀ w : Multiset ℕ,
             ((w.map (dlogFiveModTwoPow r)).sum : ZMod (2 ^ (r - 2))) = (w.map f).sum := by
           intro w

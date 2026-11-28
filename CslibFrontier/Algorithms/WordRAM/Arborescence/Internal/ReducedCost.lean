@@ -24,6 +24,17 @@ open Cslib.Algorithms.Lean.Arborescence
 
 /-! ### Edmonds §4 reduced exit costs and row-potential equivalence -/
 
+/-- A step of `List.argAux` returns either the new candidate or the accumulator. -/
+private theorem argAux_eq_some {α : Type*} {r : α → α → Prop} [DecidableRel r]
+    {acc : Option α} {i a : α} (h : List.argAux r acc i = some a) : i = a ∨ acc = some a := by
+  cases acc with
+  | none => simp only [List.argAux, Option.some.injEq] at h; exact Or.inl h
+  | some z =>
+    simp only [List.argAux] at h
+    split_ifs at h <;> simp only [Option.some.injEq] at h
+    · exact Or.inl h
+    · exact Or.inr (congrArg some h)
+
 public theorem argMinFin_of_lt_iff {β γ : Type*} [LinearOrder β] [LinearOrder γ] {n : ℕ}
     (pred : Fin n → Bool) (f : Fin n → β) (g : Fin n → γ)
     (h : ∀ x y, pred x = true → pred y = true → (f x < f y ↔ g x < g y)) :
@@ -50,16 +61,7 @@ public theorem argMinFin_of_lt_iff {β γ : Type*} [LinearOrder β] [LinearOrder
         | none => rfl
         | some z => simp [List.argAux, h i z hp (hacc z rfl)]
       rw [harg_eq]
-      refine ih _ fun y hy => ?_
-      cases acc with
-      | none =>
-        simp only [List.argAux, Option.some.injEq] at hy
-        exact hy ▸ hp
-      | some z =>
-        simp only [List.argAux] at hy
-        split_ifs at hy <;> simp only [Option.some.injEq] at hy
-        · exact hy ▸ hp
-        · exact hacc y (congrArg some hy)
+      exact ih _ fun y hy => (argAux_eq_some hy).elim (· ▸ hp) (hacc y)
 
 private theorem argMinFin_spec {β : Type*} [LinearOrder β] {n : ℕ} (pred : Fin n → Bool)
     (val : Fin n → β) {x : Fin n} (hx : argMinFin n pred val = some x) :
@@ -88,16 +90,8 @@ private theorem argMinFin_spec {β : Type*} [LinearOrder β] {n : ℕ} (pred : F
         · simp [hp] at hpy
         · exact hls_le y hmem hpy
       · simp only [hp, ↓reduceIte] at hx'
-        have hacc' : ∀ a,
-            List.argAux (fun u v => val u < val v) acc i = some a → pred a = true := by
-          intro a ha
-          cases acc with
-          | none => simp only [List.argAux, Option.some.injEq] at ha; exact ha ▸ hp
-          | some z =>
-            simp only [List.argAux] at ha
-            split_ifs at ha <;> simp only [Option.some.injEq] at ha
-            · exact ha ▸ hp
-            · exact hacc a (congrArg some ha)
+        have hacc' : ∀ a, List.argAux (fun u v => val u < val v) acc i = some a → pred a = true :=
+          fun a ha => (argAux_eq_some ha).elim (· ▸ hp) (hacc a)
         obtain ⟨hpx, hacc'_le, hls_le⟩ := ih _ hacc' x hx'
         refine ⟨hpx, ?_, ?_⟩
         · intro a ha
@@ -132,11 +126,10 @@ private theorem foldl_and_eq_true {α : Type*} (p : α → Bool) (l : List α) (
 public theorem selectParents_feasible_spec {n : ℕ} (a : AdjTable n) (c : CostTable ℤ n)
     (r : Fin n) (hfeas : (selectParents a c r).feasible = true) :
     let f := (selectParents a c r).parents
-    f[r.val] = r ∧
+    f[r.1] = r ∧
       ∀ v : Fin n, v ≠ r →
-        a[v.val][(f[v.val]).val] = true ∧ f[v.val] ≠ v ∧
-          ∀ w : Fin n, a[v.val][w.val] = true → w ≠ v →
-              c[v.val][(f[v.val]).val] ≤ c[v.val][w.val] := by
+        a[v.1][(f[v.1]).1] = true ∧ f[v.1] ≠ v ∧
+          ∀ w : Fin n, a[v.1][w.1] = true → w ≠ v → c[v.1][(f[v.1]).1] ≤ c[v.1][w.1] := by
   unfold selectParents at hfeas ⊢
   dsimp only at hfeas ⊢
   rw [foldl_and_eq_true] at hfeas
@@ -144,8 +137,7 @@ public theorem selectParents_feasible_spec {n : ℕ} (a : AdjTable n) (c : CostT
   have hsome := hfeas.2 v (List.mem_finRange v)
   simp only [Vector.getElem_ofFn, Fin.eta, hvr, ↓reduceIte] at hsome ⊢
   obtain ⟨fv, harg⟩ := Option.isSome_iff_exists.mp hsome
-  have hfv : (argMinFin n (fun w => a[v.val][w.val] && w != v) (fun w => c[v.val][w.val])).getD v =
-      fv := by
+  have hfv : (argMinFin n (fun w => a[v.1][w.1] && w != v) (fun w => c[v.1][w.1])).getD v = fv := by
     rw [harg]; rfl
   obtain ⟨hpred, hmin⟩ := argMinFin_spec _ _ harg
   simp only [Bool.and_eq_true, bne_iff_ne] at hpred
@@ -182,14 +174,14 @@ private theorem findCycleTable_spec {n : ℕ} (r : Fin n) (f : ParentTable n) {x
   exact hgen (List.finRange n) none (fun _ h => by cases h) x0 hx0
 
 public theorem not_inCycle_root {n : ℕ} (r : Fin n) (f : ParentTable n) {x0 : Fin n}
-    (hfr : f[r.val] = r) (hx0 : findCycleTable r f = some x0) :
-    (cycleMask f x0)[x0.val] = true ∧ ∀ x : Fin n, (cycleMask f x0)[x.val] = true → x ≠ r := by
+    (hfr : f[r.1] = r) (hx0 : findCycleTable r f = some x0) :
+    (cycleMask f x0)[x0.1] = true ∧ ∀ x : Fin n, (cycleMask f x0)[x.1] = true → x ≠ r := by
   refine ⟨(getElem_cycleMask f x0 x0).mpr ⟨0, r.pos, rfl⟩, ?_⟩
   obtain ⟨hx0_ne, hcy⟩ := findCycleTable_spec r f hx0
   rw [hasCycleFrom_eq] at hcy
   simp only [List.any_eq_true, List.mem_range, beq_iff_eq] at hcy
   obtain ⟨t, _, ht⟩ := hcy
-  let g : Fin n → Fin n := fun i => f[i.val]
+  let g : Fin n → Fin n := fun i => f[i.1]
   have hfix : ∀ m, g^[m] r = r := by
     intro m
     induction m with
@@ -217,21 +209,19 @@ public theorem not_inCycle_root {n : ℕ} (r : Fin n) (f : ParentTable n) {x0 : 
 /-- Row-potential equivalence between an unreduced cost table `cUnred` and a reduced cost table
 `cRed` on active arcs of `a`. -/
 @[expose] public def RowPotEq {n : ℕ} (a : AdjTable n) (cUnred cRed : CostTable ℤ n) : Prop :=
-  ∃ φ : Fin n → ℤ, ∀ u w : Fin n, a[u.val][w.val] = true →
-      cUnred[u.val][w.val] = cRed[u.val][w.val] + φ u
+  ∃ φ : Fin n → ℤ, ∀ u w : Fin n, a[u.1][w.1] = true → cUnred[u.1][w.1] = cRed[u.1][w.1] + φ u
 
 private def cycleSum {n : ℕ} (c : CostTable ℤ n) (f : ParentTable n)
     (inCycle : Vector Bool n) : ℤ :=
-  (List.finRange n).foldl
-      (fun acc y => if inCycle[y.val] then acc + c[y.val][f[y.val].val] else acc) 0
+  (List.finRange n).foldl (fun acc y => if inCycle[y.1] then acc + c[y.1][f[y.1].1] else acc) 0
 
 /-- For each target column `w`, selects a cycle vertex `x` minimizing reduced exit cost
 `c[x][w] - c[x][f[x]]` among active arcs `a[x][w]`. -/
 @[expose] public def reducedBestExitTable {n : ℕ} (a : AdjTable n) (c : CostTable ℤ n)
     (f : ParentTable n) (inCycle : Vector Bool n) : Vector (Option (Fin n)) n :=
   Vector.ofFn fun w : Fin n =>
-    argMinFin n (fun x => inCycle[x.val] && a[x.val][w.val])
-      (fun x => c[x.val][w.val] - c[x.val][f[x.val].val])
+    argMinFin n (fun x => inCycle[x.1] && a[x.1][w.1])
+      (fun x => c[x.1][w.1] - c[x.1][f[x.1].1])
 
 /-- Contracted cost matrix storing reduced exit costs `c[x][w] - c[x][f[x]]` out of `x0` and zeroing
 inactive cells. -/
@@ -239,50 +229,50 @@ inactive cells. -/
     (f : ParentTable n) (inCycle : Vector Bool n)
     (bEntry bExit : Vector (Option (Fin n)) n) (x0 : Fin n) : CostTable ℤ n :=
   Vector.ofFn fun u : Fin n => Vector.ofFn fun w : Fin n =>
-    if inCycle[u.val] then
+    if inCycle[u.1] then
       if u == x0 then
-        if !(inCycle[w.val]) then
-          match bExit[w.val] with
-          | some x => c[x.val][w.val] - c[x.val][f[x.val].val]
+        if !(inCycle[w.1]) then
+          match bExit[w.1] with
+          | some x => c[x.1][w.1] - c[x.1][f[x.1].1]
           | none => 0
         else 0
       else 0
     else
-      if inCycle[w.val] then
+      if inCycle[w.1] then
         if w == x0 then
-          match bEntry[u.val] with
-          | some y => c[u.val][y.val]
+          match bEntry[u.1] with
+          | some y => c[u.1][y.1]
           | none => 0
         else 0
-      else if a[u.val][w.val] then c[u.val][w.val]
+      else if a[u.1][w.1] then c[u.1][w.1]
       else 0
 
 public theorem getElem_contractReducedCostTable {n : ℕ} (a : AdjTable n) (c : CostTable ℤ n)
     (f : ParentTable n) (inCycle : Vector Bool n)
     (bEntry bExit : Vector (Option (Fin n)) n) (x0 u w : Fin n) :
-    (contractReducedCostTable a c f inCycle bEntry bExit x0)[u.val][w.val] =
-      if inCycle[u.val] then
+    (contractReducedCostTable a c f inCycle bEntry bExit x0)[u.1][w.1] =
+      if inCycle[u.1] then
         if u == x0 then
-          if !(inCycle[w.val]) then
-            match bExit[w.val] with
-            | some x => c[x.val][w.val] - c[x.val][f[x.val].val]
+          if !(inCycle[w.1]) then
+            match bExit[w.1] with
+            | some x => c[x.1][w.1] - c[x.1][f[x.1].1]
             | none => 0
           else 0
         else 0
       else
-        if inCycle[w.val] then
+        if inCycle[w.1] then
           if w == x0 then
-            match bEntry[u.val] with
-            | some y => c[u.val][y.val]
+            match bEntry[u.1] with
+            | some y => c[u.1][y.1]
             | none => 0
           else 0
-        else if a[u.val][w.val] then c[u.val][w.val]
+        else if a[u.1][w.1] then c[u.1][w.1]
         else 0 := by
   simp [contractReducedCostTable]
 
 private theorem otherCycleCost_add_self {n : ℕ} (c : CostTable ℤ n) (f : ParentTable n)
-    (inCycle : Vector Bool n) {x : Fin n} (hx : inCycle[x.val] = true) :
-    c[x.val][f[x.val].val] + (otherCycleCost c f inCycle)[x.val] = cycleSum c f inCycle := by
+    (inCycle : Vector Bool n) {x : Fin n} (hx : inCycle[x.1] = true) :
+    c[x.1][f[x.1].1] + (otherCycleCost c f inCycle)[x.1] = cycleSum c f inCycle := by
   have hshift : ∀ (l : List (Fin n)) (p : Fin n → Bool) (val : Fin n → ℤ) (a b : ℤ),
       l.foldl (fun acc y => if p y then acc + val y else acc) (a + b) =
         a + l.foldl (fun acc y => if p y then acc + val y else acc) b := by
@@ -296,10 +286,8 @@ private theorem otherCycleCost_add_self {n : ℕ} (c : CostTable ℤ n) (f : Par
       · rw [add_assoc, ih]
       · exact ih a b
   have hnotmem : ∀ (l : List (Fin n)) (init : ℤ), x ∉ l →
-      l.foldl (fun acc y =>
-          if inCycle[y.val] && y != x then acc + c[y.val][f[y.val].val] else acc) init =
-        l.foldl (fun acc y =>
-            if inCycle[y.val] then acc + c[y.val][f[y.val].val] else acc) init := by
+      l.foldl (fun acc y => if inCycle[y.1] && y != x then acc + c[y.1][f[y.1].1] else acc) init =
+        l.foldl (fun acc y => if inCycle[y.1] then acc + c[y.1][f[y.1].1] else acc) init := by
     intro l
     induction l with
     | nil => intro _ _; rfl
@@ -310,12 +298,10 @@ private theorem otherCycleCost_add_self {n : ℕ} (c : CostTable ℤ n) (f : Par
       simp only [List.foldl_cons, hne, Bool.and_true]
       exact ih _ hmem.2
   have hmem : ∀ (l : List (Fin n)) (init : ℤ), l.Nodup → x ∈ l →
-      c[x.val][f[x.val].val] +
-        l.foldl (fun acc y =>
-            if inCycle[y.val] && y != x then acc + c[y.val][f[y.val].val] else acc)
+      c[x.1][f[x.1].1] +
+        l.foldl (fun acc y => if inCycle[y.1] && y != x then acc + c[y.1][f[y.1].1] else acc)
           init =
-        l.foldl (fun acc y =>
-            if inCycle[y.val] then acc + c[y.val][f[y.val].val] else acc) init := by
+        l.foldl (fun acc y => if inCycle[y.1] then acc + c[y.1][f[y.1].1] else acc) init := by
     intro l
     induction l with
     | nil => intro _ _ hm; cases hm
@@ -325,7 +311,7 @@ private theorem otherCycleCost_add_self {n : ℕ} (c : CostTable ℤ n) (f : Par
       simp only [List.foldl_cons]
       rcases List.mem_cons.mp hm with rfl | hls
       · simp only [bne_self_eq_false, Bool.and_false, Bool.false_eq_true, ↓reduceIte, hx]
-        rw [hnotmem ls init hnd.1, ← hshift ls _ _ c[x.val][f[x.val].val] init, add_comm]
+        rw [hnotmem ls init hnd.1, ← hshift ls _ _ c[x.1][f[x.1].1] init, add_comm]
       · have hne : (y != x) = true := bne_iff_ne.mpr (fun heq => hnd.1 (heq ▸ hls))
         simp only [hne, Bool.and_true]
         exact ih _ hnd.2 hls
@@ -341,10 +327,10 @@ public theorem selectParents_of_rowPotEq {n : ℕ} {a : AdjTable n} {cUnred cRed
   have hopts :
       (Vector.ofFn fun v : Fin n =>
         if v = r then some r
-        else argMinFin n (fun w => a[v.val][w.val] && w != v) (fun w => cRed[v.val][w.val])) =
+        else argMinFin n (fun w => a[v.1][w.1] && w != v) (fun w => cRed[v.1][w.1])) =
       (Vector.ofFn fun v : Fin n =>
         if v = r then some r
-        else argMinFin n (fun w => a[v.val][w.val] && w != v) (fun w => cUnred[v.val][w.val])) := by
+        else argMinFin n (fun w => a[v.1][w.1] && w != v) (fun w => cUnred[v.1][w.1])) := by
     apply Vector.ext
     intro v hv
     simp only [Vector.getElem_ofFn]
@@ -376,20 +362,20 @@ public theorem bestEntryTable_of_rowPotEq {n : ℕ} {a : AdjTable n} {cUnred cRe
 private theorem exitCost_eq_reduced_add_cycleSum {n : ℕ} {a : AdjTable n}
     {cUnred cRed : CostTable ℤ n} {f : ParentTable n} {inCycle : Vector Bool n}
     (hpot : RowPotEq a cUnred cRed)
-    (hact : ∀ x : Fin n, inCycle[x.val] = true → a[x.val][f[x.val].val] = true)
-    {x w : Fin n} (hx : inCycle[x.val] = true) (haw : a[x.val][w.val] = true) :
-    cUnred[x.val][w.val] + (otherCycleCost cUnred f inCycle)[x.val] =
-      (cRed[x.val][w.val] - cRed[x.val][f[x.val].val]) + cycleSum cUnred f inCycle := by
+    (hact : ∀ x : Fin n, inCycle[x.1] = true → a[x.1][f[x.1].1] = true)
+    {x w : Fin n} (hx : inCycle[x.1] = true) (haw : a[x.1][w.1] = true) :
+    cUnred[x.1][w.1] + (otherCycleCost cUnred f inCycle)[x.1] =
+      (cRed[x.1][w.1] - cRed[x.1][f[x.1].1]) + cycleSum cUnred f inCycle := by
   obtain ⟨φ, hφ⟩ := hpot
   have hsum := otherCycleCost_add_self cUnred f inCycle hx
   have h1 := hφ x w haw
-  have h2 := hφ x f[x.val] (hact x hx)
+  have h2 := hφ x f[x.1] (hact x hx)
   omega
 
 public theorem reducedBestExitTable_eq_bestExitTable {n : ℕ} {a : AdjTable n}
     {cUnred cRed : CostTable ℤ n} {f : ParentTable n} {inCycle : Vector Bool n}
     (hpot : RowPotEq a cUnred cRed)
-    (hact : ∀ x : Fin n, inCycle[x.val] = true → a[x.val][f[x.val].val] = true) :
+    (hact : ∀ x : Fin n, inCycle[x.1] = true → a[x.1][f[x.1].1] = true) :
     reducedBestExitTable a cRed f inCycle =
       bestExitTable a cUnred inCycle (otherCycleCost cUnred f inCycle) := by
   unfold reducedBestExitTable bestExitTable
@@ -405,8 +391,8 @@ public theorem reducedBestExitTable_eq_bestExitTable {n : ℕ} {a : AdjTable n}
 
 public theorem rowPotEq_contractReduced {n : ℕ} {a : AdjTable n}
     {cUnred cRed : CostTable ℤ n} {f : ParentTable n} {inCycle : Vector Bool n}
-    {x0 r : Fin n} (hpot : RowPotEq a cUnred cRed) (hx0_in : inCycle[x0.val] = true)
-    (hact : ∀ x : Fin n, inCycle[x.val] = true → a[x.val][f[x.val].val] = true) :
+    {x0 r : Fin n} (hpot : RowPotEq a cUnred cRed) (hx0_in : inCycle[x0.1] = true)
+    (hact : ∀ x : Fin n, inCycle[x.1] = true → a[x.1][f[x.1].1] = true) :
     let other := otherCycleCost cUnred f inCycle
     let bEntry := bestEntryTable a cRed inCycle
     let bExit := reducedBestExitTable a cRed f inCycle
@@ -414,23 +400,22 @@ public theorem rowPotEq_contractReduced {n : ℕ} {a : AdjTable n}
       (contractCostTable cUnred inCycle other bEntry bExit x0)
       (contractReducedCostTable a cRed f inCycle bEntry bExit x0) := by
   obtain ⟨φ, hφ⟩ := hpot
-  refine ⟨fun u =>
-      if inCycle[u.val] then (if u = x0 then cycleSum cUnred f inCycle else 0) else φ u,
+  refine ⟨fun u => if inCycle[u.1] then (if u = x0 then cycleSum cUnred f inCycle else 0) else φ u,
     fun u w ha' => ?_⟩
   rw [getElem_contractAdjTable] at ha'
   rw [getElem_contractCostTable, getElem_contractReducedCostTable]
-  by_cases hu : inCycle[u.val] = true
+  by_cases hu : inCycle[u.1] = true
   · simp only [hu, ↓reduceIte] at ha' ⊢
     by_cases hux : u = x0
     · subst hux
       simp only [beq_self_eq_true, ↓reduceIte, Bool.and_eq_true, Bool.not_eq_true'] at ha' ⊢
       obtain ⟨hw_out, hbx_some⟩ := ha'
       simp only [hw_out, ↓reduceIte]
-      cases hbx : (reducedBestExitTable a cRed f inCycle)[w.val] with
+      cases hbx : (reducedBestExitTable a cRed f inCycle)[w.1] with
       | none => simp [hbx] at hbx_some
       | some x =>
-        have hbx' : argMinFin n (fun z => inCycle[z.val] && a[z.val][w.val])
-            (fun z => cRed[z.val][w.val] - cRed[z.val][f[z.val].val]) = some x := by
+        have hbx' : argMinFin n (fun z => inCycle[z.1] && a[z.1][w.1])
+            (fun z => cRed[z.1][w.1] - cRed[z.1][f[z.1].1]) = some x := by
           simpa [reducedBestExitTable] using hbx
         obtain ⟨hpred, _⟩ := argMinFin_spec _ _ hbx'
         simp only [Bool.and_eq_true] at hpred
@@ -438,15 +423,15 @@ public theorem rowPotEq_contractReduced {n : ℕ} {a : AdjTable n}
     · have hux_b : (u == x0) = false := beq_false_of_ne hux
       simp [hux, hux_b]
   · simp only [hu, Bool.false_eq_true, ↓reduceIte] at ha' ⊢
-    by_cases hw : inCycle[w.val] = true
+    by_cases hw : inCycle[w.1] = true
     · simp only [hw, ↓reduceIte, Bool.and_eq_true, beq_iff_eq] at ha' ⊢
       obtain ⟨rfl, hbe_some⟩ := ha'
       simp only [↓reduceIte]
-      cases hbe : (bestEntryTable a cRed inCycle)[u.val] with
+      cases hbe : (bestEntryTable a cRed inCycle)[u.1] with
       | none => simp [hbe] at hbe_some
       | some y =>
-        have hbe' : argMinFin n (fun z => inCycle[z.val] && a[u.val][z.val])
-            (fun z => cRed[u.val][z.val]) = some y := by
+        have hbe' : argMinFin n (fun z => inCycle[z.1] && a[u.1][z.1])
+            (fun z => cRed[u.1][z.1]) = some y := by
           simpa [bestEntryTable] using hbe
         obtain ⟨hpred, _⟩ := argMinFin_spec _ _ hbe'
         simp only [Bool.and_eq_true] at hpred
@@ -460,27 +445,26 @@ public theorem rowPotEq_contractReduced {n : ℕ} {a : AdjTable n}
 public theorem contractReducedCostTable_bounds {n k M₀ : ℕ} {a : AdjTable n}
     {c : CostTable ℤ n} {f : ParentTable n} {inCycle : Vector Bool n}
     {bEntry : Vector (Option (Fin n)) n} {x0 : Fin n}
-    (hbnd : ∀ u w : Fin n, -(M₀ : ℤ) ≤ c[u.val][w.val] ∧ c[u.val][w.val] ≤ (k + 1 : ℤ) * M₀)
-    (hopt : ∀ x : Fin n, inCycle[x.val] = true →
-      ∀ w : Fin n, a[x.val][w.val] = true → w ≠ x → c[x.val][f[x.val].val] ≤ c[x.val][w.val])
+    (hbnd : ∀ u w : Fin n, -(M₀ : ℤ) ≤ c[u.1][w.1] ∧ c[u.1][w.1] ≤ (k + 1 : ℤ) * M₀)
+    (hopt : ∀ x : Fin n, inCycle[x.1] = true →
+      ∀ w : Fin n, a[x.1][w.1] = true → w ≠ x → c[x.1][f[x.1].1] ≤ c[x.1][w.1])
     (u w : Fin n) :
     let bExit := reducedBestExitTable a c f inCycle
     let c' := contractReducedCostTable a c f inCycle bEntry bExit x0
-    (-(M₀ : ℤ) ≤ c'[u.val][w.val] ∧ c'[u.val][w.val] ≤ (k + 2 : ℤ) * M₀) := by
+    (-(M₀ : ℤ) ≤ c'[u.1][w.1] ∧ c'[u.1][w.1] ≤ (k + 2 : ℤ) * M₀) := by
   dsimp only
   rw [getElem_contractReducedCostTable]
   have hzero : -(M₀ : ℤ) ≤ 0 ∧ (0 : ℤ) ≤ (k + 2 : ℤ) * M₀ := ⟨by omega, by positivity⟩
-  have hle_step : ∀ x y : Fin n, -(M₀ : ℤ) ≤ c[x.val][y.val] ∧
-      c[x.val][y.val] ≤ (k + 2 : ℤ) * M₀ := by
+  have hle_step : ∀ x y : Fin n, -(M₀ : ℤ) ≤ c[x.1][y.1] ∧ c[x.1][y.1] ≤ (k + 2 : ℤ) * M₀ := by
     intro x y
     obtain ⟨hlo, hhi⟩ := hbnd x y
     exact ⟨hlo, by nlinarith only [hhi]⟩
   split_ifs with hu hux hw_out hw hwx haw
-  · cases hbx : (reducedBestExitTable a c f inCycle)[w.val] with
+  · cases hbx : (reducedBestExitTable a c f inCycle)[w.1] with
     | none => exact hzero
     | some x =>
-      have hbx' : argMinFin n (fun z => inCycle[z.val] && a[z.val][w.val])
-          (fun z => c[z.val][w.val] - c[z.val][f[z.val].val]) = some x := by
+      have hbx' : argMinFin n (fun z => inCycle[z.1] && a[z.1][w.1])
+          (fun z => c[z.1][w.1] - c[z.1][f[z.1].1]) = some x := by
         simpa [reducedBestExitTable] using hbx
       obtain ⟨hpred, _⟩ := argMinFin_spec _ _ hbx'
       simp only [Bool.and_eq_true] at hpred
@@ -488,38 +472,31 @@ public theorem contractReducedCostTable_bounds {n k M₀ : ℕ} {a : AdjTable n}
         intro heq
         subst heq
         simp [hpred.1] at hw_out
-      have hnonneg : c[x.val][f[x.val].val] ≤ c[x.val][w.val] := hopt x hpred.1 w hpred.2 hwx_ne
+      have hnonneg : c[x.1][f[x.1].1] ≤ c[x.1][w.1] := hopt x hpred.1 w hpred.2 hwx_ne
       obtain ⟨_, hhi_w⟩ := hbnd x w
-      obtain ⟨hlo_f, _⟩ := hbnd x f[x.val]
+      obtain ⟨hlo_f, _⟩ := hbnd x f[x.1]
       have hM0 : (0 : ℤ) ≤ M₀ := Int.natCast_nonneg M₀
       dsimp only
       exact ⟨by linarith only [hM0, hnonneg], by linarith only [hhi_w, hlo_f]⟩
-  · exact hzero
-  · exact hzero
-  · cases bEntry[u.val] with
-    | none => exact hzero
-    | some y => exact hle_step u y
-  · exact hzero
-  · exact hle_step u w
-  · exact hzero
+  all_goals first
+    | exact hzero
+    | exact hle_step u w
+    | cases bEntry[u.1] <;> first | exact hzero | exact hle_step u ‹_›
 
 public theorem contractReducedCostTable_natAbs_le {n B_k : ℕ} (a : AdjTable n) (c : CostTable ℤ n)
     (f : ParentTable n) (inCycle : Vector Bool n) (bEntry bExit : Vector (Option (Fin n)) n)
-    (x0 : Fin n) (hB : ∀ u col : Fin n, (c[u.val][col.val]).natAbs ≤ B_k) (u col : Fin n) :
-    ((contractReducedCostTable a c f inCycle bEntry bExit x0)[u.val][col.val]).natAbs ≤
-        2 * B_k := by
+    (x0 : Fin n) (hB : ∀ u col : Fin n, (c[u.1][col.1]).natAbs ≤ B_k) (u col : Fin n) :
+    ((contractReducedCostTable a c f inCycle bEntry bExit x0)[u.1][col.1]).natAbs ≤ 2 * B_k := by
   rw [getElem_contractReducedCostTable]
+  have hz : (0 : ℤ).natAbs ≤ 2 * B_k := Nat.zero_le _
+  have h2 : B_k ≤ 2 * B_k := by omega
   split_ifs
-  · cases bExit[col.val] with
-    | none => simp
-    | some xs => exact (Int.natAbs_sub_le _ _).trans (by linarith only [hB xs col, hB xs f[xs.val]])
-  · simp
-  · simp
-  · cases bEntry[u.val] with
-    | none => simp
-    | some ys => exact (hB u ys).trans (by omega)
-  · simp
-  · exact (hB u col).trans (by omega)
-  · simp
+  · cases bExit[col.1] with
+    | none => exact hz
+    | some xs => exact (Int.natAbs_sub_le _ _).trans (by linarith only [hB xs col, hB xs f[xs.1]])
+  all_goals first
+    | exact hz
+    | exact (hB u col).trans h2
+    | cases bEntry[u.1] <;> first | exact hz | exact (hB u ‹_›).trans h2
 
 end Cslib.Algorithms.WordRAM.Arborescence.Internal

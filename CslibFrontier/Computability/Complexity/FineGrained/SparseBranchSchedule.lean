@@ -123,13 +123,13 @@ applying `Cslib.BitString.withNeutralScope` to `branchEquationScope` on the subt
 def branchAugmentedScope [Fintype ι] [DecidableEq ι] (S : Finset ι)
     (e : ↥(univ \ S) ≃ Fin n') (I : Finset κ) (P : κ → Finset (Finset ι))
     (b : ι → Bool) : {i : κ // i ∈ I} ⊕ Fin n' → Finset (Fin n') :=
-  withNeutralScope fun i : {i : κ // i ∈ I} => branchEquationScope S e P b i.val
+  withNeutralScope fun i : {i : κ // i ∈ I} => branchEquationScope S e P b i.1
 
 @[simp]
 theorem branchAugmentedScope_inl [Fintype ι] [DecidableEq ι] (S : Finset ι)
     (e : ↥(univ \ S) ≃ Fin n') (I : Finset κ) (P : κ → Finset (Finset ι))
     (b : ι → Bool) (i : {i : κ // i ∈ I}) :
-    branchAugmentedScope S e I P b (Sum.inl i) = branchEquationScope S e P b i.val := by
+    branchAugmentedScope S e I P b (Sum.inl i) = branchEquationScope S e P b i.1 := by
   unfold branchAugmentedScope withNeutralScope
   rfl
 
@@ -144,7 +144,7 @@ theorem branchAugmentedScope_inr [Fintype ι] [DecidableEq ι] (S : Finset ι)
 /-- Subtype-sum bridge: `totalIncidence` on `univ : Finset {i : κ // i ∈ I}` equals
 `totalIncidence` on `I`. -/
 private theorem totalIncidence_univ_subtype (I : Finset κ) (scope : κ → Finset (Fin n')) :
-    totalIncidence (univ : Finset {i : κ // i ∈ I}) (fun i => scope i.val) =
+    totalIncidence (univ : Finset {i : κ // i ∈ I}) (fun i => scope i.1) =
       totalIncidence I scope := by
   unfold totalIncidence
   rw [← sum_coe_sort I (fun i => #(scope i))]
@@ -153,7 +153,7 @@ private theorem totalIncidence_univ_subtype (I : Finset κ) (scope : κ → Fins
 `varIncidence` on `I`. -/
 private theorem varIncidence_univ_subtype (I : Finset κ) (scope : κ → Finset (Fin n'))
     (v : Fin n') :
-    varIncidence (univ : Finset {i : κ // i ∈ I}) (fun i => scope i.val) v =
+    varIncidence (univ : Finset {i : κ // i ∈ I}) (fun i => scope i.1) v =
       varIncidence I scope v := by
   unfold varIncidence
   rw [card_eq_sum_ones, card_eq_sum_ones, sum_filter, sum_filter,
@@ -166,9 +166,7 @@ private theorem univ_sum_eq_withNeutralFactors (I : Finset κ) (n' : ℕ) :
       withNeutralFactors (univ : Finset {i : κ // i ∈ I}) := by
   ext f
   simp only [withNeutralFactors, mem_disjSum, mem_univ, true_and, true_iff]
-  cases f with
-  | inl i => exact Or.inl ⟨i, rfl⟩
-  | inr v => exact Or.inr ⟨v, rfl⟩
+  exact f.casesOn (fun i => Or.inl ⟨i, rfl⟩) fun v => Or.inr ⟨v, rfl⟩
 
 /-- **Section 5.5 ($M' = \sum_{i \in I} |I'_i| + n'$):** the total factor-variable incidence of
 `branchAugmentedScope` equals `totalIncidence I (branchEquationScope S e P b) + n'`. -/
@@ -176,9 +174,7 @@ theorem sum_card_branchAugmentedScope [Fintype ι] [DecidableEq ι] (S : Finset 
     (e : ↥(univ \ S) ≃ Fin n') (I : Finset κ) (P : κ → Finset (Finset ι)) (b : ι → Bool) :
     (∑ f : {i : κ // i ∈ I} ⊕ Fin n', #(branchAugmentedScope S e I P b f)) =
       totalIncidence I (branchEquationScope S e P b) + n' := by
-  change totalIncidence (univ : Finset ({i : κ // i ∈ I} ⊕ Fin n'))
-      (branchAugmentedScope S e I P b) =
-    totalIncidence I (branchEquationScope S e P b) + n'
+  change totalIncidence univ (branchAugmentedScope S e I P b) = _
   rw [univ_sum_eq_withNeutralFactors, branchAugmentedScope, totalIncidence_withNeutralFactors,
     totalIncidence_univ_subtype, Fintype.card_fin]
 
@@ -197,9 +193,7 @@ theorem varIncidence_branchAugmentedScope [Fintype ι] [DecidableEq ι] (S : Fin
     (v : Fin n') :
     #{f : {i : κ // i ∈ I} ⊕ Fin n' | v ∈ branchAugmentedScope S e I P b f} =
       varIncidence I (branchEquationScope S e P b) v + 1 := by
-  change varIncidence (univ : Finset ({i : κ // i ∈ I} ⊕ Fin n'))
-      (branchAugmentedScope S e I P b) v =
-    varIncidence I (branchEquationScope S e P b) v + 1
+  change varIncidence univ (branchAugmentedScope S e I P b) v = _
   rw [univ_sum_eq_withNeutralFactors, branchAugmentedScope, varIncidence_withNeutralFactors,
     varIncidence_univ_subtype]
 
@@ -228,14 +222,11 @@ theorem sum_card_branchAugmentedScope_le [Fintype ι] [DecidableEq ι]
         #(branchAugmentedScope (heavyVars univ F (fun i => equationScope (P i)) b₀)
           e I P b f)) ≤ (b₀ + 1) * n' := by
   let scope := branchAugmentedScope (heavyVars univ F (fun i => equationScope (P i)) b₀) e I P b
-  have hdouble :
-      (∑ f : {i : κ // i ∈ I} ⊕ Fin n', #(scope f)) =
-        ∑ v : Fin n', #{f : {i : κ // i ∈ I} ⊕ Fin n' | v ∈ scope f} := by
+  have hdouble : (∑ f, #(scope f)) = ∑ v : Fin n', #{f | v ∈ scope f} := by
     simpa only [totalIncidence, varIncidence] using
-      (sum_varIncidence_eq_totalIncidence (univ : Finset (Fin n'))
-        (univ : Finset ({i : κ // i ∈ I} ⊕ Fin n')) scope (fun _ _ => subset_univ _)).symm
+      (sum_varIncidence_eq_totalIncidence univ univ scope fun _ _ => subset_univ _).symm
   rw [hdouble]
-  calc ∑ v : Fin n', #{f : {i : κ // i ∈ I} ⊕ Fin n' | v ∈ scope f}
+  calc ∑ v : Fin n', #{f | v ∈ scope f}
       ≤ ∑ _v : Fin n', (b₀ + 1) :=
         sum_le_sum fun v _ =>
           varIncidence_branchAugmentedScope_le F I P b₀ hIF e b v
@@ -266,10 +257,8 @@ theorem card_branchAugmentedScope_le [Fintype ι] [DecidableEq ι] (S : Finset �
     #(branchAugmentedScope S e I P b f) ≤ max w 1 := by
   cases f with
   | inl i =>
-    rw [branchAugmentedScope_inl]
-    exact ((card_branchEquationScope_le S e P b i.val).trans
-        (hw i.val i.property)).trans (le_max_left w 1)
-  | inr v =>
+    exact ((card_branchEquationScope_le S e P b i.1).trans (hw i.1 i.2)).trans (le_max_left w 1)
+  | inr _ =>
     rw [branchAugmentedScope_inr, card_singleton]
     exact le_max_right w 1
 
@@ -359,12 +348,8 @@ theorem card_le_two_mul_freeVar_of_heavyVars [Fintype ι] [DecidableEq ι]
     (hM : totalIncidence F scope * s_div ≤ b₀ * Fintype.card ι)
     (e : ↥(univ \ heavyVars univ F scope b₀) ≃ Fin n') :
     Fintype.card ι ≤ 2 * n' ∧ Fintype.card ι / 2 ≤ n' := by
-  have hcard : #(univ \ heavyVars univ F scope b₀) = n' := by
-    rw [← Fintype.card_coe, Fintype.card_congr e, Fintype.card_fin]
-  have hhalf := card_sdiff_heavyVars_ge_half univ F scope hs
-    (by simpa only [card_univ] using hM)
-  rw [card_univ, hcard] at hhalf
-  exact hhalf
+  have hhalf := card_sdiff_heavyVars_ge_half univ F scope hs (by simpa only [card_univ] using hM)
+  rwa [card_univ, ← Fintype.card_coe, Fintype.card_congr e, Fintype.card_fin] at hhalf
 
 /-- **Section 5.5 single-branch domain-examination bound**:
 For any branch `b` with `hF : Feasible β n' b_occ w_width M'` and concrete schedule design `D`, if
@@ -406,18 +391,11 @@ theorem Feasible.branch_domainExaminationBound_le [Fintype ι]
         ((rowBound β n' : ℝ) / numNodes n') := by
     calc (q : ℝ)
         ≤ ((d * rowBound β n' : ℕ) : ℝ) / numNodes n' := Nat.cast_div_le
-      _ = (d : ℝ) * ((rowBound β n' : ℝ) / numNodes n') := by push_cast; ring
-      _ ≤ (((k * (2 * c + 4) : ℕ) : ℝ) * (n' : ℝ)) *
-            ((rowBound β n' : ℝ) / numNodes n') :=
-          mul_le_mul_of_nonneg_right hd_le (div_nonneg (Nat.cast_nonneg _) (Nat.cast_nonneg _))
-  have hc_nn : (0 : ℝ) ≤ ((k * (2 * c + 4) : ℕ) : ℝ) := Nat.cast_nonneg _
-  have hbound := hF.domainExaminationBound_le_mul_exp_rowCost D s hc_nn hq
-  have hcast :
-      (((k * (2 * c + 4) : ℕ) : ℝ) + 4) = ((k * (2 * c + 4) + 4 : ℕ) : ℝ) := by
-    push_cast
-    ring
-  rw [hcast] at hbound
-  exact hbound
+      _ = (d : ℝ) * ((rowBound β n' : ℝ) / numNodes n') := by rw [Nat.cast_mul, mul_div_assoc]
+      _ ≤ (((k * (2 * c + 4) : ℕ) : ℝ) * (n' : ℝ)) * ((rowBound β n' : ℝ) / numNodes n') :=
+          mul_le_mul_of_nonneg_right hd_le (by positivity)
+  simpa only [Nat.cast_add, Nat.cast_ofNat] using
+    hF.domainExaminationBound_le_mul_exp_rowCost D s (Nat.cast_nonneg _) hq
 
 /-- **Section 5.5 Theorem 2.2 multi-branch domain-examination bound across `branchAssignments S`**:
 When `S = heavyVars univ F (fun i => equationScope (P i)) b₀` with `2 ≤ s_div`,
@@ -446,19 +424,17 @@ theorem sum_branch_domainExaminationBound_le [Fintype ι] [DecidableEq ι]
       (2 : ℝ) ^ (Fintype.card ι / s_div) *
         (2 * (numNodes n' : ℝ) * (numGroups n' : ℝ) *
           Real.exp (((k * (2 * c + 4) + 4 : ℕ) : ℝ) * (n' : ℝ) * rowCost β n')) := by
-  have hn :=
-    (card_le_two_mul_freeVar_of_heavyVars F (fun i => equationScope (P i)) hs_div hM e).1
-  refine ⟨hn, ?_⟩
+  refine ⟨(card_le_two_mul_freeVar_of_heavyVars F (fun i => equationScope (P i)) hs_div hM e).1, ?_⟩
   let S := heavyVars univ F (fun i => equationScope (P i)) b₀
   let B := 2 * (numNodes n' : ℝ) * (numGroups n' : ℝ) *
     Real.exp (((k * (2 * c + 4) + 4 : ℕ) : ℝ) * (n' : ℝ) * rowCost β n')
-  have hB_nn : 0 ≤ B := by positivity
   have hcard : (#(branchAssignments S) : ℝ) ≤ (2 : ℝ) ^ (Fintype.card ι / s_div) := by
     exact_mod_cast card_branchAssignments_heavyVars_le_two_pow_div F
       (fun i => equationScope (P i)) (by omega) hM
   calc ∑ b ∈ branchAssignments S, examSum b
       ≤ ∑ _b ∈ branchAssignments S, B := sum_le_sum hexam
     _ = (#(branchAssignments S) : ℝ) * B := by rw [sum_const, nsmul_eq_mul]
-    _ ≤ (2 : ℝ) ^ (Fintype.card ι / s_div) * B := mul_le_mul_of_nonneg_right hcard hB_nn
+    _ ≤ (2 : ℝ) ^ (Fintype.card ι / s_div) * B :=
+        mul_le_mul_of_nonneg_right hcard (by positivity)
 
 end Cslib.Complexity.SubexponentialSAT.ReplacementParams

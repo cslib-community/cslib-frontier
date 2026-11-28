@@ -179,8 +179,8 @@ private theorem nodup_liftVertices {G : Graph} {p : List ℕ} (h : ∀ v ∈ p, 
   hp.pmap fun _ _ _ _ hab => congrArg Subtype.val hab
 
 private theorem mem_liftVertices {G : Graph} {p : List ℕ} (h : ∀ v ∈ p, v ∈ G.vertices)
-    (v : {v | v ∈ G.vertices}) : v ∈ liftVertices G p h ↔ v.val ∈ p := by
-  refine ⟨fun hv => ?_, fun hv => List.mem_pmap.2 ⟨v.val, hv, rfl⟩⟩
+    (v : {v | v ∈ G.vertices}) : v ∈ liftVertices G p h ↔ v.1 ∈ p := by
+  refine ⟨fun hv => ?_, fun hv => List.mem_pmap.2 ⟨v.1, hv, rfl⟩⟩
   have := List.mem_map_of_mem (f := Subtype.val) hv
   rwa [map_val_liftVertices] at this
 
@@ -193,7 +193,7 @@ theorem mem_HamPath_iff {G : Graph} {s t : ℕ} :
     refine ⟨w.support.map Subtype.val, hw.isPath.support_nodup.map Subtype.val_injective,
       fun v => ⟨fun hv => ?_, fun hv => ?_⟩, ?_, ?_, ?_⟩
     · obtain ⟨u, -, rfl⟩ := List.mem_map.1 hv
-      exact u.property
+      exact u.2
     · exact List.mem_map.2 ⟨⟨v, hv⟩, hw.mem_support _, rfl⟩
     · rw [List.head?_map, w.support.head?_eq_some_head w.support_ne_nil, w.head_support]
       rfl
@@ -207,20 +207,19 @@ theorem mem_HamPath_iff {G : Graph} {s t : ℕ} :
     have hne : p ≠ [] := by rintro rfl; simp at hs
     have hne' : liftVertices G p hV ≠ [] := by simpa [liftVertices] using hne
     have hhead : (liftVertices G p hV).head hne' = ⟨s, (hcov s).1 (List.mem_of_head? hs)⟩ := by
-      have h := congrArg List.head? (map_val_liftVertices G p hV)
-      rw [List.head?_map, List.head?_eq_some_head hne', hs] at h
-      exact Subtype.ext (Option.some_injective _ h)
+      simpa only [List.head?_map, List.head?_eq_some_head hne', Option.map_some, hs,
+        Option.some.injEq, Subtype.ext_iff] using congrArg List.head? (map_val_liftVertices G p hV)
     have hlast : (liftVertices G p hV).getLast hne' =
         ⟨t, (hcov t).1 (List.mem_of_getLast? ht)⟩ := by
-      have h := congrArg List.getLast? (map_val_liftVertices G p hV)
-      rw [List.getLast?_map, List.getLast?_eq_some_getLast hne', ht] at h
-      exact Subtype.ext (Option.some_injective _ h)
+      simpa only [List.getLast?_map, List.getLast?_eq_some_getLast hne', Option.map_some, ht,
+        Option.some.injEq, Subtype.ext_iff] using
+        congrArg List.getLast? (map_val_liftVertices G p hV)
     refine ⟨(hcov s).1 (List.mem_of_head? hs), (hcov t).1 (List.mem_of_getLast? ht),
       (SimpleGraph.Walk.ofSupport _ hne' (isChain_liftVertices hV hch)).copy hhead hlast, ?_⟩
     intro v
     rw [SimpleGraph.Walk.support_copy, SimpleGraph.Walk.support_ofSupport]
     exact @List.count_eq_one_of_mem _ instBEqOfDecidableEq _ _ _ (nodup_liftVertices hV hnd)
-      ((mem_liftVertices hV v).2 ((hcov v).2 v.property))
+      ((mem_liftVertices hV v).2 ((hcov v).2 v.2))
 
 /-- Undirected Hamiltonian cycles as lists of vertices. -/
 theorem mem_HamCycle_iff {G : Graph} :
@@ -234,7 +233,7 @@ theorem mem_HamCycle_iff {G : Graph} :
       hw.isCycle.nodup_dropLast_support.map Subtype.val_injective,
       fun v => ⟨fun hv => ?_, fun hv => ?_⟩, ?_, ?_⟩
     · obtain ⟨u, -, rfl⟩ := List.mem_map.1 hv
-      exact u.property
+      exact u.2
     · refine List.mem_map.2 ⟨⟨v, hv⟩, ?_, rfl⟩
       rw [← SimpleGraph.Walk.support_dropLast hnil]
       exact hw.isHamiltonian_dropLast.mem_support _
@@ -263,20 +262,17 @@ theorem mem_HamCycle_iff {G : Graph} :
     set L := liftVertices G p hV with hL
     have hLne : L ≠ [] := by simpa [L, liftVertices] using hne
     set a := L.head hLne with ha
-    have hav : a.val = p.head hne := by
-      have h := congrArg List.head? (map_val_liftVertices G p hV)
-      rw [List.head?_map, List.head?_eq_some_head hLne, List.head?_eq_some_head hne] at h
-      exact Option.some_injective _ h
+    have hav : a.1 = p.head hne := by
+      simpa only [List.head?_map, ← hL, List.head?_eq_some_head hLne, List.head?_eq_some_head hne,
+        Option.map_some, Option.some.injEq] using congrArg List.head? (map_val_liftVertices G p hV)
     have hmap : (L ++ [a]).map Subtype.val = p ++ p.take 1 := by
       rw [List.map_append, map_val_liftVertices, List.map_singleton, hav,
         List.take_one, List.head?_eq_some_head hne]
       rfl
-    have hchain : (L ++ [a]).IsChain (G.toSimpleGraph.induce {v | v ∈ G.vertices}).Adj := by
-      have := (List.isChain_map (R := G.toSimpleGraph.Adj) Subtype.val).1 (hmap ▸ hch)
-      exact this
+    have hchain : (L ++ [a]).IsChain (G.toSimpleGraph.induce {v | v ∈ G.vertices}).Adj :=
+      (List.isChain_map (R := G.toSimpleGraph.Adj) Subtype.val).1 (hmap ▸ hch)
     have hne' : L ++ [a] ≠ [] := by simp
-    have hhead : (L ++ [a]).head hne' = a := by
-      rw [List.head_append_of_ne_nil hLne]
+    have hhead : (L ++ [a]).head hne' = a := List.head_append_of_ne_nil hLne
     have hlast : (L ++ [a]).getLast hne' = a := List.getLast_concat
     let w := (SimpleGraph.Walk.ofSupport _ hne' hchain).copy hhead hlast
     have hsupp : w.support = L ++ [a] := by
@@ -296,7 +292,7 @@ theorem mem_HamCycle_iff {G : Graph} :
       exact nodup_liftVertices hV hnd
     · rw [hdrop]
       exact @List.count_eq_one_of_mem _ instBEqOfDecidableEq _ _ _ (nodup_liftVertices hV hnd)
-        ((mem_liftVertices hV v).2 ((hcov v).2 v.property))
+        ((mem_liftVertices hV v).2 ((hcov v).2 v.2))
 
 /-! ### Closing a path into a cycle -/
 
@@ -347,19 +343,12 @@ theorem mem_DirHamCycle_cons_iff {G : Graph} {s t : ℕ} (hs : s ∈ G.vertices)
       · exact h
   · rintro ⟨p, hnd, hcov, hhead, hlast, hch⟩
     obtain ⟨rest, rfl⟩ : ∃ rest, p = s :: rest := by
-      cases p with
-      | nil => simp at hhead
-      | cons a rest =>
-        simp only [List.head?_cons, Option.some.injEq] at hhead
-        exact ⟨rest, by rw [hhead]⟩
+      cases p <;> simp_all
     refine ⟨s :: rest, hnd, hcov, List.cons_ne_nil _ _, ?_⟩
     rw [Cycle.chain_coe_cons, ← List.cons_append]
     refine List.isChain_append.2 ⟨hch.imp fun a b h => List.mem_cons_of_mem _ h,
       List.IsChain.singleton _, fun x hx y hy => ?_⟩
-    rw [hlast, Option.mem_def, Option.some.injEq] at hx
-    simp only [List.head?_cons, Option.mem_def, Option.some.injEq] at hy
-    rw [← hx, ← hy]
-    exact List.mem_cons_self
+    simp_all
 
 end Graph
 
@@ -498,30 +487,18 @@ private theorem computableInPolyTime_pathCheck {r : Graph → ℕ → ℕ → Bo
         decide (q.2.head? = some q.1.source) && decide (q.2.getLast? = some q.1.target) &&
           Graph.chainBool (r q.1.graph) q.2)
       (encPair encPathInstance (encList encNat)) encBool := by
-  have hp : ComputableInPolyTime (fun q : PathInstance × List ℕ => q.2)
-      (encPair encPathInstance (encList encNat)) (encList encNat) :=
-    snd _ _
-  have hhead? : ComputableInPolyTime (@List.head? ℕ) (encList encNat) (encOption encNat) := by
-    fun_prop
-  have hrev : ComputableInPolyTime (@List.reverse ℕ) (encList encNat) (encList encNat) := by
-    fun_prop
-  have hsome : ComputableInPolyTime (@Option.some ℕ) encNat (encOption encNat) := by
-    fun_prop
-  have hs : ComputableInPolyTime (fun q : PathInstance × List ℕ => some q.1.source)
-      (encPair encPathInstance (encList encNat)) (encOption encNat) :=
-    hsome.comp (by fun_prop)
-  have ht : ComputableInPolyTime (fun q : PathInstance × List ℕ => some q.1.target)
-      (encPair encPathInstance (encList encNat)) (encOption encNat) :=
-    hsome.comp (by fun_prop)
-  have hproj : ComputableInPolyTime
-      (fun q : ((PathInstance × List ℕ) × ℕ) × ℕ => ((q.1.1.1.graph, q.1.2), q.2))
-      (encPair (encPair (encPair encPathInstance (encList encNat)) encNat) encNat)
-      (encPair (encPair encGraph encNat) encNat) := by
-    fun_prop
   simp only [← List.head?_reverse]
-  exact bool_and' (bool_and' ((hhead?.comp hp).decide_eq' hs)
-      ((hhead?.comp (hrev.comp hp)).decide_eq' ht))
-    (Graph.computableInPolyTime_chainBool (hr.comp hproj) hp)
+  exact bool_and'
+    (bool_and'
+      ((show ComputableInPolyTime _ _ (encOption encNat) by fun_prop).decide_eq'
+        (by fun_prop))
+      ((show ComputableInPolyTime _ _ (encOption encNat) by fun_prop).decide_eq'
+        (by fun_prop)))
+    (Graph.computableInPolyTime_chainBool
+      (hr.comp (show ComputableInPolyTime
+        (fun q : ((PathInstance × List ℕ) × ℕ) × ℕ => ((q.1.1.1.graph, q.1.2), q.2)) _ _ by
+        fun_prop))
+      (snd _ _))
 
 /-- The cyclic edge check of the cycle verifiers is polynomial-time for a polynomial-time edge
 test `r`. -/
@@ -529,13 +506,11 @@ private theorem computableInPolyTime_cycleCheck {r : Graph → ℕ → ℕ → B
     (hr : ComputableInPolyTime (fun q : (Graph × ℕ) × ℕ => r q.1.1 q.1.2 q.2)
       (encPair (encPair encGraph encNat) encNat) encBool) :
     ComputableInPolyTime (fun q : Graph × List ℕ => Graph.cycleChainBool (r q.1) q.2)
-      (encPair encGraph (encList encNat)) encBool := by
-  have hproj : ComputableInPolyTime
-      (fun q : ((Graph × List ℕ) × ℕ) × ℕ => ((q.1.1.1, q.1.2), q.2))
-      (encPair (encPair (encPair encGraph (encList encNat)) encNat) encNat)
-      (encPair (encPair encGraph encNat) encNat) := by
-    fun_prop
-  exact Graph.computableInPolyTime_cycleChainBool (hr.comp hproj) (snd _ _)
+      (encPair encGraph (encList encNat)) encBool :=
+  Graph.computableInPolyTime_cycleChainBool
+    (hr.comp (show ComputableInPolyTime
+      (fun q : ((Graph × List ℕ) × ℕ) × ℕ => ((q.1.1.1, q.1.2), q.2)) _ _ by fun_prop))
+    (snd _ _)
 
 namespace DirHamPath
 

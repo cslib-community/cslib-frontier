@@ -83,16 +83,10 @@ theorem MetricReducible.trans {f : α → Y} {g : β → Z} {h : γ → W}
     MetricReducible encA encC encY encW f h := by
   obtain ⟨r, post, hr, hpost, hfg⟩ := hfg
   obtain ⟨s, post', hs, hpost', hgh⟩ := hgh
-  refine ⟨s ∘ r, fun x => post (x.1, post' (r x.1, x.2)), hs.comp hr, ?_, fun a => ?_⟩
-  · have hinner : ComputableInPolyTime (fun x : α × W => (r x.1, x.2)) (encPair encA encW)
-        (encPair encB encW) := by fun_prop
-    have hmid : ComputableInPolyTime (fun x : α × W => (x.1, post' (r x.1, x.2)))
-        (encPair encA encW) (encPair encA encZ) := by
-      have := hpost'.comp hinner
-      fun_prop
-    exact hpost.comp hmid
-  · rw [hfg a, hgh (r a)]
-    rfl
+  have hinner : ComputableInPolyTime (fun x : α × W => post' (r x.1, x.2))
+      (encPair encA encW) encZ := hpost'.comp (by fun_prop)
+  refine ⟨s ∘ r, fun x => post (x.1, post' (r x.1, x.2)), hs.comp hr, hpost.comp (by fun_prop), ?_⟩
+  exact fun a => by rw [hfg a, hgh (r a)]; rfl
 
 /-- **Parsimonious reductions are metric reductions**, recovering the answer unchanged. -/
 theorem ParsimoniousReducible.metricReducible {f : α → ℕ} {g : β → ℕ}
@@ -131,10 +125,8 @@ theorem SharpPMetricHard.computableInPolyTime {g : β → Z} (hg : SharpPMetricH
     (hpoly : ComputableInPolyTime g encB encZ) {enc : α ↪ List Bool} {f : α → ℕ}
     (hf : f ∈ SharpP enc) : ComputableInPolyTime f enc encNat := by
   obtain ⟨r, post, hr, hpost, hfg⟩ := hg _ _ hf
-  have hpair : ComputableInPolyTime (fun a => (a, g (r a))) enc (encPair enc encZ) := by
-    have := hpoly.comp hr
-    fun_prop
+  have hgr : ComputableInPolyTime (fun a => g (r a)) enc encZ := hpoly.comp hr
   rw [show f = fun a => post (a, g (r a)) from funext hfg]
-  exact hpost.comp hpair
+  exact hpost.comp (by fun_prop)
 
 end Cslib.Complexity

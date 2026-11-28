@@ -43,6 +43,7 @@ with fixed directions.
   over any finite vector space when `p` is reconstructed along lines.
 * `Cslib.Code.lagrangeDecode_eq_of_mem_reedMuller`: interpolation is exact on codewords.
 * `Cslib.Code.card_lagrangeDecode_ne_le`: few directions err for Reed–Muller codewords.
+* `Cslib.Code.card_false_line_claim_le`: few directions admit a passing but false polynomial reply.
 
 ## References
 
@@ -165,5 +166,21 @@ theorem card_lagrangeDecode_ne_le (ν : Fin (d + 1) ↪ F) (hν : ∀ i, ν i �
     {p : (Fin m → F) → F} (hp : p ∈ reedMuller F m d) (w : (Fin m → F) → F) (x : Fin m → F) :
     #{v | lagrangeDecode ν w x v ≠ p x} ≤ (d + 1) * #{y | w y ≠ p y} :=
   card_lagrangeDecode_ne_le_of_forall_eq ν hν (lagrangeDecode_eq_of_mem_reedMuller ν hp x) w
+
+/-- A prover can supply a univariate polynomial for each direction instead of the verifier
+computing Lagrange coefficients. Even when the claim depends on the direction, at most
+`(d + 1) * Δ(w, p)` directions pass all node checks and give an incorrect value at zero. -/
+theorem card_false_line_claim_le (ν : Fin (d + 1) ↪ F) (hν : ∀ i, ν i ≠ 0)
+    {p : (Fin m → F) → F} (hp : p ∈ reedMuller F m d) (w : (Fin m → F) → F)
+    (x : Fin m → F) (claim : (Fin m → F) → F[X]) :
+    #{v | (claim v).natDegree ≤ d ∧
+      (∀ i, (claim v).eval (ν i) = w (x + ν i • v)) ∧ (claim v).eval 0 ≠ p x} ≤
+      (d + 1) * #{y | w y ≠ p y} := by
+  refine (card_le_card (t := {v | lagrangeDecode ν w x v ≠ p x}) ?_).trans
+    (card_lagrangeDecode_ne_le ν hν hp w x)
+  intro v hv
+  simp only [mem_filter, mem_univ, true_and] at hv ⊢
+  obtain ⟨hdegree, hnodes, hwrong⟩ := hv
+  simpa only [eval_zero_eq_sum_lagrangeWeight ν hdegree, hnodes, lagrangeDecode] using hwrong
 
 end Cslib.Code

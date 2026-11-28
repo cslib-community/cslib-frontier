@@ -110,13 +110,13 @@ private structure ProgDecomp {n g : ℕ} (p : Program signature n g) (k : ℕ) w
   wX : Wire n g → Fin n → Bool
   /-- Conjunction-gate coefficients of the affine representation of each program wire. -/
   wG : Wire n g → Fin k → Bool
-  causal : ∀ (r : Fin (2 * k)) (ℓ : Fin k), r.val / 2 ≤ ℓ.val → aG r ℓ = false
+  causal : ∀ (r : Fin (2 * k)) (ℓ : Fin k), r.1 / 2 ≤ ℓ.1 → aG r ℓ = false
   gFn_eq : ∀ (i : Fin k) (x : Fin n → Bool),
     gFn i x =
-      (linForm (cH ⟨2 * i.val, by omega⟩) (aX ⟨2 * i.val, by omega⟩)
-          (aG ⟨2 * i.val, by omega⟩) gFn x &&
-        linForm (cH ⟨2 * i.val + 1, by omega⟩) (aX ⟨2 * i.val + 1, by omega⟩)
-          (aG ⟨2 * i.val + 1, by omega⟩) gFn x)
+      (linForm (cH ⟨2 * i.1, by omega⟩) (aX ⟨2 * i.1, by omega⟩)
+          (aG ⟨2 * i.1, by omega⟩) gFn x &&
+        linForm (cH ⟨2 * i.1 + 1, by omega⟩) (aX ⟨2 * i.1 + 1, by omega⟩)
+          (aG ⟨2 * i.1 + 1, by omega⟩) gFn x)
   trace_eq : ∀ (w : Wire n g) (x : Fin n → Bool),
     p.trace interpretation x w = linForm (cW w) (wX w) (wG w) gFn x
 
@@ -198,14 +198,14 @@ private theorem progDecomp_and {n g k : ℕ} {q : Program signature n g}
     q.trace interpretation x u₀ && q.trace interpretation x u₁
   let gFn' : Fin (k + 1) → BooleanFunction n := Fin.snoc ih.gFn gLast
   let cH' : Fin (2 * (k + 1)) → Bool := fun r =>
-    if hr : r.val < 2 * k then ih.cH ⟨r.val, hr⟩
-    else if r.val = 2 * k then ih.cW u₀ else ih.cW u₁
+    if hr : r.1 < 2 * k then ih.cH ⟨r.1, hr⟩
+    else if r.1 = 2 * k then ih.cW u₀ else ih.cW u₁
   let aX' : Fin (2 * (k + 1)) → Fin n → Bool := fun r =>
-    if hr : r.val < 2 * k then ih.aX ⟨r.val, hr⟩
-    else if r.val = 2 * k then ih.wX u₀ else ih.wX u₁
+    if hr : r.1 < 2 * k then ih.aX ⟨r.1, hr⟩
+    else if r.1 = 2 * k then ih.wX u₀ else ih.wX u₁
   let aG' : Fin (2 * (k + 1)) → Fin (k + 1) → Bool := fun r =>
-    if hr : r.val < 2 * k then Fin.snoc (ih.aG ⟨r.val, hr⟩) false
-    else if r.val = 2 * k then Fin.snoc (ih.wG u₀) false
+    if hr : r.1 < 2 * k then Fin.snoc (ih.aG ⟨r.1, hr⟩) false
+    else if r.1 = 2 * k then Fin.snoc (ih.wG u₀) false
     else Fin.snoc (ih.wG u₁) false
   refine ⟨{
     gFn := gFn'
@@ -222,30 +222,22 @@ private theorem progDecomp_and {n g k : ℕ} {q : Program signature n g}
         split_ifs <;> exact Fin.snoc_last _ _)
       (fun j hle => by
         simp only [Fin.val_castSucc] at hle
-        have hr : r.val < 2 * k := by
-          have hj : j.val < k := j.isLt
-          omega
+        have hr : r.1 < 2 * k := by have := j.isLt; omega
         dsimp only [aG']
         simp only [hr, ↓reduceDIte, Fin.snoc_castSucc]
-        exact ih.causal ⟨r.val, hr⟩ j hle)
+        exact ih.causal ⟨r.1, hr⟩ j hle)
     gFn_eq := fun i x => ?_
     trace_eq := fun w x => ?_ }⟩
   · refine Fin.lastCases ?_ (fun j => ?_) i
-    · have h0_not : ¬ (2 * k < 2 * k) := by omega
-      have h1_not : ¬ (2 * k + 1 < 2 * k) := by omega
+    · have h1_not : ¬ (2 * k + 1 < 2 * k) := by omega
       have h1_ne : 2 * k + 1 ≠ 2 * k := by omega
       dsimp only [gFn', cH', aX', aG']
-      simp only [Fin.snoc_last, Fin.val_last, h0_not, h1_not, h1_ne, ↓reduceDIte, ↓reduceIte,
+      simp only [Fin.snoc_last, Fin.val_last, lt_irrefl, h1_not, h1_ne, ↓reduceDIte, ↓reduceIte,
         linForm_snoc_false, ← ih.trace_eq u₀ x, ← ih.trace_eq u₁ x]
       rfl
-    · have hj0 : 2 * j.castSucc.val < 2 * k := by
-        have := j.isLt
-        simp only [Fin.val_castSucc]
-        omega
-      have hj1 : 2 * j.castSucc.val + 1 < 2 * k := by
-        have := j.isLt
-        simp only [Fin.val_castSucc]
-        omega
+    · have hj : j.castSucc.1 < k := j.isLt
+      have hj0 : 2 * j.castSucc.1 < 2 * k := by omega
+      have hj1 : 2 * j.castSucc.1 + 1 < 2 * k := by omega
       dsimp only [gFn', cH', aX', aG']
       simp only [Fin.snoc_castSucc, hj0, hj1, ↓reduceDIte, linForm_snoc_false]
       exact ih.gFn_eq j x
@@ -301,23 +293,23 @@ structure PaddedDecomp {n : ℕ} (f : BooleanFunction n) (M k : ℕ) where
   outX : Fin n → Bool
   /-- Conjunction-gate coefficients of the output linear form computing `f`. -/
   outG : Fin M → Bool
-  causal : ∀ (r : Fin (2 * M)) (ℓ : Fin M), r.val / 2 ≤ ℓ.val → aG r ℓ = false
-  gFn_lt : ∀ (i : Fin M), i.val < k → ∀ x : Fin n → Bool,
+  causal : ∀ (r : Fin (2 * M)) (ℓ : Fin M), r.1 / 2 ≤ ℓ.1 → aG r ℓ = false
+  gFn_lt : ∀ (i : Fin M), i.1 < k → ∀ x : Fin n → Bool,
     gFn i x =
-      (linForm (cH ⟨2 * i.val, by omega⟩) (aX ⟨2 * i.val, by omega⟩)
-          (aG ⟨2 * i.val, by omega⟩) gFn x &&
-        linForm (cH ⟨2 * i.val + 1, by omega⟩) (aX ⟨2 * i.val + 1, by omega⟩)
-          (aG ⟨2 * i.val + 1, by omega⟩) gFn x)
-  gFn_ge : ∀ (i : Fin M), k ≤ i.val → gFn i = constZero n
+      (linForm (cH ⟨2 * i.1, by omega⟩) (aX ⟨2 * i.1, by omega⟩)
+          (aG ⟨2 * i.1, by omega⟩) gFn x &&
+        linForm (cH ⟨2 * i.1 + 1, by omega⟩) (aX ⟨2 * i.1 + 1, by omega⟩)
+          (aG ⟨2 * i.1 + 1, by omega⟩) gFn x)
+  gFn_ge : ∀ (i : Fin M), k ≤ i.1 → gFn i = constZero n
   out_eq : ∀ x : Fin n → Bool, f x = linForm outC outX outG gFn x
 
 /-- Zero-pads a length-`k` Boolean vector to length `M`. -/
 @[expose] def padBool {k M : ℕ} (v : Fin k → Bool) (ℓ : Fin M) : Bool :=
-  if h : ℓ.val < k then v ⟨ℓ.val, h⟩ else false
+  if h : ℓ.1 < k then v ⟨ℓ.1, h⟩ else false
 
 /-- Zero-pads a length-`k` family of `n`-ary Boolean functions to length `M`. -/
 @[expose] def padFn {n k M : ℕ} (gFn : Fin k → BooleanFunction n) (ℓ : Fin M) : BooleanFunction n :=
-  if h : ℓ.val < k then gFn ⟨ℓ.val, h⟩ else constZero n
+  if h : ℓ.1 < k then gFn ⟨ℓ.1, h⟩ else constZero n
 
 theorem linForm_pad {n k M : ℕ} (hkM : k ≤ M) (c₀ : Bool) (cX : Fin n → Bool)
     (cG : Fin k → Bool) (gFn : Fin k → BooleanFunction n) (x : Fin n → Bool) :
@@ -330,9 +322,9 @@ theorem linForm_pad {n k M : ℕ} (hkM : k ≤ M) (c₀ : Bool) (cX : Fin n → 
     refine sum_congr rfl fun i _ => ?_
     simp [padBool, padFn, i.isLt]
   · intro ℓ _ hnot
-    have hge : ¬ (ℓ.val < k) := by
+    have hge : ¬ (ℓ.1 < k) := by
       intro hlt
-      exact hnot (mem_map.mpr ⟨⟨ℓ.val, hlt⟩, mem_univ _, Fin.ext rfl⟩)
+      exact hnot (mem_map.mpr ⟨⟨ℓ.1, hlt⟩, mem_univ _, Fin.ext rfl⟩)
     simp [padBool, hge]
 
 theorem exists_paddedDecomp {n M : ℕ} {f : BooleanFunction n} (c : Circuit signature n 1)
@@ -343,10 +335,10 @@ theorem exists_paddedDecomp {n M : ℕ} {f : BooleanFunction n} (c : Circuit sig
   let outW := c.outputs 0
   refine ⟨{
     gFn := padFn (M := M) pd.gFn
-    cH := fun r => if hr : r.val < 2 * k then pd.cH ⟨r.val, hr⟩ else false
-    aX := fun r => if hr : r.val < 2 * k then pd.aX ⟨r.val, hr⟩ else fun _ => false
+    cH := fun r => if hr : r.1 < 2 * k then pd.cH ⟨r.1, hr⟩ else false
+    aX := fun r => if hr : r.1 < 2 * k then pd.aX ⟨r.1, hr⟩ else fun _ => false
     aG := fun r =>
-      if hr : r.val < 2 * k then padBool (M := M) (pd.aG ⟨r.val, hr⟩) else fun _ => false
+      if hr : r.1 < 2 * k then padBool (M := M) (pd.aG ⟨r.1, hr⟩) else fun _ => false
     outC := pd.cW outW
     outX := pd.wX outW
     outG := padBool (M := M) (pd.wG outW)
@@ -357,15 +349,15 @@ theorem exists_paddedDecomp {n M : ℕ} {f : BooleanFunction n} (c : Circuit sig
   · split_ifs with hr
     · unfold padBool
       split_ifs with hℓ
-      · exact pd.causal ⟨r.val, hr⟩ ⟨ℓ.val, hℓ⟩ hle
+      · exact pd.causal ⟨r.1, hr⟩ ⟨ℓ.1, hℓ⟩ hle
       · rfl
     · rfl
-  · have hr0 : 2 * i.val < 2 * k := by omega
-    have hr1 : 2 * i.val + 1 < 2 * k := by omega
+  · have hr0 : 2 * i.1 < 2 * k := by omega
+    have hr1 : 2 * i.1 + 1 < 2 * k := by omega
     dsimp only [padFn]
     simp only [hi, hr0, hr1, ↓reduceDIte, linForm_pad hkM]
-    exact pd.gFn_eq ⟨i.val, hi⟩ x
-  · have hnot : ¬ (i.val < c.program.cost andCost) := Nat.not_lt.mpr hi
+    exact pd.gFn_eq ⟨i.1, hi⟩ x
+  · have hnot : ¬ (i.1 < c.program.cost andCost) := Nat.not_lt.mpr hi
     simp only [padFn, hnot, ↓reduceDIte]
   · have heval : c.eval interpretation x 0 = f x := congrFun (hc x) 0
     rw [← heval]

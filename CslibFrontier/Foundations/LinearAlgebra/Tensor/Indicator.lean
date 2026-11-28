@@ -93,28 +93,6 @@ theorem rank_of_factors_left_mid {K X₀ X₁ X₂ Y₀ Y₁ : Type*} [CommSemir
 
 /-! ### High-rank `0-1` order-three tensors over arbitrary fields -/
 
-private theorem totalDegree_sum_le {K ι α : Type*} [CommSemiring K] (s : Finset α)
-    (f : α → MvPolynomial ι K) {d : ℕ} (hf : ∀ a ∈ s, (f a).totalDegree ≤ d) :
-    (∑ a ∈ s, f a).totalDegree ≤ d := by
-  classical
-  induction s using Finset.induction_on with
-  | empty => simp
-  | @insert a s ha ih =>
-    rw [Finset.sum_insert ha]
-    exact (MvPolynomial.totalDegree_add _ _).trans
-      (max_le (hf a (Finset.mem_insert_self a s))
-        (ih fun b hb => hf b (Finset.mem_insert_of_mem hb)))
-
-private theorem totalDegree_prod_le {K ι α : Type*} [CommSemiring K] (s : Finset α)
-    (f : α → MvPolynomial ι K) :
-    (∏ a ∈ s, f a).totalDegree ≤ ∑ a ∈ s, (f a).totalDegree := by
-  classical
-  induction s using Finset.induction_on with
-  | empty => simp
-  | @insert a s ha ih =>
-    rw [Finset.prod_insert ha, Finset.sum_insert ha]
-    exact (MvPolynomial.totalDegree_mul _ _).trans (Nat.add_le_add_left ih _)
-
 open Classical in
 /-- **Number of `0-1` order-three tensors of CP-rank at most `r`.** Over any field `K` (finite or
 infinite), the number of subsets `S : Finset (X₀ × X₁ × X₂)` whose indicator tensor
@@ -129,7 +107,6 @@ theorem card_rank_indicatorThreeTensor_le (K : Type*) [Field K]
   classical
   let P3 := X₀ × X₁ × X₂
   let N := Fintype.card X₀ * Fintype.card X₁ * Fintype.card X₂
-  have hcard_P3 : Fintype.card P3 = N := by simp [P3, N, mul_assoc]
   let GoodFin := Finset.univ.filter fun S : Finset P3 =>
     Rank r (indicatorThreeTensor K (S : Set P3))
   let Good := {S : Finset P3 // S ∈ GoodFin}
@@ -137,26 +114,18 @@ theorem card_rank_indicatorThreeTensor_le (K : Type*) [Field K]
   have hcard_Idx : Fintype.card Idx =
       r * (Fintype.card X₀ + Fintype.card X₁ + Fintype.card X₂) := by
     simp [Idx]; ring
+  -- the CP-rank parameterization: entry `p` of the tensor with factors `z` is `entryPoly p` at `z`
   let entryPoly (p : P3) : MvPolynomial Idx K :=
     ∑ k : Fin r, MvPolynomial.X (Sum.inl (k, p.1)) *
       MvPolynomial.X (Sum.inr (Sum.inl (k, p.2.1))) *
       MvPolynomial.X (Sum.inr (Sum.inr (k, p.2.2)))
-  have hdeg_entry (p : P3) : (entryPoly p).totalDegree ≤ 3 := by
-    refine totalDegree_sum_le _ _ fun k _ => ?_
-    refine (MvPolynomial.totalDegree_mul _ _).trans ?_
-    have h12 : (MvPolynomial.X (Sum.inl (k, p.1)) *
-        MvPolynomial.X (Sum.inr (Sum.inl (k, p.2.1))) : MvPolynomial Idx K).totalDegree ≤ 2 := by
-      refine (MvPolynomial.totalDegree_mul _ _).trans ?_
+  have hdeg_entry (p : P3) : (entryPoly p).totalDegree ≤ 3 :=
+    MvPolynomial.totalDegree_finsetSum_le fun k _ => by
+      grw [MvPolynomial.totalDegree_mul, MvPolynomial.totalDegree_mul]
       simp [MvPolynomial.totalDegree_X]
-    have h3 : (MvPolynomial.X (Sum.inr (Sum.inr (k, p.2.2))) :
-        MvPolynomial Idx K).totalDegree ≤ 1 := by
-      simp [MvPolynomial.totalDegree_X]
-    omega
   have hex_z (S : Good) : ∃ z : Idx → K, ∀ p : P3,
-      MvPolynomial.eval z (entryPoly p) = if p ∈ S.val then 1 else 0 := by
-    have hmem : Rank r (indicatorThreeTensor K (S.val : Set P3)) :=
-      (Finset.mem_filter.mp S.property).2
-    obtain ⟨α, β, γ, hres⟩ := hmem
+      MvPolynomial.eval z (entryPoly p) = if p ∈ S.1 then 1 else 0 := by
+    obtain ⟨α, β, γ, hres⟩ := (Finset.mem_filter.mp S.2).2
     refine ⟨Sum.elim (fun kx => α kx.1 kx.2)
       (Sum.elim (fun ky => β ky.1 ky.2) (fun kz => γ kz.2 kz.1)), fun p => ?_⟩
     have hval := congrFun (congrFun (congrFun hres p.1) p.2.1) p.2.2
@@ -164,42 +133,31 @@ theorem card_rank_indicatorThreeTensor_le (K : Type*) [Field K]
     simp only [entryPoly, map_sum, map_mul, MvPolynomial.eval_X, Sum.elim_inl, Sum.elim_inr]
     exact hval.trans (by simp)
   choose z hz using hex_z
+  -- multilinear Lagrange interpolation: `Q S` is `1` at `z S` and `0` at every other `z S'`
   let Q (S : Good) : MvPolynomial Idx K :=
-    ∏ p : P3, if p ∈ S.val then entryPoly p else (1 - entryPoly p)
+    ∏ p : P3, if p ∈ S.1 then entryPoly p else (1 - entryPoly p)
   have hQ_eval (S S' : Good) :
       MvPolynomial.eval (z S') (Q S) = if S = S' then 1 else 0 := by
     simp only [Q, map_prod]
     split_ifs with heq
     · subst heq
-      refine Finset.prod_eq_one fun p _ => ?_
-      split_ifs with hp <;> simp [hz S p, hp]
-    · have hne : ∃ p : P3, (p ∈ S.val) ≠ (p ∈ S'.val) := by
-        by_contra! hall_eq
-        exact heq (Subtype.ext (Finset.ext fun p => eq_iff_iff.mp (hall_eq p)))
-      obtain ⟨p₀, hp₀⟩ := hne
+      exact Finset.prod_eq_one fun p _ => by split_ifs with hp <;> simp [hz S p, hp]
+    · obtain ⟨p₀, hp₀⟩ : ∃ p : P3, ¬(p ∈ S.1 ↔ p ∈ S'.1) := by
+        by_contra! h
+        exact heq (Subtype.ext (Finset.ext h))
       refine Finset.prod_eq_zero (Finset.mem_univ p₀) ?_
-      by_cases hpS : p₀ ∈ S.val
-      · have hpS' : p₀ ∉ S'.val := fun h => hp₀ (by simp [hpS, h])
-        simp [hpS, hpS', hz S' p₀]
-      · have hpS' : p₀ ∈ S'.val := by by_contra h; exact hp₀ (by simp [hpS, h])
-        simp [hpS, hpS', hz S' p₀]
+      by_cases hpS : p₀ ∈ S.1 <;> simp_all [hz S' p₀]
   have hQ_deg (S : Good) : (Q S).totalDegree ≤ 3 * N := by
-    refine (totalDegree_prod_le _ _).trans ?_
-    have hterm (p : P3) : (if p ∈ S.val then entryPoly p else 1 - entryPoly p).totalDegree ≤ 3 := by
-      split_ifs
-      · exact hdeg_entry p
-      · have h1sub : (1 - entryPoly p : MvPolynomial Idx K) =
-            1 + MvPolynomial.C (-1 : K) * entryPoly p := by simp [sub_eq_add_neg]
-        rw [h1sub]
-        refine (MvPolynomial.totalDegree_add _ _).trans (max_le (by simp) ?_)
-        refine (MvPolynomial.totalDegree_mul _ _).trans ?_
-        have hC : (MvPolynomial.C (-1 : K) : MvPolynomial Idx K).totalDegree = 0 :=
-          MvPolynomial.totalDegree_C (-1 : K)
-        have hd := hdeg_entry p
-        omega
-    calc (∑ p : P3, (if p ∈ S.val then entryPoly p else 1 - entryPoly p).totalDegree)
-        ≤ ∑ _p : P3, 3 := Finset.sum_le_sum fun p _ => hterm p
-      _ = 3 * N := by simp [hcard_P3, Nat.mul_comm]
+    refine (MvPolynomial.totalDegree_finsetProd _ _).trans <|
+      (Finset.sum_le_card_nsmul _ _ 3 fun p _ => ?_).trans <| Nat.le_of_eq <| by
+        simp only [Finset.card_univ, Fintype.card_prod, smul_eq_mul, P3, N]; ring
+    split_ifs
+    · exact hdeg_entry p
+    · rw [sub_eq_add_neg, neg_eq_neg_one_mul, ← MvPolynomial.C_1, ← map_neg]
+      refine (MvPolynomial.totalDegree_add _ _).trans (max_le (by simp) ?_)
+      exact (MvPolynomial.totalDegree_mul _ _).trans
+        (by rw [MvPolynomial.totalDegree_C, zero_add]; exact hdeg_entry p)
+  -- the coefficients in the box `Idx → Fin (3 * N + 1)` determine a polynomial of degree `≤ 3 * N`
   let Box := Idx → Fin (3 * N + 1)
   let toFinsupp (g : Box) : Idx →₀ ℕ := Finsupp.equivFunOnFinite.symm fun j => (g j : ℕ)
   let L : MvPolynomial Idx K →ₗ[K] (Box → K) :=
@@ -211,42 +169,27 @@ theorem card_rank_indicatorThreeTensor_le (K : Type*) [Field K]
     intro c hc S₀
     set P_comb : MvPolynomial Idx K := ∑ S : Good, c S • Q S
     have hP_deg : P_comb.totalDegree ≤ 3 * N :=
-      totalDegree_sum_le _ _ fun S _ =>
+      MvPolynomial.totalDegree_finsetSum_le fun S _ =>
         (MvPolynomial.totalDegree_smul_le (c S) (Q S)).trans (hQ_deg S)
     have hLP : L P_comb = 0 := by
       simpa [P_comb, map_sum, map_smul, Function.comp_def] using hc
     have hP_zero : P_comb = 0 := by
       ext m
       change P_comb.coeff m = 0
-      by_cases hm : m ∈ P_comb.support
-      · have hm_le : ∀ j : Idx, m j ≤ 3 * N := fun j => by
-          have hsum_le : m.sum (fun _ e => e) ≤ P_comb.totalDegree :=
-            Finset.le_sup (f := fun s : Idx →₀ ℕ => s.sum fun _ e => e) hm
-          have hj_le : m j ≤ m.sum (fun _ e => e) := by
-            by_cases hj0 : m j = 0
-            · omega
-            · exact Finset.single_le_sum (fun _ _ => Nat.zero_le _)
-                (Finsupp.mem_support_iff.mpr hj0)
-          exact hj_le.trans (hsum_le.trans hP_deg)
-        let g : Box := fun j => ⟨m j, Nat.lt_succ_of_le (hm_le j)⟩
-        have hfg : toFinsupp g = m := by
-          ext j
-          simp [toFinsupp, g]
-        rw [← hfg]
-        exact congrFun hLP g
-      · exact MvPolynomial.notMem_support_iff.mp hm
+      by_contra hm
+      have hm_le (j : Idx) : m j ≤ 3 * N :=
+        ((MvPolynomial.monomial_le_degreeOf j (MvPolynomial.mem_support_iff.2 hm)).trans
+          (MvPolynomial.degreeOf_le_totalDegree _ j)).trans hP_deg
+      have hfg : toFinsupp (fun j => ⟨m j, Nat.lt_succ_of_le (hm_le j)⟩ : Box) = m := by
+        ext j
+        simp [toFinsupp]
+      exact hm (hfg ▸ congrFun hLP _)
     have hev := congrArg (MvPolynomial.eval (z S₀)) hP_zero
     simp_rw [P_comb, map_sum, MvPolynomial.smul_eq_C_mul, map_mul, MvPolynomial.eval_C, hQ_eval]
       at hev
     simpa [mul_ite] using hev
-  have hcard_le : Fintype.card Good ≤ Fintype.card Box :=
+  simpa [Good, Box, hcard_Idx] using
     (Pi.basisFun K Box).card_le_card_of_linearIndependent hlin_indep
-  have hcard_Good : Fintype.card Good = GoodFin.card := Fintype.card_coe GoodFin
-  have hcard_Box : Fintype.card Box =
-      (3 * N + 1) ^ (r * (Fintype.card X₀ + Fintype.card X₁ + Fintype.card X₂)) := by
-    simp [Box, hcard_Idx]
-  rw [hcard_Good, hcard_Box] at hcard_le
-  exact hcard_le
 
 /-- **Existence of high-rank `0-1` order-three tensors over any field.** Let `X₀, X₁, X₂` be finite
 index types with `N = |X₀| * |X₁| * |X₂|` and `d = r * (|X₀| + |X₁| + |X₂|)`. If

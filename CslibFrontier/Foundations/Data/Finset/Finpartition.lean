@@ -80,16 +80,12 @@ theorem card_finpartition_le {α : Type*} [LinearOrder α] (s : Finset α) :
       · ext y
         exact ⟨mem_part_of_partMax_eq h hx, mem_part_of_partMax_eq h.symm hx⟩
       · rw [P.part_eq_empty.2 hx, P'.part_eq_empty.2 hx]
+    have hsub {Q Q' : Finpartition s} (hQ : ∀ x, Q.part x = Q'.part x) {t : Finset α}
+        (ht : t ∈ Q.parts) : t ∈ Q'.parts := by
+      obtain ⟨x, hx⟩ := Q.nonempty_of_mem_parts ht
+      exact Q.part_eq_of_mem ht hx ▸ hQ x ▸ Q'.part_mem.2 (Q.le ht hx)
     ext t
-    constructor
-    · intro ht
-      obtain ⟨x, hx⟩ := P.nonempty_of_mem_parts ht
-      rw [← P.part_eq_of_mem ht hx, hpart]
-      exact P'.part_mem.2 (P.le ht hx)
-    · intro ht
-      obtain ⟨x, hx⟩ := P'.nonempty_of_mem_parts ht
-      rw [← P'.part_eq_of_mem ht hx, ← hpart]
-      exact P.part_mem.2 (P'.le ht hx)
+    exact ⟨hsub hpart, hsub fun x => (hpart x).symm⟩
   refine (Fintype.card_le_of_injective _ hinj).trans_eq ?_
   rw [Fintype.card_fun, Fintype.card_coe]
 

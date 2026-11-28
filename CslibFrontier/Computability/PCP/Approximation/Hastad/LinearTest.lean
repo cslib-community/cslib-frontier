@@ -192,8 +192,7 @@ theorem spectralWeight_nonneg (k : ℕ) (A : (α → Bool) → Bool) (x : α) :
 theorem sum_spectralWeight_le_one (k : ℕ) (A : (α → Bool) → Bool) :
     ∑ x : α, spectralWeight k A x ≤ 1 := by
   simp only [spectralWeight, sum_filter]
-  rw [sum_comm]
-  rw [← sum_fourierCoeff_sq_signVal A]
+  rw [sum_comm, ← sum_fourierCoeff_sq_signVal A]
   refine sum_le_sum fun T _ => ?_
   by_cases hTk : #T < k
   · by_cases hT0 : T = ∅
@@ -342,9 +341,8 @@ theorem linearCorr_sq_le (π : β → γ) {δ : ℝ} (hδ0 : 0 ≤ δ) (hδ1 : �
     by_cases hTk : #T < k
     · by_cases hne : projectSet π T ≠ ∅
       · simp only [hTk, hne, ne_eq, not_false_eq_true, and_self, ↓reduceIte]
-        have hpow : ((1 - 2 * δ) ^ #T) ^ 2 ≤ 1 := by
-          rw [← pow_mul]
-          exact pow_le_one₀ hρ0 hρ1
+        have hpow : ((1 - 2 * δ) ^ #T) ^ 2 ≤ 1 :=
+          pow_le_one₀ (pow_nonneg hρ0 _) (pow_le_one₀ hρ0 hρ1)
         nlinarith [mul_le_mul_of_nonneg_left hpow
           (mul_nonneg (sq_nonneg (fourierCoeff (fun g => signVal (A g)) T))
             (sq_nonneg (fourierCoeff (fun f => signVal (B f)) (projectSet π T))))]
@@ -403,9 +401,7 @@ theorem two_mul_sub_le_sum_lowDegree_cube_mul {ρ ε δ : ℝ} (hρ0 : 0 < ρ) (
   have hw1 : w ≤ 1 := by linarith
   -- The tail weight: `w ^ k ≤ ε`.
   have hwk : w ^ k ≤ ε := by
-    have hexp : w ≤ Real.exp (-(2 * ρ)) := by
-      have := Real.add_one_le_exp (-(2 * ρ))
-      linarith
+    have hexp : w ≤ Real.exp (-(2 * ρ)) := by linarith [Real.add_one_le_exp (-(2 * ρ))]
     have hlog : Real.log (1 / ε) ≤ 2 * ρ * k := (div_le_iff₀' (by positivity)).1 hk
     rw [one_div, Real.log_inv] at hlog
     calc w ^ k ≤ Real.exp (-(2 * ρ)) ^ k := pow_le_pow_left₀ hw0 hexp k
@@ -416,10 +412,6 @@ theorem two_mul_sub_le_sum_lowDegree_cube_mul {ρ ε δ : ℝ} (hρ0 : 0 < ρ) (
   have hterm (T : Finset β) (hT : ¬ #T ≤ k) : F T ^ 3 * w ^ #T ≤ F T ^ 2 * w ^ k := by
     have hF := abs_fourierCoeff_signVal_le_one (fun g => A g) T
     have hpow : w ^ #T ≤ w ^ k := pow_le_pow_of_le_one hw0 hw1 (by omega)
-    have h3 : F T ^ 3 ≤ F T ^ 2 := by
-      have : F T ^ 3 = F T ^ 2 * F T := by ring
-      rw [this]
-      nlinarith [abs_le.1 hF, sq_nonneg (F T)]
     calc F T ^ 3 * w ^ #T ≤ |F T ^ 3| * w ^ #T :=
           mul_le_mul_of_nonneg_right (le_abs_self _) (pow_nonneg hw0 _)
       _ ≤ F T ^ 2 * w ^ k := by

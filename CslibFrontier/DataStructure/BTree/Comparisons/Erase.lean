@@ -133,8 +133,8 @@ private theorem countQueries_popMinM (tr : BTree α β) :
   match tr with
   | .leaf => simp
   | .node first rest =>
-    have ih := countQueries_popMinM first
-    simp only [popMinM_node, FreeM.countQueries_bind, FreeM.countQueries_pure, ih, zero_add]
+    simp only [popMinM_node, FreeM.countQueries_bind, FreeM.countQueries_pure,
+      countQueries_popMinM first, zero_add]
     split <;> simp [countQueries_rebalanceRightM]
 termination_by sizeOf tr
 
@@ -150,8 +150,7 @@ private theorem countQueries_eraseRestM_le (k : α) (B : ℕ) (rest : List (Trip
       ≤ rest.length + 1 + B := by
   induction rest generalizing prev prevErased with
   | nil =>
-    simp only [eraseRestM_nil, bind_pure_comp, FreeM.countQueries_map, List.length_nil]
-    omega
+    simp only [eraseRestM_nil, bind_pure_comp, FreeM.countQueries_map, List.length_nil]; omega
   | cons head tail ih =>
     obtain ⟨k', v', c⟩ := head
     have hcc : (eraseSubtreeM t LEQuery.ask (pure ()) k c).countQueries oracle ≤ B :=
@@ -162,22 +161,17 @@ private theorem countQueries_eraseRestM_le (k : α) (B : ℕ) (rest : List (Trip
       · simp only [LEQuery.ask, FreeM.countQueries_bind, FreeM.countQueries_lift,
           FreeM.eval_lift, hk, hk', ↓reduceIte, countQueries_popMinM, List.length_cons]
         split
-        · simp
-          omega
+        · simp; omega
         · split <;> simp [countQueries_rebalanceLastM, countQueries_rebalanceRightM]
           omega
-      · simp [LEQuery.ask, hk, hk', countQueries_rebalanceRightM]
-        omega
+      · simp [LEQuery.ask, hk, hk', countQueries_rebalanceRightM]; omega
     · cases tail with
-      | nil =>
-        simp [LEQuery.ask, hk, countQueries_rebalanceLastM]
-        omega
+      | nil => simp [LEQuery.ask, hk, countQueries_rebalanceLastM]; omega
       | cons e tail' =>
         have := ih c (fun _ => eraseSubtreeM t LEQuery.ask (pure ()) k c) hcc
           fun e he => hc e (List.mem_cons_of_mem _ he)
         simp only [List.length_cons] at this
-        simp [LEQuery.ask, hk]
-        omega
+        simp [LEQuery.ask, hk]; omega
 
 /-- Erasure from the empty tree makes no comparisons. -/
 @[simp] theorem countQueries_eraseQ_leaf :

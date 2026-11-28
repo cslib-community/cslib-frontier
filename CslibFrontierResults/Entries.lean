@@ -2696,8 +2696,7 @@ register_result "hitting-set-multilinear-any-order-roabp" where
   theorems := [
     Cslib.Circuits.Arithmetic.isHittingSet_anyOrderHittingSet_roabp,
     Cslib.Circuits.Arithmetic.isHittingSet_anyOrderHittingSet,
-    Cslib.Circuits.Arithmetic.card_anyOrderHittingSet_le,
-    Cslib.Circuits.Arithmetic.IsAnyOrderROABP.splitRankLE
+    Cslib.Circuits.Arithmetic.card_anyOrderHittingSet_le
   ]
   scope := "Over a field of characteristic zero, an explicit set of points in Fⁿ, of size \
     bounded by an explicit polynomial in n and w, that contains a non-root of every nonzero \
@@ -2707,8 +2706,8 @@ register_result "hitting-set-multilinear-any-order-roabp" where
     source's positive-characteristic case rests on an unpublished hitting set. The perfect \
     hash family and the shifts are the library's own constructions, so the size bound \
     differs from the source's. Existence and size of an explicit set only: no bit \
-    complexity and no black-box algorithm model. The converse of Nisan's characterisation \
-    is not proved."
+    complexity and no black-box algorithm model. IsAnyOrderROABP.splitRankLE supplies the \
+    forward direction of Nisan's characterisation; the converse is not proved."
 
 register_result "hitting-set-set-multilinear-depth-three" where
   title := "Hitting sets for set-multilinear depth-3 circuits with small variable sets"
@@ -13442,8 +13441,9 @@ register_result "btree-rank-comparison-lower-bound" where
     FreeM (LEQuery α) query model: on any duplicate-free tree (rank_lowerBound_infinite), over \
     general (BTree α β × α) inputs (IsRank.lowerBound_infinite), and over well-formed B-trees \
     WFInput α β t of minimum degree t ≥ 2 (IsRank.lowerBound_wfInput_infinite). Bounds \
-    comparison queries in FreeM (LEQuery α) rather than machine instructions; the companion \
-    comparison lower bound for lookup remains open under #3674."
+    comparison queries in FreeM (LEQuery α) rather than machine instructions. The companion \
+    lookup bound is in the LookupLowerBound module, proved for trees with distinct values \
+    (IsLookup.lowerBound_wfInput_infinite assumes an infinite value type)."
 
 register_result "nexp-bounded-acceptance-complete" where
   title := "Bounded nondeterministic acceptance is NEXP-complete, and its EXP membership \
@@ -13534,22 +13534,20 @@ register_result "odonnell-unbiased-noise-stability-dictators" where
     case fails at both endpoints."
 
 register_result "odonnell-level-one-inequality" where
-  title := "Level-1 Inequality with the explicit constant 16"
+  title := "Level-1 Inequality for [−1, 1]-valued functions, with the constant 16"
   topic := "analysis of Boolean functions"
   sources := [
     { paper := ODonnell2014, theorem := "Level-1 Inequality",
       locator := "arXiv:2105.10386v1, §5.4, printed p. 126; proof for [−1, 1]-valued functions \
         on printed p. 128" }
   ]
-  theorems := [
-    Cslib.BitString.levelWeight_one_le_of_abs_le_one,
-    Cslib.BitString.levelWeight_one_bitVal_le
-  ]
-  scope := "Uniform cube on any finite coordinate type. The source's O(α² log(1/α)) is stated \
-    with the explicit constant 16 and the natural logarithm: W¹[f] ≤ 16 α² ln(1/α) whenever \
-    α ≤ 1/2, for f with values in [−1, 1] and α = 𝔼|f| (the setting of the source's proof), and \
-    for a Boolean function read as 0 or 1 with α its mean. The sharp constant 2 of Remark 5.28 \
-    is not covered."
+  theorems := [Cslib.BitString.levelWeight_one_le_of_abs_le_one]
+  scope := "Uniform cube on any finite coordinate type, for f with values in [−1, 1] and \
+    α = 𝔼|f| ≤ 1/2, the setting of the source's proof. The source's O(α² log(1/α)) is stated \
+    with the explicit constant 16 and the natural logarithm: W¹[f] ≤ 16 α² ln(1/α). The sharp \
+    constant 2 of Remark 5.28 is not covered in this setting; for {0, 1}-valued f it is the \
+    entry odonnell-sharp-level-one-inequality. The source states it for f : {−1, 1}ⁿ → {0, 1} of \
+    mean α; that is the case of values in {0, 1}, where 𝔼|f| = α."
 
 register_result "azuma-hoeffding-seq-process" where
   title := "Azuma–Hoeffding exponential moment and tail inequalities for sequential PMF processes"

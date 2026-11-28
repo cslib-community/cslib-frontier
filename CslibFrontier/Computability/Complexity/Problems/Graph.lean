@@ -56,6 +56,7 @@ This module holds the tools these problems share:
 
 * `Cslib.Complexity.Graph`, `Cslib.Complexity.encGraph`, `Cslib.Complexity.Graph.toSimpleGraph`,
   `Cslib.Complexity.Graph.induced`.
+* `Cslib.Complexity.encEdgeList`: edge lists as framed lists of binary pairs.
 * `Cslib.Complexity.Graph.adjBool`: executable adjacency.
 * `Cslib.Complexity.Graph.verifySubset`: the verifier of a vertex subset problem.
 * `Cslib.Complexity.Graph.distinctVertices`, `Cslib.Complexity.Graph.vertexEquiv`: the declared
@@ -108,6 +109,9 @@ enc_structure encGraph : Graph where
   edges : (encList (encPair encNat encNat))
 
 attribute [fun_prop] encGraph_vertices_polyTime encGraph_edges_polyTime encGraph_mk_polyTime
+
+/-- Edge lists, such as the edges of a `Graph`, as framed lists of binary pairs. -/
+abbrev encEdgeList : List (ℕ × ℕ) ↪ List Bool := encList (encPair encNat encNat)
 
 /-- The simple graph of an edge list: two distinct vertices are adjacent when an edge joins them,
 in either direction. -/

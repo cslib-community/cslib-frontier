@@ -27,6 +27,20 @@ open Cslib.DataStructure.Dictionary
 open Cslib.DataStructure.Dictionary.FeistelQuotient
 open Finset
 
+/-- Helper: every active coordinate `(b, loc)` (`b < M`, `loc < fs.bktCount b`) in `CoreFastInv`
+yields a key `u : Fin U` in `Dictionary.dom dict` with bucket `b` and quotient
+`fs.quotArr (fs.physSlot n_max b loc)`. -/
+theorem CoreFastInv.mem_dom_of_loc {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
+    {fs : FastState} {dict : State U} (hc : CoreFastInv c U V n_max θ fs dict)
+    {b loc : ℕ} (hb : b < numBucketsWhp n_max) (hloc : loc < fs.bktCount b) :
+    let u : Fin U := ⟨fs.keyValAt c U n_max θ.1 b loc, (hc.active_item b hb loc hloc).1⟩
+    u ∈ Dictionary.dom dict ∧
+    feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val = b := by
+  obtain ⟨hkv_lt, hfb, hq_eq, _⟩ := hc.active_item b hb loc hloc
+  let u : Fin U := ⟨fs.keyValAt c U n_max θ.1 b loc, hkv_lt⟩
+  refine ⟨Dictionary.mem_dom_iff.mpr ⟨fs.valArr (fs.physSlot n_max b loc), ?_⟩, hfb⟩
+  exact ((hc.dict_map u).2 _).mpr ⟨loc, hfb.symm ▸ hloc, hfb.symm ▸ hq_eq.symm, hfb.symm ▸ rfl⟩
+
 /-- In any `CoreFastInv` state, `fs.bktCount b` equals the exact number of keys in
 `Dictionary.dom dict` hashing to Feistel bucket `b`. -/
 theorem CoreFastInv.bktCount_eq_card_filter {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
@@ -40,20 +54,13 @@ theorem CoreFastInv.bktCount_eq_card_filter {c U V n_max : ℕ} {θ : SeedWhp c 
     fun u => feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val = b
   let toKey : (loc : Fin (fs.bktCount b)) → Fin U :=
     fun loc => ⟨fs.keyValAt c U n_max θ.1 b loc.val, (hc.active_item b hb loc.val loc.isLt).1⟩
-  have hmem : ∀ loc : Fin (fs.bktCount b), toKey loc ∈ S := by
-    intro loc
-    obtain ⟨_, hfb, hq_eq, _⟩ := hc.active_item b hb loc.val loc.isLt
-    rw [mem_filter, Dictionary.mem_dom_iff]
-    refine ⟨⟨fs.valArr (fs.physSlot n_max b loc.val), ?_⟩, hfb⟩
-    exact ((hc.dict_map (toKey loc)).2 _).mpr
-      ⟨loc.val, hfb.symm ▸ loc.isLt, hfb.symm ▸ hq_eq.symm, hfb.symm ▸ rfl⟩
-  have hinj : Function.Injective toKey := by
-    intro l₁ l₂ heq
-    have hkv : fs.keyValAt c U n_max θ.1 b l₁.val = fs.keyValAt c U n_max θ.1 b l₂.val :=
-      congrArg Fin.val heq
-    have hq₁ := (hc.active_item b hb l₁.val l₁.isLt).2.2.1
-    have hq₂ := (hc.active_item b hb l₂.val l₂.isLt).2.2.1
-    exact Fin.ext (hc.quot_inj b hb l₁.val l₁.isLt l₂.val l₂.isLt (hq₁.symm.trans (hkv ▸ hq₂)))
+  have hmem (loc : Fin (fs.bktCount b)) : toKey loc ∈ S :=
+    mem_filter.mpr (hc.mem_dom_of_loc hb loc.isLt)
+  have hinj : Function.Injective toKey := fun l₁ l₂ heq =>
+    Fin.ext (hc.quot_inj b hb l₁.val l₁.isLt l₂.val l₂.isLt
+      ((hc.active_item b hb l₁.val l₁.isLt).2.2.1.symm.trans
+        ((show fs.keyValAt c U n_max θ.1 b l₁.val = _ from congrArg Fin.val heq) ▸
+          (hc.active_item b hb l₂.val l₂.isLt).2.2.1)))
   have hsurj : ∀ u ∈ S, ∃ loc : Fin (fs.bktCount b), toKey loc = u := by
     intro u hu
     rw [mem_filter, Dictionary.mem_dom_iff] at hu
@@ -64,11 +71,9 @@ theorem CoreFastInv.bktCount_eq_card_filter {c U V n_max : ℕ} {θ : SeedWhp c 
     dsimp only [toKey, FastState.keyValAt]
     rw [hq_loc, ← hfb]
     exact feistelReconstruct_feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val
-  symm
-  refine (Finset.card_bij (fun (loc : Fin (fs.bktCount b)) _ => toKey loc)
-    (fun loc _ => hmem loc) (fun _ _ _ _ h => hinj h)
-    (fun u hu => let ⟨loc, hl⟩ := hsurj u hu; ⟨loc, mem_univ loc, hl⟩)).symm.trans ?_
-  simp
+  exact (by simp : fs.bktCount b = #(univ : Finset (Fin (fs.bktCount b)))).trans
+    (Finset.card_bij (fun loc _ => toKey loc) (fun loc _ => hmem loc)
+      (fun _ _ _ _ h => hinj h) fun u hu => (hsurj u hu).elim fun loc hl => ⟨loc, mem_univ loc, hl⟩)
 
 /-- When `fs.fpAt c U n_max θ fs.rebCandSalt b` is injective on all active Stage-2 coordinates of
 bucket `b`, `rebScanSteps` never sets `rebCollision` to non-zero. -/
@@ -94,7 +99,7 @@ theorem rebScanSteps_rebCollision_eq_zero_of_inj {c U n_max b : ℕ}
   | succ rem ih =>
     obtain ⟨rm0, hvr0, hrr0⟩ := hreb0
     dsimp only [rebScanSteps]
-    rw [ite_eq_right (by omega : ¬(fs.rebCollision ≠ 0))]
+    rw [ite_eq_right (not_not.mpr hcoll0)]
     set cur := fs.rebScanCursor
     set rIdx := fs.rebSliceIdx b
     by_cases hact : cur < fs.bktCount b ∧ (fs.locState b cur = 1 ∨ fs.locState b cur = 2 + fs.oldEp)
@@ -103,19 +108,16 @@ theorem rebScanSteps_rebCollision_eq_zero_of_inj {c U n_max b : ℕ}
       have hfp_lt : fp < 2 ^ fpBitsWhp n_max := by
         dsimp only [fp, FastState.fpAt]
         split_ifs with hs hu
-        · exact fpHash_lt c U n_max θ.2 ⟨_, hs⟩ ⟨_, hu⟩
-        · exact Nat.two_pow_pos _
-        · exact Nat.two_pow_pos _
+        exacts [fpHash_lt c U n_max θ.2 ⟨_, hs⟩ ⟨_, hu⟩, Nat.two_pow_pos _, Nat.two_pow_pos _]
       cases hlk : btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
           (fs.slices rIdx) fp with
       | some prev_loc =>
         exfalso
         rw [hvr0.lookup_eq hth (by omega) hfp_lt] at hlk
         obtain ⟨hprev_min, hp_prev, hfp_prev⟩ := (hrr0.2 fp prev_loc).mp hlk
-        have hprev_lt_cur : prev_loc < cur := hprev_min.trans_le (Nat.min_le_right _ _)
-        have hprev_lt_cnt : prev_loc < fs.bktCount b := hprev_min.trans_le (Nat.min_le_left _ _)
-        have heq := hinj_all prev_loc hprev_lt_cnt cur hact.1 hp_prev hact.2 hfp_prev
-        omega
+        have heq := hinj_all prev_loc (hprev_min.trans_le (Nat.min_le_left _ _)) cur hact.1
+          hp_prev hact.2 hfp_prev
+        exact (hprev_min.trans_le (Nat.min_le_right _ _)).ne heq
       | none =>
         dsimp only
         have hcur_val : cur < 2 ^ valLaneBitsWhp n_max := by
@@ -131,21 +133,15 @@ theorem rebScanSteps_rebCollision_eq_zero_of_inj {c U n_max b : ℕ}
             slices := Function.update fs.slices rIdx sl'
             rebScanCursor := cur + 1
             rebInsCount := fs.rebInsCount + 1 }
-        have hfp1 : fs1.fpAt c U n_max θ fs1.rebCandSalt b =
-            fs.fpAt c U n_max θ fs.rebCandSalt b := rfl
         refine ih fs1 hcoll0 hcnt_le (by dsimp only [fs1]; omega) hinj_all
           ⟨Function.update rm0 fp (some cur), ?_, ?_⟩
         · change ValidWhpSlice n_max (fs.rebInsCount + 1)
             (Function.update fs.slices rIdx sl' rIdx) _
           rw [Function.update_self]; exact hins.2
-        · rw [hfp1]
-          have hmin_eq : min (fs.bktCount b) (cur + 1) = cur + 1 :=
-            Nat.min_eq_right (Nat.succ_le_of_lt hact.1)
-          have hmin0 : min (fs.bktCount b) cur = cur :=
-            Nat.min_eq_right hact.1.le
-          rw [hmin0] at hrr0
-          change SliceMapRel _ _ (min (fs.bktCount b) (cur + 1)) _
-          rw [hmin_eq]
+        · rw [Nat.min_eq_right hact.1.le] at hrr0
+          change SliceMapRel (fs.fpAt c U n_max θ fs.rebCandSalt b) _
+            (min (fs.bktCount b) (cur + 1)) _
+          rw [Nat.min_eq_right (Nat.succ_le_of_lt hact.1)]
           exact SliceMapRel.step_true hrr0 hact.2 fun loc hlt hp =>
             fun heq => Nat.ne_of_lt hlt (hinj_all loc (hlt.trans hact.1) cur hact.1 hp hact.2 heq)
     · rw [ite_eq_right hact]
@@ -155,45 +151,23 @@ theorem rebScanSteps_rebCollision_eq_zero_of_inj {c U n_max b : ℕ}
         (fun loc => fs.locState b loc = 1 ∨ fs.locState b loc = 2 + fs.oldEp)
         (min (fs.bktCount b) (cur + 1)) rm0
       by_cases hlt_cnt : cur < fs.bktCount b
-      · have hmin0 : min (fs.bktCount b) cur = cur := Nat.min_eq_right hlt_cnt.le
-        have hmin1 : min (fs.bktCount b) (cur + 1) = cur + 1 :=
-          Nat.min_eq_right (Nat.succ_le_of_lt hlt_cnt)
-        rw [hmin0] at hrr0; rw [hmin1]
+      · rw [Nat.min_eq_right hlt_cnt.le] at hrr0
+        rw [Nat.min_eq_right (Nat.succ_le_of_lt hlt_cnt)]
         exact SliceMapRel.step_false hrr0 fun hp => hact ⟨hlt_cnt, hp⟩
-      · have hmin0 : min (fs.bktCount b) cur = fs.bktCount b :=
-          Nat.min_eq_left (Nat.le_of_not_lt hlt_cnt)
-        have hmin1 : min (fs.bktCount b) (cur + 1) = fs.bktCount b :=
-          Nat.min_eq_left (by omega)
-        rwa [hmin1, ← hmin0]
+      · have hmin : min (fs.bktCount b) (cur + 1) = min (fs.bktCount b) cur := by omega
+        rwa [hmin]
 
 /-- `bufClearSteps k` on a `ClearableBufTrie` sets `nodeAlloc = max 1 (tr.nodeAlloc - k)`. -/
 theorem ClearableBufTrie.clearSteps_nodeAlloc_eq :
     ∀ (k : ℕ) {tr : BufTrie}, ClearableBufTrie tr →
       (bufClearSteps k tr).nodeAlloc = max 1 (tr.nodeAlloc - k)
-  | 0, tr, hc => by
-    have := hc.bounds.1
-    dsimp only [bufClearSteps]
-    omega
+  | 0, _, hc => (Nat.max_eq_right hc.bounds.1).symm
   | k + 1, tr, hc => by
     obtain ⟨hc1, hna1⟩ := hc.clearOne_step
     dsimp only [bufClearSteps]
     rw [hc1.clearSteps_nodeAlloc_eq k, hna1]
     have := hc.bounds.1
     omega
-
-/-- Helper: every active coordinate `(b, loc)` (`b < M`, `loc < fs.bktCount b`) in `CoreFastInv`
-yields a key `u : Fin U` in `Dictionary.dom dict` with bucket `b` and quotient
-`fs.quotArr (fs.physSlot n_max b loc)`. -/
-theorem CoreFastInv.mem_dom_of_loc {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
-    {fs : FastState} {dict : State U} (hc : CoreFastInv c U V n_max θ fs dict)
-    {b loc : ℕ} (hb : b < numBucketsWhp n_max) (hloc : loc < fs.bktCount b) :
-    let u : Fin U := ⟨fs.keyValAt c U n_max θ.1 b loc, (hc.active_item b hb loc hloc).1⟩
-    u ∈ Dictionary.dom dict ∧
-    feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val = b := by
-  obtain ⟨hkv_lt, hfb, hq_eq, _⟩ := hc.active_item b hb loc hloc
-  let u : Fin U := ⟨fs.keyValAt c U n_max θ.1 b loc, hkv_lt⟩
-  refine ⟨Dictionary.mem_dom_iff.mpr ⟨fs.valArr (fs.physSlot n_max b loc), ?_⟩, hfb⟩
-  exact ((hc.dict_map u).2 _).mpr ⟨loc, hfb.symm ▸ hloc, hfb.symm ▸ hq_eq.symm, hfb.symm ▸ rfl⟩
 
 theorem rebScanSteps_meta (c U n_max b : ℕ) (θ : SeedWhp c U n_max) :
     ∀ (k : ℕ) (s : FastState),
@@ -271,74 +245,9 @@ theorem overmarsStep_meta (c U n_max b : ℕ) (θ : SeedWhp c U n_max) (s : Fast
     (overmarsStep c U n_max θ b s).dirtyBuckets = s.dirtyBuckets ∧
     (overmarsStep c U n_max θ b s).rebCandSalt = s.rebCandSalt ∧
     (overmarsStep c U n_max θ b s).rebScanCursor = s.rebScanCursor := by
-  have hfin : ∀ fs1 : FastState,
-      fs1.epochClock = s.epochClock ∧ fs1.curEp = s.curEp ∧ fs1.buf = s.buf ∧
-      fs1.rebStage = s.rebStage ∧ fs1.stageCursor = s.stageCursor ∧
-      fs1.dirtyCount = s.dirtyCount ∧ fs1.dirtyIdx = s.dirtyIdx ∧
-      fs1.dirtyBuckets = s.dirtyBuckets ∧ fs1.rebCandSalt = s.rebCandSalt ∧
-      fs1.rebScanCursor = s.rebScanCursor →
-      let r : FastState :=
-        if fs1.bktCount b ≤ fs1.overmarsCursor b then
-          { fs1 with
-            liveRole := Function.update fs1.liveRole b (fs1.overmarsRole b)
-            overmarsRole := Function.update fs1.overmarsRole b (fs1.liveRole b)
-            liveInsCount := Function.update fs1.liveInsCount b (fs1.overmarsInsCount b)
-            overmarsActive := Function.update fs1.overmarsActive b 0
-            overmarsCursor := Function.update fs1.overmarsCursor b 0
-            overmarsInsCount := Function.update fs1.overmarsInsCount b 0 }
-        else fs1
-      r.epochClock = s.epochClock ∧ r.curEp = s.curEp ∧ r.buf = s.buf ∧
-      r.rebStage = s.rebStage ∧ r.stageCursor = s.stageCursor ∧
-      r.dirtyCount = s.dirtyCount ∧ r.dirtyIdx = s.dirtyIdx ∧
-      r.dirtyBuckets = s.dirtyBuckets ∧ r.rebCandSalt = s.rebCandSalt ∧
-      r.rebScanCursor = s.rebScanCursor := by
-    intro fs1 hm
-    by_cases hd : fs1.bktCount b ≤ fs1.overmarsCursor b
-    · dsimp only; rw [ite_eq_left hd]; exact hm
-    · dsimp only; rw [ite_eq_right hd]; exact hm
-  have hgo : ∀ t : FastState,
-      t.epochClock = s.epochClock ∧ t.curEp = s.curEp ∧ t.buf = s.buf ∧
-      t.rebStage = s.rebStage ∧ t.stageCursor = s.stageCursor ∧
-      t.dirtyCount = s.dirtyCount ∧ t.dirtyIdx = s.dirtyIdx ∧
-      t.dirtyBuckets = s.dirtyBuckets ∧ t.rebCandSalt = s.rebCandSalt ∧
-      t.rebScanCursor = s.rebScanCursor →
-      let r : FastState :=
-        if t.overmarsActive b = 1 then
-          let fs1 := overmarsScanSteps c U n_max θ b 16 t
-          if fs1.bktCount b ≤ fs1.overmarsCursor b then
-            { fs1 with
-              liveRole := Function.update fs1.liveRole b (fs1.overmarsRole b)
-              overmarsRole := Function.update fs1.overmarsRole b (fs1.liveRole b)
-              liveInsCount := Function.update fs1.liveInsCount b (fs1.overmarsInsCount b)
-              overmarsActive := Function.update fs1.overmarsActive b 0
-              overmarsCursor := Function.update fs1.overmarsCursor b 0
-              overmarsInsCount := Function.update fs1.overmarsInsCount b 0 }
-          else fs1
-        else t
-      r.epochClock = s.epochClock ∧ r.curEp = s.curEp ∧ r.buf = s.buf ∧
-      r.rebStage = s.rebStage ∧ r.stageCursor = s.stageCursor ∧
-      r.dirtyCount = s.dirtyCount ∧ r.dirtyIdx = s.dirtyIdx ∧
-      r.dirtyBuckets = s.dirtyBuckets ∧ r.rebCandSalt = s.rebCandSalt ∧
-      r.rebScanCursor = s.rebScanCursor := by
-    intro t ht
-    by_cases ha : t.overmarsActive b = 1
-    · dsimp only; rw [ite_eq_left ha]
-      have hm := overmarsScanSteps_meta c U n_max b θ 16 t
-      exact hfin (overmarsScanSteps c U n_max θ b 16 t)
-        ⟨hm.1.trans ht.1, hm.2.1.trans ht.2.1, hm.2.2.1.trans ht.2.2.1,
-         hm.2.2.2.1.trans ht.2.2.2.1, hm.2.2.2.2.1.trans ht.2.2.2.2.1,
-         hm.2.2.2.2.2.1.trans ht.2.2.2.2.2.1, hm.2.2.2.2.2.2.1.trans ht.2.2.2.2.2.2.1,
-         hm.2.2.2.2.2.2.2.1.trans ht.2.2.2.2.2.2.2.1,
-         hm.2.2.2.2.2.2.2.2.1.trans ht.2.2.2.2.2.2.2.2.1,
-         hm.2.2.2.2.2.2.2.2.2.trans ht.2.2.2.2.2.2.2.2.2⟩
-    · dsimp only; rw [ite_eq_right ha]; exact ht
   unfold overmarsStep overmarsAfterActivate
   dsimp only
-  by_cases hc0 : s.overmarsActive b = 0 ∧ 5 * (slabScale n_max) ^ 12 ≤ s.liveInsCount b
-  · rw [ite_eq_left hc0]
-    exact hgo _ ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
-  · rw [ite_eq_right hc0]
-    exact hgo s ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  split_ifs <;> simp only [overmarsScanSteps_meta, and_self]
 
 theorem bufDelete_everPresent (cTab bChar : ℕ) (tr : BufTrie) (rKey k : ℕ) :
     bufEverPresent cTab bChar (bufDelete cTab bChar tr rKey) k =
@@ -356,11 +265,7 @@ theorem ValidBufTrie.everPresent_of_map_some {cTab bChar k b loc : ℕ} {tr : Bu
   have hlk : bufLookup cTab bChar tr k = some (b, loc) := (hv.lookup_eq hk).trans hm
   dsimp only [bufLookup, bufEverPresent] at hlk ⊢
   cases hw : bufWalk bChar tr.trieChild k cTab 0 0 with
-  | none => rw [hw] at hlk; cases hlk
-  | some leaf =>
-    rw [hw] at hlk; dsimp only at hlk
-    by_cases hz : tr.nodeLeafItem leaf = 0
-    · simp [hz] at hlk
-    · simp [hz]
+  | none => simp [hw] at hlk
+  | some leaf => by_cases hz : tr.nodeLeafItem leaf = 0 <;> simp [hw, hz] at hlk ⊢
 
 end Cslib.DataStructure.Dictionary.SuccinctWhp

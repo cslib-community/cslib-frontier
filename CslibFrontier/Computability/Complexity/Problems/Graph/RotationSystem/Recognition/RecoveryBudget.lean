@@ -33,13 +33,10 @@ theorem remaining_append (I : FixedRotationInput) (v : ℕ) (block : List ℕ) (
   rw [hn.erase_eq_filter]
   unfold remaining
   rw [List.filter_filter]
-  apply List.filter_congr
-  intro e _
+  refine List.filter_congr fun e _ => ?_
   by_cases h : d = e
-  · subst e
-    simp
-  · have he : e ≠ d := Ne.symm h
-    simp [h, he]
+  · simp [h]
+  · simp [h, Ne.symm h]
 
 /-- Upper charge for extension queries: one full remaining-list scan per nonempty search.
 The only carried simulated state is the same optional block as in `advance`. -/
@@ -65,15 +62,13 @@ theorem twice_extensionWork_le (I : FixedRotationInput) (v fuel : ℕ) (block : 
     split
     · exact Nat.zero_le _
     · rename_i hnonempty
-      have hp : 0 < (remaining I v block).length := by
-        have hn : remaining I v block ≠ [] := by simpa using hnonempty
-        exact List.length_pos_iff.mpr hn
+      have hp : 0 < (remaining I v block).length :=
+        List.length_pos_iff.mpr (by simpa using hnonempty)
       cases hs : advance I v (some block) with
       | none => simp only [extensionWork_none, Nat.add_zero]; nlinarith
       | some result =>
         rcases advance_some hs with ⟨he, _⟩ | ⟨d, hd, _, rfl⟩
-        · simp only [he, List.length_nil] at hp
-          omega
+        · simp [he] at hp
         · have hlen : (remaining I v (block ++ [d])).length + 1 =
               (remaining I v block).length := by
             rw [remaining_append, List.length_erase_of_mem hd]
@@ -135,20 +130,16 @@ theorem twice_recoveryWork_le (vertices : List ℕ) (I : FixedRotationInput) :
 /-- Distinct listed vertices own disjoint dart fibers, so their total degree is at most `2m`,
 including raw graphs with undeclared endpoints, loops and parallel listed edges. -/
 theorem nodup_flatMap_fiber (G : Graph) (vertices : List ℕ) (hn : vertices.Nodup) :
-    (vertices.flatMap (fiber G)).Nodup := by
-  apply List.nodup_flatMap.mpr
-  refine ⟨fun v _ => nodup_fiber G v, hn.imp ?_⟩
-  intro u v huv
-  apply List.disjoint_left.mpr
-  intro d hu hv
-  exact huv ((mem_fiber.mp hu).2.symm.trans (mem_fiber.mp hv).2)
+    (vertices.flatMap (fiber G)).Nodup :=
+  List.nodup_flatMap.mpr ⟨fun v _ => nodup_fiber G v, hn.imp fun huv =>
+    List.disjoint_left.mpr fun _ hu hv =>
+      huv ((mem_fiber.mp hu).2.symm.trans (mem_fiber.mp hv).2)⟩
 
 /-- Distinct listed vertices have total degree at most `2m`, including on raw listed graphs. -/
 theorem sum_fiber_lengths_le (G : Graph) (vertices : List ℕ) (hn : vertices.Nodup) :
-    (vertices.map fun v => (fiber G v).length).sum ≤ 2 * G.edges.length := by
-  have hsub : vertices.flatMap (fiber G) ⊆ List.range (2 * G.edges.length) := by
-    intro d hd
-    obtain ⟨v, _, hv⟩ := List.mem_flatMap.mp hd
+    (vertices.map fun v => (fiber G v).length).sum ≤ 2 * G.2.length := by
+  have hsub : vertices.flatMap (fiber G) ⊆ List.range (2 * G.2.length) := fun d hd => by
+    obtain ⟨_, _, hv⟩ := List.mem_flatMap.mp hd
     exact List.mem_range.mpr (mem_fiber.mp hv).1
   simpa only [List.length_flatMap, List.length_range] using
     (nodup_flatMap_fiber G vertices hn).length_le_of_subset hsub
@@ -156,26 +147,22 @@ theorem sum_fiber_lengths_le (G : Graph) (vertices : List ℕ) (hn : vertices.No
 /-- The initial query plus all charged extension scans is at most `1+2m²` on general all-free
 graphs, and hence also on any mixture of complete fixed/free vertices. -/
 theorem recoveryWork_le (I : FixedRotationInput) :
-    1 + recoveryWork (List.range I.graph.vertices.length) (some I) ≤
-        1 + 2 * I.graph.edges.length ^ 2 := by
-  let vertices := List.range I.graph.vertices.length
+    1 + recoveryWork (List.range I.graph.1.length) (some I) ≤ 1 + 2 * I.graph.2.length ^ 2 := by
+  let vertices := List.range I.graph.1.length
   let degree (v : ℕ) := (fiber I.graph v).length
   have hn : vertices.Nodup := List.nodup_range
   have hb := twice_recoveryWork_le vertices I
-  have hdeg := sum_fiber_lengths_le I.graph vertices hn
+  have hsq := Nat.pow_le_pow_left (sum_fiber_lengths_le I.graph vertices hn) 2
   have hp : (vertices.map fun v => degree v * (degree v - 1)).sum ≤
-      (vertices.map fun v => degree v ^ 2).sum := by
-    apply List.sum_le_sum
-    intro v _
-    have := Nat.sub_le (degree v) 1
-    nlinarith
+      (vertices.map fun v => degree v ^ 2).sum :=
+    List.sum_le_sum fun v _ => by
+      have := Nat.sub_le (degree v) 1
+      nlinarith
   have hs : (vertices.map fun v => degree v ^ 2).sum ≤ (vertices.map degree).sum ^ 2 := by
     rw [← List.sum_toFinset _ hn, ← List.sum_toFinset _ hn]
-    exact Finset.sum_sq_le_sq_sum_of_nonneg (fun _ _ => Nat.zero_le _)
-  have hsq := Nat.pow_le_pow_left hdeg 2
-  change _ ≤ 2 * I.graph.edges.length at hdeg
+    exact Finset.sum_sq_le_sq_sum_of_nonneg fun _ _ => Nat.zero_le _
   change 2 * recoveryWork vertices (some I) ≤ _ at hb
-  change _ ≤ (2 * I.graph.edges.length) ^ 2 at hsq
+  change _ ≤ (2 * I.graph.2.length) ^ 2 at hsq
   nlinarith
 
 /-- Previously fixed vertices charge zero even while other complete orders are recovered. -/
@@ -208,39 +195,37 @@ theorem twice_recoveryWork_preserves_le (vertices : List ℕ) (original current 
 /-- Every selected white incidence dart has an even binary index, retaining its occurrence. -/
 theorem white_fiber_even {Rel V : Type} [DecidableEq V] {F : Cslib.Logic.PL.CSP Rel V}
     {v d : ℕ} (hv : v < F.numVars) (hd : d ∈ fiber (CSP.incidenceGraph F) v) :
-    d ∈ (List.range (CSP.incidenceGraph F).edges.length).map (2 * ·) := by
+    d ∈ (List.range (CSP.incidenceGraph F).2.length).map (2 * ·) := by
   obtain ⟨hwidth, hvertex⟩ := mem_fiber.mp hd
   let dart := (Dart.indexEquiv (CSP.incidenceGraph F)).symm ⟨d, hwidth⟩
   have hi : dart.index = d := congrArg Fin.val
     ((Dart.indexEquiv (CSP.incidenceGraph F)).apply_symm_apply ⟨d, hwidth⟩)
   obtain ⟨o, ho⟩ := CSP.exists_incidenceDart dart
-  have hv' : dart.vertex = v := by rw [← Dart.vertex_index, hi]; exact hvertex
+  have hv' : dart.vertex = v := (Dart.vertex_index dart).symm.trans (hi ▸ hvertex)
   rw [← ho, CSP.vertex_incidenceDart] at hv'
   cases hs : dart.2 with
   | false =>
-    refine List.mem_map.mpr ⟨CSP.incidenceEdgeIndex o,
-      List.mem_range.mpr (CSP.incidenceEdgeIndex_lt o), ?_⟩
-    rw [← hi, ← ho]
-    simp [Dart.index, CSP.incidenceDart, hs]
+    exact List.mem_map.mpr ⟨CSP.incidenceEdgeIndex o,
+      List.mem_range.mpr (CSP.incidenceEdgeIndex_lt o), by
+        rw [← hi, ← ho]
+        simp [Dart.index, CSP.incidenceDart, hs]⟩
   | true => simp only [hs, ↓reduceIte] at hv'; omega
 
 /-- Original CSP recovery charges at most `1+m²` queries. Constraint-side words are already
 complete, so only white vertices contribute, with one white end per actual occurrence. -/
 theorem recoveryWork_ofCSP_le {Rel V : Type} [DecidableEq V] (F : Cslib.Logic.PL.CSP Rel V) :
-    1 + recoveryWork (List.range (CSP.incidenceGraph F).vertices.length) (some (ofCSP F)) ≤
-      1 + (CSP.incidenceGraph F).edges.length ^ 2 := by
+    1 + recoveryWork (List.range (CSP.incidenceGraph F).1.length) (some (ofCSP F)) ≤
+      1 + (CSP.incidenceGraph F).2.length ^ 2 := by
   let I := ofCSP F
-  let vertices := List.range I.graph.vertices.length
+  let vertices := List.range I.graph.1.length
   let degree (v : ℕ) := (fiber I.graph v).length
   let weight (v : ℕ) := if (I.orders.getD v none).isSome then 0 else degree v
   let freeVertices := vertices.filter fun v => !((I.orders.getD v none).isSome)
   have hn : vertices.Nodup := List.nodup_range
-  have hwhite : ∀ v ∈ freeVertices, v < F.numVars := by
-    intro v hv
+  have hwhite : ∀ v ∈ freeVertices, v < F.numVars := fun v hv => by
     obtain ⟨hv, hfree⟩ := List.mem_filter.mp hv
-    have hlen : v < (CSP.incidenceGraph F).vertices.length := List.mem_range.mp hv
     have hread := getD_freePrefix (CSP.incidenceGraph F) F.numVars v
-      (valid_ofCSP F).1 hlen
+      (valid_ofCSP F).1 (List.mem_range.mp hv)
     change (!((freePrefix (CSP.incidenceGraph F) F.numVars).orders.getD v none).isSome) = true
       at hfree
     rw [hread] at hfree
@@ -248,11 +233,10 @@ theorem recoveryWork_ofCSP_le {Rel V : Type} [DecidableEq V] (F : Cslib.Logic.PL
     · assumption
     · simp at hfree
   have hsub : freeVertices.flatMap (fiber I.graph) ⊆
-      (List.range (CSP.incidenceGraph F).edges.length).map (2 * ·) := by
-    intro d hd
+      (List.range (CSP.incidenceGraph F).2.length).map (2 * ·) := fun d hd => by
     obtain ⟨v, hv, hd⟩ := List.mem_flatMap.mp hd
     exact white_fiber_even (hwhite v hv) hd
-  have hdegrees : (freeVertices.map degree).sum ≤ (CSP.incidenceGraph F).edges.length := by
+  have hdegrees : (freeVertices.map degree).sum ≤ (CSP.incidenceGraph F).2.length := by
     simpa only [List.length_flatMap, List.length_map, List.length_range] using
       (nodup_flatMap_fiber I.graph freeVertices (hn.filter _)).length_le_of_subset hsub
   have hweights : (vertices.map weight).sum = (freeVertices.map degree).sum := by
@@ -263,17 +247,16 @@ theorem recoveryWork_ofCSP_le {Rel V : Type} [DecidableEq V] (F : Cslib.Logic.PL
   have hwork := twice_recoveryWork_preserves_le vertices I I rfl (fun _ _ h => h)
   have hp : (vertices.map fun v =>
       if (I.orders.getD v none).isSome then 0 else degree v * (degree v - 1)).sum ≤
-      (vertices.map fun v => weight v ^ 2).sum := by
-    apply List.sum_le_sum
-    intro v _
-    dsimp only [weight]
-    split
-    · simp
-    · have := Nat.sub_le (degree v) 1
-      nlinarith
+      (vertices.map fun v => weight v ^ 2).sum :=
+    List.sum_le_sum fun v _ => by
+      dsimp only [weight]
+      split
+      · simp
+      · have := Nat.sub_le (degree v) 1
+        nlinarith
   have hs : (vertices.map fun v => weight v ^ 2).sum ≤ (vertices.map weight).sum ^ 2 := by
     rw [← List.sum_toFinset _ hn, ← List.sum_toFinset _ hn]
-    exact Finset.sum_sq_le_sq_sum_of_nonneg (fun _ _ => Nat.zero_le _)
+    exact Finset.sum_sq_le_sq_sum_of_nonneg fun _ _ => Nat.zero_le _
   rw [hweights] at hs
   have hsq := Nat.pow_le_pow_left hdegrees 2
   change 1 + recoveryWork vertices (some I) ≤ _

@@ -371,33 +371,21 @@ theorem three_le_signRank_equality [Fintype Y] [DecidableEq Y] (hY : 3 < Fintype
   have hoff {x y : Fin 4} (hxy : x ≠ y) : 0 < M x y := hUV.pos_of_false (by simp [equality, hxy])
   obtain ⟨c, hc0, hck⟩ : ∃ c : Fin 3 → ℝ, (c 0 ≠ 0 ∨ c 1 ≠ 0 ∨ c 2 ≠ 0) ∧
       ∀ k : Fin 2, c 0 * U 0 k + c 1 * U 1 k + c 2 * U 2 k = 0 := by
+    suffices ∃ a b d : ℝ, (a ≠ 0 ∨ b ≠ 0 ∨ d ≠ 0) ∧ a * U 0 0 + b * U 1 0 + d * U 2 0 = 0 ∧
+        a * U 0 1 + b * U 1 1 + d * U 2 1 = 0 by
+      obtain ⟨a, b, d, h0, h1, h2⟩ := this
+      exact ⟨![a, b, d], h0, Fin.forall_fin_two.mpr ⟨h1, h2⟩⟩
     by_cases hd : U 0 0 * U 1 1 - U 1 0 * U 0 1 = 0
     · by_cases hu0 : U 0 0 = 0
       · have hu1 : U 0 1 ≠ 0 := fun h => by
           simpa [M, Matrix.mul_apply, Fin.sum_univ_two, hu0, h] using (hdiag 0).ne
-        refine ⟨![U 1 1, -U 0 1, 0], Or.inr (Or.inl (neg_ne_zero.mpr hu1)), fun k => ?_⟩
-        fin_cases k <;>
-          simp only [Fin.isValue, Fin.zero_eta, Fin.mk_one, Matrix.cons_val_zero,
-            Matrix.cons_val_one, Matrix.cons_val_two, Matrix.tail_cons, Matrix.head_cons] <;>
-          linarith [hd]
-      · refine ⟨![U 1 0, -U 0 0, 0], Or.inr (Or.inl (neg_ne_zero.mpr hu0)), fun k => ?_⟩
-        fin_cases k <;>
-          simp only [Fin.isValue, Fin.zero_eta, Fin.mk_one, Matrix.cons_val_zero,
-            Matrix.cons_val_one, Matrix.cons_val_two, Matrix.tail_cons, Matrix.head_cons] <;>
-          linarith [hd]
-    · refine ⟨![U 1 0 * U 2 1 - U 2 0 * U 1 1, U 2 0 * U 0 1 - U 0 0 * U 2 1,
-          U 0 0 * U 1 1 - U 1 0 * U 0 1], Or.inr (Or.inr hd), fun k => ?_⟩
-      fin_cases k <;>
-        simp only [Fin.isValue, Fin.zero_eta, Fin.mk_one, Matrix.cons_val_zero,
-          Matrix.cons_val_one, Matrix.cons_val_two, Matrix.tail_cons, Matrix.head_cons] <;>
-        ring
+        exact ⟨U 1 1, -U 0 1, 0, Or.inr (Or.inl (neg_ne_zero.mpr hu1)), by linarith, by ring⟩
+      · exact ⟨U 1 0, -U 0 0, 0, Or.inr (Or.inl (neg_ne_zero.mpr hu0)), by ring, by linarith⟩
+    · exact ⟨U 1 0 * U 2 1 - U 2 0 * U 1 1, U 2 0 * U 0 1 - U 0 0 * U 2 1,
+        U 0 0 * U 1 1 - U 1 0 * U 0 1, Or.inr (Or.inr hd), by ring, by ring⟩
   have hM (y : Fin 4) : c 0 * M 0 y + c 1 * M 1 y + c 2 * M 2 y = 0 := by
     simp only [M, Matrix.mul_apply, Fin.sum_univ_two, Fin.isValue]
-    calc c 0 * (U 0 0 * V 0 y + U 0 1 * V 1 y) + c 1 * (U 1 0 * V 0 y + U 1 1 * V 1 y) +
-          c 2 * (U 2 0 * V 0 y + U 2 1 * V 1 y)
-        = (c 0 * U 0 0 + c 1 * U 1 0 + c 2 * U 2 0) * V 0 y +
-            (c 0 * U 0 1 + c 1 * U 1 1 + c 2 * U 2 1) * V 1 y := by ring
-      _ = 0 := by rw [hck 0, hck 1]; ring
+    linarith [mul_eq_zero_of_left (hck 0) (V 0 y), mul_eq_zero_of_left (hck 1) (V 1 y)]
   have no_rel (d₀ d₁ d₂ : ℝ) (hd : ∀ y : Fin 4, d₀ * M 0 y + d₁ * M 1 y + d₂ * M 2 y = 0) :
       ¬(0 < d₀ ∧ d₁ ≤ 0 ∧ d₂ ≤ 0) ∧ ¬(d₀ ≤ 0 ∧ 0 < d₁ ∧ d₂ ≤ 0) ∧
       ¬(d₀ ≤ 0 ∧ d₁ ≤ 0 ∧ 0 < d₂) ∧ ¬(0 ≤ d₀ ∧ 0 ≤ d₁ ∧ 0 ≤ d₂ ∧ 0 < d₀ + d₁ + d₂) :=

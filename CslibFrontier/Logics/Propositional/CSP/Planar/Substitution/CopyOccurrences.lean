@@ -50,15 +50,15 @@ private def replacementLocalOccurrence
     (gadgets : ∀ r, PPGadget arity sem (booleanRelation srcArity srcSem r))
     (B : ℕ) (F : CSP Src ℕ) (i : Fin F.length)
     (o : (gadgets F[i.val].rel).body.Occurrence) :
-    (instantiate B F.zipIdx[i.val].2 F.zipIdx[i.val].1.scope
-      (gadgets F.zipIdx[i.val].1.rel).template).Occurrence := by
+    (instantiate B F.zipIdx[i.val].2 F.zipIdx[i.val].1.2
+      (gadgets F.zipIdx[i.val].1.1).template).Occurrence := by
   have he : F.zipIdx[i.val] = (F[i.val], i.val) := by
     simpa only [Nat.zero_add] using
       (List.getElem_zipIdx (l := F) (i := i.val)
         (show i.val < F.zipIdx.length from by
           simpa only [List.length_zipIdx] using i.isLt))
   have hbody := congrArg (fun entry : Constraint Src ℕ × ℕ =>
-    instantiate B entry.2 entry.1.scope (gadgets entry.1.rel).template) he
+    instantiate B entry.2 entry.1.2 (gadgets entry.1.1).template) he
   exact hbody.symm ▸ instantiatedOccurrence (gadgets F[i.val].rel) B i.val F[i.val].scope o
 
 /-- Copy an actual local occurrence through the exact original replacement operation. -/
@@ -74,17 +74,17 @@ def replacementOccurrence
 
 private theorem incidenceEdgeIndex_cast {H K : CSP Rel ℕ} (h : H = K)
     (o : H.Occurrence) : incidenceEdgeIndex (h ▸ o) = incidenceEdgeIndex o := by
-  subst K
+  cases h
   rfl
 
 private theorem record_cast {H K : CSP Rel ℕ} (h : H = K) (o : H.Occurrence) :
     (h ▸ o).record = o.record := by
-  subst K
+  cases h
   rfl
 
 private theorem argumentSuccessor_cast {H K : CSP Rel ℕ} (h : H = K) (o : H.Occurrence) :
     argumentSuccessor (h ▸ o) = h ▸ argumentSuccessor o := by
-  subst K
+  cases h
   rfl
 
 private theorem argumentSuccessor_replacementLocalOccurrence
@@ -116,11 +116,11 @@ theorem incidenceEdgeIndex_replacementOccurrence
   unfold replacementOccurrence replaceGadgets
   rw [incidenceEdgeIndex_flatMapOccurrence]
   have hp : (CSP.vars ((F.zipIdx.take i.val).flatMap fun entry =>
-      instantiate B entry.2 entry.1.scope (gadgets entry.1.rel).template)).length =
+      instantiate B entry.2 entry.1.2 (gadgets entry.1.1).template)).length =
       occurrencePrefix (fun r => (gadgets r).template) F i.val := by
     rw [CSP.vars, List.flatMap_assoc]
     change ((F.zipIdx.take i.val).flatMap fun entry =>
-      (instantiate B entry.2 entry.1.scope (gadgets entry.1.rel).template).vars).length = _
+      (instantiate B entry.2 entry.1.2 (gadgets entry.1.1).template).vars).length = _
     simp only [instantiate, vars_relabel]
     exact instantiatedPrefix_length B (fun r => (gadgets r).template) F i.val
   rw [hp]
@@ -138,19 +138,14 @@ theorem replacementOccurrence_constraint
     (o : (gadgets F[i.val].rel).body.Occurrence) :
     (replacementOccurrence gadgets B F i o).1.val =
       ((F.take i.val).flatMap fun row => (gadgets row.rel).template).length + o.1.val := by
-  have hp (k : ℕ) : ((F.zipIdx.take k).flatMap fun entry =>
-      instantiate B entry.2 entry.1.scope (gadgets entry.1.rel).template).length =
-      ((F.take k).flatMap fun row => (gadgets row.rel).template).length := by
-    simp only [List.length_flatMap, instantiate, PPGadget.template, CSP.relabel,
-      List.length_map]
+  unfold replacementOccurrence replaceGadgets
+  rw [CSP.flatMapOccurrence_constraint]
+  congr 1
+  · generalize i.val = k
+    simp only [List.length_flatMap, instantiate, PPGadget.template, CSP.relabel, List.length_map]
     conv_rhs => rw [← List.zipIdx_map_fst 0 F, List.map_take, List.map_map]
     simp only [← List.map_take, Function.comp_def]
-  unfold replacementOccurrence replaceGadgets
-  rw [CSP.flatMapOccurrence_constraint, hp]
-  congr 1
-  change (replacementLocalOccurrence gadgets B F i o).record.1 = _
-  rw [record_replacementLocalOccurrence]
-  rfl
+  · exact congrArg (·.1) (record_replacementLocalOccurrence gadgets B F i o)
 
 /-- Copied argument positions keep exactly their local scope indices. -/
 theorem replacementOccurrence_argument
@@ -160,9 +155,7 @@ theorem replacementOccurrence_argument
     (replacementOccurrence gadgets B F i o).2.val = o.2.val := by
   unfold replacementOccurrence replaceGadgets
   rw [CSP.flatMapOccurrence_argument]
-  change (replacementLocalOccurrence gadgets B F i o).record.2.1 = _
-  rw [record_replacementLocalOccurrence]
-  rfl
+  exact congrArg (·.2.1) (record_replacementLocalOccurrence gadgets B F i o)
 
 /-- The actual copied occurrence map preserves the original positive scope successor.
 Neither local nor source scope names need to be distinct. -/
@@ -185,8 +178,7 @@ theorem var_replacementOccurrence
         (fun j => 2 * (B * i.val + j.val) + 1) o.var := by
   unfold replacementOccurrence replaceGadgets
   rw [CSP.var_flatMapOccurrence]
-  change (replacementLocalOccurrence gadgets B F i o).record.2.2 = _
-  rw [record_replacementLocalOccurrence]
+  refine (congrArg (·.2.2) (record_replacementLocalOccurrence gadgets B F i o)).trans ?_
   change (instantiatedOccurrence _ _ _ _ o).var = _
   unfold instantiatedOccurrence instantiate PPGadget.template
   rw [CSP.var_relabelOccurrence, CSP.var_relabelOccurrence]
@@ -231,19 +223,15 @@ theorem replacementOccurrence_injective
     Function.Injective (fun p : (i : Fin F.length) × (gadgets F[i.val].rel).body.Occurrence =>
       replacementOccurrence gadgets B F p.1 p.2) := by
   rintro ⟨i, o⟩ ⟨k, p⟩ he
-  have hindex := congrArg incidenceEdgeIndex he
-  rw [incidenceEdgeIndex_replacementOccurrence, incidenceEdgeIndex_replacementOccurrence] at hindex
   have hlocal (j : Fin F.length) (q : (gadgets F[j.val].rel).body.Occurrence) :
       incidenceEdgeIndex q < (gadgets F[j.val].rel).template.vars.length := by
     simpa only [PPGadget.template, vars_relabel, List.length_map] using
       incidenceEdgeIndex_lt_vars q
-  have hpos := copyIndex_injective (fun r => (gadgets r).template) F
-    i.isLt (hlocal i o) k.isLt (hlocal k p) hindex
-  have hik : i = k := Fin.ext hpos.1
-  subst k
-  have hop : o = p := incidenceEdgeIndex_injective hpos.2
-  subst p
-  rfl
+  have hpos := copyIndex_injective (fun r => (gadgets r).template) F i.isLt (hlocal i o)
+    k.isLt (hlocal k p) (by
+      simpa only [incidenceEdgeIndex_replacementOccurrence] using congrArg incidenceEdgeIndex he)
+  obtain rfl : i = k := Fin.ext hpos.1
+  exact congrArg (Sigma.mk i) (incidenceEdgeIndex_injective hpos.2)
 
 /-- Actual target occurrences correspond bijectively to their original copy/local positions.
 The inverse is proof-side finite choice; the executed compiler continues to use literal scans. -/

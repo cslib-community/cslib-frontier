@@ -1144,15 +1144,8 @@ theorem eq_of_query_eq {U' n' X m : ℕ} (hm : m ≤ n')
     (hwf₁ : WellFormed hm h e₁) (hwf₂ : WellFormed hm h e₂)
     (hz₁ : UnusedSlotsZero h e₁) (hz₂ : UnusedSlotsZero h e₂)
     (hq : query h e₁ = query h e₂) : e₁ = e₂ := by
-  have hqfin : ∀ u, queryFin h e₁ u = queryFin h e₂ u := fun u => by
-    have hqu : (queryFin h e₁ u).map Fin.val = (queryFin h e₂ u).map Fin.val := congrFun hq u
-    cases h1 : queryFin h e₁ u <;> cases h2 : queryFin h e₂ u
-    · rfl
-    · simp [h1, h2] at hqu
-    · simp [h1, h2] at hqu
-    · rename_i x₁ x₂
-      simp only [h1, h2, Option.map_some, Option.some.injEq] at hqu
-      exact congrArg some (Fin.ext hqu)
+  have hqfin (u) : queryFin h e₁ u = queryFin h e₂ u :=
+    Option.map_injective Fin.val_injective (congrFun hq u)
   have hmem_iff : ∀ {e : Encoded U' n' X m}, WellFormed hm h e →
       ∀ u, u ∈ activeSet e ↔ (queryFin h e u).isSome = true := fun {e} hwf u =>
     ⟨fun hu => (wellFormed_iff_queryFin_isSome hm h e).mp hwf u hu,
@@ -1184,13 +1177,7 @@ theorem eq_of_query_eq {U' n' X m : ℕ} (hm : m ≤ n')
       have hidx₁ : ((activeSet e₁).orderIsoOfFin (card_activeSet e₁)).symm ⟨u, hu₁⟩ = i :=
         ((activeSet e₁).orderIsoOfFin (card_activeSet e₁)).symm_apply_apply i
       have hu_eq₂ : u = (activeSet e₂).orderEmbOfFin (card_activeSet e₂) i := by
-        have hcongr : ∀ (S₁ S₂ : Finset (Fin U')) (h₁ : S₁.card = m) (h₂ : S₂.card = m),
-            S₁ = S₂ → S₁.orderEmbOfFin h₁ i = S₂.orderEmbOfFin h₂ i := by
-          rintro S _ h₁ h₂ rfl
-          have hsub : h₁ = h₂ := Subsingleton.elim _ _
-          subst hsub
-          rfl
-        exact hcongr _ _ _ _ hact
+        simp only [u, hact]
       have hsub₂ : (⟨u, hu₂⟩ : activeSet e₂) =
           (activeSet e₂).orderIsoOfFin (card_activeSet e₂) i := Subtype.ext hu_eq₂
       have hidx₂ : ((activeSet e₂).orderIsoOfFin (card_activeSet e₂)).symm ⟨u, hu₂⟩ = i := by

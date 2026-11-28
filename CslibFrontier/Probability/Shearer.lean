@@ -72,17 +72,17 @@ private theorem entropy_map_restrict_insert [DecidableEq ι] (P : PMF (∀ i, α
     entropy (P.map (insert a s).restrict) =
       entropy (P.map s.restrict) + conditionalEntropy (P.map fun x => (s.restrict x, x a)) := by
   let split (y : ∀ i : ↥(insert a s), α i) : (∀ i : ↥s, α i) × α a :=
-    (fun i => y ⟨i, mem_insert_of_mem i.property⟩, y ⟨a, mem_insert_self a s⟩)
-  have hsplit : Function.Injective split := by
-    intro y z hyz
-    funext ⟨i, hi⟩
+    (fun i => y ⟨i, mem_insert_of_mem i.2⟩, y ⟨a, mem_insert_self a s⟩)
+  have hsplit : Function.Injective split := fun y z hyz => funext fun ⟨i, hi⟩ => by
     rcases mem_insert.mp hi with rfl | hi
     · exact congrArg Prod.snd hyz
     · exact congrFun (congrArg Prod.fst hyz) ⟨i, hi⟩
-  have hmap : P.map (fun x => (s.restrict x, x a)) = (P.map (insert a s).restrict).map split := by
-    rw [PMF.map_comp]; rfl
   have hfst : (P.map fun x => (s.restrict x, x a)).map Prod.fst = P.map s.restrict := by
-    rw [PMF.map_comp]; rfl
+    rw [PMF.map_comp]
+    rfl
+  have hmap : P.map (fun x => (s.restrict x, x a)) = (P.map (insert a s).restrict).map split := by
+    rw [PMF.map_comp]
+    rfl
   rw [conditionalEntropy, hfst, hmap, entropy_map_of_injective _ hsplit]
   ring
 
@@ -95,37 +95,23 @@ theorem entropy_map_restrict_eq_sum [LinearOrder ι] (P : PMF (∀ i, α i)) (s 
   induction s using Finset.induction_on_max with
   | empty =>
     rw [sum_empty]
-    apply entropy_eq_zero_of_subsingleton_support
-    intro y _ z _
-    funext i
-    exact absurd i.property (notMem_empty _)
+    exact entropy_eq_zero_of_subsingleton_support _ fun _ _ _ _ =>
+      funext fun i => absurd i.2 (notMem_empty _)
   | insert a s hlt ih =>
     have ha : a ∉ s := fun h => lt_irrefl a (hlt a h)
-    rw [entropy_map_restrict_insert P ha, sum_insert ha, ih, add_comm]
     have hself : (insert a s).filter (· < a) = s := by
       ext i
       simp only [mem_filter, mem_insert]
-      constructor
-      · rintro ⟨rfl | hi, hia⟩
-        · exact absurd hia (lt_irrefl _)
-        · exact hi
-      · intro hi
-        exact ⟨Or.inr hi, hlt i hi⟩
-    rw [hself]
+      exact ⟨fun ⟨h, hia⟩ => h.resolve_left (ne_of_lt hia), fun hi => ⟨.inr hi, hlt i hi⟩⟩
+    rw [entropy_map_restrict_insert P ha, sum_insert ha, ih, add_comm, hself]
     congr 1
-    apply sum_congr rfl
-    intro i hi
-    have hfilter : (insert a s).filter (· < i) = s.filter (· < i) := by
-      rw [filter_insert, ite_eq_right_iff.mpr fun h => absurd h (not_lt.mpr (hlt i hi).le)]
-    rw [hfilter]
+    refine sum_congr rfl fun i hi => ?_
+    rw [filter_insert, ite_eq_right_iff.mpr fun h => absurd h (not_lt.mpr (hlt i hi).le)]
 
 /-- The restriction of a tuple to all coordinates carries the tuple's entropy. -/
 theorem entropy_map_restrict_univ [Fintype ι] (P : PMF (∀ i, α i)) :
-    entropy (P.map (univ : Finset ι).restrict) = entropy P := by
-  apply entropy_map_of_injective
-  intro x y hxy
-  funext i
-  exact congrFun hxy ⟨i, mem_univ i⟩
+    entropy (P.map (univ : Finset ι).restrict) = entropy P :=
+  entropy_map_of_injective _ fun _ _ hxy => funext fun i => congrFun hxy ⟨i, mem_univ i⟩
 
 /-- **Shearer's lemma**: if every coordinate lies in at least `k` of the sets `S j`, then `k`
 times the entropy of the tuple is at most the sum of the entropies of its restrictions to the
@@ -135,26 +121,22 @@ theorem mul_entropy_le_sum_entropy_map_restrict [Finite ι] [DecidableEq ι] {J 
     (hk : ∀ i, k ≤ #{j | i ∈ S j}) :
     k * entropy P ≤ ∑ j, entropy (P.map (S j).restrict) := by
   let := Fintype.ofFinite ι
-  let order : LinearOrder ι :=
+  let _ : LinearOrder ι :=
     LinearOrder.lift' (Fintype.equivFin ι) (Fintype.equivFin ι).injective
-  let h (i : ι) := conditionalEntropy
-    (P.map fun x => ((univ.filter (· < i)).restrict x, x i))
-  have hchain : entropy P = ∑ i, h i := by
-    rw [← entropy_map_restrict_univ, entropy_map_restrict_eq_sum]
-  have hset (j : J) : ∑ i ∈ S j, h i ≤ entropy (P.map (S j).restrict) := by
-    rw [entropy_map_restrict_eq_sum]
-    exact sum_le_sum fun i _ =>
-      conditionalEntropy_map_restrict_le P (filter_subset_filter _ (subset_univ _)) i
-  have hcount : ∑ j, ∑ i ∈ S j, h i = ∑ i, (#{j | i ∈ S j} : ℝ) * h i := by
-    rw [sum_comm' (t' := univ) (s' := fun i => univ.filter fun j => i ∈ S j)
-      (fun j i => by simp)]
-    simp only [sum_const, nsmul_eq_mul]
-  calc (k : ℝ) * entropy P = ∑ i, (k : ℝ) * h i := by rw [hchain, mul_sum]
+  let h (i : ι) := conditionalEntropy (P.map fun x => ((univ.filter (· < i)).restrict x, x i))
+  calc (k : ℝ) * entropy P
+    _ = ∑ i, (k : ℝ) * h i := by
+      rw [← entropy_map_restrict_univ, entropy_map_restrict_eq_sum, mul_sum]
     _ ≤ ∑ i, (#{j | i ∈ S j} : ℝ) * h i :=
       sum_le_sum fun i _ => mul_le_mul_of_nonneg_right (by exact_mod_cast hk i)
         (conditionalEntropy_nonneg _)
-    _ = ∑ j, ∑ i ∈ S j, h i := hcount.symm
-    _ ≤ ∑ j, entropy (P.map (S j).restrict) := sum_le_sum fun j _ => hset j
+    _ = ∑ j, ∑ i ∈ S j, h i := by
+      rw [sum_comm' (t' := univ) (s' := fun i => univ.filter fun j => i ∈ S j) (by simp)]
+      simp only [sum_const, nsmul_eq_mul]
+    _ ≤ ∑ j, entropy (P.map (S j).restrict) := sum_le_sum fun j _ => by
+      rw [entropy_map_restrict_eq_sum]
+      exact sum_le_sum fun i _ =>
+        conditionalEntropy_map_restrict_le P (filter_subset_filter _ (subset_univ _)) i
 
 /-- **Han's inequality**: for `n` coordinates, `n - 1` times the entropy of the tuple is at most
 the sum of the entropies of the tuples with one coordinate deleted. This is the comparison of
@@ -166,12 +148,13 @@ theorem sub_one_mul_entropy_le_sum_entropy_map_restrict_erase [Fintype ι] [Deci
       ∑ i, entropy (P.map (univ.erase i).restrict) := by
   rcases Nat.eq_zero_or_pos (Fintype.card ι) with hcard | hcard
   · rw [hcard, Nat.cast_zero, zero_sub, neg_one_mul]
-    exact (neg_nonpos.mpr (entropy_nonneg P)).trans
-      (sum_nonneg fun i _ => entropy_nonneg _)
+    exact (neg_nonpos.mpr (entropy_nonneg P)).trans (sum_nonneg fun _ _ => entropy_nonneg _)
   have h := mul_entropy_le_sum_entropy_map_restrict P (fun i => univ.erase i)
-    (k := Fintype.card ι - 1) (fun i => by
-      rw [show (univ.filter fun j => i ∈ univ.erase j) = univ.erase i by
-        ext j; simp [eq_comm], card_erase_of_mem (mem_univ i), card_univ])
+    (k := Fintype.card ι - 1) fun i => by
+      have hf : (univ.filter fun j => i ∈ univ.erase j) = univ.erase i := by
+        ext
+        simp [eq_comm]
+      rw [hf, card_erase_of_mem (mem_univ i), card_univ]
   rwa [Nat.cast_sub hcard, Nat.cast_one] at h
 
 /-- **Subadditivity of entropy**: the entropy of a tuple is at most the sum of the entropies of
@@ -179,22 +162,21 @@ its coordinates ([CoverThomas2006], Theorem 2.6.6). -/
 theorem entropy_le_sum_entropy_map_eval [Fintype ι] (P : PMF (∀ i, α i)) :
     entropy P ≤ ∑ i, entropy (P.map fun x => x i) := by
   classical
-  have h := mul_entropy_le_sum_entropy_map_restrict P (fun i => {i}) (k := 1)
-    (fun i => by
-      rw [show (univ.filter fun j => i ∈ ({j} : Finset ι)) = {i} by ext; simp [eq_comm],
-        card_singleton])
+  have h := mul_entropy_le_sum_entropy_map_restrict P (fun i => {i}) (k := 1) fun i => by
+    have hf : (univ.filter fun j => i ∈ ({j} : Finset ι)) = {i} := by
+      ext
+      simp [eq_comm]
+    rw [hf, card_singleton]
   have heval (i : ι) :
       entropy (P.map ({i} : Finset ι).restrict) = entropy (P.map fun x => x i) := by
     have hmap : P.map (fun x => x i) =
         (P.map ({i} : Finset ι).restrict).map (fun y => y ⟨i, mem_singleton_self i⟩) := by
-      rw [PMF.map_comp]; rfl
-    have hinj : Function.Injective
-        (fun y : ∀ j : ↥({i} : Finset ι), α j => y ⟨i, mem_singleton_self i⟩) := by
-      intro y z hyz
-      funext ⟨j, hj⟩
-      obtain rfl := mem_singleton.mp hj
-      exact hyz
-    rw [hmap, entropy_map_of_injective _ hinj]
+      rw [PMF.map_comp]
+      rfl
+    rw [hmap]
+    refine (entropy_map_of_injective _ fun _ _ hyz => funext fun ⟨_, hj⟩ => ?_).symm
+    obtain rfl := mem_singleton.mp hj
+    exact hyz
   simpa only [Nat.cast_one, one_mul, heval] using h
 
 end Cslib.Probability.PMF
@@ -215,22 +197,15 @@ theorem card_pow_le_prod_card_image_restrict [Finite ι] [DecidableEq ι]
     #A ^ k ≤ ∏ j, #(A.image (S j).restrict) := by
   rcases A.eq_empty_or_nonempty with rfl | hA
   · simp [zero_pow hk0.ne']
-  have hlog := mul_entropy_le_sum_entropy_map_restrict (uniformOfFinset A hA) S hk
-  rw [entropy_uniformOfFinset] at hlog
-  have hproj (j : J) : entropy ((uniformOfFinset A hA).map (S j).restrict) ≤
-      Real.logb 2 #(A.image (S j).restrict) := by
-    apply entropy_le_logb_card_of_support_subset
-    intro y hy
-    obtain ⟨x, hx, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hy
-    rw [mem_support_uniformOfFinset_iff] at hx
-    exact mem_coe.mpr (mem_image_of_mem _ hx)
+  have h := (entropy_uniformOfFinset A hA ▸
+    mul_entropy_le_sum_entropy_map_restrict (uniformOfFinset A hA) S hk).trans
+      (sum_le_sum fun j _ => entropy_le_logb_card_of_support_subset _ fun y hy => by
+        obtain ⟨x, hx, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hy
+        exact mem_coe.mpr (mem_image_of_mem _ ((mem_support_uniformOfFinset_iff hA _).mp hx)))
   have himage (j : J) : 0 < #(A.image (S j).restrict) := (hA.image _).card_pos
-  have h := hlog.trans (sum_le_sum fun j _ => hproj j)
   rw [← Real.logb_pow, ← Real.logb_prod _ _ (fun j _ => by exact_mod_cast (himage j).ne')] at h
-  have hpos : (0 : ℝ) < #A ^ k := by exact_mod_cast pow_pos hA.card_pos k
-  have hprod : (0 : ℝ) < ∏ j, (#(A.image (S j).restrict) : ℝ) :=
-    prod_pos fun j _ => by exact_mod_cast himage j
-  have := (Real.logb_le_logb (b := 2) (by norm_num) hpos hprod).mp h
-  exact_mod_cast this
+  exact_mod_cast (Real.logb_le_logb (b := 2) (by norm_num)
+    (by exact_mod_cast pow_pos hA.card_pos k)
+    (prod_pos fun j _ => by exact_mod_cast himage j)).mp h
 
 end Cslib.Finset

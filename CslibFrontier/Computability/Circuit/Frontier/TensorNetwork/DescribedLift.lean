@@ -171,14 +171,12 @@ theorem pairwise_isUnit_liftO_sub_digits {n : ℕ} (hn : n ≤ 2 ^ fl.length) :
   have hj : (j : ℕ) < n := by simpa using j.isLt
   rw [List.getD_eq_getElem _ _ i.isLt, List.getD_eq_getElem _ _ j.isLt, List.getElem_map,
     List.getElem_map, List.getElem_range, List.getElem_range]
-  have hbin (k : ℕ) : ∀ b < fl.length,
+  have hbin (k b : ℕ) (hb : b < fl.length) :
       ((List.range fl.length).map fun j => if k.testBit j then 1 else 0).getD b 0 < 2 := by
-    intro b hb
     rw [getD_map_testBit _ _ _ hb]
     split <;> omega
   refine isUnit_liftO_sub hirr (hbin _) (hbin _) ?_
-  by_contra hall
-  simp only [not_exists, not_and, not_not] at hall
+  by_contra! hall
   refine hij (Fin.ext (Nat.eq_of_testBit_eq fun b => ?_))
   rcases lt_or_ge b fl.length with hb | hb
   · have := hall b hb
@@ -206,15 +204,13 @@ theorem exists_unique_of_sum_count_eq_one {Ls : List (List ℕ)} {j : ℕ}
     rw [List.map_cons, List.sum_cons] at h
     by_cases hj : j ∈ l
     · have hl : l.count j = 1 := by grind
-      have h0 : (Ls.map fun l => l.count j).sum = 0 := by omega
       refine ⟨0, by simp, by simpa using hl, fun i' hi' hm => ?_⟩
       rcases i' with _ | i'
       · rfl
-      · exfalso
-        have hi'' : i' < Ls.length := by simpa using hi'
+      · have : i' < Ls.length := by simpa using hi'
         simp only [List.getElem_cons_succ] at hm
-        have hpos := List.count_pos_iff.mpr hm
-        have hle : Ls[i'].count j ≤ (Ls.map fun l => l.count j).sum :=
+        have := List.count_pos_iff.mpr hm
+        have : Ls[i'].count j ≤ (Ls.map fun l => l.count j).sum :=
           List.le_sum_of_mem (List.mem_map.mpr ⟨_, List.getElem_mem _, rfl⟩)
         omega
     · have hl : l.count j = 0 := List.count_eq_zero.mpr hj
@@ -222,8 +218,7 @@ theorem exists_unique_of_sum_count_eq_one {Ls : List (List ℕ)} {j : ℕ}
       refine ⟨i + 1, by simpa using hi, by simpa using hc, fun i' hi' hm => ?_⟩
       rcases i' with _ | i'
       · exact absurd hm (by simpa using hj)
-      · simp only [List.getElem_cons_succ] at hm
-        rw [hu i' (by simpa using hi') hm]
+      · rw [hu i' (by simpa using hi') (by simpa using hm)]
 
 namespace DescribedNetwork
 
@@ -268,71 +263,52 @@ theorem exists_ends {r : ℕ} (hD : D.IsRowsFirstBipartite r) {j : ℕ} (hj : j 
       D.vertices[s].1.count j = 1 ∧ D.vertices[t].1.count j = 1 ∧
       ∀ v (hv : v < D.vertices.length), j ∈ D.vertices[v].1 → v = s ∨ v = t := by
   obtain ⟨hrow', hcol'⟩ := hD.2 j hj
-  have hrow : (((D.vertices.map Prod.fst).take r).map fun l => l.count j).sum = 1 := by
-    rw [← List.map_take, List.map_map]
-    exact hrow'
-  have hcol : (((D.vertices.map Prod.fst).drop r).map fun l => l.count j).sum = 1 := by
-    rw [← List.map_drop, List.map_map]
-    exact hcol'
-  obtain ⟨s, hs, hsc, hsu⟩ := exists_unique_of_sum_count_eq_one hrow
-  obtain ⟨t, ht, htc, htu⟩ := exists_unique_of_sum_count_eq_one hcol
+  obtain ⟨s, hs, hsc, hsu⟩ := exists_unique_of_sum_count_eq_one
+    (Ls := (D.vertices.map Prod.fst).take r) (by rwa [← List.map_take, List.map_map])
+  obtain ⟨t, ht, htc, htu⟩ := exists_unique_of_sum_count_eq_one
+    (Ls := (D.vertices.map Prod.fst).drop r) (by rwa [← List.map_drop, List.map_map])
   simp only [List.length_take, List.length_map, List.length_drop] at hs ht
-  have hs' : s < D.vertices.length := by omega
-  have hsr : s < r := by omega
-  have ht' : r + t < D.vertices.length := by omega
-  refine ⟨s, r + t, hs', ht', hsr, by omega, ?_, ?_, fun v hv hm => ?_⟩
-  · simpa using hsc
-  · simpa using htc
-  · by_cases hvr : v < r
-    · left
-      refine hsu v (by simp; omega) ?_
-      simpa [List.getElem_take] using hm
-    · right
-      have := htu (v - r) (by simp; omega) (by
-        simp only [List.getElem_map, List.getElem_drop]
-        convert hm using 3
-        omega)
+  refine ⟨s, r + t, by omega, by omega, by omega, by omega, by simpa using hsc,
+    by simpa using htc, fun v hv hm => ?_⟩
+  by_cases hvr : v < r
+  · refine Or.inl (hsu v (by simp; omega) ?_)
+    simpa [List.getElem_take] using hm
+  · have htv : v - r = t := by
+      refine htu (v - r) (by simp; omega) ?_
+      simp only [List.getElem_map, List.getElem_drop]
+      convert hm using 3
       omega
+    omega
 
 /-- **The vertices at an edge** of a rows-first network are its row and its column. -/
 theorem incident_eq {r : ℕ} (hD : D.IsRowsFirstBipartite r) {j : ℕ} (hj : j < D.numEdges) :
     ∃ s t, ∃ hs : s < D.vertices.length, ∃ ht : t < D.vertices.length, s < r ∧ r ≤ t ∧
       D.vertices[s].1.count j = 1 ∧ D.vertices[t].1.count j = 1 ∧ D.incident j = [s, t] := by
   obtain ⟨s, t, hs, ht, hsr, hrt, hsc, htc, hu⟩ := exists_ends hD hj
-  refine ⟨s, t, hs, ht, hsr, hrt, hsc, htc, ?_⟩
-  have hsorted : (D.incident j).Pairwise (· < ·) :=
-    (List.pairwise_lt_range).filter _
-  have hmem : ∀ v, v ∈ D.incident j ↔ v ∈ [s, t] := by
-    intro v
-    simp only [incident, List.mem_filter, List.mem_range, decide_eq_true_eq, List.mem_cons,
-      List.not_mem_nil, or_false]
-    constructor
-    · rintro ⟨hv, hm⟩
-      rw [getD_map_fst v hv] at hm
-      exact hu v hv hm
-    · rintro (rfl | rfl)
-      · refine ⟨hs, ?_⟩
-        rw [getD_map_fst _ hs]
-        exact List.count_pos_iff.mp (by omega)
-      · refine ⟨ht, ?_⟩
-        rw [getD_map_fst _ ht]
-        exact List.count_pos_iff.mp (by omega)
-  have hst : [s, t].Pairwise (· < ·) := by simp; omega
-  exact hsorted.eq_of_mem_iff hst hmem
+  refine ⟨s, t, hs, ht, hsr, hrt, hsc, htc,
+    ((List.pairwise_lt_range).filter _).eq_of_mem_iff (by simp; omega) fun v => ?_⟩
+  simp only [List.mem_filter, List.mem_range, decide_eq_true_eq, List.mem_cons,
+    List.not_mem_nil, or_false]
+  refine ⟨fun ⟨hv, hm⟩ => hu v hv (getD_map_fst v hv ▸ hm), ?_⟩
+  rintro (rfl | rfl)
+  · refine ⟨hs, ?_⟩
+    rw [getD_map_fst _ hs]
+    exact List.count_pos_iff.mp (by omega)
+  · refine ⟨ht, ?_⟩
+    rw [getD_map_fst _ ht]
+    exact List.count_pos_iff.mp (by omega)
 
 /-- The first vertex at an edge of a rows-first network is a vertex. -/
 theorem getD_incident_zero_lt {r : ℕ} (hD : D.IsRowsFirstBipartite r) {j : ℕ}
     (hj : j < D.numEdges) : (D.incident j).getD 0 0 < D.vertices.length := by
-  obtain ⟨s, t, hs, ht, -, -, -, -, h⟩ := incident_eq hD hj
-  rw [h]
-  exact hs
+  obtain ⟨_, _, hs, _, -, -, -, -, h⟩ := incident_eq hD hj
+  rwa [h]
 
 /-- The second vertex at an edge of a rows-first network is a vertex. -/
 theorem getD_incident_one_lt {r : ℕ} (hD : D.IsRowsFirstBipartite r) {j : ℕ}
     (hj : j < D.numEdges) : (D.incident j).getD 1 0 < D.vertices.length := by
-  obtain ⟨s, t, hs, ht, -, -, -, -, h⟩ := incident_eq hD hj
-  rw [h]
-  exact ht
+  obtain ⟨_, _, _, ht, -, -, -, -, h⟩ := incident_eq hD hj
+  rwa [h]
 
 /-! ### The network of a described network -/
 

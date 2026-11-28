@@ -352,25 +352,10 @@ private theorem sum_sub_sdiff_le {M : Mechanism Machine Job}
   have hw := hM.rowLoad_sub_le hb hr hr'
   change (∑ j with σ j = i, r j) - (∑ j with σ' j = i, r j) ≤
     (∑ j with σ j = i, r' j) - (∑ j with σ' j = i, r' j) at hw
-  have hdiff : (∑ j with σ j = i, (r j - r' j)) ≤ ∑ j with σ' j = i, (r j - r' j) := by
-    simp only [Finset.sum_sub_distrib]
-    linarith
-  set S := Finset.univ.filter fun j => σ j = i
-  set S' := Finset.univ.filter fun j => σ' j = i
-  have hS : S \ S' = Finset.univ.filter fun j => σ j = i ∧ σ' j ≠ i := by
-    ext j
-    simp [S, S']
-  have hS' : S' \ S = Finset.univ.filter fun j => σ' j = i ∧ σ j ≠ i := by
-    ext j
-    simp [S, S']
-  rw [← hS, ← hS']
-  have split1 : (∑ j ∈ S, (r j - r' j)) =
-      (∑ j ∈ S \ S', (r j - r' j)) + ∑ j ∈ S ∩ S', (r j - r' j) := by
-    rw [← Finset.sum_union (Finset.disjoint_sdiff_inter S S'), Finset.sdiff_union_inter]
-  have split2 : (∑ j ∈ S', (r j - r' j)) =
-      (∑ j ∈ S' \ S, (r j - r' j)) + ∑ j ∈ S ∩ S', (r j - r' j) := by
-    rw [Finset.inter_comm S S', ← Finset.sum_union (Finset.disjoint_sdiff_inter S' S),
-      Finset.sdiff_union_inter]
+  have h := Finset.sum_sdiff_sub_sum_sdiff (f := fun j => r j - r' j)
+    (s₁ := Finset.univ.filter fun j => σ' j = i) (s₂ := Finset.univ.filter fun j => σ j = i)
+  rw [← Finset.filter_and_not, ← Finset.filter_and_not] at h
+  simp only [Finset.sum_sub_distrib] at h ⊢
   linarith
 
 /-- **Nisan–Ronen Task-Set Invariance Lemma** ([NisanRonen2001], Section 2; [Lavi2007],
@@ -391,35 +376,21 @@ theorem IsDSICOn.alloc_eq_iff_of_lt_of_gt {M : Mechanism Machine Job}
   change (∑ l with σ l = i ∧ σ' l ≠ i, (r l - r' l)) ≤
     ∑ l with σ' l = i ∧ σ l ≠ i, (r l - r' l) at hineq
   have hlhs_nonneg : 0 ≤ ∑ l with σ l = i ∧ σ' l ≠ i, (r l - r' l) :=
-    Finset.sum_nonneg fun l hl => by
-      have := hdec l (Finset.mem_filter.mp hl).2.1
-      linarith
+    Finset.sum_nonneg fun l hl => by linarith [hdec l (Finset.mem_filter.mp hl).2.1]
   have hrhs_nonpos : (∑ l with σ' l = i ∧ σ l ≠ i, (r l - r' l)) ≤ 0 :=
-    Finset.sum_nonpos fun l hl => by
-      have := hinc l (Finset.mem_filter.mp hl).2.2
-      linarith
+    Finset.sum_nonpos fun l hl => by linarith [hinc l (Finset.mem_filter.mp hl).2.2]
   constructor
   · intro hσ'
     by_contra hσ
-    have hmem : j ∈ Finset.univ.filter fun l => σ' l = i ∧ σ l ≠ i :=
-      Finset.mem_filter.mpr ⟨Finset.mem_univ j, hσ', hσ⟩
-    have hpos_neg : 0 < ∑ l with σ' l = i ∧ σ l ≠ i, (r' l - r l) :=
-      Finset.sum_pos'
-        (fun l hl => by linarith [hinc l (Finset.mem_filter.mp hl).2.2])
-        ⟨j, hmem, by linarith [hinc j hσ]⟩
-    have hneg_eq : (∑ l with σ' l = i ∧ σ l ≠ i, (r' l - r l)) =
-        -∑ l with σ' l = i ∧ σ l ≠ i, (r l - r' l) := by
-      rw [← Finset.sum_neg_distrib]
-      exact Finset.sum_congr rfl fun _ _ => by ring
+    have : (∑ l with σ' l = i ∧ σ l ≠ i, (r l - r' l)) < 0 :=
+      Finset.sum_neg' (fun l hl => by linarith [hinc l (Finset.mem_filter.mp hl).2.2])
+        ⟨j, by simp [hσ', hσ], by linarith [hinc j hσ]⟩
     linarith
   · intro hσ
     by_contra hσ'
-    have hmem : j ∈ Finset.univ.filter fun l => σ l = i ∧ σ' l ≠ i :=
-      Finset.mem_filter.mpr ⟨Finset.mem_univ j, hσ, hσ'⟩
-    have hpos : 0 < ∑ l with σ l = i ∧ σ' l ≠ i, (r l - r' l) :=
-      Finset.sum_pos'
-        (fun l hl => by linarith [hdec l (Finset.mem_filter.mp hl).2.1])
-        ⟨j, hmem, by linarith [hdec j hσ]⟩
+    have : 0 < ∑ l with σ l = i ∧ σ' l ≠ i, (r l - r' l) :=
+      Finset.sum_pos' (fun l hl => by linarith [hdec l (Finset.mem_filter.mp hl).2.1])
+        ⟨j, by simp [hσ, hσ'], by linarith [hdec j hσ]⟩
     linarith
 
 end Incentives
@@ -618,19 +589,14 @@ theorem minWorkMechanism_isDSIC [LinearOrder Machine] [Fintype Machine] [Nonempt
     rw [secondLowestTime_update]
     by_cases hwin' : minWorkAlloc b' j = i
     · have hle : r j ≤ secondLowestTime b i j := by
-        have h := le_secondLowestTime_of_minWorkAlloc_eq hwin'
-        simpa [b'] using h
-      split_ifs
-      · exact le_rfl
-      · linarith
+        simpa [b'] using le_secondLowestTime_of_minWorkAlloc_eq hwin'
+      split_ifs <;> linarith
     · have hge : secondLowestTime b i j ≤ r j := by
         have h1 : secondLowestTime b' i j ≤ b' i j := by
           rw [secondLowestTime_eq_of_minWorkAlloc_ne hwin']
           exact minWorkAlloc_le b' j i
         simpa [b'] using h1
-      split_ifs
-      · linarith
-      · exact le_rfl
+      split_ifs <;> linarith
 
 /-- `minWorkMechanism` is individually rational (`0 ≤ utility i (t i) t`) whenever there are at
 least two machines (`[Nontrivial Machine]`). -/
@@ -669,7 +635,7 @@ private noncomputable def excludingPivot (i : Machine)
     inferInstance
   Finset.univ.sup' Finset.univ_nonempty
     fun σ : Job → ↥(Finset.univ.erase i) =>
-      ∑ k ∈ Finset.univ.erase i, B k (fun j => (σ j).val)
+      ∑ k ∈ Finset.univ.erase i, B k (fun j => (σ j).1)
 
 omit [Nontrivial Machine] in
 private theorem sum_other_schedulingProfile (t : Machine → Job → ℝ) (i : Machine)
@@ -695,27 +661,40 @@ private theorem excludingPivot_schedulingProfile (t : Machine → Job → ℝ) (
     excludingPivot i (schedulingProfile t) = -∑ j : Job, secondLowestTime t i j := by
   classical
   have herase := erase_univ_nonempty i
+  have hall : ∀ σ : Job → ↥(Finset.univ.erase i),
+      (Finset.univ.filter fun j => (σ j).1 ≠ i) = Finset.univ := fun σ =>
+    Finset.filter_true_of_mem fun j _ => (Finset.mem_erase.mp (σ j).2).1
   unfold excludingPivot
   refine le_antisymm (Finset.sup'_le _ _ fun σ _ => ?_) ?_
-  · rw [sum_other_schedulingProfile, neg_le_neg_iff]
-    have hall : (Finset.univ.filter fun j => (σ j).val ≠ i) = Finset.univ := by
-      ext j
-      simp [(Finset.mem_erase.mp (σ j).property).1]
-    rw [hall]
+  · rw [sum_other_schedulingProfile, neg_le_neg_iff, hall]
     exact Finset.sum_le_sum fun j _ =>
-      secondLowestTime_le_of_ne t (Finset.mem_erase.mp (σ j).property).1 j
-  · have hex : ∀ j : Job, ∃ k : ↥(Finset.univ.erase i), t k.val j = secondLowestTime t i j := by
+      secondLowestTime_le_of_ne t (Finset.mem_erase.mp (σ j).2).1 j
+  · have hex : ∀ j : Job, ∃ k : ↥(Finset.univ.erase i), t k.1 j = secondLowestTime t i j := by
       intro j
       obtain ⟨k, hk, hmin⟩ := Finset.exists_mem_eq_inf' herase (fun k => t k j)
       exact ⟨⟨k, hk⟩, by simp [secondLowestTime, herase, hmin]⟩
     choose σ₀ hval using hex
     refine Finset.le_sup'_of_le _ (Finset.mem_univ σ₀) ?_
-    rw [sum_other_schedulingProfile]
-    have hall : (Finset.univ.filter fun j => (σ₀ j).val ≠ i) = Finset.univ := by
-      ext j
-      simp [(Finset.mem_erase.mp (σ₀ j).property).1]
-    rw [hall]
+    rw [sum_other_schedulingProfile, hall]
     simp [hval]
+
+/-- The pivot term excluding `m` ignores `m`'s own bid. -/
+private theorem excludingPivot_update (m : Machine) (B : Machine → (Job → Machine) → ℝ)
+    (v : (Job → Machine) → ℝ) : excludingPivot m (Function.update B m v) = excludingPivot m B := by
+  unfold excludingPivot
+  refine Finset.sup'_congr _ rfl fun σ _ => Finset.sum_congr rfl fun k hk => ?_
+  rw [Function.update_of_ne (Finset.ne_of_mem_erase hk)]
+
+omit [Nontrivial Machine] in
+/-- Splitting `∑ j, secondLowestTime t i j` along a schedule `σ` that pays the second-lowest
+time on every job it does not give to `i`. -/
+private theorem sum_secondLowestTime_eq {t : Machine → Job → ℝ} {i : Machine}
+    {σ : Job → Machine} (h : ∀ j, σ j ≠ i → secondLowestTime t i j = t (σ j) j) :
+    ∑ j, secondLowestTime t i j =
+      (∑ j with σ j = i, secondLowestTime t i j) + ∑ j with σ j ≠ i, t (σ j) j := by
+  rw [← Finset.sum_filter_add_sum_filter_not Finset.univ (fun j => σ j = i)]
+  congr 1
+  exact Finset.sum_congr rfl fun j hj => h j (Finset.mem_filter.mp hj).2
 
 /-- **Groves / VCG payment formula on `schedulingProfile`**: for every welfare-maximizing outcome
 rule `f` on `Job → Machine`, the Groves mechanism with the machine-excluding Clarke pivot charges
@@ -729,38 +708,26 @@ theorem groves_payment_schedulingProfile
         -(GameTheory.Mechanism.groves f h).payment (schedulingProfile t) i =
           ∑ j with f (schedulingProfile t) j = i, secondLowestTime t i j := by
   classical
-  refine ⟨excludingPivot, fun m B v => ?_, ?_⟩
-  · unfold excludingPivot
-    refine Finset.sup'_congr _ rfl fun σ _ => Finset.sum_congr rfl fun k hk => ?_
-    rw [Function.update_of_ne (Finset.ne_of_mem_erase hk)]
-  · simp only [GameTheory.Mechanism.groves, excludingPivot_schedulingProfile,
-      sum_other_schedulingProfile]
-    set σ := f (schedulingProfile t)
-    have hmax : totalWork t σ ≤ totalWork t (minWorkAlloc t) := by
-      have hw := hf (schedulingProfile t) (minWorkAlloc t)
-      rw [welfare_schedulingProfile, welfare_schedulingProfile] at hw
-      linarith
-    have hptwise : ∀ j : Job, t (σ j) j = t (minWorkAlloc t j) j := by
-      intro j
-      by_contra hne
-      have hlt : t (minWorkAlloc t j) j < t (σ j) j :=
-        (minWorkAlloc_le t j (σ j)).lt_of_ne (Ne.symm hne)
-      have hstrict : totalWork t (minWorkAlloc t) < totalWork t σ :=
-        Finset.sum_lt_sum (fun l _ => minWorkAlloc_le t l (σ l)) ⟨j, Finset.mem_univ j, hlt⟩
-      linarith
-    have hother_eq : ∀ j, σ j ≠ i → secondLowestTime t i j = t (σ j) j := by
-      intro j hne
-      refine le_antisymm (secondLowestTime_le_of_ne t hne j) ?_
-      rw [le_secondLowestTime_iff]
-      intro k _
-      rw [hptwise j]
-      exact minWorkAlloc_le t j k
-    have hsplit := (Finset.sum_filter_add_sum_filter_not Finset.univ
-      (fun j => σ j = i) (fun j => secondLowestTime t i j)).symm
-    have hnot_congr : (∑ j with ¬ σ j = i, secondLowestTime t i j) =
-        ∑ j with σ j ≠ i, t (σ j) j :=
-      Finset.sum_congr rfl fun j hj => hother_eq j (Finset.mem_filter.mp hj).2
+  refine ⟨excludingPivot, excludingPivot_update, ?_⟩
+  simp only [GameTheory.Mechanism.groves, excludingPivot_schedulingProfile,
+    sum_other_schedulingProfile]
+  set σ := f (schedulingProfile t)
+  have hmax : totalWork t σ ≤ totalWork t (minWorkAlloc t) := by
+    have hw := hf (schedulingProfile t) (minWorkAlloc t)
+    rw [welfare_schedulingProfile, welfare_schedulingProfile] at hw
     linarith
+  have hptwise : ∀ j : Job, t (σ j) j = t (minWorkAlloc t j) j := by
+    intro j
+    by_contra hne
+    have hlt : t (minWorkAlloc t j) j < t (σ j) j :=
+      (minWorkAlloc_le t j (σ j)).lt_of_ne (Ne.symm hne)
+    have hstrict : totalWork t (minWorkAlloc t) < totalWork t σ :=
+      Finset.sum_lt_sum (fun l _ => minWorkAlloc_le t l (σ l)) ⟨j, Finset.mem_univ j, hlt⟩
+    linarith
+  have hother_eq : ∀ j, σ j ≠ i → secondLowestTime t i j = t (σ j) j := fun j hne =>
+    le_antisymm (secondLowestTime_le_of_ne t hne j)
+      (le_secondLowestTime_iff.mpr fun k _ => (hptwise j).trans_le (minWorkAlloc_le t j k))
+  linarith [sum_secondLowestTime_eq hother_eq]
 
 /-- **`minWorkMechanism` is a Groves VCG mechanism**: there exists a welfare-maximizing outcome rule
 `f` and agent-independent pivot `h` on `Job → Machine` whose pullback `ofGeneralMechanism (groves f
@@ -795,10 +762,7 @@ theorem exists_groves_eq_minWorkMechanism :
         intro m
         have hflt : (Finset.univ.filter fun l => σ₁ l = k) = {j} := by
           ext l
-          simp only [Finset.mem_filter, Finset.mem_univ, true_and, σ₁, Finset.mem_singleton]
-          split_ifs with hlj
-          · simp [hlj]
-          · simp [hlj, hk']
+          by_cases hlj : l = j <;> simp [σ₁, hlj, hk']
         rw [hflt, Finset.sum_singleton]
       rw [hsingle t', hsingle t] at h1
       exact h1
@@ -813,24 +777,13 @@ theorem exists_groves_eq_minWorkMechanism :
     · dsimp only [f]
       rw [dite_eq_right_of_eq_false (eq_false hex)]
       exact hf₀ B σ
-  refine ⟨f, excludingPivot, hf_max, ?_, ?_⟩
-  · intro m B v
-    unfold excludingPivot
-    refine Finset.sup'_congr _ rfl fun σ _ => Finset.sum_congr rfl fun k hk => ?_
-    rw [Function.update_of_ne (Finset.ne_of_mem_erase hk)]
-  · unfold ofGeneralMechanism minWorkMechanism
-    simp only [Mechanism.mk.injEq, GameTheory.Mechanism.groves]
-    refine ⟨funext hf_sched, funext fun t => funext fun i => ?_⟩
-    rw [excludingPivot_schedulingProfile, hf_sched t, sum_other_schedulingProfile]
-    have hother_eq : ∀ j, minWorkAlloc t j ≠ i →
-        secondLowestTime t i j = t (minWorkAlloc t j) j :=
-      fun j hne => secondLowestTime_eq_of_minWorkAlloc_ne hne
-    have hsplit := (Finset.sum_filter_add_sum_filter_not Finset.univ
-      (fun j => minWorkAlloc t j = i) (fun j => secondLowestTime t i j)).symm
-    have hnot_congr : (∑ j with ¬ minWorkAlloc t j = i, secondLowestTime t i j) =
-        ∑ j with minWorkAlloc t j ≠ i, t (minWorkAlloc t j) j :=
-      Finset.sum_congr rfl fun j hj => hother_eq j (Finset.mem_filter.mp hj).2
-    linarith
+  refine ⟨f, excludingPivot, hf_max, excludingPivot_update, ?_⟩
+  unfold ofGeneralMechanism minWorkMechanism
+  simp only [Mechanism.mk.injEq, GameTheory.Mechanism.groves]
+  refine ⟨funext hf_sched, funext fun t => funext fun i => ?_⟩
+  rw [excludingPivot_schedulingProfile, hf_sched t, sum_other_schedulingProfile]
+  linarith [sum_secondLowestTime_eq (i := i) (σ := minWorkAlloc t) fun j hne =>
+    secondLowestTime_eq_of_minWorkAlloc_ne hne]
 
 end MinWorkIsGroves
 
@@ -922,7 +875,7 @@ theorem card_le_of_minWorkMechanism_hasApproxRatioOn [LinearOrder Machine] [Fint
     refine (optMakespan_le_makespan t σ_opt).trans (makespan_le_iff.mpr fun i => ?_)
     let j_i : S := eSM.symm i
     have hsub : (Finset.univ.filter fun j => σ_opt j = i) ⊆
-        insert j_i.val (Finset.univ \ S) := by
+        insert j_i.1 (Finset.univ \ S) := by
       intro j hj
       have hσ : σ_opt j = i := (Finset.mem_filter.mp hj).2
       by_cases hjS : j ∈ S
@@ -932,15 +885,15 @@ theorem card_le_of_minWorkMechanism_hasApproxRatioOn [LinearOrder Machine] [Fint
       · exact Finset.mem_insert.mpr (Or.inr (Finset.mem_sdiff.mpr ⟨Finset.mem_univ j, hjS⟩))
     unfold load rowLoad
     by_cases hi₀ : i = i₀
-    · have hnot_mem : j_i.val ∉ Finset.univ \ S := fun h => (Finset.mem_sdiff.mp h).2 j_i.property
+    · have hnot_mem : j_i.1 ∉ Finset.univ \ S := fun h => (Finset.mem_sdiff.mp h).2 j_i.2
       calc
         (∑ j with σ_opt j = i, t i j)
-          ≤ ∑ j ∈ insert j_i.val (Finset.univ \ S), t i j :=
+          ≤ ∑ j ∈ insert j_i.1 (Finset.univ \ S), t i j :=
             Finset.sum_le_sum_of_subset_of_nonneg hsub fun j _ _ => (ht_pos i j).le
-        _ = t i j_i.val + ∑ j ∈ Finset.univ \ S, t i j := Finset.sum_insert hnot_mem
+        _ = t i j_i.1 + ∑ j ∈ Finset.univ \ S, t i j := Finset.sum_insert hnot_mem
         _ = 1 + ∑ j ∈ Finset.univ \ S, η := by
             congr 1
-            · simp [t, j_i.property, hi₀]
+            · simp [t, j_i.2, hi₀]
             · exact Finset.sum_congr rfl fun j hj =>
                 by simp [t, (Finset.mem_sdiff.mp hj).2, hi₀]
         _ ≤ 1 + (Fintype.card Job : ℝ) * η := by
@@ -958,7 +911,7 @@ theorem card_le_of_minWorkMechanism_hasApproxRatioOn [LinearOrder Machine] [Fint
               exact mul_le_of_le_one_right hε_pos.le
                 ((div_le_one (by positivity)).mpr (by linarith))
             linarith
-    · have hsingle : (Finset.univ.filter fun j => σ_opt j = i) = {j_i.val} := by
+    · have hsingle : (Finset.univ.filter fun j => σ_opt j = i) = {j_i.1} := by
         ext j
         simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
         constructor
@@ -970,9 +923,9 @@ theorem card_le_of_minWorkMechanism_hasApproxRatioOn [LinearOrder Machine] [Fint
           · simp only [σ_opt, hjS, ↓reduceDIte] at hσ
             exact absurd hσ.symm hi₀
         · rintro rfl
-          simp [σ_opt, j_i.property, j_i]
+          simp [σ_opt, j_i.2, j_i]
       rw [hsingle, Finset.sum_singleton]
-      simp [t, j_i.property, hi₀]
+      simp [t, j_i.2, hi₀]
   have hbound : makespan t (minWorkAlloc t) ≤ c * optMakespan t := happrox t ht_pos
   have hc_le : c * optMakespan t ≤ c' * (1 + ε) :=
     (mul_le_mul_of_nonneg_right (le_max_left c 0) (optMakespan_nonneg ht_pos.isNonnegProfile)).trans
@@ -995,28 +948,23 @@ section LowerBound
 variable {Machine Job : Type*} [DecidableEq Machine] [Fintype Job]
 
 private theorem rowLoad_le_sum_add_card_mul {i : Machine} {r : Job → ℝ}
-    {σ : Job → Machine} (A : Finset Job) {δ : ℝ} (hδ : 0 ≤ δ)
+    {σ : Job → Machine} (A : Finset Job) {δ : ℝ} (hδ : 0 ≤ δ) (hr : ∀ j, 0 ≤ r j)
     (hout : ∀ j, σ j = i → j ∉ A → r j ≤ δ) :
-    rowLoad i r σ ≤ (∑ j ∈ A with σ j = i, r j) + (Fintype.card Job : ℝ) * δ := by
+    rowLoad i r σ ≤ (∑ j ∈ A, r j) + (Fintype.card Job : ℝ) * δ := by
   classical
   unfold rowLoad
-  set F := Finset.univ.filter fun j => σ j = i
-  have hsplit := (Finset.sum_filter_add_sum_filter_not F (fun j => j ∈ A) r).symm
-  have hFA : F.filter (fun j => j ∈ A) = A.filter (fun j => σ j = i) := by
-    ext j
-    simp [F, and_comm]
-  rw [hsplit, hFA]
-  have hrest : (∑ j ∈ F with j ∉ A, r j) ≤ (Fintype.card Job : ℝ) * δ := by
-    calc
-      (∑ j ∈ F with j ∉ A, r j) ≤ ∑ j ∈ F with j ∉ A, δ :=
-        Finset.sum_le_sum fun j hj => by
-          obtain ⟨hjF, hjA⟩ := Finset.mem_filter.mp hj
-          exact hout j (Finset.mem_filter.mp hjF).2 hjA
-      _ = ((F.filter fun j => j ∉ A).card : ℝ) * δ := by simp [Finset.sum_const, nsmul_eq_mul]
-      _ ≤ (Fintype.card Job : ℝ) * δ := by
-        refine mul_le_mul_of_nonneg_right ?_ hδ
-        exact_mod_cast (F.filter fun j => j ∉ A).card_le_univ
-  gcongr
+  rw [← Finset.sum_filter_add_sum_filter_not _ (· ∈ A)]
+  refine add_le_add (Finset.sum_le_sum_of_subset_of_nonneg
+    (fun j hj => (Finset.mem_filter.mp hj).2) fun j _ _ => hr j) ?_
+  calc
+    _ ≤ ∑ j ∈ (Finset.univ.filter fun j => σ j = i).filter (fun j => j ∉ A), δ :=
+      Finset.sum_le_sum fun j hj => by
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hj
+        exact hout j hj.1 hj.2
+    _ ≤ (Fintype.card Job : ℝ) * δ := by
+      rw [Finset.sum_const, nsmul_eq_mul]
+      gcongr
+      exact_mod_cast Finset.card_le_univ _
 
 variable [Fintype Machine]
 
@@ -1092,52 +1040,32 @@ theorem two_le_of_isDSICOn_positive_of_hasApproxRatioOn [Nonempty Machine]
   have hopt_t : optMakespan t ≤ 2 + k * ε := by
     let σ₀ : Job → Machine := fun j => if j = j₀ ∨ j = j₁ then i₀ else i₁
     refine (optMakespan_le_makespan t σ₀).trans (makespan_le_iff.mpr fun i => ?_)
+    have ht_nn : ∀ j, 0 ≤ t i j := fun j => (ht_pos i j).le
     by_cases hi : i = i₀ ∨ i = i₁
-    · refine (rowLoad_le_sum_add_card_mul J₃ hε_pos.le ?_).trans ?_
-      · intro j _ hjA
-        simp [t, hi, hjA]
-      · have hsum_le : (∑ j ∈ J₃ with σ₀ j = i, t i j) ≤ 2 := by
-          rcases hi with rfl | rfl
-          · have hflt : J₃.filter (fun j => σ₀ j = i₀) = {j₀, j₁} := by
-              ext j
-              simp only [Finset.mem_filter, J₃, Finset.mem_insert, Finset.mem_singleton, σ₀]
-              rcases eq_or_ne j j₀ with rfl | h0
-              · simp
-              · rcases eq_or_ne j j₁ with rfl | h1
-                · simp
-                · simp [h0, h1, hi₀₁.symm]
-            rw [hflt, Finset.sum_pair hj₀₁]
-            have hj₀_mem : j₀ ∈ J₃ := by simp [J₃]
-            have hj₁_mem : j₁ ∈ J₃ := by simp [J₃]
-            simp only [t, true_or, ↓reduceIte, hj₀_mem, hj₁_mem]
-            norm_num
-          · have hsub : J₃.filter (fun j => σ₀ j = i₁) ⊆ {j₂} := by
-              intro j hj
-              obtain ⟨hjJ, hσ⟩ := Finset.mem_filter.mp hj
-              simp only [J₃, Finset.mem_insert, Finset.mem_singleton] at hjJ
-              rcases hjJ with rfl | rfl | rfl
-              · simp [σ₀, hi₀₁] at hσ
-              · simp [σ₀, hi₀₁] at hσ
-              · exact Finset.mem_singleton_self j₂
-            calc
-              (∑ j ∈ J₃ with σ₀ j = i₁, t i₁ j) ≤ ∑ j ∈ ({j₂} : Finset Job), t i₁ j :=
-                Finset.sum_le_sum_of_subset_of_nonneg hsub
-                  fun j _ _ => (ht_pos.isNonnegProfile i₁ j)
-              _ = t i₁ j₂ := Finset.sum_singleton _ _
-              _ ≤ 2 := by
-                have hj₂_mem : j₂ ∈ J₃ := by simp [J₃]
-                simp only [t, or_true, ↓reduceIte, hj₂_mem]
-                norm_num
-        linarith
-    · have hempty : (Finset.univ.filter fun j => σ₀ j = i) = ∅ := by
-        ext j
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.notMem_empty, iff_false]
-        intro hσ
+    · rcases hi with rfl | rfl
+      · -- Machine `i₀` processes exactly `j₀` and `j₁`.
+        refine (rowLoad_le_sum_add_card_mul {j₀, j₁} hε_pos.le ht_nn fun j hσ hj => ?_).trans ?_
+        · simp only [Finset.mem_insert, Finset.mem_singleton] at hj
+          simp only [σ₀, hj, ↓reduceIte] at hσ
+          exact absurd hσ.symm hi₀₁
+        · have : t i₀ j₀ + t i₀ j₁ = 2 := by norm_num [t, J₃]
+          rw [Finset.sum_pair hj₀₁]
+          linarith
+      · -- Machine `i₁` processes `j₂` and jobs outside `J₃`.
+        refine (rowLoad_le_sum_add_card_mul {j₂} hε_pos.le ht_nn fun j hσ hj => ?_).trans ?_
+        · have h01 : ¬(j = j₀ ∨ j = j₁) := fun h => hi₀₁ (by simpa [σ₀, h] using hσ)
+          have hj₃ : j ∉ J₃ := by
+            simp only [J₃, Finset.mem_insert, Finset.mem_singleton] at hj ⊢
+            tauto
+          simp [t, hj₃]
+        · have : t i₁ j₂ = 1 := by simp [t, J₃]
+          rw [Finset.sum_singleton]
+          linarith
+    · have hne : ∀ j, σ₀ j ≠ i := fun j hσ => hi (by
         dsimp only [σ₀] at hσ
-        split_ifs at hσ <;> exact hi (by simp [← hσ])
-      unfold load rowLoad
-      rw [hempty, Finset.sum_empty]
-      linarith
+        split_ifs at hσ <;> simp [← hσ])
+      exact (rowLoad_le_sum_add_card_mul ∅ hε_pos.le ht_nn fun j h _ => absurd h (hne j)).trans
+        (by rw [Finset.sum_empty]; linarith)
   set x := M.alloc t
   have hx_two : ∀ j, x j = i₀ ∨ x j = i₁ := by
     intro j
@@ -1222,29 +1150,20 @@ theorem two_le_of_isDSICOn_positive_of_hasApproxRatioOn [Nonempty Machine]
       · have ht₁_other : t₁ i = t i := by rw [hiO]; exact Function.update_of_ne hi_ne.symm _ _
         unfold load
         rw [ht₁_other]
-        refine (rowLoad_le_sum_add_card_mul J₃ hε_pos.le ?_).trans ?_
-        · intro j _ hjA
-          rw [hiO]
-          simp [t, hiOther_mem, hjA]
-        · have hsub : J₃.filter (fun j => σ₁ j = i) ⊆ J₃.erase a := by
-            intro j hj
-            obtain ⟨hjJ, hσ⟩ := Finset.mem_filter.mp hj
-            refine Finset.mem_erase.mpr ⟨?_, hjJ⟩
+        refine (rowLoad_le_sum_add_card_mul (J₃.erase a) hε_pos.le (fun j => (ht_pos i j).le)
+          fun j hσ hjA => ?_).trans ?_
+        · have hja : j ≠ a := by
             rintro rfl
             simp [σ₁, hiO, hi_ne] at hσ
-          have hcard_erase : (J₃.erase a).card = 2 := by
-            rw [Finset.card_erase_of_mem haJ, hJ₃_card]
-          have hsum_le : (∑ j ∈ J₃ with σ₁ j = i, t i j) ≤ ∑ j ∈ J₃.erase a, t i j :=
-            Finset.sum_le_sum_of_subset_of_nonneg hsub fun j _ _ => (ht_pos.isNonnegProfile i j)
-          calc
-            (∑ j ∈ J₃ with σ₁ j = i, t i j) + k * ε
-              ≤ (∑ j ∈ J₃.erase a, t i j) + k * ε := by gcongr
-            _ = (∑ _j ∈ J₃.erase a, (1 : ℝ)) + k * ε := by
-                congr 1
-                exact Finset.sum_congr rfl fun j hj => by
-                  rw [hiO]
-                  simp [t, hiOther_mem, Finset.mem_of_mem_erase hj]
-            _ = 2 + k * ε := by simp [hcard_erase]
+          have hjJ : j ∉ J₃ := fun h => hjA (Finset.mem_erase.mpr ⟨hja, h⟩)
+          rw [hiO]
+          simp [t, hiOther_mem, hjJ]
+        · have hsum : ∑ j ∈ J₃.erase a, t i j = 2 := by
+            rw [Finset.sum_congr rfl fun j hj => show t i j = 1 by
+                rw [hiO]; simp [t, hiOther_mem, Finset.mem_of_mem_erase hj],
+              Finset.sum_const, Finset.card_erase_of_mem haJ, hJ₃_card]
+            norm_num
+          linarith
       · have hempty : (Finset.univ.filter fun j => σ₁ j = i) = ∅ := by
           ext j
           simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.notMem_empty, iff_false,
@@ -1311,7 +1230,7 @@ theorem two_le_of_isDSICOn_positive_of_hasApproxRatioOn [Nonempty Machine]
         simp [t₂, Function.update_of_ne hi_ne, t₁]
       unfold load
       rw [ht₂_star]
-      refine (rowLoad_le_sum_add_card_mul {b} hε_pos.le ?_).trans ?_
+      refine (rowLoad_le_sum_add_card_mul {b} hε_pos.le (fun j => (hrow₁_pos j).le) ?_).trans ?_
       · intro j hσ hjB
         have hjb : j ≠ b := Finset.notMem_singleton.mp hjB
         have hja : j ≠ a := by
@@ -1321,22 +1240,14 @@ theorem two_le_of_isDSICOn_positive_of_hasApproxRatioOn [Nonempty Machine]
         have hx_s : x j = iStar := (hx₁_eq_x j).symm.trans hx₁_s
         simp only [row₁, hx_s, hja, hjb, or_self, ↓reduceIte]
         linarith
-      · have hsub : ({b} : Finset Job).filter (fun j => σ₂ j = i) ⊆ {b} :=
-          Finset.filter_subset _ _
-        have hsum_le : (∑ j ∈ ({b} : Finset Job) with σ₂ j = i, row₁ j) ≤
-            ∑ j ∈ ({b} : Finset Job), row₁ j :=
-          Finset.sum_le_sum_of_subset_of_nonneg hsub fun j _ _ => (hrow₁_pos j).le
-        calc
-          (∑ j ∈ ({b} : Finset Job) with σ₂ j = i, row₁ j) + k * ε
-            ≤ (∑ j ∈ ({b} : Finset Job), row₁ j) + k * ε := by gcongr
-          _ = row₁ b + k * ε := by rw [Finset.sum_singleton]
-          _ = (1 - ε) + k * ε := by simp [row₁, hxb]
-          _ ≤ 1 + (k + 1) * ε := by linarith
+      · have : row₁ b = 1 - ε := by simp [row₁, hxb]
+        rw [Finset.sum_singleton]
+        linarith
     · by_cases hiO : i = iOther
       · have ht₂_other : t₂ i = row₂ := by simp [hiO, t₂]
         unfold load
         rw [ht₂_other]
-        refine (rowLoad_le_sum_add_card_mul {a} hε_pos.le ?_).trans ?_
+        refine (rowLoad_le_sum_add_card_mul {a} hε_pos.le (fun j => (hrow₂_pos j).le) ?_).trans ?_
         · intro j hσ hjA
           have hja : j ≠ a := Finset.notMem_singleton.mp hjA
           have hjb : j ≠ b := by
@@ -1345,18 +1256,10 @@ theorem two_le_of_isDSICOn_positive_of_hasApproxRatioOn [Nonempty Machine]
           have hx₁_o : x₁ j = iOther := by simpa [σ₂, hja, hjb, hiO] using hσ
           simp only [row₂, hx₁_o, ↓reduceIte]
           linarith
-        · have hsub : ({a} : Finset Job).filter (fun j => σ₂ j = i) ⊆ {a} :=
-            Finset.filter_subset _ _
-          have hsum_le : (∑ j ∈ ({a} : Finset Job) with σ₂ j = i, row₂ j) ≤
-              ∑ j ∈ ({a} : Finset Job), row₂ j :=
-            Finset.sum_le_sum_of_subset_of_nonneg hsub fun j _ _ => (hrow₂_pos j).le
-          have hx₁a_ne : x₁ a ≠ iOther := by rw [hx₁_eq_x a, hxa]; exact hi_ne
-          calc
-            (∑ j ∈ ({a} : Finset Job) with σ₂ j = i, row₂ j) + k * ε
-              ≤ (∑ j ∈ ({a} : Finset Job), row₂ j) + k * ε := by gcongr
-            _ = row₂ a + k * ε := by rw [Finset.sum_singleton]
-            _ = (1 + ε) + k * ε := by simp [row₂, hx₁a_ne]
-            _ = 1 + (k + 1) * ε := by ring
+        · have hx₁a_ne : x₁ a ≠ iOther := by rw [hx₁_eq_x a, hxa]; exact hi_ne
+          have : row₂ a = 1 + ε := by simp [row₂, hx₁a_ne]
+          rw [Finset.sum_singleton]
+          linarith
       · have hempty : (Finset.univ.filter fun j => σ₂ j = i) = ∅ := by
           ext j
           simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.notMem_empty, iff_false,

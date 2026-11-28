@@ -292,12 +292,7 @@ theorem Activity.isGE_compare_iff (A : Activity) (a b : ℕ) :
 private theorem VarOrder.getD_setIfInBounds (p : Array ℕ) (x b v : ℕ) :
     (p.setIfInBounds x b).getD v 0 = if x = v ∧ v < p.size then b else p.getD v 0 := by
   simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds]
-  by_cases h : x = v
-  · subst h
-    by_cases hx : x < p.size
-    · simp [hx]
-    · simp [hx]
-  · simp [h]
+  by_cases h : x = v <;> by_cases hv : v < p.size <;> simp [h, hv]
 
 private theorem VarOrder.lt_size_of_getD_ne {p : Array ℕ} {v : ℕ} (h : p.getD v 0 ≠ 0) :
     v < p.size := by
@@ -373,28 +368,23 @@ theorem VarOrder.PosOK.swap {a p : Array ℕ} (h : PosOK a p) {i j : ℕ} (hi : 
       exact h.pos k hk
   · intro v k hv
     simp only [swapPos, getD_setIfInBounds, Array.size_setIfInBounds] at hv
-    by_cases hvy : a[j] = v ∧ v < p.size
-    · rw [ite_eq_left_of_eq_true _ _ (eq_true hvy)] at hv
-      have hk : k = i := by omega
+    split_ifs at hv with hvy hvx
+    · obtain rfl : k = i := by omega
       refine ⟨by simp only [Array.size_swap]; omega, ?_⟩
       rw [Array.getElem_swap]
-      simp [hk, hvy.1]
-    rw [ite_eq_right_of_eq_false _ _ (eq_false hvy)] at hv
-    by_cases hvx : a[i] = v ∧ v < p.size
-    · rw [ite_eq_left_of_eq_true _ _ (eq_true hvx)] at hv
-      have hk : k = j := by omega
-      have hji : ¬ j = i := fun e => hvy ⟨by subst e; exact hvx.1, hvx.2⟩
+      simp [hvy.1]
+    · obtain rfl : k = j := by omega
+      have hji : ¬ k = i := fun e => hvy ⟨e ▸ hvx.1, hvx.2⟩
       refine ⟨by simp only [Array.size_swap]; omega, ?_⟩
       rw [Array.getElem_swap]
-      simp [hk, hji, hvx.1]
-    rw [ite_eq_right_of_eq_false _ _ (eq_false hvx)] at hv
-    obtain ⟨hk, hget⟩ := h.get v k hv
-    have hvp : v < p.size := lt_size_of_getD_ne (by rw [hv]; omega)
-    have hki : ¬ k = i := fun e => hvx ⟨by subst e; exact hget, hvp⟩
-    have hkj : ¬ k = j := fun e => hvy ⟨by subst e; exact hget, hvp⟩
-    refine ⟨by simp only [Array.size_swap]; omega, ?_⟩
-    rw [Array.getElem_swap]
-    simp [hki, hkj, hget]
+      simp [hji, hvx.1]
+    · obtain ⟨hk, hget⟩ := h.get v k hv
+      have hvp : v < p.size := lt_size_of_getD_ne (by rw [hv]; omega)
+      have hki : ¬ k = i := fun e => hvx ⟨e ▸ hget, hvp⟩
+      have hkj : ¬ k = j := fun e => hvy ⟨e ▸ hget, hvp⟩
+      refine ⟨by simp only [Array.size_swap]; omega, ?_⟩
+      rw [Array.getElem_swap]
+      simp [hki, hkj, hget]
 
 theorem VarOrder.PosOK.push {a p : Array ℕ} (h : PosOK a p) {v : ℕ} (hv : v < p.size)
     (h0 : p.getD v 0 = 0) : PosOK (a.push v) (p.setIfInBounds v (a.size + 1)) := by
@@ -529,10 +519,9 @@ theorem VarOrder.siftDown_fst (A : Activity) : ∀ (fuel : ℕ) {n : ℕ} (a : V
     | none => rfl
     | some j =>
       simp only [Activity.isLT_compare]
-      by_cases hc : A.below a[i] a[j] = true
-      · simp only [hc, ↓reduceIte]
-        exact VarOrder.siftDown_fst A fuel _ _ _
-      · simp only [hc, Bool.false_eq_true, ↓reduceIte]
+      split
+      · exact VarOrder.siftDown_fst A fuel _ _ _
+      · rfl
 
 theorem VarOrder.siftDown_size (A : Activity) : ∀ (fuel : ℕ) {n : ℕ} (a : Vector ℕ n)
     (p : Array ℕ) (i : Fin n), (VarOrder.siftDown A fuel a p i).2.size = p.size
@@ -542,10 +531,10 @@ theorem VarOrder.siftDown_size (A : Activity) : ∀ (fuel : ℕ) {n : ℕ} (a : 
     cases VarOrder.maxChild A a i with
     | none => rfl
     | some j =>
-      by_cases hc : A.below a[i] a[j] = true
-      · simp only [hc, ↓reduceIte]
-        exact (VarOrder.siftDown_size A fuel _ _ _).trans (size_swapPos ..)
-      · simp only [hc, Bool.false_eq_true, ↓reduceIte]
+      dsimp only
+      split
+      · exact (VarOrder.siftDown_size A fuel _ _ _).trans (size_swapPos ..)
+      · rfl
 
 theorem VarOrder.siftDown_pos (A : Activity) : ∀ (fuel : ℕ) {n : ℕ} (a : Vector ℕ n)
     (p : Array ℕ) (i : Fin n), VarOrder.PosOK a.toArray p →
@@ -556,12 +545,11 @@ theorem VarOrder.siftDown_pos (A : Activity) : ∀ (fuel : ℕ) {n : ℕ} (a : V
     cases VarOrder.maxChild A a i with
     | none => exact h
     | some j =>
-      by_cases hc : A.below a[i] a[j] = true
-      · simp only [hc, ↓reduceIte]
-        have h' := h.swap (i := i) (j := j) (by simp) (by simp)
+      dsimp only
+      split
+      · have h' := h.swap (i := i) (j := j) (by simp) (by simp)
         exact VarOrder.siftDown_pos A fuel _ _ _ (by rw [Vector.toArray_swap]; exact h')
-      · simp only [hc, Bool.false_eq_true, ↓reduceIte]
-        exact h
+      · exact h
 
 /-! #### The heap -/
 
@@ -756,9 +744,7 @@ theorem VarOrder.removeTop_spec (A : Activity) (H : VarOrder) (h : 0 < H.heap.si
     have : (H.heap.swap 0 (H.heap.size - 1) h hn)[(H.heap.swap 0 (H.heap.size - 1) h hn).size - 1]'
         (by simp; omega) = H.heap[0] := by
       rw [Array.getElem_swap]
-      by_cases h0 : H.heap.size - 1 = 0
-      · simp [h0]
-      · simp [h0]
+      by_cases h0 : H.heap.size - 1 = 0 <;> simp [h0]
     rw [this] at h₂
     exact h₂
   refine ⟨fun hwf => ?_, ?_, ?_, fun w => ?_⟩
@@ -805,17 +791,8 @@ theorem VarOrder.addAll_spec (A : Activity) : ∀ (H : VarOrder) (vs : List ℕ)
     obtain ⟨hwf₂, hp₂, hs₂, hm₂⟩ := VarOrder.addAll_spec A (H.insert A v) vs hp₁
     refine ⟨fun h => hwf₂ (hwf₁ h), hp₂, hs₂.trans hs₁, fun w => ?_⟩
     change w ∈ ((H.insert A v).addAll A vs).heap ↔ _
-    rw [hm₂, hm₁, hs₁]
-    constructor
-    · rintro ((h | ⟨rfl, h⟩) | ⟨h, h'⟩)
-      · exact .inl h
-      · exact .inr ⟨List.mem_cons_self, h⟩
-      · exact .inr ⟨List.mem_cons_of_mem _ h, h'⟩
-    · rintro (h | ⟨h, h'⟩)
-      · exact .inl (.inl h)
-      · rcases List.mem_cons.1 h with rfl | h
-        · exact .inl (.inr ⟨rfl, h'⟩)
-        · exact .inr ⟨h, h'⟩
+    rw [hm₂, hm₁, hs₁, List.mem_cons]
+    grind
 
 /-- **What rebuilding keeps**: the heap is well formed in the order of the new activities, the
 positions consistent, the room and the variables the same. -/

@@ -33,7 +33,7 @@ open Cslib.Algorithms.Lean.IterativeCompression
 open Cslib.DataStructure Cslib.WordRAM Cslib.WordRAM.Realization
 open StateTransitionSpec (clientResult_bind clientState_bind clientResult_pure clientState_pure)
 
-attribute [local client_simps] runClient_read runClient_write clientState_map
+attribute [local client_simps] runClient_read runClient_write StateTransitionSpec.clientState_map
 
 /-! ### Outer vertex-addition loop and uniform Word-RAM program -/
 

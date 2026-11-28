@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.SubmatrixRobust
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rank
 import Mathlib.Data.Fintype.Sum
 import Mathlib.LinearAlgebra.FiniteDimensional.Lemmas
 
@@ -43,123 +44,52 @@ theorem exists_bijective_submatrixRobust (n : ℕ) :
       N_mat.SubmatrixRobust (2 * (2 * Nat.sqrt n + 1)) := by
   classical
   obtain ⟨M, hM⟩ := Matrix.exists_submatrixRobust n
-  set t := 2 * Nat.sqrt n + 1
   let fM := M.mulVecLin
-  let K_sub := LinearMap.ker fM
-  let R_sub := LinearMap.range fM
-  obtain ⟨C_dom, hC_dom⟩ := Submodule.exists_isCompl K_sub
-  obtain ⟨C_cod, hC_cod⟩ := Submodule.exists_isCompl R_sub
-  have hfin_eq : Module.finrank (ZMod 2) K_sub = Module.finrank (ZMod 2) C_cod := by
-    have h1 := fM.finrank_range_add_finrank_ker
-    have h2 := Submodule.finrank_add_eq_of_isCompl hC_cod
-    dsimp only [K_sub, R_sub] at *
+  obtain ⟨C_dom, hC_dom⟩ := (LinearMap.ker fM).exists_isCompl
+  obtain ⟨C_cod, hC_cod⟩ := (LinearMap.range fM).exists_isCompl
+  have hrank := fM.finrank_range_add_finrank_ker
+  have hcompl := Submodule.finrank_add_eq_of_isCompl hC_cod
+  -- `gLin` maps `ker M` isomorphically onto a complement of `range M` and kills `C_dom`.
+  have hfin : Module.finrank (ZMod 2) (LinearMap.ker fM) = Module.finrank (ZMod 2) C_cod := by
     omega
-  let φ : K_sub ≃ₗ[ZMod 2] C_cod := LinearEquiv.ofFinrankEq K_sub C_cod hfin_eq
-  let π_K : (Fin n → ZMod 2) →ₗ[ZMod 2] K_sub := K_sub.projectionOnto C_dom hC_dom
-  let gLin : (Fin n → ZMod 2) →ₗ[ZMod 2] (Fin n → ZMod 2) :=
-    C_cod.subtype.comp (φ.toLinearMap.comp π_K)
-  let L_new := fM + gLin
-  have hinj : Function.Injective L_new := by
+  let φ := LinearEquiv.ofFinrankEq _ _ hfin
+  let gLin := C_cod.subtype ∘ₗ φ.toLinearMap ∘ₗ (LinearMap.ker fM).projectionOnto C_dom hC_dom
+  have hinj : Function.Injective (fM + gLin) := by
     rw [← LinearMap.ker_eq_bot, Submodule.eq_bot_iff]
     intro v hv
     have hv0 : fM v + gLin v = 0 := hv
-    have hfg : fM v = -gLin v := eq_neg_of_add_eq_zero_left hv0
-    have hmem_inf : fM v ∈ R_sub ⊓ C_cod :=
-      ⟨LinearMap.mem_range_self fM v, hfg ▸ C_cod.neg_mem (φ (π_K v)).property⟩
-    rw [hC_cod.disjoint.eq_bot] at hmem_inf
-    have hvK : v ∈ K_sub := hmem_inf
-    have hg0 : gLin v = 0 := by
-      have hf0 : fM v = 0 := hvK
-      rw [hf0, zero_add] at hv0
-      exact hv0
-    have hπ : π_K v = ⟨v, hvK⟩ := Submodule.projectionOnto_apply_left hC_dom ⟨v, hvK⟩
-    have hφ0 : φ ⟨v, hvK⟩ = 0 := by
-      apply Subtype.ext
-      simpa only [gLin, LinearMap.comp_apply, Submodule.coe_subtype, LinearEquiv.coe_coe, hπ,
-        Submodule.coe_zero] using hg0
-    exact congrArg Subtype.val (φ.injective (hφ0.trans (map_zero φ).symm))
-  have hbij_L : Function.Bijective L_new :=
-    ⟨hinj, (LinearMap.injective_iff_surjective_of_finrank_eq_finrank rfl).mp hinj⟩
-  let N_mat := LinearMap.toMatrix' L_new
-  let E_mat := LinearMap.toMatrix' gLin
-  have hN_mul : N_mat.mulVec = L_new := by ext v i; simp [N_mat]
-  refine ⟨N_mat, hN_mul ▸ hbij_L, fun S_set T_set hST => ?_⟩
-  have hK_le_t : Module.finrank (ZMod 2) K_sub ≤ t := by
-    have hfull := hM univ univ rfl
-    rw [ncard_univ, Nat.card_eq_fintype_card, Fintype.card_fin, M.blockRank_eq_rank] at hfull
-    have hsub_le :
-        (M.submatrix ((↑) : ↥(univ : Set (Fin n)) → Fin n)
-          ((↑) : ↥(univ : Set (Fin n)) → Fin n)).rank ≤ Module.finrank (ZMod 2) R_sub := by
-      let resU : (Fin n → ZMod 2) →ₗ[ZMod 2] (↥(univ : Set (Fin n)) → ZMod 2) :=
-        LinearMap.funLeft (ZMod 2) (ZMod 2) (Subtype.val : ↥(univ : Set (Fin n)) → Fin n)
-      let extU : (↥(univ : Set (Fin n)) → ZMod 2) →ₗ[ZMod 2] (Fin n → ZMod 2) :=
-        LinearMap.funLeft (ZMod 2) (ZMod 2) (Equiv.Set.univ (Fin n)).symm
-      have hfacU : (M.submatrix ((↑) : ↥(univ : Set (Fin n)) → Fin n)
-          ((↑) : ↥(univ : Set (Fin n)) → Fin n)).mulVecLin = resU.comp (fM.comp extU) :=
-        LinearMap.ext fun x => funext fun i => by
-          change (M.submatrix _ _ *ᵥ x) i = (M *ᵥ fun j => x ⟨j, trivial⟩) i.val
-          simp only [Matrix.mulVec, dotProduct, Matrix.submatrix_apply]
-          exact Fintype.sum_equiv (Equiv.Set.univ (Fin n)) _ _ fun _ => rfl
-      rw [← Matrix.finrank_range_mulVecLin, hfacU, LinearMap.range_comp]
-      exact (Submodule.finrank_map_le _ _).trans
-        (Submodule.finrank_mono (LinearMap.range_comp_le_range _ _))
-    have hrn := fM.finrank_range_add_finrank_ker
-    have hfin_dom : Module.finrank (ZMod 2) (Fin n → ZMod 2) = n := by
-      rw [Module.finrank_pi, Fintype.card_fin]
-    dsimp only [K_sub, R_sub] at *
-    omega
-  have hE_mul : E_mat.mulVec = gLin := by ext v i; simp [E_mat]
-  have hM_eq_sub : M = N_mat - E_mat := by
-    ext i j
-    simp [N_mat, E_mat, L_new, fM, Matrix.mulVec, dotProduct, Pi.single_apply]
-  have hE_sub_rank :
-      (E_mat.submatrix ((↑) : S_set → Fin n) ((↑) : T_set → Fin n)).rank ≤
-        Module.finrank (ZMod 2) K_sub := by
-    let resS : (Fin n → ZMod 2) →ₗ[ZMod 2] (S_set → ZMod 2) :=
-      { toFun := fun y i => y i.val
-        map_add' := fun _ _ => rfl
-        map_smul' := fun _ _ => rfl }
-    let extT : (T_set → ZMod 2) →ₗ[ZMod 2] (Fin n → ZMod 2) :=
-      { toFun := fun x j => if hj : j ∈ T_set then x ⟨j, hj⟩ else 0
-        map_add' := fun x₁ x₂ => by ext j; by_cases hj : j ∈ T_set <;> simp [hj]
-        map_smul' := fun c x => by ext j; by_cases hj : j ∈ T_set <;> simp [hj] }
-    have hfac : (E_mat.submatrix ((↑) : S_set → Fin n) ((↑) : T_set → Fin n)).mulVecLin =
-        (resS.comp (C_cod.subtype.comp φ.toLinearMap)).comp (π_K.comp extT) :=
-      LinearMap.ext fun x => funext fun i => by
-        change (E_mat.submatrix ((↑) : S_set → Fin n) ((↑) : T_set → Fin n) *ᵥ x) i =
-          gLin (extT x) i.val
-        rw [← congrFun (congrFun hE_mul (extT x)) i.val]
-        simp only [Matrix.mulVec, dotProduct, Matrix.submatrix_apply, extT, LinearMap.coe_mk,
-          AddHom.coe_mk]
-        rw [← Fintype.sum_subtype_add_sum_subtype (· ∈ T_set)]
-        have h0 : (∑ j : {j : Fin n // j ∉ T_set},
-            E_mat i.val j.val * (if hj : j.val ∈ T_set then x ⟨j.val, hj⟩ else 0)) = 0 :=
-          Finset.sum_eq_zero fun j _ => by simp [j.property]
-        rw [h0, add_zero]
-        exact Finset.sum_congr rfl fun j _ => by simp [j.property]
-    rw [← Matrix.finrank_range_mulVecLin, hfac]
-    exact (Submodule.finrank_mono (LinearMap.range_comp_le_range _ _)).trans
+    have hvK : fM v = 0 := Submodule.disjoint_def.mp hC_cod.disjoint _
+      (LinearMap.mem_range_self _ v) (eq_neg_of_add_eq_zero_left hv0 ▸ C_cod.neg_mem (φ _).2)
+    rw [hvK, zero_add] at hv0
+    have : (⟨v, hvK⟩ : LinearMap.ker fM) = 0 := by
+      simpa [gLin, Submodule.projectionOnto_apply_left hC_dom ⟨v, hvK⟩] using hv0
+    exact congrArg Subtype.val this
+  let N := LinearMap.toMatrix' (fM + gLin)
+  let E := LinearMap.toMatrix' gLin
+  refine ⟨N, ?_, fun S T hST => ?_⟩
+  · have hbij : Function.Bijective (fM + gLin) := ⟨hinj, LinearMap.injective_iff_surjective.mp hinj⟩
+    simpa only [N, funext (LinearMap.toMatrix'_mulVec (fM + gLin))] using hbij
+  -- `M` has rank at least `n - t`, so `dim (ker M) ≤ t`.
+  have hK := hM univ univ rfl
+  have hMr : M.blockRank univ univ = M.rank := by
+    rw [blockRank_eq_rank]; exact rank_submatrix M (Equiv.Set.univ _) (Equiv.Set.univ _)
+  rw [ncard_univ, Nat.card_eq_fintype_card, Fintype.card_fin, hMr] at hK
+  rw [Module.finrank_fin_fun] at hrank
+  change M.rank + _ = _ at hrank
+  -- `M = N - E`, where `E` factors through `ker M`.
+  have hE : E.rank ≤ Module.finrank (ZMod 2) (LinearMap.ker fM) := by
+    rw [rank, ← Matrix.toLin'_apply', Matrix.toLin'_toMatrix']
+    exact (Submodule.finrank_mono (LinearMap.range_comp_le_range
+      ((LinearMap.ker fM).projectionOnto C_dom hC_dom) (C_cod.subtype ∘ₗ φ.toLinearMap))).trans
       (LinearMap.finrank_range_le _)
-  have hbr_M : M.blockRank S_set T_set ≤
-      N_mat.blockRank S_set T_set + Module.finrank (ZMod 2) K_sub := by
-    rw [M.blockRank_eq_rank, N_mat.blockRank_eq_rank, hM_eq_sub, Matrix.submatrix_sub]
-    set A_b := N_mat.submatrix ((↑) : S_set → Fin n) ((↑) : T_set → Fin n)
-    set B_b := E_mat.submatrix ((↑) : S_set → Fin n) ((↑) : T_set → Fin n)
-    have hsup : LinearMap.range (A_b - B_b).mulVecLin ≤
-        LinearMap.range A_b.mulVecLin ⊔ LinearMap.range B_b.mulVecLin := by
-      rintro _ ⟨x, rfl⟩
-      have hsub_v : (A_b - B_b).mulVecLin x = A_b.mulVecLin x - B_b.mulVecLin x := by
-        ext i; simp only [Matrix.mulVecLin_apply, Matrix.sub_mulVec, Pi.sub_apply]
-      rw [hsub_v]
-      exact Submodule.sub_mem_sup (LinearMap.mem_range_self _ x) (LinearMap.mem_range_self _ x)
-    have hrank_le : (A_b - B_b).rank ≤ A_b.rank + B_b.rank := by
-      have hmono := Submodule.finrank_mono hsup
-      have hdim := Submodule.finrank_sup_add_finrank_inf_eq
-        (LinearMap.range A_b.mulVecLin) (LinearMap.range B_b.mulVecLin)
-      simp only [← Matrix.finrank_range_mulVecLin]
-      omega
-    exact hrank_le.trans (Nat.add_le_add_left hE_sub_rank _)
-  have hM_st := hM S_set T_set hST
+  have hMeq : M = N - E := by
+    rw [← map_sub, add_sub_cancel_right]; exact (LinearMap.toMatrix'_toLin' M).symm
+  have hsub := rank_sub_le (N.submatrix (Subtype.val : S → Fin n) (Subtype.val : T → Fin n))
+    (E.submatrix Subtype.val Subtype.val)
+  change ((N - E).submatrix _ _).rank ≤ _ at hsub
+  rw [← hMeq, ← M.blockRank_eq_rank, ← N.blockRank_eq_rank] at hsub
+  have := (rank_submatrix_le E (Subtype.val : S → Fin n) (Subtype.val : T → Fin n)).trans hE
+  have := hM S T hST
   omega
 
 end Matrix

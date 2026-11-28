@@ -94,11 +94,9 @@ private theorem card_image_le_of_factorsThrough {α β γ : Type*} [Fintype α] 
     [DecidableEq γ] (f : α → γ) (g : α → β) (hfg : ∀ x y, g x = g y → f x = f y) :
     (univ.image f).card ≤ Fintype.card β := by
   rw [← Fintype.card_coe]
-  refine Fintype.card_le_of_injective
-    (fun c : univ.image f => g (mem_image.mp c.property).choose) ?_
-  intro c₁ c₂ h
-  ext
-  rw [← (mem_image.mp c₁.property).choose_spec.2, ← (mem_image.mp c₂.property).choose_spec.2]
+  refine Fintype.card_le_of_injective (fun c : univ.image f => g (mem_image.mp c.2).choose)
+    fun c₁ c₂ h => Subtype.ext ?_
+  rw [← (mem_image.mp c₁.2).choose_spec.2, ← (mem_image.mp c₂.2).choose_spec.2]
   exact hfg _ _ h
 
 private theorem card_image_le_card_image_of_factorsThrough {α β γ : Type*} [Fintype α]
@@ -107,11 +105,9 @@ private theorem card_image_le_card_image_of_factorsThrough {α β γ : Type*} [F
     (univ.image f).card ≤ (univ.image g).card := by
   rw [← Fintype.card_coe (univ.image f), ← Fintype.card_coe (univ.image g)]
   refine Fintype.card_le_of_injective
-    (fun c : univ.image f =>
-      ⟨g (mem_image.mp c.property).choose, mem_image_of_mem g (mem_univ _)⟩) ?_
-  intro c₁ c₂ h
-  ext
-  rw [← (mem_image.mp c₁.property).choose_spec.2, ← (mem_image.mp c₂.property).choose_spec.2]
+    (fun c : univ.image f => ⟨g (mem_image.mp c.2).choose, mem_image_of_mem g (mem_univ _)⟩)
+    fun c₁ c₂ h => Subtype.ext ?_
+  rw [← (mem_image.mp c₁.2).choose_spec.2, ← (mem_image.mp c₂.2).choose_spec.2]
   exact hfg _ _ (Subtype.mk.inj h)
 
 private def shiftedIntTerm (z : ℤ) (b : Bool) : ℕ :=
@@ -174,13 +170,10 @@ theorem pendingBias_succ (p : Program signature n g) (k : ℕ) (u : Fin (k + 1) 
   unfold pendingBias
   rw [Fin.sum_univ_castSucc]
   congr 1
-  apply sum_congr rfl
-  intro j _
-  have hgate : (⟨k + 1 + i.val, by omega⟩ : Fin g) = ⟨k + (i.val + 1), by omega⟩ := by
-    ext
-    dsimp
-    omega
-  rw [hgate]
+  refine sum_congr rfl fun j _ => ?_
+  have hidx : (⟨k + 1 + i.val, by omega⟩ : Fin g) = ⟨k + (i.val + 1), by omega⟩ :=
+    Fin.ext (by dsimp; omega)
+  rw [hidx]
   rfl
 
 /-- The output of `gate` is determined by its direct input-weighted sum and the first coordinate of
@@ -192,30 +185,19 @@ theorem eval_eq_decide_pendingBias (p : Program signature n g) (x : Fin n → Bo
           (fun j : Fin gate.val => p.eval interpretation x ⟨j.val, by omega⟩)
           ⟨0, by omega⟩) := by
   have hfilter : (∑ j : Fin g, gateWeight p gate j * (p.eval interpretation x j).toNat) =
-      ∑ j ∈ univ.filter (· < gate), gateWeight p gate j * (p.eval interpretation x j).toNat := by
-    symm
-    apply sum_subset (filter_subset _ _)
-    intro j _ hj
-    have hle : gate ≤ j := le_of_not_gt fun hlt => hj (mem_filter.mpr ⟨mem_univ _, hlt⟩)
-    rw [gateWeight_eq_zero_of_le p gate j hle, zero_mul]
-  have hbij :
-      pendingBias p gate.val
-        (fun j : Fin gate.val => p.eval interpretation x ⟨j.val, by omega⟩)
-        ⟨0, by omega⟩ =
+      ∑ j ∈ univ.filter (· < gate), gateWeight p gate j * (p.eval interpretation x j).toNat :=
+    (sum_subset (filter_subset _ _) fun j _ hj => by
+      rw [gateWeight_eq_zero_of_le p gate j
+        (le_of_not_gt fun hlt => hj (mem_filter.mpr ⟨mem_univ _, hlt⟩)), zero_mul]).symm
+  have hbij : pendingBias p gate.val
+      (fun j : Fin gate.val => p.eval interpretation x ⟨j.val, by omega⟩) ⟨0, by omega⟩ =
       ∑ j ∈ univ.filter (· < gate), gateWeight p gate j * (p.eval interpretation x j).toNat := by
     rw [pendingBias]
     refine sum_bij (fun (j : Fin gate.val) _ => (⟨j.val, lt_trans j.isLt gate.isLt⟩ : Fin g))
-      ?_ ?_ ?_ ?_
-    · intro j _
-      exact mem_filter.mpr ⟨mem_univ _, j.isLt⟩
-    · intro j₁ _ j₂ _ h
-      exact Fin.ext (by simpa only [Fin.mk.injEq] using h)
-    · intro b hb
-      exact ⟨⟨b.val, (mem_filter.mp hb).2⟩, mem_univ _, Fin.ext rfl⟩
-    · intro j _
-      have hgate : (⟨gate.val + 0, by omega⟩ : Fin g) = gate :=
-        Fin.ext (Nat.add_zero gate.val)
-      rw [hgate]
+      (fun j _ => mem_filter.mpr ⟨mem_univ _, j.isLt⟩)
+      (fun _ _ _ _ h => Fin.ext (by simpa only [Fin.mk.injEq] using h))
+      (fun b hb => ⟨⟨b.val, (mem_filter.mp hb).2⟩, mem_univ _, Fin.ext rfl⟩) fun j _ => ?_
+    rw [show (⟨gate.val + 0, by omega⟩ : Fin g) = gate from Fin.ext (Nat.add_zero gate.val)]
   rw [eval_gate_eq, gateThreshold, hfilter, hbij]
 
 /-- The layered pending-bias state evolution along the gates of `p` on input `x`. -/
@@ -247,25 +229,12 @@ theorem pendingBiasTrace_eq_pendingBias (p : Program signature n g) (x : Fin n �
     have := i.isLt
     have hk : k < g := by omega
     rw [pendingBiasTrace, pendingBias_succ, ih]
-    dsimp only
     congr 1
-    have hprefix :
-        (fun j : Fin k =>
-          if hj : j.val < g then p.eval interpretation x ⟨j.val, hj⟩ else false) =
-        (fun j : Fin k => p.eval interpretation x ⟨j.val, by omega⟩) := by
-      funext j
-      have hj : j.val < g := by omega
-      simp only [hj, ↓reduceDIte]
-    have heval :
-        decide (gateThreshold p ⟨k, hk⟩ ≤
-          (∑ a : Fin n, inputWeight p ⟨k, hk⟩ a * (x a).toNat) +
-            pendingBias p k
-              (fun j : Fin k =>
-                if hj : j.val < g then p.eval interpretation x ⟨j.val, hj⟩ else false)
-              ⟨0, by omega⟩) =
-        p.eval interpretation x ⟨k, hk⟩ := by
-      rw [hprefix, ← eval_eq_decide_pendingBias p x ⟨k, hk⟩]
-    rw [heval]
+    have hprefix : (fun j : Fin k =>
+        if hj : j.val < g then p.eval interpretation x ⟨j.val, hj⟩ else false) =
+        fun j : Fin k => p.eval interpretation x ⟨j.val, by omega⟩ :=
+      funext fun j => by simp only [show j.val < g by omega, ↓reduceDIte]
+    rw [hprefix, ← eval_eq_decide_pendingBias p x ⟨k, hk⟩]
     simp only [Fin.val_last, hk, ↓reduceDIte]
 
 /-- **Theorem 6.1 (Pending-bias query rule).** Each gate's evaluation is a single linear threshold
@@ -277,9 +246,7 @@ theorem eval_eq_decide_pendingBiasTrace (p : Program signature n g) (x : Fin n �
         pendingBiasTrace p x gate.val ⟨0, by omega⟩) := by
   rw [eval_eq_decide_pendingBias, pendingBiasTrace_eq_pendingBias]
   congr 4
-  funext j
-  have hj : j.val < g := by omega
-  simp only [hj, ↓reduceDIte]
+  exact funext fun j => by simp only [show j.val < g by omega, ↓reduceDIte]
 
 /-- The syntactic set of pending-bias states at cut `k`, ranging over all Boolean prefixes
 `u : Fin k → Bool`. -/
@@ -323,22 +290,17 @@ theorem card_pendingBiasStates_le_prod_intWeight (p : Program signature n g) (k 
     (pendingBiasStates p k).card ≤ ∏ i ∈ rows, (1 + ∑ j : Fin k, (w i j).natAbs) := by
   classical
   have hle := card_image_le_of_factorsThrough (pendingBias p k)
-    (fun (u : Fin k → Bool) (i : rows) => shiftedIntSum (w i.val) u) ?_
-  · simp only [Fintype.card_pi, Fintype.card_fin] at hle
-    rwa [← prod_attach rows (fun i => 1 + ∑ j : Fin k, (w i j).natAbs)]
-  · intro u v huv
-    apply hrows u v
-    intro i hi
-    have hrow : ∀ x : Fin k → Bool,
-        pendingBias p k x i = (∑ j : Fin k, w i j * (x j).toNat : ℤ) := by
-      intro x
-      unfold pendingBias
-      push_cast
-      apply sum_congr rfl
-      intro j _
-      rw [hw i hi j]
-    rw [hrow u, hrow v]
-    exact_mod_cast sum_int_eq_of_shiftedIntSum_eq (w i) (congrFun huv ⟨i, hi⟩)
+    (fun (u : Fin k → Bool) (i : rows) => shiftedIntSum (w i.val) u) fun u v huv =>
+    hrows u v fun i hi => by
+      have hrow (x : Fin k → Bool) :
+          pendingBias p k x i = (∑ j : Fin k, w i j * (x j).toNat : ℤ) := by
+        unfold pendingBias
+        push_cast
+        exact sum_congr rfl fun j _ => by rw [hw i hi j]
+      rw [hrow u, hrow v]
+      exact_mod_cast sum_int_eq_of_shiftedIntSum_eq (w i) (congrFun huv ⟨i, hi⟩)
+  simp only [Fintype.card_pi, Fintype.card_fin] at hle
+  rwa [← prod_attach rows (fun i => 1 + ∑ j : Fin k, (w i j).natAbs)]
 
 /-- **Section 6.1, equation (9) (Rank-precision bound for pending-bias states).** Under the
 hypotheses of `card_pendingBiasStates_le_prod_intWeight`, if every selected integer internal weight
@@ -356,11 +318,9 @@ theorem card_pendingBiasStates_le_pow_intWeight (p : Program signature n g) (k W
   refine (card_pendingBiasStates_le_prod_intWeight p k rows hrows w hw).trans ?_
   calc
     (∏ i ∈ rows, (1 + ∑ j : Fin k, (w i j).natAbs)) ≤ ∏ _i ∈ rows, (1 + k * W) := by
-      apply prod_le_prod
-      intro i hi
+      refine prod_le_prod fun i hi => ?_
       have hsum : (∑ j : Fin k, (w i j).natAbs) ≤ k * W := by
-        simpa using sum_le_card_nsmul univ (fun j : Fin k => (w i j).natAbs) W
-          (fun j _ => hW i hi j)
+        simpa using sum_le_card_nsmul univ (fun j : Fin k => (w i j).natAbs) W fun j _ => hW i hi j
       omega
     _ = (1 + k * W) ^ rows.card := by simp
 
@@ -373,25 +333,16 @@ theorem card_pendingBiasStates_le_add_one_of_row_const (p : Program signature n 
       gateWeight p ⟨k + i.val, by omega⟩ ⟨j.val, by have := i.isLt; omega⟩ = β i) :
     (pendingBiasStates p k).card ≤ k + 1 := by
   classical
-  have hweight : ∀ u : Fin k → Bool, (∑ j : Fin k, (u j).toNat) < k + 1 := by
-    intro u
+  have hweight (u : Fin k → Bool) : (∑ j : Fin k, (u j).toNat) < k + 1 := by
     have hle : (∑ j : Fin k, (u j).toNat) ≤ k * 1 := by
       simpa using sum_le_card_nsmul univ (fun j : Fin k => (u j).toNat) 1
-        (fun j _ => Bool.toNat_le (u j))
+        fun j _ => Bool.toNat_le (u j)
     omega
-  have hle := card_image_le_of_factorsThrough (pendingBias p k)
-    (fun u : Fin k → Bool => (⟨∑ j : Fin k, (u j).toNat, hweight u⟩ : Fin (k + 1))) ?_
-  · simpa [pendingBiasStates] using hle
-  · intro u v huv
-    have hsum : (∑ j : Fin k, (u j).toNat) = ∑ j : Fin k, (v j).toNat :=
-      congrArg Fin.val huv
-    funext i
-    have hrow : ∀ x : Fin k → Bool,
-        pendingBias p k x i = β i * (∑ j : Fin k, (x j).toNat : ℕ) := by
-      intro x
-      unfold pendingBias
-      simp only [hβ i, ← mul_sum, Nat.cast_sum]
-    rw [hrow u, hrow v, hsum]
+  simpa [pendingBiasStates] using card_image_le_of_factorsThrough (pendingBias p k)
+    (fun u : Fin k → Bool => (⟨∑ j : Fin k, (u j).toNat, hweight u⟩ : Fin (k + 1)))
+    fun u v huv => funext fun i => by
+      simp only [pendingBias, hβ i, ← mul_sum, ← Nat.cast_sum]
+      rw [show (∑ j, (u j).toNat) = ∑ j, (v j).toNat from congrArg Fin.val huv]
 
 /-! ### Section 9: Input summaries and phased-access cut lower bounds -/
 
@@ -407,15 +358,15 @@ theorem eval_eq_of_inputSummary_eq_lt (p : Program signature n g) {x y : Fin n �
       p.eval interpretation x gate = p.eval interpretation y gate := by
   induction b with
   | zero =>
-    intro gate hgate
+    intro _ hgate
     omega
   | succ b ih =>
     intro gate hgate
-    rw [eval_gate_eq p x gate, eval_gate_eq p y gate]
-    have hin : (∑ i, inputWeight p gate i * (x i).toNat) =
-        ∑ i, inputWeight p gate i * (y i).toNat := h gate hgate
-    rw [hin, sum_mul_toNat_congr_of_lt (gateWeight_eq_zero_of_le p gate)
-      fun prior hprior => ih (fun j hj => h j (by omega)) prior (by omega)]
+    rw [eval_gate_eq p x gate, eval_gate_eq p y gate,
+      show (∑ i, inputWeight p gate i * (x i).toNat) =
+        ∑ i, inputWeight p gate i * (y i).toNat from h gate hgate,
+      sum_mul_toNat_congr_of_lt (gateWeight_eq_zero_of_le p gate)
+        fun prior _ => ih (fun j hj => h j (by omega)) prior (by omega)]
 
 /-- Equal direct input summaries produce identical complete gate valuations. -/
 theorem eval_eq_of_inputSummary_eq (p : Program signature n g) {x y : Fin n → Bool}
@@ -495,8 +446,7 @@ theorem card_intSummary_le_pow {ι : Type*} [Fintype ι] [DecidableEq ι] {r W :
   refine (card_intSummary_le_prod R).trans ?_
   calc
     (∏ a : Fin r, (1 + ∑ i : ι, (R a i).natAbs)) ≤ ∏ _a : Fin r, (1 + Fintype.card ι * W) := by
-      apply prod_le_prod
-      intro a _
+      refine prod_le_prod fun a _ => ?_
       have hsum : (∑ i : ι, (R a i).natAbs) ≤ Fintype.card ι * W := by
         simpa using sum_le_card_nsmul univ (fun i : ι => (R a i).natAbs) W fun i _ => hW a i
       omega
@@ -549,9 +499,7 @@ private theorem pendingBiasTrace_add_eq_of_pendingBiasTrace_eq (p : Program sign
       hsuff ⟨d, by omega⟩
     unfold inputSummary at hin
     change pendingBiasTrace p z₁ ((k + d) + 1) i = pendingBiasTrace p z₂ ((k + d) + 1) i
-    rw [pendingBiasTrace, pendingBiasTrace, ih]
-    dsimp only
-    rw [hin]
+    rw [pendingBiasTrace, pendingBiasTrace, ih, hin]
 
 /-- Under phased input access across cut `k`, the pending-bias state
 `pendingBiasTrace p (enc x y₀) k` at a reference right input `y₀` determines the entire row `f x`.
@@ -571,9 +519,8 @@ private theorem f_eq_of_pendingBiasTrace_eq_of_phased {X Y : Type*} (p : Program
     {x₁ x₂ : X}
     (htrace : pendingBiasTrace p (enc x₁ y₀) k = pendingBiasTrace p (enc x₂ y₀) k) :
     f x₁ = f x₂ := by
-  have htrace_indep : ∀ (x : X) (y : Y),
+  have htrace_indep (x : X) (y : Y) :
       pendingBiasTrace p (enc x y) k = pendingBiasTrace p (enc x y₀) k := by
-    intro x y
     rw [pendingBiasTrace_eq_pendingBias, pendingBiasTrace_eq_pendingBias]
     congr 1
     funext j
@@ -584,8 +531,7 @@ private theorem f_eq_of_pendingBiasTrace_eq_of_phased {X Y : Type*} (p : Program
     · simp only [hj, ↓reduceDIte]
   funext y
   rw [← hcomp x₁ y, ← hcomp x₂ y]
-  apply hread
-  intro i
+  refine hread _ _ fun i => ?_
   have hinit : pendingBiasTrace p (enc x₁ y) k = pendingBiasTrace p (enc x₂ y) k := by
     rw [htrace_indep x₁ y, htrace_indep x₂ y, htrace]
   have hstep :=
@@ -616,13 +562,10 @@ theorem card_rows_le_card_pendingBiasStates_of_phased {X Y : Type*} [Fintype X]
         readout z₁ = readout z₂) :
     (univ.image f).card ≤ (pendingBiasStates p k).card := by
   classical
-  have hle : (univ.image f).card ≤
-      (univ.image (fun x : X => pendingBiasTrace p (enc x y₀) k)).card :=
-    card_image_le_card_image_of_factorsThrough f (fun x => pendingBiasTrace p (enc x y₀) k)
-      fun _ _ h =>
-        f_eq_of_pendingBiasTrace_eq_of_phased p enc readout f k y₀ hcomp hpref hsuff hread h
-  refine hle.trans (card_le_card ?_)
-  intro s hs
+  refine (card_image_le_card_image_of_factorsThrough f
+    (fun x : X => pendingBiasTrace p (enc x y₀) k) fun _ _ h =>
+      f_eq_of_pendingBiasTrace_eq_of_phased p enc readout f k y₀ hcomp hpref hsuff hread h).trans
+    (card_le_card fun s hs => ?_)
   obtain ⟨x, _, rfl⟩ := mem_image.mp hs
   exact pendingBiasTrace_mem_pendingBiasStates p (enc x y₀) k
 

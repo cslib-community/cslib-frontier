@@ -247,7 +247,16 @@ theorem Shape.child (h₀s : x₀.scale = x₀.edges) (h₀b : x₀.bound + x₀
     rw [hmk, length_vertices_nativeChild]
     have := childRows_le x.rows (level x ((nodes x).getD c.1 0)) x.net pk c.2.2.2
     omega
-  refine ⟨h.scale_eq, h.fl_eq, wfChildren_nativeMk x h.wf ha c hc, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  have hp : nodePrec x c.1 ≤ x₀.prec + (x.depth + 1) * (40 * m ^ 2) := by
+    have : x.prec ≤ x₀.prec + x.depth * (40 * m ^ 2) := h.prec_le
+    rw [add_one_mul]
+    omega
+  have hv₀ : x.net.vertices.length + m ^ 2 ≤ x₀.net.vertices.length + (x.depth + 1) * m ^ 2 := by
+    have : x.net.vertices.length ≤ x₀.net.vertices.length + x.depth * m ^ 2 := h.vertices_le
+    rw [add_one_mul]
+    omega
+  refine ⟨h.scale_eq, h.fl_eq, wfChildren_nativeMk x h.wf ha c hc, ?_, ?_, hp, hvert.trans hv₀,
+    ?_, ?_⟩
   · have := edges_lt_bound_of_active ha
     have := h.bound_add_depth_le
     change x.edges + (x.depth + 1) ≤ _
@@ -255,22 +264,10 @@ theorem Shape.child (h₀s : x₀.scale = x₀.edges) (h₀b : x₀.bound + x₀
   · change (nativeMk x c).2.numEdges ≤ 2 * m
     rw [hmk]
     exact (numEdges_nativeChild_le _ _ _ _ _ _ _ _ _ _ _).trans (Nat.mul_le_mul_left 2 hM)
-  · change nodePrec x c.1 ≤ x₀.prec + (x.depth + 1) * (40 * m ^ 2)
-    have : x.prec ≤ x₀.prec + x.depth * (40 * m ^ 2) := h.prec_le
-    rw [add_one_mul]
-    omega
-  · change _ ≤ x₀.net.vertices.length + (x.depth + 1) * m ^ 2
-    have : x.net.vertices.length ≤ x₀.net.vertices.length + x.depth * m ^ 2 :=
-      h.vertices_le
-    rw [add_one_mul]
-    omega
   · refine Or.inr ?_
     change (nativeMk x c).1 ≤ x₀.net.vertices.length + (x.depth + 1) * m ^ 2
     rw [hmk]
     have := childRows_le x.rows (level x ((nodes x).getD c.1 0)) x.net pk c.2.2.2
-    have : x.net.vertices.length ≤ x₀.net.vertices.length + x.depth * m ^ 2 :=
-      h.vertices_le
-    rw [add_one_mul]
     omega
   · intro v hv
     change v ∈ (nativeMk x c).2.vertices at hv
@@ -288,10 +285,6 @@ theorem Shape.child (h₀s : x₀.scale = x₀.edges) (h₀b : x₀.bound + x₀
     · refine Or.inr ⟨_, hd, ?_⟩
       have hζ := getD_points_facts x c.2.1
       have hβ := (mem_children.mp hc).2.2.1
-      have hp : nodePrec x c.1 ≤ x₀.prec + (x.depth + 1) * (40 * m ^ 2) := by
-        have : x.prec ≤ x₀.prec + x.depth * (40 * m ^ 2) := h.prec_le
-        rw [add_one_mul]
-        omega
       have hfl : x.fl.length = x₀.fl.length := by rw [h.fl_eq]
       rw [h.fl_eq] at hζ ⊢
       refine packetBound_packetCtx hp haL hlev.le hnode (hfl ▸ hζ.1) hζ.2 htl (fun b hb => ?_)

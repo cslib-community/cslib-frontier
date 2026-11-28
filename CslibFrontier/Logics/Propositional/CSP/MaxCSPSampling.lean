@@ -78,41 +78,30 @@ private theorem uniformSample_abs_sub_ge_le {m : ℕ} (hm : 0 < m) (s : ℕ)
         δ * (m : ℝ) ≤ |(m : ℝ) / (s : ℝ) * (∑ j : Fin s, val (ω j)) - ∑ i : Fin m, val i|}).toReal ≤
       2 * Real.exp (-2 * (s : ℝ) * δ ^ 2) := by
   rcases Nat.eq_zero_or_pos s with rfl | hs
-  · refine (toOuterMeasure_toReal_le_one _ _).trans ?_
-    simp only [CharP.cast_eq_zero, mul_zero, zero_mul, Real.exp_zero, mul_one]
-    norm_num
+  · exact (toOuterMeasure_toReal_le_one _ _).trans (by simp)
   have : Nonempty (Fin m) := ⟨⟨0, hm⟩⟩
-  have hpi : uniformSamplePMF m hm s = pi (fun _ : Fin s => uniformOfFintype (Fin m)) :=
-    (pi_uniformOfFintype (α := fun _ : Fin s => Fin m)).symm
-  set tot : ℝ := ∑ i : Fin m, val i
-  have hmR : (0 : ℝ) < m := Nat.cast_pos.mpr hm
-  have hsR : (0 : ℝ) < s := Nat.cast_pos.mpr hs
-  have hcoord_mean :
-      ∑ i : Fin m, ((uniformOfFintype (Fin m)) i).toReal * val i = tot / (m : ℝ) := by
-    simp only [uniformOfFintype_apply, Fintype.card_fin, ENNReal.toReal_inv,
-      ENNReal.toReal_natCast, inv_mul_eq_div, ← Finset.sum_div, tot]
-  have hsum_mean :
-      (∑ _ : Fin s, ∑ i : Fin m, ((uniformOfFintype (Fin m)) i).toReal * val i) =
-        (s : ℝ) * (tot / (m : ℝ)) := by
-    simp only [hcoord_mean, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+  have hdiv_pos : 0 < (m : ℝ) / (s : ℝ) := div_pos (Nat.cast_pos.mpr hm) (Nat.cast_pos.mpr hs)
+  have hm_ne : (m : ℝ) ≠ 0 := (Nat.cast_pos.mpr hm).ne'
+  have hs_ne : (s : ℝ) ≠ 0 := (Nat.cast_pos.mpr hs).ne'
   have hevent :
       {ω : Fin s → Fin m |
-        δ * (m : ℝ) ≤ |(m : ℝ) / (s : ℝ) * (∑ j : Fin s, val (ω j)) - tot|} =
+        δ * (m : ℝ) ≤ |(m : ℝ) / (s : ℝ) * (∑ j : Fin s, val (ω j)) - ∑ i : Fin m, val i|} =
       {ω : Fin s → Fin m |
         (s : ℝ) * δ ≤ |(∑ j : Fin s, val (ω j)) -
           ∑ _ : Fin s, ∑ i : Fin m,
             ((uniformOfFintype (Fin m)) i).toReal * val i|} := by
     ext ω
-    simp only [Set.mem_ofPred_eq, hsum_mean]
-    have hdiv_pos : 0 < (m : ℝ) / (s : ℝ) := div_pos hmR hsR
-    have hscale : (m : ℝ) / (s : ℝ) * (∑ j : Fin s, val (ω j)) - tot =
-        ((m : ℝ) / (s : ℝ)) * ((∑ j : Fin s, val (ω j)) - (s : ℝ) * (tot / (m : ℝ))) := by
+    simp only [Set.mem_ofPred_eq, uniformOfFintype_apply, Fintype.card_fin, ENNReal.toReal_inv,
+      ENNReal.toReal_natCast, inv_mul_eq_div, ← Finset.sum_div, Finset.sum_const,
+      Finset.card_univ, nsmul_eq_mul]
+    have hscale : (m : ℝ) / (s : ℝ) * (∑ j : Fin s, val (ω j)) - ∑ i : Fin m, val i =
+        ((m : ℝ) / (s : ℝ)) * ((∑ j : Fin s, val (ω j)) - ((s : ℝ) * ∑ i : Fin m, val i) / m) := by
       field_simp
-    have hlhs : δ * (m : ℝ) = ((m : ℝ) / (s : ℝ)) * ((s : ℝ) * δ) := by
-      field_simp
+    have hlhs : δ * (m : ℝ) = ((m : ℝ) / (s : ℝ)) * ((s : ℝ) * δ) := by field_simp
     rw [hscale, abs_mul, abs_of_pos hdiv_pos, hlhs]
     exact mul_le_mul_iff_right₀ hdiv_pos
-  rw [hpi, hevent]
+  unfold uniformSamplePMF
+  rw [(pi_uniformOfFintype (α := fun _ : Fin s => Fin m)).symm, hevent]
   simpa only [Fintype.card_fin] using pi_sum_abs_sub_mean_ge_card_mul
     (fun _ : Fin s => uniformOfFintype (Fin m)) (fun _ i => val i) (fun _ i _ => hval i) hδ
 
@@ -155,12 +144,9 @@ private theorem abs_scale_sup_sub_le {α : Type*} {c optS optF ε : ℝ} (hc : 0
     |c * optS - optF| ≤ ε := by
   obtain ⟨xStar, rfl⟩ := hStar
   obtain ⟨xHat, rfl⟩ := hHat
-  have h1 := (abs_le.mp (hunif xHat)).2
-  have h2 := (abs_le.mp (hunif xStar)).1
-  have hopt_le := hf_le xHat
-  have hsamp_le := mul_le_mul_of_nonneg_left (hs_le xStar) hc
-  rw [abs_le]
-  exact ⟨by linarith, by linarith⟩
+  exact abs_le.mpr
+    ⟨by linarith [(abs_le.mp (hunif xStar)).1, mul_le_mul_of_nonneg_left (hs_le xStar) hc],
+     by linarith [(abs_le.mp (hunif xHat)).2, hf_le xHat]⟩
 
 /-- When `0 < η` and `n * log |D| + log (2 / η) ≤ 2 * s * δ ^ 2`, the union-bound factor
 `|D| ^ n * 2 * exp (-2 * s * δ ^ 2)` is at most `η`. -/
@@ -169,32 +155,22 @@ theorem card_pow_two_mul_exp_le_eta {D : Type*} [Fintype D] [Nonempty D]
     (hs : (n : ℝ) * Real.log (Fintype.card D) + Real.log (2 / η) ≤ 2 * (s : ℝ) * δ ^ 2) :
     (Fintype.card D : ℝ) ^ n * 2 * Real.exp (-2 * (s : ℝ) * δ ^ 2) ≤ η := by
   have hc : (0 : ℝ) < Fintype.card D := Nat.cast_pos.mpr Fintype.card_pos
-  have h2η : 0 < 2 / η := div_pos zero_lt_two hη
-  have hpow : (Fintype.card D : ℝ) ^ n = Real.exp ((n : ℝ) * Real.log (Fintype.card D)) := by
-    rw [← Real.rpow_natCast, Real.rpow_def_of_pos hc, mul_comm]
-  have hdiv : 2 / η = Real.exp (Real.log (2 / η)) := (Real.exp_log h2η).symm
-  have hrew : (Fintype.card D : ℝ) ^ n * 2 * Real.exp (-2 * (s : ℝ) * δ ^ 2) =
-      η * ((Fintype.card D : ℝ) ^ n * (2 / η) * Real.exp (-2 * (s : ℝ) * δ ^ 2)) := by
-    field_simp
-  rw [hrew, hpow, hdiv, ← Real.exp_add, ← Real.exp_add]
-  have hexp : Real.exp ((n : ℝ) * Real.log (Fintype.card D) + Real.log (2 / η) +
-      (-2 * (s : ℝ) * δ ^ 2)) ≤ 1 :=
-    Real.exp_le_one_iff.mpr (by linarith)
-  nlinarith
+  rw [show (Fintype.card D : ℝ) ^ n * 2 * Real.exp (-2 * (s : ℝ) * δ ^ 2) =
+      η * ((Fintype.card D : ℝ) ^ n * (2 / η) * Real.exp (-2 * (s : ℝ) * δ ^ 2)) by field_simp,
+    ← Real.rpow_natCast, Real.rpow_def_of_pos hc, mul_comm (Real.log _),
+    ← Real.exp_log (div_pos zero_lt_two hη), ← Real.exp_add, ← Real.exp_add]
+  exact mul_le_of_le_one_right hη.le (Real.exp_le_one_iff.mpr (by linarith))
 
 /-- Boolean specialization: when `0 < η` and `(n + 1) * log 2 + log (1 / η) ≤ 2 * s * δ ^ 2`,
 `2 ^ (n + 1) * exp (-2 * s * δ ^ 2) ≤ η`. -/
 theorem two_pow_succ_mul_exp_le_eta {n s : ℕ} {δ η : ℝ} (hη : 0 < η)
     (hs : (n + 1 : ℝ) * Real.log 2 + Real.log (1 / η) ≤ 2 * (s : ℝ) * δ ^ 2) :
     2 ^ (n + 1) * Real.exp (-2 * (s : ℝ) * δ ^ 2) ≤ η := by
-  have hlog : (n : ℝ) * Real.log (Fintype.card Bool) + Real.log (2 / η) ≤
-      2 * (s : ℝ) * δ ^ 2 := by
-    have hmul : (2 : ℝ) / η = 2 * (1 / η) := by ring
-    rw [Fintype.card_bool, Nat.cast_ofNat, hmul,
-      Real.log_mul two_ne_zero (one_div_pos.mpr hη).ne']
-    linarith
-  have h := card_pow_two_mul_exp_le_eta (D := Bool) hη hlog
-  simpa only [Fintype.card_bool, Nat.cast_ofNat, pow_succ, mul_assoc] using h
+  simpa only [Fintype.card_bool, Nat.cast_ofNat, pow_succ, mul_assoc] using
+    card_pow_two_mul_exp_le_eta (D := Bool) hη (by
+      rw [Fintype.card_bool, Nat.cast_ofNat, show (2 : ℝ) / η = 2 * (1 / η) by ring,
+        Real.log_mul two_ne_zero (one_div_pos.mpr hη).ne']
+      linarith)
 
 end MaxCSP
 
@@ -274,15 +250,9 @@ theorem optimum_sub_score_le_two_mul [Fintype D] [Inhabited D] (sem : Rel → Li
     (hmax : ∀ x : Fin F.numVars → D,
       (F.sample ω).score sem x ≤ (F.sample ω).score sem xHat) :
     F.optimum sem - F.score sem xHat ≤ 2 * δ * (F.constraints.length : ℝ) := by
-  have hscale_nonneg : 0 ≤ (F.constraints.length : ℝ) / (s : ℝ) := by positivity
   obtain ⟨xStar, hxStar⟩ := F.exists_score_eq_optimum sem
-  have hHat := (abs_le.mp (hunif xHat)).2
-  have hStar := (abs_le.mp (hunif xStar)).1
-  have hcmp :
-      (F.constraints.length : ℝ) / (s : ℝ) * (F.sample ω).score sem xStar ≤
-        (F.constraints.length : ℝ) / (s : ℝ) * (F.sample ω).score sem xHat :=
-    mul_le_mul_of_nonneg_left (hmax xStar) hscale_nonneg
-  linarith
+  linarith [(abs_le.mp (hunif xHat)).2, (abs_le.mp (hunif xStar)).1,
+    mul_le_mul_of_nonneg_left (hmax xStar) (by positivity : 0 ≤ (F.constraints.length : ℝ) / s)]
 
 /-- Multiplicative `(1 - ε)`-approximation corollary when `0 < α`, `0 ≤ δ`, `F.optimum sem ≥ α * m`,
 and `2 * δ ≤ ε * α`. -/
@@ -297,14 +267,9 @@ theorem one_sub_mul_optimum_le_score [Fintype D] [Inhabited D] (sem : Rel → Li
     (hmax : ∀ x : Fin F.numVars → D,
       (F.sample ω).score sem x ≤ (F.sample ω).score sem xHat) :
     (1 - ε) * F.optimum sem ≤ F.score sem xHat := by
-  have hloss := F.optimum_sub_score_le_two_mul sem ω hunif hmax
-  have hm_nonneg : 0 ≤ (F.constraints.length : ℝ) := Nat.cast_nonneg _
-  have h1 : 2 * δ * (F.constraints.length : ℝ) ≤ ε * (α * (F.constraints.length : ℝ)) := by
-    nlinarith
-  have hε_nonneg : 0 ≤ ε := by nlinarith
-  have h2 : ε * (α * (F.constraints.length : ℝ)) ≤ ε * F.optimum sem :=
-    mul_le_mul_of_nonneg_left hopt hε_nonneg
-  linarith
+  have hε : 0 ≤ ε := by nlinarith
+  nlinarith [mul_le_mul_of_nonneg_left hopt hε, F.optimum_sub_score_le_two_mul sem ω hunif hmax,
+    (Nat.cast_nonneg F.constraints.length : (0 : ℝ) ≤ F.constraints.length)]
 
 /-- **Single-assignment subsampling tail** for `[0, 1]`-weighted `WeightedMaxCSP`. -/
 theorem sample_score_abs_sub_ge_le [Inhabited D] (sem : Rel → List D → Bool)
@@ -316,15 +281,14 @@ theorem sample_score_abs_sub_ge_le [Inhabited D] (sem : Rel → List D → Bool)
         |(F.constraints.length : ℝ) / (s : ℝ) * (F.sample ω).score sem x -
           F.score sem x|}).toReal ≤
       2 * Real.exp (-2 * (s : ℝ) * δ ^ 2) := by
-  have hval (i : Fin F.constraints.length) :
-      F.constraints[i].evalWeight sem (MaxCSP.assignment F.numVars x) ∈ Set.Icc (0 : ℝ) 1 := by
-    dsimp only [WeightedConstraint.evalWeight]
-    split_ifs
-    · exact hw _ (List.getElem_mem _)
-    · exact ⟨le_rfl, zero_le_one⟩
   simpa only [samplePMF, score_sample_eq_sum, score_eq_sum_fin] using
     MaxCSP.uniformSample_abs_sub_ge_le hm s
-      (fun i => F.constraints[i].evalWeight sem (MaxCSP.assignment F.numVars x)) hval hδ
+      (fun i => F.constraints[i].evalWeight sem (MaxCSP.assignment F.numVars x))
+      (fun i => by
+        dsimp only [WeightedConstraint.evalWeight]
+        split_ifs
+        · exact hw _ (List.getElem_mem _)
+        · exact ⟨le_rfl, zero_le_one⟩) hδ
 
 /-- **Uniform subsampling concentration over a general finite domain `D`** (`|D| ^ n * 2 * exp`). -/
 theorem exists_sample_score_abs_sub_ge_le [Fintype D] [Inhabited D] (sem : Rel → List D → Bool)
@@ -336,15 +300,14 @@ theorem exists_sample_score_abs_sub_ge_le [Fintype D] [Inhabited D] (sem : Rel �
           |(F.constraints.length : ℝ) / (s : ℝ) * (F.sample ω).score sem x -
             F.score sem x|}).toReal ≤
       (Fintype.card D : ℝ) ^ F.numVars * 2 * Real.exp (-2 * (s : ℝ) * δ ^ 2) := by
-  have heval (i : Fin F.constraints.length) (x : Fin F.numVars → D) :
-      F.constraints[i].evalWeight sem (MaxCSP.assignment F.numVars x) ∈ Set.Icc (0 : ℝ) 1 := by
-    dsimp only [WeightedConstraint.evalWeight]
-    split_ifs
-    · exact hw _ (List.getElem_mem _)
-    · exact ⟨le_rfl, zero_le_one⟩
   simpa only [samplePMF, score_sample_eq_sum, score_eq_sum_fin] using
     MaxCSP.uniformSample_exists_abs_sub_ge_le hm s
-      (fun i x => F.constraints[i].evalWeight sem (MaxCSP.assignment F.numVars x)) heval hδ
+      (fun i x => F.constraints[i].evalWeight sem (MaxCSP.assignment F.numVars x))
+      (fun i x => by
+        dsimp only [WeightedConstraint.evalWeight]
+        split_ifs
+        · exact hw _ (List.getElem_mem _)
+        · exact ⟨le_rfl, zero_le_one⟩) hδ
 
 /-- **Boolean uniform subsampling concentration (`2 ^ (n + 1) * exp (-2 * s * δ ^ 2)`).** -/
 theorem boolean_exists_sample_score_abs_sub_ge_le (sem : Rel → List Bool → Bool)
@@ -498,16 +461,11 @@ theorem optimum_sub_score_le_two_mul [Fintype D] [Inhabited D] (sem : Rel → Li
     (hmax : ∀ x : Fin F.numVars → D,
       (F.sample ω).score sem x ≤ (F.sample ω).score sem xHat) :
     (F.optimum sem : ℝ) - (F.score sem xHat : ℝ) ≤ 2 * δ * (F.constraints.length : ℝ) := by
-  have hscale_nonneg : 0 ≤ (F.constraints.length : ℝ) / (s : ℝ) := by positivity
   obtain ⟨xStar, hxStar⟩ := F.exists_score_eq_optimum sem
-  have hHat := (abs_le.mp (hunif xHat)).2
-  have hStar := (abs_le.mp (hunif xStar)).1
-  have hcmp :
-      (F.constraints.length : ℝ) / (s : ℝ) * ((F.sample ω).score sem xStar : ℝ) ≤
-        (F.constraints.length : ℝ) / (s : ℝ) * ((F.sample ω).score sem xHat : ℝ) :=
-    mul_le_mul_of_nonneg_left (Nat.cast_le.mpr (hmax xStar)) hscale_nonneg
   rw [← hxStar]
-  linarith
+  linarith [(abs_le.mp (hunif xHat)).2, (abs_le.mp (hunif xStar)).1,
+    mul_le_mul_of_nonneg_left (Nat.cast_le.mpr (hmax xStar))
+      (by positivity : 0 ≤ (F.constraints.length : ℝ) / s)]
 
 /-- **Uniform subsampling concentration** for unweighted `MaxCSPInstance` over `D`. -/
 theorem exists_sample_score_abs_sub_ge_le [Fintype D] [Inhabited D] (sem : Rel → List D → Bool)
@@ -518,14 +476,10 @@ theorem exists_sample_score_abs_sub_ge_le [Fintype D] [Inhabited D] (sem : Rel �
           |(F.constraints.length : ℝ) / (s : ℝ) * ((F.sample ω).score sem x : ℝ) -
             (F.score sem x : ℝ)|}).toReal ≤
       (Fintype.card D : ℝ) ^ F.numVars * 2 * Real.exp (-2 * (s : ℝ) * δ ^ 2) := by
-  have heval (i : Fin F.constraints.length) (x : Fin F.numVars → D) :
-      (if F.constraints[i].eval sem (MaxCSP.assignment F.numVars x) then (1 : ℝ) else 0) ∈
-        Set.Icc (0 : ℝ) 1 := by
-    split_ifs <;> simp only [Set.mem_Icc, zero_le_one, le_refl, and_self]
   simpa only [samplePMF, score_sample_eq_sum_boole, score_eq_sum_boole] using
     MaxCSP.uniformSample_exists_abs_sub_ge_le hm s
       (fun i x => if F.constraints[i].eval sem (MaxCSP.assignment F.numVars x) then 1 else 0)
-      heval hδ
+      (fun _ _ => by split_ifs <;> simp only [Set.mem_Icc, zero_le_one, le_refl, and_self]) hδ
 
 /-- **Boolean uniform subsampling concentration (`2 ^ (n + 1) * exp (-2 * s * δ ^ 2)`).** -/
 theorem boolean_exists_sample_score_abs_sub_ge_le (sem : Rel → List Bool → Bool)

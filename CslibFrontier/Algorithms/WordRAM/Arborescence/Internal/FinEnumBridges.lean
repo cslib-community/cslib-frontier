@@ -84,25 +84,18 @@ public theorem edmonds_fin_map_eq {n : ℕ} (G : Digraph (Fin n)) [DecidableRel 
         (edmondsTableAux (e r) n A₁ C₁) := by
     rw [hfuel]
     exact congrArg (Option.map · _) (funext hmap_fn)
+  have hsymm {i : ℕ} (h₁ : i < FinEnum.card (Fin n)) (h₂ : i < n) : e.symm ⟨i, h₁⟩ = ⟨i, h₂⟩ :=
+    Fin.ext (finEnum_equiv_symm_val ⟨i, h₁⟩)
   refine step1.trans
     (edmondsTableAux_congr_dim hcard (e r) r (finEnum_equiv_val r) n A₁ _ C₁ _ ?_ ?_)
   · intro i j hi₁ hj₁ hi₂ hj₂
-    have h1 : A₁[i][j] = decide (G.Adj (e.symm ⟨i, hi₁⟩) (e.symm ⟨j, hj₁⟩)) :=
-      getElem_initAdjTable _ _ ⟨i, hi₁⟩ ⟨j, hj₁⟩
-    have h2 : (initAdjTable n fun u w => decide (G.Adj u w))[i][j] =
-        decide (G.Adj ⟨i, hi₂⟩ ⟨j, hj₂⟩) :=
-      getElem_initAdjTable _ _ ⟨i, hi₂⟩ ⟨j, hj₂⟩
-    have hu : e.symm ⟨i, hi₁⟩ = ⟨i, hi₂⟩ := Fin.ext (finEnum_equiv_symm_val ⟨i, hi₁⟩)
-    have hw : e.symm ⟨j, hj₁⟩ = ⟨j, hj₂⟩ := Fin.ext (finEnum_equiv_symm_val ⟨j, hj₁⟩)
-    rw [h1, h2, hu, hw]
+    refine (getElem_initAdjTable _ _ ⟨i, hi₁⟩ ⟨j, hj₁⟩).trans
+      (Eq.trans ?_ (getElem_initAdjTable _ _ ⟨i, hi₂⟩ ⟨j, hj₂⟩).symm)
+    rw [hsymm hi₁ hi₂, hsymm hj₁ hj₂]
   · intro i j hi₁ hj₁ hi₂ hj₂
-    have h1 : C₁[i][j] = c (e.symm ⟨i, hi₁⟩) (e.symm ⟨j, hj₁⟩) :=
-      getElem_initCostTable _ _ ⟨i, hi₁⟩ ⟨j, hj₁⟩
-    have h2 : (initCostTable n c)[i][j] = c ⟨i, hi₂⟩ ⟨j, hj₂⟩ :=
-      getElem_initCostTable _ _ ⟨i, hi₂⟩ ⟨j, hj₂⟩
-    have hu : e.symm ⟨i, hi₁⟩ = ⟨i, hi₂⟩ := Fin.ext (finEnum_equiv_symm_val ⟨i, hi₁⟩)
-    have hw : e.symm ⟨j, hj₁⟩ = ⟨j, hj₂⟩ := Fin.ext (finEnum_equiv_symm_val ⟨j, hj₁⟩)
-    rw [h1, h2, hu, hw]
+    refine (getElem_initCostTable _ _ ⟨i, hi₁⟩ ⟨j, hj₁⟩).trans
+      (Eq.trans ?_ (getElem_initCostTable _ _ ⟨i, hi₂⟩ ⟨j, hj₂⟩).symm)
+    rw [hsymm hi₁ hi₂, hsymm hj₁ hj₂]
 
 public theorem edmondsOut_fin_map_eq {n : ℕ} (G : Digraph (Fin n)) [DecidableRel G.Adj]
     (c : Fin n → Fin n → ℤ) (r : Fin n) :
@@ -190,14 +183,8 @@ public theorem optimumBranchingParent_fin_eq {n : ℕ} (G : Digraph (Fin n)) [De
     have hcongr := edmondsTableAux_congr_dim hcard_opt (eOpt none) (Fin.last n) he_none (n + 1)
       A₁ (superRootAdjFin G) C₁ (superRootCostFin wt)
       (fun i j hi₁ hj₁ hi₂ hj₂ => by
-        have h1 : A₁[i][j] =
-            decide (G.superRootDigraph.Adj (eOpt.symm ⟨i, hi₁⟩) (eOpt.symm ⟨j, hj₁⟩)) :=
-          getElem_initAdjTable _ _ ⟨i, hi₁⟩ ⟨j, hj₁⟩
-        have h2 : (superRootAdjFin G)[i][j] =
-            if hx : i < n then if hy : j < n then decide (G.Adj ⟨j, hy⟩ ⟨i, hx⟩) else true
-            else false :=
-          getElem_initAdjTable _ _ ⟨i, hi₂⟩ ⟨j, hj₂⟩
-        rw [h1, h2]
+        refine (getElem_initAdjTable _ _ ⟨i, hi₁⟩ ⟨j, hj₁⟩).trans
+          (Eq.trans ?_ (getElem_initAdjTable _ _ ⟨i, hi₂⟩ ⟨j, hj₂⟩).symm)
         by_cases hi : i < n
         · rw [hsymm_lt ⟨i, hi₁⟩ hi]
           by_cases hj : j < n
@@ -205,12 +192,8 @@ public theorem optimumBranchingParent_fin_eq {n : ℕ} (G : Digraph (Fin n)) [De
           · rw [hsymm_eq ⟨j, hj₁⟩ hj]; simp [hi, hj]
         · rw [hsymm_eq ⟨i, hi₁⟩ hi]; simp [hi])
       (fun i j hi₁ hj₁ hi₂ hj₂ => by
-        have h1 : C₁[i][j] = superRootCost wt (eOpt.symm ⟨i, hi₁⟩) (eOpt.symm ⟨j, hj₁⟩) :=
-          getElem_initCostTable _ _ ⟨i, hi₁⟩ ⟨j, hj₁⟩
-        have h2 : (superRootCostFin wt)[i][j] =
-            if hx : i < n then if hy : j < n then -wt ⟨j, hy⟩ ⟨i, hx⟩ else 0 else 0 :=
-          getElem_initCostTable _ _ ⟨i, hi₂⟩ ⟨j, hj₂⟩
-        rw [h1, h2]
+        refine (getElem_initCostTable _ _ ⟨i, hi₁⟩ ⟨j, hj₁⟩).trans
+          (Eq.trans ?_ (getElem_initCostTable _ _ ⟨i, hi₂⟩ ⟨j, hj₂⟩).symm)
         by_cases hi : i < n
         · rw [hsymm_lt ⟨i, hi₁⟩ hi]
           by_cases hj : j < n

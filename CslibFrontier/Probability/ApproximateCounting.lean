@@ -125,12 +125,9 @@ theorem AnswersCorrect.le_estimate (ha : AnswersCorrect n c a) (hc : c ≤ 2 ^ n
     omega
   -- the level `j = log₂ (c / 8)` has mean cell size at least `8`
   have hj : 2 ^ Nat.log 2 (c / 8) ≤ c / 8 := Nat.pow_log_le_self 2 (by omega)
-  have hcj : c / 8 < 2 ^ Nat.log 2 (c / 8) * 2 := by
-    rw [← pow_succ]
-    exact Nat.lt_pow_succ_log_self (by norm_num) (c / 8)
-  have hjn : Nat.log 2 (c / 8) ≤ n := by
-    rw [← Nat.pow_le_pow_iff_right (le_refl 2)]
-    omega
+  have hcj : c / 8 < 2 ^ Nat.log 2 (c / 8) * 2 :=
+    (Nat.lt_pow_succ_log_self (by norm_num) _).trans_eq (pow_succ _ _)
+  have hjn : Nat.log 2 (c / 8) ≤ n := (Nat.pow_le_pow_iff_right (le_refl 2)).1 (by omega)
   have hk := Nat.le_findGreatest hjn (ha.apply_of_le _ hjn (by omega))
   have := Nat.pow_le_pow_right (by norm_num : 2 > 0) hk
   omega
@@ -150,9 +147,7 @@ private theorem dens_filter_apply_mem_le {κ : Type*} [Fintype κ] [DecidableEq 
       (subset_univ t), Fintype.card_piFinset]
     have : ∀ j, #(Function.update (fun j => (univ : Finset (α j))) k t j) =
         Function.update (fun j => Fintype.card (α j)) k #t j := fun j => by
-      rcases eq_or_ne j k with rfl | hj
-      · simp
-      · simp [hj]
+      rcases eq_or_ne j k with rfl | hj <;> simp [*]
     simp only [this, prod_update_of_mem (mem_univ k), P]
   have htotal : Fintype.card (∀ k, α k) = Fintype.card (α k) * P := by
     rw [Fintype.card_pi, ← prod_update_of_mem (mem_univ k), Function.update_eq_self]
@@ -167,16 +162,13 @@ private theorem dens_filter_card_filter_le_le {Ω : Type*} [Fintype Ω] [Decidab
     {G : Finset Ω} (hG : 2 / 3 ≤ G.dens) (r : ℕ) :
     dens {ω : Fin (2 * r) → Ω | #{i | ω i ∈ G} ≤ r} ≤ (8 / 9) ^ r := by
   rcases Nat.eq_zero_or_pos (Fintype.card Ω) with hΩ | hΩ
-  · rw [dens_eq_card_div_card, hΩ, Nat.cast_zero, div_zero] at hG
-    norm_num at hG
+  · norm_num [dens_eq_card_div_card, hΩ] at hG
   have hG' : 2 * Fintype.card Ω ≤ 3 * #G := by
     rw [dens_eq_card_div_card, div_le_div_iff₀ (by norm_num) (by exact_mod_cast hΩ)] at hG
     exact_mod_cast hG.trans_eq (mul_comm _ _)
-  have hmaj := card_filter_card_filter_le_le G hG' r
   rw [dens_eq_card_div_card, Fintype.card_fun, Fintype.card_fin,
-    div_le_iff₀ (by positivity), div_pow, div_mul_eq_mul_div, le_div_iff₀ (by positivity)]
-  rw [mul_comm]
-  exact_mod_cast hmaj
+    div_le_iff₀ (by positivity), div_pow, div_mul_eq_mul_div, le_div_iff₀ (by positivity), mul_comm]
+  exact_mod_cast card_filter_card_filter_le_le G hG' r
 
 /-- A lower bound on a density from an upper bound on its complement: if `a + b = 1`, `b ≤ q` and
 `p + q ≤ 1`, then `p ≤ a`. -/
@@ -226,8 +218,7 @@ private theorem dens_wrongSeeds_le (hh : ∀ j, IsPairwiseIndependentHash (h j))
   refine (dens_le_dens fun ω hω => ?_).trans ((dens_filter_apply_mem_le j
     {v : Fin (2 * r) → ι j | ¬ ((8 * 2 ^ (j : ℕ) ≤ #S → r < #{k | v k ∈ G}) ∧
       (8 * #S ≤ 2 ^ (j : ℕ) → ¬ r < #{k | v k ∈ G}))}).trans ?_)
-  · simp only [wrongSeeds, mem_filter, mem_univ, true_and, hcount] at hω ⊢
-    exact hω
+  · simpa only [wrongSeeds, mem_filter, mem_univ, true_and, hcount] using hω
   have hYj : (Fintype.card (Y j) : ℚ≥0) = 2 ^ (j : ℕ) := by rw [hY, Nat.cast_pow, Nat.cast_ofNat]
   by_cases hhigh : 8 * 2 ^ (j : ℕ) ≤ #S
   · -- the mean cell size is at least `8`, and `S` misses `y j` with probability at most `1 / 8`
@@ -240,10 +231,8 @@ private theorem dens_wrongSeeds_le (hh : ∀ j, IsPairwiseIndependentHash (h j))
       exact_mod_cast (by omega : 2 ^ (j : ℕ) * 8 ≤ 1 * #S)
     refine le_trans (dens_le_dens fun v hv => ?_) (dens_filter_card_filter_le_le hG r)
     simp only [mem_filter, mem_univ, true_and, not_and_or, not_imp, not_lt] at hv ⊢
-    rcases hv with ⟨-, hv⟩ | ⟨hlow, -⟩
-    · exact hv
-    · have := Nat.one_le_two_pow (n := (j : ℕ))
-      omega
+    have := Nat.one_le_two_pow (n := (j : ℕ))
+    rcases hv with ⟨-, hv⟩ | ⟨hlow, -⟩ <;> omega
   by_cases hlow : 8 * #S ≤ 2 ^ (j : ℕ)
   · -- the mean cell size is at most `1 / 8`, and `S` hits `y j` with probability at most `1 / 8`
     have hGc : 2 / 3 ≤ Gc.dens := by
@@ -255,19 +244,15 @@ private theorem dens_wrongSeeds_le (hh : ∀ j, IsPairwiseIndependentHash (h j))
       exact_mod_cast (by omega : #S * 8 ≤ 1 * 2 ^ (j : ℕ))
     refine le_trans (dens_le_dens fun v hv => ?_) (dens_filter_card_filter_le_le hGc r)
     simp only [mem_filter, mem_univ, true_and, not_and_or, not_imp, not_lt] at hv ⊢
-    rcases hv with ⟨hhigh', -⟩ | ⟨-, hv⟩
-    · exact absurd hhigh' hhigh
-    · have hsum := card_filter_add_card_filter_not (s := (univ : Finset (Fin (2 * r))))
-        (fun k => v k ∈ G)
-      have hGc' : ∀ k, v k ∈ Gc ↔ ¬ v k ∈ G := fun k => by simp [G, Gc]
-      simp only [card_univ, Fintype.card_fin] at hsum
-      simp only [hGc']
-      omega
+    have hsum := card_filter_add_card_filter_not (s := (univ : Finset (Fin (2 * r))))
+      (fun k => v k ∈ G)
+    have hGc' : ∀ k, v k ∈ Gc ↔ ¬ v k ∈ G := fun k => by simp [G, Gc]
+    simp only [card_univ, Fintype.card_fin] at hsum
+    simp only [hGc']
+    rcases hv with ⟨hhigh', -⟩ | ⟨-, hv⟩ <;> omega
   · -- neither condition holds, so no seed is wrong
-    refine le_trans (le_of_eq (dens_eq_zero.2 (eq_empty_of_forall_notMem fun v hv => ?_)))
-      (by positivity)
-    simp only [mem_filter, mem_univ, true_and] at hv
-    exact hv ⟨fun h' => absurd h' hhigh, fun h' => absurd h' hlow⟩
+    refine (dens_eq_zero.2 (eq_empty_of_forall_notMem fun v hv => ?_)).trans_le (by positivity)
+    exact (mem_filter.1 hv).2 ⟨(absurd · hhigh), (absurd · hlow)⟩
 
 /-- **The answers from hashing are correct with high probability**: if every `h j` is a pairwise
 independent hash family into a set of `2 ^ j` elements, with seeds from a nonempty type `ι j`, then
@@ -279,22 +264,19 @@ theorem dens_filter_not_answersCorrect_le (hh : ∀ j, IsPairwiseIndependentHash
       ¬ AnswersCorrect n #S (hashAnswer h y S ω)} ≤ (n + 1) * (8 / 9) ^ r := by
   classical
   rcases Nat.eq_zero_or_pos r with rfl | hr
-  · simp only [pow_zero, mul_one]
-    exact dens_le_one.trans (by simp)
+  · simp only [pow_zero, mul_one]; exact dens_le_one.trans (by simp)
   have hsub : ({ω | ¬ AnswersCorrect n #S (hashAnswer h y S ω)} : Finset _) ⊆
       univ.biUnion (wrongSeeds h y S (n := n) (r := r)) := by
     intro ω hω
-    simp only [mem_filter, mem_univ, true_and] at hω
-    simp only [mem_biUnion, mem_univ, true_and]
+    simp only [mem_filter, mem_univ, true_and, mem_biUnion] at hω ⊢
     by_contra! hright
     simp only [wrongSeeds, mem_filter, mem_univ, true_and, not_not] at hright
     refine hω ⟨?_, fun j hj hc => ⟨by omega, (hright ⟨j, by omega⟩).1 hc⟩,
       fun j hj hc ⟨hj', ha⟩ => (hright ⟨j, hj'⟩).2 hc ha⟩
     -- level `0` has a single cell, `S` itself
     have : Subsingleton (Y 0) := Fintype.card_le_one_iff_subsingleton.1 (by rw [hY]; rfl)
-    have hcell : ∀ i : ι 0, y 0 ∈ S.image (h 0 i) ↔ S.Nonempty := fun i => by
-      rw [mem_image]
-      exact ⟨fun ⟨x, hx, _⟩ => ⟨x, hx⟩, fun ⟨x, hx⟩ => ⟨x, hx, Subsingleton.elim _ _⟩⟩
+    have hcell : ∀ i : ι 0, y 0 ∈ S.image (h 0 i) ↔ S.Nonempty := fun i => mem_image.trans
+      ⟨fun ⟨x, hx, _⟩ => ⟨x, hx⟩, fun ⟨x, hx⟩ => ⟨x, hx, Subsingleton.elim _ _⟩⟩
     simp only [hashAnswer]
     rw [card_pos]
     by_cases hS : S.Nonempty
@@ -333,17 +315,13 @@ theorem three_quarters_le_dens_filter_hashEstimate (hh : ∀ j, IsPairwiseIndepe
     intro ω hω
     simp only [mem_filter, mem_univ, true_and] at hω ⊢
     exact fun ha => hω ⟨ha.estimate_le, ha.le_estimate hS⟩
-  have hsplit := dens_filter_add_dens_filter_not_eq_dens
-    (s := (univ : Finset (∀ j : Fin (n + 1), Fin (2 * (12 * (n + 1))) → ι j)))
-    (fun ω => hashEstimate h y S ω ≤ 8 * #S ∧ #S ≤ 16 * hashEstimate h y S ω)
-  rw [dens_univ] at hsplit
   have harith : ((n : ℚ≥0) + 1) * (8 / 9) ^ (12 * (n + 1)) ≤ 1 / 4 := by
     have h' := Nat.cast_le (α := ℚ≥0).2 (four_mul_mul_eight_pow_le n)
     push_cast at h'
     rw [div_pow, mul_div_assoc', div_le_div_iff₀ (by positivity) (by norm_num), one_mul]
     exact le_of_eq_of_le (by ring) h'
-  exact le_of_add_eq_one hsplit ((dens_le_dens hsub).trans (hbad.trans harith))
-    (by norm_num [← NNRat.coe_le_coe])
+  exact le_of_add_eq_one ((dens_filter_add_dens_filter_not_eq_dens (s := univ) _).trans dens_univ)
+    ((dens_le_dens hsub).trans (hbad.trans harith)) (by norm_num [← NNRat.coe_le_coe])
 
 end Hashing
 

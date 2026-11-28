@@ -2336,11 +2336,8 @@ private theorem clientResult_scanLoop_mk (base w w₀ n k : ℕ)
         rw [occBefore_succ]; cases st.isOcc _ <;> simp
       rw [hruns, hocc]
       ext
-      · rfl
-      · rfl
-      · rfl
-      · rw [calcRunStart_succ]
-        by_cases h1 : runsBefore st o (i + 1) ≤ occBefore st o a <;> simp [h1]
+      iterate 3 rfl
+      · rw [calcRunStart_succ]; split_ifs <;> simp [*]
       · rw [calcTargetSlot_succ]
         dsimp only [snap]
         change (if runsBefore st o (i + 1) ≤ occBefore st o a ∨
@@ -2350,10 +2347,7 @@ private theorem clientResult_scanLoop_mk (base w w₀ n k : ℕ)
         by_cases h1 : runsBefore st o (i + 1) ≤ occBefore st o a <;>
           by_cases h2 : runsBefore st o (i + 1) ≤ occBefore st o (a + 1) <;>
           by_cases h3 : st.remAt (probeSlot (quotBits w₀ n) o i) < r <;> simp [h1, h2, h3]
-      · rw [calcDeleteStopPrefix_succ st o a ℓ (by omega)]
-        by_cases h1 : a < i <;>
-          by_cases h2 : occBefore st o i < runsBefore st o (i + 1) <;>
-          by_cases h3 : calcDeleteStopPrefix st o a ℓ i = ℓ <;> simp [h1, h2, h3]
+      · rw [calcDeleteStopPrefix_succ st o a ℓ (by omega)]; split_ifs <;> simp_all
       · rw [queryAnyPrefix_succ]
         dsimp only [st]
         simp only [← Fin.ext_iff]

@@ -392,15 +392,11 @@ private theorem evalCode_seqExactlyOneStep (x : List Bool) (prefixGates : List (
       dsimp only [p3]
       rw [show x.length + k + 2 = x.length + p2.length from by omega,
         getD_evalCode_append_bin, Op.value]
-      have hread_s1 : (evalCode interpretation false x p2).getD seen1 false =
-          (evalCode interpretation false x prefixGates).getD seen1 false := by
+      have hread {u : ℕ} (hu : u < x.length + k) : (evalCode interpretation false x p2).getD u
+          false = (evalCode interpretation false x prefixGates).getD u false := by
         dsimp only [p2, p1]
-        rw [List.append_assoc, getD_evalCode_append_of_lt hs1_lt]
-      have hread_w : (evalCode interpretation false x p2).getD w false =
-          (evalCode interpretation false x prefixGates).getD w false := by
-        dsimp only [p2, p1]
-        rw [List.append_assoc, getD_evalCode_append_of_lt hw]
-      rw [hread_s1, hread_w, hs1]
+        rw [List.append_assoc, getD_evalCode_append_of_lt hu]
+      rw [hread hs1_lt, hread hw, hs1]
       cases (evalCode interpretation false x prefixGates).getD w false <;>
         rcases count with _ | _ | c <;> simp [Nat.add_assoc]
     have hns2' : (evalCode interpretation false x p3).getD (x.length + k + 1) false =
@@ -417,20 +413,6 @@ private theorem evalCode_seqExactlyOneStep (x : List Bool) (prefixGates : List (
     have hassoc : p3 ++ rest.gates =
         prefixGates ++ (seqExactlyOneStep (x.length + k) seen1 seen2 (w :: ws)).gates := by
       simp [p3, p2, p1, seqExactlyOneStep, rest, List.append_assoc, Nat.add_assoc]
-    have hrestEq1 : (seqExactlyOneStep (x.length + (k + 3)) (x.length + (k + 2))
-        (x.length + (k + 1)) ws).seen1Wire =
-        (seqExactlyOneStep (x.length + k) seen1 seen2 (w :: ws)).seen1Wire := by
-      dsimp only [seqExactlyOneStep]
-      rw [show x.length + k + 3 = x.length + (k + 3) from by omega,
-        show x.length + k + 2 = x.length + (k + 2) from by omega,
-        show x.length + k + 1 = x.length + (k + 1) from by omega]
-    have hrestEq2 : (seqExactlyOneStep (x.length + (k + 3)) (x.length + (k + 2))
-        (x.length + (k + 1)) ws).seen2Wire =
-        (seqExactlyOneStep (x.length + k) seen1 seen2 (w :: ws)).seen2Wire := by
-      dsimp only [seqExactlyOneStep]
-      rw [show x.length + k + 3 = x.length + (k + 3) from by omega,
-        show x.length + k + 2 = x.length + (k + 2) from by omega,
-        show x.length + k + 1 = x.length + (k + 1) from by omega]
     change _ ∧ _ at hih
     rw [hassoc] at hih
     have hreadFull (u : ℕ) (hu : u < x.length + k) :
@@ -454,12 +436,10 @@ private theorem evalCode_seqExactlyOneStep (x : List Bool) (prefixGates : List (
       split_ifs <;> omega
     have hres1 : (seqExactlyOneStep (x.length + k) seen1 seen2 (w :: ws)).seen1Wire =
         (seqExactlyOneStep (x.length + (k + 3)) (x.length + (k + 2))
-          (x.length + (k + 1)) ws).seen1Wire :=
-      hrestEq1.symm
+          (x.length + (k + 1)) ws).seen1Wire := rfl
     have hres2 : (seqExactlyOneStep (x.length + k) seen1 seen2 (w :: ws)).seen2Wire =
         (seqExactlyOneStep (x.length + (k + 3)) (x.length + (k + 2))
-          (x.length + (k + 1)) ws).seen2Wire :=
-      hrestEq2.symm
+          (x.length + (k + 1)) ws).seen2Wire := rfl
     change _ ∧ _
     rw [hres1, hres2, heq0]
     simpa only [Nat.add_assoc] using hih
@@ -685,11 +665,8 @@ private theorem evalCode_seqExactlyOneFold (x : List Bool) (prefixGates : List (
           (evalCode interpretation false x prefixGates).getD w false) = 1)) := by
       rw [Bool.eq_iff_iff, List.all_eq_true, List.all_eq_true]
       refine forall₂_congr fun ws' hws' => ?_
-      have hcnt : ws'.countP (fun w => (evalCode interpretation false x prefixNext).getD w false) =
-          ws'.countP (fun w => (evalCode interpretation false x prefixGates).getD w false) := by
-        refine List.countP_congr fun w hw => ?_
-        rw [hreadNext w (hwss ws' (List.mem_cons_of_mem _ hws') w hw)]
-      rw [hcnt]
+      rw [List.countP_congr fun w hw => by
+        rw [hreadNext w (hwss ws' (List.mem_cons_of_mem _ hws') w hw)]]
     rw [hall]
     simp [List.all_cons, Bool.and_assoc]
 
@@ -719,10 +696,6 @@ theorem evalOutput_seqExactlyOneAll (x : List Bool) {wss : List (List ℕ)}
       (seqExactlyOneFold x.length 1 x.length wss).outWire false = _
   rw [hfold, h1, Bool.true_and, Bool.eq_iff_iff, List.all_eq_true, List.all_eq_true]
   refine forall₂_congr fun ws hws => ?_
-  have hcnt : ws.countP (fun w => (evalCode interpretation false x prefix1).getD w false) =
-      ws.countP (fun w => x.getD w false) := by
-    refine List.countP_congr fun w hw => ?_
-    rw [hread w (hwss ws hws w hw)]
-  rw [hcnt]
+  rw [List.countP_congr fun w hw => by rw [hread w (hwss ws hws w hw)]]
 
 end Cslib.Circuits.Boolean

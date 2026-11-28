@@ -223,22 +223,17 @@ theorem realizes_readPackedGen :
       · change 34 + 1 + 1 + 1 + 1 ≤ 38 * (2 + 0 + 1); omega
       · apply Memory.State.ext
         · change y_core.mem = x.mem
-          rw [hymem, hx₄]
-          rfl
+          rw [hymem, hx₄]; rfl
         · change Function.extend (tmp ∘ perm) y_core.regs x₄.regs frontier = x.regs frontier
           rw [Function.extend_apply' (f := tmp ∘ perm) _ _ _ fun ⟨j, hj⟩ => hf (perm j) hj, hx₄]
           wram_simp
       · intro i
-        have hi0 : i = 0 := Fin.eq_zero i
-        subst hi0
+        obtain rfl : i = 0 := Fin.eq_zero i
         rw [clientResult_width]
-        change (y_core.extend (tmp ∘ perm) x₄).regs (tmp 0) =
+        change (y_core.extend (tmp ∘ perm) x₄).regs ((tmp ∘ perm) 2) =
           readPacked (base + offset) k w' x.mem idx
-        have hp2 : tmp 0 = (tmp ∘ perm) 2 := by congr 1
-        rw [hp2]
         change ((y_core.extend (tmp ∘ perm) x₄).comap (tmp ∘ perm)).regs 2 = _
-        rw [Data.comap_extend hperm_inj, hy2, ← heq, hx₄]
-        rfl
+        rw [Data.comap_extend hperm_inj, hy2, ← heq, hx₄]; rfl
       · intro i _ htmp
         change Function.extend (tmp ∘ perm) y_core.regs x₄.regs i = x.regs i
         rw [Function.extend_apply' (f := tmp ∘ perm) _ _ _ fun ⟨j, hj⟩ => htmp (perm j) hj, hx₄]
@@ -282,15 +277,12 @@ theorem realizes_writePackedGen :
       refine WP.of_execWithin (hex_core.rename hi) ⟨?_, ?_, ?_, ?_⟩
       · change 45 + 1 + 1 + 1 + 1 + 1 ≤ 50 * (4 + 0 + 1); omega
       · apply Memory.State.ext
-        · change y_core.mem =
-            writePacked (base + offset) k w' x.mem idx val
-          rw [hymem, ← heq, hx₅]
-          rfl
+        · change y_core.mem = writePacked (base + offset) k w' x.mem idx val
+          rw [hymem, ← heq, hx₅]; rfl
         · change Function.extend tmp y_core.regs x₅.regs frontier = x.regs frontier
           rw [Function.extend_apply' (f := tmp) _ _ _ fun ⟨j, hj⟩ => hf j hj, hx₅]
           wram_simp
-      · intro i
-        exact Fin.elim0 i
+      · exact fun i => i.elim0
       · intro i _ htmp
         change Function.extend tmp y_core.regs x₅.regs i = x.regs i
         rw [Function.extend_apply' (f := tmp) _ _ _ fun ⟨j, hj⟩ => htmp j hj, hx₅]

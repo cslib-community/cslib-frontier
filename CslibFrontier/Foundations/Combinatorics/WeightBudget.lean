@@ -78,8 +78,7 @@ theorem sum_neg_log_one_sub_exp_le {θ : ℝ} (hθ : 0 < θ) (s : Finset ℕ) (h
     have hj0 : (0 : ℝ) < j := Nat.cast_pos.2 (Nat.pos_of_ne_zero fun h => hs (h ▸ hj))
     apply Real.hasSum_pow_div_log_of_abs_lt_one
     rw [abs_of_pos (exp_pos _), exp_lt_one_iff]
-    have := mul_pos hθ hj0
-    linarith
+    exact neg_lt_zero.2 (mul_pos hθ hj0)
   have hzeta : HasSum (fun h : ℕ => 1 / θ * (1 / ((h : ℝ) + 1) ^ 2)) (1 / θ * (π ^ 2 / 6)) := by
     have h := (hasSum_nat_add_iff' 1).mpr hasSum_zeta_two
     simp only [range_one, sum_singleton, Nat.cast_zero, ne_eq, OfNat.ofNat_ne_zero,
@@ -95,7 +94,7 @@ theorem sum_neg_log_one_sub_exp_le {θ : ℝ} (hθ : 0 < θ) (s : Finset ℕ) (h
   have hq0 : 0 ≤ q := (exp_pos _).le
   have hq1 : q < 1 := exp_lt_one_iff.2 (neg_lt_zero.2 hy0)
   have hpow : ∀ j : ℕ, exp (-(θ * j)) ^ (h + 1) = q ^ j := fun j => by
-    rw [hq, ← exp_natCast_mul, ← exp_natCast_mul, hy]
+    rw [hq, ← exp_nat_mul, ← exp_nat_mul, hy]
     push_cast
     ring_nf
   have hgeo : ∑ j ∈ s, q ^ j ≤ (1 - q)⁻¹ - 1 := by
@@ -112,8 +111,7 @@ theorem sum_neg_log_one_sub_exp_le {θ : ℝ} (hθ : 0 < θ) (s : Finset ℕ) (h
     linarith
   have hh : (0 : ℝ) < h + 1 := by positivity
   calc ∑ j ∈ s, exp (-(θ * j)) ^ (h + 1) / (h + 1) = (∑ j ∈ s, q ^ j) / (h + 1) := by
-        rw [sum_div]
-        exact sum_congr rfl fun j _ => by rw [hpow]
+        simp only [hpow, sum_div]
     _ ≤ (1 / y) / (h + 1) := div_le_div_of_nonneg_right (hgeo.trans hq') hh.le
     _ = 1 / θ * (1 / ((h : ℝ) + 1) ^ 2) := by rw [hy]; field_simp
 
@@ -133,14 +131,9 @@ theorem card_le_exp_of_sum_mul_lt {ι : Type*} [Fintype ι] {w : ι → ℕ} (hw
     calc (#S : ℝ) * x ^ p = ∑ _β ∈ S, x ^ p := by rw [sum_const, nsmul_eq_mul]
       _ ≤ _ := sum_le_sum fun β hβ => pow_le_pow_of_le_one hx0.le hx1.le (hS β hβ).le
   -- The tuples lie in a box, over which the generating sum factors.
-  have hsub : S ⊆ Fintype.piFinset fun _ => range p := by
-    intro β hβ
-    rw [Fintype.mem_piFinset]
-    intro i
-    rw [mem_range]
-    calc β i ≤ w i * β i := Nat.le_mul_of_pos_left _ (hw i)
-      _ ≤ ∑ i, w i * β i := single_le_sum (fun i _ => Nat.zero_le (w i * β i)) (mem_univ i)
-      _ < p := hS β hβ
+  have hsub : S ⊆ Fintype.piFinset fun _ => range p := fun β hβ =>
+    Fintype.mem_piFinset.2 fun i => mem_range.2 <| (Nat.le_mul_of_pos_left _ (hw i)).trans_lt <|
+      (single_le_sum (fun i _ => Nat.zero_le (w i * β i)) (mem_univ i)).trans_lt (hS β hβ)
   have h2 : ∑ β ∈ S, x ^ (∑ i, w i * β i) ≤ ∏ i, ∑ b ∈ range p, (x ^ w i) ^ b := by
     rw [prod_univ_sum]
     calc ∑ β ∈ S, x ^ (∑ i, w i * β i) = ∑ β ∈ S, ∏ i, (x ^ w i) ^ β i := by
@@ -160,28 +153,22 @@ theorem card_le_exp_of_sum_mul_lt {ι : Type*} [Fintype ι] {w : ι → ℕ} (hw
   -- Group the coordinates by weight.
   have h4 : ∑ i, -log (1 - x ^ w i) ≤ m * (π ^ 2 / (6 * θ)) := by
     have hxj : ∀ j : ℕ, x ^ j = exp (-(θ * j)) := fun j => by
-      rw [hx, ← exp_natCast_mul]
+      rw [hx, ← exp_nat_mul]
       ring_nf
-    have hnn : ∀ j ∈ univ.image w, 0 ≤ -log (1 - x ^ j) := by
-      intro j hj
-      obtain ⟨i, -, rfl⟩ := mem_image.1 hj
-      have : 0 < 1 - x ^ w i := by linarith [pow_lt_one₀ hx0.le hx1 (hw i).ne']
-      have : 1 - x ^ w i ≤ 1 := by linarith [pow_pos hx0 (w i)]
-      linarith [log_nonpos (by linarith) this]
-    have h0 : 0 ∉ univ.image w := by
-      simp only [mem_image, mem_univ, true_and, not_exists]
-      exact fun i h => (hw i).ne' h
+    have hnn (j : ℕ) : 0 ≤ -log (1 - x ^ j) := neg_nonneg.2 (log_nonpos
+      (sub_nonneg.2 (pow_le_one₀ hx0.le hx1.le)) (sub_le_self _ (by positivity)))
+    have h0 : 0 ∉ univ.image w := by simpa using fun i => (hw i).ne'
     rw [sum_comp (fun j => -log (1 - x ^ j)) w]
     calc ∑ j ∈ univ.image w, #{i ∈ univ | w i = j} • -log (1 - x ^ j)
         ≤ ∑ j ∈ univ.image w, m • -log (1 - x ^ j) :=
-          sum_le_sum fun j hj => nsmul_le_nsmul_left (hnn j hj) (hm j)
+          sum_le_sum fun j _ => nsmul_le_nsmul_left (hnn j) (hm j)
       _ = m * ∑ j ∈ univ.image w, -log (1 - exp (-(θ * j))) := by
           rw [← smul_sum, nsmul_eq_mul]
           simp only [hxj]
       _ ≤ m * (π ^ 2 / (6 * θ)) :=
           mul_le_mul_of_nonneg_left (sum_neg_log_one_sub_exp_le hθ _ h0) (Nat.cast_nonneg m)
   have hxp : x ^ p * exp (θ * p) = 1 := by
-    rw [hx, ← exp_natCast_mul, ← exp_add]
+    rw [hx, ← exp_nat_mul, ← exp_add]
     ring_nf
     exact exp_zero
   calc (#S : ℝ) = #S * x ^ p * exp (θ * p) := by rw [mul_assoc, hxp, mul_one]
@@ -206,10 +193,7 @@ theorem card_le_two_pow_of_sum_mul_lt {ι : Type*} [Fintype ι] {w : ι → ℕ}
   · have : S = ∅ := eq_empty_of_forall_notMem fun β hβ => Nat.not_lt_zero _ (hS β hβ)
     simp [this]
   rcases Nat.eq_zero_or_pos m with rfl | hm0
-  · have : IsEmpty ι := ⟨fun i => by
-      have hpos : 0 < #{i' | w i' = w i} := card_pos.2 ⟨i, by simp⟩
-      have := hm (w i)
-      omega⟩
+  · have : IsEmpty ι := ⟨fun i => (card_pos.2 ⟨i, by simp⟩).ne' (Nat.le_zero.1 (hm (w i)))⟩
     exact (card_le_one_of_subsingleton S).trans Nat.one_le_two_pow
   set n := Nat.sqrt (m * p)
   set a : ℝ := √(m : ℝ) with ha
@@ -222,24 +206,17 @@ theorem card_le_two_pow_of_sum_mul_lt {ι : Type*} [Fintype ι] {w : ι → ℕ}
     rw [ha2, hb2]
     field_simp
   have hab : a * b ≤ n + 1 := by
-    have hlt : ((m * p : ℕ) : ℝ) < ((n + 1 : ℕ) : ℝ) ^ 2 := by
-      exact_mod_cast Nat.lt_succ_sqrt' (m * p)
-    have hsq : (a * b) ^ 2 < ((n : ℝ) + 1) ^ 2 := by
-      rw [mul_pow, ← ha2, ← hb2]
-      push_cast at hlt
-      exact hlt
-    exact (lt_of_pow_lt_pow_left₀ 2 (by positivity) hsq).le
+    rw [ha, hb, ← Real.sqrt_mul (Nat.cast_nonneg _), Real.sqrt_le_left (by positivity)]
+    exact_mod_cast (Nat.lt_succ_sqrt' (m * p)).le
   have hreal : (#S : ℝ) ≤ 2 ^ (4 * n + 4) := by
     calc (#S : ℝ) ≤ exp (a / b * p + m * (π ^ 2 / (6 * (a / b)))) :=
           card_le_exp_of_sum_mul_lt hw hm hS (div_pos ha0 hb0)
       _ = exp (a * b * (1 + π ^ 2 / 6)) := by rw [hexp]
       _ ≤ exp (((4 * n + 4 : ℕ) : ℝ) * log 2) := by
-          refine exp_le_exp.2 ?_
-          have h1 : (0 : ℝ) ≤ 1 + π ^ 2 / 6 := by positivity
-          calc a * b * (1 + π ^ 2 / 6) ≤ (n + 1) * (4 * log 2) :=
-                mul_le_mul hab one_add_pi_sq_div_six_le h1 (by positivity)
-            _ = ((4 * n + 4 : ℕ) : ℝ) * log 2 := by push_cast; ring
-      _ = 2 ^ (4 * n + 4) := by rw [exp_natCast_mul, exp_log two_pos]
+          have := mul_le_mul hab one_add_pi_sq_div_six_le (by positivity) (by positivity)
+          push_cast
+          exact exp_le_exp.2 (by linarith)
+      _ = 2 ^ (4 * n + 4) := by rw [exp_nat_mul, exp_log two_pos]
   exact_mod_cast hreal
 
 end Cslib

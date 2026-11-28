@@ -176,15 +176,15 @@ private theorem natCard_nodup_mem_head {α : Type*} {s : Finset α} {x : α} (hx
   have hcons : ∀ l : List α, l.head? = some x → l = x :: l.tail := fun l h =>
     List.eq_cons_of_mem_head? h
   refine Nat.card_congr
-    { toFun := fun l => ⟨l.val.tail, ?_, ?_⟩
-      invFun := fun t => ⟨x :: t.val, ?_, ?_, rfl⟩
-      left_inv := fun l => Subtype.ext (hcons l.val l.property.2.2).symm
+    { toFun := fun l => ⟨l.1.tail, ?_, ?_⟩
+      invFun := fun t => ⟨x :: t.1, ?_, ?_, rfl⟩
+      left_inv := fun l => Subtype.ext (hcons l.1 l.2.2.2).symm
       right_inv := fun t => rfl }
-  · exact l.property.1.sublist (List.tail_sublist _)
+  · exact l.2.1.sublist (List.tail_sublist _)
   · intro e
-    have hn := l.property.1
-    have hm := l.property.2.1
-    rw [hcons l.val l.property.2.2] at hn hm
+    have hn := l.2.1
+    have hm := l.2.2.1
+    rw [hcons l.1 l.2.2.2] at hn hm
     rw [Finset.mem_erase, ← hm, List.mem_cons]
     constructor
     · intro he
@@ -192,10 +192,10 @@ private theorem natCard_nodup_mem_head {α : Type*} {s : Finset α} {x : α} (hx
     · rintro ⟨hne, rfl | he⟩
       · exact absurd rfl hne
       · exact he
-  · refine List.nodup_cons.mpr ⟨fun h => ?_, t.property.1⟩
-    exact (Finset.notMem_erase x s) ((t.property.2 x).mp h)
+  · refine List.nodup_cons.mpr ⟨fun h => ?_, t.2.1⟩
+    exact (Finset.notMem_erase x s) ((t.2.2 x).mp h)
   · intro e
-    rw [List.mem_cons, t.property.2, Finset.mem_erase]
+    rw [List.mem_cons, t.2.2, Finset.mem_erase]
     by_cases he : e = x
     · subst he; simp only [ne_eq, not_true_eq_false, false_and, or_false, hx]
     · simp only [ne_eq, he, not_false_eq_true, true_and, false_or]
@@ -206,12 +206,12 @@ private theorem natCard_nodup_mem_getLast {α : Type*} {s : Finset α} {x : α} 
       (s.card - 1).factorial := by
   rw [← natCard_nodup_mem_head hx]
   refine Nat.card_congr
-    { toFun := fun l => ⟨l.val.reverse, List.nodup_reverse.mpr l.property.1,
-        fun e => by simpa only [List.mem_reverse] using l.property.2.1 e,
-        by rw [List.head?_reverse]; exact l.property.2.2⟩
-      invFun := fun l => ⟨l.val.reverse, List.nodup_reverse.mpr l.property.1,
-        fun e => by simpa only [List.mem_reverse] using l.property.2.1 e,
-        by rw [List.getLast?_reverse]; exact l.property.2.2⟩
+    { toFun := fun l => ⟨l.1.reverse, List.nodup_reverse.mpr l.2.1,
+        fun e => by simpa only [List.mem_reverse] using l.2.2.1 e,
+        by rw [List.head?_reverse]; exact l.2.2.2⟩
+      invFun := fun l => ⟨l.1.reverse, List.nodup_reverse.mpr l.2.1,
+        fun e => by simpa only [List.mem_reverse] using l.2.2.1 e,
+        by rw [List.getLast?_reverse]; exact l.2.2.2⟩
       left_inv := fun l => Subtype.ext (List.reverse_reverse _)
       right_inv := fun l => Subtype.ext (List.reverse_reverse _) }
 
@@ -439,17 +439,11 @@ private theorem exists_isEulerianCircuit_of_prefix
   classical
   have hp_nodup : p.Nodup :=
     nodup_of_nodup_filter src fun v => (hs_nodup v).sublist (hp_pre v).sublist
-  have hlen_s : ∀ v, (s v).length = (univ.filter fun e => src e = v).card := by
-    intro v
+  have hlen_s : ∀ v, (s v).length = (univ.filter fun e => src e = v).card := fun v => by
     rw [← List.toFinset_card_of_nodup (hs_nodup v)]
-    congr 1
-    ext e
-    simp only [List.mem_toFinset, Finset.mem_filter, Finset.mem_univ, true_and]
-    exact hs_mem v e
-  obtain ⟨z, hz⟩ : ∃ z, p.getLast? = some z := by
-    rcases p with _ | ⟨e, p⟩
-    · simp only [List.head?_nil, reduceCtorEq] at hp_head
-    · exact ⟨_, List.getLast?_eq_some_getLast (List.cons_ne_nil e p)⟩
+    exact congrArg card (Finset.ext fun e => by simpa using hs_mem v e)
+  obtain ⟨z, hz⟩ := Option.isSome_iff_exists.mp
+    (List.getLast?_isSome (l := p) |>.mpr (by rintro rfl; cases hp_head))
   by_cases hext : (p.filter fun e => src e = tgt z).length < (s (tgt z)).length
   · -- Extend the walk by the next arc out of `tgt z`.
     obtain ⟨t, ht⟩ := hp_pre (tgt z)
@@ -458,21 +452,13 @@ private theorem exists_isEulerianCircuit_of_prefix
       rw [ht] at hext
       exact absurd hext (lt_irrefl _)
     have hbsrc : src b = tgt z := (hs_mem _ b).mp (ht ▸ List.mem_append_right _ List.mem_cons_self)
-    have hfilter : ∀ v, (p ++ [b]).filter (fun e => src e = v) =
-        p.filter (fun e => src e = v) ++ if src b = v then [b] else [] := by
-      intro v
-      rw [List.filter_append]
-      by_cases hv : src b = v <;>
-        simp only [List.filter_cons, List.filter_nil, decide_eq_true_eq, hv, ↓reduceIte]
     have hpre' : ∀ v, (p ++ [b]).filter (fun e => src e = v) <+: s v := by
       intro v
-      rw [hfilter]
       by_cases hv : src b = v
       · subst hv
-        rw [ite_eq_left rfl, hbsrc]
+        simp only [List.filter_append, List.filter_singleton, decide_true, Bool.cond_true, hbsrc]
         exact ⟨t, by rw [← ht, List.append_assoc, List.singleton_append]⟩
-      · rw [ite_eq_right hv, List.append_nil]
-        exact hp_pre v
+      · simpa [hv] using hp_pre v
     have hnodup' : (p ++ [b]).Nodup :=
       nodup_of_nodup_filter src fun v => (hs_nodup v).sublist (hpre' v).sublist
     have hle : (p ++ [b]).length ≤ Fintype.card E := hnodup'.length_le_card
@@ -502,20 +488,13 @@ private theorem exists_isEulerianCircuit_of_prefix
       omega
     -- every arc out of every vertex is used
     have hall : ∀ v, (e₀ :: p').filter (fun e => src e = v) = s v := by
-      by_contra hne
-      push Not at hne
-      obtain ⟨v₀, hv₀⟩ := hne
+      by_contra! ⟨v₀, hv₀⟩
       let D : V → Prop := fun v =>
         ((e₀ :: p').filter fun e => src e = v).length < (s v).length
       have hD : ∀ v, ¬ D v → (e₀ :: p').filter (fun e => src e = v) = s v := fun v hv =>
         (hp_pre v).eq_of_length (le_antisymm (hp_pre v).length_le (not_lt.mp hv))
-      have hDr : ¬ D (src e₀) := by
-        intro h
-        rw [← hzr] at h
-        exact hext h
-      have hDv₀ : D v₀ := by
-        by_contra h
-        exact hv₀ (hD v₀ h)
+      have hDr : ¬ D (src e₀) := hzr ▸ hext
+      have hDv₀ : D v₀ := not_not.mp fun h => hv₀ (hD v₀ h)
       -- `D` is closed under following the arborescence
       have hstep : ∀ v w, (∃ h : v ≠ src e₀, tgt (a ⟨v, h⟩) = w) → D v → D w := by
         rintro v w ⟨hv, rfl⟩ hDv
@@ -525,12 +504,9 @@ private theorem exists_isEulerianCircuit_of_prefix
           exact List.mem_filter.mpr ⟨hmem, decide_eq_true (ha.src_eq ⟨v, hv⟩)⟩
         have hlt := countP_tgt_lt tgt hp_nodup hnot
         have h := hcount (tgt (a ⟨v, hv⟩)) e₀ p' hp_chain z hz
-        have hsrc : (e₀ :: p').countP (fun e => decide (src e = tgt (a ⟨v, hv⟩))) =
-            ((e₀ :: p').filter fun e => src e = tgt (a ⟨v, hv⟩)).length := by
-          rw [List.countP_eq_length_filter]
         have hcard := hlen_s (tgt (a ⟨v, hv⟩))
         have hb := hbal (tgt (a ⟨v, hv⟩))
-        rw [hzr] at h
+        rw [hzr, List.countP_eq_length_filter] at h
         change ((e₀ :: p').filter fun e => src e = tgt (a ⟨v, hv⟩)).length <
           (s (tgt (a ⟨v, hv⟩))).length
         omega
@@ -636,39 +612,28 @@ theorem natCard_isEulerianCircuit
   let Tour := {l : List E // IsEulerianCircuit src tgt e₀ l}
   let Arb := {f : {v // v ≠ src e₀} → E // IsInArborescence src tgt (src e₀) f}
   let φ : Tour → Arb := fun l =>
-    ⟨fun v => lastExit src e₀ l.val v, isInArborescence_lastExit src tgt e₀ l.property hpos⟩
+    ⟨fun v => lastExit src e₀ l.1 v, isInArborescence_lastExit src tgt e₀ l.2 hpos⟩
   have hfib : ∀ a : Arb, Nat.card {l // φ l = a} =
       ∏ v, ((univ.filter fun e => src e = v).card - 1).factorial := by
     intro a
-    let Ψ : {l // φ l = a} → ((v : V) → {l // Fib src e₀ a.val v l}) := fun l v =>
-      ⟨l.val.val.filter fun e => src e = v,
-        fib_filter src tgt l.val.property hpos (congrArg Subtype.val l.property).symm v⟩
+    let Ψ : {l // φ l = a} → ((v : V) → {l // Fib src e₀ a.1 v l}) := fun l v =>
+      ⟨l.1.1.filter fun e => src e = v,
+        fib_filter src tgt l.1.2 hpos (congrArg Subtype.val l.2).symm v⟩
     rw [Nat.card_eq_of_bijective Ψ ⟨?_, ?_⟩, Nat.card_pi]
-    · exact Finset.prod_congr rfl fun v _ => natCard_fib src tgt a.property v
-    · intro l₁ l₂ h
-      have hv : ∀ v, l₁.val.val.filter (fun e => src e = v) =
-          l₂.val.val.filter (fun e => src e = v) :=
-        fun v => congrArg Subtype.val (congrFun h v)
-      exact Subtype.ext (Subtype.ext
-        (IsEulerianCircuit.eq_of_filter_eq src tgt l₁.val.property l₂.val.property hv))
+    · exact Finset.prod_congr rfl fun v _ => natCard_fib src tgt a.2 v
+    · exact fun l₁ l₂ h => Subtype.ext (Subtype.ext (IsEulerianCircuit.eq_of_filter_eq src tgt
+        l₁.1.2 l₂.1.2 fun v => congrArg Subtype.val (congrFun h v)))
     · intro g
-      have hhead : ((g (src e₀)).val).head? = some e₀ := by
-        have := (g (src e₀)).property.2.2
-        rwa [dite_eq_left rfl] at this
-      have hlast : ∀ v : {v // v ≠ src e₀}, ((g v).val).getLast? = some (a.val v) := by
-        intro v
-        have := (g v).property.2.2
-        rwa [dite_eq_right v.property] at this
-      obtain ⟨l, hl, hls⟩ := exists_isEulerianCircuit src tgt hbal a.property (fun v => (g v).val)
-        (fun v => (g v).property.1) (fun v => (g v).property.2.1) hhead hlast
-      have hφ : φ ⟨l, hl⟩ = a := by
-        refine Subtype.ext (funext fun v => ?_)
-        have h1 := getLast?_filter_eq_lastExit src e₀ hl.mem (hpos v)
-        rw [hls, hlast v] at h1
-        exact (Option.some.inj h1).symm
+      have hhead : ((g (src e₀)).1).head? = some e₀ := by simpa using (g (src e₀)).2.2.2
+      have hlast : ∀ v : {v // v ≠ src e₀}, ((g v).1).getLast? = some (a.1 v) := fun v => by
+        simpa [v.2] using (g v).2.2.2
+      obtain ⟨l, hl, hls⟩ := exists_isEulerianCircuit src tgt hbal a.2 (fun v => (g v).1)
+        (fun v => (g v).2.1) (fun v => (g v).2.2.1) hhead hlast
+      have hφ : φ ⟨l, hl⟩ = a := Subtype.ext (funext fun v => Option.some.inj <| by
+        rw [← getLast?_filter_eq_lastExit src e₀ hl.mem (hpos v), hls, hlast v])
       exact ⟨⟨⟨l, hl⟩, hφ⟩, funext fun v => Subtype.ext (hls v)⟩
   have : Finite Tour :=
-    Finite.of_injective (fun l : Tour => (⟨l.val, l.property.nodup⟩ : {l : List E // l.Nodup}))
+    Finite.of_injective (fun l : Tour => (⟨l.1, l.2.nodup⟩ : {l : List E // l.Nodup}))
       fun l₁ l₂ h => Subtype.ext (Subtype.mk.inj h)
   change Nat.card Tour = Nat.card Arb * _
   rw [← Nat.card_congr (Equiv.sigmaFiberEquiv φ), Nat.card_sigma,
@@ -731,11 +696,7 @@ private theorem isEulerianCircuit_rotateTo [DecidableEq E] {e₀ e₁ : E} {l : 
   by_cases hk0 : k = 0
   · have hrot : rotateTo e₁ l = l := by
       simp only [hrot_def, hk0, List.drop_zero, List.take_zero, List.append_nil]
-    have heq : e₁ = e₀ := by
-      have hh := hl.head
-      rw [← hrot, hhead] at hh
-      exact Option.some.inj hh
-    subst heq
+    obtain rfl : e₁ = e₀ := Option.some.inj (by rw [← hl.head, ← hhead, hrot])
     rwa [hrot]
   · obtain ⟨t, htake⟩ := head_take_idxOf_eq he₁ hl.head hk0
     have hp_ne : l.take k ≠ [] := htake ▸ List.cons_ne_nil e₀ t
@@ -746,8 +707,7 @@ private theorem isEulerianCircuit_rotateTo [DecidableEq E] {e₀ e₁ : E} {l : 
     · rw [hrot_def, List.isChain_append]
       refine ⟨hch.2.1, hch.1, fun a ha b hb => ?_⟩
       have ha' : a ∈ l.getLast? := by
-        rw [← hsplit, List.getLast?_append_of_ne_nil (l.take k) hq_ne]
-        exact ha
+        rwa [← hsplit, List.getLast?_append_of_ne_nil (l.take k) hq_ne]
       rw [htake, List.head?_cons, Option.mem_def, Option.some.injEq] at hb
       subst hb
       exact hl.getLast a ha'
@@ -782,23 +742,23 @@ circuits starting with `e₁` ([Stanley2013], proof of Corollary 10.3, p. 193). 
 def IsEulerianCircuit.equivRotate [DecidableEq E] (e₀ e₁ : E) :
     {l : List E // IsEulerianCircuit src tgt e₀ l} ≃
       {l : List E // IsEulerianCircuit src tgt e₁ l} where
-  toFun l := ⟨rotateTo e₁ l.val, isEulerianCircuit_rotateTo l.property⟩
-  invFun l := ⟨rotateTo e₀ l.val, isEulerianCircuit_rotateTo l.property⟩
-  left_inv l := Subtype.ext (rotateTo_rotateTo l.property)
-  right_inv l := Subtype.ext (rotateTo_rotateTo l.property)
+  toFun l := ⟨rotateTo e₁ l.1, isEulerianCircuit_rotateTo l.2⟩
+  invFun l := ⟨rotateTo e₀ l.1, isEulerianCircuit_rotateTo l.2⟩
+  left_inv l := Subtype.ext (rotateTo_rotateTo l.2)
+  right_inv l := Subtype.ext (rotateTo_rotateTo l.2)
 
 @[simp]
 theorem IsEulerianCircuit.coe_equivRotate [DecidableEq E] (e₀ e₁ : E)
     (l : {l : List E // IsEulerianCircuit src tgt e₀ l}) :
     (IsEulerianCircuit.equivRotate e₀ e₁ l : List E) =
-      l.val.drop (l.val.idxOf e₁) ++ l.val.take (l.val.idxOf e₁) := by
+      l.1.drop (l.1.idxOf e₁) ++ l.1.take (l.1.idxOf e₁) := by
   rfl
 
 @[simp]
 theorem IsEulerianCircuit.coe_equivRotate_symm [DecidableEq E] (e₀ e₁ : E)
     (l : {l : List E // IsEulerianCircuit src tgt e₁ l}) :
     ((IsEulerianCircuit.equivRotate e₀ e₁).symm l : List E) =
-      l.val.drop (l.val.idxOf e₀) ++ l.val.take (l.val.idxOf e₀) := by
+      l.1.drop (l.1.idxOf e₀) ++ l.1.take (l.1.idxOf e₀) := by
   rfl
 
 end Rotate

@@ -119,18 +119,11 @@ theorem sigmaTwoVerifier_append_ofFn {q k p : Polynomial ℕ} {W : α × List Bo
           true := by
   simp only [sigmaTwoVerifier, List.any_eq_true, List.mem_range]
   rw [List.take_append_of_le_length (by omega), List.drop_left' hw,
-    List.drop_append_of_le_length (by omega)]
-  constructor
-  · rintro ⟨i, hi, h⟩
-    refine ⟨⟨i, hi⟩, ?_⟩
-    rwa [BitString.listRow_eq_ofFn (count := k.eval (enc a).length) _ ⟨i, hi⟩,
-      BitString.ofList_append_of_le (by simp [hw]), BitString.listRow_zero, BitString.ofList_ofFn,
-      ← BitString.ofFn_add] at h
-  · rintro ⟨i, h⟩
-    refine ⟨i, i.isLt, ?_⟩
-    rwa [BitString.listRow_eq_ofFn (count := k.eval (enc a).length) _ i,
-      BitString.ofList_append_of_le (by simp [hw]), BitString.listRow_zero, BitString.ofList_ofFn,
-      ← BitString.ofFn_add]
+    List.drop_append_of_le_length (by omega), Fin.exists_iff]
+  refine exists_congr fun i => exists_prop.symm.trans (exists_congr fun hi => ?_)
+  rw [BitString.listRow_eq_ofFn (count := k.eval (enc a).length) _ ⟨i, hi⟩,
+    BitString.ofList_append_of_le (by simp [hw]), BitString.listRow_zero, BitString.ofList_ofFn,
+    ← BitString.ofFn_add]
 
 /-- **Merlin–Arthur verifiers in `Σ₂`.** If `W` is a Merlin–Arthur verifier for `A` with error at
 most `2 ^ (-e(n))` and random strings of `p(n)` bits, and `k(n)` shifts satisfy `p(n) < e(n) k(n)`
@@ -211,19 +204,11 @@ theorem piTwoVerifier_append {k p q : Polynomial ℕ} {W : α × List Bool → B
             (k.eval (enc a).length * q.eval (enc a).length) (v.drop (p.eval (enc a).length))) i)) =
           true := by
   simp only [piTwoVerifier, List.all_eq_true, List.mem_range]
-  rw [List.drop_left' hu, ← List.drop_drop, List.drop_left' hu]
-  constructor
-  · intro h i
-    have h := h i i.isLt
-    rwa [BitString.listRow_eq_ofFn (count := k.eval (enc a).length) _ i,
-      BitString.listRow_eq_ofFn (count := k.eval (enc a).length) _ i,
-      BitString.ofList_append_of_le (by simp [hu]), BitString.listRow_zero,
-      ← BitString.ofFn_add] at h
-  · intro h i hi
-    rw [BitString.listRow_eq_ofFn (count := k.eval (enc a).length) _ ⟨i, hi⟩,
-      BitString.listRow_eq_ofFn (count := k.eval (enc a).length) _ ⟨i, hi⟩,
-      BitString.ofList_append_of_le (by simp [hu]), BitString.listRow_zero, ← BitString.ofFn_add]
-    exact h ⟨i, hi⟩
+  rw [List.drop_left' hu, ← List.drop_drop, List.drop_left' hu, Fin.forall_iff]
+  refine forall_congr' fun i => forall_congr' fun hi => ?_
+  rw [BitString.listRow_eq_ofFn (count := k.eval (enc a).length) _ ⟨i, hi⟩,
+    BitString.listRow_eq_ofFn (count := k.eval (enc a).length) _ ⟨i, hi⟩,
+    BitString.ofList_append_of_le (by simp [hu]), BitString.listRow_zero, ← BitString.ofFn_add]
 
 /-- **Arthur–Merlin verifiers in `Π₂`.** If `W` is an Arthur–Merlin verifier for `A` with error at
 most `2 ^ (-e(n))`, random strings of `p(n)` bits and replies of `q(n)` bits, and `k(n)` shifts

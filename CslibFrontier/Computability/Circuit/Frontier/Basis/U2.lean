@@ -78,7 +78,7 @@ private theorem read_hiddenNetwork_zero {σ : Signature} {n m_out : ℕ}
   have hfin : (@finSumFinEquiv n 0) (.inl i) = i := Fin.ext rfl
   rw [hfin]
 
-/-- Combine `exists_u2_saturated`, `Multigraph.exists_isMatching_mul_eight_ge`, and
+/-- Combine `exists_u2_saturated`, `Multigraph.exists_isMatching_seven_eighths`, and
 `U2CubicPairBound p B_pair` to construct `U2PairData` for any `U₂` circuit with uniform constant
 `C₀` depending only on `(p, B_pair, ξ)`. -/
 private theorem exists_u2PairData_of_u2CubicPairBound {p B_pair : ℝ} (_hp : 0 < p)
@@ -143,7 +143,6 @@ private theorem exists_u2PairData_of_u2CubicPairBound {p B_pair : ℝ} (_hp : 0 
     have hRR : (R : ℝ) ≤ c.innerSize + 1 := by exact_mod_cast hR_le
     have hs0 : (0 : ℝ) ≤ c.innerSize := Nat.cast_nonneg _
     have hxi0 : 0 ≤ ξ * Nat.card (Vertex c) := by positivity
-    have hA_abs : -|A| ≤ A := neg_abs_le A
     have hlow : -A ≤ A * c.innerSize - (A - δ_dirty) * R := by
       have hm := mul_le_mul_of_nonneg_left hRR hA_sub
       nlinarith
@@ -154,7 +153,7 @@ private theorem exists_u2PairData_of_u2CubicPairBound {p B_pair : ℝ} (_hp : 0 
     obtain ⟨hclean3, hread_cnt, hdirty_cnt⟩ := hgt1 htwo
     have h3_all : ∀ B : Q.blocks, (Q.quotient.incidenceSet B).ncard = 3 :=
       hsat.ncard_incidenceSet_quotient (connected c) htwo
-    obtain ⟨M_full, hM_full, hcov⟩ := Multigraph.exists_isMatching_mul_eight_ge Q.quotient
+    obtain ⟨M_full, hM_full, -, hcov_nat⟩ := Q.quotient.exists_isMatching_seven_eighths
       Q.quotient_loopless hsat.injective_ends_quotient h3_all
     let M_clean : Set Q.external :=
       {e ∈ M_full | (Q.quotient.src e).val ∉ dirty ∧ (Q.quotient.tgt e).val ∉ dirty}
@@ -194,28 +193,12 @@ private theorem exists_u2PairData_of_u2CubicPairBound {p B_pair : ℝ} (_hp : 0 
         rwa [Nat.card_coe_set_eq, Nat.card_eq_finsetCard] at h1
       have hpart := ncard_sdiff_add_ncard_of_subset (fun _ he => he.1 : M_clean ⊆ M_full)
       omega
-    have hmv_le : (Q.quotient.matchedVertices M_full).ncard ≤ 2 * M_full.ncard := by
-      have := Fintype.ofFinite (Edge c)
-      have hsub : Q.quotient.matchedVertices M_full ⊆
-          (Q.quotient.src '' M_full) ∪ (Q.quotient.tgt '' M_full) := by
-        rintro B ⟨e, he, rfl | rfl⟩
-        · exact Or.inl ⟨e, he, rfl⟩
-        · exact Or.inr ⟨e, he, rfl⟩
-      calc (Q.quotient.matchedVertices M_full).ncard
-          ≤ ((Q.quotient.src '' M_full) ∪ (Q.quotient.tgt '' M_full)).ncard :=
-            ncard_le_ncard hsub (toFinite _)
-        _ ≤ (Q.quotient.src '' M_full).ncard + (Q.quotient.tgt '' M_full).ncard :=
-            ncard_union_le _ _
-        _ ≤ M_full.ncard + M_full.ncard :=
-            Nat.add_le_add (ncard_image_le (toFinite _)) (ncard_image_le (toFinite _))
-        _ = 2 * M_full.ncard := (two_mul _).symm
     obtain ⟨score, pairLay, hσ⟩ := hN₀ Q.blocks Q.external Q.quotient Q.quotient_loopless
       hsat.injective_ends_quotient h3_all hN_lt M_clean M_clean hM_clean (Subset.refl _)
     refine ⟨U2PairData.mk Q hsat M_clean (fun _ => h3_all) hM_clean hclean_pair score pairLay,
       fun s_idx => ?_⟩
     dsimp only
     refine (hσ s_idx).trans ?_
-    have hcov_nat : 7 * Nat.card Q.blocks ≤ 16 * M_full.ncard := by omega
     have hcovR : 7 * (Nat.card Q.blocks : ℝ) ≤ 16 * (M_full.ncard : ℝ) := by exact_mod_cast hcov_nat
     have hdropR : (M_full.ncard : ℝ) ≤ (M_clean.ncard : ℝ) + (dirty.card : ℝ) := by
       exact_mod_cast hdrop_le
@@ -232,8 +215,6 @@ private theorem exists_u2PairData_of_u2CubicPairBound {p B_pair : ℝ} (_hp : 0 
     have hm_mul := mul_le_mul_of_nonneg_right hm_lo hδ0
     have hp_id : p - (7 / 16) * δ_dirty = A / 2 := by
       dsimp only [A, δ_dirty]; ring
-    have hsplit_id : (A / 2) * h + δ_dirty * d =
-        ((A - δ_dirty) / 2) * h + (δ_dirty / 2) * (h + 2 * d) := by ring
     have hterm1 := mul_le_mul_of_nonneg_left (show h ≤ 2 * c.innerSize - 2 * R by linarith)
       (by linarith : 0 ≤ (A - δ_dirty) / 2)
     have hterm2 := mul_le_mul_of_nonneg_left hdirtyR (by linarith : 0 ≤ δ_dirty / 2)
@@ -241,13 +222,73 @@ private theorem exists_u2PairData_of_u2CubicPairBound {p B_pair : ℝ} (_hp : 0 
     have hC0_ge : δ_dirty ≤ C₀ := by
       have hN0_pos : (0 : ℝ) ≤ max 1 (N₀ : ℝ) := by positivity
       dsimp only [C₀]; linarith [le_abs_self A, hN0_pos]
-    have hid1 : h * p - (7 / 16 * h - d) * δ_dirty =
-        (p - 7 / 16 * δ_dirty) * h + δ_dirty * d := by ring
-    rw [hp_id] at hid1
+    have hid1 : h * p - (7 / 16 * h - d) * δ_dirty = A / 2 * h + δ_dirty * d := by
+      rw [← hp_id]
+      ring
     have hid2 : (A - δ_dirty) / 2 * (2 * (c.innerSize : ℝ) - 2 * R) +
         δ_dirty / 2 * (2 * (c.innerSize : ℝ) + 2) =
         A * c.innerSize - (A - δ_dirty) * R + δ_dirty := by ring
     linarith
+
+private lemma u2_one_sub_mul_min_nonneg {A ε : ℝ} (hA : 0 < A) :
+    0 ≤ 1 - A * min ε (1 / A) := by
+  have h := mul_le_mul_of_nonneg_left (min_le_right ε (1 / A)) hA.le
+  rw [mul_one_div_cancel hA.ne'] at h
+  linarith
+
+private lemma u2_vertex_bounds {n m : ℕ} {σ : Signature.{v}} {I : Interpretation σ Bool}
+    (hU2 : I.IsU2) (c : Circuit σ m 1) {M μ₀ : ℝ} (hM : 0 ≤ M) (hμ₀ : 0 < μ₀)
+    (hs : (c.innerSize : ℝ) ≤ M * n) :
+    let ξ := μ₀ / (8 * (4 * M + 4))
+    1 ≤ Nat.card (Vertex c) ∧
+      ξ * Nat.card (Vertex c) ≤ (μ₀ / 8) * n + 3 * ξ ∧
+      Real.logb 2 (Nat.card (Vertex c)) ≤ Real.log (4 * M * n + 4) / Real.log 2 := by
+  intro ξ
+  have hξ : 0 < ξ := by positivity
+  have hV_pos : 1 ≤ Nat.card (Vertex c) := by
+    have : Nonempty (Vertex c) := ⟨.output 0⟩
+    exact Nat.one_le_iff_ne_zero.mpr Nat.card_pos.ne'
+  have hV_le : (Nat.card (Vertex c) : ℝ) ≤ 4 * M * n + 3 := by
+    have h1 : Nat.card (Vertex c) ≤ 2 * 2 * c.innerSize + 3 * 1 :=
+      card_vertex_le (hU2.fanInAtMost_two c)
+    have h2 : (Nat.card (Vertex c) : ℝ) ≤ 4 * c.innerSize + 3 := by exact_mod_cast h1
+    linarith
+  have hxiV : ξ * Nat.card (Vertex c) ≤ (μ₀ / 8) * n + 3 * ξ := by
+    have h1 := mul_le_mul_of_nonneg_left hV_le hξ.le
+    have h2 : ξ * (4 * M) ≤ μ₀ / 8 := by
+      dsimp only [ξ]
+      rw [div_mul_eq_mul_div, div_le_div_iff₀ (by positivity) (by norm_num)]
+      nlinarith
+    have h3 := mul_le_mul_of_nonneg_right h2 (Nat.cast_nonneg (α := ℝ) n)
+    linarith
+  have hlogV : Real.logb 2 (Nat.card (Vertex c)) ≤ Real.log (4 * M * n + 4) / Real.log 2 :=
+    div_le_div_of_nonneg_right
+      (Real.log_le_log (Nat.cast_pos.mpr hV_pos) (by linarith only [hV_le]))
+      (Real.log_pos one_lt_two).le
+  exact ⟨hV_pos, hxiV, hlogV⟩
+
+private lemma u2_max_sup_le {A δ_dirty ε' s ξV C₀ : ℝ} {n R U K : ℕ}
+    (hA : 0 < A) (hδ0 : 0 ≤ δ_dirty) (hA_sub : 0 ≤ A - δ_dirty) (h1mAε : 0 ≤ 1 - A * ε')
+    (hK_pos : 1 ≤ K) (hcompl : (R : ℝ) + U = n) (hu : 2 ^ U ≤ K)
+    (hs : s ≤ (1 + (1 - δ_dirty) / A - ε') * n) (hξV : 0 ≤ ξV) :
+    max 0 (A * s - (A - δ_dirty) * R + ξV + C₀) ≤
+      (1 - A * ε') * n + A * Real.logb 2 K + ξV + |C₀| := by
+  have hunread_log : (U : ℝ) ≤ Real.logb 2 K := by
+    rw [Real.le_logb_iff_rpow_le (by norm_num) (by exact_mod_cast hK_pos), Real.rpow_natCast]
+    exact_mod_cast hu
+  have hR_lo : (n : ℝ) - Real.logb 2 K ≤ R := by linarith
+  have hmain_id : A * (1 + (1 - δ_dirty) / A - ε') * n - (A - δ_dirty) * n =
+      (1 - A * ε') * n := by
+    field_simp
+    ring
+  have hlogK0 : 0 ≤ Real.logb 2 K :=
+    Real.logb_nonneg (by norm_num) (by exact_mod_cast hK_pos)
+  refine max_le (by positivity) ?_
+  have h1 := mul_le_mul_of_nonneg_left hs hA.le
+  have h2 := mul_le_mul_of_nonneg_left hR_lo hA_sub
+  have h3 : (A - δ_dirty) * Real.logb 2 K ≤ A * Real.logb 2 K :=
+    mul_le_mul_of_nonneg_right (by linarith) hlogK0
+  linarith [le_abs_self C₀]
 
 /-- **Parametric `U₂` nondeterministic frontier lower bound.** Under `U2CubicPairBound p B_pair`
 with `0 < p`, `0 < B_pair ≤ 2 p`, and `δ_dirty := 2 p - B_pair ≤ A := (7/8) B_pair + (1/8)(2p)`,
@@ -271,10 +312,7 @@ theorem eventually_lt_innerSize_u2_nondeterministic {p B_pair : ℝ} (hp : 0 < p
   set ε' := min ε (1 / A)
   have hε' : 0 < ε' := lt_min hε (by positivity)
   have hε'_le : ε' ≤ ε := min_le_left _ _
-  have h1mAε : 0 ≤ 1 - A * ε' := by
-    have : A * ε' ≤ A * (1 / A) := mul_le_mul_of_nonneg_left (min_le_right _ _) hA.le
-    rw [mul_one_div_cancel hA.ne'] at this
-    linarith
+  have h1mAε : 0 ≤ 1 - A * ε' := u2_one_sub_mul_min_nonneg hA
   set ξ := A * ε' / (8 * (4 * |L_u2| + 4))
   have hξ : 0 < ξ := by positivity
   obtain ⟨C₀, hData⟩ := exists_u2PairData_of_u2CubicPairBound.{v} hp hBp_le hbound hδA hξ
@@ -332,9 +370,8 @@ theorem eventually_lt_innerSize_u2_nondeterministic {p B_pair : ℝ} (hp : 0 < p
     (Network.ncard_readAt_hide_le _ v).trans
       ((Network.ncard_readAt_reindex _ _ v).trans_le (ncard_readAt_le I _ v))
   have hfan : c.FanInAtMost 2 := hU2.fanInAtMost_two c
-  have hV_pos : 1 ≤ Nat.card (Vertex c) := by
-    have : Nonempty (Vertex c) := ⟨.output 0⟩
-    exact Nat.one_le_iff_ne_zero.mpr Nat.card_pos.ne'
+  obtain ⟨hV_pos, hxiV, hlogV0⟩ :=
+    u2_vertex_bounds hU2 c (abs_nonneg L_u2) (mul_pos hA hε') hs_le_L
   set B_sup := A * c.innerSize - (A - δ_dirty) * N.read.ncard + ξ * Nat.card (Vertex c) + C₀
   have hmul_bp := D.mul_size_branchingProgram_le_rpow N hclean_N hV_pos
     (maxDegreeLE le_rfl hfan) hm_N hK_pos hu_lt.le hD
@@ -350,45 +387,12 @@ theorem eventually_lt_innerSize_u2_nondeterministic {p B_pair : ℝ} (hp : 0 < p
     rwa [Real.logb_rpow (by norm_num) (by norm_num)] at this
   have hcompl_eq : (N.read.ncard : ℝ) + N.readᶜ.ncard = n := by
     rw [← Nat.cast_add, ncard_add_ncard_compl, Nat.card_eq_fintype_card, Fintype.card_fin]
-  have hunread_log : (N.readᶜ.ncard : ℝ) ≤ Real.logb 2 (K n) := by
-    rw [Real.le_logb_iff_rpow_le (by norm_num) (by exact_mod_cast hK_pos), Real.rpow_natCast]
-    exact_mod_cast hu_lt.le
-  have hR_lo : (n : ℝ) - Real.logb 2 (K n) ≤ N.read.ncard := by linarith
-  have hmain_id : A * (L_u2 - ε') * n - (A - δ_dirty) * n = (1 - A * ε') * n := by
-    dsimp only [L_u2]
-    field_simp
-    ring
-  have hlogK0 : 0 ≤ Real.logb 2 (K n) :=
-    Real.logb_nonneg (by norm_num) (by exact_mod_cast hK_pos)
-  have hmax_le : max 0 B_sup ≤
-      (1 - A * ε') * n + A * Real.logb 2 (K n) + ξ * Nat.card (Vertex c) + |C₀| := by
-    refine max_le (by positivity) ?_
-    have h1 := mul_le_mul_of_nonneg_left hle hA.le
-    have h2 := mul_le_mul_of_nonneg_left hR_lo hA_sub
-    have h3 : (A - δ_dirty) * Real.logb 2 (K n) ≤ A * Real.logb 2 (K n) :=
-      mul_le_mul_of_nonneg_right (by linarith) hlogK0
-    dsimp only [B_sup]
-    linarith [le_abs_self C₀]
-  have hV_le : (Nat.card (Vertex c) : ℝ) ≤ 4 * |L_u2| * n + 3 := by
-    have h1 : Nat.card (Vertex c) ≤ 2 * 2 * c.innerSize + 3 * 1 := card_vertex_le hfan
-    have h2 : (Nat.card (Vertex c) : ℝ) ≤ 4 * c.innerSize + 3 := by exact_mod_cast h1
-    linarith
-  have hxiV : ξ * Nat.card (Vertex c) ≤ (A * ε' / 8) * n + 3 * ξ := by
-    have h1 := mul_le_mul_of_nonneg_left hV_le hξ.le
-    have h2 : ξ * (4 * |L_u2|) ≤ A * ε' / 8 := by
-      dsimp only [ξ]
-      rw [div_mul_eq_mul_div, div_le_div_iff₀ (by positivity) (by norm_num)]
-      nlinarith [mul_pos hA hε', abs_nonneg L_u2]
-    have h3 := mul_le_mul_of_nonneg_right h2 (Nat.cast_nonneg (α := ℝ) n)
-    linarith
-  have hV_arg : (Nat.card (Vertex c) : ℝ) ≤ 4 * |L_u2| * n + 4 := by linarith only [hV_le]
+  have hmax_le := u2_max_sup_le (C₀ := C₀) hA (sub_nonneg.mpr hBp_le) hA_sub h1mAε hK_pos
+    hcompl_eq hu_lt.le hle (by positivity : 0 ≤ ξ * Nat.card (Vertex c))
   have hlogV : 7 * Real.logb 2 (Nat.card (Vertex c)) ≤
       (7 / Real.log 2) * Real.log (4 * |L_u2| * n + 4) := by
-    rw [Real.logb, div_mul_eq_mul_div, mul_div_assoc]
-    exact mul_le_mul_of_nonneg_left
-      (div_le_div_of_nonneg_right (Real.log_le_log (by exact_mod_cast hV_pos) hV_arg)
-        hlog2_pos.le)
-      (by norm_num)
+    rw [div_mul_eq_mul_div, mul_div_assoc]
+    exact mul_le_mul_of_nonneg_left hlogV0 (by norm_num)
   simp only [Real.norm_eq_abs, Nat.abs_cast] at herr
   have herr' := (le_abs_self _).trans herr
   have hpos_margin : 0 < A * ε' * n := by positivity
@@ -433,10 +437,7 @@ theorem eventually_agreement_le_u2 {p B_pair : ℝ} (hp : 0 < p) (hBp : 0 < B_pa
   set ε' := min ε (1 / A)
   have hε' : 0 < ε' := lt_min hε (by positivity)
   have hε'_le : ε' ≤ ε := min_le_left _ _
-  have h1mAε : 0 ≤ 1 - A * ε' := by
-    have : A * ε' ≤ A * (1 / A) := mul_le_mul_of_nonneg_left (min_le_right _ _) hA.le
-    rw [mul_one_div_cancel hA.ne'] at this
-    linarith
+  have h1mAε : 0 ≤ 1 - A * ε' := u2_one_sub_mul_min_nonneg hA
   have hlog2_pos : 0 < Real.log 2 := Real.log_pos one_lt_two
   set μ := min (A * ε' / 4) (1 / 4)
   have hμ : 0 < μ := lt_min (by positivity) (by norm_num)
@@ -497,10 +498,11 @@ theorem eventually_agreement_le_u2 {p B_pair : ℝ} (hp : 0 < p) (hBp : 0 < B_pa
     set R := (network c I fun _ => Acc).read.ncard
     set V := Nat.card (Vertex c)
     set B_sup := A * c.innerSize - (A - δ_dirty) * R + ξ * V + C₀
+    have hs_le_L : (c.innerSize : ℝ) ≤ |L_u2| * n :=
+      hsize'.trans (mul_le_mul_of_nonneg_right (by linarith [le_abs_self L_u2]) (Nat.cast_nonneg n))
     have hfan : c.FanInAtMost 2 := hU2.fanInAtMost_two c
-    have hV_pos : 1 ≤ V := by
-      have : Nonempty (Vertex c) := ⟨.output 0⟩
-      exact Nat.one_le_iff_ne_zero.mpr Nat.card_pos.ne'
+    obtain ⟨hV_pos, hxiV, hlogV0⟩ :=
+      u2_vertex_bounds hU2 c (abs_nonneg L_u2) (mul_pos hA hε') hs_le_L
     let R_res : ℝ :=
       (2 : ℝ) ^ (max 0 B_sup + 15 + 3 * Real.logb 2 (K' n) + 7 * Real.logb 2 V)
     have bound_acc (A_set : Set Bool) :
@@ -532,49 +534,19 @@ theorem eventually_agreement_le_u2 {p B_pair : ℝ} (hp : 0 < p) (hBp : 0 < B_pa
       rw [Nat.card_fun, Nat.card_eq_fintype_card (α := Fin n), Fintype.card_fin,
         Nat.card_eq_fintype_card (α := Bool), Fintype.card_bool]
       push_cast; rfl
-    rw [hcard_in, show (1 + 2 * b n) / 2 = 1 / 2 + b n by ring,
-      show (R_res + R_res) / (2 * (2 : ℝ) ^ n) = R_res / (2 : ℝ) ^ n by field_simp; ring] at hagr
+    have hb_half : (1 + 2 * b n) / 2 = 1 / 2 + b n := by ring
+    have hres_half : (R_res + R_res) / (2 * (2 : ℝ) ^ n) = R_res / (2 : ℝ) ^ n := by
+      field_simp
+      ring
+    rw [hcard_in, hb_half, hres_half] at hagr
     -- Bound the exponent of `R_res / 2 ^ n` by `-(A * ε' / 4) * n`.
-    have hs_nonneg : (0 : ℝ) ≤ c.innerSize := Nat.cast_nonneg _
-    have hs_le_L : (c.innerSize : ℝ) ≤ |L_u2| * n :=
-      hsize'.trans (mul_le_mul_of_nonneg_right (by linarith [le_abs_self L_u2]) (Nat.cast_nonneg n))
     have hcompl_eq : (R : ℝ) + (network c I fun _ => Acc).readᶜ.ncard = n := by
       rw [← Nat.cast_add, ncard_add_ncard_compl, Nat.card_eq_fintype_card, Fintype.card_fin]
-    have hunread_log : ((network c I fun _ => Acc).readᶜ.ncard : ℝ) ≤ Real.logb 2 (K' n) := by
-      rw [Real.le_logb_iff_rpow_le (by norm_num) hK_posR, Real.rpow_natCast]
-      exact_mod_cast hu.le
-    have hR_lo : (n : ℝ) - Real.logb 2 (K' n) ≤ R := by linarith
-    have hmain_id : A * (L_u2 - ε') * n - (A - δ_dirty) * n = (1 - A * ε') * n := by
-      dsimp only [L_u2]; field_simp; ring
-    have hlogK0 : 0 ≤ Real.logb 2 (K' n) := Real.logb_nonneg (by norm_num) hK_ge1R
-    have hmax_le : max 0 B_sup ≤
-        (1 - A * ε') * n + A * Real.logb 2 (K' n) + ξ * V + |C₀| := by
-      refine max_le (by positivity) ?_
-      have h1 := mul_le_mul_of_nonneg_left hsize' hA.le
-      have h2 := mul_le_mul_of_nonneg_left hR_lo hA_sub
-      have h3 : (A - δ_dirty) * Real.logb 2 (K' n) ≤ A * Real.logb 2 (K' n) :=
-        mul_le_mul_of_nonneg_right (by linarith) hlogK0
-      dsimp only [B_sup]
-      linarith [le_abs_self C₀]
-    have hV_le : (V : ℝ) ≤ 4 * |L_u2| * n + 3 := by
-      have h1 : V ≤ 2 * 2 * c.innerSize + 3 * 1 := card_vertex_le hfan
-      have h2 : (V : ℝ) ≤ 4 * c.innerSize + 3 := by exact_mod_cast h1
-      linarith
-    have hxiV : ξ * V ≤ (A * ε' / 8) * n + 3 * ξ := by
-      have h1 := mul_le_mul_of_nonneg_left hV_le hξ.le
-      have h2 : ξ * (4 * |L_u2|) ≤ A * ε' / 8 := by
-        dsimp only [ξ]
-        rw [div_mul_eq_mul_div, div_le_div_iff₀ (by positivity) (by norm_num)]
-        nlinarith [mul_pos hA hε', abs_nonneg L_u2]
-      have h3 := mul_le_mul_of_nonneg_right h2 (Nat.cast_nonneg (α := ℝ) n)
-      linarith
-    have hV_arg : (V : ℝ) ≤ 4 * |L_u2| * n + 4 := by linarith only [hV_le]
+    have hmax_le := u2_max_sup_le (C₀ := C₀) hA (sub_nonneg.mpr hBp_le) hA_sub h1mAε
+      (Nat.one_le_of_lt hK2) hcompl_eq hu.le hsize' (mul_nonneg hξ.le (Nat.cast_nonneg V))
     have hlogV : 7 * Real.logb 2 V ≤ (7 / Real.log 2) * Real.log (4 * |L_u2| * n + 4) := by
-      rw [Real.logb, div_mul_eq_mul_div, mul_div_assoc]
-      exact mul_le_mul_of_nonneg_left
-        (div_le_div_of_nonneg_right (Real.log_le_log (by exact_mod_cast hV_pos) hV_arg)
-          hlog2_pos.le)
-        (by norm_num)
+      rw [div_mul_eq_mul_div, mul_div_assoc]
+      exact mul_le_mul_of_nonneg_left hlogV0 (by norm_num)
     have herr' := (le_abs_self _).trans herr
     have hexp_le : max 0 B_sup + 15 + 3 * Real.logb 2 (K' n) + 7 * Real.logb 2 V - n ≤
         -(μ * n) := by
@@ -698,34 +670,14 @@ theorem eventually_abs_correlation_quadForm_le_u2 {p B_pair c γ : ℝ} (hp : 0 
     set B_sup := A * C.innerSize - (A - δ_dirty) * N₁.read.ncard + ξ * Nat.card (Vertex C) + C₀
     refine (D.sq_correlation_quadForm_le Acc (Q n) hQn hread_half hD).trans
       (Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_)
-    have hfan : C.FanInAtMost 2 := hU2.fanInAtMost_two C
-    have hV_pos : 1 ≤ Nat.card (Vertex C) := by
-      have : Nonempty (Vertex C) := ⟨.output 0⟩
-      exact Nat.one_le_iff_ne_zero.mpr Nat.card_pos.ne'
-    have hV_le : (Nat.card (Vertex C) : ℝ) ≤ 4 * c * n + 3 := by
-      have h1 : Nat.card (Vertex C) ≤ 2 * 2 * C.innerSize + 3 * 1 := card_vertex_le hfan
-      have h2 : (Nat.card (Vertex C) : ℝ) ≤ 4 * C.innerSize + 3 := by exact_mod_cast h1
-      linarith
-    have hxiV : ξ * Nat.card (Vertex C) ≤ (Δ / 8) * n + 3 * ξ := by
-      have h1 := mul_le_mul_of_nonneg_left hV_le hξ.le
-      have h2 : ξ * (4 * c) ≤ Δ / 8 := by
-        dsimp only [ξ]
-        rw [div_mul_eq_mul_div, div_le_div_iff₀ (by positivity) (by norm_num)]
-        nlinarith
-      have h3 := mul_le_mul_of_nonneg_right h2 (Nat.cast_nonneg (α := ℝ) n)
-      linarith
-    have hV_arg : (Nat.card (Vertex C) : ℝ) ≤ 4 * c * n + 4 := by linarith only [hV_le]
+    obtain ⟨hV_pos, hxiV, hlogV0⟩ := u2_vertex_bounds hU2 C (by linarith) hΔ hsize
     have hnatlog : 6 * (Nat.log 2 (Nat.card (Vertex C)) : ℝ) ≤
         (6 / Real.log 2) * Real.log (4 * c * n + 4) := by
       have h1 : (Nat.log 2 (Nat.card (Vertex C)) : ℝ) ≤ Real.logb 2 (Nat.card (Vertex C)) := by
         rw [Real.le_logb_iff_rpow_le (by norm_num) (by positivity), Real.rpow_natCast]
         exact_mod_cast Nat.pow_log_le_self 2 (by omega)
-      have h2 : Real.logb 2 (Nat.card (Vertex C)) ≤
-          Real.log (4 * c * n + 4) / Real.log 2 :=
-        div_le_div_of_nonneg_right (Real.log_le_log (by exact_mod_cast hV_pos) hV_arg)
-          hlog2_pos.le
       rw [div_mul_eq_mul_div, mul_div_assoc]
-      exact mul_le_mul_of_nonneg_left (h1.trans h2) (by norm_num)
+      exact mul_le_mul_of_nonneg_left (h1.trans hlogV0) (by norm_num)
     have hB_le : B_sup - (n : ℝ) / 2 ≤ -θ * n + ξ * Nat.card (Vertex C) + |C₀| := by
       have h1 := mul_le_mul_of_nonneg_left hsize hA.le
       have h2 := mul_le_mul_of_nonneg_left hread_lo.le hA_sub

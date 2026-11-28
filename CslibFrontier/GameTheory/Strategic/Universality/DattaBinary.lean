@@ -187,7 +187,7 @@ theorem notMem_vars_chainEq_source (hN : 3 ≤ n * d) (c : Fin n × Fin d) :
     simp only [source, Equiv.apply_symm_apply]
   have hval := congrArg Fin.val hrot
   rw [val_finRotate] at hval
-  have hlt := (finProdFinEquiv (source c)).isLt
+  have hlt := (finProdFinEquiv (source c)).2
   rcases vars_chainEq hv with h | h | ⟨h0, h⟩
   · simp only [chain, Sum.inr.injEq, Sum.inl.injEq] at h
     rw [← h] at hval
@@ -216,14 +216,14 @@ theorem notMem_vars_equation (hN : 3 ≤ n * d) (F : Fin m → MvPolynomial (Fin
   rcases v with i | c | e
   · simp only [equation]
     split_ifs
-    · intro hv
-      obtain ⟨c, hc⟩ := vars_encode hv
-      simp at hc
+    · rintro hv
+      obtain ⟨_, hc⟩ := vars_encode hv
+      cases hc
     · simp
   · exact notMem_vars_chainEq_source hN c
-  · intro hv
-    obtain ⟨c, hc⟩ := vars_encode hv
-    simp at hc
+  · rintro hv
+    obtain ⟨_, hc⟩ := vars_encode hv
+    cases hc
 
 /-! ### The equilibria -/
 
@@ -235,16 +235,12 @@ theorem eval_encode {F : MvPolynomial (Fin n) ℝ} (hF : ∀ e ∈ F.support, �
   conv_rhs => rw [F.as_sum]
   simp only [encode, map_sum, map_mul, eval_C, map_prod, eval_monomial,
     Finsupp.prod_fintype _ _ fun _ => pow_zero _]
-  refine sum_congr rfl fun e he => ?_
-  congr 1
-  refine prod_congr rfl fun i _ => ?_
+  refine sum_congr rfl fun e he => congrArg (_ * ·) (prod_congr rfl fun i _ => ?_)
   unfold powerFactor
   split_ifs with h0 h
   · simp [h0]
   · rw [eval_X, hq]
-    simp only
-    congr 1
-    omega
+    exact congrArg _ (by dsimp only; omega)
   · exact absurd (hF e he i) (by omega)
 
 /-- If every chain equation holds, each chain variable is the corresponding power. -/
@@ -253,18 +249,17 @@ theorem chain_eq_pow {q : Player n d m → ℝ} (hq : ∀ c : Fin n × Fin d, ev
   obtain ⟨i, k, hk⟩ := c
   induction k with
   | zero =>
-    have := hq (i, ⟨0, hk⟩)
-    simp only [chainEq, ↓reduceDIte, map_sub, eval_X] at this
-    simp only [zero_add, pow_one]
+    have h0 := hq (i, ⟨0, hk⟩)
+    simp only [chainEq, ↓reduceDIte, map_sub, eval_X, zero_add, pow_one] at h0 ⊢
     linarith
   | succ k ih =>
-    have := hq (i, ⟨k + 1, hk⟩)
+    have hs := hq (i, ⟨k + 1, hk⟩)
     simp only [chainEq, Nat.add_one_ne_zero, ↓reduceDIte, map_sub, map_mul, eval_X,
-      Nat.add_sub_cancel] at this
-    rw [ih (by omega)] at this
-    simp only at this ⊢
+      Nat.add_sub_cancel] at hs
+    rw [ih (by omega)] at hs
+    dsimp only at hs ⊢
     rw [pow_succ]
-    linarith [this]
+    linarith [hs]
 
 /-- The chain equations hold at the powers. -/
 theorem eval_chainEq_of_pow {q : Player n d m → ℝ}
@@ -294,30 +289,25 @@ theorem isTotallyMixedNash_game_iff {F : Fin m → MvPolynomial (Fin n) ℝ}
         ∀ c : Fin n × Fin d, q (chain c) = q (var c.1) ^ (c.2.val + 1) := by
   rw [game, CostGame.isTotallyMixedNash_binaryGame_iff (isMultilinear_equation F)
     (notMem_vars_equation hN F)]
-  refine and_congr_right fun _ => ?_
-  constructor
-  · intro h
-    have hchain : ∀ c, eval q (chainEq c) = 0 := fun c => by
+  refine and_congr_right fun _ => ⟨fun h => ?_, ?_⟩
+  · have hpow := chain_eq_pow fun c => by
       obtain ⟨c', rfl⟩ := source_bijective.2 c
       exact h (chain c')
-    have hpow := chain_eq_pow hchain
     refine ⟨fun j => ?_, hpow⟩
     rw [← eval_encode (hF j) hpow]
     by_cases hj : j.val < n
-    · have := h (var ⟨j, hj⟩)
-      simpa [equation, j.isLt] using this
-    · have := h (extra ⟨j - n, by omega⟩)
-      simp only [equation] at this
-      have hj' : (⟨n + (j.val - n), by omega⟩ : Fin m) = j := Fin.ext (by simp only; omega)
-      rwa [hj'] at this
-  · rintro ⟨hF0, hpow⟩ v
-    rcases v with i | c | e
+    · simpa [equation, j.2] using h (var ⟨j, hj⟩)
+    · have hj' : (⟨n + (j.val - n), by omega⟩ : Fin m) = j :=
+        Fin.ext <| by
+          dsimp only
+          omega
+      simpa only [equation, hj'] using h (extra ⟨j - n, by omega⟩)
+  · rintro ⟨hF0, hpow⟩ (i | c | e)
     · simp only [equation]
       split_ifs with h
       · rw [eval_encode (hF _) hpow, hF0]
       · simp
     · exact eval_chainEq_of_pow hpow _
-    · simp only [equation]
-      rw [eval_encode (hF _) hpow, hF0]
+    · simp only [equation, eval_encode (hF _) hpow, hF0]
 
 end Cslib.GameTheory.DattaBinary

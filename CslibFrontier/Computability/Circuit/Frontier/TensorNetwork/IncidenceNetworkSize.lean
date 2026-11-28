@@ -148,7 +148,7 @@ theorem exists_size (c : ℕ) : ∃ C n₀ : ℕ, ∀ n, n₀ ≤ n → ∀ (K :
   have hnu1 : 1 ≤ nu := Nat.clog_pos one_lt_two (by omega)
   have hlam1 : 1 ≤ lam ^ c := Nat.one_le_pow _ _ (by omega)
   have hs : sizeParam n = n * nu := rfl
-  have hns : n ≤ sizeParam n := by rw [hs]; exact Nat.le_mul_of_pos_right _ hnu1
+  have hns : n ≤ sizeParam n := Nat.le_mul_of_pos_right _ hnu1
   -- The index wires.
   have hM : mainWires J K sys d ≤ (4 + c * (A + c)) * (n * nu) := by
     unfold mainWires
@@ -181,8 +181,8 @@ theorem exists_size (c : ℕ) : ∃ C n₀ : ℕ, ∀ n, n₀ ≤ n → ∀ (K :
     numEdges_network
   refine ⟨hE ▸ le_max_right _ _, ?_, ?_, ?_⟩
   · rw [hE, hs]
-    refine max_le (hM.trans (Nat.mul_le_mul_right _ (by omega))) ?_
-    exact Nat.le_mul_of_pos_left _ (by omega)
+    exact max_le (hM.trans (Nat.mul_le_mul_right _ (by omega)))
+      (Nat.le_mul_of_pos_left _ (by omega))
   · have hV := length_vertices_network (P := n + 1) (ℓ := n + 1) (J := J) (K := K)
       (s := sizeParam n) (n := n) (sys := sys) (d := d)
     change (network (n + 1) (n + 1) J K (sizeParam n) n sys d).2.vertices.length ≤ _
@@ -204,16 +204,9 @@ theorem exists_size (c : ℕ) : ∃ C n₀ : ℕ, ∀ n, n₀ ≤ n → ∀ (K :
         ((Nat.pow_le_pow_iff_left (n := 4) (by norm_num)).mp ?_)
       have ha4 : a ^ 4 ≤ c' ^ 4 * n ^ 3 := div_pow_four_le hJ (Nat.le_ceilQuarter_pow n)
       have ha1 : (a + 1) ^ 4 ≤ 16 * (c' ^ 4 + 1) * n ^ 3 := by
-        have hn3 : 1 ≤ n ^ 3 := Nat.one_le_pow _ _ hn1
-        have h16 : (a + 1) ^ 4 ≤ 16 * (a ^ 4 + 1) := by
-          rcases Nat.eq_zero_or_pos a with h0 | h0
-          · simp [h0]
-          · calc (a + 1) ^ 4 ≤ (2 * a) ^ 4 := Nat.pow_le_pow_left (by omega) _
-              _ = 16 * a ^ 4 := by ring
-              _ ≤ 16 * (a ^ 4 + 1) := by omega
-        calc (a + 1) ^ 4 ≤ 16 * (a ^ 4 + 1) := h16
-          _ ≤ 16 * (c' ^ 4 * n ^ 3 + n ^ 3) := by omega
-          _ = 16 * (c' ^ 4 + 1) * n ^ 3 := by ring
+        have := add_pow_le (Nat.zero_le a) zero_le_one 4
+        norm_num at this
+        linarith [Nat.one_le_pow 3 n hn1, Nat.zero_le (c' ^ 4 * n ^ 3)]
       -- `B λ ^ (40 c) ≤ n`.
       have hB : B * lam ^ (40 * c) ≤ n := by
         have h1 : B * lam ^ (40 * c) ≤ B * (lam + 1) ^ (40 * c') :=
@@ -221,9 +214,7 @@ theorem exists_size (c : ℕ) : ∃ C n₀ : ℕ, ∀ n, n₀ ≤ n → ∀ (K :
             (Nat.pow_le_pow_right (by omega) (by omega)))
         have h2 := hL₀ lam (by omega)
         have h3 : 2 ^ (lam / 2) ≤ 2 ^ (lam - 1) := Nat.pow_le_pow_right (by norm_num) (by omega)
-        have h4 : 2 ^ (lam - 1) < n := by
-          have := Nat.pow_pred_clog_lt_self 2 (show 1 < n by omega)
-          rwa [Nat.pred_eq_sub_one] at this
+        have h4 : 2 ^ (lam - 1) < n := Nat.pow_pred_clog_lt_self one_lt_two (by omega)
         omega
       have hns36 : n ^ 36 ≤ sizeParam n ^ 36 := Nat.pow_le_pow_left hns _
       calc (((a + 1) * lam ^ c) ^ 10) ^ 4 = ((a + 1) ^ 4) ^ 10 * lam ^ (40 * c) := by ring

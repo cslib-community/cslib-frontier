@@ -133,9 +133,7 @@ cost by more than `ε` either. -/
 theorem IsApproxMixedNash.expectedCost_le_update {ε : ℝ} {p : ∀ i, S i → ℝ}
     (h : G.IsApproxMixedNash ε p) (i : ι) {q : S i → ℝ} (hq : IsMixedStrategy q) :
     G.expectedCost p i ≤ G.expectedCost (update p i q) i + ε := by
-  have hq' : ∑ b, update p i q i b = 1 := by
-    rw [update_self]
-    exact hq.sum_eq_one
+  have hq' : ∑ b, update p i q i b = 1 := by simpa only [update_self] using hq.sum_eq_one
   rw [← G.sum_mul_deviationCost_eq_expectedCost (update p i q) hq']
   calc G.expectedCost p i
       = ∑ b, q b * G.expectedCost p i := by rw [← sum_mul, hq.sum_eq_one, one_mul]
@@ -143,11 +141,10 @@ theorem IsApproxMixedNash.expectedCost_le_update {ε : ℝ} {p : ∀ i, S i → 
         sum_le_sum fun b _ => mul_le_mul_of_nonneg_left (h.2 i b) (hq.nonneg b)
     _ = (∑ b, q b * G.deviationCost p i b) + ε := by
         simp only [mul_add, sum_add_distrib, ← sum_mul, hq.sum_eq_one, one_mul]
-    _ = (∑ b, update p i q i b * G.deviationCost (update p i q) i b) + ε := by
-        congr 1
-        refine sum_congr rfl fun b _ => ?_
-        rw [update_self, G.deviationCost_update_self p
-          (by rw [hq.sum_eq_one, (h.1 i).sum_eq_one]) b]
+    _ = (∑ b, update p i q i b * G.deviationCost (update p i q) i b) + ε :=
+        congrArg (· + ε) <| sum_congr rfl fun b _ => by
+          rw [update_self,
+            G.deviationCost_update_self p (hq.sum_eq_one.trans (h.1 i).sum_eq_one.symm) b]
 
 end ApproxMixedNash
 
@@ -172,10 +169,9 @@ private theorem sum_multiset_count_mul {α : Type*} [Fintype α] [DecidableEq α
     (m : Multiset α) (f : α → ℝ) :
     ∑ a : α, (m.count a : ℝ) * f a = (m.map f).sum := by
   rw [Finset.sum_multiset_map_count]
-  symm
-  refine (Finset.sum_subset (subset_univ _) fun a _ ha => ?_).trans
-    (sum_congr rfl fun a _ => nsmul_eq_mul _ _)
-  rw [Multiset.count_eq_zero.2 (mt Multiset.mem_toFinset.2 ha), zero_smul]
+  exact ((Finset.sum_subset (subset_univ _) fun a _ ha => by
+    rw [Multiset.count_eq_zero.2 (mt Multiset.mem_toFinset.2 ha), zero_smul]).trans
+    (sum_congr rfl fun a _ => nsmul_eq_mul _ _)).symm
 
 /-- For any nonempty multiset `m`, `uniformMultiset m` is a valid mixed strategy. -/
 theorem isMixedStrategy_uniformMultiset {α : Type*} [Fintype α] [DecidableEq α]
@@ -189,36 +185,20 @@ theorem isMixedStrategy_uniformMultiset {α : Type*} [Fintype α] [DecidableEq �
 /-- The support of `uniformMultiset m` has size at most `m.card`. -/
 theorem ncard_support_uniformMultiset_le {α : Type*} [DecidableEq α]
     (m : Multiset α) : (Function.support (uniformMultiset m)).ncard ≤ m.card := by
-  by_cases hm : m = 0
-  · subst hm
-    have h0 : Function.support (uniformMultiset (0 : Multiset α)) = ∅ := by
-      ext a
-      simp [uniformMultiset]
-    simp [h0]
-  · have hsub : Function.support (uniformMultiset m) ⊆ (m.toFinset : Set α) := by
-      intro a ha
-      rw [Function.mem_support, uniformMultiset, div_ne_zero_iff] at ha
-      have hcnt : m.count a ≠ 0 := by exact_mod_cast ha.1
-      exact Multiset.mem_toFinset.2 (Multiset.count_ne_zero.1 hcnt)
-    calc (Function.support (uniformMultiset m)).ncard
-        ≤ (m.toFinset : Set α).ncard := Set.ncard_le_ncard hsub (Finset.finite_toSet _)
-      _ = m.toFinset.card := Set.ncard_coe_finset m.toFinset
-      _ ≤ m.card := Multiset.toFinset_card_le m
+  have hsub : Function.support (uniformMultiset m) ⊆ (m.toFinset : Set α) := fun a ha => by
+    rw [Function.mem_support, uniformMultiset, div_ne_zero_iff] at ha
+    exact Multiset.mem_toFinset.2 (Multiset.count_ne_zero.1 (by exact_mod_cast ha.1))
+  calc (Function.support (uniformMultiset m)).ncard
+      ≤ (m.toFinset : Set α).ncard := Set.ncard_le_ncard hsub (Finset.finite_toSet _)
+    _ = m.toFinset.card := Set.ncard_coe_finset m.toFinset
+    _ ≤ m.card := Multiset.toFinset_card_le m
 
 private theorem uniformMultiset_dotProduct_of_map_univ {α : Type*} [Fintype α] [DecidableEq α]
     {k : ℕ} (ω : Fin k → α) (f : α → ℝ) :
     uniformMultiset ((univ : Finset (Fin k)).val.map ω) ⬝ᵥ f = (∑ t : Fin k, f (ω t)) / k := by
-  set m : Multiset α := (univ : Finset (Fin k)).val.map ω
-  have hcard : m.card = k := by simp [m]
-  change ∑ a : α, ((m.count a : ℝ) / m.card) * f a = (∑ t : Fin k, f (ω t)) / k
-  have hmul : ∑ a : α, ((m.count a : ℝ) / m.card) * f a =
-      (∑ a : α, (m.count a : ℝ) * f a) / k := by
-    rw [hcard, sum_div]
-    exact sum_congr rfl fun a _ => div_mul_eq_mul_div _ _ _
-  rw [hmul, sum_multiset_count_mul]
-  congr 1
-  simp only [m, Finset.sum, Multiset.map_map]
-  rfl
+  change ∑ a : α, _ = _
+  simp_rw [uniformMultiset_apply, div_mul_eq_mul_div, ← sum_div, sum_multiset_count_mul]
+  simp [Finset.sum, Function.comp_def]
 
 end UniformMultiset
 
@@ -252,30 +232,20 @@ theorem isApproxBestResponse₁_iff_pure :
     G.IsApproxBestResponse₁ ε x y ↔
       IsMixedStrategy x ∧ ∀ i : M, (G.A *ᵥ y) i ≤ G.payoff₁ x y + ε := by
   classical
-  constructor
-  · rintro ⟨hx, h⟩
-    refine ⟨hx, fun i => ?_⟩
-    have hi := h _ (isMixedStrategy_single i)
-    rwa [payoff₁_eq_dotProduct, single_dotProduct, one_mul] at hi
-  · rintro ⟨hx, h⟩
-    refine ⟨hx, fun x' hx' => ?_⟩
-    rw [payoff₁_eq_dotProduct]
-    exact hx'.dotProduct_le_of_forall_le h
+  refine and_congr_right fun _ => ⟨fun h i => ?_, fun h x' hx' =>
+    G.payoff₁_eq_dotProduct x' y ▸ hx'.dotProduct_le_of_forall_le h⟩
+  simpa only [payoff₁_eq_dotProduct, single_dotProduct, one_mul] using
+    h _ (isMixedStrategy_single i)
 
 /-- Pure-column characterization of `IsApproxBestResponse₂`. -/
 theorem isApproxBestResponse₂_iff_pure :
     G.IsApproxBestResponse₂ ε y x ↔
       IsMixedStrategy y ∧ ∀ j : N, (x ᵥ* G.B) j ≤ G.payoff₂ x y + ε := by
   classical
-  constructor
-  · rintro ⟨hy, h⟩
-    refine ⟨hy, fun j => ?_⟩
-    have hj := h _ (isMixedStrategy_single j)
-    rwa [payoff₂_eq_dotProduct, single_dotProduct, one_mul] at hj
-  · rintro ⟨hy, h⟩
-    refine ⟨hy, fun y' hy' => ?_⟩
-    rw [payoff₂_eq_dotProduct]
-    exact hy'.dotProduct_le_of_forall_le h
+  refine and_congr_right fun _ => ⟨fun h j => ?_, fun h y' hy' =>
+    G.payoff₂_eq_dotProduct x y' ▸ hy'.dotProduct_le_of_forall_le h⟩
+  simpa only [payoff₂_eq_dotProduct, single_dotProduct, one_mul] using
+    h _ (isMixedStrategy_single j)
 
 /-- Pure-deviation characterization of `IsApproxNash`. -/
 theorem isApproxNash_iff_pure :
@@ -333,33 +303,18 @@ theorem IsApproxNash.smul {c : ℝ} (hc : 0 ≤ c) (h : G.IsApproxNash ε x y) :
 mixed Nash equilibrium of `G.toCostGame`. -/
 theorem isApproxNash_iff_isApproxMixedNash :
     G.IsApproxNash ε x y ↔ G.toCostGame.IsApproxMixedNash ε (profile x y) := by
-  rw [isApproxNash_iff_pure, CostGame.IsApproxMixedNash]
-  constructor
-  · rintro ⟨⟨hx, hbr₁⟩, ⟨hy, hbr₂⟩⟩
-    refine ⟨fun b => ?_, fun b a => ?_⟩
-    · cases b
-      exacts [isMixedStrategy_profile_false_iff.2 hx, isMixedStrategy_profile_true_iff.2 hy]
-    · cases b
-      · obtain ⟨i⟩ := a
-        rw [expectedCost_toCostGame_false G y hx.sum_eq_one,
-          deviationCost_toCostGame_row G y hx.sum_eq_one i]
-        linarith [hbr₁ i]
-      · obtain ⟨j⟩ := a
-        rw [expectedCost_toCostGame_true G x hy.sum_eq_one,
-          deviationCost_toCostGame_column G x hy.sum_eq_one j]
-        linarith [hbr₂ j]
-  · rintro ⟨hmix, hdev⟩
-    have hx := isMixedStrategy_profile_false_iff.1 (hmix false)
-    have hy := isMixedStrategy_profile_true_iff.1 (hmix true)
-    refine ⟨⟨hx, fun i => ?_⟩, ⟨hy, fun j => ?_⟩⟩
-    · have hi := hdev false (ULift.up i)
-      rw [expectedCost_toCostGame_false G y hx.sum_eq_one,
-        deviationCost_toCostGame_row G y hx.sum_eq_one i] at hi
-      linarith
-    · have hj := hdev true (ULift.up j)
-      rw [expectedCost_toCostGame_true G x hy.sum_eq_one,
-        deviationCost_toCostGame_column G x hy.sum_eq_one j] at hj
-      linarith
+  rw [isApproxNash_iff_pure, CostGame.IsApproxMixedNash, Bool.forall_bool, Bool.forall_bool,
+    isMixedStrategy_profile_false_iff, isMixedStrategy_profile_true_iff]
+  refine ⟨fun ⟨⟨hx, h₁⟩, ⟨hy, h₂⟩⟩ => ⟨⟨hx, hy⟩, fun ⟨i⟩ => ?_, fun ⟨j⟩ => ?_⟩,
+    fun ⟨⟨hx, hy⟩, h₁, h₂⟩ => ⟨⟨hx, fun i => ?_⟩, ⟨hy, fun j => ?_⟩⟩⟩
+  · linarith [h₁ i, expectedCost_toCostGame_false G y hx.sum_eq_one,
+      deviationCost_toCostGame_row G y hx.sum_eq_one i]
+  · linarith [h₂ j, expectedCost_toCostGame_true G x hy.sum_eq_one,
+      deviationCost_toCostGame_column G x hy.sum_eq_one j]
+  · linarith [h₁ (ULift.up i), expectedCost_toCostGame_false G y hx.sum_eq_one,
+      deviationCost_toCostGame_row G y hx.sum_eq_one i]
+  · linarith [h₂ (ULift.up j), expectedCost_toCostGame_true G x hy.sum_eq_one,
+      deviationCost_toCostGame_column G x hy.sum_eq_one j]
 
 /-! #### Daskalakis–Mehta–Papadimitriou `1/2`-approximate Nash equilibrium -/
 
@@ -385,9 +340,7 @@ theorem isApproxNash_half_dmp [DecidableEq M] [DecidableEq N]
     · simp only [x, Pi.add_apply, Pi.smul_apply, smul_eq_mul, sum_add_distrib, ← mul_sum,
         (isMixedStrategy_single i₀).sum_eq_one, (isMixedStrategy_single i₁).sum_eq_one]
       norm_num
-  have hAy : ∀ i, (G.A *ᵥ y) i = G.A i j₀ := fun i => by
-    change G.A i ⬝ᵥ Pi.single j₀ 1 = G.A i j₀
-    rw [dotProduct_single, mul_one]
+  have hAy (i : M) : (G.A *ᵥ y) i = G.A i j₀ := (dotProduct_single ..).trans (mul_one _)
   have hpay₁ : G.payoff₁ x y = (1 / 2) * G.A i₀ j₀ + (1 / 2) * G.A i₁ j₀ := by
     rw [payoff₁_eq_dotProduct]
     simp only [x, add_dotProduct, smul_dotProduct, single_dotProduct, smul_eq_mul, one_mul, hAy]
@@ -397,10 +350,8 @@ theorem isApproxNash_half_dmp [DecidableEq M] [DecidableEq N]
   have hpay₂ : G.payoff₂ x y = (1 / 2) * G.B i₀ j₀ + (1 / 2) * G.B i₁ j₀ := by
     rw [payoff₂_eq_dotProduct, single_dotProduct, one_mul, hxB]
   refine isApproxNash_iff_pure.2 ⟨⟨hx, fun i => ?_⟩, ⟨isMixedStrategy_single j₀, fun j => ?_⟩⟩
-  · rw [hAy, hpay₁]
-    linarith [hi₁ i, (hA i₀ j₀).1, (hA i₁ j₀).2]
-  · rw [hxB, hpay₂]
-    linarith [hj₀ j, (hB i₁ j).2, (hB i₁ j₀).1]
+  · linarith [hAy i, hpay₁, hi₁ i, (hA i₀ j₀).1, (hA i₁ j₀).2]
+  · linarith [hxB j, hpay₂, hj₀ j, (hB i₁ j).2, (hB i₁ j₀).1]
 
 /-- Existence corollary of `isApproxNash_half_dmp`: every nonempty finite bimatrix game with
 payoffs in `[0, 1]` has a `(1/2)`-approximate Nash equilibrium in which player 1 mixes evenly over
@@ -444,12 +395,10 @@ theorem lmmSampleSize_le (M N : Type*) [Fintype M] [Fintype N] [Nonempty M] [Non
     {ε : ℝ} (hε : 0 < ε) :
     (lmmSampleSize M N ε : ℝ) ≤
       2 * Real.log (2 * (Fintype.card M + Fintype.card N)) / ε ^ 2 + 1 := by
-  have hM : 1 ≤ Fintype.card M := Fintype.card_pos
-  have hN : 1 ≤ Fintype.card N := Fintype.card_pos
   have hlog : 0 ≤ Real.log (2 * (Fintype.card M + Fintype.card N)) :=
-    Real.log_nonneg (by exact_mod_cast (show 1 ≤ 2 * (Fintype.card M + Fintype.card N) by omega))
-  have hnn : 0 ≤ 2 * Real.log (2 * (Fintype.card M + Fintype.card N)) / ε ^ 2 :=
-    div_nonneg (by positivity) (by positivity)
+    Real.log_nonneg <| mod_cast Nat.one_le_of_lt <|
+      Nat.mul_pos zero_lt_two (add_pos (Fintype.card_pos (α := M)) (Fintype.card_pos (α := N)))
+  have hnn : 0 ≤ 2 * Real.log (2 * (Fintype.card M + Fintype.card N)) / ε ^ 2 := by positivity
   dsimp only [lmmSampleSize]
   push_cast
   linarith [Nat.floor_le hnn]
@@ -465,9 +414,7 @@ private theorem mixedToPMF_toReal {α : Type*} [Fintype α] {p : α → ℝ}
 
 private theorem mem_support_mixedToPMF_iff {α : Type*} [Fintype α] {p : α → ℝ}
     (hp : IsMixedStrategy p) (a : α) : a ∈ (mixedToPMF hp).support ↔ 0 < p a := by
-  rw [PMF.mem_support_iff]
-  change ENNReal.ofReal (p a) ≠ 0 ↔ 0 < p a
-  simp only [ne_eq, ENNReal.ofReal_eq_zero, not_le]
+  simp [mixedToPMF]
 
 /-- Probabilistic empirical-sampling lemma: for a mixed strategy `p` on `β`, a `[0, 1]`-valued
 family of functions `g : α → β → ℝ` indexed by finite `α`, `δ > 0`, and `k : ℕ` with
@@ -492,43 +439,30 @@ private theorem exists_empirical_tuple {α β : Type*} [Fintype α] [Fintype β]
         (fun _ b _ => hg i b) hδ.le
   have hunion_le : (μ.toOuterMeasure (⋃ i : α, bad i)).toReal ≤
       2 * (Fintype.card α : ℝ) * Real.exp (-2 * (k : ℝ) * δ ^ 2) := by
-    have h1 : μ.toOuterMeasure (⋃ i : α, bad i) ≤ ∑ i : α, μ.toOuterMeasure (bad i) :=
-      MeasureTheory.measure_iUnion_fintype_le μ.toOuterMeasure bad
-    have htop : (∑ i : α, μ.toOuterMeasure (bad i)) ≠ ⊤ :=
-      ENNReal.sum_ne_top.2 fun i _ => toOuterMeasure_ne_top μ (bad i)
     calc (μ.toOuterMeasure (⋃ i : α, bad i)).toReal
-        ≤ (∑ i : α, μ.toOuterMeasure (bad i)).toReal := ENNReal.toReal_mono htop h1
-      _ = ∑ i : α, (μ.toOuterMeasure (bad i)).toReal :=
-          ENNReal.toReal_sum fun i _ => toOuterMeasure_ne_top μ (bad i)
+        ≤ ∑ i : α, (μ.toOuterMeasure (bad i)).toReal := by
+          rw [← ENNReal.toReal_sum fun i _ => toOuterMeasure_ne_top μ (bad i)]
+          exact ENNReal.toReal_mono
+            (ENNReal.sum_ne_top.2 fun i _ => toOuterMeasure_ne_top μ (bad i))
+            (MeasureTheory.measure_iUnion_fintype_le μ.toOuterMeasure bad)
       _ ≤ ∑ _i : α, 2 * Real.exp (-2 * (k : ℝ) * δ ^ 2) :=
           sum_le_sum fun i _ => hbad_each i
       _ = 2 * (Fintype.card α : ℝ) * Real.exp (-2 * (k : ℝ) * δ ^ 2) := by
           rw [sum_const, card_univ, nsmul_eq_mul]
           ring
   have hcompl_pos : 0 < (μ.toOuterMeasure (⋃ i : α, bad i)ᶜ).toReal := by
-    have hadd := toOuterMeasure_toReal_add_compl μ (⋃ i : α, bad i)
-    linarith
+    linarith [toOuterMeasure_toReal_add_compl μ (⋃ i : α, bad i)]
   obtain ⟨ω, hω_good, hω_supp⟩ := (toOuterMeasure_toReal_pos_iff μ _).1 hcompl_pos
-  refine ⟨ω, fun t => ?_, fun i => ?_⟩
-  · exact (mem_support_mixedToPMF_iff hp (ω t)).1 ((mem_support_pi_iff _ ω).1 hω_supp t)
-  · have hni : ω ∉ bad i := fun hi => hω_good (Set.mem_iUnion.2 ⟨i, hi⟩)
-    have hlt : |(∑ t : Fin k, g i (ω t)) - ∑ _t : Fin k, ∑ b : β, (q b).toReal * g i b| <
-        (k : ℝ) * δ := not_le.1 hni
-    have hmean : (∑ _t : Fin k, ∑ b : β, (q b).toReal * g i b) = (k : ℝ) * (p ⬝ᵥ g i) := by
-      simp only [q, mixedToPMF_toReal hp, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
-      rfl
-    rw [hmean] at hlt
-    have hdiv : |(∑ t : Fin k, g i (ω t)) / k - (p ⬝ᵥ g i)| * k < (k : ℝ) * δ := by
-      have heq : |(∑ t : Fin k, g i (ω t)) / k - (p ⬝ᵥ g i)| * k =
-          |(∑ t : Fin k, g i (ω t)) - (k : ℝ) * (p ⬝ᵥ g i)| := calc
-        |(∑ t : Fin k, g i (ω t)) / k - (p ⬝ᵥ g i)| * k
-            = |(∑ t : Fin k, g i (ω t)) / k - (p ⬝ᵥ g i)| * |(k : ℝ)| := by rw [abs_of_pos hk_pos]
-          _ = |((∑ t : Fin k, g i (ω t)) / k - (p ⬝ᵥ g i)) * k| := (abs_mul _ _).symm
-          _ = |(∑ t : Fin k, g i (ω t)) - (k : ℝ) * (p ⬝ᵥ g i)| := by
-              congr 1
-              field_simp
-      rwa [heq]
-    linarith [lt_of_mul_lt_mul_right (by linarith : _ < δ * k) hk_pos.le]
+  refine ⟨ω, fun t => (mem_support_mixedToPMF_iff hp (ω t)).1
+    ((mem_support_pi_iff _ ω).1 hω_supp t), fun i => ?_⟩
+  have hlt : |(∑ t : Fin k, g i (ω t)) - (k : ℝ) * (p ⬝ᵥ g i)| < (k : ℝ) * δ :=
+    not_le.1 fun hi => hω_good <| Set.mem_iUnion.2 ⟨i, by
+      simpa only [bad, Set.mem_ofPred_eq, q, mixedToPMF_toReal hp, sum_const, card_univ,
+        Fintype.card_fin, nsmul_eq_mul, dotProduct] using hi⟩
+  have heq : (∑ t : Fin k, g i (ω t)) / k - (p ⬝ᵥ g i) =
+      ((∑ t : Fin k, g i (ω t)) - (k : ℝ) * (p ⬝ᵥ g i)) / k := by field_simp
+  rw [heq, abs_div, abs_of_pos hk_pos, div_le_iff₀ hk_pos]
+  linarith
 
 /-- Auxiliary bound: transferring a uniform `ε / 2` payoff approximation on the empirical multiset
 to an `ε`-approximate best-response inequality against a target equilibrium value `v`. -/
@@ -539,15 +473,11 @@ private theorem lmm_payoff_bound {α : Type*} [Fintype α] [DecidableEq α] {k :
     (hub : ∀ a : α, uStar a ≤ v) (a : α) :
     uHat a ≤ uniformMultiset ((univ : Finset (Fin k)).val.map ω) ⬝ᵥ uHat + ε := by
   have hlb : v - ε / 2 ≤ uniformMultiset ((univ : Finset (Fin k)).val.map ω) ⬝ᵥ uHat := by
-    rw [uniformMultiset_dotProduct_of_map_univ ω]
-    have hterm : ∀ t : Fin k, v - ε / 2 ≤ uHat (ω t) := fun t => by
-      have habs := abs_le.1 (happrox (ω t))
-      linarith [heq_supp t]
-    have hsum := sum_le_sum fun t (_ : t ∈ univ) => hterm t
-    rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul] at hsum
-    exact (le_div_iff₀' hk).2 hsum
-  have habs := abs_le.1 (happrox a)
-  linarith [hub a]
+    rw [uniformMultiset_dotProduct_of_map_univ ω, le_div_iff₀' hk]
+    simpa only [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul] using
+      sum_le_sum (s := univ) (f := fun _ => v - ε / 2) (g := fun t => uHat (ω t)) fun t _ =>
+        by linarith [(abs_le.1 (happrox (ω t))).1, heq_supp t]
+  linarith [(abs_le.1 (happrox a)).2, hub a]
 
 /-- **Uniform-multiset small-support `ε`-approximate Nash existence (`[0, 1]`-normalized form of
 [TardosVazirani2007], Exercise 1.6, p. 27)**: in any nonempty finite rectangular bimatrix game with
@@ -566,24 +496,17 @@ theorem exists_uniformMultiset_isApproxNash_of_lt [DecidableEq M] [DecidableEq N
     ∃ (m₁ : Multiset M) (m₂ : Multiset N),
       m₁.card = k ∧ m₂.card = k ∧
         G.IsApproxNash ε (uniformMultiset m₁) (uniformMultiset m₂) := by
-  have hM_pos : 1 ≤ Fintype.card M := Fintype.card_pos
-  have hN_pos : 1 ≤ Fintype.card N := Fintype.card_pos
-  set S : ℝ := 2 * (Fintype.card M + Fintype.card N)
-  have hS_ge : 4 ≤ S := by
-    dsimp only [S]
-    exact_mod_cast (show 4 ≤ 2 * (Fintype.card M + Fintype.card N) by omega)
+  have hM : (1 : ℝ) ≤ Fintype.card M := Nat.one_le_cast.2 Fintype.card_pos
+  have hN : (1 : ℝ) ≤ Fintype.card N := Nat.one_le_cast.2 Fintype.card_pos
+  set S : ℝ := 2 * (Fintype.card M + Fintype.card N) with hS
   have hS_pos : 0 < S := by linarith
   have hlog_pos : 0 < Real.log S := Real.log_pos (by linarith)
   have hk_real_pos : (0 : ℝ) < k := lt_trans (div_pos (by positivity) (by positivity)) hk
   have hk_pos : 0 < k := Nat.cast_pos.1 hk_real_pos
   have hexp_lt : Real.exp (-2 * (k : ℝ) * (ε / 2) ^ 2) < S⁻¹ := by
-    have h1 : Real.log S < (k : ℝ) * ε ^ 2 / 2 := by
-      rw [div_lt_iff₀ (sq_pos_of_pos hε)] at hk
-      linarith
-    have h2 : -2 * (k : ℝ) * (ε / 2) ^ 2 < Real.log S⁻¹ := by
-      rw [Real.log_inv]
-      linarith [show -2 * (k : ℝ) * (ε / 2) ^ 2 = -((k : ℝ) * ε ^ 2 / 2) by ring]
-    simpa only [Real.exp_log (inv_pos.2 hS_pos)] using Real.exp_lt_exp.2 h2
+    rw [← Real.exp_log (inv_pos.2 hS_pos), Real.exp_lt_exp, Real.log_inv]
+    rw [div_lt_iff₀ (sq_pos_of_pos hε)] at hk
+    linarith
   have htail_of_lt : ∀ {c : ℝ}, 0 < c → c < S →
       c * Real.exp (-2 * (k : ℝ) * (ε / 2) ^ 2) < 1 := fun {c} hc hcS =>
     calc c * Real.exp (-2 * (k : ℝ) * (ε / 2) ^ 2)
@@ -591,15 +514,9 @@ theorem exists_uniformMultiset_isApproxNash_of_lt [DecidableEq M] [DecidableEq N
       _ < S * S⁻¹ := mul_lt_mul_of_pos_right hcS (inv_pos.2 hS_pos)
       _ = 1 := mul_inv_cancel₀ hS_pos.ne'
   have htail_M : 2 * (Fintype.card M : ℝ) * Real.exp (-2 * (k : ℝ) * (ε / 2) ^ 2) < 1 :=
-    htail_of_lt (by positivity) (by
-      dsimp only [S]
-      have : (0 : ℝ) < Fintype.card N := by positivity
-      linarith)
+    htail_of_lt (by positivity) (by linarith)
   have htail_N : 2 * (Fintype.card N : ℝ) * Real.exp (-2 * (k : ℝ) * (ε / 2) ^ 2) < 1 :=
-    htail_of_lt (by positivity) (by
-      dsimp only [S]
-      have : (0 : ℝ) < Fintype.card M := by positivity
-      linarith)
+    htail_of_lt (by positivity) (by linarith)
   obtain ⟨xStar, yStar, hNash⟩ := G.exists_isNash
   obtain ⟨hbr₁, hbr₂⟩ := isNash_iff.1 hNash
   obtain ⟨ω₂, hω₂_supp, hω₂_approx⟩ :=
@@ -614,21 +531,11 @@ theorem exists_uniformMultiset_isApproxNash_of_lt [DecidableEq M] [DecidableEq N
   have hm₂_card : m₂.card = k := by simp [m₂]
   have hm₁_ne : m₁ ≠ 0 := Multiset.card_pos.1 (hm₁_card ▸ hk_pos)
   have hm₂_ne : m₂ ≠ 0 := Multiset.card_pos.1 (hm₂_card ▸ hk_pos)
-  have hA_hat : ∀ i : M, |(G.A *ᵥ uniformMultiset m₂) i - (G.A *ᵥ yStar) i| ≤ ε / 2 := by
-    intro i
-    have hdot₁ : (G.A *ᵥ uniformMultiset m₂) i = (∑ t : Fin k, G.A i (ω₂ t)) / k := by
-      change G.A i ⬝ᵥ uniformMultiset m₂ = _
-      rw [dotProduct_comm]
-      exact uniformMultiset_dotProduct_of_map_univ ω₂ (G.A i)
-    have hdot₂ : (G.A *ᵥ yStar) i = yStar ⬝ᵥ G.A i := dotProduct_comm _ _
-    rw [hdot₁, hdot₂]
-    exact hω₂_approx i
-  have hB_hat : ∀ j : N, |(uniformMultiset m₁ ᵥ* G.B) j - (xStar ᵥ* G.B) j| ≤ ε / 2 := by
-    intro j
-    have hdot₁ : (uniformMultiset m₁ ᵥ* G.B) j = (∑ t : Fin k, G.B (ω₁ t) j) / k :=
-      uniformMultiset_dotProduct_of_map_univ ω₁ (fun i => G.B i j)
-    rw [hdot₁]
-    exact hω₁_approx j
+  have hA_hat (i : M) : |(G.A *ᵥ uniformMultiset m₂) i - (G.A *ᵥ yStar) i| ≤ ε / 2 := by
+    simpa only [mulVec, m₂, dotProduct_comm (G.A i), uniformMultiset_dotProduct_of_map_univ] using
+      hω₂_approx i
+  have hB_hat (j : N) : |(uniformMultiset m₁ ᵥ* G.B) j - (xStar ᵥ* G.B) j| ≤ ε / 2 := by
+    simpa only [vecMul, m₁, uniformMultiset_dotProduct_of_map_univ] using hω₁_approx j
   refine ⟨m₁, m₂, hm₁_card, hm₂_card, isApproxNash_iff_pure.2
     ⟨⟨isMixedStrategy_uniformMultiset hm₁_ne, fun i => ?_⟩,
       ⟨isMixedStrategy_uniformMultiset hm₂_ne, fun j => ?_⟩⟩⟩
@@ -679,23 +586,17 @@ theorem exists_uniformMultiset_isApproxNash_of_nonneg [DecidableEq M] [Decidable
         simpa only [Matrix.smul_apply, smul_eq_mul, inv_mul_cancel₀ hK0] using
           mul_le_mul_of_nonneg_left (hC i j).2 (inv_nonneg.2 hK_pos.le)⟩
   have hG' : (⟨K • G'.A, K • G'.B⟩ : BimatrixGame M N) = G := by
-    cases G with
-    | mk A B =>
-      dsimp only [G']
-      split_ifs with hK0
-      · subst hK0
-        simp only [zero_smul]
-        congr 1
-        · ext i j
-          exact (le_antisymm (hA i j).2 (hA i j).1).symm
-        · ext i j
-          exact (le_antisymm (hB i j).2 (hB i j).1).symm
-      · simp only [smul_smul, mul_inv_cancel₀ hK0, one_smul]
+    rcases G with ⟨A, B⟩
+    dsimp only [G']
+    split_ifs with hK0
+    · subst hK0
+      simp only [zero_smul]
+      congr 1 <;> ext i j
+      exacts [(le_antisymm (hA i j).2 (hA i j).1).symm, (le_antisymm (hB i j).2 (hB i j).1).symm]
+    · simp only [smul_smul, mul_inv_cancel₀ hK0, one_smul]
   obtain ⟨m₁, m₂, hm₁, hm₂, happrox⟩ :=
     G'.exists_uniformMultiset_isApproxNash (hscale G.A hA) (hscale G.B hB) hε
-  refine ⟨m₁, m₂, hm₁, hm₂, ?_⟩
-  have hscaled := happrox.smul hK
-  rwa [hG', mul_comm K ε] at hscaled
+  exact ⟨m₁, m₂, hm₁, hm₂, mul_comm K ε ▸ hG' ▸ happrox.smul hK⟩
 
 end LiptonMarkakisMehta
 

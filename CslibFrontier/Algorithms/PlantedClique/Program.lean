@@ -111,11 +111,7 @@ theorem recoveredIntegerVector_eq (x : RecoveryInput) :
       List.ofFn (recoveredVector (signedAdjacency x.graph) x.cliqueSize) := by
   rw [recoveredIntegerVector, find_columnCodes_eq]
   cases h : growingColumn? (signedAdjacency x.graph) x.cliqueSize with
-  | none =>
-    simp only [recoveredVector, h, Option.map_none, Option.elim_none]
-    apply List.ext_getElem (by simp)
-    intro i hi hi'
-    simp
+  | none => simp [recoveredVector, h, Pi.zero_def]
   | some c => simpa [recoveredVector, h, PowerColumn.code] using
       storedColumn_eq x (c.steps + 1) c.seed
 
@@ -136,20 +132,16 @@ private theorem computableInPolyTime_growthTest :
       (encPair encRecoveryInput encColumnCode) encIntBin :=
     ComputableInPolyTime.intBin_natCast.comp
       (ComputableInPolyTime.unary_to_binary.comp (by fun_prop))
+  have hrows := RecoveryInput.computableInPolyTime_signedRows.comp
+    (ComputableInPolyTime.fst encRecoveryInput encColumnCode)
+  have hnv := computableInPolyTime_squaredNorm.comp (show ComputableInPolyTime
+    (fun p : RecoveryInput × ColumnCode => IntTable.powerColumn p.1.signedRows p.2.steps p.2.seed)
+    (encPair encRecoveryInput encColumnCode) (encList encIntBin) by fun_prop)
+  have hnw := computableInPolyTime_squaredNorm.comp (show ComputableInPolyTime
+    (fun p : RecoveryInput × ColumnCode =>
+      IntTable.powerColumn p.1.signedRows (p.2.steps + 1) p.2.seed)
+    (encPair encRecoveryInput encColumnCode) (encList encIntBin) by fun_prop)
   unfold growthTest
-  have hrows : ComputableInPolyTime (fun p : RecoveryInput × ColumnCode => p.1.signedRows)
-      (encPair encRecoveryInput encColumnCode) encIntTable :=
-    RecoveryInput.computableInPolyTime_signedRows.comp (by fun_prop)
-  have hv : ComputableInPolyTime
-      (fun p : RecoveryInput × ColumnCode =>
-        IntTable.powerColumn p.1.signedRows p.2.steps p.2.seed)
-      (encPair encRecoveryInput encColumnCode) (encList encIntBin) := by fun_prop
-  have hw : ComputableInPolyTime
-      (fun p : RecoveryInput × ColumnCode =>
-        IntTable.powerColumn p.1.signedRows (p.2.steps + 1) p.2.seed)
-      (encPair encRecoveryInput encColumnCode) (encList encIntBin) := by fun_prop
-  have hnv := computableInPolyTime_squaredNorm.comp hv
-  have hnw := computableInPolyTime_squaredNorm.comp hw
   dsimp only
   simp only [Bool.decide_and]
   fun_prop

@@ -67,8 +67,7 @@ private theorem mem_orderedPairs {k : ℕ} {p : Fin k × Fin k} :
     p ∈ orderedPairs k ↔ p.1 < p.2 := by
   simp only [orderedPairs, List.mem_flatMap, List.mem_map, List.mem_filter, List.mem_finRange,
     true_and, decide_eq_true_eq]
-  exact ⟨fun ⟨a, ⟨b, hab, hp⟩⟩ => by subst hp; exact hab,
-    fun h => ⟨p.1, p.2, h, Prod.eta p⟩⟩
+  exact ⟨fun ⟨_, _, hab, hp⟩ => hp ▸ hab, fun h => ⟨p.1, p.2, h, Prod.eta p⟩⟩
 
 /-- The algebraic pigeon axiom `1 - ∑ j, X (i, j)` asserting that pigeon `i` occupies at least one
 hole (when combined with functionality axioms and Boolean variables). -/
@@ -171,9 +170,8 @@ theorem algFPHPHole_mem_algFPHP {i i' : Fin m} (h : i ≠ i') (j : Fin n) :
 
 /-- Every Boolean axiom lies in `algFPHP m n R`. -/
 theorem boolAxiom_mem_algFPHP (v : Fin m × Fin n) :
-    (boolAxiom v : MvPolynomial (Fin m × Fin n) R) ∈ algFPHP m n R := by
-  simp only [algFPHP, List.mem_append]
-  exact Or.inr (boolAxiom_mem_boolAxioms v)
+    (boolAxiom v : MvPolynomial (Fin m × Fin n) R) ∈ algFPHP m n R :=
+  List.mem_append_right _ (boolAxiom_mem_boolAxioms v)
 
 /-- Membership characterization for `algFPHPConstraints`. -/
 theorem mem_algFPHPConstraints {p : MvPolynomial (Fin m × Fin n) R} :
@@ -197,10 +195,9 @@ private theorem totalDegree_X_mul_X_le {σ : Type*} (u v : σ) :
 
 /-- Every pigeon axiom has total degree at most `1`. -/
 theorem totalDegree_algFPHPPigeonPoly_le (i : Fin m) :
-    (algFPHPPigeonPoly i : MvPolynomial (Fin m × Fin n) R).totalDegree ≤ 1 := by
-  refine (totalDegree_sub _ _).trans (max_le ?_ (totalDegree_finsetSum_le fun j _ => ?_))
-  · simp
-  · exact MvPolynomial.totalDegree_X_le (i, j)
+    (algFPHPPigeonPoly i : MvPolynomial (Fin m × Fin n) R).totalDegree ≤ 1 :=
+  (totalDegree_sub _ _).trans <|
+    max_le (by simp) (totalDegree_finsetSum_le fun j _ => MvPolynomial.totalDegree_X_le (i, j))
 
 /-- Every constraint of `algFPHPConstraints m n R` has total degree at most `2`. -/
 theorem totalDegree_le_two_of_mem_algFPHPConstraints {p : MvPolynomial (Fin m × Fin n) R}
@@ -224,9 +221,8 @@ theorem algFPHPPigeonPoly_zero (i : Fin m) :
 
 /-- When `n = 0 < m`, `1` is directly an axiom of `algFPHP m 0 R`. -/
 theorem one_mem_algFPHP_zero (hm : 0 < m) :
-    (1 : MvPolynomial (Fin m × Fin 0) R) ∈ algFPHP m 0 R := by
-  rw [← algFPHPPigeonPoly_zero (R := R) ⟨0, hm⟩]
-  exact algFPHPPigeonPoly_mem_algFPHP ⟨0, hm⟩
+    (1 : MvPolynomial (Fin m × Fin 0) R) ∈ algFPHP m 0 R :=
+  algFPHPPigeonPoly_zero (R := R) ⟨0, hm⟩ ▸ algFPHPPigeonPoly_mem_algFPHP ⟨0, hm⟩
 
 end Membership
 
@@ -252,17 +248,14 @@ private theorem pigeonIndicator_eval_eq_zero {m n : ℕ} {R : Type*} [CommRing R
   rcases mem_algFPHP.1 hp with h | ⟨v, rfl⟩
   · rcases mem_algFPHPConstraints.1 h with ⟨i, rfl⟩ | ⟨i, j, j', hjj', rfl⟩ |
         ⟨i, i', j, hii', rfl⟩
-    · simp only [algFPHPPigeonPoly, map_sub, map_one, map_sum, eval_X, bitPoint_pigeonIndicator]
-      simp [Finset.sum_ite_eq']
+    · simp [algFPHPPigeonPoly, bitPoint_pigeonIndicator, Finset.sum_ite_eq']
     · simp only [map_mul, eval_X]
       by_cases hj : j = f i
-      · have hj' : j' ≠ f i := fun heq => hjj'.ne (hj.trans heq.symm)
-        rw [bitPoint_pigeonIndicator_of_ne R hj', mul_zero]
+      · rw [bitPoint_pigeonIndicator_of_ne R (fun e => hjj'.ne (hj.trans e.symm)), mul_zero]
       · rw [bitPoint_pigeonIndicator_of_ne R hj, zero_mul]
     · simp only [map_mul, eval_X]
       by_cases hi : j = f i
-      · have hi' : j ≠ f i' := fun heq => hii'.ne (hf (hi.symm.trans heq))
-        rw [bitPoint_pigeonIndicator_of_ne R hi', mul_zero]
+      · rw [bitPoint_pigeonIndicator_of_ne R (fun e => hii'.ne (hf (hi.symm.trans e))), mul_zero]
       · rw [bitPoint_pigeonIndicator_of_ne R hi, zero_mul]
   · exact eval_boolAxiom _ v
 
@@ -271,49 +264,32 @@ private theorem exists_injective_eq_bitPoint {m n : ℕ} {R : Type*} [CommRing R
     (ha_c : ∀ p ∈ algFPHPConstraints m n R, eval a p = 0) :
     ∃ f : Fin m → Fin n, Function.Injective f ∧
       a = Cslib.BitString.bitPoint (pigeonIndicator f) := by
-  have hfunc : ∀ i : Fin m, ∀ j j' : Fin n, j ≠ j' → a (i, j) = 1 → a (i, j') = 0 := by
-    intro i j j' hne h1
+  have hfunc (i : Fin m) {j j' : Fin n} (hne : j ≠ j') (h1 : a (i, j) = 1) : a (i, j') = 0 := by
     have hmul : a (i, j) * a (i, j') = 0 := by
       rcases lt_or_gt_of_ne hne with hlt | hlt
-      · have hp := ha_c (X (i, j) * X (i, j'))
-          (mem_algFPHPConstraints.2 (Or.inr (Or.inl ⟨i, j, j', hlt, rfl⟩)))
-        simpa using hp
-      · have hp := ha_c (X (i, j') * X (i, j))
-          (mem_algFPHPConstraints.2 (Or.inr (Or.inl ⟨i, j', j, hlt, rfl⟩)))
-        simpa [mul_comm] using hp
+      · simpa using ha_c _ (mem_algFPHPConstraints.2 (Or.inr (Or.inl ⟨i, j, j', hlt, rfl⟩)))
+      · simpa [mul_comm] using
+          ha_c _ (mem_algFPHPConstraints.2 (Or.inr (Or.inl ⟨i, j', j, hlt, rfl⟩)))
     simpa [h1] using hmul
-  have hex : ∀ i : Fin m, ∃ j : Fin n, a (i, j) = 1 := by
-    intro i
-    by_contra hnone
-    push Not at hnone
-    have hall0 : ∀ j : Fin n, a (i, j) = 0 := fun j => (ha_bin (i, j)).resolve_right (hnone j)
-    have hp := ha_c (algFPHPPigeonPoly i)
-      (mem_algFPHPConstraints.2 (Or.inl ⟨i, rfl⟩))
-    simp only [algFPHPPigeonPoly, map_sub, map_one, map_sum, eval_X, hall0, Finset.sum_const_zero,
-      sub_zero] at hp
+  have hex (i : Fin m) : ∃ j : Fin n, a (i, j) = 1 := by
+    by_contra! hnone
+    have hp := ha_c (algFPHPPigeonPoly i) (mem_algFPHPConstraints.2 (Or.inl ⟨i, rfl⟩))
+    simp only [algFPHPPigeonPoly, map_sub, map_one, map_sum, eval_X,
+      fun j => (ha_bin (i, j)).resolve_right (hnone j), Finset.sum_const_zero, sub_zero] at hp
     exact one_ne_zero hp
   choose f hf1 using hex
-  have ha_eq : a = Cslib.BitString.bitPoint (pigeonIndicator f) := by
-    funext ⟨i, j⟩
-    rw [bitPoint_pigeonIndicator]
-    by_cases h : j = f i
-    · subst h; simp [hf1 i]
-    · simp only [h, ↓reduceIte]
-      exact hfunc i (f i) j (Ne.symm h) (hf1 i)
-  have hinj : Function.Injective f := by
-    intro i i' hii'
-    by_contra hne
-    have hmul : a (i, f i) * a (i', f i) = 0 := by
+  refine ⟨f, fun i i' hii' => by_contra fun hne => ?_, funext fun ⟨i, j⟩ => ?_⟩
+  · have hmul : a (i, f i) * a (i', f i) = 0 := by
       rcases lt_or_gt_of_ne hne with hlt | hlt
-      · have hp := ha_c (X (i, f i) * X (i', f i))
-          (mem_algFPHPConstraints.2 (Or.inr (Or.inr ⟨i, i', f i, hlt, rfl⟩)))
-        simpa using hp
-      · have hp := ha_c (X (i', f i) * X (i, f i))
-          (mem_algFPHPConstraints.2 (Or.inr (Or.inr ⟨i', i, f i, hlt, rfl⟩)))
-        simpa [mul_comm] using hp
+      · simpa using ha_c _ (mem_algFPHPConstraints.2 (Or.inr (Or.inr ⟨i, i', f i, hlt, rfl⟩)))
+      · simpa [mul_comm] using
+          ha_c _ (mem_algFPHPConstraints.2 (Or.inr (Or.inr ⟨i', i, f i, hlt, rfl⟩)))
     rw [hf1 i, hii', hf1 i', one_mul] at hmul
     exact one_ne_zero hmul
-  exact ⟨f, hinj, ha_eq⟩
+  · rw [bitPoint_pigeonIndicator]
+    split_ifs with h
+    · exact h ▸ hf1 i
+    · exact hfunc i (Ne.symm h) (hf1 i)
 
 private theorem pigeonIndicator_eq_of_bitPoint_eq {m n : ℕ} {R : Type*} [CommRing R] [Nontrivial R]
     {f g : Fin m → Fin n}
@@ -322,12 +298,9 @@ private theorem pigeonIndicator_eq_of_bitPoint_eq {m n : ℕ} {R : Type*} [CommR
     f = g := by
   funext i
   have hfi := congrFun h (i, f i)
-  simp only [Cslib.BitString.bitPoint, pigeonIndicator, decide_true, Cslib.BitString.bitVal_true]
-    at hfi
   by_cases hfg : f i = g i
   · exact hfg
-  · simp only [hfg, decide_false, Cslib.BitString.bitVal_false] at hfi
-    exact absurd hfi one_ne_zero
+  · simp [Cslib.BitString.bitPoint, pigeonIndicator, hfg] at hfi
 
 private theorem pigeonIndicator_injective {m n : ℕ} :
     Function.Injective (pigeonIndicator : (Fin m → Fin n) → Fin m × Fin n → Bool) := by
@@ -369,34 +342,20 @@ theorem isBoolSolution_algFPHP_iff {m n : ℕ} {R : Type*} [CommRing R] [Nontriv
     (x : Fin m × Fin n → Bool) :
     IsBoolSolution (algFPHP m n R) x ↔
       ∃ f : Fin m → Fin n, Function.Injective f ∧ x = pigeonIndicator f := by
-  constructor
-  · intro hx
-    have hbin : ∀ v, (Cslib.BitString.bitPoint x v : R) = 0 ∨
-        (Cslib.BitString.bitPoint x v : R) = (1 : R) :=
-      fun v => by cases hxv : x v <;> simp [Cslib.BitString.bitPoint, hxv]
-    rcases exists_injective_eq_bitPoint hbin
-        (fun p hp => hx p (mem_algFPHP.2 (Or.inl hp))) with ⟨f, hf, hpt⟩
-    refine ⟨f, hf, ?_⟩
-    funext v
-    have hv := congrFun hpt v
-    cases hxv : x v <;> cases hfv : pigeonIndicator f v
-    · rfl
-    · simp only [Cslib.BitString.bitPoint, hxv, hfv, Cslib.BitString.bitVal_false,
-        Cslib.BitString.bitVal_true] at hv
-      exact absurd hv.symm one_ne_zero
-    · simp only [Cslib.BitString.bitPoint, hxv, hfv, Cslib.BitString.bitVal_true,
-        Cslib.BitString.bitVal_false] at hv
-      exact absurd hv one_ne_zero
-    · rfl
-  · rintro ⟨f, hf, rfl⟩
-    exact isBoolSolution_algFPHP_pigeonIndicator hf
+  refine ⟨fun hx => ?_, fun ⟨_, hf, hx⟩ => hx ▸ isBoolSolution_algFPHP_pigeonIndicator hf⟩
+  rcases exists_injective_eq_bitPoint
+      (fun v => by cases hxv : x v <;> simp [Cslib.BitString.bitPoint, hxv])
+      (fun p hp => hx p (mem_algFPHP.2 (Or.inl hp))) with ⟨f, hf, hpt⟩
+  refine ⟨f, hf, funext fun v => ?_⟩
+  have hv := congrFun hpt v
+  cases hxv : x v <;> cases hfv : pigeonIndicator f v <;> simp_all [Cslib.BitString.bitPoint]
 
 /-- Equivalence between Boolean solutions of `algFPHP m n R` and embeddings `Fin m ↪ Fin n`,
 over any nontrivial commutative ring `R`. -/
 noncomputable def boolSolutionEquivEmbedding (m n : ℕ) (R : Type*) [CommRing R] [Nontrivial R] :
     {x : Fin m × Fin n → Bool // IsBoolSolution (algFPHP m n R) x} ≃ (Fin m ↪ Fin n) where
   toFun s :=
-    let hex := (isBoolSolution_algFPHP_iff s.val).1 s.property
+    let hex := (isBoolSolution_algFPHP_iff s.1).1 s.2
     ⟨Classical.choose hex, (Classical.choose_spec hex).1⟩
   invFun e := ⟨pigeonIndicator e, isBoolSolution_algFPHP_pigeonIndicator e.injective⟩
   left_inv := by
@@ -414,9 +373,8 @@ noncomputable def boolSolutionEquivEmbedding (m n : ℕ) (R : Type*) [CommRing R
 /-- The embedding assigned by `boolSolutionEquivEmbedding` represents the Boolean solution. -/
 theorem pigeonIndicator_boolSolutionEquivEmbedding {m n : ℕ} {R : Type*} [CommRing R] [Nontrivial R]
     (s : {x : Fin m × Fin n → Bool // IsBoolSolution (algFPHP m n R) x}) :
-    pigeonIndicator (boolSolutionEquivEmbedding m n R s) = s.val := by
-  have hspec := Classical.choose_spec ((isBoolSolution_algFPHP_iff (R := R) s.val).1 s.property)
-  exact hspec.2.symm
+    pigeonIndicator (boolSolutionEquivEmbedding m n R s) = s.1 :=
+  (Classical.choose_spec ((isBoolSolution_algFPHP_iff (R := R) s.1).1 s.2)).2.symm
 
 /-- `boolSolutionEquivEmbedding`'s inverse sends an embedding `e` to `pigeonIndicator e`. -/
 theorem boolSolutionEquivEmbedding_symm_val {m n : ℕ} {R : Type*} [CommRing R] [Nontrivial R]
@@ -427,13 +385,11 @@ theorem boolSolutionEquivEmbedding_symm_val {m n : ℕ} {R : Type*} [CommRing R]
 /-- `algFPHP m n R` has a Boolean solution iff `m ≤ n`, over any nontrivial commutative ring. -/
 theorem exists_isBoolSolution_algFPHP_iff {m n : ℕ} {R : Type*} [CommRing R] [Nontrivial R] :
     (∃ x : Fin m × Fin n → Bool, IsBoolSolution (algFPHP m n R) x) ↔ m ≤ n := by
-  constructor
-  · rintro ⟨x, hx⟩
-    rcases (isBoolSolution_algFPHP_iff (R := R) x).1 hx with ⟨f, hf, _⟩
-    simpa only [Fintype.card_fin] using Fintype.card_le_of_injective f hf
-  · intro hmn
-    exact ⟨pigeonIndicator (Fin.castLE hmn),
-      isBoolSolution_algFPHP_pigeonIndicator (Fin.castLE_injective hmn)⟩
+  refine ⟨fun ⟨x, hx⟩ => ?_, fun hmn =>
+    ⟨pigeonIndicator (Fin.castLE hmn),
+      isBoolSolution_algFPHP_pigeonIndicator (Fin.castLE_injective hmn)⟩⟩
+  rcases (isBoolSolution_algFPHP_iff (R := R) x).1 hx with ⟨f, hf, _⟩
+  simpa only [Fintype.card_fin] using Fintype.card_le_of_injective f hf
 
 /-- Over any integral domain, an arbitrary assignment `a : Fin m × Fin n → R` is a common zero of
 `algFPHP m n R` iff it equals `bitPoint (pigeonIndicator f)` for some injective `f : Fin m → Fin n`.
@@ -443,29 +399,22 @@ theorem eval_algFPHP_eq_zero_iff {m n : ℕ} {R : Type*} [CommRing R] [IsDomain 
     (∀ p ∈ algFPHP m n R, eval a p = 0) ↔
       ∃ f : Fin m → Fin n, Function.Injective f ∧
         a = Cslib.BitString.bitPoint (pigeonIndicator f) := by
-  constructor
-  · intro ha
-    have hbin : ∀ v, a v = 0 ∨ a v = 1 := by
-      intro v
-      have hv := ha (boolAxiom v) (boolAxiom_mem_algFPHP v)
-      simp only [boolAxiom, map_sub, map_pow, eval_X] at hv
-      have hmul : a v * (a v - 1) = 0 := by
-        calc
-          a v * (a v - 1) = a v ^ 2 - a v := by ring
-          _ = 0 := hv
-      rcases mul_eq_zero.1 hmul with h0 | h1
-      · exact Or.inl h0
-      · exact Or.inr (sub_eq_zero.1 h1)
-    exact exists_injective_eq_bitPoint hbin (fun p hp => ha p (mem_algFPHP.2 (Or.inl hp)))
-  · rintro ⟨f, hf, rfl⟩ p hp
-    exact pigeonIndicator_eval_eq_zero hf hp
+  refine ⟨fun ha => exists_injective_eq_bitPoint (fun v => ?_)
+      (fun p hp => ha p (mem_algFPHP.2 (Or.inl hp))),
+    fun ⟨_, hf, ha⟩ _ hp => ha ▸ pigeonIndicator_eval_eq_zero hf hp⟩
+  have hv := ha (boolAxiom v) (boolAxiom_mem_algFPHP v)
+  simp only [boolAxiom, map_sub, map_pow, eval_X] at hv
+  have hmul : a v * (a v - 1) = 0 :=
+    calc a v * (a v - 1) = a v ^ 2 - a v := by ring
+      _ = 0 := hv
+  exact (mul_eq_zero.1 hmul).imp_right sub_eq_zero.1
 
 /-- Equivalence between arbitrary common zeros of `algFPHP m n R` and embeddings `Fin m ↪ Fin n`,
 over any integral domain `R`. -/
 noncomputable def commonZeroEquivEmbedding (m n : ℕ) (R : Type*) [CommRing R] [IsDomain R] :
     {a : Fin m × Fin n → R // ∀ p ∈ algFPHP m n R, eval a p = 0} ≃ (Fin m ↪ Fin n) where
   toFun s :=
-    let hex := (eval_algFPHP_eq_zero_iff s.val).1 s.property
+    let hex := (eval_algFPHP_eq_zero_iff s.1).1 s.2
     ⟨Classical.choose hex, (Classical.choose_spec hex).1⟩
   invFun e :=
     ⟨Cslib.BitString.bitPoint (pigeonIndicator e),
@@ -485,9 +434,8 @@ noncomputable def commonZeroEquivEmbedding (m n : ℕ) (R : Type*) [CommRing R] 
 /-- The embedding assigned by `commonZeroEquivEmbedding` represents the common zero. -/
 theorem bitPoint_commonZeroEquivEmbedding {m n : ℕ} {R : Type*} [CommRing R] [IsDomain R]
     (s : {a : Fin m × Fin n → R // ∀ p ∈ algFPHP m n R, eval a p = 0}) :
-    Cslib.BitString.bitPoint (pigeonIndicator (commonZeroEquivEmbedding m n R s)) = s.val := by
-  have hspec := Classical.choose_spec ((eval_algFPHP_eq_zero_iff (R := R) s.val).1 s.property)
-  exact hspec.2.symm
+    Cslib.BitString.bitPoint (pigeonIndicator (commonZeroEquivEmbedding m n R s)) = s.1 :=
+  (Classical.choose_spec ((eval_algFPHP_eq_zero_iff (R := R) s.1).1 s.2)).2.symm
 
 /-- `commonZeroEquivEmbedding`'s inverse sends an embedding `e` to its `0`/`1` indicator. -/
 theorem commonZeroEquivEmbedding_symm_val {m n : ℕ} {R : Type*} [CommRing R] [IsDomain R]
@@ -499,13 +447,11 @@ theorem commonZeroEquivEmbedding_symm_val {m n : ℕ} {R : Type*} [CommRing R] [
 /-- `algFPHP m n R` has a common zero in an integral domain `R` iff `m ≤ n`. -/
 theorem exists_commonZero_algFPHP_iff {m n : ℕ} {R : Type*} [CommRing R] [IsDomain R] :
     (∃ a : Fin m × Fin n → R, ∀ p ∈ algFPHP m n R, eval a p = 0) ↔ m ≤ n := by
-  constructor
-  · rintro ⟨a, ha⟩
-    rcases (eval_algFPHP_eq_zero_iff (R := R) a).1 ha with ⟨f, hf, _⟩
-    simpa only [Fintype.card_fin] using Fintype.card_le_of_injective f hf
-  · intro hmn
-    exact ⟨Cslib.BitString.bitPoint (pigeonIndicator (Fin.castLE hmn)),
-      fun _ hp => pigeonIndicator_eval_eq_zero (Fin.castLE_injective hmn) hp⟩
+  refine ⟨fun ⟨a, ha⟩ => ?_, fun hmn =>
+    ⟨Cslib.BitString.bitPoint (pigeonIndicator (Fin.castLE hmn)),
+      fun _ hp => pigeonIndicator_eval_eq_zero (Fin.castLE_injective hmn) hp⟩⟩
+  rcases (eval_algFPHP_eq_zero_iff (R := R) a).1 ha with ⟨f, hf, _⟩
+  simpa only [Fintype.card_fin] using Fintype.card_le_of_injective f hf
 
 end Semantics
 
@@ -516,15 +462,14 @@ section PC
 /-- For `n = 0 < m`, `algFPHP m 0 R` has an explicit degree-`0` Polynomial Calculus refutation
 because pigeon `0`'s axiom is `1`. -/
 theorem pc_refutableInDegree_algFPHP_zero {m : ℕ} (hm : 0 < m) (R : Type*) [CommRing R] :
-    PC.RefutableInDegree (algFPHP m 0 R) 0 := by
-  refine ⟨[1], PC.IsProof.mem PC.IsProof.nil (one_mem_algFPHP_zero hm), by simp, ?_⟩
-  simp [PC.degree_cons, PC.degree_nil]
+    PC.RefutableInDegree (algFPHP m 0 R) 0 :=
+  ⟨[1], PC.IsProof.mem PC.IsProof.nil (one_mem_algFPHP_zero hm), by simp,
+    by simp [PC.degree_cons, PC.degree_nil]⟩
 
 /-- Soundness: when `m ≤ n`, `algFPHP m n R` has no Polynomial Calculus refutation of any degree
 over any nontrivial commutative ring `R`. -/
 theorem not_pc_refutableInDegree_algFPHP {m n : ℕ} {R : Type*} [CommRing R] [Nontrivial R]
-    (h : m ≤ n) (d : ℕ) : ¬ PC.RefutableInDegree (algFPHP m n R) d := by
-  intro href
+    (h : m ≤ n) (d : ℕ) : ¬ PC.RefutableInDegree (algFPHP m n R) d := fun href => by
   rcases (exists_isBoolSolution_algFPHP_iff (R := R)).2 h with ⟨x, hx⟩
   rw [algFPHP_eq_append_boolAxioms] at href
   exact href.not_isBoolSolution x ((isBoolSolution_algFPHP_iff_constraints x).1 hx)
@@ -533,26 +478,18 @@ theorem not_pc_refutableInDegree_algFPHP {m n : ℕ} {R : Type*} [CommRing R] [N
 of degree at most `m * n + 2`. -/
 theorem pc_refutableInDegree_algFPHP_of_lt {m n : ℕ} {K : Type*} [Field K] (h : n < m) :
     PC.RefutableInDegree (algFPHP m n K) (m * n + 2) := by
-  rw [algFPHP_eq_append_boolAxioms]
-  have href := (PC.refutableInDegree_iff (σ := Fin m × Fin n) (K := K)
-    (F := algFPHPConstraints m n K) (D := 2)
-    (fun f hf => totalDegree_le_two_of_mem_algFPHPConstraints hf)).2
-  have hcard : Fintype.card (Fin m × Fin n) + 2 = m * n + 2 := by simp
-  rw [← hcard]
-  refine href fun x hx => ?_
-  have hx' : IsBoolSolution (algFPHP m n K) x := (isBoolSolution_algFPHP_iff_constraints x).2 hx
-  have hle : m ≤ n := exists_isBoolSolution_algFPHP_iff.1 ⟨x, hx'⟩
-  exact Nat.not_le_of_gt h hle
+  have hcard : m * n + 2 = Fintype.card (Fin m × Fin n) + 2 := by simp
+  rw [algFPHP_eq_append_boolAxioms, hcard]
+  exact (PC.refutableInDegree_iff (D := 2)
+    fun _ hf => totalDegree_le_two_of_mem_algFPHPConstraints hf).2 fun x hx =>
+      h.not_ge (exists_isBoolSolution_algFPHP_iff.1
+        ⟨x, (isBoolSolution_algFPHP_iff_constraints x).2 hx⟩)
 
 /-- Over any field, `algFPHP m n K` is refutable in Polynomial Calculus iff `n < m`. -/
 theorem exists_pc_refutableInDegree_algFPHP_iff {m n : ℕ} {K : Type*} [Field K] :
-    (∃ d, PC.RefutableInDegree (algFPHP m n K) d) ↔ n < m := by
-  constructor
-  · rintro ⟨d, hd⟩
-    by_contra h
-    exact not_pc_refutableInDegree_algFPHP (R := K) (Nat.le_of_not_gt h) d hd
-  · intro h
-    exact ⟨m * n + 2, pc_refutableInDegree_algFPHP_of_lt h⟩
+    (∃ d, PC.RefutableInDegree (algFPHP m n K) d) ↔ n < m :=
+  ⟨fun ⟨d, hd⟩ => lt_of_not_ge fun h => not_pc_refutableInDegree_algFPHP (R := K) h d hd,
+   fun h => ⟨m * n + 2, pc_refutableInDegree_algFPHP_of_lt h⟩⟩
 
 end PC
 

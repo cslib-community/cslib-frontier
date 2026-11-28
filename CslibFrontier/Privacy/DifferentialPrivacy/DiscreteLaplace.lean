@@ -89,10 +89,9 @@ theorem hasSum_pow_natAbs (h0 : 0 ≤ α) (h1 : α < 1) :
   have hpos := hasSum_geometric_of_lt_one h0 h1
   have hneg : HasSum (fun n : ℕ => α ^ (-((n : ℤ) + 1)).natAbs) (α * (1 - α)⁻¹) := by
     have hn (n : ℕ) : (-((n : ℤ) + 1)).natAbs = n + 1 := by omega
-    simp only [hn, pow_succ']
-    exact hpos.mul_left α
-  convert HasSum.of_nat_of_neg_add_one (f := fun z : ℤ => α ^ z.natAbs)
-    (by simpa using hpos) hneg using 1
+    simpa only [hn, pow_succ'] using hpos.mul_left α
+  convert HasSum.of_nat_of_neg_add_one (f := fun z : ℤ => α ^ z.natAbs) (by simpa using hpos)
+    hneg using 1
   have : (1 - α) ≠ 0 := by linarith
   field_simp
 
@@ -124,15 +123,12 @@ theorem twoSidedGeometric_map_neg (h0 : 0 ≤ α) (h1 : α < 1) :
   rw [PMF.map_apply, tsum_eq_single (-z)]
   · simp [twoSidedGeometric_apply]
   · intro w hw
-    rw [ite_eq_right]
-    omega
+    exact ite_eq_right (by omega)
 
 private theorem hasSum_ite_le_mul_pow (h0 : 0 ≤ α) (h1 : α < 1) (C : ℝ) (m : ℕ) :
     HasSum (fun n : ℕ => if m ≤ n then C * α ^ n else 0) (C * α ^ m * (1 - α)⁻¹) := by
-  rw [← hasSum_nat_add_iff' m]
-  have hz : ∑ i ∈ Finset.range m, (if m ≤ i then C * α ^ i else 0) = 0 :=
-    Finset.sum_eq_zero fun i hi => ite_eq_right (by simpa using hi)
-  rw [hz, sub_zero]
+  rw [← hasSum_nat_add_iff' m,
+    Finset.sum_eq_zero fun i hi => ite_eq_right (by simpa using hi), sub_zero]
   convert (hasSum_geometric_of_lt_one h0 h1).mul_left (C * α ^ m) using 1
   funext n
   simp only [ite_eq_left (Nat.le_add_left m n), pow_add]
@@ -143,24 +139,20 @@ natural `m`. -/
 theorem twoSidedGeometric_toOuterMeasure_Ici (h0 : 0 ≤ α) (h1 : α < 1) (m : ℕ) :
     (twoSidedGeometric α h0 h1).toOuterMeasure (Set.Ici (m : ℤ)) =
       ENNReal.ofReal (α ^ m / (1 + α)) := by
-  have h1' : 0 ≤ 1 - α := by linarith
+  have : 0 ≤ 1 - α := by linarith
   set C := (1 - α) / (1 + α) with hC
   rw [toOuterMeasure_eq_ofReal_tsum (f := fun z : ℤ => C * α ^ z.natAbs) (fun z => by positivity)
     (hasSum_mul_pow_natAbs h0 h1).summable _ (twoSidedGeometric_apply h0 h1)]
   congr 1
-  have hpos (n : ℕ) : (Set.Ici (m : ℤ)).indicator (fun z => C * α ^ z.natAbs) (n : ℤ) =
-      if m ≤ n then C * α ^ n else 0 := by
-    simp [Set.indicator_apply]
-  have hneg (n : ℕ) :
-      (Set.Ici (m : ℤ)).indicator (fun z => C * α ^ z.natAbs) (-((n : ℤ) + 1)) = 0 := by
-    rw [Set.indicator_of_notMem]
-    simp only [Set.mem_Ici]
-    omega
-  have := HasSum.of_nat_of_neg_add_one
+  have h := HasSum.of_nat_of_neg_add_one
     (f := (Set.Ici (m : ℤ)).indicator (fun z => C * α ^ z.natAbs))
-    (by simpa only [hpos] using hasSum_ite_le_mul_pow h0 h1 C m)
-    (by simpa only [hneg] using hasSum_zero)
-  rw [this.tsum_eq, add_zero, hC]
+    (by simpa [Set.indicator_apply] using hasSum_ite_le_mul_pow h0 h1 C m)
+    (by
+      have hneg (n : ℕ) :
+          (Set.Ici (m : ℤ)).indicator (fun z => C * α ^ z.natAbs) (-((n : ℤ) + 1)) = 0 :=
+        Set.indicator_of_notMem (by simp only [Set.mem_Ici]; omega) _
+      simpa only [hneg] using (hasSum_zero : HasSum _ (0 : ℝ)))
+  rw [h.tsum_eq, add_zero, hC]
   have : (1 - α) ≠ 0 := by linarith
   have : (1 + α) ≠ 0 := by linarith
   field_simp
@@ -172,10 +164,8 @@ theorem twoSidedGeometric_toOuterMeasure_Iic (h0 : 0 ≤ α) (h1 : α < 1) (m : 
       ENNReal.ofReal (α ^ m / (1 + α)) := by
   rw [← twoSidedGeometric_toOuterMeasure_Ici h0 h1 m, ← twoSidedGeometric_map_neg h0 h1,
     PMF.toOuterMeasure_map_apply, twoSidedGeometric_map_neg h0 h1]
-  congr 1
-  ext z
-  simp only [Set.mem_preimage, Set.mem_Iic, Set.mem_Ici]
-  omega
+  exact congrArg _
+    (Set.ext fun _ => by simp only [Set.mem_preimage, Set.mem_Iic, Set.mem_Ici]; omega)
 
 /-- Two-sided tail of the two-sided geometric distribution: `Pr[|Y| ≥ m] = 2 α ^ m / (1 + α)`
 for every positive natural `m`. -/
@@ -183,7 +173,7 @@ theorem twoSidedGeometric_toOuterMeasure_le_natAbs (h0 : 0 ≤ α) (h1 : α < 1)
     (hm : m ≠ 0) :
     (twoSidedGeometric α h0 h1).toOuterMeasure {z | m ≤ z.natAbs} =
       ENNReal.ofReal (2 * α ^ m / (1 + α)) := by
-  have h1' : 0 ≤ 1 - α := by linarith
+  have : 0 ≤ 1 - α := by linarith
   set C := (1 - α) / (1 + α) with hC
   rw [toOuterMeasure_eq_ofReal_tsum (f := fun z : ℤ => C * α ^ z.natAbs) (fun z => by positivity)
     (hasSum_mul_pow_natAbs h0 h1).summable _ (twoSidedGeometric_apply h0 h1)]
@@ -191,20 +181,13 @@ theorem twoSidedGeometric_toOuterMeasure_le_natAbs (h0 : 0 ≤ α) (h1 : α < 1)
   set F : ℕ → ℝ := fun n => if m ≤ n then C * α ^ n else 0
   have hA : HasSum F (C * α ^ m * (1 - α)⁻¹) := hasSum_ite_le_mul_pow h0 h1 C m
   have hB : HasSum (fun n => F (n + 1)) (C * α ^ m * (1 - α)⁻¹) := by
-    have := (hasSum_nat_add_iff' 1).mpr hA
-    simpa [F, Nat.pos_of_ne_zero hm, Nat.not_succ_le_zero, hm] using this
-  have hpos (n : ℕ) : {z : ℤ | m ≤ z.natAbs}.indicator (fun z => C * α ^ z.natAbs) (n : ℤ) =
-      F n := by
-    simp [Set.indicator_apply, F]
-  have hneg (n : ℕ) :
-      {z : ℤ | m ≤ z.natAbs}.indicator (fun z => C * α ^ z.natAbs) (-((n : ℤ) + 1)) =
-        F (n + 1) := by
-    have hn : (-((n : ℤ) + 1)).natAbs = n + 1 := by omega
-    simp only [Set.indicator_apply, Set.mem_ofPred_eq, hn, F]
-  have := HasSum.of_nat_of_neg_add_one
+    simpa [F, Nat.pos_of_ne_zero hm, Nat.not_succ_le_zero, hm] using (hasSum_nat_add_iff' 1).mpr hA
+  have h := HasSum.of_nat_of_neg_add_one
     (f := {z : ℤ | m ≤ z.natAbs}.indicator (fun z => C * α ^ z.natAbs))
-    (by simpa only [hpos] using hA) (by simpa only [hneg] using hB)
-  rw [this.tsum_eq, hC]
+    (by simpa [Set.indicator_apply, F] using hA)
+    (by simpa only [Set.indicator_apply, Set.mem_ofPred_eq,
+      show ∀ n : ℕ, (-((n : ℤ) + 1)).natAbs = n + 1 by omega, F] using hB)
+  rw [h.tsum_eq, hC]
   have : (1 - α) ≠ 0 := by linarith
   have : (1 + α) ≠ 0 := by linarith
   field_simp
@@ -226,18 +209,15 @@ theorem addNoise_apply (q : D → ℤ) (noise : PMF ℤ) (x : D) (r : ℤ) :
     addNoise q noise x r = noise (r - q x) := by
   rw [addNoise, PMF.map_apply, tsum_eq_single (r - q x)]
   · simp
-  · intro z hz
-    rw [ite_eq_right]
-    omega
+  · intro w hw
+    exact ite_eq_right (by omega)
 
 /-- The error of the noisy answer has the law of the noise. -/
 theorem addNoise_toOuterMeasure_le_natAbs_sub (q : D → ℤ) (noise : PMF ℤ) (x : D) (m : ℕ) :
     (addNoise q noise x).toOuterMeasure {r | m ≤ (r - q x).natAbs} =
       noise.toOuterMeasure {z | m ≤ z.natAbs} := by
   rw [addNoise, PMF.toOuterMeasure_map_apply]
-  congr 1
-  ext z
-  simp
+  exact congrArg _ (Set.ext fun _ => by simp)
 
 /-- If shifting the noise by at most `Δ` changes each mass by a factor of at most `exp ε`, then
 adding it to a query of sensitivity `Δ` is `(ε, 0)`-differentially private. -/
@@ -260,20 +240,15 @@ theorem twoSidedGeometric_apply_le (h0 : 0 < α) (h1 : α < 1) {Δ : ℝ} (z d :
       ENNReal.ofReal (Real.exp (Δ * Real.log α⁻¹)) * twoSidedGeometric α h0.le h1 (z + d) := by
   rw [twoSidedGeometric_apply, twoSidedGeometric_apply, ← ENNReal.ofReal_mul (Real.exp_pos _).le]
   refine ENNReal.ofReal_le_ofReal ?_
+  have hC : 0 ≤ (1 - α) / (1 + α) := div_nonneg (by linarith) (by linarith)
   have hpow (n : ℕ) : α ^ n = Real.exp (n * Real.log α) := by
-    rw [Real.exp_natCast_mul, Real.exp_log h0]
-  have hC : 0 ≤ (1 - α) / (1 + α) := by
-    have : 0 ≤ 1 - α := by linarith
-    positivity
+    rw [Real.exp_nat_mul, Real.exp_log h0]
   rw [hpow, hpow, mul_left_comm, ← Real.exp_add]
   refine mul_le_mul_of_nonneg_left (Real.exp_le_exp.mpr ?_) hC
   rw [Real.log_inv]
   have hlog : Real.log α < 0 := Real.log_neg h0 h1
-  have hdR : (d.natAbs : ℝ) ≤ Δ := by
-    rw [Nat.cast_natAbs, Int.cast_abs]
-    exact hd
-  have htri : ((z + d).natAbs : ℝ) ≤ z.natAbs + d.natAbs := by
-    exact_mod_cast Int.natAbs_add_le z d
+  have hdR : (d.natAbs : ℝ) ≤ Δ := by rwa [Nat.cast_natAbs, Int.cast_abs]
+  have htri : ((z + d).natAbs : ℝ) ≤ z.natAbs + d.natAbs := by exact_mod_cast Int.natAbs_add_le z d
   nlinarith
 
 /-- The `α`-geometric mechanism [GhoshRoughgardenSundararajan2012, Example 2.1]: adding
@@ -305,11 +280,9 @@ theorem discreteLaplace_apply (t : ℝ) (ht : 0 < t) (z : ℤ) :
         Real.exp (-|(z : ℝ)| / t)) := by
   rw [discreteLaplace, twoSidedGeometric_apply]
   congr 1
-  rw [← Real.exp_natCast_mul, Nat.cast_natAbs, Int.cast_abs]
-  have he : Real.exp (-1 / t) = (Real.exp (1 / t))⁻¹ := by
-    rw [← Real.exp_neg, neg_div]
-  have hpos := Real.exp_pos (1 / t)
-  rw [he]
+  rw [← Real.exp_nat_mul, Nat.cast_natAbs, Int.cast_abs,
+    show Real.exp (-1 / t) = (Real.exp (1 / t))⁻¹ by rw [← Real.exp_neg, neg_div]]
+  have := Real.exp_pos (1 / t)
   congr 1
   · field_simp
   · ring_nf
@@ -320,13 +293,10 @@ theorem differentiallyPrivate_addNoise_discreteLaplace {D : Type*} {Adj : D → 
     {q : D → ℤ} {Δ : ℝ} (hΔ : 0 < Δ) (hq : Sensitivity Adj (fun x => (q x : ℝ)) Δ)
     {ε : ℝ} (hε : 0 < ε) :
     DifferentiallyPrivate Adj (addNoise q (discreteLaplace (Δ / ε) (by positivity))) ε 0 := by
-  have := differentiallyPrivate_addNoise_twoSidedGeometric hq (Real.exp_pos (-1 / (Δ / ε)))
-    (Real.exp_lt_one_iff.mpr (div_neg_of_neg_of_pos (by norm_num) (by positivity)))
-  have hε' : Δ * Real.log (Real.exp (-1 / (Δ / ε)))⁻¹ = ε := by
-    rw [Real.log_inv, Real.log_exp]
-    field_simp
-  rw [hε'] at this
-  exact this
+  rw [discreteLaplace]
+  simpa only [Real.log_inv, Real.log_exp, show Δ * -(-1 / (Δ / ε)) = ε by field_simp] using
+    differentiallyPrivate_addNoise_twoSidedGeometric hq (Real.exp_pos (-1 / (Δ / ε)))
+      (Real.exp_lt_one_iff.mpr (div_neg_of_neg_of_pos (by norm_num) (by positivity)))
 
 /-- Upper tail of the discrete Laplace distribution with scale `1 / ε`:
 `Pr[Y ≥ m] = exp (-ε (m - 1)) / (exp ε + 1)` for every natural `m`
@@ -337,7 +307,7 @@ theorem discreteLaplace_toOuterMeasure_Ici {ε : ℝ} (hε : 0 < ε) (m : ℕ) :
   rw [discreteLaplace, twoSidedGeometric_toOuterMeasure_Ici,
     show -1 / (1 / ε) = -ε by field_simp]
   congr 1
-  rw [div_eq_div_iff (by positivity) (by positivity), ← Real.exp_natCast_mul, mul_add, mul_add,
+  rw [div_eq_div_iff (by positivity) (by positivity), ← Real.exp_nat_mul, mul_add, mul_add,
     ← Real.exp_add, ← Real.exp_add, mul_one, mul_one]
   ring_nf
 
@@ -355,7 +325,7 @@ theorem discreteLaplace_toOuterMeasure_Iic {ε : ℝ} (hε : 0 < ε) (m : ℕ) :
 theorem discreteLaplace_toOuterMeasure_le_natAbs (t : ℝ) (ht : 0 < t) {m : ℕ} (hm : m ≠ 0) :
     (discreteLaplace t ht).toOuterMeasure {z | m ≤ z.natAbs} =
       ENNReal.ofReal (2 * Real.exp (-m / t) / (1 + Real.exp (-1 / t))) := by
-  rw [show -(m : ℝ) / t = m * (-1 / t) by ring, Real.exp_natCast_mul]
+  rw [show -(m : ℝ) / t = m * (-1 / t) by ring, Real.exp_nat_mul]
   exact twoSidedGeometric_toOuterMeasure_le_natAbs _ _ hm
 
 /-- The discrete Laplace distribution with scale `t` exceeds `a ≥ 0` in absolute value with
@@ -363,16 +333,12 @@ probability at most `2 exp (-a / t)`. -/
 theorem discreteLaplace_toOuterMeasure_lt_abs_le (t : ℝ) (ht : 0 < t) {a : ℝ} (ha : 0 ≤ a) :
     (discreteLaplace t ht).toOuterMeasure {z | a < |(z : ℝ)|} ≤
       ENNReal.ofReal (2 * Real.exp (-a / t)) := by
-  have hset : {z : ℤ | a < |(z : ℝ)|} = {z | ⌊a⌋₊ + 1 ≤ z.natAbs} := by
-    ext z
-    simp only [Set.mem_ofPred_eq]
-    rw [← Int.cast_abs, ← Nat.cast_natAbs, ← Nat.floor_lt ha,
+  have hset : {z : ℤ | a < |(z : ℝ)|} = {z | ⌊a⌋₊ + 1 ≤ z.natAbs} := Set.ext fun z => by
+    simp only [Set.mem_ofPred_eq, ← Int.cast_abs, ← Nat.cast_natAbs, ← Nat.floor_lt ha,
       Nat.lt_iff_add_one_le]
   rw [hset, discreteLaplace_toOuterMeasure_le_natAbs t ht (Nat.succ_ne_zero _)]
   refine ENNReal.ofReal_le_ofReal ?_
-  have hm : a ≤ ((⌊a⌋₊ + 1 : ℕ) : ℝ) := by
-    push_cast
-    exact (Nat.lt_floor_add_one a).le
+  have hm : a ≤ ((⌊a⌋₊ + 1 : ℕ) : ℝ) := by exact_mod_cast (Nat.lt_floor_add_one a).le
   calc 2 * Real.exp (-((⌊a⌋₊ + 1 : ℕ) : ℝ) / t) / (1 + Real.exp (-1 / t))
       ≤ 2 * Real.exp (-((⌊a⌋₊ + 1 : ℕ) : ℝ) / t) :=
         div_le_self (by positivity) (by linarith [Real.exp_pos (-1 / t)])
@@ -383,10 +349,10 @@ theorem discreteLaplace_toOuterMeasure_lt_abs_le (t : ℝ) (ht : 0 < t) {a : ℝ
 a factor of at most `exp (Δ / t)`. -/
 theorem discreteLaplace_apply_le (t : ℝ) (ht : 0 < t) {Δ : ℝ} (z d : ℤ) (hd : |(d : ℝ)| ≤ Δ) :
     discreteLaplace t ht z ≤ ENNReal.ofReal (Real.exp (Δ / t)) * discreteLaplace t ht (z + d) := by
-  have := twoSidedGeometric_apply_le (Real.exp_pos (-1 / t))
-    (Real.exp_lt_one_iff.mpr (div_neg_of_neg_of_pos (by norm_num) ht)) z d hd
-  rw [Real.log_inv, Real.log_exp, show Δ * -(-1 / t) = Δ / t by ring] at this
-  exact this
+  rw [discreteLaplace]
+  simpa only [Real.log_inv, Real.log_exp, show Δ * -(-1 / t) = Δ / t by ring] using
+    twoSidedGeometric_apply_le (Real.exp_pos (-1 / t))
+      (Real.exp_lt_one_iff.mpr (div_neg_of_neg_of_pos (by norm_num) ht)) z d hd
 
 end DiscreteLaplace
 

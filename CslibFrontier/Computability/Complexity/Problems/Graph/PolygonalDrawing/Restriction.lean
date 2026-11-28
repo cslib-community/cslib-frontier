@@ -67,21 +67,15 @@ private theorem exists_restriction_radius_of_vertex_contacts {G : Graph} (D : Po
     (Finset.univ.image fun d : Dart G => if d.vertex = v then ‖D.germ d‖ else 1)
   have hnonempty : lengths.Nonempty := ⟨1, Finset.mem_insert_self _ _⟩
   let m := lengths.min' hnonempty
-  have hm : 0 < m := by
-    dsimp [m]
-    have hmem := lengths.min'_mem hnonempty
-    rcases Finset.mem_insert.mp hmem with h | h
-    · rw [h]
-      norm_num
-    · obtain ⟨d, _, hd⟩ := Finset.mem_image.mp h
-      rw [← hd]
+  have hm : 0 < m := (Finset.lt_min'_iff _ _).mpr fun y hy => by
+    rcases Finset.mem_insert.mp hy with rfl | hy
+    · exact one_pos
+    · obtain ⟨d, _, rfl⟩ := Finset.mem_image.mp hy
       split_ifs with hv
-      · exact norm_pos_iff.mpr (hgerm d hv)
-      · norm_num
-  have hmd (d : Dart G) (hd : d.vertex = v) : m ≤ ‖D.germ d‖ := by
-    apply Finset.min'_le
-    apply Finset.mem_insert_of_mem
-    exact Finset.mem_image.mpr ⟨d, Finset.mem_univ _, by rw [ite_eq_left hd]⟩
+      exacts [norm_pos_iff.mpr (hgerm d hv), one_pos]
+  have hmd (d : Dart G) (hd : d.vertex = v) : m ≤ ‖D.germ d‖ :=
+    Finset.min'_le _ _ (Finset.mem_insert_of_mem
+      (Finset.mem_image.mpr ⟨d, Finset.mem_univ _, by rw [ite_eq_left hd]⟩))
   let ρ := min ε (min (δ / 2) (m / 3)) / 2
   have hρ : 0 < ρ := div_pos (lt_min hε (lt_min (by positivity) (by positivity))) (by norm_num)
   have hρε : ρ < ε := by
@@ -96,13 +90,11 @@ private theorem exists_restriction_radius_of_vertex_contacts {G : Graph} (D : Po
     have h := (min_le_right ε (min (δ / 2) (m / 3))).trans (min_le_right (δ / 2) (m / 3))
     dsimp [ρ]
     linarith
-  refine ⟨ρ, hρ, ?_, ?_, fun d hd => hρm.trans_le (hmd d hd)⟩
-  · intro w hw hne
-    refine hρδ.trans_le (le_of_not_gt fun hdist => ?_)
-    exact hpoint (Metric.mem_ball.mpr hdist) ⟨w, ⟨hw, hne⟩, rfl⟩
-  · intro e i z hz hzi
-    exact hseg e i z
-      (Metric.mem_ball.mpr ((Metric.mem_closedBall.mp hz).trans_lt hρε)) hzi
+  refine ⟨ρ, hρ, fun w hw hne => ?_, fun e i z hz => hseg e i z
+    (Metric.mem_ball.mpr ((Metric.mem_closedBall.mp hz).trans_lt hρε)),
+    fun d hd => hρm.trans_le (hmd d hd)⟩
+  refine hρδ.trans_le (le_of_not_gt fun hdist => ?_)
+  exact hpoint (Metric.mem_ball.mpr hdist) ⟨w, ⟨hw, hne⟩, rfl⟩
 
 /-- A sufficiently small closed ball isolates the straight star of a declared vertex,
 avoids the other declared points, and cuts every incident segment before its first third.
@@ -324,8 +316,7 @@ theorem eq_vertex_of_mem_cutPort_segment_and_route {G : Graph} (D : PolygonalDra
     rw [← hzt, hi, ← htime, Route.eval_near_end, D.endpoint_eq, hv, add_sub_cancel_left]
     rfl
   have hpos : 0 < u := lt_of_le_of_ne (Route.endTime_mem b ht).1 (fun hu => hz (by
-    rw [← hu, zero_smul, sub_eq_zero] at hpoint
-    exact hpoint))
+    rwa [← hu, zero_smul, sub_eq_zero] at hpoint))
   have harg := (arg_sub_of_mem_segment ha hz).trans (D.arg_cutPort_sub hρ a hgerm)
   rw [hpoint, Complex.real_smul, Complex.arg_ofReal_mul hpos _] at harg
   exact hne (congrArg Prod.fst (hdirections a (e, b) hv.symm
@@ -431,9 +422,8 @@ private theorem cutEnds_ball_contact {G : Graph} (D : PolygonalDrawing G)
         ← show Route.endTime false τ = τ from rfl, Route.eval_near_end, D.endpoint_eq, hv]
       rfl
     have hdist : τ * ‖D.germ (e, false)‖ ≤ ρ := by
-      rw [Metric.mem_closedBall, hpoint, dist_eq_norm, add_sub_cancel_left, norm_smul,
+      rwa [Metric.mem_closedBall, hpoint, dist_eq_norm, add_sub_cancel_left, norm_smul,
         Real.norm_of_nonneg hτ.1] at hτball
-      exact hτball
     have hτs : τ = s := by
       have hle : τ ≤ ρ / ‖D.germ (e, false)‖ := (le_div_iff₀ hn).mpr hdist
       rw [hlo] at hbounds
@@ -457,9 +447,8 @@ private theorem cutEnds_ball_contact {G : Graph} (D : PolygonalDrawing G)
           rfl
         _ = _ := by rw [Route.eval_near_end, D.endpoint_eq, hv]; rfl
     have hdist : (1 - τ) * ‖D.germ (e, true)‖ ≤ ρ := by
-      rw [Metric.mem_closedBall, hpoint, dist_eq_norm, add_sub_cancel_left, norm_smul,
+      rwa [Metric.mem_closedBall, hpoint, dist_eq_norm, add_sub_cancel_left, norm_smul,
         Real.norm_of_nonneg (sub_nonneg.mpr hτ.2)] at hτball
-      exact hτball
     have hτt : τ = 1 - t := by
       have hle : 1 - τ ≤ ρ / ‖D.germ (e, true)‖ := (le_div_iff₀ hn).mpr hdist
       rw [hhi] at hbounds

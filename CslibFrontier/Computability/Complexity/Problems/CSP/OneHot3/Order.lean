@@ -37,15 +37,9 @@ open Cslib.Logic.PL Graph
 
 /-- Exchanging two positions preserves every original variable occurrence. -/
 theorem swapTail3_perm (xs : List ℕ) : (swapTail3 xs).Perm xs := by
-  cases xs with
-  | nil => exact List.Perm.refl _
-  | cons a xs =>
-    cases xs with
-    | nil => exact List.Perm.refl _
-    | cons b xs =>
-      cases xs with
-      | nil => exact List.Perm.refl _
-      | cons c tail => exact (List.Perm.swap b c tail).cons a
+  match xs with
+  | a :: b :: c :: tail => exact (List.Perm.swap b c tail).cons a
+  | [] | [_] | [_, _] => exact List.Perm.refl _
 
 /-- Test the literal first-to-second constraint-end step, using the exact six-dart row
 layout. Supplied indices are binary table data and never determine a loop bound. -/
@@ -93,16 +87,12 @@ theorem eval_orderedConstraints (F : CSP Unit ℕ) (c : RotationCertificate) (σ
     · rfl
     · exact sem_eq_of_perm _ _ ((swapTail3_perm row.scope).map σ)
   apply Bool.eq_iff_iff.mpr
-  simp only [orderedConstraints, Cslib.Logic.PL.CSP.eval, List.all_eq_true, List.mem_mapIdx]
-  constructor
-  · intro h row hrow
-    obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hrow
-    have he := h _ ⟨i, hi, rfl⟩
-    simpa only [hsem] using he
-  · intro h row hrow
-    obtain ⟨i, hi, rfl⟩ := hrow
-    have he := h F[i] (List.getElem_mem hi)
-    simpa only [hsem] using he
+  simp only [orderedConstraints, Cslib.Logic.PL.CSP.eval, List.all_eq_true, List.mem_mapIdx,
+    forall_exists_index]
+  refine ⟨fun h row hrow => ?_, fun h _ i hi hrow =>
+    hrow ▸ (hsem F[i] i).trans (h F[i] (List.getElem_mem hi))⟩
+  obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hrow
+  simpa only [hsem] using h _ i hi rfl
 
 /-- The actual row reorder preserves satisfiability on every raw input table. -/
 theorem satisfiable_orderedConstraints_iff (F : CSP Unit ℕ) (c : RotationCertificate) :

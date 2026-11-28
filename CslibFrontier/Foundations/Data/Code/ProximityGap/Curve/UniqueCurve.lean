@@ -175,13 +175,9 @@ theorem exists_ratWeighted_correlatedAgreement_curve_unique
       ⟨c, hcRS, hammingDist_le_of_ratWeightedAgree_ge hμ_le hθ hμ_ge⟩
   let D' : Finset ι := Finset.univ.filter fun i => ∀ j : Fin (d + 1), u j i = v j i
   refine ⟨D', ?_, v, hvRS, fun i hi => (mem_filter.1 hi).2⟩
-  by_contra hlt; push Not at hlt
-  let f : ι → F[X] := fun i => Polynomial.ofFn (d + 1) fun j => u j i - v j i
-  let badI : Finset ι := Finset.univ.filter fun i => ¬ ∀ j : Fin (d + 1), u j i = v j i
-  have hf_ne (i : ι) (hi : i ∈ badI) : f i ≠ 0 := fun h0 => (mem_filter.1 hi).2 fun j => by
-    have hc := congrArg (fun p : F[X] => p.coeff (j : ℕ)) h0
-    simp only [f, Polynomial.ofFn_coeff_eq_val_of_lt _ j.isLt, coeff_zero] at hc
-    exact sub_eq_zero.1 hc
+  by_contra! hlt
+  let f (i : ι) : F[X] := ofFn (d + 1) fun j => u j i - v j i
+  let badI : Finset ι := univ.filter fun i => f i ≠ 0
   have hS_sub : S ⊆ badI.biUnion fun i => (f i).roots.toFinset := fun z hz => by
     obtain ⟨i, hi_not, heq⟩ := exists_disagree_mem_unique hα hunique hμ_le hθ
       (u_at := fun z => ∑ j : Fin (d + 1), z ^ (j : ℕ) • u j)
@@ -190,26 +186,24 @@ theorem exists_ratWeighted_correlatedAgreement_curve_unique
       (hammingDist_curve_le_of_eq_on hD₀ hagree₀) D'
       (fun z i hi => (mem_filter.1 (subset_filter_curve_eq (fun _ h => (mem_filter.1 h).2) z hi)).2)
       hlt (hclose z hz)
-    have hi_bad : i ∈ badI :=
-      mem_filter.2 ⟨mem_univ i, fun h => hi_not (mem_filter.2 ⟨mem_univ i, h⟩)⟩
-    refine mem_biUnion.2 ⟨i, hi_bad, Multiset.mem_toFinset.2 <|
-      (Polynomial.mem_roots (hf_ne i hi_bad)).2 ?_⟩
-    change (f i).eval z = 0
-    simp only [f, Polynomial.ofFn_eq_sum_monomial, Polynomial.eval_finsetSum,
-      Polynomial.eval_monomial]
+    have hf0 : f i ≠ 0 := fun h0 => hi_not <| mem_filter.2 ⟨mem_univ i, fun j => sub_eq_zero.1 <|
+      by simpa only [f, ofFn_coeff_eq_val_of_lt _ j.2, coeff_zero] using
+        congrArg (fun p : F[X] => p.coeff (j : ℕ)) h0⟩
+    refine mem_biUnion.2 ⟨i, mem_filter.2 ⟨mem_univ i, hf0⟩,
+      Multiset.mem_toFinset.2 ((mem_roots hf0).2 ?_)⟩
     have hterm (j : Fin (d + 1)) : (u j i - v j i) * z ^ (j : ℕ) =
         z ^ (j : ℕ) * u j i - z ^ (j : ℕ) * v j i := by ring
-    simp only [hterm, Finset.sum_sub_distrib]
-    exact sub_eq_zero.2 (by simpa only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul] using heq)
+    simp only [IsRoot.def, f, ofFn_eq_sum_monomial, eval_finsetSum, eval_monomial, hterm,
+      sum_sub_distrib, sub_eq_zero]
+    simpa only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul] using heq
   have hcard_le : S.card ≤ d * Fintype.card ι := calc
-    S.card ≤ (badI.biUnion fun i => (f i).roots.toFinset).card := Finset.card_le_card hS_sub
-    _ ≤ ∑ i ∈ badI, ((f i).roots.toFinset).card := Finset.card_biUnion_le
-    _ ≤ ∑ i ∈ badI, (f i).natDegree := Finset.sum_le_sum fun i _ =>
-        (Multiset.toFinset_card_le _).trans (Polynomial.card_roots' _)
-    _ ≤ ∑ _i ∈ badI, d := Finset.sum_le_sum fun i _ =>
-        Nat.le_of_lt_succ (Polynomial.ofFn_natDegree_lt (Nat.succ_pos d) _)
-    _ = badI.card * d := by simp only [Finset.sum_const, smul_eq_mul]
-    _ ≤ d * Fintype.card ι := mul_comm _ d ▸ Nat.mul_le_mul_right d (Finset.card_le_univ badI)
+    S.card ≤ (badI.biUnion fun i => (f i).roots.toFinset).card := card_le_card hS_sub
+    _ ≤ ∑ i ∈ badI, ((f i).roots.toFinset).card := card_biUnion_le
+    _ ≤ ∑ _i ∈ badI, d := sum_le_sum fun i _ => (Multiset.toFinset_card_le _).trans
+        ((card_roots' _).trans (Nat.le_of_lt_succ (ofFn_natDegree_lt (Nat.succ_pos d) _)))
+    _ ≤ d * Fintype.card ι := by
+        simpa only [sum_const, smul_eq_mul, mul_comm _ d] using
+          Nat.mul_le_mul_left d (card_le_univ badI)
   omega
 
 /-- **Weighted correlated agreement on affine lines in the unique-decoding regime**
@@ -330,7 +324,7 @@ theorem weighted_proximityGap_curve_unique
     (fun x c => B ≤ ∑ i ∈ univ.filter (fun i => x i = c i), W i)
     (fun D' => B ≤ ∑ i ∈ D', W i)
     (fun hD' _ hag z => hD'.trans (weightedAgree_curve_ge_of_eq_on W hag z))
-    (fun S hS hcl => exists_weighted_correlatedAgreement_curve_unique hα hM hW hunique u S hS hcl)
+    (exists_weighted_correlatedAgreement_curve_unique hα hM hW hunique u)
 
 /-- **Weighted proximity-gap dichotomy on affine lines in the unique-decoding regime**
 (`ℕ`-weights, `[Fintype F]`): either every point on `u₀ + z • u₁` achieves `W`-weighted agreement
@@ -353,7 +347,7 @@ theorem weighted_proximityGap_unique
     (fun x c => B ≤ ∑ i ∈ univ.filter (fun i => x i = c i), W i)
     (fun D' => B ≤ ∑ i ∈ D', W i)
     (fun hD' _ _ hag z => hD'.trans (Finset.sum_le_sum_of_subset (subset_filter_line_eq hag z)))
-    (fun S hS hcl => exists_weighted_correlatedAgreement_unique hα hM hW hunique u₀ u₁ S hS hcl)
+    (exists_weighted_correlatedAgreement_unique hα hM hW hunique u₀ u₁)
 
 /-- **Weighted proximity-gap dichotomy on parameterized curves in the unique-decoding regime**
 (`ℚ`-weights in `[0, 1]`, `[Fintype F]`). -/
@@ -378,8 +372,7 @@ theorem ratWeighted_proximityGap_curve_unique
     (fun x c => θ ≤ ∑ i ∈ univ.filter (fun i => x i = c i), μ i)
     (fun D' => θ ≤ ∑ i ∈ D', μ i)
     (fun hD' _ hag z => hD'.trans (ratWeightedAgree_curve_ge_of_eq_on hμ_nonneg hag z))
-    (fun S hS hcl =>
-      exists_ratWeighted_correlatedAgreement_curve_unique hα hunique hμ_le hθ u S hS hcl)
+    (exists_ratWeighted_correlatedAgreement_curve_unique hα hunique hμ_le hθ u)
 
 /-- **Weighted proximity-gap dichotomy on affine lines in the unique-decoding regime**
 (`ℚ`-weights in `[0, 1]`, `[Fintype F]`). -/
@@ -402,7 +395,6 @@ theorem ratWeighted_proximityGap_unique
     (fun D' => θ ≤ ∑ i ∈ D', μ i)
     (fun hD' _ _ hag z => hD'.trans (Finset.sum_le_sum_of_subset_of_nonneg
       (subset_filter_line_eq hag z) fun i _ _ => hμ_nonneg i))
-    (fun S hS hcl =>
-      exists_ratWeighted_correlatedAgreement_unique hα hunique hμ_le hθ u₀ u₁ S hS hcl)
+    (exists_ratWeighted_correlatedAgreement_unique hα hunique hμ_le hθ u₀ u₁)
 
 end Cslib.Code

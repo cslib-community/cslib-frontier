@@ -150,11 +150,9 @@ theorem isNegTriangleAnswer_findNegTri (oracle : {ι : Type} → Q ι → ι)
     by_cases h : HasNegTriangle A B C
     · simp only [h, decide_true, ite_true, IsNegTriangleAnswer]
       obtain ⟨i, j, k, hijk⟩ := h
-      have h0 : ∀ x : Fin (2 ^ 0), x = 0 := fun x =>
-        Fin.ext (by have := x.isLt; simp at this; omega)
-      rwa [h0 i, h0 j, h0 k] at hijk
-    · simp only [h, decide_false, Bool.false_eq_true, ite_false, IsNegTriangleAnswer]
-      exact not_false
+      rwa [(Fin.ext (by omega) : i = 0), (Fin.ext (by omega) : j = 0),
+        (Fin.ext (by omega) : k = 0)] at hijk
+    · simp [h, IsNegTriangleAnswer]
   | L + 1, A, B, C => by
     simp only [findNegTri, FreeM.eval_bind, FreeM.eval_tabulate]
     split
@@ -168,29 +166,22 @@ theorem isNegTriangleAnswer_findNegTri (oracle : {ι : Type} → Q ι → ι)
       rw [Equiv.apply_symm_apply] at hx
       dsimp only [o] at hx
       rw [hdet, decide_eq_true_iff] at hx
-      apply hx
-      refine ⟨((NegTri.halves L).symm i).2, ((NegTri.halves L).symm j).2,
-        ((NegTri.halves L).symm k).2, ?_⟩
-      rw [isNegTriangle_submatrix]
-      simpa only [Prod.mk.eta, Equiv.apply_symm_apply] using hijk
+      exact hx ⟨((NegTri.halves L).symm i).2, ((NegTri.halves L).symm j).2,
+        ((NegTri.halves L).symm k).2,
+        by simpa only [isNegTriangle_submatrix, Prod.mk.eta, Equiv.apply_symm_apply] using hijk⟩
     · next x hx =>
+      rcases hoct : NegTri.octant x with ⟨a, b, c⟩
       have hdx := List.find?_some hx
-      revert hdx
-      generalize NegTri.octant x = abc
-      obtain ⟨a, b, c⟩ := abc
-      intro hdx
-      dsimp only at hdx ⊢
-      rw [hdet, decide_eq_true_iff] at hdx
+      simp only [hoct, hdet, decide_eq_true_iff] at hdx
       rw [FreeM.eval_bind, FreeM.eval_pure]
       have ih := isNegTriangleAnswer_findNegTri oracle hdet L
         (A.submatrix (fun i => NegTri.halves L (a, i)) (fun i => NegTri.halves L (c, i)))
         (B.submatrix (fun i => NegTri.halves L (c, i)) (fun i => NegTri.halves L (b, i)))
         (C.submatrix (fun i => NegTri.halves L (a, i)) (fun i => NegTri.halves L (b, i)))
-      revert ih
-      generalize (findNegTri det L _ _ _).eval oracle = res
-      rcases res with _ | ⟨i, j, k⟩
-      · exact fun ih => absurd hdx ih
-      · intro ih
+      rcases hres : (findNegTri det L _ _ _).eval oracle with _ | ⟨i, j, k⟩
+      · rw [hres] at ih
+        exact absurd hdx ih
+      · rw [hres] at ih
         exact ih
 
 variable {T : Type} [AddCommMonoid T] [PartialOrder T] [IsOrderedAddMonoid T]
@@ -230,16 +221,13 @@ theorem cost_findNegTri_le (oracle : {ι : Type} → Q ι → ι) (weight : {ι 
     rw [findNegTriCost_succ]
     refine add_le_add ((Finset.sum_le_card_nsmul _ _ _ fun x _ => ?_).trans
       (le_of_eq (by rw [Finset.card_univ, Fintype.card_fin]))) ?_
-    · generalize NegTri.octant x = abc
-      obtain ⟨a, b, c⟩ := abc
+    · rcases NegTri.octant x with ⟨a, b, c⟩
       exact hdet (2 ^ L) (pow_ne_zero _ two_ne_zero) _ _ _
     · split
       · rw [FreeM.cost_pure]
         exact findNegTriCost_nonneg hτ L
       · next x _ =>
-        generalize NegTri.octant x = abc
-        obtain ⟨a, b, c⟩ := abc
-        dsimp only
+        rcases NegTri.octant x with ⟨a, b, c⟩
         rw [FreeM.cost_bind, FreeM.cost_pure, add_zero]
         exact cost_findNegTri_le oracle weight hτ hdet L _ _ _
 

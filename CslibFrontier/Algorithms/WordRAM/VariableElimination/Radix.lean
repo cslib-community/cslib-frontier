@@ -85,18 +85,11 @@ theorem powProg_result (args : PowArgs) (s : Memory.State) :
     simpa using this args.exp 1
   intro n
   induction n with
-  | zero =>
-    intro acc
-    change acc = acc * args.base ^ 0
-    simp
+  | zero => exact fun acc => (Nat.mul_one acc).symm
   | succ n ih =>
     intro acc
-    change (Memory.spec 0).clientResult s
-      (powStep (args.base, acc) >>= iterate powStep args.base n) = _
-    rw [StateTransitionSpec.clientResult_bind]
-    have hst : (Memory.spec 0).clientState s (powStep (args.base, acc)) = s := rfl
-    have hres : (Memory.spec 0).clientResult s (powStep (args.base, acc)) = acc * args.base := rfl
-    rw [hst, hres, ih (acc * args.base), pow_succ', Nat.mul_assoc]
+    rw [iterate, StateTransitionSpec.clientResult_bind]
+    exact (ih (acc * args.base)).trans (by rw [pow_succ', Nat.mul_assoc])
 
 theorem powProg_realizes :
     Realizes .exact powProg WordEncoding.encode WordEncoding.encode
@@ -107,19 +100,11 @@ theorem powProg_realizes :
   · refine iterationSafe_of_stepInv _ _ w d
       (fun j acc _ => acc * (max 1 d.base) ^ j ≤ (max 1 d.base) ^ d.exp)
       (fun j acc t hinv => ?_) (Nat.one_mul _).le
-    have hm : acc * d.base ≤ acc * max 1 d.base := Nat.mul_le_mul_left acc (le_max_right 1 d.base)
-    have h1 : 1 ≤ (max 1 d.base) ^ j := Nat.one_le_pow j _ (le_max_left 1 d.base)
-    have hle : acc * d.base ≤ (max 1 d.base) ^ d.exp := by
-      calc acc * d.base ≤ acc * max 1 d.base := hm
-        _ ≤ (acc * max 1 d.base) * (max 1 d.base) ^ j := Nat.le_mul_of_pos_right _ h1
-        _ = acc * (max 1 d.base) ^ (j + 1) := by rw [pow_succ', Nat.mul_assoc]
-        _ ≤ (max 1 d.base) ^ d.exp := hinv
-    refine ⟨h.2.of_le hle, ?_⟩
-    change (acc * d.base) * (max 1 d.base) ^ j ≤ (max 1 d.base) ^ d.exp
-    calc (acc * d.base) * (max 1 d.base) ^ j
-        ≤ (acc * max 1 d.base) * (max 1 d.base) ^ j := Nat.mul_le_mul_right _ hm
-      _ = acc * (max 1 d.base) ^ (j + 1) := by rw [pow_succ', Nat.mul_assoc]
-      _ ≤ (max 1 d.base) ^ d.exp := hinv
+    have h2 : acc * d.base * (max 1 d.base) ^ j ≤ (max 1 d.base) ^ d.exp := by
+      rw [pow_succ', ← Nat.mul_assoc] at hinv
+      exact (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left acc (le_max_right 1 d.base))).trans hinv
+    exact ⟨h.2.of_le
+      ((Nat.le_mul_of_pos_right _ (Nat.one_le_pow j _ (le_max_left 1 d.base))).trans h2), h2⟩
 
 /-- Arguments for reading the value of variable `v` in a mixed-radix assignment. -/
 structure LookupArgs where
@@ -183,17 +168,33 @@ def lookupAssign (args : LookupArgs) : Memory.Prog ℕ := do
   let res ← iterate lookupStep ⟨args.dom, args.target⟩ args.outLen ⟨args.outPtr, args.idx, 0, 0⟩
   pure res.ans
 
+private theorem lookupStep_eval (env : LookupEnv) (st : LookupState) (t : Memory.State) :
+    (Memory.spec 0).clientState t (lookupStep (env, st)) = t ∧
+      (Memory.spec 0).clientResult t (lookupStep (env, st)) =
+        if st.found = 0 ∧ t.mem st.cur = env.target then
+          ⟨st.cur + 1, st.remIdx / env.dom, 1, st.remIdx % env.dom⟩
+        else ⟨st.cur + 1, st.remIdx / env.dom, st.found, st.ans⟩ := by
+  unfold lookupStep
+  dsimp only
+  rw [clientState_bind_read, clientResult_bind_read]
+  split_ifs <;> exact ⟨rfl, rfl⟩
+
+private theorem lookup_iterate_succ (env : LookupEnv) (n : ℕ) (st : LookupState)
+    (s : Memory.State) :
+    (Memory.spec 0).clientResult s (iterate lookupStep env (n + 1) st) =
+      (Memory.spec 0).clientResult s (iterate lookupStep env n
+        (if st.found = 0 ∧ s.mem st.cur = env.target then
+          ⟨st.cur + 1, st.remIdx / env.dom, 1, st.remIdx % env.dom⟩
+        else ⟨st.cur + 1, st.remIdx / env.dom, st.found, st.ans⟩)) := by
+  obtain ⟨hst, hres⟩ := lookupStep_eval env st s
+  rw [iterate, StateTransitionSpec.clientResult_bind, hst, hres]
+
 theorem lookupAssign_state (args : LookupArgs) (s : Memory.State) :
     (Memory.spec 0).clientState s (lookupAssign args) = s := by
   unfold lookupAssign
   rw [StateTransitionSpec.clientState_bind]
-  exact clientState_iterate_eq_of lookupStep ⟨args.dom, args.target⟩
-    (fun a t => by
-      unfold lookupStep
-      change (Memory.spec 0).clientState t
-        (if a.found = 0 ∧ t.mem a.cur = args.target then _ else _) = t
-      split_ifs <;> rfl)
-    args.outLen ⟨args.outPtr, args.idx, 0, 0⟩ s
+  exact clientState_iterate_eq_of lookupStep _ (fun a t => (lookupStep_eval _ a t).1)
+    args.outLen _ s
 
 theorem lookupAssign_cost (args : LookupArgs) (s : Memory.State) :
     memoryCost (lookupAssign args) s ≤ args.outLen := by
@@ -203,8 +204,6 @@ theorem lookupAssign_cost (args : LookupArgs) (s : Memory.State) :
     (fun a t => by
       unfold lookupStep
       rw [memoryCost_bind', memoryCost_read]
-      dsimp only
-      rw [memoryCost_ite]
       split_ifs <;> simp)
     args.outLen ⟨args.outPtr, args.idx, 0, 0⟩ s
 
@@ -223,37 +222,12 @@ theorem lookupAssign_valid {w : ℕ} (args : LookupArgs) {s : Memory.State}
   | zero => intro _ _ _ _ _; exact validHistory_pure w s _
   | succ len ih =>
     intro cur hcur remIdx found ans
-    have hlt : cur < s.frontier := by omega
-    have hstep : (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s
-          (lookupStep (⟨args.dom, args.target⟩, ⟨cur, remIdx, found, ans⟩))) := by
-      refine validHistory_read_bind hlt ?_
-      split_ifs <;> exact validHistory_pure w s _
-    have hst : (Memory.spec 0).clientState s
-        (lookupStep (⟨args.dom, args.target⟩, ⟨cur, remIdx, found, ans⟩)) = s := by
-      unfold lookupStep
-      change (Memory.spec 0).clientState s
-        (if found = 0 ∧ s.mem cur = args.target then _ else _) = s
-      split_ifs <;> rfl
-    have hcur_next : ((Memory.spec 0).clientResult s
-        (lookupStep (⟨args.dom, args.target⟩, ⟨cur, remIdx, found, ans⟩))).cur = cur + 1 := by
-      unfold lookupStep
-      have : ((Memory.spec 0).clientResult s
-          (if found = 0 ∧ s.mem cur = args.target then
-            (pure ⟨cur + 1, remIdx / args.dom, 1, remIdx % args.dom⟩ : Memory.Prog LookupState)
-           else
-            pure ⟨cur + 1, remIdx / args.dom, found, ans⟩)).cur = cur + 1 := by
-        split_ifs <;> rfl
-      exact this
-    change (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s
-        (lookupStep (⟨args.dom, args.target⟩, ⟨cur, remIdx, found, ans⟩) >>=
-          iterate lookupStep ⟨args.dom, args.target⟩ len))
-    refine validHistory_bind_step hstep ?_
-    rw [hst]
-    let r := (Memory.spec 0).clientResult s
-      (lookupStep (⟨args.dom, args.target⟩, ⟨cur, remIdx, found, ans⟩))
-    exact ih r.cur (by rw [hcur_next]; omega) r.remIdx r.found r.ans
+    obtain ⟨hst, hres⟩ := lookupStep_eval ⟨args.dom, args.target⟩ ⟨cur, remIdx, found, ans⟩ s
+    rw [iterate, validHistory_bind', hst, hres]
+    refine ⟨validHistory_read_bind (show cur < s.frontier by omega) ?_, ?_⟩ <;> split_ifs
+    all_goals first
+      | exact validHistory_pure w s _
+      | exact ih (cur + 1) (by omega) _ _ _
 
 theorem lookupAssign_result {args : LookupArgs} {us : List ℕ} {s : Memory.State}
     (hus : Block.HoldsList args.outPtr us s.mem) (hlen : us.length = args.outLen) :
@@ -269,16 +243,7 @@ theorem lookupAssign_result {args : LookupArgs} {us : List ℕ} {s : Memory.Stat
     | zero => intros; rfl
     | succ n ih =>
       intro cur remIdx ans
-      change ((Memory.spec 0).clientResult s
-        (lookupStep (⟨args.dom, args.target⟩, ⟨cur, remIdx, 1, ans⟩) >>=
-          iterate lookupStep ⟨args.dom, args.target⟩ n)).ans = ans
-      rw [StateTransitionSpec.clientResult_bind]
-      have hst : (Memory.spec 0).clientState s
-          (lookupStep (⟨args.dom, args.target⟩, ⟨cur, remIdx, 1, ans⟩)) = s := rfl
-      have hres : (Memory.spec 0).clientResult s
-          (lookupStep (⟨args.dom, args.target⟩, ⟨cur, remIdx, 1, ans⟩)) =
-          ⟨cur + 1, remIdx / args.dom, 1, ans⟩ := rfl
-      rw [hst, hres]
+      rw [lookup_iterate_succ, ite_eq_right (fun h => absurd h.1 one_ne_zero)]
       exact ih _ _ _
   suffices ∀ (zs : List ℕ) (cur remIdx : ℕ), Block.HoldsList cur zs s.mem →
       ((Memory.spec 0).clientResult s
@@ -291,41 +256,13 @@ theorem lookupAssign_result {args : LookupArgs} {us : List ℕ} {s : Memory.Stat
   | cons u rest ih =>
     intro cur remIdx hcur
     obtain ⟨hhead, htail⟩ := Block.holdsList_cons_iff.mp hcur
-    change ((Memory.spec 0).clientResult s
-      (lookupStep (⟨args.dom, args.target⟩, ⟨cur, remIdx, 0, 0⟩) >>=
-        iterate lookupStep ⟨args.dom, args.target⟩ rest.length)).ans = _
-    rw [StateTransitionSpec.clientResult_bind]
+    rw [List.length_cons, lookup_iterate_succ]
+    dsimp only
+    rw [hhead]
     by_cases htu : args.target = u
-    · have hst : (Memory.spec 0).clientState s
-          (lookupStep (⟨args.dom, args.target⟩, ⟨cur, remIdx, 0, 0⟩)) = s := by
-        unfold lookupStep
-        change (Memory.spec 0).clientState s
-          (if 0 = 0 ∧ s.mem cur = args.target then _ else _) = s
-        rw [hhead, ite_eq_left ⟨rfl, htu.symm⟩]; rfl
-      have hres : (Memory.spec 0).clientResult s
-          (lookupStep (⟨args.dom, args.target⟩, ⟨cur, remIdx, 0, 0⟩)) =
-          ⟨cur + 1, remIdx / args.dom, 1, remIdx % args.dom⟩ := by
-        unfold lookupStep
-        change (Memory.spec 0).clientResult s
-          (if 0 = 0 ∧ s.mem cur = args.target then _ else _) = _
-        rw [hhead, ite_eq_left ⟨rfl, htu.symm⟩]; rfl
-      rw [hst, hres, hfound1]
+    · rw [ite_eq_left ⟨rfl, htu.symm⟩, hfound1]
       simp [lsbDecode, assignScope, htu]
-    · have hne : u ≠ args.target := Ne.symm htu
-      have hst : (Memory.spec 0).clientState s
-          (lookupStep (⟨args.dom, args.target⟩, ⟨cur, remIdx, 0, 0⟩)) = s := by
-        unfold lookupStep
-        change (Memory.spec 0).clientState s
-          (if 0 = 0 ∧ s.mem cur = args.target then _ else _) = s
-        rw [hhead, ite_eq_right (fun h => hne h.2)]; rfl
-      have hres : (Memory.spec 0).clientResult s
-          (lookupStep (⟨args.dom, args.target⟩, ⟨cur, remIdx, 0, 0⟩)) =
-          ⟨cur + 1, remIdx / args.dom, 0, 0⟩ := by
-        unfold lookupStep
-        change (Memory.spec 0).clientResult s
-          (if 0 = 0 ∧ s.mem cur = args.target then _ else _) = _
-        rw [hhead, ite_eq_right (fun h => hne h.2)]; rfl
-      rw [hst, hres, ih (cur + 1) (remIdx / args.dom) htail]
+    · rw [ite_eq_right (fun h => htu h.2.symm), ih (cur + 1) (remIdx / args.dom) htail]
       simp [lsbDecode, assignScope, htu]
 
 theorem lookupAssign_realizes :
@@ -335,26 +272,14 @@ theorem lookupAssign_realizes :
   unfold lookupAssign
   realize
   refine iterationSafe_of_stepInv _ _ w d
-    (fun j st _ => st.cur + j = d.outPtr + d.outLen)
-    (fun j st t hinv => ?_)
-    (show (⟨d.outPtr, d.idx, 0, 0⟩ : LookupState).cur + d.outLen = d.outPtr + d.outLen from rfl)
+    (fun j st _ => st.cur + j = d.outPtr + d.outLen) (fun j st t hinv => ?_) rfl
   dsimp only
   refine ⟨?_, ?_⟩
   · split_ifs
-    · exact ⟨Nat.ne_of_gt h.1, h.2.2.of_le (by omega), h.2.1⟩
-    · exact ⟨Nat.ne_of_gt h.1, h.2.2.of_le (by omega)⟩
-    · exact ⟨Nat.ne_of_gt h.1, h.2.2.of_le (by omega)⟩
-  · unfold lookupStep
-    have : ((Memory.spec 0).clientResult t
-        (if st.found = 0 ∧ t.mem st.cur = d.target then
-          (pure ⟨st.cur + 1, st.remIdx / d.dom, 1, st.remIdx % d.dom⟩ : Memory.Prog LookupState)
-         else
-          pure ⟨st.cur + 1, st.remIdx / d.dom, st.found, st.ans⟩)).cur + j =
-        d.outPtr + d.outLen := by
-      split_ifs
-      · change (st.cur + 1) + j = d.outPtr + d.outLen; omega
-      · change (st.cur + 1) + j = d.outPtr + d.outLen; omega
-    exact this
+    · exact ⟨h.1.ne', h.2.2.of_le (by omega), h.2.1⟩
+    all_goals exact ⟨h.1.ne', h.2.2.of_le (by omega)⟩
+  · rw [(lookupStep_eval _ st t).2]
+    split_ifs <;> (dsimp only; omega)
 
 theorem lookupAssign_lt {args : LookupArgs} (hd : 0 < args.dom) (s : Memory.State) :
     (Memory.spec 0).clientResult s (lookupAssign args) < args.dom := by
@@ -370,29 +295,8 @@ theorem lookupAssign_lt {args : LookupArgs} (hd : 0 < args.dom) (s : Memory.Stat
   | zero => intro _ _ _ _ hans; exact hans
   | succ n ih =>
     intro cur remIdx found ans hans
-    change ((Memory.spec 0).clientResult s
-      (lookupStep (⟨args.dom, args.target⟩, ⟨cur, remIdx, found, ans⟩) >>=
-        iterate lookupStep ⟨args.dom, args.target⟩ n)).ans < args.dom
-    rw [StateTransitionSpec.clientResult_bind]
-    have hst : (Memory.spec 0).clientState s
-        (lookupStep (⟨args.dom, args.target⟩, ⟨cur, remIdx, found, ans⟩)) = s := by
-      unfold lookupStep
-      change (Memory.spec 0).clientState s
-        (if found = 0 ∧ s.mem cur = args.target then _ else _) = s
-      split_ifs <;> rfl
-    have hnext : ((Memory.spec 0).clientResult s
-        (lookupStep (⟨args.dom, args.target⟩, ⟨cur, remIdx, found, ans⟩))).ans < args.dom := by
-      unfold lookupStep
-      have : ((Memory.spec 0).clientResult s
-          (if found = 0 ∧ s.mem cur = args.target then
-            (pure ⟨cur + 1, remIdx / args.dom, 1, remIdx % args.dom⟩ : Memory.Prog LookupState)
-           else
-            pure ⟨cur + 1, remIdx / args.dom, found, ans⟩)).ans < args.dom := by
-        split_ifs
-        · exact Nat.mod_lt _ hd
-        · exact hans
-      exact this
-    rw [hst]
-    exact ih _ _ _ _ hnext
+    rw [lookup_iterate_succ]
+    split_ifs
+    exacts [ih _ _ _ _ (Nat.mod_lt _ hd), ih _ _ _ _ hans]
 
 end Cslib.Algorithms.WordRAM.VariableElimination

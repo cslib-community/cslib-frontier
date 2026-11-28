@@ -115,11 +115,8 @@ include h in
 /-- Distinct original darts remain distinct after moving the slot into the label. -/
 private theorem contractDart_injective : Function.Injective (contractDart (D := D) encode) := by
   rintro ⟨v, d⟩ ⟨v', d'⟩ he
-  apply Prod.ext
-  · apply h.injective
-    exact Prod.ext (congrArg (fun p : W × (I × D) => p.1) he)
-      (congrArg (fun p : W × (I × D) => p.2.1) he)
-  · exact congrArg (fun p => p.2.2) he
+  exact Prod.ext (h.injective (Prod.ext (congrArg (fun p : W × (I × D) => p.1) he)
+    (congrArg (fun p : W × (I × D) => p.2.1) he))) (congrArg (fun p => p.2.2) he)
 
 variable [Fintype V] [Fintype I] [Fintype D] [DecidableEq V] [DecidableEq W]
 
@@ -168,9 +165,8 @@ theorem le_card_interedges_compl_contract
       lia
     have hc : #S ≤ #Aᶜ := by rw [hAc]; exact hSS.trans (hcard Sᶜ)
     rw [G.card_interedges_comm A Aᶜ]
-    have hb := G.le_card_interedges_compl_of_two_mul_card_le hA'
-    rw [compl_compl] at hb
-    refine le_trans ?_ hb
+    refine le_trans ?_
+      (compl_compl A ▸ G.le_card_interedges_compl_of_two_mul_card_le hA')
     gcongr
 
 omit [DecidableEq V] [DecidableEq W] in
@@ -211,39 +207,25 @@ def finSlotDecode (p : Fin n × Fin k) : Option (Fin m) :=
 
 /-- Quotient/remainder indexing and a checked multiply/add are partial inverses. -/
 theorem isPartialInv_finSlots (hcap : m ≤ k * n) :
-    Function.IsPartialInv (finSlotEncode hcap) (finSlotDecode (m := m)) := by
-  intro v p
-  constructor
-  · intro hdecode
-    unfold finSlotDecode at hdecode
-    split at hdecode
-    · have hv := Option.some.inj hdecode
-      have he : Fin.castLE hcap v = finProdFinEquiv (p.2, p.1) := by
-        apply Fin.ext
-        exact (congrArg Fin.val hv).symm
-      change Prod.swap (finProdFinEquiv.symm (Fin.castLE hcap v)) = p
-      rw [he, Equiv.symm_apply_apply]
-      rfl
-    · contradiction
-  · intro hencode
-    have he : Fin.castLE hcap v = finProdFinEquiv (p.2, p.1) := by
-      apply finProdFinEquiv.symm.injective
-      rw [Equiv.symm_apply_apply]
-      change Prod.swap (finSlotEncode hcap v) = (p.2, p.1)
-      rw [hencode]
-      rfl
-    have hp : (finProdFinEquiv (p.2, p.1)).val < m := by rw [← he]; exact v.isLt
+    Function.IsPartialInv (finSlotEncode hcap) (finSlotDecode (m := m)) := fun v p => by
+  refine ⟨fun hdecode => ?_, fun hencode => ?_⟩
+  · unfold finSlotDecode at hdecode
+    split_ifs at hdecode with hp
+    have he : Fin.castLE hcap v = finProdFinEquiv (p.2, p.1) :=
+      Fin.ext (congrArg Fin.val (Option.some.inj hdecode)).symm
+    change Prod.swap (finProdFinEquiv.symm (Fin.castLE hcap v)) = p
+    rw [he, Equiv.symm_apply_apply]; rfl
+  · have he : Fin.castLE hcap v = finProdFinEquiv (p.2, p.1) :=
+      finProdFinEquiv.symm.injective <| (congrArg Prod.swap hencode).trans
+        (Equiv.symm_apply_apply _ _).symm
+    have hp : (finProdFinEquiv (p.2, p.1)).val < m := he ▸ v.isLt
     simp only [finSlotDecode, hp, dite_true]
-    apply congrArg some
-    exact Fin.ext (congrArg (fun j : Fin (k * n) => j.val) he.symm)
+    exact congrArg some (Fin.ext (congrArg (fun j : Fin (k * n) => j.val) he.symm))
 
 /-- If there are at least `n` original vertices, every new vertex has a representative. -/
 private theorem finSlotEncode_fst_surjective (hcap : m ≤ k * n) (hsize : n ≤ m) :
-    Function.Surjective (fun v => (finSlotEncode hcap v).1) := by
-  intro w
-  refine ⟨⟨w.val, w.isLt.trans_le hsize⟩, ?_⟩
-  apply Fin.ext
-  exact Nat.mod_eq_of_lt w.isLt
+    Function.Surjective (fun v => (finSlotEncode hcap v).1) := fun w =>
+  ⟨⟨w.val, w.isLt.trans_le hsize⟩, Fin.ext (Nat.mod_eq_of_lt w.isLt)⟩
 
 /-- Contract an indexed graph from `m` vertices to `n` vertices, using `k` slots per vertex. -/
 def contractFin (G : RotationMap (Fin m) D) (hcap : m ≤ k * n) :
@@ -256,12 +238,8 @@ theorem spectralExpansion_contractFin_lazy_le [Nonempty D] (G : RotationMap (Fin
     (hcap : m ≤ k * n) (hsize : n ≤ m) (hn : 2 ≤ n) :
     (G.contractFin hcap).lazy.spectralExpansion ≤
       1 - (1 - G.spectralExpansion) ^ 2 / (16 * k ^ 2) := by
-  have hk : 0 < k := by
-    by_contra h
-    have hk := Nat.eq_zero_of_not_pos h
-    subst k
-    simp only [zero_mul] at hcap
-    lia
+  have hk : 0 < k :=
+    Nat.pos_of_mul_pos_right ((Nat.zero_lt_of_lt hn).trans_le (hsize.trans hcap))
   have : Nonempty (Fin k) := ⟨⟨0, hk⟩⟩
   have : Nontrivial (Fin n) := Fin.nontrivial_iff_two_le.mpr hn
   simpa only [contractFin, Fintype.card_fin] using

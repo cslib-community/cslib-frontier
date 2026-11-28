@@ -155,92 +155,60 @@ theorem bandStart_succ_eq_bandEnd (k : ℕ) : bandStart (k + 1) = bandEnd k := b
   cases k <;> rfl
 
 theorem bandStart_lt_bandEnd (k : ℕ) : bandStart k < bandEnd k := by
-  cases k with
-  | zero => decide
-  | succ k =>
-    simp only [bandStart, bandEnd]
-    exact Nat.pow_lt_pow_right (by decide) (Nat.lt_succ_self k)
+  rcases k with _ | k
+  · decide
+  · exact Nat.pow_lt_pow_right (by decide) (Nat.lt_succ_self k)
 
-theorem bandStart_mono : Monotone bandStart := by
-  refine monotone_nat_of_le_succ fun k => ?_
-  rw [bandStart_succ_eq_bandEnd]
-  exact (bandStart_lt_bandEnd k).le
+theorem bandStart_mono : Monotone bandStart :=
+  monotone_nat_of_le_succ fun k => bandStart_succ_eq_bandEnd k ▸ (bandStart_lt_bandEnd k).le
 
-theorem bandMargin_mono : Monotone bandMargin := by
-  intro a b hab
-  unfold bandMargin
-  exact Nat.add_le_add_left (Nat.div_le_div_right (bandStart_mono hab)) _
+theorem bandMargin_mono : Monotone bandMargin :=
+  fun _ _ hab => Nat.add_le_add_left (Nat.div_le_div_right (bandStart_mono hab)) _
 
 theorem bandWidth_le_two_pow (k : ℕ) : bandWidth k ≤ 2 ^ k := by
-  cases k with
-  | zero => decide
-  | succ k =>
-    simp only [bandWidth, bandEnd, bandStart]
-    have hpow : 2 ^ (k + 1) = 2 * 2 ^ k := by ring
+  rcases k with _ | k
+  · decide
+  · rw [bandWidth, bandEnd, bandStart, pow_succ]
     omega
 
 theorem mem_band_bandIdx (m : ℕ) : bandStart (bandIdx m) ≤ m ∧ m < bandEnd (bandIdx m) := by
-  by_cases hm : m = 0
-  · subst hm
-    simp [bandIdx]
+  rcases eq_or_ne m 0 with rfl | hm
+  · simp [bandIdx]
   · simp only [bandIdx, hm, ite_false, bandStart, bandEnd]
     exact ⟨Nat.pow_log_le_self 2 hm, Nat.lt_pow_succ_log_self (by decide) m⟩
 
 theorem bandIdx_eq_iff {m k : ℕ} : bandIdx m = k ↔ bandStart k ≤ m ∧ m < bandEnd k := by
-  constructor
-  · rintro rfl
-    exact mem_band_bandIdx m
-  · rintro ⟨hlo, hhi⟩
-    have hmem := mem_band_bandIdx m
-    rcases lt_trichotomy (bandIdx m) k with hlt | heq | hgt
-    · have hle : bandEnd (bandIdx m) ≤ bandStart k := by
-        rw [← bandStart_succ_eq_bandEnd]
-        exact bandStart_mono (Nat.succ_le_of_lt hlt)
-      omega
-    · exact heq
-    · have hle : bandEnd k ≤ bandStart (bandIdx m) := by
-        rw [← bandStart_succ_eq_bandEnd]
-        exact bandStart_mono (Nat.succ_le_of_lt hgt)
-      omega
+  refine ⟨fun h => h ▸ mem_band_bandIdx m, fun ⟨hlo, hhi⟩ => ?_⟩
+  have hmem := mem_band_bandIdx m
+  rcases lt_trichotomy (bandIdx m) k with hlt | heq | hgt
+  · have := bandStart_succ_eq_bandEnd (bandIdx m) ▸ bandStart_mono (Nat.succ_le_of_lt hlt)
+    omega
+  · exact heq
+  · have := bandStart_succ_eq_bandEnd k ▸ bandStart_mono (Nat.succ_le_of_lt hgt)
+    omega
 
 theorem ten_add_two_mul_le_bandMargin (k : ℕ) : 10 + 2 * k ≤ bandMargin k := by
-  rcases k with _ | _ | _ | m
-  · decide
-  · decide
-  · decide
-  · unfold bandMargin mulBaseMargin bandStart
-    have hm : 2 * m ≤ 2 ^ m := by
-      induction m with
-      | zero => decide
-      | succ n ih =>
-        cases n with
-        | zero => decide
-        | succ n =>
-          have hpos : 1 ≤ 2 ^ n := Nat.one_le_two_pow
-          calc 2 * (n + 1 + 1) = 2 * (n + 1) + 2 := by ring
-            _ ≤ 2 ^ (n + 1) + 2 * 2 ^ n := Nat.add_le_add ih (by omega)
-            _ = 2 ^ (n + 1 + 1) := by ring
-    have hpow : 2 ^ (m + 2) / 4 = 2 ^ m := by
-      have hp : 2 ^ (m + 2) = 4 * 2 ^ m := by ring
-      rw [hp, Nat.mul_div_right _ (by decide)]
-    rw [hpow]
-    omega
+  rcases k with _ | _ | _ | m <;> try decide
+  dsimp only [bandMargin, mulBaseMargin, bandStart]
+  have hm : 2 * m ≤ 2 ^ m := by
+    induction m with
+    | zero => decide
+    | succ n ih =>
+      rcases n with _ | n
+      · decide
+      · have hpos : 1 ≤ 2 ^ n := Nat.one_le_two_pow
+        calc 2 * (n + 1 + 1) = 2 * (n + 1) + 2 := by ring
+          _ ≤ 2 ^ (n + 1) + 2 * 2 ^ n := Nat.add_le_add ih (by omega)
+          _ = 2 ^ (n + 1 + 1) := by ring
+  rw [pow_add]
+  omega
 
 theorem two_mul_bandStart_gt_of_maxBand_le {t k : ℕ} (hk : maxBand t ≤ k) :
     t + bandMargin k < 2 * bandStart k := by
-  have hk2 : 2 ≤ k := by
-    unfold maxBand at hk
-    omega
-  have hbase_lt : t + mulBaseMargin < bandStart (maxBand t) := by
-    unfold maxBand bandStart
-    exact Nat.lt_pow_succ_log_self (by decide) (t + mulBaseMargin)
-  have hD_ge : bandStart (maxBand t) ≤ bandStart k := bandStart_mono hk
-  have hD2 : 2 ≤ bandStart k := by
-    have h2 : bandStart 2 = 2 := rfl
-    rw [← h2]
-    exact bandStart_mono hk2
+  have hlt : t + mulBaseMargin < bandStart k :=
+    (Nat.lt_pow_succ_log_self (by decide) _).trans_le (bandStart_mono hk)
+  have hD2 : 2 ≤ bandStart k := bandStart_mono (show 2 ≤ k by rw [maxBand] at hk; omega)
   unfold bandMargin
-  set D := bandStart k
   omega
 
 /-- **Clock-drop latency inequality** [OpenAI2026LogSpace, (10.12)]: for any retained pair `(i, j)`
@@ -250,9 +218,8 @@ theorem three_mul_bandStart_le_four_mul_drop {t k : ℕ} {p : ℕ × ℕ}
     (hp : p ∈ bandPairs t (k + 1)) :
     4 * p.1 + 3 * bandStart (k + 1) ≤ 4 * (t + mulBaseMargin) ∧
       4 * p.2 + 3 * bandStart (k + 1) ≤ 4 * (t + mulBaseMargin) := by
-  obtain ⟨_, hlo, _, hsum⟩ := (mem_filter.mp hp)
-  have hp1 : bandStart (k + 1) ≤ p.1 := hlo.trans (min_le_left _ _)
-  have hp2 : bandStart (k + 1) ≤ p.2 := hlo.trans (min_le_right _ _)
+  obtain ⟨_, hlo, _, hsum⟩ := mem_filter.mp hp
+  rw [le_min_iff] at hlo
   unfold bandMargin at hsum
   omega
 
@@ -260,13 +227,10 @@ theorem three_mul_bandStart_le_four_mul_drop {t k : ℕ} {p : ℕ × ℕ}
 `i ≤ t + mulBaseMargin` and `j ≤ t + mulBaseMargin`. -/
 theorem index_le_clock_add_baseMargin {t k : ℕ} {p : ℕ × ℕ} (hp : p ∈ bandPairs t k) :
     p.1 ≤ t + mulBaseMargin ∧ p.2 ≤ t + mulBaseMargin := by
-  cases k with
-  | zero =>
-    obtain ⟨_, _, _, hsum⟩ := mem_filter.mp hp
-    rw [bandMargin_zero] at hsum
+  rcases k with _ | k
+  · have := bandMargin_zero ▸ (mem_filter.mp hp).2.2.2
     omega
-  | succ k =>
-    have h := three_mul_bandStart_le_four_mul_drop hp
+  · have := three_mul_bandStart_le_four_mul_drop hp
     omega
 
 end BandGeometry
@@ -277,17 +241,11 @@ theorem bandSum_emod_eq_bandWindowSum_emod (x y : ℕ → ℤ) (t q k : ℕ) :
     bandSum x y t k % (2 : ℤ) ^ (q + bandMargin k) =
       bandWindowSum x y t q k % (2 : ℤ) ^ (q + bandMargin k) := by
   unfold bandSum bandWindowSum bandWindowPairs
-  have hsplit := sum_filter_add_sum_filter_not (bandPairs t k) (fun p => t < p.1 + p.2 + q)
-    (fun p => x p.1 * y p.2 * (2 : ℤ) ^ (t + bandMargin k - (p.1 + p.2)))
-  rw [← hsplit]
-  have hdvd : (2 : ℤ) ^ (q + bandMargin k) ∣
-      ∑ p ∈ (bandPairs t k).filter (fun p => ¬ t < p.1 + p.2 + q),
-        x p.1 * y p.2 * (2 : ℤ) ^ (t + bandMargin k - (p.1 + p.2)) := by
-    refine dvd_sum fun p hp => ?_
-    have hnot : ¬ t < p.1 + p.2 + q := (mem_filter.mp hp).2
-    have hle : q + bandMargin k ≤ t + bandMargin k - (p.1 + p.2) := by omega
-    exact dvd_mul_of_dvd_right (pow_dvd_pow 2 hle) _
-  obtain ⟨c, hc⟩ := hdvd
+  rw [← sum_filter_add_sum_filter_not (bandPairs t k) (fun p => t < p.1 + p.2 + q)]
+  obtain ⟨c, hc⟩ := dvd_sum (s := (bandPairs t k).filter fun p => ¬ t < p.1 + p.2 + q)
+    (f := fun p => x p.1 * y p.2 * (2 : ℤ) ^ (t + bandMargin k - (p.1 + p.2))) fun p hp =>
+    dvd_mul_of_dvd_right
+      (pow_dvd_pow 2 (by have := (mem_filter.mp hp).2; omega : q + bandMargin k ≤ _)) _
   rw [hc, Int.add_mul_emod_self_left]
 
 theorem bandFoldMod_eq_bandFold_emod (x y : ℕ → ℤ) (t q : ℕ) :
@@ -298,28 +256,23 @@ theorem bandFoldMod_eq_bandFold_emod (x y : ℕ → ℤ) (t q : ℕ) :
   | rem + 1, hrem => by
     simp only [bandFoldMod, bandFold]
     set k := maxBand t - (rem + 1)
-    have hk_succ : maxBand t - rem = k + 1 := by omega
-    have hle_rem : rem ≤ maxBand t := by omega
-    have ih := bandFoldMod_eq_bandFold_emod x y t q rem hle_rem
-    rw [hk_succ] at ih
+    have hk1 : maxBand t - rem = k + 1 := by omega
+    have ih := bandFoldMod_eq_bandFold_emod x y t q rem (by omega)
+    rw [hk1] at ih
     set shift := bandMargin (k + 1) - bandMargin k
     have hmargin_add : (q + bandMargin k) + shift = q + bandMargin (k + 1) := by
       have hmono : bandMargin k ≤ bandMargin (k + 1) := bandMargin_mono (Nat.le_succ k)
       omega
-    have hdiv_mod : bandFoldMod x y t q rem / (2 : ℤ) ^ shift =
-        (bandFold x y t rem / (2 : ℤ) ^ shift) % (2 : ℤ) ^ (q + bandMargin k) := by
-      rw [ih, ← hmargin_add, ← ediv_two_pow_emod_eq]
-    rw [hdiv_mod, Int.add_emod, ← bandSum_emod_eq_bandWindowSum_emod, Int.emod_emod,
-      ← Int.add_emod]
+    rw [ih, ← hmargin_add, ← ediv_two_pow_emod_eq, Int.add_emod,
+      ← bandSum_emod_eq_bandWindowSum_emod, Int.emod_emod, ← Int.add_emod]
 
 /-- **Windowed modular product residue theorem** [OpenAI2026LogSpace, Lemma 10.4]:
 `mulResidue x y t q` computes the exact mod-`2^q` Euclidean residue of `mulApprox x y t` while
 retaining only diagonals `t - q < i + j ≤ t + bandMargin k` in each band. -/
 theorem mulResidue_eq_mulApprox_emod (x y : ℕ → ℤ) (t q : ℕ) :
     mulResidue x y t q = mulApprox x y t % (2 : ℤ) ^ q := by
-  unfold mulResidue mulApprox
-  rw [bandFoldMod_eq_bandFold_emod x y t q (maxBand t) le_rfl, Nat.sub_self, bandMargin_zero,
-    ← ediv_two_pow_emod_eq]
+  rw [mulResidue, mulApprox, bandFoldMod_eq_bandFold_emod x y t q (maxBand t) le_rfl,
+    Nat.sub_self, bandMargin_zero, ← ediv_two_pow_emod_eq]
 
 end ModularResidues
 
@@ -331,14 +284,10 @@ private def retainedUnion (t K : ℕ) : Finset (ℕ × ℕ) :=
 private theorem bandPairs_pairwiseDisjoint (t : ℕ) :
     (↑(range (maxBand t)) : Set ℕ).PairwiseDisjoint (bandPairs t) := by
   intro k₁ _ k₂ _ hne
-  change Disjoint (bandPairs t k₁) (bandPairs t k₂)
-  rw [Finset.disjoint_left]
-  intro p hp₁ hp₂
+  refine Finset.disjoint_left.mpr fun p hp₁ hp₂ => hne ?_
   obtain ⟨_, hlo₁, hhi₁, _⟩ := mem_filter.mp hp₁
   obtain ⟨_, hlo₂, hhi₂, _⟩ := mem_filter.mp hp₂
-  have heq₁ : bandIdx (min p.1 p.2) = k₁ := bandIdx_eq_iff.mpr ⟨hlo₁, hhi₁⟩
-  have heq₂ : bandIdx (min p.1 p.2) = k₂ := bandIdx_eq_iff.mpr ⟨hlo₂, hhi₂⟩
-  exact hne (heq₁.symm.trans heq₂)
+  exact (bandIdx_eq_iff.mpr ⟨hlo₁, hhi₁⟩).symm.trans (bandIdx_eq_iff.mpr ⟨hlo₂, hhi₂⟩)
 
 private theorem sum_bandPairs_real (x y : ℕ → ℤ) (t k : ℕ) :
     (bandSum x y t k : ℝ) / (2 : ℝ) ^ bandMargin k =
@@ -353,8 +302,6 @@ private theorem sum_bandPairs_real (x y : ℕ → ℤ) (t k : ℕ) :
   have hpow : (2 : ℝ) ^ (t + bandMargin k - (p.1 + p.2)) * (2 : ℝ) ^ (p.1 + p.2) =
       (2 : ℝ) ^ t * (2 : ℝ) ^ bandMargin k := by
     rw [← pow_add, Nat.sub_add_cancel hle, pow_add]
-  have hb_pos : (0 : ℝ) < (2 : ℝ) ^ bandMargin k := by positivity
-  have hp_pos : (0 : ℝ) < (2 : ℝ) ^ (p.1 + p.2) := by positivity
   field_simp
   rw [mul_assoc ((x p.1 : ℝ) * (y p.2 : ℝ)), hpow]
   ring
@@ -371,22 +318,15 @@ private theorem abs_bandFold_sub_sum_le (x y : ℕ → ℤ) (t : ℕ) :
     set k := maxBand t - (rem + 1)
     have hk_lt : k < maxBand t := by omega
     have hk_succ : maxBand t - rem = k + 1 := by omega
-    have hle_rem : rem ≤ maxBand t := by omega
-    have ih := abs_bandFold_sub_sum_le x y t rem hle_rem
+    have ih := abs_bandFold_sub_sum_le x y t rem (by omega)
     rw [hk_succ] at ih
     set s := bandMargin (k + 1) - bandMargin k
-    have hs_add : bandMargin k + s = bandMargin (k + 1) := by
-      have hm : bandMargin k ≤ bandMargin (k + 1) := bandMargin_mono (Nat.le_succ k)
-      omega
+    have hs_add : bandMargin k + s = bandMargin (k + 1) :=
+      Nat.add_sub_of_le (bandMargin_mono (Nat.le_succ k))
     have hfl := abs_ediv_sub_div_lt_one (bandFold x y t rem)
       (by positivity : (0 : ℤ) < (2 : ℤ) ^ s)
     push_cast at hfl
-    have hIco : Ico k (maxBand t) = insert k (Ico (k + 1) (maxBand t)) := by
-      ext j
-      simp only [mem_Ico, mem_insert]
-      omega
-    have hk_not_mem : k ∉ Ico (k + 1) (maxBand t) := by simp
-    rw [hIco, sum_insert hk_not_mem, sum_insert hk_not_mem]
+    rw [sum_eq_sum_Ico_succ_bot hk_lt, sum_eq_sum_Ico_succ_bot hk_lt]
     set Q : ℝ := ((bandFold x y t rem / (2 : ℤ) ^ s : ℤ) : ℝ)
     set R : ℝ := (bandFold x y t rem : ℝ) / (2 : ℝ) ^ s
     set T : ℝ := ∑ j ∈ Ico (k + 1) (maxBand t), (bandSum x y t j : ℝ) / (2 : ℝ) ^ bandMargin j
@@ -398,7 +338,7 @@ private theorem abs_bandFold_sub_sum_le (x y : ℕ → ℤ) (t : ℕ) :
       dsimp [R]
       rw [div_div, ← pow_add, add_comm s, hs_add]
     have hQ_err : |(Q - R) / (2 : ℝ) ^ bandMargin k| ≤ 1 / (2 : ℝ) ^ bandMargin k := by
-      rw [abs_div, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ bandMargin k)]
+      rw [abs_div, abs_of_pos (pow_pos (two_pos : (0 : ℝ) < 2) (bandMargin k))]
       exact div_le_div_of_nonneg_right hfl.le (by positivity)
     push_cast
     rw [hdiff]
@@ -414,17 +354,10 @@ private theorem sum_floor_err_le (K : ℕ) :
     ∑ k ∈ range K, 1 / (2 : ℝ) ^ bandMargin k ≤ 1 / 768 := by
   have hterm : ∀ k ∈ range K, 1 / (2 : ℝ) ^ bandMargin k ≤ (1 / 1024) * (1 / 4 : ℝ) ^ k := by
     intro k _
-    have hle := ten_add_two_mul_le_bandMargin k
-    have hpow_le : (2 : ℝ) ^ (10 + 2 * k) ≤ (2 : ℝ) ^ bandMargin k :=
-      pow_le_pow_right₀ (by norm_num) hle
-    have h1 : 1 / (2 : ℝ) ^ bandMargin k ≤ 1 / (2 : ℝ) ^ (10 + 2 * k) := by gcongr
-    have h2 : 1 / (2 : ℝ) ^ (10 + 2 * k) = (1 / 1024) * (1 / 4 : ℝ) ^ k := by
-      have hp : (2 : ℝ) ^ (10 + 2 * k) = 1024 * (4 : ℝ) ^ k := by
-        rw [pow_add, pow_mul]
-        norm_num
-      rw [hp, one_div_pow]
-      field_simp
-    exact h1.trans_eq h2
+    calc 1 / (2 : ℝ) ^ bandMargin k ≤ 1 / (2 : ℝ) ^ (10 + 2 * k) :=
+          one_div_le_one_div_of_le (by positivity)
+            (pow_le_pow_right₀ (by norm_num) (ten_add_two_mul_le_bandMargin k))
+      _ = _ := by rw [pow_add, pow_mul, one_div_pow, one_div_mul_one_div]; norm_num
   calc ∑ k ∈ range K, 1 / (2 : ℝ) ^ bandMargin k
       ≤ ∑ k ∈ range K, (1 / 1024) * (1 / 4 : ℝ) ^ k := sum_le_sum hterm
     _ = (1 / 1024) * ∑ k ∈ range K, (1 / 4 : ℝ) ^ k := (mul_sum _ _ _).symm
@@ -440,18 +373,15 @@ private theorem sum_ray_tail_le (N r M : ℕ) :
       1 / (2 : ℝ) ^ M := by
   set F := (range (N + 1)).filter fun j => M < r + j
   set g : ℕ → ℕ := fun j => r + j - (M + 1)
-  have hinj : Set.InjOn g ↑F := by
-    intro j₁ hj₁ j₂ hj₂ heq
-    have h₁ : M < r + j₁ := (mem_filter.mp hj₁).2
-    have h₂ : M < r + j₂ := (mem_filter.mp hj₂).2
-    dsimp [g] at heq
+  have hinj : Set.InjOn g ↑F := fun j₁ hj₁ j₂ hj₂ heq => by
+    have h₁ := (mem_filter.mp hj₁).2
+    have h₂ := (mem_filter.mp hj₂).2
+    simp only [g] at heq
     omega
-  have hsub : F.image g ⊆ range (2 * N + r + 1) := by
-    intro m hm
+  have hsub : F.image g ⊆ range (2 * N + r + 1) := fun m hm => by
     obtain ⟨j, hj, rfl⟩ := mem_image.mp hm
-    have hjN : j < N + 1 := (mem_filter.mp hj).1 |> mem_range.mp
-    rw [mem_range]
-    dsimp [g]
+    have hjN := mem_range.mp (mem_filter.mp hj).1
+    simp only [mem_range, g]
     omega
   have hrw : ∑ j ∈ F, (1 / (2 : ℝ) ^ (r + j)) =
       ∑ m ∈ F.image g, (1 / (2 : ℝ) ^ (M + 1)) * (1 / 2 : ℝ) ^ m := by
@@ -463,21 +393,13 @@ private theorem sum_ray_tail_le (N r M : ℕ) :
       omega
     rw [hadd, pow_add, one_div_pow]
     ring
-  rw [hrw]
-  calc ∑ m ∈ F.image g, (1 / (2 : ℝ) ^ (M + 1)) * (1 / 2 : ℝ) ^ m
-      ≤ ∑ m ∈ range (2 * N + r + 1), (1 / (2 : ℝ) ^ (M + 1)) * (1 / 2 : ℝ) ^ m :=
-        sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => by positivity
-    _ = (1 / (2 : ℝ) ^ (M + 1)) * ∑ m ∈ range (2 * N + r + 1), (1 / 2 : ℝ) ^ m :=
-        (mul_sum _ _ _).symm
-    _ ≤ (1 / (2 : ℝ) ^ (M + 1)) * (1 / (1 - (1 / 2 : ℝ))) :=
-        mul_le_mul_of_nonneg_left
-          (by simpa only [Finset.range_eq_Ico, pow_zero] using
-            geom_sum_Ico_le_of_lt_one (m := 0) (n := 2 * N + r + 1) (by norm_num) (by norm_num))
-          (by positivity)
-    _ = 1 / (2 : ℝ) ^ M := by
-        rw [pow_succ]
-        field_simp
-        ring
+  rw [hrw, ← mul_sum]
+  calc (1 / (2 : ℝ) ^ (M + 1)) * ∑ m ∈ F.image g, (1 / 2 : ℝ) ^ m
+      ≤ (1 / (2 : ℝ) ^ (M + 1)) * 2 := by
+        gcongr
+        exact (sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => by positivity).trans
+          (sum_geometric_two_le _)
+    _ = 1 / (2 : ℝ) ^ M := by rw [pow_succ]; field_simp
 
 private theorem sum_omitted_le {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy : IsSignedStream y)
     (t N : ℕ) (hN : t + bandMargin (maxBand t) ≤ N) :
@@ -491,52 +413,32 @@ private theorem sum_omitted_le {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy :
     (2 : ℝ) ^ t * ((x p.1 : ℝ) * (y p.2 : ℝ) / (2 : ℝ) ^ (p.1 + p.2))
   have hret_sub : retainedUnion t K ⊆ Sq := by
     intro p hp
-    unfold retainedUnion at hp
-    rw [mem_biUnion] at hp
-    obtain ⟨k, hk, hpk⟩ := hp
-    have hk_le : k ≤ K := (mem_range.mp hk).le
-    have hm_le : bandMargin k ≤ bandMargin K := bandMargin_mono hk_le
+    obtain ⟨k, hk, hpk⟩ := mem_biUnion.mp hp
+    have hm_le : bandMargin k ≤ bandMargin K := bandMargin_mono (mem_range.mp hk).le
     obtain ⟨_, _, _, hsum⟩ := mem_filter.mp hpk
     rw [mem_product, mem_range, mem_range]
     omega
   rw [← sum_sdiff_eq_sub hret_sub]
   have hterm_bound : ∀ p : ℕ × ℕ, |term p| ≤ (2 : ℝ) ^ t * 36 * (1 / (2 : ℝ) ^ (p.1 + p.2)) := by
     intro p
-    dsimp [term]
-    rw [abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ t), abs_div,
-      abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ (p.1 + p.2))]
-    have hprod : |(x p.1 : ℝ)| * |(y p.2 : ℝ)| ≤ 36 := by
-      have hx1 := hx.abs_cast_le p.1
-      have hy1 := hy.abs_cast_le p.2
-      nlinarith [abs_nonneg (x p.1 : ℝ), abs_nonneg (y p.2 : ℝ)]
-    calc (2 : ℝ) ^ t * (|(x p.1 : ℝ)| * |(y p.2 : ℝ)| / (2 : ℝ) ^ (p.1 + p.2))
-        ≤ (2 : ℝ) ^ t * (36 / (2 : ℝ) ^ (p.1 + p.2)) := by gcongr
+    have hx1 := hx.abs_cast_le p.1
+    have hy1 := hy.abs_cast_le p.2
+    calc |term p| = (2 : ℝ) ^ t * (|(x p.1 : ℝ)| * |(y p.2 : ℝ)| / (2 : ℝ) ^ (p.1 + p.2)) := by
+          simp [term, abs_mul, abs_div]
+      _ ≤ (2 : ℝ) ^ t * (6 * 6 / (2 : ℝ) ^ (p.1 + p.2)) := by gcongr
       _ = (2 : ℝ) ^ t * 36 * (1 / (2 : ℝ) ^ (p.1 + p.2)) := by ring
   have homit_gt : ∀ p ∈ Sq \ retainedUnion t K,
       t + bandMargin (bandIdx (min p.1 p.2)) < p.1 + p.2 := by
     intro p hp
     obtain ⟨hpSq, hpNot⟩ := mem_sdiff.mp hp
-    set r := min p.1 p.2
+    have hband := mem_band_bandIdx (min p.1 p.2)
+    set r := min p.1 p.2 with hr
     set k := bandIdx r
     by_cases hk : k < K
-    · by_contra hle
-      rw [not_lt] at hle
-      have hp_mem : p ∈ bandPairs t k := by
-        unfold bandPairs
-        rw [mem_filter]
-        have hband := mem_band_bandIdx r
-        have hprod : p ∈ range (t + bandMargin k + 1) ×ˢ range (t + bandMargin k + 1) := by
-          rw [mem_product, mem_range, mem_range]
-          omega
-        exact ⟨hprod, hband.1, hband.2, hle⟩
-      exact hpNot (mem_biUnion.mpr ⟨k, mem_range.mpr hk, hp_mem⟩)
-    · have hk_ge : K ≤ k := not_lt.mp hk
-      have hgt := two_mul_bandStart_gt_of_maxBand_le hk_ge
-      have hr_ge : bandStart k ≤ r := (mem_band_bandIdx r).1
-      have hr_le : 2 * r ≤ p.1 + p.2 := by
-        have h1 : r ≤ p.1 := min_le_left _ _
-        have h2 : r ≤ p.2 := min_le_right _ _
-        omega
+    · refine lt_of_not_ge fun hle => hpNot (mem_biUnion.mpr ⟨k, mem_range.mpr hk, ?_⟩)
+      refine mem_filter.mpr ⟨mem_product.mpr ⟨mem_range.mpr ?_, mem_range.mpr ?_⟩,
+        hband.1, hband.2, hle⟩ <;> omega
+    · have hgt := two_mul_bandStart_gt_of_maxBand_le (not_lt.mp hk)
       omega
   set w : ℕ × ℕ → ℝ := fun p => (2 : ℝ) ^ t * 36 * (1 / (2 : ℝ) ^ (p.1 + p.2))
   have habs_sum : |∑ p ∈ Sq \ retainedUnion t K, term p| ≤ ∑ p ∈ Sq \ retainedUnion t K, w p :=
@@ -566,10 +468,7 @@ private theorem sum_omitted_le {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy :
       _ = ∑ r ∈ range (N + 1),
             ∑ j ∈ (range (N + 1)).filter (fun j => t + bandMargin (bandIdx r) < r + j),
               w (r, j) := by
-          dsimp [Sq]
-          rw [sum_filter, sum_product]
-          refine sum_congr rfl fun r _ => ?_
-          rw [sum_filter]
+          simp only [Sq, sum_filter, sum_product]
       _ ≤ ∑ r ∈ range (N + 1), 36 / (2 : ℝ) ^ bandMargin (bandIdx r) :=
           sum_le_sum fun r _ => hrow r
   have hO1 : ∑ p ∈ (Sq \ retainedUnion t K).filter (fun p => p.1 ≤ p.2), w p ≤
@@ -599,25 +498,15 @@ private theorem sum_omitted_le {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy :
     have hcover : range (N + 1) ⊆ (range B).biUnion fun k => Ico (bandStart k) (bandEnd k) := by
       intro r hr
       have hr_le : r ≤ N := Nat.lt_succ_iff.mp (mem_range.mp hr)
-      refine mem_biUnion.mpr ⟨bandIdx r, mem_range.mpr ?_, ?_⟩
-      · have hN_hi := (mem_band_bandIdx N).2
-        have hr_lo := (mem_band_bandIdx r).1
-        by_contra hge
-        have hB_le : bandIdx N + 1 ≤ bandIdx r := not_lt.mp hge
-        have hstart_le : bandEnd (bandIdx N) ≤ bandStart (bandIdx r) := by
-          rw [← bandStart_succ_eq_bandEnd]
-          exact bandStart_mono hB_le
-        omega
-      · rw [mem_Ico]
-        exact mem_band_bandIdx r
-    have hdisj : (↑(range B) : Set ℕ).PairwiseDisjoint fun k => Ico (bandStart k) (bandEnd k) := by
-      intro k₁ _ k₂ _ hne
-      change Disjoint (Ico (bandStart k₁) (bandEnd k₁)) (Ico (bandStart k₂) (bandEnd k₂))
-      rw [Finset.disjoint_left]
-      intro r hr₁ hr₂
-      have heq₁ : bandIdx r = k₁ := bandIdx_eq_iff.mpr (mem_Ico.mp hr₁)
-      have heq₂ : bandIdx r = k₂ := bandIdx_eq_iff.mpr (mem_Ico.mp hr₂)
-      exact hne (heq₁.symm.trans heq₂)
+      refine mem_biUnion.mpr ⟨bandIdx r, mem_range.mpr ?_, mem_Ico.mpr (mem_band_bandIdx r)⟩
+      by_contra hge
+      have := bandStart_succ_eq_bandEnd (bandIdx N) ▸ bandStart_mono (not_lt.mp hge)
+      have := mem_band_bandIdx N
+      have := mem_band_bandIdx r
+      omega
+    have hdisj : (↑(range B) : Set ℕ).PairwiseDisjoint fun k => Ico (bandStart k) (bandEnd k) :=
+      fun _ _ _ _ hne => Finset.disjoint_left.mpr fun _ hr₁ hr₂ => hne <|
+        (bandIdx_eq_iff.mpr (mem_Ico.mp hr₁)).symm.trans (bandIdx_eq_iff.mpr (mem_Ico.mp hr₂))
     calc ∑ r ∈ range (N + 1), 72 / (2 : ℝ) ^ bandMargin (bandIdx r)
         ≤ ∑ r ∈ (range B).biUnion (fun k => Ico (bandStart k) (bandEnd k)),
             72 / (2 : ℝ) ^ bandMargin (bandIdx r) :=
@@ -626,32 +515,22 @@ private theorem sum_omitted_le {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy :
             72 / (2 : ℝ) ^ bandMargin (bandIdx r) := sum_biUnion hdisj
       _ = ∑ k ∈ range B, (bandWidth k : ℝ) * (72 / (2 : ℝ) ^ bandMargin k) := by
           refine sum_congr rfl fun k _ => ?_
-          have hconst : ∀ r ∈ Ico (bandStart k) (bandEnd k),
-              72 / (2 : ℝ) ^ bandMargin (bandIdx r) = 72 / (2 : ℝ) ^ bandMargin k := by
-            intro r hr
-            rw [bandIdx_eq_iff.mpr (mem_Ico.mp hr)]
-          rw [sum_congr rfl hconst, sum_const, Nat.card_Ico, nsmul_eq_mul]
+          rw [sum_congr rfl fun r hr => by rw [bandIdx_eq_iff.mpr (mem_Ico.mp hr)], sum_const,
+            Nat.card_Ico, nsmul_eq_mul]
           rfl
       _ ≤ ∑ k ∈ range B, (72 / 1024) * (1 / 2 : ℝ) ^ k := by
           refine sum_le_sum fun k _ => ?_
-          have hw_le : (bandWidth k : ℝ) ≤ (2 : ℝ) ^ k := by
-            exact_mod_cast bandWidth_le_two_pow k
+          have hw_le : (bandWidth k : ℝ) ≤ (2 : ℝ) ^ k := mod_cast bandWidth_le_two_pow k
           have hm_le : (2 : ℝ) ^ (10 + 2 * k) ≤ (2 : ℝ) ^ bandMargin k :=
             pow_le_pow_right₀ (by norm_num) (ten_add_two_mul_le_bandMargin k)
           calc (bandWidth k : ℝ) * (72 / (2 : ℝ) ^ bandMargin k)
               ≤ (2 : ℝ) ^ k * (72 / (2 : ℝ) ^ (10 + 2 * k)) := by gcongr
             _ = (72 / 1024) * (1 / 2 : ℝ) ^ k := by
-                have hp : (2 : ℝ) ^ (10 + 2 * k) = 1024 * ((2 : ℝ) ^ k * (2 : ℝ) ^ k) := by
-                  rw [pow_add, two_mul, pow_add]
-                  norm_num
-                rw [hp, one_div_pow]
+                rw [pow_add, two_mul, pow_add, one_div_pow]
                 field_simp
+                ring
       _ = (72 / 1024) * ∑ k ∈ range B, (1 / 2 : ℝ) ^ k := (mul_sum _ _ _).symm
-      _ ≤ (72 / 1024) * (1 / (1 - (1 / 2 : ℝ))) :=
-          mul_le_mul_of_nonneg_left
-            (by simpa only [Finset.range_eq_Ico, pow_zero] using
-              geom_sum_Ico_le_of_lt_one (m := 0) (n := B) (by norm_num) (by norm_num))
-            (by norm_num)
+      _ ≤ (72 / 1024) * 2 := by gcongr; exact sum_geometric_two_le B
       _ = 9 / 64 := by norm_num
   have htwo : ∑ r ∈ range (N + 1), 36 / (2 : ℝ) ^ bandMargin (bandIdx r) +
       ∑ r ∈ range (N + 1), 36 / (2 : ℝ) ^ bandMargin (bandIdx r) =
@@ -679,31 +558,18 @@ theorem mulApprox_isScaledApprox {x y : ℕ → ℤ}
       ∑ p ∈ retainedUnion t K, term p| ≤ 1 / 768 := by
     have h1 := abs_bandFold_sub_sum_le x y t K le_rfl
     rw [Nat.sub_self, bandMargin_zero, ← Finset.range_eq_Ico] at h1
-    have hret_eq : ∑ k ∈ range K, (bandSum x y t k : ℝ) / (2 : ℝ) ^ bandMargin k =
-        ∑ p ∈ retainedUnion t K, term p := by
-      unfold retainedUnion
-      rw [sum_biUnion (bandPairs_pairwiseDisjoint t)]
-      refine sum_congr rfl fun k _ => sum_bandPairs_real x y t k
-    rw [hret_eq] at h1
-    exact h1.trans (sum_floor_err_le K)
+    rw [retainedUnion, sum_biUnion (bandPairs_pairwiseDisjoint t)]
+    simpa only [sum_bandPairs_real] using h1.trans (sum_floor_err_le K)
   have hSq_eq : ∑ p ∈ range (N + 1) ×ˢ range (N + 1), term p =
       (2 : ℝ) ^ t * (streamPrefix x N * streamPrefix y N) := by
-    unfold streamPrefix
-    rw [sum_mul_sum, mul_sum, sum_product]
-    refine sum_congr rfl fun i _ => ?_
-    rw [mul_sum]
-    refine sum_congr rfl fun j _ => ?_
-    dsimp [term]
-    rw [pow_add]
-    field_simp
+    simp only [streamPrefix, sum_mul, mul_sum, sum_product, term, pow_add, div_mul_div_comm]
+    exact sum_comm
   have homit := sum_omitted_le hx hy t N (by dsimp [N, K]; omega)
   rw [hSq_eq] at homit
   have hpre_err : |(2 : ℝ) ^ t * (streamPrefix x N * streamPrefix y N) -
       (2 : ℝ) ^ t * (streamVal x * streamVal y)| ≤ 144 / (2 : ℝ) ^ 20 := by
-    have hx_pre : |streamPrefix x N| ≤ 12 := by
-      have h := abs_streamPrefix_le hx N
-      have hpos : (0 : ℝ) ≤ 6 / (2 : ℝ) ^ N := by positivity
-      linarith
+    have hx_pre : |streamPrefix x N| ≤ 12 :=
+      (abs_streamPrefix_le hx N).trans (sub_le_self 12 (by positivity))
     have hy_val : |streamVal y| ≤ 12 := abs_streamVal_le_twelve hy
     have hx_tail := abs_streamVal_sub_streamPrefix_le hx N
     have hy_tail := abs_streamVal_sub_streamPrefix_le hy N
@@ -714,36 +580,28 @@ theorem mulApprox_isScaledApprox {x y : ℕ → ℤ}
     have hprod_err : |streamPrefix x N * streamPrefix y N - streamVal x * streamVal y| ≤
         144 / (2 : ℝ) ^ N := by
       rw [hdecomp]
-      calc |streamPrefix x N * (streamPrefix y N - streamVal y) +
-            (streamPrefix x N - streamVal x) * streamVal y|
-          ≤ |streamPrefix x N * (streamPrefix y N - streamVal y)| +
-              |(streamPrefix x N - streamVal x) * streamVal y| := abs_add_le _ _
-        _ = |streamPrefix x N| * |streamPrefix y N - streamVal y| +
-              |streamPrefix x N - streamVal x| * |streamVal y| := by rw [abs_mul, abs_mul]
+      calc _ ≤ |streamPrefix x N| * |streamPrefix y N - streamVal y| +
+              |streamPrefix x N - streamVal x| * |streamVal y| :=
+            (abs_add_le _ _).trans_eq (by rw [abs_mul, abs_mul])
         _ ≤ 12 * (6 / (2 : ℝ) ^ N) + (6 / (2 : ℝ) ^ N) * 12 := by gcongr
         _ = 144 / (2 : ℝ) ^ N := by ring
-    rw [← mul_sub, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ t)]
-    have hN_ge : t + 20 ≤ N := by omega
-    have hpow_ge : (2 : ℝ) ^ t * (2 : ℝ) ^ 20 ≤ (2 : ℝ) ^ N := by
-      rw [← pow_add]
-      exact pow_le_pow_right₀ (by norm_num) hN_ge
+    rw [← mul_sub, abs_mul, abs_of_pos (pow_pos zero_lt_two t)]
+    have hpow_ge : (2 : ℝ) ^ t * (2 : ℝ) ^ 20 ≤ (2 : ℝ) ^ N :=
+      pow_add (2 : ℝ) t 20 ▸ pow_le_pow_right₀ (by norm_num) (by omega)
     calc (2 : ℝ) ^ t * |streamPrefix x N * streamPrefix y N - streamVal x * streamVal y|
         ≤ (2 : ℝ) ^ t * (144 / (2 : ℝ) ^ N) :=
           mul_le_mul_of_nonneg_left hprod_err (by positivity)
       _ ≤ (2 : ℝ) ^ t * (144 / ((2 : ℝ) ^ t * (2 : ℝ) ^ 20)) := by gcongr
       _ = 144 / (2 : ℝ) ^ 20 := by field_simp
-  have htri1 := abs_sub_le ((bandFold x y t K / (2 : ℤ) ^ mulBaseMargin : ℤ) : ℝ)
-    ((bandFold x y t K : ℝ) / (2 : ℝ) ^ mulBaseMargin)
-    (∑ p ∈ retainedUnion t K, term p)
-  have htri2 := abs_sub_le ((bandFold x y t K / (2 : ℤ) ^ mulBaseMargin : ℤ) : ℝ)
-    (∑ p ∈ retainedUnion t K, term p)
-    ((2 : ℝ) ^ t * (streamPrefix x N * streamPrefix y N))
-  have htri3 := abs_sub_le ((bandFold x y t K / (2 : ℤ) ^ mulBaseMargin : ℤ) : ℝ)
-    ((2 : ℝ) ^ t * (streamPrefix x N * streamPrefix y N))
-    ((2 : ℝ) ^ t * (streamVal x * streamVal y))
-  rw [abs_sub_comm (∑ p ∈ retainedUnion t K, term p)] at htri2
+  rw [abs_sub_comm] at homit
   have hnum : (1 : ℝ) + 1 / 768 + 9 / 64 + 144 / (2 : ℝ) ^ 20 < 2 := by norm_num
-  linarith
+  linarith [abs_sub_le ((bandFold x y t K / (2 : ℤ) ^ mulBaseMargin : ℤ) : ℝ)
+      ((bandFold x y t K : ℝ) / (2 : ℝ) ^ mulBaseMargin) (∑ p ∈ retainedUnion t K, term p),
+    abs_sub_le ((bandFold x y t K / (2 : ℤ) ^ mulBaseMargin : ℤ) : ℝ)
+      (∑ p ∈ retainedUnion t K, term p) ((2 : ℝ) ^ t * (streamPrefix x N * streamPrefix y N)),
+    abs_sub_le ((bandFold x y t K / (2 : ℤ) ^ mulBaseMargin : ℤ) : ℝ)
+      ((2 : ℝ) ^ t * (streamPrefix x N * streamPrefix y N))
+      ((2 : ℝ) ^ t * (streamVal x * streamVal y))]
 
 end ScaledAccuracy
 

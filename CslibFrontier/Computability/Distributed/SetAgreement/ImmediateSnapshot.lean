@@ -360,13 +360,9 @@ theorem mem_orderedPartitionsAux {k : ℕ} {rem : Finset V} {bs : List (Finset V
           have hdisjB : Disjoint B' (unionBlocks tl') := by
             rw [hu]
             exact disjoint_sdiff_self_right
-          refine ⟨Nat.succ_le_succ hlen, ?_, ?_, ?_⟩
-          · intro C hC
-            rcases List.mem_cons.mp hC with rfl | hC
-            · exact hB'ne
-            · exact hne C hC
-          · exact List.pairwise_cons.mpr ⟨disjoint_unionBlocks_right.mp hdisjB, hdisj⟩
-          · rw [unionBlocks_cons, hu, union_sdiff_of_subset hB'sub]
+          exact ⟨Nat.succ_le_succ hlen, List.forall_mem_cons.mpr ⟨hB'ne, hne⟩,
+            List.pairwise_cons.mpr ⟨disjoint_unionBlocks_right.mp hdisjB, hdisj⟩,
+            by rw [unionBlocks_cons, hu, union_sdiff_of_subset hB'sub]⟩
       · rintro ⟨hlen, hne, hdisj, hu⟩
         right
         rw [List.pairwise_cons] at hdisj
@@ -376,18 +372,9 @@ theorem mem_orderedPartitionsAux {k : ℕ} {rem : Finset V} {bs : List (Finset V
           exact subset_union_left
         have hdisjB : Disjoint B (unionBlocks tl) := disjoint_unionBlocks_right.mpr hdisj.1
         have hu_tl : unionBlocks tl = rem \ B := by
-          ext x
-          have hx := Finset.ext_iff.mp hu x
-          simp only [unionBlocks_cons, mem_union] at hx
-          simp only [mem_sdiff]
-          constructor
-          · intro hxtl
-            exact ⟨hx.mp (Or.inr hxtl), Finset.disjoint_right.mp hdisjB hxtl⟩
-          · rintro ⟨hxrem, hnotB⟩
-            exact (hx.mpr hxrem).resolve_left hnotB
-        refine ⟨B, ⟨hBsub, hBne⟩, tl, ih.mpr ⟨Nat.le_of_succ_le_succ hlen, ?_, hdisj.2, hu_tl⟩, rfl⟩
-        intro C hC
-        exact hne C (List.mem_cons_of_mem B hC)
+          rw [← hu, unionBlocks_cons, union_sdiff_cancel_left hdisjB]
+        exact ⟨B, ⟨hBsub, hBne⟩, tl, ih.mpr ⟨Nat.le_of_succ_le_succ hlen,
+          (List.forall_mem_cons.mp hne).2, hdisj.2, hu_tl⟩, rfl⟩
 
 /-- Computable `Finset` of all one-shot `IS` schedules on `U`. -/
 @[expose]
@@ -544,6 +531,9 @@ private theorem minBlock_spec {U : Finset V} (hne : U.Nonempty) {S : V → Finse
         rw [hcMin]
         exact (U.image fun p => #(S p)).min'_le #(S q) (mem_image_of_mem _ hqU)
       exact (eq_of_subset_of_card_le h hle).symm.subset
+  have hSp : ∀ p ∈ S p₀, S p = S p₀ := fun p hp =>
+    Subset.antisymm (hS.immediacy p (hS.subset p₀ hp₀U hp) p₀ hp₀U hp)
+      (hp₀_sub p (hS.subset p₀ hp₀U hp))
   have hB_eq : minBlock U S = S p₀ := by
     ext p
     simp only [minBlock, mem_filter]
@@ -551,22 +541,9 @@ private theorem minBlock_spec {U : Finset V} (hne : U.Nonempty) {S : V → Finse
     · rintro ⟨hpU, hpMin⟩
       exact Subset.antisymm (hpMin p₀ hp₀U) (hp₀_sub p hpU) ▸ hS.self_mem p hpU
     · intro hp
-      have hpU : p ∈ U := hS.subset p₀ hp₀U hp
-      have hSp : S p = S p₀ :=
-        Subset.antisymm (hS.immediacy p hpU p₀ hp₀U hp) (hp₀_sub p hpU)
-      exact ⟨hpU, fun q hqU => hSp ▸ hp₀_sub q hqU⟩
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [hB_eq]
-    exact ⟨p₀, hS.self_mem p₀ hp₀U⟩
-  · rw [hB_eq]
-    exact hS.subset p₀ hp₀U
-  · intro p hp
-    rw [hB_eq] at hp ⊢
-    have hpU : p ∈ U := hS.subset p₀ hp₀U hp
-    exact Subset.antisymm (hS.immediacy p hpU p₀ hp₀U hp) (hp₀_sub p hpU)
-  · intro q hqU
-    rw [hB_eq]
-    exact hp₀_sub q hqU
+      exact ⟨hS.subset p₀ hp₀U hp, fun q hqU => hSp p hp ▸ hp₀_sub q hqU⟩
+  rw [hB_eq]
+  exact ⟨⟨p₀, hS.self_mem p₀ hp₀U⟩, hS.subset p₀ hp₀U, hSp, hp₀_sub⟩
 
 private theorem isImmediateSnapshotOn_sdiff_minBlock {U : Finset V}
     {S : V → Finset V} (hS : IsImmediateSnapshotOn U S) :
@@ -631,28 +608,19 @@ private theorem reconstructBlocksAux_spec :
       have hdisjB : Disjoint B (unionBlocks (reconstructBlocksAux fuel (U \ B) S' hS')) := by
         rw [hu']
         exact disjoint_sdiff_self_right
-      refine ⟨?_, ?_, ?_, ?_⟩
-      · intro C hC
-        rcases List.mem_cons.mp hC with rfl | hC
-        · exact hBne
-        · exact hne' C hC
-      · exact List.pairwise_cons.mpr ⟨disjoint_unionBlocks_right.mp hdisjB, hdisj'⟩
-      · rw [unionBlocks_cons, hu', union_sdiff_of_subset hBsub]
-      · funext p
-        by_cases hpB : p ∈ B
-        · rw [blocksSnapshot_cons_of_mem hpB, hBeq p hpB]
-        · by_cases hpU : p ∈ U
-          · have hpU' : p ∈ U \ B := mem_sdiff.mpr ⟨hpU, hpB⟩
-            have hp_union : p ∈ unionBlocks (reconstructBlocksAux fuel (U \ B) S' hS') := by
-              rw [hu']
-              exact hpU'
-            rw [blocksSnapshot_cons_of_notMem hpB hp_union, hsnap']
-            simp only [S', hpU', ↓reduceIte]
-            exact union_sdiff_of_subset (hBmin p hpU)
-          · have hpnot : p ∉ unionBlocks (B :: reconstructBlocksAux fuel (U \ B) S' hS') := by
-              rw [unionBlocks_cons, hu', union_sdiff_of_subset hBsub]
-              exact hpU
-            rw [blocksSnapshot_of_notMem hpnot, hS.outside p hpU]
+      have hu : unionBlocks (B :: reconstructBlocksAux fuel (U \ B) S' hS') = U := by
+        rw [unionBlocks_cons, hu', union_sdiff_of_subset hBsub]
+      refine ⟨List.forall_mem_cons.mpr ⟨hBne, hne'⟩,
+        List.pairwise_cons.mpr ⟨disjoint_unionBlocks_right.mp hdisjB, hdisj'⟩, hu,
+        funext fun p => ?_⟩
+      by_cases hpB : p ∈ B
+      · rw [blocksSnapshot_cons_of_mem hpB, hBeq p hpB]
+      · by_cases hpU : p ∈ U
+        · have hpU' : p ∈ U \ B := mem_sdiff.mpr ⟨hpU, hpB⟩
+          rw [blocksSnapshot_cons_of_notMem hpB (by rwa [hu']), hsnap']
+          simp only [S', hpU', ↓reduceIte]
+          exact union_sdiff_of_subset (hBmin p hpU)
+        · rw [blocksSnapshot_of_notMem (by rwa [hu]), hS.outside p hpU]
     · rw [not_nonempty_iff_eq_empty] at hne
       subst hne
       refine ⟨by simp, List.Pairwise.nil, rfl, ?_⟩
@@ -680,6 +648,14 @@ theorem ISSchedule.snapshot_ofImmediateSnapshotOn {U : Finset V} (S : V → Fins
     (ISSchedule.ofImmediateSnapshotOn S hS).snapshot = S := by
   obtain ⟨-, -, -, hsnap⟩ := reconstructBlocksAux_spec #U U S hS le_rfl
   exact hsnap
+
+/-- The first block lies in the snapshot of every process of the block list. -/
+private theorem subset_blocksSnapshot_cons {B : Finset V} {bs : List (Finset V)} {p : V}
+    (hp : p ∈ unionBlocks (B :: bs)) : B ⊆ blocksSnapshot (B :: bs) p := by
+  by_cases hpB : p ∈ B
+  · rw [blocksSnapshot_cons_of_mem hpB]
+  · rw [blocksSnapshot_cons_of_notMem hpB ((mem_union.mp hp).resolve_left hpB)]
+    exact subset_union_left
 
 /-- Two one-shot `IS` schedules on `U` with identical snapshot maps are equal. -/
 theorem ISSchedule.snapshot_injective {U : Finset V} :
@@ -712,74 +688,33 @@ theorem ISSchedule.snapshot_injective {U : Finset V} :
     | cons B₂ tl₂ =>
       obtain ⟨p₁, hp₁⟩ := hne₁ B₁ List.mem_cons_self
       obtain ⟨p₂, hp₂⟩ := hne₂ B₂ List.mem_cons_self
-      have hp₁_u₂ : p₁ ∈ unionBlocks (B₂ :: tl₂) :=
-        hu ▸ mem_union_left _ hp₁
-      have hp₂_u₁ : p₂ ∈ unionBlocks (B₁ :: tl₁) :=
-        hu.symm ▸ mem_union_left _ hp₂
+      have hp₁_u₂ : p₁ ∈ unionBlocks (B₂ :: tl₂) := hu ▸ mem_union_left _ hp₁
+      have hp₂_u₁ : p₂ ∈ unionBlocks (B₁ :: tl₁) := hu.symm ▸ mem_union_left _ hp₂
       have hB₁_sub : B₁ ⊆ B₂ := by
-        have h₂ := congrFun hsnap p₂
-        rw [blocksSnapshot_cons_of_mem hp₂] at h₂
-        by_cases hp₂B₁ : p₂ ∈ B₁
-        · rw [blocksSnapshot_cons_of_mem hp₂B₁] at h₂
-          exact h₂.subset
-        · have hp₂_tl₁ : p₂ ∈ unionBlocks tl₁ := by
-            simp only [unionBlocks_cons, mem_union, hp₂B₁, false_or] at hp₂_u₁
-            exact hp₂_u₁
-          rw [blocksSnapshot_cons_of_notMem hp₂B₁ hp₂_tl₁] at h₂
-          exact h₂ ▸ subset_union_left
+        have h := subset_blocksSnapshot_cons hp₂_u₁
+        rwa [congrFun hsnap p₂, blocksSnapshot_cons_of_mem hp₂] at h
       have hB₂_sub : B₂ ⊆ B₁ := by
-        have h₁ := congrFun hsnap p₁
-        rw [blocksSnapshot_cons_of_mem hp₁] at h₁
-        by_cases hp₁B₂ : p₁ ∈ B₂
-        · rw [blocksSnapshot_cons_of_mem hp₁B₂] at h₁
-          exact h₁.symm.subset
-        · have hp₁_tl₂ : p₁ ∈ unionBlocks tl₂ := by
-            simp only [unionBlocks_cons, mem_union, hp₁B₂, false_or] at hp₁_u₂
-            exact hp₁_u₂
-          rw [blocksSnapshot_cons_of_notMem hp₁B₂ hp₁_tl₂] at h₁
-          exact h₁ ▸ subset_union_left
-      have hB : B₁ = B₂ := Subset.antisymm hB₁_sub hB₂_sub
-      subst hB
+        have h := subset_blocksSnapshot_cons hp₁_u₂
+        rwa [← congrFun hsnap p₁, blocksSnapshot_cons_of_mem hp₁] at h
+      obtain rfl : B₁ = B₂ := Subset.antisymm hB₁_sub hB₂_sub
       rw [List.pairwise_cons] at hdisj₁ hdisj₂
-      have hdisj_tl₁ : Disjoint B₁ (unionBlocks tl₁) := disjoint_unionBlocks_right.mpr hdisj₁.1
-      have hdisj_tl₂ : Disjoint B₁ (unionBlocks tl₂) := disjoint_unionBlocks_right.mpr hdisj₂.1
+      have hdisj_tl₁ := disjoint_unionBlocks_right.mpr hdisj₁.1
+      have hdisj_tl₂ := disjoint_unionBlocks_right.mpr hdisj₂.1
       have hu_tl : unionBlocks tl₁ = unionBlocks tl₂ := by
-        ext x
-        have hx := Finset.ext_iff.mp hu x
-        simp only [unionBlocks_cons, mem_union] at hx
-        constructor
-        · intro hx₁
-          have hnotB₁ : x ∉ B₁ := Finset.disjoint_right.mp hdisj_tl₁ hx₁
-          exact (hx.mp (Or.inr hx₁)).resolve_left hnotB₁
-        · intro hx₂
-          have hnotB₁ : x ∉ B₁ := Finset.disjoint_right.mp hdisj_tl₂ hx₂
-          exact (hx.mpr (Or.inr hx₂)).resolve_left hnotB₁
+        rw [← union_sdiff_cancel_left hdisj_tl₁, ← union_sdiff_cancel_left hdisj_tl₂]
+        exact congrArg (· \ B₁) hu
       congr 1
       refine ih tl₂ (fun C hC => hne₁ C (List.mem_cons_of_mem B₁ hC)) hdisj₁.2
-        (fun C hC => hne₂ C (List.mem_cons_of_mem B₁ hC)) hdisj₂.2 hu_tl ?_
-      funext p
+        (fun C hC => hne₂ C (List.mem_cons_of_mem B₁ hC)) hdisj₂.2 hu_tl (funext fun p => ?_)
       by_cases hp_tl₁ : p ∈ unionBlocks tl₁
-      · have hp_tl₂ : p ∈ unionBlocks tl₂ := hu_tl ▸ hp_tl₁
-        have hpnotB₁ : p ∉ B₁ := Finset.disjoint_right.mp hdisj_tl₁ hp_tl₁
+      · have hpB : p ∉ B₁ := disjoint_right.mp hdisj_tl₁ hp_tl₁
         have hp_eq := congrFun hsnap p
-        rw [blocksSnapshot_cons_of_notMem hpnotB₁ hp_tl₁,
-          blocksSnapshot_cons_of_notMem hpnotB₁ hp_tl₂] at hp_eq
-        have hd₁ : Disjoint B₁ (blocksSnapshot tl₁ p) :=
-          Disjoint.mono_right (blocksSnapshot_subset_unionBlocks tl₁ p) hdisj_tl₁
-        have hd₂ : Disjoint B₁ (blocksSnapshot tl₂ p) :=
-          Disjoint.mono_right (blocksSnapshot_subset_unionBlocks tl₂ p) hdisj_tl₂
-        ext x
-        constructor
-        · intro hx
-          have hnotB₁ : x ∉ B₁ := Finset.disjoint_right.mp hd₁ hx
-          have : x ∈ B₁ ∪ blocksSnapshot tl₂ p := hp_eq ▸ mem_union_right B₁ hx
-          exact (mem_union.mp this).resolve_left hnotB₁
-        · intro hx
-          have hnotB₁ : x ∉ B₁ := Finset.disjoint_right.mp hd₂ hx
-          have : x ∈ B₁ ∪ blocksSnapshot tl₁ p := hp_eq.symm ▸ mem_union_right B₁ hx
-          exact (mem_union.mp this).resolve_left hnotB₁
-      · have hp_tl₂ : p ∉ unionBlocks tl₂ := hu_tl ▸ hp_tl₁
-        rw [blocksSnapshot_of_notMem hp_tl₁, blocksSnapshot_of_notMem hp_tl₂]
+        rw [blocksSnapshot_cons_of_notMem hpB hp_tl₁,
+          blocksSnapshot_cons_of_notMem hpB (hu_tl ▸ hp_tl₁)] at hp_eq
+        rw [← union_sdiff_cancel_left
+            (hdisj_tl₁.mono_right (blocksSnapshot_subset_unionBlocks tl₁ p)), hp_eq,
+          union_sdiff_cancel_left (hdisj_tl₂.mono_right (blocksSnapshot_subset_unionBlocks tl₂ p))]
+      · rw [blocksSnapshot_of_notMem hp_tl₁, blocksSnapshot_of_notMem (hu_tl ▸ hp_tl₁)]
 
 @[simp]
 theorem ISSchedule.ofImmediateSnapshotOn_snapshot {U : Finset V} (π : ISSchedule U) :

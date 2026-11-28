@@ -130,11 +130,10 @@ variable {far : X → X → Prop} [DecidableRel far]
 
 /-- **Soundness**: every answer of the query is a point of `P` that is not far from `q`. -/
 theorem query_eq_some {g : ι → X → Y} {L : ℕ} {s : Fin L → ι} {T : ℕ} {P : List X} {q x : X}
-    (h : query g far s T P q = some x) : x ∈ P ∧ ¬ far x q := by
-  have hfar := List.find?_some h
-  have hmem := List.mem_of_find?_eq_some h
-  simp only [Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_false_iff_not] at hfar
-  exact ⟨(mem_candidates.1 (List.mem_of_mem_take hmem)).1, hfar⟩
+    (h : query g far s T P q = some x) : x ∈ P ∧ ¬ far x q :=
+  ⟨(mem_candidates.1 (List.mem_of_mem_take (List.mem_of_find?_eq_some h))).1, by
+    simpa only [Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_false_iff_not] using
+      List.find?_some h⟩
 
 /-- The far candidates, counted with multiplicity, are the far points of `P` colliding with `q`,
 summed over the tables. -/
@@ -155,14 +154,12 @@ theorem le_countP_candidates {g : ι → X → Y} {L : ℕ} {s : Fin L → ι} {
     (h : query g far s T P q = none) :
     T ≤ (candidates g s P q).countP fun y => decide (far y q) := by
   set C := candidates g s P q
-  have hall : ∀ y ∈ C.take T, far y q := by
-    intro y hy
-    have := List.find?_eq_none.1 h y hy
-    simpa only [Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_false_iff_not, not_not] using this
-  have hxC : x ∈ C := mem_candidates.2 ⟨hx, hj⟩
-  have hT : T ≤ C.length := by
-    by_contra hlt
-    exact hnf (hall x (by rw [List.take_of_length_le (by omega)]; exact hxC))
+  have hall (y) (hy : y ∈ C.take T) : far y q := by
+    simpa only [Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_false_iff_not, not_not] using
+      List.find?_eq_none.1 h y hy
+  have hT : T ≤ C.length := not_lt.mp fun hlt => hnf <| hall x <| by
+    rw [List.take_of_length_le hlt.le]
+    exact mem_candidates.2 ⟨hx, hj⟩
   calc T = (C.take T).length := by rw [List.length_take]; omega
     _ = (C.take T).countP fun y => decide (far y q) :=
         (List.countP_eq_length.2 fun y hy => decide_eq_true (hall y hy)).symm
@@ -202,23 +199,17 @@ theorem tsum_iid_mul_countP_candidates_le [DecidableEq Y] {far : X → X → Pro
   calc ∑ j : Fin L, ∑' s, PMF.iid ν L s *
         ((P.countP fun x => decide (g (s j) x = g (s j) q ∧ far x q) : ℕ) : ℝ≥0∞)
       ≤ ∑ _j : Fin L, (P.length * ENNReal.ofReal P₂) := by
-        refine Finset.sum_le_sum fun j _ => ?_
-        refine PMF.tsum_mul_countP_le (PMF.iid ν L)
-          (fun s x => g (s j) x = g (s j) q ∧ far x q) _ P ?_
-        intro x hx
+        refine Finset.sum_le_sum fun j _ => PMF.tsum_mul_countP_le (PMF.iid ν L)
+          (fun s x => g (s j) x = g (s j) q ∧ far x q) _ P fun x hx => ?_
         by_cases hxf : far x q
         · have hset : {s : Fin L → ι | g (s j) x = g (s j) q ∧ far x q} =
               {s | s j ∈ {i | g i x = g i q}} := by
-            ext s
+            ext
             simp only [Set.mem_ofPred_eq, hxf, and_true]
-          rw [hset, PMF.toOuterMeasure_iid_eval]
-          rw [← ENNReal.ofReal_toReal (PMF.toOuterMeasure_ne_top _ _)]
+          rw [hset, PMF.toOuterMeasure_iid_eval,
+            ← ENNReal.ofReal_toReal (PMF.toOuterMeasure_ne_top _ _)]
           exact ENNReal.ofReal_le_ofReal (hfar x hx hxf)
-        · have hset : {s : Fin L → ι | g (s j) x = g (s j) q ∧ far x q} = ∅ := by
-            ext s
-            simp only [Set.mem_ofPred_eq, hxf, and_false, Set.mem_empty_iff_false]
-          rw [hset, MeasureTheory.measure_empty]
-          exact bot_le
+        · simp only [hxf, and_false, Set.ofPred_false, MeasureTheory.measure_empty, zero_le]
     _ = L * (P.length * ENNReal.ofReal P₂) := by
         rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
 
@@ -236,15 +227,10 @@ theorem toOuterMeasure_query_eq_none_le [DecidableEq Y] {far : X → X → Prop}
   set A : Set (Fin L → ι) := {s | ∀ j, s j ∈ {i | g i x₀ = g i q}ᶜ}
   set B : Set (Fin L → ι) :=
     {s | (T : ℝ≥0∞) ≤ (((candidates g s P q).countP fun y => decide (far y q) : ℕ) : ℝ≥0∞)}
-  have hsub : {s | query g far s T P q = none} ⊆ A ∪ B := by
-    intro s hs
+  have hsub : {s | query g far s T P q = none} ⊆ A ∪ B := fun s hs => by
     by_cases hj : ∃ j, g (s j) x₀ = g (s j) q
-    · exact Or.inr (show (T : ℝ≥0∞) ≤
-        (((candidates g s P q).countP fun y => decide (far y q) : ℕ) : ℝ≥0∞) from
-        Nat.cast_le.2 (le_countP_candidates hx₀ hnf hj hs))
+    · exact Or.inr (show (T : ℝ≥0∞) ≤ _ from Nat.cast_le.2 (le_countP_candidates hx₀ hnf hj hs))
     · exact Or.inl fun j hj' => hj ⟨j, hj'⟩
-  have hA : μ.toOuterMeasure A = ν.toOuterMeasure {i | g i x₀ = g i q}ᶜ ^ L :=
-    PMF.toOuterMeasure_iid_forall ν _ L
   have hB : μ.toOuterMeasure B ≤ L * (P.length * ENNReal.ofReal P₂) / T := by
     rw [ENNReal.le_div_iff_mul_le (Or.inl (by exact_mod_cast hT.ne'))
       (Or.inl (ENNReal.natCast_ne_top T)), mul_comm]
@@ -260,8 +246,9 @@ theorem toOuterMeasure_query_eq_none_le [DecidableEq Y] {far : X → X → Prop}
       (by exact_mod_cast hT.ne')
   have hle : μ.toOuterMeasure {s | query g far s T P q = none} ≤
       ν.toOuterMeasure {i | g i x₀ = g i q}ᶜ ^ L + L * (P.length * ENNReal.ofReal P₂) / T :=
-    (MeasureTheory.measure_mono hsub).trans
-      ((MeasureTheory.measure_union_le A B).trans (by rw [hA]; exact add_le_add le_rfl hB))
+    (MeasureTheory.measure_mono hsub).trans ((MeasureTheory.measure_union_le A B).trans (by
+      rw [PMF.toOuterMeasure_iid_forall]
+      exact add_le_add le_rfl hB))
   ennreal_to_real at hle
   refine hle.trans ?_
   rw [hcompl, ← mul_assoc]
@@ -317,13 +304,10 @@ theorem mul_pow_numHashes_le {n : ℕ} (hn : 0 < n) {p₂ : ℝ} (hp₂ : 0 < p�
     n * p₂ ^ numHashes n p₂ ≤ 1 := by
   set k := numHashes n p₂
   have ha : 0 < Real.log (1 / p₂) := Real.log_pos (one_lt_one_div hp₂ hp₂₁)
-  have hk : Real.log n / Real.log (1 / p₂) ≤ k := Nat.le_ceil _
   have hlog : Real.log n ≤ Real.log ((1 / p₂) ^ k) := by
-    rw [Real.log_pow]
-    rwa [div_le_iff₀ ha] at hk
-  have hn' : (0 : ℝ) < n := by exact_mod_cast hn
-  have hle : (n : ℝ) ≤ (1 / p₂) ^ k :=
-    (Real.log_le_log_iff hn' (pow_pos (one_div_pos.2 hp₂) k)).1 hlog
+    rw [Real.log_pow, ← div_le_iff₀ ha]
+    exact Nat.le_ceil _
+  have hle := (Real.log_le_log_iff (Nat.cast_pos.2 hn) (pow_pos (one_div_pos.2 hp₂) k)).1 hlog
   calc (n : ℝ) * p₂ ^ k ≤ (1 / p₂) ^ k * p₂ ^ k :=
         mul_le_mul_of_nonneg_right hle (pow_nonneg hp₂.le k)
     _ = 1 := by rw [← mul_pow, one_div, inv_mul_cancel₀ hp₂.ne', one_pow]
@@ -337,14 +321,14 @@ theorem one_le_numTables_mul_pow {n : ℕ} (hn : 0 < n) {p₁ p₂ : ℝ} (hp₂
   have hp₁0 : 0 < p₁ := hp₂.trans hp₂₁
   have ha : 0 < Real.log (1 / p₂) := Real.log_pos (one_lt_one_div hp₂ (hp₂₁.trans_le hp₁))
   have hb : 0 ≤ Real.log (1 / p₁) := Real.log_nonneg (one_le_one_div hp₁0 hp₁)
-  have hn' : (0 : ℝ) < n := by exact_mod_cast hn
+  have hn' : (0 : ℝ) < n := Nat.cast_pos.2 hn
   have hk : (k : ℝ) < Real.log n / Real.log (1 / p₂) + 1 :=
     Nat.ceil_lt_add_one (div_nonneg (Real.log_natCast_nonneg n) ha.le)
   -- `(k - 1) log (1 / p₁) ≤ ρ log n`
-  have hkb : ((k : ℝ) - 1) * Real.log (1 / p₁) ≤ rho p₁ p₂ * Real.log n := by
-    have h1 : (k : ℝ) - 1 ≤ Real.log n / Real.log (1 / p₂) := by linarith
-    calc ((k : ℝ) - 1) * Real.log (1 / p₁) ≤ Real.log n / Real.log (1 / p₂) * Real.log (1 / p₁) :=
-          mul_le_mul_of_nonneg_right h1 hb
+  have hkb : ((k : ℝ) - 1) * Real.log (1 / p₁) ≤ rho p₁ p₂ * Real.log n :=
+    calc ((k : ℝ) - 1) * Real.log (1 / p₁)
+        ≤ Real.log n / Real.log (1 / p₂) * Real.log (1 / p₁) :=
+          mul_le_mul_of_nonneg_right (by linarith) hb
       _ = rho p₁ p₂ * Real.log n := by rw [rho]; ring
   have hpos : 0 < (n : ℝ) ^ rho p₁ p₂ / p₁ * p₁ ^ k :=
     mul_pos (div_pos (Real.rpow_pos_of_pos hn' _) hp₁0) (pow_pos hp₁0 k)
@@ -383,17 +367,16 @@ theorem numTables_failure_bound_le {n : ℕ} (hn : 0 < n) {p₁ p₂ : ℝ} (hp�
   have hnp : (n : ℝ) * p₂ ^ k ≤ 1 := mul_pow_numHashes_le hn hp₂ (hp₂₁.trans_le hp₁)
   have hpk0 : 0 ≤ p₁ ^ k := pow_nonneg hp₁0.le k
   have hpk1 : p₁ ^ k ≤ 1 := pow_le_one₀ hp₁0.le hp₁
-  have hL : 0 < L := by
-    by_contra h0
-    rw [show L = 0 by omega, Nat.cast_zero, zero_mul] at hLp
+  have hL : 0 < L := Nat.pos_of_ne_zero fun h0 => by
+    rw [h0, Nat.cast_zero, zero_mul] at hLp
     linarith
   refine ⟨hL, add_le_add ?_ ?_⟩
-  · calc (1 - p₁ ^ k) ^ L ≤ Real.exp (-p₁ ^ k) ^ L := by
-          refine pow_le_pow_left₀ (by linarith) ?_ L
-          linarith [Real.add_one_le_exp (-p₁ ^ k)]
-      _ = Real.exp (-(L * p₁ ^ k)) := by rw [← Real.exp_natCast_mul]; ring_nf
+  · calc (1 - p₁ ^ k) ^ L
+        ≤ Real.exp (-p₁ ^ k) ^ L := pow_le_pow_left₀ (sub_nonneg.2 hpk1)
+          (by linarith [Real.add_one_le_exp (-p₁ ^ k)]) L
+      _ = Real.exp (-(L * p₁ ^ k)) := by rw [← Real.exp_nat_mul]; ring_nf
       _ ≤ Real.exp (-1) := Real.exp_le_exp.2 (by linarith)
-  · have hL' : (0 : ℝ) < L := by exact_mod_cast hL
+  · have hL' : (0 : ℝ) < L := Nat.cast_pos.2 hL
     rw [div_le_iff₀ (by positivity)]
     nlinarith
 

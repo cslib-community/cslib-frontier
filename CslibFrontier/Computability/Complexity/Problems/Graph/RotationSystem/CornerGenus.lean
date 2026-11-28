@@ -28,58 +28,45 @@ open RotationCertificate
 
 /-- Every appended edge endpoint is declared if all old endpoints were declared. -/
 theorem cornerGraph_endpoints_declared {G : Graph} (h k : Dart G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) :
-    ∀ v ∈ (cornerGraph h k).incidenceVertices, v ∈ (cornerGraph h k).vertices := by
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) :
+    ∀ v ∈ (cornerGraph h k).incidenceVertices, v ∈ (cornerGraph h k).1 := by
   intro v hv
-  have he : (cornerGraph h k).incidenceVertices = G.incidenceVertices ++
-      [h.vertex, k.vertex] := by simp [cornerGraph, Graph.incidenceVertices]
-  rw [he, List.mem_append] at hv
-  rcases hv with hv | hv
+  have hv : v ∈ G.incidenceVertices ∨ v = h.vertex ∨ v = k.vertex := by
+    simpa [cornerGraph, Graph.incidenceVertices] using hv
+  rcases hv with hv | rfl | rfl
   · exact hG v hv
-  · simp only [List.mem_cons, List.not_mem_nil, or_false] at hv
-    rcases hv with rfl | rfl
-    · exact vertex_mem hG h
-    · exact vertex_mem hG k
+  · exact vertex_mem hG h
+  · exact vertex_mem hG k
 
 /-- Old edge paths remain edge paths after appending the edge. -/
 theorem sameComponent_cornerGraph_of_old {G : Graph} (h k : Dart G) {u v : ℕ}
     (hc : SameComponent G u v) : SameComponent (cornerGraph h k) u v := by
   obtain ⟨hu, hv, hp⟩ := hc
-  refine ⟨hu, hv, hp.mono ?_⟩
-  intro x y hxy
-  change G.toSimpleGraph.Adj x.val y.val at hxy
-  change (cornerGraph h k).toSimpleGraph.Adj x.val y.val
-  rw [Graph.toSimpleGraph_adj] at hxy ⊢
-  exact ⟨hxy.1, hxy.2.imp (List.mem_append_left _) (List.mem_append_left _)⟩
+  refine ⟨hu, hv, hp.mono fun x y hxy => ?_⟩
+  rw [show G.induced.Adj x y ↔ G.toSimpleGraph.Adj x.val y.val from Iff.rfl,
+    Graph.toSimpleGraph_adj] at hxy
+  exact (Graph.toSimpleGraph_adj).mpr
+    ⟨hxy.1, hxy.2.imp (List.mem_append_left _) (List.mem_append_left _)⟩
 
 /-- Insertion inside one old component preserves precisely all old connected components. -/
 theorem sameComponent_cornerGraph_iff {G : Graph} (h k : Dart G)
     (hc : SameComponent G h.vertex k.vertex) (u v : ℕ) :
     SameComponent (cornerGraph h k) u v ↔ SameComponent G u v := by
-  constructor
-  · obtain ⟨hh, hk, hp⟩ := hc
-    have hedge {a b : {w // w ∈ G.vertices}}
-        (hab : (cornerGraph h k).induced.Adj a b) : G.induced.Reachable a b := by
-      change (cornerGraph h k).toSimpleGraph.Adj a.val b.val at hab
-      rw [Graph.toSimpleGraph_adj] at hab
-      rcases hab with ⟨hne, he⟩
-      simp only [cornerGraph, List.mem_append, List.mem_singleton] at he
-      rcases he with (he | he) | (he | he)
-      · exact SimpleGraph.Adj.reachable ((Graph.toSimpleGraph_adj).mpr ⟨hne, Or.inl he⟩)
-      · rcases Prod.mk.inj he with ⟨ha, hb⟩
-        convert hp using 1 <;> exact Subtype.ext (by assumption)
-      · exact SimpleGraph.Adj.reachable ((Graph.toSimpleGraph_adj).mpr ⟨hne, Or.inr he⟩)
-      · rcases Prod.mk.inj he with ⟨hb, ha⟩
-        convert hp.symm using 1 <;> exact Subtype.ext (by assumption)
-    rintro ⟨hu, hv, ⟨path⟩⟩
-    refine ⟨hu, hv, ?_⟩
-    have liftPath {a b : {w // w ∈ G.vertices}} (path : (cornerGraph h k).induced.Walk a b) :
-        G.induced.Reachable a b := by
-      induction path with
-      | nil => exact .rfl
-      | cons he _ ih => exact (hedge he).trans ih
-    exact liftPath path
-  · exact sameComponent_cornerGraph_of_old h k
+  refine ⟨?_, sameComponent_cornerGraph_of_old h k⟩
+  obtain ⟨hh, hk, hp⟩ := hc
+  have hedge {a b : {w // w ∈ G.1}}
+      (hab : (cornerGraph h k).induced.Adj a b) : G.induced.Reachable a b := by
+    obtain ⟨hne, he⟩ := (Graph.toSimpleGraph_adj).mp hab
+    simp only [cornerGraph, List.mem_append, List.mem_singleton] at he
+    rcases he with (he | he) | (he | he)
+    · exact SimpleGraph.Adj.reachable ((Graph.toSimpleGraph_adj).mpr ⟨hne, Or.inl he⟩)
+    · obtain ⟨ha, hb⟩ := Prod.mk.inj he
+      exact (Subtype.ext ha : a = ⟨h.vertex, hh⟩) ▸ (Subtype.ext hb : b = ⟨k.vertex, hk⟩) ▸ hp
+    · exact SimpleGraph.Adj.reachable ((Graph.toSimpleGraph_adj).mpr ⟨hne, Or.inr he⟩)
+    · obtain ⟨hb, ha⟩ := Prod.mk.inj he
+      exact (Subtype.ext ha : a = ⟨k.vertex, hk⟩) ▸ (Subtype.ext hb : b = ⟨h.vertex, hh⟩) ▸ hp.symm
+  rintro ⟨hu, hv, ⟨path⟩⟩
+  exact ⟨hu, hv, path.rec .rfl fun he _ ih => (hedge he).trans ih⟩
 
 /-- The declared-vertex finite set in every component is literally unchanged. -/
 theorem componentVertexSet_cornerGraph {G : Graph} (h k : Dart G)
@@ -100,7 +87,7 @@ theorem card_componentEdgeSet_cornerGraph {G : Graph} (h k : Dart G)
   classical
   rw [Graph.card_componentEdgeSet, Graph.card_componentEdgeSet]
   simp only [sameComponent_cornerGraph_iff h k hc]
-  change (G.edges ++ [(h.vertex, k.vertex)]).countP
+  change (G.2 ++ [(h.vertex, k.vertex)]).countP
       (fun edge => decide (SameComponent G root edge.1)) = _
   simp
 
@@ -126,7 +113,7 @@ open Classical in
 /-- Exact component face count for cofacial insertion. Only the selected component gains a
 face; every other component retains its full face quotient. -/
 theorem card_componentFace_insertEdge {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (h k : Dart G)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (h k : Dart G)
     (hf : r.faceNext.SameCycle h k) (root : ℕ) :
     Nat.card (ComponentFace (r.insertEdge h k) root) = Nat.card (ComponentFace r root) +
       if SameComponent G root h.vertex then 1 else 0 := by
@@ -134,23 +121,19 @@ theorem card_componentFace_insertEdge {G : Graph} (r : RotationSystem G)
   have hc := r.sameComponent_of_sameFace hG hf
   let p := fun d : Dart G => SameComponent G root d.vertex
   let q := Equiv.Perm.SelectedOrbits.extendedPredicate p (p h)
-  have hm : ∀ d, cornerDartEquiv h k ((r.insertEdge h k).faceNext d) =
+  have hm (d) : cornerDartEquiv h k ((r.insertEdge h k).faceNext d) =
       Equiv.Perm.CycleSurgery.splice r.faceNext h k (cornerDartEquiv h k d) := by
-    intro d
-    have he := congrArg (fun f => f (cornerDartEquiv h k d)) (r.faceNext_insertEdge h k)
-    simpa only [Equiv.permCongr_apply, Equiv.symm_apply_apply] using he
-  have hp : ∀ d : Dart (cornerGraph h k),
+    simpa only [Equiv.permCongr_apply, Equiv.symm_apply_apply] using
+      congrArg (fun f => f (cornerDartEquiv h k d)) (r.faceNext_insertEdge h k)
+  have hp (d : Dart (cornerGraph h k)) :
       SameComponent (cornerGraph h k) root d.vertex ↔ q (cornerDartEquiv h k d) := by
-    intro d
     simpa only [Equiv.symm_apply_apply, q, p] using
       component_cornerDartEquiv h k hc root (cornerDartEquiv h k d)
-  have he := Nat.card_congr (Equiv.Perm.SelectedOrbits.orbitOnEquiv (cornerDartEquiv h k)
+  rw [Nat.card_congr (Equiv.Perm.SelectedOrbits.orbitOnEquiv (cornerDartEquiv h k)
     (r.insertEdge h k).faceNext (Equiv.Perm.CycleSurgery.splice r.faceNext h k) hm
-    (fun d : Dart (cornerGraph h k) => SameComponent (cornerGraph h k) root d.vertex) q hp)
-  rw [he]
+    (fun d : Dart (cornerGraph h k) => SameComponent (cornerGraph h k) root d.vertex) q hp)]
   exact Equiv.Perm.SelectedOrbits.card_orbitOn_splice r.faceNext p
-    (r.component_faceNext_iff hG root) h k
-    ⟨fun h => h.trans hc, fun h => h.trans hc.symm⟩ hf
+    (r.component_faceNext_iff hG root) h k ⟨(·.trans hc), (·.trans hc.symm)⟩ hf
 
 /-- Every new dart vertex is an old dart vertex. This uses occurrence corners, so distinct
 visits to a repeated vertex are retained and never require injective boundary labels. -/
@@ -166,7 +149,7 @@ theorem exists_oldCornerVertex {G : Graph} (h k : Dart G)
 Disconnected closed components and declared point components remain in the same predicate;
 there is no connectedness, distinct-vertex or distinct-corner hypothesis. -/
 theorem numericalGenusZero_insertEdge {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (hr : r.NumericalGenusZero)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (hr : r.NumericalGenusZero)
     (h k : Dart G) (hf : r.faceNext.SameCycle h k) :
     (r.insertEdge h k).NumericalGenusZero := by
   classical

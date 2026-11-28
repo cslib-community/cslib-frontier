@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Primitives.PRG.Nisan.Bits
+public import CslibFrontier.Foundations.Data.BitString.Basic
 public import CslibFrontier.Probability.SaksZhou
 public import CslibFrontier.Probability.SaksZhou.Walk
 import Mathlib.Tactic.FieldSimp
@@ -28,15 +29,20 @@ hash-seed tuple `hs : Fin k → H` and `n₂` independent rounding shifts `z : F
 numbering of the publisher copy not consulted).
 
 For any substochastic matrix `A` whose entries are multiples of `1 / |X|` and any pairwise
-independent hash family `h : H → X → X`, `nisanPow h k A hs` averages the `2 ^ k`-block run of
-`walkStep A` driven by `Nisan.blocks h k x hs` over a uniform single block `x : X`. Since every
-reference iterate of `snapIter` is dyadic substochastic at precision `d`
+independent hash family `h : H → X → X`, `nisanPow order letter h k A hs` averages the
+`2 ^ k`-block run of the ordered walk driven by `Nisan.blocks h k x hs` over one uniform block.
+Since every reference iterate of `snapIter` is dyadic substochastic at precision `d`
 (`isDyadicSubstochastic_snapIter`), when `2 ^ d ∣ |X|` each iterate has entries in `ℤ / |X|` and
 therefore admits an exact walk over `Option ι`.
 
 Specializing to Boolean Toeplitz hashing (`Cslib.Probability.toeplitzHash`) on blocks of even
 length `2 * m` gives `bitNisanPow` and the square-root-free bound `dens_snapIter_bitNisanPow_far_le`
 over seeds of `k * (3 * (2 * m) - 1) + n₂ * d` bits.
+
+For a matrix supplied by its integer numerators at denominator `2 ^ d`, `nisanSnapCounts`
+computes all rounds using natural-number weights and hit counts. Its entries divided by `2 ^ d`
+agree with the real iteration for every fixed seed when `d ≤ b` (`snapIter_bitNisanPow_eq_counts`).
+Every positive-round row has total numerator at most `2 ^ d` (`sum_nisanSnapCounts_le`).
 
 ## Main definitions
 
@@ -78,46 +84,48 @@ private theorem foldlIdx_const {α β : Type*} (f : α → β → α) (l : List 
   | cons x l ih => simp only [List.foldlIdx_cons, List.foldl_cons, ih]
 
 /-- Approximate `(2 ^ k)`-th power of a matrix `A` computed by averaging Nisan's generator
-`Cslib.Crypto.PRG.Nisan.blocks h k x hs` on `walkStep A` over a single uniform block `x : X`,
+`Cslib.Crypto.PRG.Nisan.blocks h k x hs` on `walkStep order letter A` over a uniform block,
 keeping the hash seeds `hs : Fin k → H` fixed. -/
-noncomputable def nisanPow {H X ι : Type*} [Fintype X] [Fintype ι] [DecidableEq ι]
-    (h : H → X → X) (k : ℕ) (A : Matrix ι ι ℝ) (hs : Fin k → H) : Matrix ι ι ℝ :=
+noncomputable def nisanPow {H X ι : Type*} {n b : ℕ} [Fintype X] [Fintype ι] [DecidableEq ι]
+    (order : Fin n ≃ ι) (letter : X ≃ Fin b) (h : H → X → X) (k : ℕ)
+    (A : Matrix ι ι ℝ) (hs : Fin k → H) : Matrix ι ι ℝ :=
   Matrix.of fun i j =>
-    (dens {x : X | (List.ofFn (Nisan.blocks h k x hs)).foldl (walkStep A) (some i) = some j} : ℝ)
+    (dens {x : X |
+      (List.ofFn (Nisan.blocks h k x hs)).foldl (walkStep order letter A) (some i) = some j} : ℝ)
 
-@[simp] theorem nisanPow_apply {H X ι : Type*} [Fintype X] [Fintype ι] [DecidableEq ι]
-    (h : H → X → X) (k : ℕ) (A : Matrix ι ι ℝ) (hs : Fin k → H) (i j : ι) :
-    nisanPow h k A hs i j =
+@[simp] theorem nisanPow_apply {H X ι : Type*} {n b : ℕ} [Fintype X] [Fintype ι] [DecidableEq ι]
+    (order : Fin n ≃ ι) (letter : X ≃ Fin b) (h : H → X → X) (k : ℕ)
+    (A : Matrix ι ι ℝ) (hs : Fin k → H) (i j : ι) :
+    nisanPow order letter h k A hs i j =
       (dens {x : X |
-        (List.ofFn (Nisan.blocks h k x hs)).foldl (walkStep A) (some i) = some j} : ℝ) := by
+        (List.ofFn (Nisan.blocks h k x hs)).foldl (walkStep order letter A) (some i) =
+          some j} : ℝ) := by
   rw [nisanPow, Matrix.of_apply]
 
 /-- **Most hash seeds make `nisanPow` close to `A ^ (2 ^ k)`**: for a pairwise independent hash
 family `h : H → X → X` and a substochastic matrix `A` with entries in `ℤ / |X|`, the density of
-hash seeds `hs` for which some entry of `nisanPow h k A hs - A ^ (2 ^ k)` exceeds `ε` in
-magnitude is at most `(|ι| + 1) * ((2 ^ k - 1) * (|ι| + 1) / √|X|) / ε`. -/
-theorem dens_entryFarSet_nisanPow_le {H X ι : Type*} [Fintype H] [Fintype X] [DecidableEq X]
-    [Nonempty X] [Fintype ι] [DecidableEq ι] {h : H → X → X} (hh : IsPairwiseIndependentHash h)
+hash seeds for which an entry of `nisanPow order letter h k A hs - A ^ (2 ^ k)` exceeds `ε`
+in magnitude is at most `(|ι| + 1) * ((2 ^ k - 1) * (|ι| + 1) / √|X|) / ε`. -/
+theorem dens_entryFarSet_nisanPow_le {H X ι : Type*} {n b : ℕ} [Fintype H] [Fintype X]
+    [DecidableEq X] [Nonempty X] [Fintype ι] [DecidableEq ι]
+    (order : Fin n ≃ ι) (letter : X ≃ Fin b) {h : H → X → X} (hh : IsPairwiseIndependentHash h)
     (k : ℕ) {A : Matrix ι ι ℝ} (h0 : ∀ i j, 0 ≤ A i j) (h1 : ∀ i, ∑ j, A i j ≤ 1)
     (hA : ∀ i j, ∃ c : ℕ, A i j * Fintype.card X = c) {ε : ℝ} (hε : 0 < ε) :
-    ((entryFarSet ε (nisanPow h k A) (A ^ 2 ^ k)).dens : ℝ) ≤
+    ((entryFarSet ε (nisanPow order letter h k A) (A ^ 2 ^ k)).dens : ℝ) ≤
       (Fintype.card ι + 1) * ((2 ^ k - 1) * (Fintype.card ι + 1) / √(Fintype.card X)) / ε := by
   classical
-  let δ : ℕ → Option ι → X → Option ι := fun _ => walkStep A
+  let δ : ℕ → Option ι → X → Option ι := fun _ => walkStep order letter A
   let bad : Finset (Fin k → H) :=
     {hs : Fin k → H | ∃ s : Option ι, ε < ∑ s' : Option ι,
       |(dens {x : X | (List.ofFn (Nisan.blocks h k x hs)).foldlIdx δ s = s'} : ℝ) -
         dens {u : Fin (2 ^ k) → X | (List.ofFn u).foldlIdx δ s = s'}|}
-  have hsub : entryFarSet ε (nisanPow h k A) (A ^ 2 ^ k) ⊆ bad := by
-    intro hs hhs
+  have hsub : entryFarSet ε (nisanPow order letter h k A) (A ^ 2 ^ k) ⊆ bad := fun hs hhs => by
     obtain ⟨i, j, hij⟩ := mem_entryFarSet.1 hhs
-    rw [nisanPow_apply, ← dens_foldl_walkStep_eq h0 h1 hA (2 ^ k) i j] at hij
-    simp only [bad, mem_filter, mem_univ, true_and]
-    refine ⟨some i, lt_of_lt_of_le hij ?_⟩
-    refine le_trans ?_ (single_le_sum (fun _ _ => abs_nonneg _) (mem_univ (some j)))
+    rw [nisanPow_apply, ← dens_foldl_walkStep_eq order letter h0 h1 hA (2 ^ k) i j] at hij
+    refine mem_filter.2 ⟨mem_univ _, some i, hij.trans_le ?_⟩
+    refine (le_of_eq ?_).trans (single_le_sum (fun _ _ => abs_nonneg _) (mem_univ (some j)))
     simp only [δ, foldlIdx_const]
-    exact le_rfl
-  calc ((entryFarSet ε (nisanPow h k A) (A ^ 2 ^ k)).dens : ℝ)
+  calc ((entryFarSet ε (nisanPow order letter h k A) (A ^ 2 ^ k)).dens : ℝ)
       ≤ (bad.dens : ℝ) := NNRat.cast_le.2 (dens_le_dens hsub)
     _ ≤ Fintype.card (Option ι) * ((2 ^ k - 1) * Fintype.card (Option ι) / √(Fintype.card X)) /
           ε := Nisan.dens_hashSeeds_far_le hh δ k hε
@@ -133,16 +141,16 @@ private theorem exists_mul_card_eq_of_isDyadicSubstochastic {X ι : Type*} [Fint
   obtain ⟨q, hq⟩ := hdiv
   refine ⟨k * q, ?_⟩
   have h2 : (2 : ℝ) ^ d ≠ 0 := by positivity
-  rw [hk, hq, Nat.cast_mul, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]
-  field_simp
+  rw [hk, hq, Nat.cast_mul, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]; field_simp
 
 /-- **Saks–Zhou iteration with Nisan's generator**: for a substochastic matrix `M` over `ι` with
 entries in `ℤ / |X|`, `2 ^ d ∣ |X|`, and `1 ≤ k`, when `(|ι| + 1) * ((2 ^ k - 1) * (|ι| + 1) /
 √|X|) ≤ ε ^ 2`, all but an `n₂ * (ε + |ι| ^ 2 * (2 ^ d * ε + 2 ^ (-d)))` fraction of pairs
-`(hs, z)` satisfy `‖snapIter d (nisanPow h k · hs) M n₂ z - M ^ (2 ^ (k * n₂))‖_∞ ≤
+`(hs, z)` satisfy `‖snapIter d (nisanPow order letter h k · hs) M n₂ z - M ^ (2 ^ (k * n₂))‖_∞ ≤
 2 ^ (k * n₂) * |ι| * 2 ^ (1 - d)`. -/
-theorem dens_snapIter_nisanPow_far_le {H X ι : Type*} [Fintype H] [Fintype X] [DecidableEq X]
-    [Nonempty X] [Fintype ι] [DecidableEq ι] {h : H → X → X} (hh : IsPairwiseIndependentHash h)
+theorem dens_snapIter_nisanPow_far_le {H X ι : Type*} {n b : ℕ} [Fintype H] [Fintype X]
+    [DecidableEq X] [Nonempty X] [Fintype ι] [DecidableEq ι]
+    (order : Fin n ≃ ι) (letter : X ≃ Fin b) {h : H → X → X} (hh : IsPairwiseIndependentHash h)
     (d k n₂ : ℕ) (hk : 1 ≤ k) (hdiv : 2 ^ d ∣ Fintype.card X) {M : Matrix ι ι ℝ} {ε : ℝ}
     (h0 : ∀ i j, 0 ≤ M i j) (h1 : ∀ i, ∑ j, M i j ≤ 1)
     (hM : ∀ i j, ∃ c : ℕ, M i j * Fintype.card X = c) (hε : 0 < ε)
@@ -150,22 +158,22 @@ theorem dens_snapIter_nisanPow_far_le {H X ι : Type*} [Fintype H] [Fintype X] [
       ε ^ 2) :
     ((rowFarSet ((2 : ℝ) ^ (k * n₂) * (Fintype.card ι * (2 / 2 ^ d)))
         (fun p : (Fin k → H) × (Fin n₂ → Fin (2 ^ d)) =>
-          snapIter d (fun A => nisanPow h k A p.1) M n₂ p.2)
+          snapIter d (fun A => nisanPow order letter h k A p.1) M n₂ p.2)
         (M ^ 2 ^ (k * n₂))).dens : ℝ) ≤
       n₂ * (ε + Fintype.card ι ^ 2 * (2 ^ d * ε + (2 ^ d)⁻¹)) := by
   have hn₁ : 2 ≤ 2 ^ k := by
     calc 2 = 2 ^ 1 := (pow_one 2).symm
       _ ≤ 2 ^ k := Nat.pow_le_pow_right (by decide) hk
-  have hpow : ∀ A : Matrix ι ι ℝ, A = M ∨ IsDyadicSubstochastic d A →
-      ((entryFarSet ε (nisanPow h k A) (A ^ 2 ^ k)).dens : ℝ) ≤ ε := by
-    rintro A (rfl | hdy)
-    · refine (dens_entryFarSet_nisanPow_le hh k h0 h1 hM hε).trans ?_
-      exact (div_le_iff₀ hε).2 (by simpa only [sq] using herr)
-    · refine (dens_entryFarSet_nisanPow_le hh k hdy.nonneg hdy.sum_le_one
-        (exists_mul_card_eq_of_isDyadicSubstochastic hdy hdiv) hε).trans ?_
-      exact (div_le_iff₀ hε).2 (by simpa only [sq] using herr)
-  have hmain := dens_snapIter_far_le_of_two_le d n₂ hn₁ (nisanPow h k) h0 h1 hε.le hpow
-  simpa only [Nat.cast_pow, Nat.cast_ofNat, ← pow_mul] using hmain
+  have hpow (A : Matrix ι ι ℝ) (hA : A = M ∨ IsDyadicSubstochastic d A) :
+      ((entryFarSet ε (nisanPow order letter h k A) (A ^ 2 ^ k)).dens : ℝ) ≤ ε := by
+    rcases hA with rfl | hdy
+    · exact (dens_entryFarSet_nisanPow_le order letter hh k h0 h1 hM hε).trans
+        ((div_le_iff₀ hε).2 (by simpa only [sq] using herr))
+    · exact (dens_entryFarSet_nisanPow_le order letter hh k hdy.nonneg hdy.sum_le_one
+        (exists_mul_card_eq_of_isDyadicSubstochastic hdy hdiv) hε).trans
+        ((div_le_iff₀ hε).2 (by simpa only [sq] using herr))
+  simpa only [Nat.cast_pow, Nat.cast_ofNat, ← pow_mul] using
+    dens_snapIter_far_le_of_two_le d n₂ hn₁ (nisanPow order letter h k) h0 h1 hε.le hpow
 
 /-! ### Specialization to Boolean Toeplitz hashing -/
 
@@ -185,47 +193,132 @@ theorem card_nisanShiftSeed (b k n₂ d : ℕ) :
   rw [show b + b - 1 + b = 3 * b - 1 by omega, Nat.mul_comm (3 * b - 1) k, Nat.mul_comm d n₂]
 
 /-- `nisanPow` specialized to `Cslib.Probability.toeplitzHash` on `b`-bit blocks. -/
-noncomputable def bitNisanPow {ι : Type*} [Fintype ι] [DecidableEq ι] (b k : ℕ)
+noncomputable def bitNisanPow {ι : Type*} {n : ℕ} [Fintype ι] [DecidableEq ι]
+    (order : Fin n ≃ ι) (b k : ℕ)
     (A : Matrix ι ι ℝ) (hs : Fin k → ToeplitzSeed b) : Matrix ι ι ℝ :=
-  nisanPow Cslib.Probability.toeplitzHash k A hs
+  nisanPow order (BitString.equivFin b) Cslib.Probability.toeplitzHash k A hs
 
-@[simp] theorem bitNisanPow_apply {ι : Type*} [Fintype ι] [DecidableEq ι] (b k : ℕ)
+@[simp] theorem bitNisanPow_apply {ι : Type*} {n : ℕ} [Fintype ι] [DecidableEq ι]
+    (order : Fin n ≃ ι) (b k : ℕ)
     (A : Matrix ι ι ℝ) (hs : Fin k → ToeplitzSeed b) (i j : ι) :
-    bitNisanPow b k A hs i j =
+    bitNisanPow order b k A hs i j =
       (dens {x : BitString b | (List.ofFn
-        (Nisan.blocks Cslib.Probability.toeplitzHash k x hs)).foldl (walkStep A) (some i) =
-          some j} : ℝ) :=
-  nisanPow_apply Cslib.Probability.toeplitzHash k A hs i j
+        (Nisan.blocks Cslib.Probability.toeplitzHash k x hs)).foldl
+          (walkStep order (BitString.equivFin b) A) (some i) = some j} : ℝ) :=
+  nisanPow_apply order (BitString.equivFin b) Cslib.Probability.toeplitzHash k A hs i j
+
+/-- A rounded entry of Nisan powering can be computed from the number of starting blocks whose
+walk ends at the requested column, using natural arithmetic for the final rounding. -/
+theorem snapMatrix_bitNisanPow_apply {ι : Type*} {n : ℕ} [Fintype ι] [DecidableEq ι]
+    (order : Fin n ≃ ι) (b k d : ℕ)
+    (A : Matrix ι ι ℝ) (hs : Fin k → ToeplitzSeed b) (y : Fin (2 ^ d)) (i j : ι) :
+    snapMatrix d (bitNisanPow order b k A hs) y i j =
+      (snapCount (2 ^ d) #{x : BitString b | (List.ofFn
+        (Nisan.blocks Cslib.Probability.toeplitzHash k x hs)).foldl
+          (walkStep order (BitString.equivFin b) A) (some i) = some j} (2 ^ b) y : ℝ) / 2 ^ d := by
+  rw [snapMatrix_apply, bitNisanPow_apply, Finset.dens, NNRat.cast_div, NNRat.cast_natCast,
+    NNRat.cast_natCast]
+  simp only [BitString, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin]
+  exact snap_frequency _ _ _ (Nat.two_pow_pos _) _
+
+/-- Integer numerators of a seeded Saks–Zhou iteration. The supplied matrix and every round's
+result have denominator `2 ^ d`. Each starting block is counted at its final column, and the
+result is rounded using that round's shift. -/
+@[expose] def nisanSnapCounts {ι : Type*} {n : ℕ} [Fintype ι] [DecidableEq ι] (order : Fin n ≃ ι)
+    (b d k : ℕ) (hs : Fin k → ToeplitzSeed b) (base : Matrix ι ι ℕ) :
+    (r : ℕ) → (Fin r → Fin (2 ^ d)) → Matrix ι ι ℕ
+  | 0, _ => base
+  | r + 1, shifts =>
+    let counts := nisanSnapCounts order b d k hs base r (Fin.init shifts)
+    let step := walkStepOfCounts order (BitString.equivFin b)
+      (fun i j => counts i j * 2 ^ (b - d))
+    Matrix.of fun i j => snapCount (2 ^ d) #{x : BitString b |
+      (List.ofFn (Nisan.blocks Cslib.Probability.toeplitzHash k x hs)).foldl step (some i) =
+        some j} (2 ^ b) (shifts (Fin.last r))
+
+/-- Integer counts agree entry by entry with the rounded real-matrix iteration for every seed and
+shift sequence, including when the supplied base row sums exceed one. -/
+theorem snapIter_bitNisanPow_eq_counts {ι : Type*} {n b d k : ℕ} [Fintype ι] [DecidableEq ι]
+    (order : Fin n ≃ ι) (hdb : d ≤ b) (hs : Fin k → ToeplitzSeed b) (base : Matrix ι ι ℕ)
+    (A : Matrix ι ι ℝ) (hA : ∀ i j, A i j = (base i j : ℝ) / 2 ^ d)
+    (r : ℕ) (shifts : Fin r → Fin (2 ^ d)) (i j : ι) :
+    snapIter d (fun B => bitNisanPow order b k B hs) A r shifts i j =
+      (nisanSnapCounts order b d k hs base r shifts i j : ℝ) / 2 ^ d := by
+  induction r generalizing i j with
+  | zero => simpa only [snapIter_zero, nisanSnapCounts] using hA i j
+  | succ r ih =>
+    let R := snapIter d (fun B => bitNisanPow order b k B hs) A r (Fin.init shifts)
+    let counts := nisanSnapCounts order b d k hs base r (Fin.init shifts)
+    have hscale (i j : ι) :
+        ⌊R i j * Fintype.card (BitString b)⌋₊ = counts i j * 2 ^ (b - d) := by
+      have hcard : Fintype.card (BitString b) = 2 ^ b := by
+        rw [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin]
+      have hpow : (2 : ℝ) ^ b = 2 ^ (b - d) * 2 ^ d := by rw [← pow_add, Nat.sub_add_cancel hdb]
+      rw [show R i j = (counts i j : ℝ) / 2 ^ d from ih (Fin.init shifts) i j, hcard,
+        Nat.cast_pow, Nat.cast_ofNat, hpow]
+      rw [show (counts i j : ℝ) / 2 ^ d * (2 ^ (b - d) * 2 ^ d) =
+          ((counts i j * 2 ^ (b - d) : ℕ) : ℝ) by push_cast; field_simp]
+      exact Nat.floor_natCast _
+    rw [snapIter_succ, snapMatrix_bitNisanPow_apply, nisanSnapCounts, Matrix.of_apply]
+    rw [walkStep_eq_walkStepOfCounts order (BitString.equivFin b) R _ hscale]
+
+/-- Every positive round has total numerator at most `2 ^ d` in each row. An initial block can
+contribute to at most one output column, and snapping can only decrease its column's frequency. -/
+theorem sum_nisanSnapCounts_le {ι : Type*} {n : ℕ} [Fintype ι] [DecidableEq ι]
+    (order : Fin n ≃ ι) (b d k : ℕ) (hs : Fin k → ToeplitzSeed b) (base : Matrix ι ι ℕ)
+    (r : ℕ) (shifts : Fin (r + 1) → Fin (2 ^ d)) (i : ι) :
+    ∑ j, nisanSnapCounts order b d k hs base (r + 1) shifts i j ≤ 2 ^ d := by
+  let counts := nisanSnapCounts order b d k hs base r (Fin.init shifts)
+  let step := walkStepOfCounts order (BitString.equivFin b)
+    (fun i j => counts i j * 2 ^ (b - d))
+  let dest (x : BitString b) := (List.ofFn
+    (Nisan.blocks Cslib.Probability.toeplitzHash k x hs)).foldl step (some i)
+  let hits (j : Option ι) := #{x : BitString b | dest x = j}
+  have htotal : ∑ j, hits (some j) ≤ 2 ^ b := by
+    have h := Finset.card_eq_sum_card_fiberwise (f := dest) (s := univ) (t := univ)
+      fun _ _ => mem_univ _
+    rw [Finset.card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] at h
+    change 2 ^ b = ∑ j, hits j at h
+    rw [Fintype.sum_option] at h
+    omega
+  let shift := (shifts (Fin.last r)).val
+  have hround (x : ℕ) : snapCount (2 ^ d) x (2 ^ b) shift * 2 ^ b ≤ x * 2 ^ d := by
+    apply Nat.le_of_mul_le_mul_right (c := 2 ^ d) _ (Nat.two_pow_pos _)
+    unfold snapCount
+    rw [Nat.mul_assoc]
+    exact (Nat.div_mul_le_self _ _).trans (Nat.sub_le _ _)
+  change ∑ j, snapCount (2 ^ d) (hits (some j)) (2 ^ b) shift ≤ 2 ^ d
+  apply Nat.le_of_mul_le_mul_right (c := 2 ^ b) _ (Nat.two_pow_pos _)
+  rw [Finset.sum_mul]
+  calc
+    _ ≤ ∑ j, hits (some j) * 2 ^ d := sum_le_sum fun _ _ => hround _
+    _ = (∑ j, hits (some j)) * 2 ^ d := (Finset.sum_mul ..).symm
+    _ ≤ 2 ^ b * 2 ^ d := Nat.mul_le_mul_right _ htotal
+    _ = 2 ^ d * 2 ^ b := Nat.mul_comm _ _
 
 /-- **Saks–Zhou iteration with Boolean Toeplitz Nisan powering**: on blocks of `2 * m` bits with
 `d ≤ 2 * m` and `1 ≤ k`, if `(|ι| + 1) * ((2 ^ k - 1) * (|ι| + 1) / 2 ^ m) ≤ ε ^ 2`, all but an
 `n₂ * (ε + |ι| ^ 2 * (2 ^ d * ε + 2 ^ (-d)))` fraction of `NisanShiftSeed (2 * m) k n₂ d` pairs
 produce a matrix whose every row sums within `2 ^ (k * n₂) * |ι| * 2 ^ (1 - d)` of
 `M ^ (2 ^ (k * n₂))`. -/
-theorem dens_snapIter_bitNisanPow_far_le {ι : Type*} [Fintype ι] [DecidableEq ι] (d m k n₂ : ℕ)
+theorem dens_snapIter_bitNisanPow_far_le {ι : Type*} {n : ℕ} [Fintype ι] [DecidableEq ι]
+    (order : Fin n ≃ ι) (d m k n₂ : ℕ)
     (hk : 1 ≤ k) (hdm : d ≤ 2 * m) {M : Matrix ι ι ℝ} {ε : ℝ}
     (h0 : ∀ i j, 0 ≤ M i j) (h1 : ∀ i, ∑ j, M i j ≤ 1)
     (hM : ∀ i j, ∃ c : ℕ, M i j * Fintype.card (BitString (2 * m)) = c) (hε : 0 < ε)
     (herr : (Fintype.card ι + 1 : ℝ) * ((2 ^ k - 1) * (Fintype.card ι + 1) / 2 ^ m) ≤ ε ^ 2) :
     ((rowFarSet ((2 : ℝ) ^ (k * n₂) * (Fintype.card ι * (2 / 2 ^ d)))
         (fun p : NisanShiftSeed (2 * m) k n₂ d =>
-          snapIter d (fun A => bitNisanPow (2 * m) k A p.1) M n₂ p.2)
+          snapIter d (fun A => bitNisanPow order (2 * m) k A p.1) M n₂ p.2)
         (M ^ 2 ^ (k * n₂))).dens : ℝ) ≤
       n₂ * (ε + Fintype.card ι ^ 2 * (2 ^ d * ε + (2 ^ d)⁻¹)) := by
   have hcard : Fintype.card (BitString (2 * m)) = 2 ^ (2 * m) := by
     rw [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin]
-  have hdiv : 2 ^ d ∣ Fintype.card (BitString (2 * m)) := by
-    rw [hcard]
-    exact Nat.pow_dvd_pow 2 hdm
   have hsqrt : √(Fintype.card (BitString (2 * m)) : ℝ) = (2 : ℝ) ^ m := by
-    rw [hcard]
-    push_cast
-    rw [show (2 : ℝ) ^ (2 * m) = ((2 : ℝ) ^ m) ^ 2 by rw [mul_comm, pow_mul]]
+    rw [hcard, Nat.cast_pow, Nat.cast_ofNat, mul_comm, pow_mul]
     exact Real.sqrt_sq (by positivity)
-  have herr' : (Fintype.card ι + 1 : ℝ) *
-      ((2 ^ k - 1) * (Fintype.card ι + 1) / √(Fintype.card (BitString (2 * m)))) ≤ ε ^ 2 := by
-    rwa [hsqrt]
-  exact dens_snapIter_nisanPow_far_le isPairwiseIndependentHash_toeplitzHash_bool d k n₂ hk hdiv
-    h0 h1 hM hε herr'
+  exact dens_snapIter_nisanPow_far_le order (BitString.equivFin (2 * m))
+    isPairwiseIndependentHash_toeplitzHash_bool d k n₂ hk
+    (hcard ▸ Nat.pow_dvd_pow 2 hdm) h0 h1 hM hε (by rwa [hsqrt])
 
 end Cslib.Probability.SaksZhou

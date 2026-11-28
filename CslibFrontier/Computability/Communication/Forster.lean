@@ -154,13 +154,9 @@ theorem mul_sqrt_card_mul_card_le_mul_signRank (f : X → Y → Bool) (M : Matri
     μ * √(Fintype.card X * Fintype.card Y) ≤ lam * signRank f := by
   classical
   rcases isEmpty_or_nonempty X with hX | ⟨⟨x₀⟩⟩
-  · have h := signRank_le_card_left f
-    rw [Fintype.card_eq_zero, Nat.le_zero] at h
-    simp [h, Fintype.card_eq_zero]
+  · simp [Nat.le_zero.1 ((signRank_le_card_left f).trans_eq Fintype.card_eq_zero)]
   rcases isEmpty_or_nonempty Y with hY | ⟨⟨y₀⟩⟩
-  · have h := signRank_le_card_right f
-    rw [Fintype.card_eq_zero, Nat.le_zero] at h
-    simp [h, Fintype.card_eq_zero]
+  · simp [Nat.le_zero.1 ((signRank_le_card_right f).trans_eq Fintype.card_eq_zero)]
   have hm : (0 : ℝ) < Fintype.card X := by exact_mod_cast Fintype.card_pos_iff.2 ⟨x₀⟩
   have hn : (0 : ℝ) < Fintype.card Y := by exact_mod_cast Fintype.card_pos_iff.2 ⟨y₀⟩
   have hm' : 0 < √(Fintype.card X : ℝ) := Real.sqrt_pos.2 hm
@@ -168,10 +164,7 @@ theorem mul_sqrt_card_mul_card_le_mul_signRank (f : X → Y → Bool) (M : Matri
   have hlam : 0 ≤ lam := by
     have h := (abs_nonneg _).trans (hspec (fun _ => 1) (fun _ => 1))
     simp only [one_pow, sum_const, card_univ, nsmul_eq_mul, mul_one] at h
-    by_contra hneg
-    push Not at hneg
-    have := mul_neg_of_neg_of_pos (mul_neg_of_neg_of_pos hneg hm') hn'
-    linarith
+    nlinarith [mul_pos hm' hn']
   rcases le_or_gt μ 0 with hμ0 | hμ0
   · nlinarith [Real.sqrt_nonneg (Fintype.card X * Fintype.card Y : ℝ),
       mul_nonneg hlam (Nat.cast_nonneg (α := ℝ) (signRank f))]
@@ -190,9 +183,7 @@ theorem mul_sqrt_card_mul_card_le_mul_signRank (f : X → Y → Bool) (M : Matri
     set B := A⁻¹ with hB
     have hBpd : B.PosDef := hApd.inv
     have hAB : A * B = 1 := mul_nonsing_inv A hApd.det_pos.ne'.isUnit
-    have hAsymm : Aᵀ = A := by
-      have := hApd.isHermitian
-      rwa [IsHermitian, conjTranspose_eq_transpose_of_trivial] at this
+    have hAsymm : Aᵀ = A := (conjTranspose_eq_transpose_of_trivial A).symm.trans hApd.isHermitian.eq
     let v : Y → Fin (signRank f) → ℝ := fun y j => V j y
     have hUv : ∀ x y, (U' * V) x y = U' x ⬝ᵥ v y := fun x y => rfl
     have hbil : ∀ u w : Fin (signRank f) → ℝ,
@@ -203,14 +194,8 @@ theorem mul_sqrt_card_mul_card_le_mul_signRank (f : X → Y → Bool) (M : Matri
       rw [dotProduct_mulVec, ← mulVec_transpose, hAsymm, mulVec_mulVec, hAB, one_mulVec]
     set g : X → ℝ := fun x => U' x ⬝ᵥ (B *ᵥ U' x) with hg
     set h : Y → ℝ := fun y => v y ⬝ᵥ (A *ᵥ v y) with hh
-    have hU0 : ∀ x, U' x ≠ 0 := fun x h0 => by
-      have := hU'V x y₀
-      rw [hUv, h0, zero_dotProduct, mul_zero] at this
-      exact lt_irrefl _ this
-    have hv0 : ∀ y, v y ≠ 0 := fun y h0 => by
-      have := hU'V x₀ y
-      rw [hUv, h0, dotProduct_zero, mul_zero] at this
-      exact lt_irrefl _ this
+    have hU0 : ∀ x, U' x ≠ 0 := fun x h0 => by simpa [hUv, h0] using hU'V x y₀
+    have hv0 : ∀ y, v y ≠ 0 := fun y h0 => by simpa [hUv, h0] using hU'V x₀ y
     have hg0 : ∀ x, 0 < g x := fun x => by simpa using hBpd.dotProduct_mulVec_pos (hU0 x)
     have hh0 : ∀ y, 0 < h y := fun y => by simpa using hApd.dotProduct_mulVec_pos (hv0 y)
     have hsq : ∀ z, √(p z) * √(p z) = p z := fun z => Real.mul_self_sqrt (hp z).le
@@ -225,29 +210,14 @@ theorem mul_sqrt_card_mul_card_le_mul_signRank (f : X → Y → Bool) (M : Matri
     -- The normalized vectors of the isotropic configuration.
     let a : X → X → ℝ := fun x z => √(p z) * (U' z ⬝ᵥ (B *ᵥ U' x)) / √(g x)
     let b : Y → X → ℝ := fun y z => √(p z) * (U' z ⬝ᵥ v y) / √(h y)
-    have hab : ∀ x y, a x ⬝ᵥ b y = (U' x ⬝ᵥ v y) / (√(g x) * √(h y)) := by
-      intro x y
-      calc a x ⬝ᵥ b y
-          = (∑ z, p z * (U' z ⬝ᵥ (B *ᵥ U' x)) * (U' z ⬝ᵥ v y)) / (√(g x) * √(h y)) :=
-            hpair (fun z => U' z ⬝ᵥ (B *ᵥ U' x)) (fun z => U' z ⬝ᵥ v y) _ _
-        _ = (U' x ⬝ᵥ v y) / (√(g x) * √(h y)) := by rw [← hbil, hcross]
-    have haa : ∀ x, a x ⬝ᵥ a x = 1 := by
-      intro x
-      calc a x ⬝ᵥ a x
-          = (∑ z, p z * (U' z ⬝ᵥ (B *ᵥ U' x)) * (U' z ⬝ᵥ (B *ᵥ U' x))) /
-              (√(g x) * √(g x)) :=
-            hpair (fun z => U' z ⬝ᵥ (B *ᵥ U' x)) (fun z => U' z ⬝ᵥ (B *ᵥ U' x)) _ _
-        _ = 1 := by
-            rw [← hbil, hcross, Real.mul_self_sqrt (hg0 x).le]
-            exact div_self (hg0 x).ne'
-    have hbb : ∀ y, b y ⬝ᵥ b y = 1 := by
-      intro y
-      calc b y ⬝ᵥ b y
-          = (∑ z, p z * (U' z ⬝ᵥ v y) * (U' z ⬝ᵥ v y)) / (√(h y) * √(h y)) :=
-            hpair (fun z => U' z ⬝ᵥ v y) (fun z => U' z ⬝ᵥ v y) _ _
-        _ = 1 := by
-            rw [← hbil, Real.mul_self_sqrt (hh0 y).le]
-            exact div_self (hh0 y).ne'
+    have hab : ∀ x y, a x ⬝ᵥ b y = (U' x ⬝ᵥ v y) / (√(g x) * √(h y)) := fun x y =>
+      (hpair _ _ _ _).trans <| by rw [← hbil, hcross]
+    have haa : ∀ x, a x ⬝ᵥ a x = 1 := fun x => (hpair _ _ _ _).trans <| by
+      rw [← hbil, hcross, Real.mul_self_sqrt (hg0 x).le]
+      exact div_self (hg0 x).ne'
+    have hbb : ∀ y, b y ⬝ᵥ b y = 1 := fun y => (hpair _ _ _ _).trans <| by
+      rw [← hbil, Real.mul_self_sqrt (hh0 y).le]
+      exact div_self (hh0 y).ne'
     have hc : ∀ y, 1 / R ≤ ∑ x, (a x ⬝ᵥ b y) ^ 2 := by
       intro y
       have hterm : ∀ x, p x * (U' x ⬝ᵥ v y) ^ 2 / (R * h y) ≤ (a x ⬝ᵥ b y) ^ 2 := by
@@ -276,11 +246,8 @@ theorem mul_sqrt_card_mul_card_le_mul_signRank (f : X → Y → Bool) (M : Matri
         exact div_pos (hU'V x y)
           (mul_pos (Real.sqrt_pos.2 (hg0 x)) (Real.sqrt_pos.2 (hh0 y)))
       have hw1 : w ^ 2 ≤ 1 := by
-        have h1 := sum_mul_sq_le_sq_mul_sq univ (a x) (b y)
-        have e1 : ∑ i, a x i ^ 2 = 1 := by rw [← haa x]; simp only [dotProduct, sq]
-        have e2 : ∑ i, b y i ^ 2 = 1 := by rw [← hbb y]; simp only [dotProduct, sq]
-        rw [e1, e2, mul_one] at h1
-        exact h1
+        simpa only [sq, ← dotProduct.eq_1, haa, hbb, mul_one] using
+          sum_mul_sq_le_sq_mul_sq univ (a x) (b y)
       have e : (s * w) ^ 2 = w ^ 2 := by linear_combination w ^ 2 * hs2
       have e' : (s * M x y) * (s * w) = M x y * w := by linear_combination M x y * w * hs2
       have hsw1 : s * w ≤ 1 := by nlinarith
@@ -299,21 +266,14 @@ theorem mul_sqrt_card_mul_card_le_mul_signRank (f : X → Y → Bool) (M : Matri
       rw [div_mul_eq_mul_div, div_le_iff₀ (by linarith)]
       nlinarith
     nlinarith [h0, h1]
+  rw [div_mul_eq_mul_div, le_div_iff₀ hm] at hlim
   rw [Real.sqrt_mul hm.le]
-  set P := √(Fintype.card X : ℝ) * √(Fintype.card Y : ℝ) with hP
-  have hP0 : 0 < P := mul_pos hm' hn'
-  have hPP : P * P = Fintype.card X * Fintype.card Y := by
-    rw [hP, mul_mul_mul_comm, Real.mul_self_sqrt hm.le, Real.mul_self_sqrt hn.le]
-  have hm0 := hm.ne'
-  have h3 : P * (P * μ) ≤ P * (lam * signRank f) := by
-    calc P * (P * μ) = Fintype.card X * (Fintype.card Y * μ) := by
-          rw [← mul_assoc, hPP, mul_assoc]
-      _ ≤ Fintype.card X * ((signRank f : ℝ) / Fintype.card X * K) := by gcongr
-      _ = P * (lam * signRank f) := by
-          rw [hK, mul_assoc lam, ← hP]
-          field_simp
-  have := le_of_mul_le_mul_left h3 hP0
-  linarith
+  refine le_of_mul_le_mul_right ?_ (mul_pos hm' hn')
+  calc _ = Fintype.card Y * μ * Fintype.card X := by
+        rw [mul_assoc, mul_mul_mul_comm, Real.mul_self_sqrt hm.le, Real.mul_self_sqrt hn.le]
+        ring
+    _ ≤ signRank f * K := hlim
+    _ = _ := by rw [hK]; ring
 
 open scoped Matrix.Norms.L2Operator in
 /-- **Forster's bound for matrices without zero entries** [Sherstov and Wu, Theorem A.2]
@@ -337,13 +297,10 @@ theorem sqrt_card_mul_card_le_l2_opNorm_mul_signRank [DecidableEq Y] (f : X → 
 private theorem sum_mulVec_sq_of_isHadamard [DecidableEq X] {H : Matrix X X ℝ}
     (hH : H.IsHadamard) (q : X → ℝ) :
     ∑ x, (H *ᵥ q) x ^ 2 = Fintype.card X * ∑ x, q x ^ 2 := by
-  have h1 : ∑ x, (H *ᵥ q) x ^ 2 = (H *ᵥ q) ⬝ᵥ (H *ᵥ q) := by
-    simp only [dotProduct, sq]
-  have h2 : ∑ x, q x ^ 2 = q ⬝ᵥ q := by simp only [dotProduct, sq]
-  have hHH : Hᵀ * H = (Fintype.card X : ℝ) • 1 := by
-    have := hH.conjTranspose_mul
-    rwa [conjTranspose_eq_transpose_of_trivial] at this
-  rw [h1, h2, dotProduct_mulVec, ← mulVec_transpose, mulVec_mulVec, hHH, smul_mulVec,
+  have hHH : Hᵀ * H = (Fintype.card X : ℝ) • 1 :=
+    conjTranspose_eq_transpose_of_trivial H ▸ hH.conjTranspose_mul
+  simp only [sq, ← dotProduct.eq_1]
+  rw [dotProduct_mulVec, ← mulVec_transpose, mulVec_mulVec, hHH, smul_mulVec,
     one_mulVec, smul_dotProduct, smul_eq_mul]
 
 /-- **Forster's bound for Hadamard matrices** [Forster, 2002][Forster2002]: if the sign matrix of

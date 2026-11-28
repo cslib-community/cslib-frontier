@@ -78,89 +78,75 @@ theorem shMat_one (i : Fin h) : (shMat i 1 : Matrix (Fin h) (Fin h) (R (n + 1)))
   by_cases hab : a = b
   · subst hab
     simp
-  · have : a - i ≠ b - i := fun e => hab (sub_left_injective e)
-    rw [Matrix.one_apply_ne this, Matrix.one_apply_ne hab]
+  · rw [Matrix.one_apply_ne fun e => hab (sub_left_injective e), Matrix.one_apply_ne hab]
     simp
 
 theorem shMat_mul (i : Fin h) (A B : Matrix (Fin h) (Fin h) (ZMod 2)) :
     (shMat i (A * B) : Matrix (Fin h) (Fin h) (R (n + 1))) = shMat i A * shMat i B := by
   ext a b
-  rw [shMat_apply, Matrix.mul_apply, Matrix.mul_apply]
-  simp only [shMat_apply]
-  rw [map_sum, Finset.sum_mul, Finset.mul_sum]
+  simp only [shMat_apply, Matrix.mul_apply, map_sum, Finset.sum_mul, Finset.mul_sum]
   refine Fintype.sum_equiv (Equiv.addRight i) _ _ fun c => ?_
   simp only [Equiv.coe_addRight, add_sub_cancel_right, map_mul]
-  have := Units.inv_mul (wt i (c + i) : (R (n + 1))ˣ)
   linear_combination (-(wt i a : (R (n + 1))ˣ) * cst (n + 1) (A (a - i) c) *
-    cst (n + 1) (B c (b - i)) * ((wt i b)⁻¹ : (R (n + 1))ˣ) : R (n + 1)) * this
+    cst (n + 1) (B c (b - i)) * ((wt i b)⁻¹ : (R (n + 1))ˣ) : R (n + 1)) *
+    Units.inv_mul (wt i (c + i) : (R (n + 1))ˣ)
 
 theorem det_shMat (i : Fin h) (A : Matrix (Fin h) (Fin h) (ZMod 2)) :
     (shMat i A : Matrix (Fin h) (Fin h) (R (n + 1))).det = cst (n + 1) A.det := by
   rw [shMat, Matrix.det_mul, Matrix.det_mul, Matrix.det_diagonal, Matrix.det_diagonal,
     Matrix.det_submatrix_equiv_self, ← RingHom.mapMatrix_apply, ← RingHom.map_det]
-  have : (∏ a, ((wt i a : (R (n + 1))ˣ) : R (n + 1))) * ∏ a,
-      (((wt i a)⁻¹ : (R (n + 1))ˣ) : R (n + 1)) = 1 := by
+  have h1 : (∏ a, ((wt i a : (R (n + 1))ˣ) : R (n + 1))) *
+      ∏ a, (((wt i a)⁻¹ : (R (n + 1))ˣ) : R (n + 1)) = 1 := by
     rw [← Finset.prod_mul_distrib]
     exact Finset.prod_eq_one fun a _ => Units.mul_inv _
-  linear_combination (cst (n + 1) A.det) * this
+  linear_combination (cst (n + 1) A.det) * h1
 
 /-- The embedding of SL_h(F₂) shifted by i. -/
 @[expose] noncomputable def th0 (i : Fin h) : SL2 h →* G h n where
-  toFun A := ⟨shMat i A.val, by rw [det_shMat, A.property, map_one]⟩
+  toFun A := ⟨shMat i A.1, by rw [det_shMat, A.2, map_one]⟩
   map_one' := Subtype.ext (shMat_one i)
-  map_mul' A B := Subtype.ext (shMat_mul i A.val B.val)
+  map_mul' A B := Subtype.ext (shMat_mul i A.1 B.1)
 
-theorem th0_val (i : Fin h) (A : SL2 h) : (th0 i A : G h n).val = shMat i A.val := by rfl
+theorem th0_val (i : Fin h) (A : SL2 h) : (th0 i A : G h n).1 = shMat i A.1 := by rfl
 
 /-- The value at s = 0. -/
 noncomputable def evG : G h n →* SL2 h := Matrix.SpecialLinearGroup.map (ev n)
 
 omit [NeZero h] in
-theorem evG_apply (g : G h n) (a b : Fin h) : (evG g).val a b = ev n (g.val a b) := by rfl
+theorem evG_apply (g : G h n) (a b : Fin h) : (evG g).1 a b = ev n (g.1 a b) := by rfl
 
 omit [NeZero h] in
 theorem ev_wt (i a : Fin h) : ev n ((wt i a : (R (n + 1))ˣ) : R (n + 1)) = 1 := by
   rw [wt]
   split_ifs
-  · have h1 : ev n ((tu n : (R (n + 1))ˣ) : R (n + 1)) = 1 := ev_t n
-    have h2 := congrArg (ev n) (Units.mul_inv (tu n))
-    rw [map_mul, h1, one_mul, map_one] at h2
-    exact h2
+  · simpa only [map_mul, show ev n (tu n : R (n + 1)) = 1 from ev_t n, one_mul, map_one] using
+      congrArg (ev n) (Units.mul_inv (tu n))
   · simp
 
 omit [NeZero h] in
 theorem ev_wt_inv (i a : Fin h) : ev n (((wt i a)⁻¹ : (R (n + 1))ˣ) : R (n + 1)) = 1 := by
-  have h2 := congrArg (ev n) (Units.mul_inv (wt i a : (R (n + 1))ˣ))
-  rw [map_mul, ev_wt, one_mul, map_one] at h2
-  exact h2
+  simpa only [map_mul, ev_wt, one_mul, map_one] using
+    congrArg (ev n) (Units.mul_inv (wt i a : (R (n + 1))ˣ))
 
-theorem evG_th0 (i : Fin h) (A : SL2 h) (a b : Fin h) :
-    (evG (th0 i A : G h n)).val a b = A.val (a - i) (b - i) := by
+theorem evG_th0 (i : Fin h) (A : SL2 h) (a b : Fin h) : (evG (th0 i A : G h n)).1 a b = A.1 (a - i)
+    (b - i) := by
   rw [evG_apply, th0_val, shMat_apply, map_mul, map_mul, ev_wt, ev_wt_inv, ev_cst, one_mul, mul_one]
 
 theorem evG_th0_injective (i : Fin h) : Function.Injective fun A : SL2 h =>
     evG (th0 i A : G h n) := by
   intro A B e
-  refine Subtype.ext ?_
-  ext a b
-  have := congrFun (congrFun (congrArg Subtype.val e) (a + i)) (b + i)
-  simp only at this
-  rw [evG_th0, evG_th0, add_sub_cancel_right, add_sub_cancel_right] at this
-  exact this
+  refine Subtype.ext (Matrix.ext fun a b => ?_)
+  simpa only [evG_th0, add_sub_cancel_right] using
+    congrFun (congrFun (congrArg Subtype.val e) (a + i)) (b + i)
 
 /-- The h unitriangular subgroups. -/
 @[expose] noncomputable def th (i : Fin h) : U h →* G h n := (th0 i).comp (U h).subtype
 
-theorem th_injective (i : Fin h) : Function.Injective (th i : U h →* G h n) := by
-  intro A B e
-  exact Subtype.ext (evG_th0_injective (n := n) i (congrArg evG e))
+theorem th_injective (i : Fin h) : Function.Injective (th i : U h →* G h n) :=
+  fun _ _ e => Subtype.ext (evG_th0_injective (n := n) i (congrArg evG e))
 
-theorem evG_th_eq_one {i : Fin h} {u : U h} (e : evG (th i u : G h n) = 1) : u = 1 := by
-  refine Subtype.ext (evG_th0_injective (n := n) i ?_)
-  simp only
-  have h1 : (th i u : G h n) = th0 i u.val := rfl
-  rw [← h1, e]
-  simp
+theorem evG_th_eq_one {i : Fin h} {u : U h} (e : evG (th i u : G h n) = 1) : u = 1 :=
+  Subtype.ext (evG_th0_injective (n := n) i (by simpa [th] using e))
 
 variable (n) in
 /-- The entry of the generators. -/
@@ -168,64 +154,44 @@ variable (n) in
 
 theorem sub_one_ne (h2 : 2 ≤ h) (k : Fin h) : k - 1 ≠ k := by
   intro e
-  have : (1 : Fin h) = 0 := by
-    have := congrArg (fun x => k - x) e
-    simpa using this
-  have := congrArg Fin.val this
-  rw [Fin.val_one', Fin.val_zero, Nat.mod_eq_of_lt (by omega)] at this
-  omega
+  have h1 : (1 : Fin h) = 0 := by simpa using congrArg (k - ·) e
+  simp [Fin.ext_iff, Nat.mod_eq_of_lt (show 1 < h by omega)] at h1
 
 /-- The generators: involutions of type k. -/
 @[expose] noncomputable def gen (h2 : 2 ≤ h) (k : Fin h) : G h n :=
   ⟨transvection (k - 1) k (tt n k), det_transvection_of_ne _ _ (sub_one_ne h2 k) _⟩
 
-theorem gen_val (h2 : 2 ≤ h) (k : Fin h) : (gen h2 k : G h n).val = transvection (k - 1) k (tt n k)
+theorem gen_val (h2 : 2 ≤ h) (k : Fin h) : (gen h2 k : G h n).1 = transvection (k - 1) k (tt n k)
     := by rfl
 
-theorem gen_mul_self (h2 : 2 ≤ h) (k : Fin h) : (gen h2 k : G h n) * gen h2 k = 1 := by
-  refine Subtype.ext
-      ((transvection_mul_transvection_same _ _ (sub_one_ne h2 k) (tt n k) (tt n k)).trans ?_)
-  rw [add_self, transvection_zero]
-  rfl
+theorem gen_mul_self (h2 : 2 ≤ h) (k : Fin h) : (gen h2 k : G h n) * gen h2 k = 1 :=
+  Subtype.ext <| (transvection_mul_transvection_same _ _ (sub_one_ne h2 k) _ _).trans <| by
+    rw [add_self, transvection_zero]; rfl
 
 /-- The type i + 1 + l. -/
 def sh (i : Fin h) (l : Fin (h - 1)) : Fin h := hi l + i
 
 theorem sh_sub_one (h2 : 2 ≤ h) (i : Fin h) (l : Fin (h - 1)) : sh i l - 1 = lo l + i := by
-  have : (hi l : Fin h) = lo l + 1 := by
-    refine Fin.ext ?_
-    rw [Fin.val_add, Fin.val_one', Nat.mod_eq_of_lt (show 1 < h by omega)]
-    have := l.isLt
-    simp only [lo, hi]
-    rw [Nat.mod_eq_of_lt (by omega)]
-  rw [sh, this]
-  abel
+  have hhi : (hi l : Fin h) = lo l + 1 := Fin.ext <| by
+    simp only [Fin.val_add, Fin.val_one', lo, hi, Nat.mod_eq_of_lt (by omega : 1 < h),
+      Nat.mod_eq_of_lt (by omega : l.1 + 1 < h)]
+  rw [sh, hhi]; abel
 
 theorem sh_ne (i : Fin h) (l : Fin (h - 1)) : sh i l ≠ i := by
   intro e
-  have h1 : (hi l : Fin h) = 0 := by simpa [sh] using e
-  have := congrArg Fin.val h1
-  simp [hi] at this
+  simpa [Fin.ext_iff, hi] using (show (hi l : Fin h) = 0 by simpa [sh] using e)
 
 omit [NeZero h] in
 theorem sh_injective (i : Fin h) : Function.Injective (sh i) := by
   intro l l' e
-  have h1 : (hi l : Fin h) = hi l' := by simpa [sh] using e
-  have := congrArg Fin.val h1
-  simp only [hi] at this
-  exact Fin.ext (by omega)
+  have := congrArg Fin.val (show (hi l : Fin h) = hi l' by simpa [sh] using e)
+  exact Fin.ext (by simp only [hi] at this; omega)
 
 theorem exists_sh {i k : Fin h} (hk : k ≠ i) : ∃ l, sh i l = k := by
-  have h1 : (k - i).val ≠ 0 := by
-    intro e
-    exact hk (sub_eq_zero.1 (Fin.ext e))
-  have h3 := (k - i).isLt
-  refine ⟨⟨(k - i).val - 1, by omega⟩, ?_⟩
-  have : (hi ⟨(k - i).val - 1, by omega⟩ : Fin h) = k - i := by
-    refine Fin.ext ?_
-    simp only [hi]
-    omega
-  rw [sh, this, sub_add_cancel]
+  have h1 : (k - i).1 ≠ 0 := fun e => hk (sub_eq_zero.1 (Fin.ext e))
+  refine ⟨⟨(k - i).1 - 1, by omega⟩, ?_⟩
+  rw [sh, show (hi ⟨(k - i).1 - 1, _⟩ : Fin h) = k - i from Fin.ext (by simp only [hi]; omega),
+    sub_add_cancel]
 
 theorem wt_sub_one (h2 : 2 ≤ h) {i k : Fin h} (hk : k ≠ i) :
     ((wt i (k - 1) : (R (n + 1))ˣ) : R (n + 1)) * ((wt i k)⁻¹ : (R (n + 1))ˣ) = tt n k := by
@@ -233,65 +199,44 @@ theorem wt_sub_one (h2 : 2 ≤ h) {i k : Fin h} (hk : k ≠ i) :
   · subst h0
     have hi0 : (0 : Fin h) < i := Fin.pos_iff_ne_zero.2 hk.symm
     have hl : ¬ ((0 : Fin h) - 1 < i) := by
-      intro hlt
-      have h1 : ((0 : Fin h) - 1).val = h - 1 := by
-        rw [zero_sub, Fin.val_neg']
-        rw [Fin.val_one', Nat.mod_eq_of_lt (show 1 < h by omega), Nat.mod_eq_of_lt (by omega)]
-      have h2' := Fin.lt_def.1 hlt
-      have := i.isLt
+      rw [Fin.lt_def, zero_sub, Fin.val_neg', Fin.val_one',
+        Nat.mod_eq_of_lt (by omega : 1 < h),
+        Nat.mod_eq_of_lt (by omega : h - 1 < h)]
       omega
     rw [wt, wt, ite_eq_right hl, ite_eq_left hi0, tt, ite_eq_left rfl, inv_inv, Units.val_one,
-        one_mul, tu_val]
-  · have h1 : (k - 1).val = k.val - 1 := by
-      have hk0 : 0 < k.val := Nat.pos_of_ne_zero fun e => h0 (Fin.ext e)
-      have h3 : (1 : Fin h) ≤ k := by
-        rw [Fin.le_def, Fin.val_one', Nat.mod_eq_of_lt (show 1 < h by omega)]
-        exact hk0
-      rw [Fin.sub_val_of_le h3, Fin.val_one', Nat.mod_eq_of_lt (show 1 < h by omega)]
-    have hk0 : 0 < k.val := Nat.pos_of_ne_zero fun e => h0 (Fin.ext e)
-    have hki : k.val ≠ i.val := fun e => hk (Fin.ext e)
-    have h2' : k - 1 < i ↔ k < i := by
-      rw [Fin.lt_def, Fin.lt_def, h1]
-      omega
-    rw [wt, wt, tt, ite_eq_right h0]
-    by_cases hlt : k < i
-    · rw [ite_eq_left (h2'.2 hlt), ite_eq_left hlt]
-      exact Units.mul_inv _
-    · rw [ite_eq_right (fun e => hlt (h2'.1 e)), ite_eq_right hlt]
-      simp
+      one_mul, tu_val]
+  · have hk0 : 0 < k.1 := Nat.pos_of_ne_zero fun e => h0 (Fin.ext e)
+    have h1 : (k - 1).1 = k.1 - 1 := by
+      have hle : (1 : Fin h) ≤ k := by
+        rwa [Fin.le_def, Fin.val_one', Nat.mod_eq_of_lt (by omega)]
+      rw [Fin.sub_val_of_le hle, Fin.val_one', Nat.mod_eq_of_lt (by omega)]
+    have hki : k.1 ≠ i.1 := fun e => hk (Fin.ext e)
+    have hlt_iff : k - 1 < i ↔ k < i := by rw [Fin.lt_def, Fin.lt_def, h1]; omega
+    simp only [wt, tt, h0, ↓reduceIte, hlt_iff]
+    split_ifs <;> simp
 
 /-- The simple root elements of the i-th unitriangular subgroup are generators. -/
 theorem th_x (h2 : 2 ≤ h) (i : Fin h) (l : Fin (h - 1)) : (th i (x h l) : G h n) =
     gen h2 (sh i l) := by
   refine Subtype.ext ?_
-  have e1 : (th i (x h l) : G h n).val = shMat i (1 + Matrix.single (lo l) (hi l) 1) := by
-    rw [← x_val]; rfl
-  rw [e1, gen_val, transvection, sh_sub_one h2]
+  have hth : (th i (x h l) : G h n).1 = shMat i (1 + Matrix.single (lo l) (hi l) 1) :=
+    congrArg (shMat i) (x_val h l).symm
+  rw [hth, gen_val, transvection, sh_sub_one h2]
   ext a b
   rw [shMat_apply, Matrix.add_apply, Matrix.add_apply]
+  have hcond : (lo l = a - i ∧ hi l = b - i) ↔ (lo l + i = a ∧ sh i l = b) := by
+    simp [sh, sub_eq_iff_eq_add, eq_comm]
   by_cases hab : a = b
   · subst hab
     have h1 : ¬ (lo l = a - i ∧ hi l = a - i) := fun e => lo_ne_hi l (e.1.trans e.2.symm)
-    have h3 : ¬ (lo l + i = a ∧ sh i l = a) := by
-      rintro ⟨e1, e2⟩
-      have : lo l + i = hi l + i := e1.trans e2.symm
-      exact lo_ne_hi l (add_right_cancel this)
-    rw [Matrix.single_apply, Matrix.single_apply, ite_eq_right h1, ite_eq_right h3]
-    simp
-  · have h4 : a - i ≠ b - i := fun e => hab (sub_left_injective e)
-    rw [Matrix.one_apply_ne h4, Matrix.one_apply_ne hab, zero_add, zero_add]
+    simp [h1, hcond.not.mp h1]
+  · rw [Matrix.one_apply_ne fun e => hab (sub_left_injective e), Matrix.one_apply_ne hab,
+      zero_add, zero_add]
     by_cases h1 : lo l = a - i ∧ hi l = b - i
-    · have ha : lo l + i = a := by rw [h1.1, sub_add_cancel]
-      have hb : sh i l = b := by rw [sh, h1.2, sub_add_cancel]
-      rw [h1.1, h1.2, Matrix.single_apply_same, map_one, one_mul, sub_add_cancel, hb,
-          Matrix.single_apply_same]
-      have := wt_sub_one (n := n) h2 (sh_ne i l)
-      rw [sh_sub_one h2, ha, hb] at this
-      exact this
-    · have h3 : ¬ (lo l + i = a ∧ sh i l = b) := by
-        rintro ⟨e1, e2⟩
-        exact h1 ⟨by rw [← e1, add_sub_cancel_right], by rw [← e2, sh, add_sub_cancel_right]⟩
-      rw [Matrix.single_apply, Matrix.single_apply, ite_eq_right h1, ite_eq_right h3]
-      simp
+    · obtain ⟨ha, hb⟩ := hcond.mp h1
+      have hwt := wt_sub_one (n := n) h2 (sh_ne i l)
+      rw [sh_sub_one h2, ha, hb] at hwt
+      simpa [h1, ha, hb] using hwt
+    · simp [h1, hcond.not.mp h1]
 
 end Cslib.SLTower

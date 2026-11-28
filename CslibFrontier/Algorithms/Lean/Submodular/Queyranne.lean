@@ -122,6 +122,16 @@ structure IsQOrdering {V β : Type*} [DecidableEq V] [Fintype V] [Add β] [LE β
   /-- Every prefix minimizes marginal insertion cost minus singleton value. -/
   isQOrderingFrom : IsQOrderingFrom f ∅ l
 
+private theorem pairLe_trans {β : Type*} [AddCommMonoid β] [LinearOrder β]
+    [IsOrderedCancelAddMonoid β] {v₁ s₁ v₂ s₂ v₃ s₃ : β}
+    (h12 : v₁ + s₂ ≤ v₂ + s₁) (h23 : v₂ + s₃ ≤ v₃ + s₂) :
+    v₁ + s₃ ≤ v₃ + s₁ := by
+  have hsum : (v₁ + s₃) + (v₂ + s₂) ≤ (v₃ + s₁) + (v₂ + s₂) := by
+    calc (v₁ + s₃) + (v₂ + s₂) = (v₁ + s₂) + (v₂ + s₃) := by ac_rfl
+      _ ≤ (v₂ + s₁) + (v₃ + s₂) := add_le_add h12 h23
+      _ = (v₃ + s₁) + (v₂ + s₂) := by ac_rfl
+  exact le_of_add_le_add_right hsum
+
 section Inv
 
 variable {V β : Type*} [DecidableEq V]
@@ -153,21 +163,8 @@ private theorem qInv_cons [AddCommMonoid β] [LinearOrder β] [IsOrderedCancelAd
   rw [hsame, hother]
   by_cases hxl : x ∈ C ↔ last ∈ C
   · have hyl : ¬ (y ∈ C ↔ last ∈ C) := fun h => hyx (h.trans hxl.symm)
-    have h1 := hinv y (List.mem_cons_of_mem x hy) hyl
-    have h2 : f (insert x A) + f (qOtherSide C A y) ≤
-        f A + f (insert x (qOtherSide C A y)) :=
-      hf.insert_add_le x (Finset.filter_subset _ _) hx
-    have hsum : (f (insert x A) + f {y}) + (f A + f (qOtherSide C A y)) ≤
-        (f (insert y (qSameSide C A y)) + f (insert x (qOtherSide C A y))) +
-          (f A + f (qOtherSide C A y)) := by
-      calc
-        (f (insert x A) + f {y}) + (f A + f (qOtherSide C A y))
-            = (f (insert x A) + f (qOtherSide C A y)) + (f A + f {y}) := by ac_rfl
-        _ ≤ (f A + f (insert x (qOtherSide C A y))) +
-              (f (insert y (qSameSide C A y)) + f (qOtherSide C A y)) := add_le_add h2 h1
-        _ = (f (insert y (qSameSide C A y)) + f (insert x (qOtherSide C A y))) +
-              (f A + f (qOtherSide C A y)) := by ac_rfl
-    exact le_of_add_le_add_right hsum
+    exact pairLe_trans (hf.insert_add_le x (Finset.filter_subset _ _) hx)
+      (hinv y (List.mem_cons_of_mem x hy) hyl)
   · have hsameSwap : qSameSide C A y = qOtherSide C A x := by
       unfold qSameSide qOtherSide
       refine Finset.filter_congr fun a _ => ?_
@@ -176,27 +173,9 @@ private theorem qInv_cons [AddCommMonoid β] [LinearOrder β] [IsOrderedCancelAd
       unfold qOtherSide qSameSide
       refine Finset.filter_congr fun a _ => ?_
       tauto
-    rw [hsameSwap, hotherSwap]
-    have h1 : f A + f {x} ≤ f (insert x (qSameSide C A x)) + f (qOtherSide C A x) :=
-      hinv x List.mem_cons_self hxl
-    have h2 : f (insert x A) + f {y} ≤ f (insert y A) + f {x} := hma y hy
-    have h3 : f (insert y A) + f (qOtherSide C A x) ≤
-        f A + f (insert y (qOtherSide C A x)) :=
-      hf.insert_add_le y (Finset.filter_subset _ _) (hdisj y hy)
-    have hsum : (f (insert x A) + f {y}) + (f A + f {x} + f (insert y A) + f (qOtherSide C A x)) ≤
-        (f (insert y (qOtherSide C A x)) + f (insert x (qSameSide C A x))) +
-          (f A + f {x} + f (insert y A) + f (qOtherSide C A x)) := by
-      calc
-        (f (insert x A) + f {y}) + (f A + f {x} + f (insert y A) + f (qOtherSide C A x))
-            = (f (insert x A) + f {y}) + (f A + f {x}) +
-                (f (insert y A) + f (qOtherSide C A x)) := by ac_rfl
-        _ ≤ (f (insert y A) + f {x}) +
-              (f (insert x (qSameSide C A x)) + f (qOtherSide C A x)) +
-              (f A + f (insert y (qOtherSide C A x))) :=
-            add_le_add (add_le_add h2 h1) h3
-        _ = (f (insert y (qOtherSide C A x)) + f (insert x (qSameSide C A x))) +
-              (f A + f {x} + f (insert y A) + f (qOtherSide C A x)) := by ac_rfl
-    exact le_of_add_le_add_right hsum
+    rw [hsameSwap, hotherSwap, add_comm (f (insert y _))]
+    exact (hma y hy).trans (pairLe_trans
+      (hf.insert_add_le y (Finset.filter_subset _ _) (hdisj y hy)) (hinv x List.mem_cons_self hxl))
 
 private theorem qInv_append [AddCommMonoid β] [LinearOrder β] [IsOrderedCancelAddMonoid β]
     {f : Finset V → β} (hf : IsSubmodular f) (C : Finset V) :
@@ -267,25 +246,12 @@ theorem pendentPair_le {V β : Type*} [DecidableEq V] [Fintype V]
   have hkey := hinv t List.mem_cons_self hts
   rw [hAt, hsym {t}] at hkey
   have hrhs : f (insert t (qSameSide C {t}ᶜ t)) + f (qOtherSide C {t}ᶜ t) = f C + f C := by
-    by_cases htC : t ∈ C
-    · have hs : insert t (qSameSide C {t}ᶜ t) = C := by
-        ext a
-        by_cases hat : a = t <;>
-          simp [qSameSide, hat, htC]
-      have ho : qOtherSide C {t}ᶜ t = Cᶜ := by
-        ext a
-        by_cases hat : a = t <;>
-          simp [qOtherSide, hat, htC]
-      rw [hs, ho, hsym C]
-    · have hs : insert t (qSameSide C {t}ᶜ t) = Cᶜ := by
-        ext a
-        by_cases hat : a = t <;>
-          simp [qSameSide, hat, htC]
-      have ho : qOtherSide C {t}ᶜ t = C := by
-        ext a
-        by_cases hat : a = t <;>
-          simp [qOtherSide, hat, htC]
-      rw [hs, ho, hsym C]
+    have hs : insert t (qSameSide C {t}ᶜ t) = if t ∈ C then C else Cᶜ := by
+      ext a; by_cases hat : a = t <;> split_ifs with htC <;> simp [qSameSide, hat, htC]
+    have ho : qOtherSide C {t}ᶜ t = if t ∈ C then Cᶜ else C := by
+      ext a; by_cases hat : a = t <;> split_ifs with htC <;> simp [qOtherSide, hat, htC]
+    rw [hs, ho]
+    split_ifs <;> rw [hsym C]
   rw [hrhs] at hkey
   by_contra hlt
   have hstrict := lt_of_not_ge hlt
@@ -516,39 +482,15 @@ private theorem map_queyranneRecM
       queyranneRecM (fun S => φ (ask S)) steps blocks := by
   induction steps generalizing blocks with
   | zero =>
-    cases blocks with
-    | nil =>
-      simp only [queyranneRecM, hφ.map_bind]
-      congr 1 with v : 1
-      exact hφ.map_pure _
-    | cons b₀ rest =>
-      cases rest with
-      | nil =>
-        simp only [queyranneRecM, hφ.map_bind]
-        congr 1 with v : 1
-        exact hφ.map_pure _
-      | cons b₁ bs =>
-        simp only [queyranneRecM, hφ.map_bind]
-        congr 1 with v₁ : 1
-        exact hφ.map_pure _
+    rcases blocks with _ | ⟨_, _ | ⟨_, _⟩⟩ <;> simp only [queyranneRecM, hφ.map_bind] <;>
+      congr 1 with v : 1 <;> exact hφ.map_pure _
   | succ steps ih =>
-    cases blocks with
-    | nil =>
-      simp only [queyranneRecM, hφ.map_bind]
-      congr 1 with v : 1
-      exact hφ.map_pure _
-    | cons b₀ rest =>
-      cases rest with
-      | nil =>
-        simp only [queyranneRecM, hφ.map_bind]
-        congr 1 with v : 1
-        exact hφ.map_pure _
-      | cons b₁ bs =>
-        simp only [queyranneRecM, hφ.map_bind, map_qSearchM hφ]
-        congr 1 with p : 1
-        simp only [ih]
-        congr 1 with q : 1
-        split_ifs <;> exact hφ.map_pure _
+    rcases blocks with _ | ⟨_, _ | ⟨_, _⟩⟩ <;>
+      simp only [queyranneRecM, hφ.map_bind, map_qSearchM hφ] <;> congr 1 with p : 1
+    iterate 2 exact hφ.map_pure _
+    simp only [ih]
+    congr 1 with q : 1
+    split_ifs <;> exact hφ.map_pure _
 
 @[grind .]
 theorem _root_.Cslib.IsMonadHom.map_queyranneM
@@ -584,6 +526,17 @@ private structure BlockPart {V : Type} [DecidableEq V] [Fintype V]
 private theorem blockPart_nodup {V : Type} [DecidableEq V] [Fintype V]
     {blocks : List (Finset V)} (hp : BlockPart blocks) : blocks.Nodup :=
   nodup_of_pairwise_disjoint_nonempty hp.nonempty hp.disjoint
+
+private theorem BlockPart.exists_mem {V : Type} [DecidableEq V] [Fintype V]
+    {blocks : List (Finset V)} (hp : BlockPart blocks) (v : V) : ∃ b ∈ blocks, v ∈ b := by
+  have hv : v ∈ blocks.toFinset.biUnion id := hp.cover ▸ Finset.mem_univ v
+  simpa using hv
+
+private theorem BlockPart.eq_of_mem {V : Type} [DecidableEq V] [Fintype V]
+    {blocks : List (Finset V)} (hp : BlockPart blocks) {a b : Finset V} {v : V}
+    (ha : a ∈ blocks) (hb : b ∈ blocks) (hva : v ∈ a) (hvb : v ∈ b) : a = b := by
+  by_contra hne
+  exact Finset.disjoint_left.mp (hp.disjoint.forall ha hb hne) hva hvb
 
 private theorem blockPart_singletons {V : Type} [DecidableEq V] [Fintype V]
     {u : List V} (hnd : u.Nodup) (hmem : ∀ v, v ∈ u) :
@@ -634,9 +587,7 @@ private theorem blockPart_mergeBlocks {V : Type} [DecidableEq V] [Fintype V]
   refine ⟨hmd.1, hmd.2, ?_⟩
   apply Finset.eq_univ_of_forall
   intro v
-  have hv : v ∈ blocks.toFinset.biUnion id := hp.cover ▸ Finset.mem_univ v
-  obtain ⟨b, hb, hvb⟩ := Finset.mem_biUnion.mp hv
-  have hb_list : b ∈ blocks := List.mem_toFinset.mp hb
+  obtain ⟨b, hb_list, hvb⟩ := hp.exists_mem v
   rw [Finset.mem_biUnion]
   by_cases hbs : b = s
   · rw [hbs] at hvb
@@ -733,46 +684,24 @@ private theorem blockUnion_inter {V : Type} [DecidableEq V] [Fintype V]
   · rintro ⟨a, ⟨haS, haT⟩, hva⟩
     exact ⟨⟨a, haS, hva⟩, ⟨a, haT, hva⟩⟩
   · rintro ⟨⟨a, haS, hva⟩, ⟨b, hbT, hvb⟩⟩
-    have hab : a = b := by
-      by_contra hne
-      have hdisj := hp.disjoint.forall (List.mem_toFinset.mp a.property)
-        (List.mem_toFinset.mp b.property) (Subtype.coe_ne_coe.mpr hne)
-      exact Finset.disjoint_left.mp hdisj hva hvb
-    subst hab
+    obtain rfl := Subtype.ext (hp.eq_of_mem (List.mem_toFinset.mp a.2)
+      (List.mem_toFinset.mp b.2) hva hvb)
     exact ⟨a, ⟨haS, hbT⟩, hva⟩
 
 private theorem blockUnion_compl {V : Type} [DecidableEq V] [Fintype V]
     {blocks : List (Finset V)} (hp : BlockPart blocks)
     (S : Finset {b : Finset V // b ∈ blocks.toFinset}) :
     blockUnion blocks Sᶜ = (blockUnion blocks S)ᶜ := by
-  have hdisj : Disjoint (blockUnion blocks Sᶜ) (blockUnion blocks S) := by
-    rw [Finset.disjoint_left]
-    intro v hv1 hv2
-    have he : v ∈ blockUnion blocks (Sᶜ ∩ S) := by
-      rw [blockUnion_inter hp]
-      exact Finset.mem_inter.mpr ⟨hv1, hv2⟩
-    simp [blockUnion] at he
-  have huniv : blockUnion blocks Sᶜ ∪ blockUnion blocks S = Finset.univ := by
-    have hcs : Sᶜ ∪ S = Finset.univ := by
-      ext x
-      simp
-    rw [← blockUnion_union, hcs]
-    ext v
-    simp only [blockUnion, Finset.mem_biUnion, Finset.mem_univ, true_and, Subtype.exists]
-    have hv := hp.cover ▸ Finset.mem_univ v
-    simpa [Finset.mem_biUnion] using hv
   ext v
-  rw [Finset.mem_compl]
-  constructor
-  · intro hv hvS
-    exact Finset.disjoint_left.mp hdisj hv hvS
-  · intro hvS
-    have hvu : v ∈ blockUnion blocks Sᶜ ∪ blockUnion blocks S := huniv ▸ Finset.mem_univ v
-    exact (Finset.mem_union.mp hvu).elim id fun h => (hvS h).elim
+  simp only [blockUnion, Finset.mem_compl, Finset.mem_biUnion, not_exists, not_and]
+  obtain ⟨b, hb, hvb⟩ := hp.exists_mem v
+  refine ⟨fun ⟨a, haS, hva⟩ c hcS hvc => haS ?_,
+    fun h => ⟨⟨b, List.mem_toFinset.mpr hb⟩, fun hbS => h _ hbS hvb, hvb⟩⟩
+  rwa [Subtype.ext (hp.eq_of_mem (List.mem_toFinset.mp a.2) (List.mem_toFinset.mp c.2) hva hvc)]
 
 @[simp] private theorem blockUnion_singleton {V : Type} [DecidableEq V] (blocks : List (Finset V))
     (b : {b : Finset V // b ∈ blocks.toFinset}) :
-    blockUnion blocks {b} = b.val := by
+    blockUnion blocks {b} = b.1 := by
   simp [blockUnion]
 
 @[simp] private theorem blockUnion_empty {V : Type} [DecidableEq V] (blocks : List (Finset V)) :
@@ -782,7 +711,7 @@ private theorem blockUnion_compl {V : Type} [DecidableEq V] [Fintype V]
 @[simp] private theorem blockUnion_insert {V : Type} [DecidableEq V] (blocks : List (Finset V))
     (b : {b : Finset V // b ∈ blocks.toFinset})
     (S : Finset {b : Finset V // b ∈ blocks.toFinset}) :
-    blockUnion blocks (insert b S) = blockUnion blocks S ∪ b.val := by
+    blockUnion blocks (insert b S) = blockUnion blocks S ∪ b.1 := by
   rw [Finset.insert_eq, blockUnion_union, blockUnion_singleton, Finset.union_comm]
 
 private theorem isSubmodular_blockUnion {V β : Type} [DecidableEq V] [Fintype V]
@@ -805,7 +734,7 @@ private theorem isSymmetric_blockUnion {V β : Type} [DecidableEq V] [Fintype V]
 private theorem blockUnion_filter_subset {V : Type} [DecidableEq V] [Fintype V]
     {blocks : List (Finset V)} (hp : BlockPart blocks) {C : Finset V}
     (hC : RespectsBlocks blocks C) :
-    blockUnion blocks (Finset.univ.filter fun b => b.val ⊆ C) = C := by
+    blockUnion blocks (Finset.univ.filter fun b => b.1 ⊆ C) = C := by
   ext v
   simp only [blockUnion, Finset.mem_biUnion, Finset.mem_filter, Finset.mem_univ, true_and,
     Subtype.exists]
@@ -813,10 +742,9 @@ private theorem blockUnion_filter_subset {V : Type} [DecidableEq V] [Fintype V]
   · rintro ⟨b, _, hbC, hvb⟩
     exact hbC hvb
   · intro hvC
-    have hv : v ∈ blocks.toFinset.biUnion id := hp.cover ▸ Finset.mem_univ v
-    obtain ⟨b, hb, hvb⟩ := Finset.mem_biUnion.mp hv
-    refine ⟨b, hb, ?_, hvb⟩
-    rcases hC b (List.mem_toFinset.mp hb) with hbC | hbdisj
+    obtain ⟨b, hb, hvb⟩ := hp.exists_mem v
+    refine ⟨b, List.mem_toFinset.mpr hb, ?_, hvb⟩
+    rcases hC b hb with hbC | hbdisj
     · exact hbC
     · exact False.elim (Finset.disjoint_left.mp hbdisj hvb hvC)
 
@@ -891,16 +819,6 @@ private theorem nodup_fst_eraseBlock {V β : Type} [DecidableEq V] (p : Finset V
       obtain ⟨⟨x, sx⟩, hx, rfl⟩ := List.mem_map.mp hmem
       exact hnd.1 (List.mem_map.mpr ⟨(x, sx), ((mem_eraseBlock_iff hnd.2).mp hx).1, rfl⟩)
 
-private theorem pairLe_trans {β : Type} [AddCommMonoid β] [LinearOrder β]
-    [IsOrderedCancelAddMonoid β] {v₁ s₁ v₂ s₂ v₃ s₃ : β}
-    (h12 : v₁ + s₂ ≤ v₂ + s₁) (h23 : v₂ + s₃ ≤ v₃ + s₂) :
-    v₁ + s₃ ≤ v₃ + s₁ := by
-  have hsum : (v₁ + s₃) + (v₂ + s₂) ≤ (v₃ + s₁) + (v₂ + s₂) := by
-    calc (v₁ + s₃) + (v₂ + s₂) = (v₁ + s₂) + (v₂ + s₃) := by ac_rfl
-      _ ≤ (v₂ + s₁) + (v₃ + s₂) := add_le_add h12 h23
-      _ = (v₃ + s₁) + (v₂ + s₂) := by ac_rfl
-  exact le_of_add_le_add_right hsum
-
 private theorem qScan_spec {V β : Type} [DecidableEq V]
     [AddCommMonoid β] [LinearOrder β] [IsOrderedCancelAddMonoid β] (f : Finset V → β)
     (A : Finset V) :
@@ -961,26 +879,26 @@ private theorem qSearchSteps_spec {V β : Type} [DecidableEq V] [Fintype V]
       ((c₀ :: cs).map Prod.fst).Nodup →
       (∀ p ∈ c₀ :: cs, p.1 ∈ blocks.toFinset ∧ p.2 = f p.1) →
       (∀ b : {b : Finset V // b ∈ blocks.toFinset},
-        b ∉ S_pref ↔ b.val ∈ (c₀ :: cs).map Prod.fst) →
+        b ∉ S_pref ↔ b.1 ∈ (c₀ :: cs).map Prod.fst) →
       let res := Id.run (qSearchStepsM (m := Id) (fun S => pure (f S)) k
-        (blockUnion blocks S_pref) prev.val c₀ cs)
+        (blockUnion blocks S_pref) prev.1 c₀ cs)
       res.fst ∈ blocks ∧ res.snd ∈ blocks ∧ res.fst ≠ res.snd ∧ res.sndVal = f res.snd ∧
         ∃ q : List {b : Finset V // b ∈ blocks.toFinset},
           q.Nodup ∧ (∀ b, b ∉ S_pref ↔ b ∈ q) ∧
           IsQOrderingFrom (fun X => f (blockUnion blocks X)) S_pref q ∧
           ((k = 0 ∧ ∃ tP : {b : Finset V // b ∈ blocks.toFinset},
-              q = [tP] ∧ res.fst = prev.val ∧ tP.val = res.snd) ∨
-           (1 ≤ k ∧ ∃ q₀ sP tP, q = q₀ ++ [sP, tP] ∧ sP.val = res.fst ∧ tP.val = res.snd))
+              q = [tP] ∧ res.fst = prev.1 ∧ tP.1 = res.snd) ∨
+           (1 ≤ k ∧ ∃ q₀ sP tP, q = q₀ ++ [sP, tP] ∧ sP.1 = res.fst ∧ tP.1 = res.snd))
   | 0, S_pref, prev, (t, st), [], _, hprevS, _, hmem, hcover => by
     have ht_mem : t ∈ blocks.toFinset := (hmem (t, st) List.mem_cons_self).1
     have ht_eq : st = f t := (hmem (t, st) List.mem_cons_self).2
     let tP : {b : Finset V // b ∈ blocks.toFinset} := ⟨t, ht_mem⟩
-    have hne : prev.val ≠ t := by
+    have hne : prev.1 ≠ t := by
       intro heq
       have hpeq : prev = tP := Subtype.ext heq
       have hnt : tP ∉ S_pref := (hcover tP).mpr (by simp [tP])
       exact hnt (hpeq ▸ hprevS)
-    refine ⟨List.mem_toFinset.mp prev.property, List.mem_toFinset.mp ht_mem, hne, ht_eq, [tP],
+    refine ⟨List.mem_toFinset.mp prev.2, List.mem_toFinset.mp ht_mem, hne, ht_eq, [tP],
       List.nodup_singleton tP, fun b => ?_, ?_, .inl ⟨rfl, tP, rfl, rfl, rfl⟩⟩
     · rw [hcover b]
       simp [tP, Subtype.ext_iff]
@@ -1016,7 +934,7 @@ private theorem qSearchSteps_spec {V β : Type} [DecidableEq V] [Fintype V]
       have hmem' : ∀ p ∈ d₀ :: ds, p.1 ∈ blocks.toFinset ∧ p.2 = f p.1 :=
         fun p hp' => hmem p (hsub_er p hp').1
       have hcover' : ∀ b : {b : Finset V // b ∈ blocks.toFinset},
-          b ∉ insert bP S_pref ↔ b.val ∈ (d₀ :: ds).map Prod.fst := by
+          b ∉ insert bP S_pref ↔ b.1 ∈ (d₀ :: ds).map Prod.fst := by
         intro b
         rw [Finset.mem_insert, not_or, hcover b, List.mem_map, List.mem_map]
         constructor
@@ -1033,11 +951,11 @@ private theorem qSearchSteps_spec {V β : Type} [DecidableEq V] [Fintype V]
         blockUnion_insert blocks bP S_pref
       have hstep :
           Id.run (qSearchStepsM (m := Id) (fun S => pure (f S)) (k + 1)
-            (blockUnion blocks S_pref) prev.val c₀ (c₁ :: cs)) =
+            (blockUnion blocks S_pref) prev.1 c₀ (c₁ :: cs)) =
           Id.run (qSearchStepsM (m := Id) (fun S => pure (f S)) k
-            (blockUnion blocks (insert bP S_pref)) bP.val d₀ ds) := by
+            (blockUnion blocks (insert bP S_pref)) bP.1 d₀ ds) := by
         change (match eraseBlock scanRes.best (c₀ :: c₁ :: cs) with
-          | [] => QPendentPair.mk prev.val c₀.1 c₀.2
+          | [] => QPendentPair.mk prev.1 c₀.1 c₀.2
           | d₀' :: ds' => Id.run (qSearchStepsM (m := Id) (fun S => pure (f S)) k
               (blockUnion blocks S_pref ∪ scanRes.best) scanRes.best d₀' ds')) = _
         rw [her]
@@ -1053,18 +971,18 @@ private theorem qSearchSteps_spec {V β : Type} [DecidableEq V] [Fintype V]
         by_cases hb : b = bP
         · subst hb
           refine ⟨fun _ => .inl rfl, fun _ => ?_⟩
-          have hb_in : bP.val ∈ (c₀ :: c₁ :: cs).map Prod.fst :=
+          have hb_in : bP.1 ∈ (c₀ :: c₁ :: cs).map Prod.fst :=
             List.mem_map.mpr ⟨(best, sBest), hbest_in, rfl⟩
           exact (hcover bP).mpr hb_in
         · simp [hb]
       · refine ⟨fun y hy => ?_, hq'ord⟩
         have hy' : y ∉ insert bP S_pref := (hq'cov y).mpr hy
         rw [Finset.mem_insert, not_or] at hy'
-        have hy_map : y.val ∈ (c₀ :: c₁ :: cs).map Prod.fst := (hcover y).mp hy'.2
+        have hy_map : y.1 ∈ (c₀ :: c₁ :: cs).map Prod.fst := (hcover y).mp hy'.2
         obtain ⟨c, hc_mem, hc_eq⟩ := List.mem_map.mp hy_map
         have hc_all := hscan.2.2.2 c hc_mem
-        have hc2 : c.2 = f y.val := hc_eq ▸ (hmem c hc_mem).2
-        have hbP_eq : bP.val = best := rfl
+        have hc2 : c.2 = f y.1 := hc_eq ▸ (hmem c hc_mem).2
+        have hbP_eq : bP.1 = best := rfl
         rw [hscan.2.1, hscan.2.2.1, hc2, hc_eq] at hc_all
         simpa only [blockUnion_insert, blockUnion_singleton, hbP_eq] using hc_all
       · refine .inr ?_
@@ -1080,7 +998,7 @@ private theorem qSearch_spec {V β : Type} [DecidableEq V] [Fintype V]
     res.fst ∈ blocks ∧ res.snd ∈ blocks ∧ res.fst ≠ res.snd ∧ res.sndVal = f res.snd ∧
       ∃ (p : List {b : Finset V // b ∈ blocks.toFinset})
         (sP tP : {b : Finset V // b ∈ blocks.toFinset}),
-        sP.val = res.fst ∧ tP.val = res.snd ∧
+        sP.1 = res.fst ∧ tP.1 = res.snd ∧
         IsQOrdering (fun X => f (blockUnion blocks X)) (p ++ [sP, tP]) := by
   have hnd_list := blockPart_nodup hp
   rw [hblocks, List.nodup_cons] at hnd_list
@@ -1094,26 +1012,18 @@ private theorem qSearch_spec {V β : Type} [DecidableEq V] [Fintype V]
     obtain ⟨b, hb, rfl⟩ := List.mem_map.mp hp'
     exact ⟨List.mem_toFinset.mpr (by simp [hblocks, hb]), rfl⟩
   have hcover : ∀ b : {b : Finset V // b ∈ blocks.toFinset},
-      b ∉ ({b₀P} : Finset _) ↔ b.val ∈ (((b₁ :: bs).map fun x => (x, f x)).map Prod.fst) := by
+      b ∉ ({b₀P} : Finset _) ↔ b.1 ∈ (((b₁ :: bs).map fun x => (x, f x)).map Prod.fst) := by
     intro b
     simp only [Finset.mem_singleton, List.map_map, Function.comp_def, List.map_id',
       Subtype.ext_iff, b₀P]
-    have hb : b.val ∈ b₀ :: b₁ :: bs := hblocks ▸ List.mem_toFinset.mp b.property
-    rw [List.mem_cons] at hb
-    constructor
-    · intro hne
-      rcases hb with hbb₀ | hb'
-      · exact absurd hbb₀ hne
-      · exact hb'
-    · intro hb' heq
-      rw [heq] at hb'
-      exact hnd_list.1 hb'
+    have hb : b.1 ∈ b₀ :: b₁ :: bs := hblocks ▸ List.mem_toFinset.mp b.2
+    exact ⟨(List.mem_cons.mp hb).resolve_left, fun hb' heq => hnd_list.1 (heq ▸ hb')⟩
   have hsteps := qSearchSteps_spec f hp bs.length {b₀P} b₀P (b₁, f b₁)
     (bs.map fun b => (b, f b)) (by simp) (Finset.mem_singleton_self _)
     (by simpa using hc_nd) (by simpa using hc_mem) (by simpa using hcover)
   have hsearch_eq : Id.run (qSearchM (m := Id) (fun S => pure (f S)) b₀ b₁ bs) =
       Id.run (qSearchStepsM (m := Id) (fun S => pure (f S)) bs.length
-        (blockUnion blocks {b₀P}) b₀P.val (b₁, f b₁) (bs.map fun b => (b, f b))) := by
+        (blockUnion blocks {b₀P}) b₀P.1 (b₁, f b₁) (bs.map fun b => (b, f b))) := by
     change (match Id.run (qSingletonsM (m := Id) (fun S => pure (f S)) (b₁ :: bs)) with
       | [] => QPendentPair.mk b₀ b₁ (f b₁)
       | c₀ :: cs => Id.run (qSearchStepsM (m := Id) (fun S => pure (f S)) bs.length b₀ b₀ c₀ cs)) =
@@ -1161,51 +1071,20 @@ private theorem queyranneRec_spec {V β : Type} [DecidableEq V] [Fintype V]
       dsimp only
       rw [hres]
       refine ⟨block_isNonTrivialCut hp (by simp) (by simp), rfl, fun C hCnt hC => ?_⟩
+      have hcov : ∀ v, v ∈ b₀ ∨ v ∈ b₁ := fun v => by simpa using hp.exists_mem v
       rcases hC b₀ (by simp) with hb₀C | hb₀D <;> rcases hC b₁ (by simp) with hb₁C | hb₁D
-      · exfalso
-        apply hCnt.2
-        apply Finset.eq_univ_of_forall
-        intro v
-        have hv : v ∈ [b₀, b₁].toFinset.biUnion id := hp.cover ▸ Finset.mem_univ v
-        simp only [List.toFinset_cons, List.toFinset_nil, insert_empty_eq, Finset.mem_biUnion,
-          Finset.mem_insert, Finset.mem_singleton, id_eq] at hv
-        rcases hv with ⟨_, rfl | rfl, hvb⟩
-        · exact hb₀C hvb
-        · exact hb₁C hvb
+      · exact absurd (Finset.eq_univ_of_forall fun v => (hcov v).elim (@hb₀C v) (@hb₁C v)) hCnt.2
       · have hCb₁ : C = b₁ᶜ := by
           ext v
           rw [Finset.mem_compl]
-          constructor
-          · intro hvC hvb₁
-            exact Finset.disjoint_left.mp hb₁D hvb₁ hvC
-          · intro hnb₁
-            have hv : v ∈ [b₀, b₁].toFinset.biUnion id := hp.cover ▸ Finset.mem_univ v
-            simp only [List.toFinset_cons, List.toFinset_nil, insert_empty_eq, Finset.mem_biUnion,
-              Finset.mem_insert, Finset.mem_singleton, id_eq] at hv
-            rcases hv with ⟨_, rfl | rfl, hvb⟩
-            · exact hb₀C hvb
-            · exact (hnb₁ hvb).elim
+          exact ⟨fun hvC hvb₁ => Finset.disjoint_left.mp hb₁D hvb₁ hvC,
+            fun hnb₁ => hb₀C ((hcov v).resolve_right hnb₁)⟩
         rw [hCb₁, hsym b₁]
-      · have hCb₁ : C = b₁ := by
-          apply Finset.Subset.antisymm _ hb₁C
-          intro v hvC
-          have hv : v ∈ [b₀, b₁].toFinset.biUnion id := hp.cover ▸ Finset.mem_univ v
-          simp only [List.toFinset_cons, List.toFinset_nil, insert_empty_eq, Finset.mem_biUnion,
-            Finset.mem_insert, Finset.mem_singleton, id_eq] at hv
-          rcases hv with ⟨_, rfl | rfl, hvb⟩
-          · exact False.elim (Finset.disjoint_left.mp hb₀D hvb hvC)
-          · exact hvb
-        rw [hCb₁]
-      · exfalso
-        apply hCnt.1.ne_empty
-        rw [Finset.eq_empty_iff_forall_notMem]
-        intro v hvC
-        have hv : v ∈ [b₀, b₁].toFinset.biUnion id := hp.cover ▸ Finset.mem_univ v
-        simp only [List.toFinset_cons, List.toFinset_nil, insert_empty_eq, Finset.mem_biUnion,
-          Finset.mem_insert, Finset.mem_singleton, id_eq] at hv
-        rcases hv with ⟨_, rfl | rfl, hvb⟩
-        · exact Finset.disjoint_left.mp hb₀D hvb hvC
-        · exact Finset.disjoint_left.mp hb₁D hvb hvC
+      · rw [Finset.Subset.antisymm (fun v hvC => (hcov v).resolve_left
+          fun hvb => Finset.disjoint_left.mp hb₀D hvb hvC) hb₁C]
+      · exact absurd (Finset.eq_empty_iff_forall_notMem.mpr fun v hvC => (hcov v).elim
+          (Finset.disjoint_left.mp hb₀D · hvC) (Finset.disjoint_left.mp hb₁D · hvC))
+          hCnt.1.ne_empty
   | steps + 1, blocks, hp, hlen => by
     rcases blocks with _ | ⟨b₀, _ | ⟨b₁, bs⟩⟩
     · simp at hlen
@@ -1226,7 +1105,7 @@ private theorem queyranneRec_spec {V β : Type} [DecidableEq V] [Fintype V]
           (sr.fst ⊆ C ↔ ¬ sr.snd ⊆ C) → f sr.snd ≤ f C := by
         intro C hC hsep
         let X : Finset {b : Finset V // b ∈ (b₀ :: b₁ :: bs).toFinset} :=
-          Finset.univ.filter fun b => b.val ⊆ C
+          Finset.univ.filter fun b => b.1 ⊆ C
         have hX_sep : sP ∈ X ↔ tP ∉ X := by
           simp only [X, Finset.mem_filter, Finset.mem_univ, true_and, hsP, htP, hsep]
         have hp_le := pendentPair_le (isSubmodular_blockUnion hf hp)
@@ -1344,33 +1223,19 @@ theorem isSubmodular_hyperCutWeight {V β : Type*} [DecidableEq V] [Fintype V]
   have h_union :
       ((e ∩ (A ∪ B)).Nonempty ∧ (e ∩ (A ∪ B)ᶜ).Nonempty) →
       ((e ∩ A).Nonempty ∧ (e ∩ Aᶜ).Nonempty) ∨ ((e ∩ B).Nonempty ∧ (e ∩ Bᶜ).Nonempty) := by
-    rintro ⟨⟨x, hx⟩, ⟨y, hy⟩⟩
-    simp only [Finset.mem_inter, Finset.mem_union, Finset.mem_compl] at hx hy
-    rcases hx.2 with hxA | hxB
-    · exact .inl ⟨⟨x, Finset.mem_inter.mpr ⟨hx.1, hxA⟩⟩,
-        ⟨y, Finset.mem_inter.mpr ⟨hy.1, Finset.mem_compl.mpr fun h => hy.2 (.inl h)⟩⟩⟩
-    · exact .inr ⟨⟨x, Finset.mem_inter.mpr ⟨hx.1, hxB⟩⟩,
-        ⟨y, Finset.mem_inter.mpr ⟨hy.1, Finset.mem_compl.mpr fun h => hy.2 (.inr h)⟩⟩⟩
+    simp only [Finset.Nonempty, Finset.mem_inter, Finset.mem_compl, Finset.mem_union]
+    grind
   have h_inter :
       ((e ∩ (A ∩ B)).Nonempty ∧ (e ∩ (A ∩ B)ᶜ).Nonempty) →
       ((e ∩ A).Nonempty ∧ (e ∩ Aᶜ).Nonempty) ∨ ((e ∩ B).Nonempty ∧ (e ∩ Bᶜ).Nonempty) := by
-    rintro ⟨⟨x, hx⟩, ⟨y, hy⟩⟩
-    simp only [Finset.mem_inter, Finset.mem_compl, not_and] at hx hy
-    by_cases hyA : y ∈ A
-    · exact .inr ⟨⟨x, Finset.mem_inter.mpr ⟨hx.1, hx.2.2⟩⟩,
-        ⟨y, Finset.mem_inter.mpr ⟨hy.1, Finset.mem_compl.mpr (hy.2 hyA)⟩⟩⟩
-    · exact .inl ⟨⟨x, Finset.mem_inter.mpr ⟨hx.1, hx.2.1⟩⟩,
-        ⟨y, Finset.mem_inter.mpr ⟨hy.1, Finset.mem_compl.mpr hyA⟩⟩⟩
+    simp only [Finset.Nonempty, Finset.mem_inter, Finset.mem_compl]
+    grind
   have h_both :
       ((e ∩ (A ∪ B)).Nonempty ∧ (e ∩ (A ∪ B)ᶜ).Nonempty) →
       ((e ∩ (A ∩ B)).Nonempty ∧ (e ∩ (A ∩ B)ᶜ).Nonempty) →
       ((e ∩ A).Nonempty ∧ (e ∩ Aᶜ).Nonempty) ∧ ((e ∩ B).Nonempty ∧ (e ∩ Bᶜ).Nonempty) := by
-    rintro ⟨_, ⟨y, hyU⟩⟩ ⟨⟨x, hxI⟩, _⟩
-    simp only [Finset.mem_inter, Finset.mem_compl, Finset.mem_union] at hxI hyU
-    exact ⟨⟨⟨x, Finset.mem_inter.mpr ⟨hxI.1, hxI.2.1⟩⟩,
-        ⟨y, Finset.mem_inter.mpr ⟨hyU.1, Finset.mem_compl.mpr fun h => hyU.2 (.inl h)⟩⟩⟩,
-      ⟨⟨x, Finset.mem_inter.mpr ⟨hxI.1, hxI.2.2⟩⟩,
-        ⟨y, Finset.mem_inter.mpr ⟨hyU.1, Finset.mem_compl.mpr fun h => hyU.2 (.inr h)⟩⟩⟩⟩
+    simp only [Finset.Nonempty, Finset.mem_inter, Finset.mem_compl, Finset.mem_union]
+    grind
   split_ifs <;>
     (try simp only [add_zero, zero_add]) <;>
     first

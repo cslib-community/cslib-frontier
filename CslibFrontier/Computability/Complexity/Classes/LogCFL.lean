@@ -174,39 +174,35 @@ private lemma le_mul_pow_add_of_polyBounded {t : α → ℕ}
     (hpoly : PolyBounded (fun a => (enc a).length) t) :
     ∃ ct d, ∀ a, t a ≤ (ct * 2 ^ d) * (enc a).length ^ d + ct * 2 ^ d := by
   obtain ⟨ct, d, hle⟩ := hpoly.exists_le
-  refine ⟨ct, d, fun a => ?_⟩
-  have hpow := Nat.add_one_pow_le_two_pow_mul_add d (enc a).length
-  have hmul := Nat.mul_le_mul_left ct hpow
-  rw [Nat.mul_add, ← Nat.mul_assoc] at hmul
-  exact (hle a).trans hmul
+  refine ⟨ct, d, fun a => (hle a).trans ?_⟩
+  simpa only [Nat.mul_add, ← Nat.mul_assoc] using
+    Nat.mul_le_mul_left ct (Nat.add_one_pow_le_two_pow_mul_add d (enc a).length)
 
 /-- `LogCFL` is the union of `AuxPDATimeSpace enc Nat.log2 (· ^ d)` over all polynomial degrees
 `d`. -/
 theorem mem_LogCFL_iff_exists_mem_AuxPDATimeSpace :
-    A ∈ LogCFL enc ↔ ∃ d, A ∈ AuxPDATimeSpace enc Nat.log2 (· ^ d) := by
-  constructor
-  · rintro ⟨k, StackSym, State, hst, hfin, M, c, t, hpoly, hM⟩
-    obtain ⟨ct, d, hle⟩ := le_mul_pow_add_of_polyBounded hpoly
-    exact ⟨d, k, StackSym, State, hst, hfin, M, c, c, ct * 2 ^ d, ct * 2 ^ d,
-      hM.mono (fun _ => by rw [Nat.mul_add, Nat.mul_one]) hle⟩
-  · rintro ⟨d, k, StackSym, State, hst, hfin, M, cs₁, cs₂, ct₁, ct₂, hM⟩
-    exact ⟨k, StackSym, State, hst, hfin, M, cs₁ + cs₂, _,
-      ((PolyBounded.const ct₁).mul (PolyBounded.self.pow d)).add (.const ct₂),
-      hM.mono (fun _ => by nlinarith) (fun _ => le_rfl)⟩
+    A ∈ LogCFL enc ↔ ∃ d, A ∈ AuxPDATimeSpace enc Nat.log2 (· ^ d) :=
+  ⟨fun ⟨k, StackSym, State, hst, hfin, M, c, _, hpoly, hM⟩ =>
+    let ⟨ct, d, hle⟩ := le_mul_pow_add_of_polyBounded hpoly
+    ⟨d, k, StackSym, State, hst, hfin, M, c, c, ct * 2 ^ d, ct * 2 ^ d,
+      hM.mono (fun _ => by rw [Nat.mul_add, Nat.mul_one]) hle⟩,
+    fun ⟨d, k, StackSym, State, hst, hfin, M, cs₁, cs₂, ct₁, ct₂, hM⟩ =>
+      ⟨k, StackSym, State, hst, hfin, M, cs₁ + cs₂, _,
+        ((PolyBounded.const ct₁).mul (PolyBounded.self.pow d)).add (.const ct₂),
+        hM.mono (fun _ => by nlinarith) (fun _ => le_rfl)⟩⟩
 
 /-- `UAuxPDA` is the union of `UAuxPDATimeSpace enc Nat.log2 (· ^ d)` over all polynomial degrees
 `d`. -/
 theorem mem_UAuxPDA_iff_exists_mem_UAuxPDATimeSpace :
-    A ∈ UAuxPDA enc ↔ ∃ d, A ∈ UAuxPDATimeSpace enc Nat.log2 (· ^ d) := by
-  constructor
-  · rintro ⟨k, StackSym, State, hst, hfin, M, c, t, f, hpoly, hM, hle1, hA⟩
-    obtain ⟨ct, d, hle⟩ := le_mul_pow_add_of_polyBounded hpoly
-    exact ⟨d, k, StackSym, State, hst, hfin, M, c, c, ct * 2 ^ d, ct * 2 ^ d, f,
-      hM.mono (fun _ => by rw [Nat.mul_add, Nat.mul_one]) hle, hle1, hA⟩
-  · rintro ⟨d, k, StackSym, State, hst, hfin, M, cs₁, cs₂, ct₁, ct₂, f, hM, hle1, hA⟩
-    exact ⟨k, StackSym, State, hst, hfin, M, cs₁ + cs₂, _, f,
-      ((PolyBounded.const ct₁).mul (PolyBounded.self.pow d)).add (.const ct₂),
-      hM.mono (fun _ => by nlinarith) (fun _ => le_rfl), hle1, hA⟩
+    A ∈ UAuxPDA enc ↔ ∃ d, A ∈ UAuxPDATimeSpace enc Nat.log2 (· ^ d) :=
+  ⟨fun ⟨k, StackSym, State, hst, hfin, M, c, _, f, hpoly, hM, hle1, hA⟩ =>
+    let ⟨ct, d, hle⟩ := le_mul_pow_add_of_polyBounded hpoly
+    ⟨d, k, StackSym, State, hst, hfin, M, c, c, ct * 2 ^ d, ct * 2 ^ d, f,
+      hM.mono (fun _ => by rw [Nat.mul_add, Nat.mul_one]) hle, hle1, hA⟩,
+    fun ⟨d, k, StackSym, State, hst, hfin, M, cs₁, cs₂, ct₁, ct₂, f, hM, hle1, hA⟩ =>
+      ⟨k, StackSym, State, hst, hfin, M, cs₁ + cs₂, _, f,
+        ((PolyBounded.const ct₁).mul (PolyBounded.self.pow d)).add (.const ct₂),
+        hM.mono (fun _ => by nlinarith) (fun _ => le_rfl), hle1, hA⟩⟩
 
 /-! ### Complement duality for `coUAuxPDA` -/
 
@@ -219,25 +215,18 @@ theorem compl_mem_coUAuxPDA_iff : Aᶜ ∈ coUAuxPDA enc ↔ A ∈ UAuxPDA enc :
 
 /-- `coUAuxPDA` equals `UAuxPDA` iff `UAuxPDA` is closed under complement. -/
 theorem coUAuxPDA_eq_UAuxPDA_iff :
-    coUAuxPDA enc = UAuxPDA enc ↔ ∀ A, A ∈ UAuxPDA enc → Aᶜ ∈ UAuxPDA enc := by
-  constructor
-  · intro heq A hA
-    exact mem_coUAuxPDA.mp (heq ▸ hA)
-  · intro hclosed
-    ext A
-    constructor
-    · intro hA
-      simpa only [compl_compl] using hclosed Aᶜ (mem_coUAuxPDA.mp hA)
-    · intro hA
-      exact mem_coUAuxPDA.mpr (hclosed A hA)
+    coUAuxPDA enc = UAuxPDA enc ↔ ∀ A, A ∈ UAuxPDA enc → Aᶜ ∈ UAuxPDA enc :=
+  ⟨fun heq _ hA => mem_coUAuxPDA.mp (heq ▸ hA), fun hclosed => Set.ext fun A =>
+    ⟨fun hA => compl_compl A ▸ hclosed Aᶜ (mem_coUAuxPDA.mp hA),
+      fun hA => mem_coUAuxPDA.mpr (hclosed A hA)⟩⟩
 
 /-! ### Embeddings of `NL` and `UL` -/
 
 private lemma polyBounded_polyClock (enc : α ↪ List Bool) (d : ℕ) :
-    PolyBounded (fun a => (enc a).length) (fun a => polyClock d (enc a).length) := by
-  refine PolyBounded.of_forall_le (2 * 2 ^ d) d fun a => ?_
-  simp only [polyClock, mul_pow]
-  rw [← mul_assoc]
+    PolyBounded (fun a => (enc a).length) (fun a => polyClock d (enc a).length) :=
+  PolyBounded.of_forall_le (2 * 2 ^ d) d fun _ => by
+    simp only [polyClock, mul_pow]
+    rw [← mul_assoc]
 
 /-- **`NL ⊆ LogCFL`**: every nondeterministic logarithmic-space decider embeds into an `AuxPDA`
 with an unused stack, inheriting a uniform polynomial all-branches clock from
@@ -264,22 +253,14 @@ theorem UL_subset_UAuxPDA : UL enc ⊆ UAuxPDA enc := by
   refine ⟨k, PUnit, State, inferInstance, hfin, CountingAuxPDA.ofMultiTapeCTM M, c,
     fun a => polyClock d (enc a).length, f, polyBounded_polyClock enc d, fun a => ?_, hle1, hA⟩
   obtain ⟨hspace, t, hclock, hcount⟩ := hM a
-  have htPaths : M.toNTM.RunsInTime (enc a) t := fun p hp =>
-    hclock.paths_halted p.toRunPath p.head_eq hp
-  have hpolyPaths : M.toNTM.RunsInTime (enc a) (polyClock d (enc a).length) :=
-    hd hspace htPaths
-  have hpolyClock : M.HaltsWithin (polyClock d (enc a).length) (Cfg.init M.initial (enc a)) :=
-    M.haltsWithin_of_paths_of_haltsWithin hclock fun p hp hlen => hpolyPaths ⟨p, hp⟩ hlen
-  have hmax : M.acceptCount (polyClock d (enc a).length) (Cfg.init M.initial (enc a)) =
-      M.acceptCount t (Cfg.init M.initial (enc a)) := by
-    have h1 := hpolyClock.branchCount_eq (le_max_left (polyClock d (enc a).length) t) (· == [true])
-    have h2 := hclock.branchCount_eq (le_max_right (polyClock d (enc a).length) t) (· == [true])
-    exact h1.symm.trans h2
-  refine ⟨?_, ?_, ?_⟩
-  · rw [CountingAuxPDA.ofMultiTapeCTM_toAuxPDA]
-    exact AuxPDA.ofMultiTapeNTM_runsInSpace_iff.mpr hspace
-  · exact (CountingAuxPDA.ofMultiTapeCTM_haltsWithin_iff M _ _ []).mpr hpolyClock
-  · rw [CountingAuxPDA.ofMultiTapeCTM_acceptCount]
-    exact hcount.trans hmax.symm
+  have hpolyPaths := hd hspace fun p => hclock.paths_halted p.toRunPath p.head_eq
+  have hpolyClock := M.haltsWithin_of_paths_of_haltsWithin hclock fun p hp => hpolyPaths ⟨p, hp⟩
+  refine ⟨CountingAuxPDA.ofMultiTapeCTM_toAuxPDA M ▸
+      AuxPDA.ofMultiTapeNTM_runsInSpace_iff.mpr hspace,
+    (CountingAuxPDA.ofMultiTapeCTM_haltsWithin_iff M _ _ []).mpr hpolyClock, ?_⟩
+  rw [CountingAuxPDA.ofMultiTapeCTM_acceptCount]
+  have h1 := hpolyClock.branchCount_eq (le_max_left (polyClock d (enc a).length) t) (· == [true])
+  have h2 := hclock.branchCount_eq (le_max_right (polyClock d (enc a).length) t) (· == [true])
+  exact hcount.trans (h2.symm.trans h1)
 
 end Cslib.Complexity

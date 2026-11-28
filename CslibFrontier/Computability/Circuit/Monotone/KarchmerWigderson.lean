@@ -90,12 +90,10 @@ theorem exceedsAt_run_monotoneKWProtocol (F : Formula Monotone.signature n)
     (hx : F.eval interpretation x = true) (hy : F.eval interpretation y = false) :
     ExceedsAt x y (F.monotoneKWProtocol.run x y) := by
   induction F with
-  | input i => exact ⟨hx, hy⟩
+  | input => exact ⟨hx, hy⟩
   | gate op args ih =>
     cases op with
-    | const b =>
-      simp only [Formula.eval_gate, interpretation_const] at hx hy
-      exact absurd (hx.symm.trans hy) (by decide)
+    | const => exact absurd (hx.symm.trans hy) (by simp)
     | and =>
       simp only [Formula.eval_gate, interpretation_and, Bool.and_eq_true,
         Bool.and_eq_false_iff] at hx hy
@@ -114,19 +112,18 @@ gates on a path. -/
 theorem depth_monotoneKWProtocol_le (F : Formula Monotone.signature n) :
     F.monotoneKWProtocol.depth ≤ F.depthWith binaryCost := by
   induction F with
-  | input i => simp [monotoneKWProtocol]
+  | input => simp [monotoneKWProtocol]
   | gate op args ih =>
-    have hle (j : Fin (Monotone.signature.Arity op)) :
-        (args j).depthWith binaryCost ≤ Finset.univ.sup fun j => (args j).depthWith binaryCost :=
-      Finset.le_sup (f := fun j => (args j).depthWith binaryCost) (Finset.mem_univ j)
+    have hle (j) := (ih j).trans (Finset.le_sup (f := fun j => (args j).depthWith binaryCost)
+      (Finset.mem_univ j))
     cases op with
-    | const b => simp [monotoneKWProtocol]
+    | const => simp [monotoneKWProtocol]
     | and =>
       simp only [monotoneKWProtocol, Protocol.depth_bob, Formula.depthWith_gate, binaryCost_and]
-      exact Nat.add_le_add_right (max_le ((ih 0).trans (hle 0)) ((ih 1).trans (hle 1))) 1
+      exact Nat.add_le_add_right (max_le (hle 0) (hle 1)) 1
     | or =>
       simp only [monotoneKWProtocol, Protocol.depth_alice, Formula.depthWith_gate, binaryCost_or]
-      exact Nat.add_le_add_right (max_le ((ih 1).trans (hle 1)) ((ih 0).trans (hle 0))) 1
+      exact Nat.add_le_add_right (max_le (hle 1) (hle 0)) 1
 
 end Cslib.Circuits.Formula
 
@@ -170,23 +167,21 @@ private theorem eval_monotoneKWFormula (p : KWProtocol (Fin n)) {A B : Set (BitS
     simp only [monotoneKWFormula, hA, hB, ↓reduceIte, Formula.eval_input]
     exact ⟨fun x hx => (hp x hx y₀ hy₀).1, fun y hy => (hp x₀ hx₀ y hy).2⟩
   | alice send p₀ p₁ ih₀ ih₁ =>
-    have h₀ := ih₀ (A := {x ∈ A | send x = false}) (B := B) fun x hx y hy => by
-      simpa [hx.2] using hp x hx.1 y hy
-    have h₁ := ih₁ (A := {x ∈ A | send x = true}) (B := B) fun x hx y hy => by
-      simpa [hx.2] using hp x hx.1 y hy
+    have h₀ := ih₀ (A := {x ∈ A | send x = false}) fun _ hx _ hy => by
+      simpa [hx.2] using hp _ hx.1 _ hy
+    have h₁ := ih₁ (A := {x ∈ A | send x = true}) fun _ hx _ hy => by
+      simpa [hx.2] using hp _ hx.1 _ hy
     refine ⟨fun x hx => ?_, fun y hy => by simp [monotoneKWFormula, h₀.2 y hy, h₁.2 y hy]⟩
-    cases h : send x
-    · simp [monotoneKWFormula, h₀.1 x ⟨hx, h⟩]
-    · simp [monotoneKWFormula, h₁.1 x ⟨hx, h⟩]
+    cases h : send x <;> [simp [monotoneKWFormula, h₀.1 x ⟨hx, h⟩];
+      simp [monotoneKWFormula, h₁.1 x ⟨hx, h⟩]]
   | bob send p₀ p₁ ih₀ ih₁ =>
-    have h₀ := ih₀ (A := A) (B := {y ∈ B | send y = false}) fun x hx y hy => by
-      simpa [hy.2] using hp x hx y hy.1
-    have h₁ := ih₁ (A := A) (B := {y ∈ B | send y = true}) fun x hx y hy => by
-      simpa [hy.2] using hp x hx y hy.1
+    have h₀ := ih₀ (B := {y ∈ B | send y = false}) fun _ hx _ hy => by
+      simpa [hy.2] using hp _ hx _ hy.1
+    have h₁ := ih₁ (B := {y ∈ B | send y = true}) fun _ hx _ hy => by
+      simpa [hy.2] using hp _ hx _ hy.1
     refine ⟨fun x hx => by simp [monotoneKWFormula, h₀.1 x hx, h₁.1 x hx], fun y hy => ?_⟩
-    cases h : send y
-    · simp [monotoneKWFormula, h₀.2 y ⟨hy, h⟩]
-    · simp [monotoneKWFormula, h₁.2 y ⟨hy, h⟩]
+    cases h : send y <;> [simp [monotoneKWFormula, h₀.2 y ⟨hy, h⟩];
+      simp [monotoneKWFormula, h₁.2 y ⟨hy, h⟩]]
 
 /-- The formula of a protocol solving the monotone Karchmer–Wigderson game on `A × B` is true on
 `A`. -/
@@ -207,13 +202,13 @@ bits. -/
 theorem depthWith_monotoneKWFormula_le (p : KWProtocol (Fin n)) (A B : Set (BitString n)) :
     (p.monotoneKWFormula A B).depthWith binaryCost ≤ p.depth := by
   induction p generalizing A B with
-  | output i =>
-    simp only [monotoneKWFormula]
+  | output =>
+    unfold monotoneKWFormula
     split_ifs <;> simp
-  | alice send p₀ p₁ ih₀ ih₁ =>
+  | alice _ _ _ ih₀ ih₁ =>
     rw [monotoneKWFormula, depthWith_or, binaryCost_or, depth_alice]
     exact Nat.add_le_add_right (max_le_max (ih₀ _ _) (ih₁ _ _)) 1
-  | bob send p₀ p₁ ih₀ ih₁ =>
+  | bob _ _ _ ih₀ ih₁ =>
     rw [monotoneKWFormula, depthWith_and, binaryCost_and, depth_bob]
     exact Nat.add_le_add_right (max_le_max (ih₀ _ _) (ih₁ _ _)) 1
 
@@ -239,23 +234,22 @@ theorem exists_kwProtocol_of_computes [NeZero n] {F : Formula signature n}
 `f`, with at most as many AND and OR gates on a path as the protocol sends bits. -/
 theorem exists_formula_of_solves {p : KWProtocol (Fin n)}
     (hp : p.Solves ExceedsAt {x | f x = true} {y | f y = false}) :
-    ∃ F : Formula signature n, F.Computes interpretation f ∧ F.depthWith binaryCost ≤ p.depth := by
-  refine ⟨p.monotoneKWFormula {x | f x = true} {y | f y = false}, fun x => ?_,
+    ∃ F : Formula signature n, F.Computes interpretation f ∧ F.depthWith binaryCost ≤ p.depth :=
+  ⟨p.monotoneKWFormula {x | f x = true} {y | f y = false}, fun x => by
+    cases h : f x
+    exacts [Protocol.eval_monotoneKWFormula_of_mem_right hp h,
+      Protocol.eval_monotoneKWFormula_of_mem_left hp h],
     p.depthWith_monotoneKWFormula_le _ _⟩
-  cases h : f x
-  · exact Protocol.eval_monotoneKWFormula_of_mem_right hp h
-  · exact Protocol.eval_monotoneKWFormula_of_mem_left hp h
 
 /-- **The monotone Karchmer–Wigderson theorem.** The least depth of a monotone formula for a
 function of at least one bit, with constants free, is the communication complexity of its monotone
 Karchmer–Wigderson game; in particular both are `⊤` when no monotone formula computes it. -/
 theorem eformulaDepth_eq_ecomplexity [NeZero n] (f : BooleanFunction n) :
-    eformulaDepth f = Protocol.ecomplexity ExceedsAt {x | f x = true} {y | f y = false} := by
-  refine le_antisymm (Protocol.le_ecomplexity_iff.2 fun p hp => ?_)
-    (Formula.le_minDepthWith_iff.2 fun F hF => ?_)
-  · obtain ⟨F, hF, hd⟩ := exists_formula_of_solves hp
-    exact (Formula.minDepthWith_le hF).trans (by exact_mod_cast hd)
-  · obtain ⟨p, hp, hd⟩ := exists_kwProtocol_of_computes hF
-    exact (Protocol.ecomplexity_le_depth hp).trans (by exact_mod_cast hd)
+    eformulaDepth f = Protocol.ecomplexity ExceedsAt {x | f x = true} {y | f y = false} :=
+  le_antisymm
+    (Protocol.le_ecomplexity_iff.2 fun _ hp => let ⟨_, hF, hd⟩ := exists_formula_of_solves hp
+      (Formula.minDepthWith_le hF).trans (by exact_mod_cast hd))
+    (Formula.le_minDepthWith_iff.2 fun _ hF => let ⟨_, hp, hd⟩ := exists_kwProtocol_of_computes hF
+      (Protocol.ecomplexity_le_depth hp).trans (by exact_mod_cast hd))
 
 end Cslib.Circuits.Monotone

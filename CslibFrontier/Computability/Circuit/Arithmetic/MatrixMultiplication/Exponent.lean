@@ -216,7 +216,6 @@ theorem admissibleExponent_three : AdmissibleExponent K 3 := by
   have h1 : (1 : ℝ) ≤ (n : ℝ) ^ (3 : ℕ) := one_le_pow₀ hn'
   calc (C.size : ℝ) ≤ ((2 * n ^ 3 + 1 : ℕ) : ℝ) := by exact_mod_cast hsize
     _ = 2 * (n : ℝ) ^ (3 : ℕ) + 1 := by push_cast; ring
-    _ ≤ 3 * (n : ℝ) ^ (3 : ℕ) := by linarith
     _ ≤ 3 * (n : ℝ) ^ (3 + ε) := by linarith
 
 section LowerBound
@@ -293,21 +292,18 @@ theorem two_le_of_admissibleExponent [Nontrivial K] {τ : ℝ} (h : AdmissibleEx
   have hle (n : ℕ) (hn : 1 ≤ n) : (n : ℝ) ^ ε ≤ c := by
     obtain ⟨C, hC, hsize⟩ := hC n hn
     have hn' : (0 : ℝ) < n := by exact_mod_cast hn
-    have hsq : (n : ℝ) ^ (τ + ε) * (n : ℝ) ^ ε ≤ c * (n : ℝ) ^ (τ + ε) := by
+    have hsq : (n : ℝ) ^ ε * (n : ℝ) ^ (τ + ε) ≤ c * (n : ℝ) ^ (τ + ε) := by
       rw [← Real.rpow_add hn']
-      have h2 : τ + ε + ε = 2 := by rw [hε]; ring
+      have h2 : ε + (τ + ε) = 2 := by rw [hε]; ring
       rw [h2, Real.rpow_two]
       calc (n : ℝ) ^ 2 = ((n * n : ℕ) : ℝ) := by push_cast; ring
         _ ≤ (C.size : ℝ) := by exact_mod_cast mul_self_le_size hC
         _ ≤ c * (n : ℝ) ^ (τ + ε) := hsize
-    have hpos : 0 < (n : ℝ) ^ (τ + ε) := Real.rpow_pos_of_pos hn' _
-    rw [mul_comm c] at hsq
-    exact le_of_mul_le_mul_left hsq hpos
+    exact le_of_mul_le_mul_right hsq (Real.rpow_pos_of_pos hn' _)
   -- but `n ^ ε` exceeds `c` for `n` beyond `c ^ (1 / ε)`
   set n : ℕ := ⌈c ^ (1 / ε)⌉₊ + 1 with hn
   have hcn : c ^ (1 / ε) < n := by
-    rw [hn, Nat.cast_add, Nat.cast_one]
-    exact lt_of_le_of_lt (Nat.le_ceil _) (lt_add_one _)
+    rw [hn, Nat.cast_add, Nat.cast_one]; exact (Nat.le_ceil _).trans_lt (lt_add_one _)
   have hlt : c < (n : ℝ) ^ ε := by
     calc c = (c ^ (1 / ε)) ^ ε := by
           rw [← Real.rpow_mul hc.le, one_div_mul_cancel hε0.ne', Real.rpow_one]
@@ -365,8 +361,7 @@ private theorem mul_apply_eq_sum_encode {α β : Matrix (Fin r) (Fin v × Fin v)
       ∑ l : Fin m, (∑ p, α ν p * A (finProdFinEquiv (p.1, a)) (finProdFinEquiv (p.2, l))) *
         (∑ q, β ν q * B (finProdFinEquiv (q.1, l)) (finProdFinEquiv (q.2, b))) := fun ν => by
     simp only [Matrix.mul_apply, encode, Matrix.of_apply]
-  rw [h1]
-  simp only [h2]
+  simp only [h1, h2]
   conv_rhs => enter [2, ν]; rw [Finset.mul_sum]
   conv_rhs => rw [Finset.sum_comm]
   exact Finset.sum_congr rfl fun l _ => hid (fun p => A (finProdFinEquiv (p.1, a))
@@ -378,9 +373,8 @@ private def HasCircuit (n s : ℕ) : Prop :=
   ∃ C : Circuit (arithSignature K) (n * n + n * n) (n * n), ComputesMatMul K C ∧ C.size ≤ s
 
 private theorem HasCircuit.congr {n n' s : ℕ} (h : n = n') (hC : HasCircuit (K := K) n s) :
-    HasCircuit (K := K) n' s := by
-  subst h
-  exact hC
+    HasCircuit (K := K) n' s :=
+  h ▸ hC
 
 private theorem HasCircuit.mono {n s s' : ℕ} (hC : HasCircuit (K := K) n s) (h : s ≤ s') :
     HasCircuit (K := K) n s' :=
@@ -475,15 +469,13 @@ private theorem hasCircuit_mul {α β : Matrix (Fin r) (Fin v × Fin v) K}
   have S₁ : Synthesis (arithInterpretation K) (s₀ ∪ s₁) s₂
       (∑ _p : Fin r × Fin (m * m + m * m), ∑ _q : Fin v × Fin v, (2 + 1)) :=
     Synthesis.family _ _ fun p => synthesis_encInputs α β p.1 p.2
-  have henc : ∀ ν i, encInputs α β ν i ∈ s₀ ∪ (s₁ ∪ s₂) := fun ν i => by
-    simp only [hs₂, Set.mem_union, Set.mem_range]
-    exact Or.inr (Or.inr ⟨(ν, i), rfl⟩)
+  have henc : ∀ ν i, encInputs α β ν i ∈ s₀ ∪ (s₁ ∪ s₂) := fun ν i =>
+    Or.inr (Or.inr ⟨(ν, i), rfl⟩)
   have S₂ : Synthesis (arithInterpretation K) (s₀ ∪ (s₁ ∪ s₂)) s₃ (∑ _ν : Fin r, C.size) :=
     Synthesis.iUnion _ _ fun ν => synthesis_blockProd ν hC (henc ν)
   have h0 : (fun _ => (0 : K)) ∈ s₀ ∪ (s₁ ∪ s₂ ∪ s₃) := by simp [hs₁]
-  have hbp : ∀ ν t, blockProd α β ν t ∈ s₀ ∪ (s₁ ∪ s₂ ∪ s₃) := fun ν t => by
-    simp only [hs₃, Set.mem_union, Set.mem_iUnion, Set.mem_range]
-    exact Or.inr (Or.inr ⟨ν, t, rfl⟩)
+  have hbp : ∀ ν t, blockProd α β ν t ∈ s₀ ∪ (s₁ ∪ s₂ ∪ s₃) := fun ν t =>
+    Or.inr (Or.inr (Set.mem_iUnion.2 ⟨ν, t, rfl⟩))
   have S₃ : Synthesis (arithInterpretation K) (s₀ ∪ (s₁ ∪ s₂ ∪ s₃))
       (Set.range (matMulFun (v * m))) (∑ _t : Fin (v * m * (v * m)), ∑ _ν : Fin r, (2 + 1)) := by
     refine Synthesis.family _ _ fun t => ?_
@@ -540,31 +532,23 @@ private theorem hasCircuit_of_le {n N s : ℕ} (hnN : n ≤ N) (hN : HasCircuit 
   refine exists_computesMatMul_of_synthesis (n := n) ?_
   let g : Fin (N * N + N * N) → (Fin (n * n + n * n) → K) → K := fun i x =>
     matrixInputs K (padMatrix N (leftMatrix x)) (padMatrix N (rightMatrix x)) i
+  have pad_mem (f : (Fin (n * n + n * n) → K) → Matrix (Fin n) (Fin n) K)
+      (hf : ∀ i j, (fun x => f x i j) ∈ inputs (n * n + n * n)) (i : Fin (N * N)) :
+      (fun x => entry K (padMatrix N (f x)) i) ∈ inputs (n * n + n * n) ∪ {fun _ => (0 : K)} := by
+    by_cases h : (finProdFinEquiv.symm i).1.val < n ∧ (finProdFinEquiv.symm i).2.val < n
+    · apply Set.mem_union_left
+      simpa only [entry, padMatrix, Matrix.of_apply, dite_eq_left h] using hf ⟨_, h.1⟩ ⟨_, h.2⟩
+    · apply Set.mem_union_right
+      simp only [entry, padMatrix, Matrix.of_apply, dite_eq_right h, Set.mem_singleton_iff]
   have hg : ∀ i, g i ∈ inputs (n * n + n * n) ∪ {fun _ => (0 : K)} := by
     intro i
     refine Fin.addCases (fun i => ?_) (fun i => ?_) i
-    · by_cases h : (finProdFinEquiv.symm i).1.val < n ∧ (finProdFinEquiv.symm i).2.val < n
-      · refine Set.mem_union_left _ ?_
-        convert leftMatrix_mem_inputs (K := K) (n := n) ⟨_, h.1⟩ ⟨_, h.2⟩ using 1
-        funext x
-        simp only [g, matrixInputs, Fin.append_left, entry, padMatrix, Matrix.of_apply,
-          dite_eq_left h]
-      · refine Set.mem_union_right _ ?_
-        funext x
-        simp only [g, matrixInputs, Fin.append_left, entry, padMatrix, Matrix.of_apply,
-          dite_eq_right h]
-    · by_cases h : (finProdFinEquiv.symm i).1.val < n ∧ (finProdFinEquiv.symm i).2.val < n
-      · refine Set.mem_union_left _ ?_
-        convert rightMatrix_mem_inputs (K := K) (n := n) ⟨_, h.1⟩ ⟨_, h.2⟩ using 1
-        funext x
-        simp only [g, matrixInputs, Fin.append_right, entry, padMatrix, Matrix.of_apply,
-          dite_eq_left h]
-      · refine Set.mem_union_right _ ?_
-        funext x
-        simp only [g, matrixInputs, Fin.append_right, entry, padMatrix, Matrix.of_apply,
-          dite_eq_right h]
+    · simpa only [g, matrixInputs, Fin.append_left] using
+        pad_mem leftMatrix leftMatrix_mem_inputs i
+    · simpa only [g, matrixInputs, Fin.append_right] using
+        pad_mem rightMatrix rightMatrix_mem_inputs i
   have := synthesis_zero.comp (Synthesis.circuit (I := arithInterpretation K) C g hg)
-  refine this.mono Set.Subset.rfl ?_ (by omega)
+  refine this.mono Set.Subset.rfl ?_ (by lia)
   rintro _ ⟨t, rfl⟩
   refine Set.mem_union_right _ ⟨finProdFinEquiv (Fin.castLE hnN (finProdFinEquiv.symm t).1,
     Fin.castLE hnN (finProdFinEquiv.symm t).2), ?_⟩
@@ -603,10 +587,8 @@ theorem admissibleExponent_of_rank {v r : ℕ} (hv : 2 ≤ v) (hr : Rank r (mm v
   have hCc3 : 3 ≤ Cc := le_add_of_nonneg_left (div_nonneg (by positivity) hRr.le)
   have hCc0 : 0 < Cc := by linarith
   have hCcR : (9 * r + 1) * R ≤ Cc * (R - r) := by
-    have key : ((9 * r + 1) * R / (R - r) + 3) * (R - r) = (9 * r + 1) * R + 3 * (R - r) := by
-      field_simp
-    rw [hCc, key]
-    nlinarith
+    rw [hCc, add_mul _ (3 : ℝ), div_mul_cancel₀ _ hRr.ne']
+    linarith
   -- circuits for the powers of `v`
   have step : ∀ j : ℕ, ∃ s : ℕ, HasCircuit (K := K) (v ^ j) s ∧ (s : ℝ) ≤ Cc * R ^ j := by
     intro j
@@ -614,8 +596,7 @@ theorem admissibleExponent_of_rank {v r : ℕ} (hv : 2 ≤ v) (hr : Rank r (mm v
     | zero =>
       obtain ⟨C, hC, hCs⟩ := exists_circuit_trivial (K := K) 1
       refine ⟨3, HasCircuit.congr (pow_zero v).symm ⟨C, hC, hCs.trans (by norm_num)⟩, ?_⟩
-      rw [pow_zero, mul_one]
-      exact_mod_cast hCc3
+      simpa using hCc3
     | succ j ih =>
       obtain ⟨s, hs, hsR⟩ := ih
       refine ⟨_, HasCircuit.congr (pow_succ' v j).symm (hasCircuit_mul hid hs), ?_⟩

@@ -312,16 +312,14 @@ theorem hockeyStick_adaptiveComposition_le {M : List R → D → PMF R} {x y : D
         ∑' l, transcriptWeight K k l = 1 := by
       rw [← tsum_add, ← (adaptiveComposition M k x).tsum_coe]
       exact tsum_congr fun l => tsub_add_cancel_of_le (hWK l)
-    have hfin : ∑' l, transcriptWeight K k l ≠ ⊤ :=
-      ne_top_of_le_ne_top ENNReal.one_ne_top (tsum_transcriptWeight_le_one hK1 k)
     rw [← h2, add_comm (∑' l, transcriptWeight K k l) (k * δ)] at h1
-    exact (ENNReal.add_le_add_iff_right hfin).mp h1
+    exact (ENNReal.add_le_add_iff_right
+      (ne_top_of_le_ne_top ENNReal.one_ne_top (tsum_transcriptWeight_le_one hK1 k))).mp h1
   set E := ENNReal.ofReal (Real.exp (k * ε * Real.tanh (ε / 2) + a * ε))
   calc Probability.PMF.hockeyStick E (adaptiveComposition M k x) (adaptiveComposition M k y)
       ≤ ∑' l, ((transcriptWeight K k l - E * transcriptWeight L k l) +
           (adaptiveComposition M k x l - transcriptWeight K k l)) := by
-        refine tsum_le_tsum fun l => ?_
-        rw [tsub_le_iff_left]
+        refine tsum_le_tsum fun l => tsub_le_iff_left.2 ?_
         calc adaptiveComposition M k x l
             ≤ transcriptWeight K k l +
                 (adaptiveComposition M k x l - transcriptWeight K k l) := le_add_tsub
@@ -329,13 +327,10 @@ theorem hockeyStick_adaptiveComposition_le {M : List R → D → PMF R} {x y : D
                 (transcriptWeight K k l - E * transcriptWeight L k l)) +
                 (adaptiveComposition M k x l - transcriptWeight K k l) := by
               gcongr; exact le_add_tsub
-          _ ≤ (E * adaptiveComposition M k y l +
-                (transcriptWeight K k l - E * transcriptWeight L k l)) +
-                (adaptiveComposition M k x l - transcriptWeight K k l) := by
-              gcongr; exact hWL l
-          _ = E * adaptiveComposition M k y l +
+          _ ≤ E * adaptiveComposition M k y l +
                 ((transcriptWeight K k l - E * transcriptWeight L k l) +
-                  (adaptiveComposition M k x l - transcriptWeight K k l)) := by ring
+                  (adaptiveComposition M k x l - transcriptWeight K k l)) := by
+              rw [add_assoc]; gcongr; exact hWL l
     _ = ∑' l, (transcriptWeight K k l - E * transcriptWeight L k l) +
           ∑' l, (adaptiveComposition M k x l - transcriptWeight K k l) := tsum_add
     _ ≤ ENNReal.ofReal (Real.exp (-(a ^ 2 / (2 * k)))) + k * δ :=
@@ -391,10 +386,8 @@ theorem DifferentiallyPrivate.advancedComposition_sqrt {Adj : D → D → Prop}
       (le_add_left (le_add_left (ENNReal.one_le_ofReal.mpr hδ1)))
   rcases Nat.eq_zero_or_pos k with rfl | hk
   · intro x y _ S
-    have h0 : Privacy.adaptiveComposition M 0 x = Privacy.adaptiveComposition M 0 y :=
-      PMF.ext fun l => by
-        rw [adaptiveComposition_zero, adaptiveComposition_zero]
-    rw [h0]
+    rw [show Privacy.adaptiveComposition M 0 x = Privacy.adaptiveComposition M 0 y by
+      rw [adaptiveComposition_zero, adaptiveComposition_zero]]
     simp only [Nat.cast_zero, mul_zero, zero_mul, Real.sqrt_zero, add_zero, zero_add,
       Real.exp_zero, ENNReal.ofReal_one, one_mul]
     exact le_self_add
@@ -498,14 +491,9 @@ theorem DifferentiallyPrivate.advancedComposition_of_target {Adj : D → D → P
   generalize hLdef : Real.log (1 / δ') = L at hsq hL hε₀δ'
   rcases hs0.eq_or_lt with rfl | hs
   · simp only [mul_zero, div_zero, zero_mul, add_zero, hε₀]
-  have hk : (0 : ℝ) < k := by
-    rcases (Nat.cast_nonneg (α := ℝ) k).eq_or_lt with h0 | h0
-    · rw [← h0] at hsq; nlinarith
-    · exact h0
-  have hL0 : 0 < L := by
-    rcases hL.eq_or_lt with h0 | h0
-    · rw [← h0] at hsq; nlinarith
-    · exact h0
+  have hk : (0 : ℝ) < k :=
+    (Nat.cast_nonneg (α := ℝ) k).lt_of_ne fun h0 => by rw [← h0] at hsq; nlinarith
+  have hL0 : 0 < L := hL.lt_of_ne fun h0 => by rw [← h0] at hsq; nlinarith
   have he : 0 ≤ ε₀ / (2 * s) := by positivity
   have h1 : s * (ε₀ / (2 * s)) = ε₀ / 2 := by field_simp
   have h2 : k * (ε₀ / (2 * s)) * (ε₀ / (2 * s) / 2) = ε₀ ^ 2 / (16 * L) := by

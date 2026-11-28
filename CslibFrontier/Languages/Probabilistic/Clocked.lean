@@ -107,8 +107,7 @@ theorem attempt_bind (P : ClockedComp spec α) (f : α → ClockedComp spec β) 
       | none => Part.some none := by
   change OracleComp.interpret o (P k >>= fun a => f a k).run = _
   rw [OptionT.run_bind, Option.elimM, OracleComp.interpret_bind]
-  refine congrArg _ (funext fun r => ?_)
-  cases r <;> rfl
+  exact congrArg _ (funext fun r => by cases r <;> rfl)
 
 @[simp] theorem attempt_query (q : ι) (k : ℕ) :
     attempt o (query q : ClockedComp spec (spec q)) k = (o q).map some := by
@@ -123,8 +122,7 @@ theorem attempt_rfindFrom_succ (p : ℕ → ClockedComp spec Bool) (k r i : ℕ)
   change OracleComp.interpret o
     (p i k >>= fun b => if b then pure i else rfindFrom p k r (i + 1)).run = _
   rw [OptionT.run_bind, Option.elimM, OracleComp.interpret_bind]
-  refine congrArg _ (funext fun x => ?_)
-  rcases x with _ | _ | _ <;> rfl
+  exact congrArg _ (funext fun x => by rcases x with _ | _ | _ <;> rfl)
 
 theorem attempt_rfind (p : ℕ → ClockedComp spec Bool) (k : ℕ) :
     attempt o (rfind p) k = OracleComp.interpret o (rfindFrom p k k 0).run := rfl
@@ -146,42 +144,29 @@ theorem mem_eval_iff {P : ClockedComp spec α} (hP : Stable o P) {a : α} :
   constructor
   · intro h
     obtain ⟨k, -, h⟩ := Part.mem_bind_iff.1 h
-    obtain ⟨r, hr, ha⟩ := Part.mem_bind_iff.1 h
-    cases r with
-    | none => simp at ha
-    | some b =>
-      obtain rfl : b = a := by simpa [eq_comm] using ha
-      exact ⟨k, hr⟩
+    obtain ⟨_ | b, hr, ha⟩ := Part.mem_bind_iff.1 h
+    · simp at ha
+    · exact ⟨k, by simpa [show b = a by simpa [eq_comm] using ha] using hr⟩
   · rintro ⟨k, hk⟩
-    have hex : ∃ j, attempt o P j = Part.some (some a) := ⟨k, hP.mono hk le_rfl⟩
     classical
-    have hm : Nat.find hex ∈ Nat.rfind (fun k => Option.isSome <$> attempt o P k : ℕ →. Bool) := by
-      refine Nat.mem_rfind.2 ⟨by simp [Nat.find_spec hex], fun {j} hj => ?_⟩
-      rcases hP k a hk j with h | ⟨-, h⟩
-      · exact absurd h (Nat.find_min hex hj)
-      · simp [h]
-    refine Part.mem_bind_iff.2 ⟨_, hm, Part.mem_bind_iff.2 ⟨some a, ?_, by simp⟩⟩
-    rw [Nat.find_spec hex]
-    exact Part.mem_some _
+    have hex : ∃ j, attempt o P j = Part.some (some a) := ⟨k, hP.mono hk le_rfl⟩
+    have hm : Nat.find hex ∈ Nat.rfind (fun k => Option.isSome <$> attempt o P k : ℕ →. Bool) :=
+      Nat.mem_rfind.2 ⟨by simp [Nat.find_spec hex], fun hj =>
+        (hP k a hk _).elim (fun h => absurd h (Nat.find_min hex hj)) fun h => by simp [h.2]⟩
+    refine Part.mem_bind_iff.2 ⟨_, hm, Part.mem_bind_iff.2 ⟨some a, ?_, Part.mem_some _⟩⟩
+    simp [Nat.find_spec hex]
 
-theorem Stable.pure (a : α) : Stable o (pure a : ClockedComp spec α) := by
-  intro k b h j
-  obtain rfl := Option.some.inj (Part.mem_some_iff.1 h)
-  exact Or.inl rfl
+theorem Stable.pure (a : α) : Stable o (pure a : ClockedComp spec α) := fun _ _ h _ =>
+  Or.inl <| congrArg (Part.some ∘ some) (Option.some.inj (Part.mem_some_iff.1 h)).symm
 
 theorem Stable.bind {P : ClockedComp spec α} {f : α → ClockedComp spec β} (hP : Stable o P)
     (hf : ∀ a, Stable o (f a)) : Stable o (P >>= f) := by
   intro k b h j
   rw [attempt_bind] at h ⊢
-  obtain ⟨r, hr, hb⟩ := Part.mem_bind_iff.1 h
-  cases r with
-  | none => simp at hb
-  | some a =>
-    rcases hP k a hr j with h₁ | ⟨hjk, h₁⟩
-    · rw [h₁, Part.bind_some]
-      exact hf a k b hb j
-    · rw [h₁, Part.bind_some]
-      exact Or.inr ⟨hjk, rfl⟩
+  obtain ⟨_ | a, hr, hb⟩ := Part.mem_bind_iff.1 h
+  · simp at hb
+  · exact (hP k a hr j).elim (fun h₁ => by simpa [h₁] using hf a k b hb j)
+      fun ⟨hjk, h₁⟩ => Or.inr ⟨hjk, by simp [h₁]⟩
 
 theorem Stable.map {P : ClockedComp spec α} (hP : Stable o P) (f : α → β) :
     Stable o (f <$> P) := by
@@ -191,10 +176,8 @@ theorem Stable.map {P : ClockedComp spec α} (hP : Stable o P) (f : α → β) :
 theorem Stable.query (q : ι) : Stable o (query q : ClockedComp spec (spec q)) := by
   intro k a h j
   rw [attempt_query, Part.mem_map_iff] at h
-  obtain ⟨a', ha, h'⟩ := h
-  obtain rfl := Option.some.inj h'
-  rw [attempt_query, Part.eq_some_iff.2 ha, Part.map_some]
-  exact Or.inl rfl
+  obtain ⟨_, ha, ⟨⟩⟩ := h
+  simp [Part.eq_some_iff.2 ha]
 
 section Rfind
 
@@ -204,30 +187,26 @@ private theorem mem_rfindFrom {n : ℕ} :
     ∀ {r i}, some n ∈ OracleComp.interpret o (rfindFrom p k r i).run →
       i ≤ n ∧ n < i + r ∧ (∀ m, i ≤ m → m < n → some false ∈ attempt o (p m) k) ∧
         some true ∈ attempt o (p n) k
-  | 0, i, h => by simp [rfindFrom] at h
+  | 0, _, h => by simp [rfindFrom] at h
   | r + 1, i, h => by
-    rw [attempt_rfindFrom_succ] at h
-    obtain ⟨x, hx, h⟩ := Part.mem_bind_iff.1 h
-    rcases x with _ | _ | _
+    obtain ⟨_ | ⟨_ | _⟩, hx, h⟩ := Part.mem_bind_iff.1 (attempt_rfindFrom_succ o p k r i ▸ h)
     · simp at h
     · obtain ⟨hin, hnr, hlt, hn⟩ := mem_rfindFrom h
-      refine ⟨by omega, by omega, fun m him hmn => ?_, hn⟩
-      rcases Nat.eq_or_lt_of_le him with rfl | him
-      · exact hx
-      · exact hlt m him hmn
+      exact ⟨by omega, by omega, fun m him hmn =>
+        (Nat.eq_or_lt_of_le him).elim (· ▸ hx) fun hm => hlt m hm hmn, hn⟩
     · obtain rfl : i = n := by simpa [eq_comm] using h
-      exact ⟨le_rfl, by omega, fun m him hmn => absurd hmn (not_lt.2 him), hx⟩
+      exact ⟨le_rfl, by omega, fun _ him hmn => by omega, hx⟩
 
 private theorem rfindFrom_eq_some {n : ℕ}
     (hlt : ∀ m < n, attempt o (p m) k = Part.some (some false))
     (hn : attempt o (p n) k = Part.some (some true)) :
     ∀ {r i}, i ≤ n → n < i + r →
       OracleComp.interpret o (rfindFrom p k r i).run = Part.some (some n)
-  | 0, i, hin, hnr => by omega
-  | r + 1, i, hin, hnr => by
+  | 0, _, _, _ => by omega
+  | r + 1, i, hin, _ => by
     rw [attempt_rfindFrom_succ]
     rcases Nat.eq_or_lt_of_le hin with rfl | hin
-    · rw [hn, Part.bind_some]
+    · simp [hn]
     · rw [hlt i hin, Part.bind_some]
       exact rfindFrom_eq_some hlt hn (by omega) (by omega)
 
@@ -236,37 +215,28 @@ private theorem rfindFrom_eq_some_or_none {n : ℕ}
       attempt o (p m) k = Part.some none) :
     ∀ {r i}, i ≤ n → OracleComp.interpret o (rfindFrom p k r i).run = Part.some (some n) ∨
       OracleComp.interpret o (rfindFrom p k r i).run = Part.some none
-  | 0, i, _ => Or.inr rfl
+  | 0, _, _ => Or.inr rfl
   | r + 1, i, hin => by
     rw [attempt_rfindFrom_succ]
     rcases h i hin with hi | hi <;> rw [hi, Part.bind_some]
     · by_cases hin' : i = n
-      · subst hin'
-        simp
-      · simp only [hin', decide_false]
-        exact rfindFrom_eq_some_or_none h (by omega)
+      · simp [hin']
+      · simpa only [hin', decide_false] using rfindFrom_eq_some_or_none h (by omega)
     · exact Or.inr rfl
 
 theorem Stable.rfind (hp : ∀ i, Stable o (p i)) : Stable o (rfind p) := by
   intro k n h j
-  rw [attempt_rfind] at h
   obtain ⟨-, hnk, hlt, hn⟩ := mem_rfindFrom (n := n) h
-  have hval : ∀ m ≤ n, some (decide (m = n)) ∈ attempt o (p m) k := fun m hm => by
-    rcases Nat.eq_or_lt_of_le hm with rfl | hm
-    · simpa using hn
-    · simpa [hm.ne] using hlt m (Nat.zero_le _) hm
+  have hval : ∀ m ≤ n, some (decide (m = n)) ∈ attempt o (p m) k := fun m hm =>
+    (Nat.eq_or_lt_of_le hm).elim (by simpa [·] using hn)
+      fun hm => by simpa [hm.ne] using hlt m (Nat.zero_le _) hm
   rcases lt_or_ge j k with hjk | hjk
-  · rw [attempt_rfind]
-    rcases rfindFrom_eq_some_or_none (n := n) (k := j)
-        (fun m hm => (hp m k _ (hval m hm) j).imp_right And.right) (Nat.zero_le n) with
-      h' | h'
-    · exact Or.inl h'
-    · exact Or.inr ⟨hjk, h'⟩
-  · refine Or.inl ?_
-    rw [attempt_rfind]
-    refine rfindFrom_eq_some (fun m hm => ?_) ?_ (Nat.zero_le n) (by omega)
-    · simpa [hm.ne] using (hp m).mono (hval m hm.le) hjk
-    · simpa using (hp n).mono (hval n le_rfl) hjk
+  · exact (rfindFrom_eq_some_or_none (n := n) (k := j)
+      (fun m hm => (hp m k _ (hval m hm) j).imp_right And.right) (Nat.zero_le n)).imp_right
+      (⟨hjk, ·⟩)
+  · exact Or.inl <| rfindFrom_eq_some
+      (fun m hm => by simpa [hm.ne] using (hp m).mono (hval m hm.le) hjk)
+      (by simpa using (hp n).mono (hval n le_rfl) hjk) (Nat.zero_le n) (by omega)
 
 end Rfind
 
@@ -278,47 +248,37 @@ variable (o : (q : ι) → Part (spec q))
 
 @[simp] theorem eval_pure (a : α) : eval o (pure a : ClockedComp spec α) = Part.some a := by
   ext b
-  rw [mem_eval_iff (.pure a)]
-  simp [eq_comm]
+  simp [mem_eval_iff (.pure a), eq_comm]
 
 theorem eval_bind {P : ClockedComp spec α} {f : α → ClockedComp spec β} (hP : Stable o P)
     (hf : ∀ a, Stable o (f a)) : eval o (P >>= f) = (eval o P).bind fun a => eval o (f a) := by
   ext b
-  rw [mem_eval_iff (hP.bind hf), Part.mem_bind_iff]
+  simp only [mem_eval_iff (hP.bind hf), Part.mem_bind_iff, attempt_bind]
   constructor
-  · rintro ⟨k, hk⟩
-    rw [attempt_bind] at hk
-    obtain ⟨r, hr, hb⟩ := Part.mem_bind_iff.1 hk
-    cases r with
-    | none => simp at hb
-    | some a => exact ⟨a, (mem_eval_iff hP).2 ⟨k, hr⟩, (mem_eval_iff (hf a)).2 ⟨k, hb⟩⟩
+  · rintro ⟨k, _ | a, hr, hb⟩
+    · simp at hb
+    · exact ⟨a, (mem_eval_iff hP).2 ⟨k, hr⟩, (mem_eval_iff (hf a)).2 ⟨k, hb⟩⟩
   · rintro ⟨a, ha, hb⟩
     obtain ⟨k₁, h₁⟩ := (mem_eval_iff hP).1 ha
     obtain ⟨k₂, h₂⟩ := (mem_eval_iff (hf a)).1 hb
-    refine ⟨max k₁ k₂, ?_⟩
-    rw [attempt_bind, hP.mono h₁ (le_max_left _ _), Part.bind_some]
-    change some b ∈ attempt o (f a) (max k₁ k₂)
-    rw [(hf a).mono h₂ (le_max_right _ _)]
-    exact Part.mem_some _
+    refine ⟨max k₁ k₂, some a, hP.mono h₁ (le_max_left _ _) ▸ Part.mem_some _, ?_⟩
+    simp [(hf a).mono h₂ (le_max_right _ _)]
 
 theorem eval_map {P : ClockedComp spec α} (hP : Stable o P) (f : α → β) :
     eval o (f <$> P) = (eval o P).map f := by
-  rw [map_eq_bind_pure_comp, eval_bind o (f := pure ∘ f) hP fun a => .pure (f a)]
-  simp [Part.bind_some_eq_map]
+  simp [map_eq_bind_pure_comp, eval_bind o (f := pure ∘ f) hP fun a => .pure (f a),
+    Part.bind_some_eq_map]
 
 @[simp] theorem eval_query (q : ι) : eval o (query q : ClockedComp spec (spec q)) = o q := by
   ext a
-  rw [mem_eval_iff (.query q)]
-  simp
+  simp [mem_eval_iff (.query q)]
 
 theorem eval_rfind {p : ℕ → ClockedComp spec Bool} (hp : ∀ i, Stable o (p i)) :
     eval o (rfind p) = Nat.rfind (fun i => eval o (p i) : ℕ →. Bool) := by
   ext n
-  rw [mem_eval_iff (.rfind hp)]
-  refine Iff.trans ?_ Nat.mem_rfind.symm
+  refine (mem_eval_iff (.rfind hp)).trans (Iff.trans ?_ Nat.mem_rfind.symm)
   constructor
   · rintro ⟨k, hk⟩
-    rw [attempt_rfind] at hk
     obtain ⟨-, -, hlt, hn⟩ := mem_rfindFrom hk
     exact ⟨(mem_eval_iff (hp n)).2 ⟨k, hn⟩, fun {m} hm =>
       (mem_eval_iff (hp m)).2 ⟨k, hlt m (Nat.zero_le _) hm⟩⟩
@@ -327,13 +287,12 @@ theorem eval_rfind {p : ℕ → ClockedComp spec Bool} (hp : ∀ i, Stable o (p 
     choose kf hkf using fun m : Fin n => (mem_eval_iff (hp m)).1 (hlt m.isLt)
     let K := max (max (Finset.univ.sup kf) kn) (n + 1)
     refine ⟨K, ?_⟩
-    have hlt' : ∀ m < n, attempt o (p m) K = Part.some (some false) := fun m hm =>
-      (hp m).mono (hkf ⟨m, hm⟩) (le_trans
-        (Finset.le_sup (f := kf) (Finset.mem_univ (⟨m, hm⟩ : Fin n)))
-        (le_trans (le_max_left _ _) (le_max_left _ _)))
-    have hn' : attempt o (p n) K = Part.some (some true) :=
-      (hp n).mono hkn (le_trans (le_max_right _ _) (le_max_left _ _))
-    rw [attempt_rfind, rfindFrom_eq_some hlt' hn' (Nat.zero_le n) (by omega)]
+    rw [attempt_rfind, rfindFrom_eq_some
+      (fun m hm => (hp m).mono (hkf ⟨m, hm⟩) <|
+        (Finset.le_sup (f := kf) (Finset.mem_univ (⟨m, hm⟩ : Fin n))).trans <|
+          (le_max_left _ _).trans (le_max_left _ _))
+      ((hp n).mono hkn <| (le_max_right _ _).trans (le_max_left _ _))
+      (Nat.zero_le n) (by omega)]
     exact Part.mem_some _
 
 end Eval

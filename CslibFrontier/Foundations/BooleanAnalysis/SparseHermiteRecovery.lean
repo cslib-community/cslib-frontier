@@ -143,18 +143,13 @@ theorem map_eval_affineInput_indicator {A : Type*} [CommRing A] [Algebra ℚ A]
   rw [Cslib.AffineTaylor.map_eval_affineInput]
   congr 1
   · congr 1
-    have hbit : ∀ b : Bool, BitString.bitVal A b = algebraMap ℚ A (BitString.bitVal ℚ b) := by
-      rintro (_ | _) <;>
-        simp only [BitString.bitVal_false, BitString.bitVal_true, map_zero, map_one]
+    have hbit (b : Bool) : BitString.bitVal A b = algebraMap ℚ A (BitString.bitVal ℚ b) := by
+      cases b <;> simp [BitString.bitVal]
     simp only [evalRow, evalRowRat, map_sum, map_mul, ← hbit, rowIn]
-    refine sum_congr rfl fun i _ => ?_
-    have hnode : (M.nodes t : A) = algebraMap ℚ A (M.nodes t : ℚ) := by simp only [map_intCast]
-    rw [hnode, Polynomial.eval_map_apply]
-  · rw [← sum_subset (subset_univ U)]
-    · refine sum_congr rfl fun i hi => ?_
-      simp only [decide_eq_true_eq.mpr hi, BitString.bitVal_true, Polynomial.C_1, one_mul]
-    · intro i _ hi
-      simp only [decide_eq_false_iff_not.mpr hi, BitString.bitVal_false, Polynomial.C_0, zero_mul]
+    exact sum_congr rfl fun i _ => by
+      rw [show (M.nodes t : A) = algebraMap ℚ A (M.nodes t : ℚ) by simp, Polynomial.eval_map_apply]
+  · rw [← sum_subset (subset_univ U) fun i _ hi => by simp [hi]]
+    exact sum_congr rfl fun i hi => by simp [hi]
 
 /-- Evaluating the formal variables `X` of `AffineTaylor.affineFactor` at the indicator of `U ⊆ ι`
 produces `M.shiftedFactorEval Φ t U f (fun v => M.evalRow t f v x)` ([OpenAI2026ETH],
@@ -352,20 +347,17 @@ theorem taylor_univariateClearedParityCoord [Fintype ι] [DecidableEq ι] (I : F
         (fun x i v => Polynomial.taylor t (θ x i v)) s := by
   rw [univariateClearedParityCoord_eq_sum, univariateClearedParityCoord_eq_sum, map_sum]
   refine sum_congr rfl fun x _ => ?_
-  have hcoeff :
-      Polynomial.taylor t
-          ((∏ i ∈ I,
-            parityFactorCleared ℓ (Polynomial.C (d_den ^ k))
-              (clearedMonomialSumPoly d_den k (θ x i) (P i))).coeff s) =
-        (((∏ i ∈ I,
-            parityFactorCleared ℓ (Polynomial.C (d_den ^ k))
-              (clearedMonomialSumPoly d_den k (θ x i) (P i))).map
-                (Polynomial.taylorAlgHom t).toRingHom).coeff s) := by
-    rw [Polynomial.coeff_map, AlgHom.toRingHom_eq_coe, RingHom.coe_coe,
-      Polynomial.taylorAlgHom_apply]
-  rw [hcoeff, Polynomial.map_prod]
-  refine congrArg (fun Q : Polynomial (Polynomial ℤ) => Q.coeff s) (prod_congr rfl fun i _ => ?_)
-  rw [map_taylor_parityFactorCleared, taylor_clearedMonomialSumPoly]
+  let P0 := ∏ i ∈ I, parityFactorCleared ℓ (Polynomial.C (d_den ^ k))
+    (clearedMonomialSumPoly d_den k (θ x i) (P i))
+  calc Polynomial.taylor t (P0.coeff s)
+      = (P0.map (Polynomial.taylorAlgHom t).toRingHom).coeff s := by
+        rw [Polynomial.coeff_map, AlgHom.toRingHom_eq_coe, RingHom.coe_coe,
+          Polynomial.taylorAlgHom_apply]
+    _ = _ := by
+        dsimp only [P0]
+        rw [Polynomial.map_prod]
+        exact congrArg (fun Q : Polynomial (Polynomial ℤ) => Q.coeff s) (prod_congr rfl fun i _ =>
+          by rw [map_taylor_parityFactorCleared, taylor_clearedMonomialSumPoly])
 
 /-- `Polynomial.taylor t` commutes with `univariateClearedParityTruncatedSum` by Taylor-shifting
 each numerator polynomial `θ x i v`. -/
@@ -411,22 +403,11 @@ theorem ofPolyVPolyZ_parityFactorCleared (J ℓ : ℕ) (Δ : ℤ) (A_i : Polynom
   unfold parityFactorCleared JetTable.clearedParityFactorJet
   rw [map_sum, ← Fin.sum_univ_eq_sum_range]
   refine sum_congr rfl fun s _ => ?_
-  have hdigit :
-      JetTable.ofPolyZ J ℓ (parityBaseDigitCleared ℓ (s : ℕ) (Polynomial.C Δ) A_i) =
-        ((Polynomial.parityBaseDigit ℓ (s : ℕ)).coeff 0) • JetTable.const Δ +
-          ((Polynomial.parityBaseDigit ℓ (s : ℕ)).coeff 1) • JetTable.ofPolyZ J ℓ A_i := by
-    unfold parityBaseDigitCleared
-    rw [map_add, map_mul, map_mul, map_intCast, map_intCast, JetTable.ofPolyZ_C,
-      zsmul_eq_mul, zsmul_eq_mul]
-  have hhpoly :
-      JetTable.ofPolyZ J ℓ (hPolyCleared (Polynomial.C Δ) A_i) =
-        JetTable.ofPolyZ J ℓ A_i * (JetTable.ofPolyZ J ℓ A_i - JetTable.const Δ) := by
-    unfold hPolyCleared
-    rw [map_mul, map_sub, JetTable.ofPolyZ_C]
-  rw [map_mul, JetTable.ofPolyVPolyZ_C, JetTable.ofPolyVPolyZ_X_pow, map_mul, map_mul,
-    map_pow, map_pow, JetTable.ofPolyZ_C, hdigit, hhpoly,
-    JetTable.zsmul_eq_const_mul (Δ ^ (2 * (ℓ - 1 - (s : ℕ)))), Int.cast_id, ← JetTable.const_pow]
-  simp only [mul_assoc]
+  unfold parityBaseDigitCleared hPolyCleared
+  rw [map_mul, JetTable.ofPolyVPolyZ_C, JetTable.ofPolyVPolyZ_X_pow,
+    JetTable.zsmul_eq_const_mul, Int.cast_id, ← JetTable.const_pow]
+  simp only [map_mul, map_pow, map_add, map_sub, map_intCast, JetTable.ofPolyZ_C, zsmul_eq_mul,
+    mul_assoc]
 
 /-- The `(J × ℓ)` integer Taylor-jet table at evaluation point `t : ℤ` constructed from the Stage-1
 and Stage-2 `JetTable` operations (`JetTable.clearedMonomialSumJet` and
@@ -457,11 +438,7 @@ theorem clearedParityJetTable_apply [Fintype ι] [DecidableEq ι] (I : Finset κ
           (univariateClearedParityProduct I P d_den k ℓ
             (fun x i v => Polynomial.taylor t (θ x i v))) := by
     unfold clearedParityJetTable univariateClearedParityProduct
-    rw [map_sum]
-    refine sum_congr rfl fun x _ => ?_
-    rw [map_prod]
-    refine prod_congr rfl fun i _ => ?_
-    rw [ofPolyVPolyZ_parityFactorCleared, ofPolyZ_clearedMonomialSumPoly]
+    simp only [map_sum, map_prod, ofPolyVPolyZ_parityFactorCleared, ofPolyZ_clearedMonomialSumPoly]
   rw [htable, JetTable.ofPolyVPolyZ_apply, ← univariateClearedParityCoord,
     ← taylor_univariateClearedParityCoord]
 
@@ -479,11 +456,9 @@ theorem hermiteCramerNumerator_intPoly_eq_mul {Q J : ℕ} (nodes : Fin Q → ℤ
     Polynomial.degree_le_natDegree.trans_lt (WithBot.coe_lt_coe.mpr hdeg)
   have h := Polynomial.det_hermiteMatrix_mul_coeff (R := ℤ) nodes hp (⟨0, hQ⟩, ⟨0, hJ⟩)
   have hmap : (Polynomial.hermiteMatrix nodes J).map (Int.cast : ℤ → ℤ) =
-      Polynomial.hermiteMatrix nodes J := by
-    ext r c
-    simp only [Matrix.map_apply, Int.cast_id]
-  have h0 : (finProdFinEquiv (⟨0, hQ⟩, ⟨0, hJ⟩) : ℕ) = 0 := rfl
-  rw [hmap, h0, Polynomial.coeff_zero_eq_eval_zero, Int.cast_id] at h
+      Polynomial.hermiteMatrix nodes J := Matrix.ext fun _ _ => Int.cast_id
+  rw [hmap, show (finProdFinEquiv (⟨0, hQ⟩, ⟨0, hJ⟩) : ℕ) = 0 from rfl,
+    Polynomial.coeff_zero_eq_eval_zero, Int.cast_id] at h
   exact h.symm
 
 /-- **Exact integer Cramer quotient for `ℤ[X]`**: at distinct integer nodes `nodes : Fin Q → ℤ`,
@@ -590,34 +565,13 @@ theorem emod_hermiteCramerNumerator_truncatedSum_ediv_eq_commonZeroCount
       (clearedProductDenom d_den k ℓ #I * (Polynomial.hermiteMatrix nodes J).det)) %
         ((2 : ℤ) ^ ℓ) =
       commonZeroCount I P := by
-  have hquot :
-      hermiteCramerNumerator nodes hQ hJ
-          (fun t j =>
-            (Polynomial.taylor (nodes t)
-              (univariateClearedParityTruncatedSum I P d_den k ℓ θ)).coeff j) /
-        (clearedProductDenom d_den k ℓ #I * (Polynomial.hermiteMatrix nodes J).det) =
-      (univariateClearedParityTruncatedSum I P d_den k ℓ θ).eval 0 /
-        clearedProductDenom d_den k ℓ #I := by
-    rw [hermiteCramerNumerator_univariateClearedParityTruncatedSum_eq_mul I P d_den nodes hQ hJ θ
-      hk hdeg hQJ]
-    have hℓ1 : 1 ≤ ℓ := by omega
-    rw [eval_zero_univariateClearedParityTruncatedSum I P d_den hℓ1 θ hk hθ]
-    have hmul :
-        (Polynomial.hermiteMatrix nodes J).det *
-            (clearedProductDenom d_den k ℓ #I *
-              ∑ x : ι → Bool,
-                (∏ i ∈ I, Polynomial.parityFactor ℓ (monomialSum ℤ (P i) x)).sumCoeffsBelow ℓ) =
-          (clearedProductDenom d_den k ℓ #I * (Polynomial.hermiteMatrix nodes J).det) *
-            ∑ x : ι → Bool,
-              (∏ i ∈ I, Polynomial.parityFactor ℓ (monomialSum ℤ (P i) x)).sumCoeffsBelow ℓ := by
-      ring
-    rw [hmul,
-      Int.mul_ediv_cancel_left _
-        (mul_ne_zero (clearedProductDenom_ne_zero hd k ℓ #I)
-          (Polynomial.det_hermiteMatrix_ne_zero hnodes)),
-      Int.mul_ediv_cancel_left _ (clearedProductDenom_ne_zero hd k ℓ #I)]
-  rw [hquot]
-  exact emod_ediv_eval_zero_univariateClearedParityTruncatedSum_eq_commonZeroCount I P hd hℓ θ hk hθ
+  have hmul (A B C : ℤ) : A * (B * C) = (B * A) * C := by ring
+  have hcd := clearedProductDenom_ne_zero hd k ℓ #I
+  rw [← emod_ediv_eval_zero_univariateClearedParityTruncatedSum_eq_commonZeroCount I P hd hℓ θ hk
+    hθ, hermiteCramerNumerator_univariateClearedParityTruncatedSum_eq_mul I P d_den nodes hQ hJ θ
+    hk hdeg hQJ, eval_zero_univariateClearedParityTruncatedSum I P d_den (by omega) θ hk hθ, hmul,
+    Int.mul_ediv_cancel_left _ (mul_ne_zero hcd (Polynomial.det_hermiteMatrix_ne_zero hnodes)),
+    Int.mul_ediv_cancel_left _ hcd]
 
 /-! #### 3.4 Canonical jet order and concrete `ReplacementDesign` Hermite–Cramer recovery -/
 

@@ -87,9 +87,8 @@ theorem exists_annular_paths (n : ℕ) (z : ℂ) {r R : ℝ} (hr : 0 < r) (hrR :
     rw [add_sub_cancel_left, norm_mul, Circle.norm_coe, mul_one,
       Complex.norm_real, Real.norm_of_nonneg (hrad t ht).le]
   refine ⟨γ, ?_, ?_, ?_, ?_, hnorm, ?_⟩
-  · intro i
-    exact continuous_const.add ((Complex.continuous_ofReal.comp lineMap_continuous).mul
-      (continuous_subtypeVal.comp (Circle.exp.continuous.comp lineMap_continuous)))
+  · exact fun i => continuous_const.add ((Complex.continuous_ofReal.comp lineMap_continuous).mul
+      (continuous_subtype_val.comp (Circle.exp.continuous.comp lineMap_continuous)))
   · intro i
     let Ka := nndist (P ((p i - z).arg : Real.Angle)) (Q ((q i - z).arg : Real.Angle))
     let Kr := nndist r R
@@ -129,36 +128,21 @@ theorem exists_annular_paths (n : ℕ) (z : ℂ) {r R : ℝ} (hr : 0 < r) (hrR :
     rw [lineMap_apply_one, lineMap_apply_one, ← hq i,
       norm_mul_circle_exp_of_angle (hQcoe _)]
     abel
-  · rintro ⟨i, s⟩ hs ⟨j, t⟩ ht he
-    change s ∈ Set.Icc 0 1 at hs
-    change t ∈ Set.Icc 0 1 at ht
-    change γ i s = γ j t at he
-    have hst : s = t := by
-      have heq : lineMap r R s = lineMap r R t :=
-        (hnorm i s hs).symm.trans ((congrArg (fun x : ℂ => ‖x - z‖) he).trans (hnorm j t ht))
-      exact hradOrder.injective heq
-    subst t
-    have hcircle : Circle.exp (angle i s) = Circle.exp (angle j s) := by
-      apply Subtype.ext
-      exact mul_left_cancel₀ (by exact_mod_cast (hrad s hs).ne') (add_left_cancel he)
+  · rintro ⟨i, s⟩ (hs : s ∈ Set.Icc 0 1) ⟨j, t⟩ (ht : t ∈ Set.Icc 0 1) (he : γ i s = γ j t)
+    obtain rfl : s = t := hradOrder.injective <|
+      (hnorm i s hs).symm.trans ((congrArg (fun x : ℂ => ‖x - z‖) he).trans (hnorm j t ht))
+    have hcircle : Circle.exp (angle i s) = Circle.exp (angle j s) := Subtype.ext <|
+      mul_left_cancel₀ (by exact_mod_cast (hrad s hs).ne') (add_left_cancel he)
     have hin (k : Fin (n + 1)) : angle k s ∈
         Set.Ico (lineMap a b s) (lineMap a b s + 2 * Real.pi) := by
       refine ⟨(lineMap_strict_mono_endpoints (hP k).1 (hQ k).1 hs.1 hs.2).le, ?_⟩
-      have h := lineMap_strict_mono_endpoints (hP k).2 (hQ k).2 hs.1 hs.2
-      have heq : lineMap (a + 2 * Real.pi) (b + 2 * Real.pi) s =
-          lineMap a b s + 2 * Real.pi := by
-        simp only [lineMap_apply_ring]
-        ring
-      exact h.trans_eq heq
+      exact (lineMap_strict_mono_endpoints (hP k).2 (hQ k).2 hs.1 hs.2).trans_eq
+        (by simp only [lineMap_apply_ring]; ring)
     have hangle : angle i s = angle j s :=
       Circle.exp_injOn_Ico (by linarith) (hin i) (hin j) hcircle
     have hlt {i j : Fin (n + 1)} (h : i < j) : angle j s < angle i s :=
       lineMap_strict_mono_endpoints ((hPlt j i).mpr h) ((hQlt j i).mpr h) hs.1 hs.2
-    have hij : i = j := by
-      rcases lt_trichotomy i j with h | h | h
-      · exact ((hlt h).ne hangle.symm).elim
-      · exact h
-      · exact ((hlt h).ne hangle).elim
-    exact Prod.ext hij rfl
+    exact Prod.ext (le_antisymm (not_lt.1 fun h => (hlt h).ne hangle)
+      (not_lt.1 fun h => (hlt h).ne hangle.symm)) rfl
 
 end Cslib.Polygonal

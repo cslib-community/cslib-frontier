@@ -98,21 +98,14 @@ private theorem card_inter_sdiff_ne_one_of_three_le_symmDiff {α : Type*} [Decid
     {S a a' : Finset α} (haS : a ⊆ S) (hcard : a.card = a'.card)
     (hd : a ≠ a' → 3 ≤ (symmDiff a a').card) :
     (a ∩ (S \ a')).card ≠ 1 := by
-  have hinter : a ∩ (S \ a') = a \ a' := by
-    ext x
-    simp only [mem_inter, mem_sdiff]
-    exact ⟨fun ⟨hxa, _, hxna'⟩ => ⟨hxa, hxna'⟩, fun ⟨hxa, hxna'⟩ => ⟨hxa, haS hxa, hxna'⟩⟩
-  rw [hinter]
+  rw [← inter_sdiff_assoc, inter_eq_left.2 haS]
   by_cases heq : a = a'
-  · subst heq
-    simp only [sdiff_self, bot_eq_empty, card_empty, ne_eq, zero_ne_one, not_false_eq_true]
-  · have h1 := card_sdiff_add_card_inter a a'
+  · simp [heq]
+  · have h3 := hd heq
+    rw [Finset.symmDiff_def, card_union_of_disjoint disjoint_sdiff_sdiff] at h3
+    have h1 := card_sdiff_add_card_inter a a'
     have h2 := card_sdiff_add_card_inter a' a
     rw [inter_comm] at h2
-    have hsdiff_eq : (a \ a').card = (a' \ a).card := by omega
-    have hsymm : (symmDiff a a').card = (a \ a').card + (a' \ a).card := by
-      rw [Finset.symmDiff_def, card_union_of_disjoint disjoint_sdiff_sdiff]
-    have h3 := hd heq
     omega
 
 private theorem card_inter_sdiff_ne_one_of_synPad_eq {α : Type*} [DecidableEq α]
@@ -124,14 +117,6 @@ private theorem card_inter_sdiff_ne_one_of_synPad_eq {α : Type*} [DecidableEq �
     Code.three_le_card_symmDiff_of_finsetHammingSyndrome_eq haS ha'S hne
       (BitString.zeroExtend_injective hk hsyn)
 
-private theorem map_symm_map {α : Type*} (σ : Equiv.Perm α) (U : Finset α) :
-    (U.map σ.symm.toEmbedding).map σ.toEmbedding = U := by
-  ext x
-  simp only [mem_map, Equiv.toEmbedding_apply]
-  refine ⟨fun ⟨y, ⟨z, hz, hyz⟩, hxy⟩ => ?_, fun hx => ⟨σ.symm x, ⟨x, hx, rfl⟩, by simp⟩⟩
-  rw [← hxy, ← hyz]
-  simpa using hz
-
 /-- Subsets of `α` of fixed cardinality `k`. -/
 private def weightSlice (α : Type*) (k : ℕ) : Set (Finset α) :=
   {s | s.card = k}
@@ -141,7 +126,7 @@ private def cardFin (α : Type*) [Fintype α] (s : Finset α) : Fin (Fintype.car
 
 private theorem weightSlice_eq_univ_inter_preimage {α : Type*} [Fintype α]
     (p : Fin (Fintype.card α + 1)) :
-    (Set.univ : Set (Finset α)) ∩ cardFin α ⁻¹' {p} = weightSlice α p.val := by
+    (Set.univ : Set (Finset α)) ∩ cardFin α ⁻¹' {p} = weightSlice α p.1 := by
   ext s
   simp only [Set.mem_inter_iff, Set.mem_univ, true_and, Set.mem_preimage, Set.mem_singleton_iff,
     cardFin, Fin.ext_iff, weightSlice, Set.mem_ofPred_eq]
@@ -157,25 +142,22 @@ private theorem partitionCoverNumber_weightSlice_eq_zero_of_lt {α : Type*} [Fin
   rw [card_union_of_disjoint hnd, ha, hb] at hunion
   omega
 
+private theorem uniqueDisjointnessRel_comm {α : Type*} [DecidableEq α] (a b : Finset α)
+    (z : Bool) : uniqueDisjointnessRel α a b z ↔ uniqueDisjointnessRel α b a z := by
+  rw [uniqueDisjointnessRel, uniqueDisjointnessRel, inter_comm, disjoint_comm]
+
 private theorem partitionCoverNumber_weightSlice_symm {α : Type*} [DecidableEq α] (p q : ℕ) :
     partitionCoverNumber true (uniqueDisjointnessRel α) (weightSlice α p) (weightSlice α q) =
       partitionCoverNumber true (uniqueDisjointnessRel α) (weightSlice α q) (weightSlice α p) := by
   have hle : ∀ u v,
       partitionCoverNumber true (uniqueDisjointnessRel α) (weightSlice α u) (weightSlice α v) ≤
         partitionCoverNumber true (uniqueDisjointnessRel α)
-          (weightSlice α v) (weightSlice α u) := by
-    intro u v
-    refine le_partitionCoverNumber_iff.2 fun r C hC =>
-      partitionCoverNumber_le_iff.2 ⟨fun i => ((C i).2, (C i).1), ?_, ?_⟩
-    · intro i a ha haC b hb hbC
-      have h := hC.1 i b hb hbC a ha haC
-      simpa only [uniqueDisjointnessRel, ↓reduceIte, inter_comm] using h
-    · intro a ha b hb hnd
-      have hnd' : ¬uniqueDisjointnessRel α b a (!true) := by
-        simpa only [Bool.not_true, uniqueDisjointnessRel, Bool.false_eq_true, ↓reduceIte,
-          disjoint_comm] using hnd
-      obtain ⟨i, ⟨hbC, haC⟩, huniq⟩ := hC.2 b hb a ha hnd'
-      exact ⟨i, ⟨haC, hbC⟩, fun j ⟨haCj, hbCj⟩ => huniq j ⟨hbCj, haCj⟩⟩
+          (weightSlice α v) (weightSlice α u) := fun u v =>
+    le_partitionCoverNumber_iff.2 fun r C hC =>
+      partitionCoverNumber_le_iff.2 ⟨fun i => ((C i).2, (C i).1),
+        fun i a ha haC b hb hbC => (uniqueDisjointnessRel_comm ..).1 (hC.1 i b hb hbC a ha haC),
+        fun a ha b hb hnd => (existsUnique_congr fun _ => and_comm).1
+          (hC.2 b hb a ha ((uniqueDisjointnessRel_comm ..).not.1 hnd))⟩
   exact le_antisymm (hle p q) (hle q p)
 
 private theorem coverNumber_weightSlice_symm {α : Type*} [DecidableEq α] (p q : ℕ) :
@@ -183,19 +165,12 @@ private theorem coverNumber_weightSlice_symm {α : Type*} [DecidableEq α] (p q 
       coverNumber true (uniqueDisjointnessRel α) (weightSlice α q) (weightSlice α p) := by
   have hle : ∀ u v,
       coverNumber true (uniqueDisjointnessRel α) (weightSlice α u) (weightSlice α v) ≤
-        coverNumber true (uniqueDisjointnessRel α) (weightSlice α v) (weightSlice α u) := by
-    intro u v
-    refine le_coverNumber_iff.2 fun r C hC =>
-      coverNumber_le_iff.2 ⟨fun i => ((C i).2, (C i).1), ?_, ?_⟩
-    · intro i a ha haC b hb hbC
-      have h := hC.1 i b hb hbC a ha haC
-      simpa only [uniqueDisjointnessRel, ↓reduceIte, inter_comm] using h
-    · intro a ha b hb hnd
-      have hnd' : ¬uniqueDisjointnessRel α b a (!true) := by
-        simpa only [Bool.not_true, uniqueDisjointnessRel, Bool.false_eq_true, ↓reduceIte,
-          disjoint_comm] using hnd
-      obtain ⟨i, hbC, haC⟩ := hC.2 b hb a ha hnd'
-      exact ⟨i, haC, hbC⟩
+        coverNumber true (uniqueDisjointnessRel α) (weightSlice α v) (weightSlice α u) :=
+    fun u v => le_coverNumber_iff.2 fun r C hC =>
+      coverNumber_le_iff.2 ⟨fun i => ((C i).2, (C i).1),
+        fun i a ha haC b hb hbC => (uniqueDisjointnessRel_comm ..).1 (hC.1 i b hb hbC a ha haC),
+        fun a ha b hb hnd => (hC.2 b hb a ha ((uniqueDisjointnessRel_comm ..).not.1 hnd)).imp
+          fun _ h => h.symm⟩
   exact le_antisymm (hle p q) (hle q p)
 
 end Helpers
@@ -210,7 +185,7 @@ private theorem partitionCoverNumber_weightSlice_le_choose_left {α : Type*} [Fi
       ((Fintype.card α).choose p : ℕ) := by
   let κ := (univ : Finset α).powersetCard p
   let C : κ → Set (Finset α) × Set (Finset α) :=
-    fun a₀ => ({a₀.val}, {b | Disjoint a₀.val b})
+    fun a₀ => ({a₀.1}, {b | Disjoint a₀.1 b})
   have hcov : IsPartitionCover true (uniqueDisjointnessRel α)
       (weightSlice α p) (weightSlice α q) C := by
     refine ⟨fun a₀ a _ ha b _ hb => ?_, fun a ha b _ hnd => ?_⟩
@@ -245,12 +220,12 @@ private theorem partitionCoverNumber_weightSlice_le_code {α : Type*} [Fintype �
   let Y (S : Finset α) (syn : BitString k) : Set (Finset α) :=
     {a | a ⊆ S ∧ a.card = p ∧ synPad k S a = syn}
   let C : κ → Set (Finset α) × Set (Finset α) :=
-    fun ⟨S, syn⟩ => (Y S.val syn, {b | ∃ a' ∈ Y S.val syn, b = S.val \ a'})
+    fun ⟨S, syn⟩ => (Y S.1 syn, {b | ∃ a' ∈ Y S.1 syn, b = S.1 \ a'})
   have hcov : IsPartitionCover true (uniqueDisjointnessRel α)
       (weightSlice α p) (weightSlice α q) C := by
     refine ⟨fun ⟨S, syn⟩ a _ ha b _ hb => ?_, fun a ha b hb hnd => ?_⟩
     · obtain ⟨a', ha', rfl⟩ := hb
-      have hScard : S.val.card = p + q := (mem_powersetCard.1 S.property).2
+      have hScard : S.1.card = p + q := (mem_powersetCard.1 S.2).2
       simp only [uniqueDisjointnessRel, ↓reduceIte]
       exact card_inter_sdiff_ne_one_of_synPad_eq (by rw [hScard]) ha.1 ha'.1
         (ha.2.1.trans ha'.2.1.symm) (ha.2.2.trans ha'.2.2.symm)
@@ -260,14 +235,14 @@ private theorem partitionCoverNumber_weightSlice_le_code {α : Type*} [Fintype �
         rw [card_union_of_disjoint hnd, ha, hb]
       let S₀ : (univ : Finset α).powersetCard (p + q) :=
         ⟨a ∪ b, mem_powersetCard.2 ⟨subset_univ _, hunion_card⟩⟩
-      let syn₀ : BitString k := synPad k S₀.val a
-      have haY : a ∈ Y S₀.val syn₀ := ⟨subset_union_left, ha, rfl⟩
+      let syn₀ : BitString k := synPad k S₀.1 a
+      have haY : a ∈ Y S₀.1 syn₀ := ⟨subset_union_left, ha, rfl⟩
       have hbC : b ∈ (C ⟨S₀, syn₀⟩).2 := ⟨a, haY, (union_sdiff_cancel_left hnd).symm⟩
       refine ⟨⟨S₀, syn₀⟩, ⟨haY, hbC⟩, ?_⟩
       rintro ⟨S', syn'⟩ ⟨haY', a', _, hb_eq⟩
-      have hS'_sub : a ∪ b ⊆ S'.val := union_subset haY'.1 (hb_eq ▸ sdiff_subset)
-      have hS'_card : S'.val.card = p + q := (mem_powersetCard.1 S'.property).2
-      have hS'_eq : S'.val = S₀.val :=
+      have hS'_sub : a ∪ b ⊆ S'.1 := union_subset haY'.1 (hb_eq ▸ sdiff_subset)
+      have hS'_card : S'.1.card = p + q := (mem_powersetCard.1 S'.2).2
+      have hS'_eq : S'.1 = S₀.1 :=
         (eq_of_subset_of_card_le hS'_sub (by rw [hS'_card, hunion_card])).symm
       have hS_sub_eq : S' = S₀ := Subtype.ext hS'_eq
       subst hS_sub_eq
@@ -314,15 +289,15 @@ private theorem two_mul_sum_range_succ (m : ℕ) :
 
 private theorem sum_pairs_le_mul_max_le_cube (n : ℕ) :
     (∑ p : Fin (n + 1), ∑ q : Fin (n + 1),
-      if p.val + q.val ≤ n then max 1 (2 * n) else 0) ≤ (n + 1) ^ 3 := by
+      if p.1 + q.1 ≤ n then max 1 (2 * n) else 0) ≤ (n + 1) ^ 3 := by
   have hrow : ∀ p : Fin (n + 1),
-      (∑ q : Fin (n + 1), if p.val + q.val ≤ n then max 1 (2 * n) else 0) =
-        (n + 1 - p.val) * max 1 (2 * n) := by
+      (∑ q : Fin (n + 1), if p.1 + q.1 ≤ n then max 1 (2 * n) else 0) =
+        (n + 1 - p.1) * max 1 (2 * n) := by
     intro p
     rw [← sum_filter]
-    have hfilt : (univ.filter fun q : Fin (n + 1) => p.val + q.val ≤ n).card = n + 1 - p.val := by
-      rw [← card_range (n + 1 - p.val)]
-      refine card_bij (fun (q : Fin (n + 1)) _ => q.val) (fun q hq => ?_)
+    have hfilt : (univ.filter fun q : Fin (n + 1) => p.1 + q.1 ≤ n).card = n + 1 - p.1 := by
+      rw [← card_range (n + 1 - p.1)]
+      refine card_bij (fun (q : Fin (n + 1)) _ => q.1) (fun q hq => ?_)
         (fun q₁ _ q₂ _ h => Fin.ext h) (fun j hj => ?_)
       · rw [mem_filter] at hq
         exact mem_range.2 (by omega)
@@ -360,7 +335,7 @@ theorem partitionCoverNumber_uniqueDisjointnessRel_le {α : Type*} [Fintype α] 
             (Set.univ ∩ cardFin α ⁻¹' {p}) (Set.univ ∩ cardFin α ⁻¹' {q}) :=
         partitionCoverNumber_le_sum_fibers (cardFin α) (cardFin α)
     _ ≤ ∑ p : Fin (n + 1), ∑ q : Fin (n + 1),
-          (((if p.val + q.val ≤ n then max 1 (2 * n) else 0) * n.choose (n / 3) : ℕ) : ℕ∞) := by
+          (((if p.1 + q.1 ≤ n then max 1 (2 * n) else 0) * n.choose (n / 3) : ℕ) : ℕ∞) := by
         refine sum_le_sum fun p _ => sum_le_sum fun q _ => ?_
         rw [weightSlice_eq_univ_inter_preimage, weightSlice_eq_univ_inter_preimage]
         split_ifs with hpq
@@ -368,36 +343,35 @@ theorem partitionCoverNumber_uniqueDisjointnessRel_le {α : Type*} [Fintype α] 
         · rw [partitionCoverNumber_weightSlice_eq_zero_of_lt (by omega)]
           simp
     _ = (((∑ p : Fin (n + 1), ∑ q : Fin (n + 1),
-          if p.val + q.val ≤ n then max 1 (2 * n) else 0) * n.choose (n / 3) : ℕ) : ℕ∞) := by
+          if p.1 + q.1 ≤ n then max 1 (2 * n) else 0) * n.choose (n / 3) : ℕ) : ℕ∞) := by
         push_cast
         simp_rw [← sum_mul]
     _ ≤ (((n + 1) ^ 3 * n.choose (n / 3) : ℕ) : ℕ∞) := by
         exact_mod_cast Nat.mul_le_mul_right _ (sum_pairs_le_mul_max_le_cube n)
 
-private theorem four_pow_mul_choose_third_cube_le (n : ℕ) :
-    4 ^ n * n.choose (n / 3) ^ 3 ≤ 27 ^ n := by
-  have hsingle : n.choose (n / 3) ≤ ∑ j ∈ range (n / 3 + 1), n.choose j :=
-    single_le_sum (fun _ _ => Nat.zero_le _) (mem_range.2 (Nat.lt_succ_self _))
-  have hsum := Cslib.sum_range_choose_mul_pow_le 2 n (n / 3)
-  have hle : n.choose (n / 3) * 2 ^ n ≤ 2 ^ (n / 3) * 3 ^ n :=
-    (Nat.mul_le_mul_right _ hsingle).trans hsum
-  have h27 : (3 ^ n) ^ 3 = 27 ^ n := by
-    rw [← pow_mul, mul_comm n 3, pow_mul]
-    norm_num
-  have hcube : (n.choose (n / 3) * 2 ^ n) ^ 3 ≤ 2 ^ n * 27 ^ n := by
-    calc (n.choose (n / 3) * 2 ^ n) ^ 3
-        ≤ (2 ^ (n / 3) * 3 ^ n) ^ 3 := Nat.pow_le_pow_left hle 3
-      _ = 2 ^ (3 * (n / 3)) * 27 ^ n := by
-          rw [mul_pow, ← pow_mul, mul_comm (n / 3) 3, h27]
-      _ ≤ 2 ^ n * 27 ^ n :=
-          Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by norm_num) (Nat.mul_div_le n 3))
-  have hlhs : (n.choose (n / 3) * 2 ^ n) ^ 3 = 2 ^ n * (4 ^ n * n.choose (n / 3) ^ 3) := by
-    have h8 : (2 ^ n) ^ 3 = 2 ^ n * 4 ^ n := by
-      calc (2 ^ n) ^ 3 = 2 ^ n * (2 ^ n) ^ 2 := by ring
-        _ = 2 ^ n * 4 ^ n := by rw [← pow_mul, mul_comm n 2, pow_mul]; norm_num
-    rw [mul_pow, h8]
-    ring
-  exact Nat.le_of_mul_le_mul_left (hlhs ▸ hcube) (by positivity : 0 < 2 ^ n)
+private theorem exists_eq_natCast_of_le {x : ℕ∞} {m : ℕ} (h : x ≤ m) :
+    ∃ r : ℕ, x = r ∧ r ≤ m := by
+  obtain ⟨r, rfl⟩ := ENat.ne_top_iff_exists.1 (ne_top_of_le_ne_top (ENat.natCast_ne_top m) h)
+  exact ⟨r, rfl, by exact_mod_cast h⟩
+
+private theorem choose_third_cube_le (n : ℕ) :
+    (n.choose (n / 3) : ℝ) ^ 3 ≤ (27 / 4 : ℝ) ^ n := by
+  have hle : (n.choose (n / 3) * 2 ^ n : ℝ) ≤ 2 ^ (n / 3) * 3 ^ n := by
+    exact_mod_cast (Nat.mul_le_mul_right _ (single_le_sum (fun _ _ => Nat.zero_le _)
+      (mem_range.2 (Nat.lt_succ_self _)))).trans (Cslib.sum_range_choose_mul_pow_le 2 n (n / 3))
+  have h2 : ((2 : ℝ) ^ (n / 3)) ^ 3 ≤ 2 ^ n := by
+    rw [← pow_mul]
+    exact pow_le_pow_right₀ (by norm_num) (Nat.div_mul_le_self n 3)
+  have h4 : (4 : ℝ) ^ n = 2 ^ n * 2 ^ n := by rw [← mul_pow]; norm_num
+  have h27 : (27 : ℝ) ^ n = 3 ^ n * 3 ^ n * 3 ^ n := by rw [← mul_pow, ← mul_pow]; norm_num
+  have key : (n.choose (n / 3) : ℝ) ^ 3 * 4 ^ n * 2 ^ n ≤ 27 ^ n * 2 ^ n :=
+    calc (n.choose (n / 3) : ℝ) ^ 3 * 4 ^ n * 2 ^ n = (n.choose (n / 3) * 2 ^ n : ℝ) ^ 3 := by
+          rw [h4]; ring
+      _ ≤ (2 ^ (n / 3) * 3 ^ n) ^ 3 := pow_le_pow_left₀ (by positivity) hle 3
+      _ = ((2 : ℝ) ^ (n / 3)) ^ 3 * 27 ^ n := by rw [h27]; ring
+      _ ≤ 27 ^ n * 2 ^ n := by rw [mul_comm]; exact mul_le_mul_of_nonneg_left h2 (by positivity)
+  rw [div_pow, le_div_iff₀ (by positivity)]
+  exact le_of_mul_le_mul_right key (by positivity)
 
 /-- **Real exponential form of Sergeev's Theorem 1**
 ([Sergeev2026UniqueDisjointness, §2, Theorem 1, p. 3]): on any finite ground type `α`,
@@ -409,34 +383,18 @@ theorem exists_partitionCoverNumber_uniqueDisjointnessRel_le_rpow {α : Type*} [
       partitionCoverNumber true (uniqueDisjointnessRel α) Set.univ Set.univ = r ∧
         (r : ℝ) ≤ (Fintype.card α + 1 : ℝ) ^ 3 * (3 / (4 : ℝ) ^ (1 / 3 : ℝ)) ^ Fintype.card α := by
   set n := Fintype.card α
-  have hle := partitionCoverNumber_uniqueDisjointnessRel_le (α := α)
-  have hne_top : partitionCoverNumber true (uniqueDisjointnessRel α) Set.univ Set.univ ≠ ⊤ :=
-    ne_top_of_le_ne_top (ENat.natCast_ne_top _) hle
-  obtain ⟨r, hr⟩ := ENat.ne_top_iff_exists.1 hne_top
-  refine ⟨r, hr.symm, ?_⟩
-  have hr_nat : r ≤ (n + 1) ^ 3 * n.choose (n / 3) := by
-    exact_mod_cast hr.le.trans hle
+  obtain ⟨r, hr, hr_nat⟩ :=
+    exists_eq_natCast_of_le (partitionCoverNumber_uniqueDisjointnessRel_le (α := α))
+  refine ⟨r, hr, ?_⟩
   have h4_3 : ((4 : ℝ) ^ (1 / 3 : ℝ)) ^ 3 = 4 := by
     rw [← Real.rpow_natCast, ← Real.rpow_mul (by norm_num)]
     norm_num
-  have hbase_cube : ((3 / (4 : ℝ) ^ (1 / 3 : ℝ)) ^ n) ^ 3 = (27 / 4 : ℝ) ^ n := by
-    rw [← pow_mul, mul_comm n 3, pow_mul, div_pow, h4_3]
-    norm_num
-  have hch_cube : (n.choose (n / 3) : ℝ) ^ 3 ≤ ((3 / (4 : ℝ) ^ (1 / 3 : ℝ)) ^ n) ^ 3 := by
-    rw [hbase_cube, div_pow, le_div_iff₀ (by positivity)]
-    have hnat := four_pow_mul_choose_third_cube_le n
-    have hreal : (4 : ℝ) ^ n * (n.choose (n / 3) : ℝ) ^ 3 ≤ 27 ^ n := by exact_mod_cast hnat
-    linarith
   have hch : (n.choose (n / 3) : ℝ) ≤ (3 / (4 : ℝ) ^ (1 / 3 : ℝ)) ^ n := by
-    by_contra! hgt
-    have hgt3 : ((3 / (4 : ℝ) ^ (1 / 3 : ℝ)) ^ n) ^ 3 < (n.choose (n / 3) : ℝ) ^ 3 :=
-      pow_lt_pow_left₀ hgt (by positivity) (by norm_num)
-    linarith
-  calc (r : ℝ)
-      ≤ ((n + 1) ^ 3 * n.choose (n / 3) : ℕ) := by exact_mod_cast hr_nat
-    _ = (n + 1 : ℝ) ^ 3 * n.choose (n / 3) := by push_cast; rfl
-    _ ≤ (n + 1 : ℝ) ^ 3 * (3 / (4 : ℝ) ^ (1 / 3 : ℝ)) ^ n :=
-          mul_le_mul_of_nonneg_left hch (by positivity)
+    rw [← pow_le_pow_iff_left₀ (by positivity) (by positivity) three_ne_zero, ← pow_mul,
+      mul_comm n 3, pow_mul, div_pow, h4_3, show (3 : ℝ) ^ 3 / 4 = 27 / 4 by norm_num]
+    exact choose_third_cube_le n
+  calc (r : ℝ) ≤ (n + 1 : ℝ) ^ 3 * n.choose (n / 3) := by exact_mod_cast hr_nat
+    _ ≤ (n + 1 : ℝ) ^ 3 * (3 / (4 : ℝ) ^ (1 / 3 : ℝ)) ^ n := by gcongr
 
 /-- **Asymptotic `1.89 ^ n` upper bound on the SUM-rank of unique disjointness**
 ([Sergeev2026UniqueDisjointness, §2, Theorem 1, p. 3]): for all sufficiently large `n`,
@@ -448,50 +406,28 @@ theorem eventually_partitionCoverNumber_uniqueDisjointnessRel_lt :
         partitionCoverNumber true (uniqueDisjointnessRel (Fin n)) Set.univ Set.univ = r ∧
           (r : ℝ) < (189 / 100 : ℝ) ^ n := by
   let c : ℝ := (189 / 100 : ℝ) ^ 3 / (27 / 4 : ℝ)
-  have hc : 1 < c := by
-    simp only [c]
-    norm_num
-  have htend := tendsto_pow_const_div_const_pow_of_one_lt 9 hc
-  obtain ⟨M₀, hM₀⟩ :=
-    Filter.eventually_atTop.1 (htend.eventually (gt_mem_nhds (by positivity : (0 : ℝ) < 1 / c)))
+  have hc : 1 < c := by norm_num [c]
+  obtain ⟨M₀, hM₀⟩ := Filter.eventually_atTop.1 ((tendsto_pow_const_div_const_pow_of_one_lt 9 hc
+    ).eventually (gt_mem_nhds (by positivity : (0 : ℝ) < 1 / c)))
   refine Filter.eventually_atTop.2 ⟨M₀, fun n hn => ?_⟩
   have hle := partitionCoverNumber_uniqueDisjointnessRel_le (α := Fin n)
-  simp only [Fintype.card_fin] at hle
-  obtain ⟨r, hr⟩ := ENat.ne_top_iff_exists.1 (ne_top_of_le_ne_top (ENat.natCast_ne_top _) hle)
-  refine ⟨r, hr.symm, ?_⟩
-  have hr_nat : r ≤ (n + 1) ^ 3 * n.choose (n / 3) := by exact_mod_cast hr.le.trans hle
+  rw [Fintype.card_fin] at hle
+  obtain ⟨r, hr, hr_nat⟩ := exists_eq_natCast_of_le hle
+  refine ⟨r, hr, ?_⟩
   have hpoly : (n + 1 : ℝ) ^ 9 < c ^ n := by
     have h1 : (((n + 1 : ℕ) : ℝ) ^ 9) / c ^ (n + 1) < 1 / c := hM₀ (n + 1) (by omega)
-    rw [div_lt_iff₀ (by positivity)] at h1
-    have h2 : (1 / c) * c ^ (n + 1) = c ^ n := by
-      rw [pow_succ']
-      field_simp
-    rw [h2] at h1
-    simpa only [Nat.cast_add, Nat.cast_one] using h1
-  have hch_cube : (n.choose (n / 3) : ℝ) ^ 3 ≤ (27 / 4 : ℝ) ^ n := by
-    rw [div_pow, le_div_iff₀ (by positivity)]
-    have hnat := four_pow_mul_choose_third_cube_le n
-    have hreal : (4 : ℝ) ^ n * (n.choose (n / 3) : ℝ) ^ 3 ≤ 27 ^ n := by exact_mod_cast hnat
-    linarith
-  have hr_cube : (r : ℝ) ^ 3 < ((189 / 100 : ℝ) ^ n) ^ 3 := by
-    have hr_real : (r : ℝ) ≤ (n + 1 : ℝ) ^ 3 * n.choose (n / 3) := by
-      calc (r : ℝ) ≤ (((n + 1) ^ 3 * n.choose (n / 3) : ℕ) : ℝ) := by exact_mod_cast hr_nat
-        _ = (n + 1 : ℝ) ^ 3 * n.choose (n / 3) := by push_cast; rfl
-    calc (r : ℝ) ^ 3
-        ≤ ((n + 1 : ℝ) ^ 3 * n.choose (n / 3)) ^ 3 :=
-            pow_le_pow_left₀ (Nat.cast_nonneg r) hr_real 3
-      _ = (n + 1 : ℝ) ^ 9 * (n.choose (n / 3) : ℝ) ^ 3 := by ring
-      _ ≤ (n + 1 : ℝ) ^ 9 * (27 / 4 : ℝ) ^ n :=
-            mul_le_mul_of_nonneg_left hch_cube (by positivity)
-      _ < c ^ n * (27 / 4 : ℝ) ^ n :=
-            mul_lt_mul_of_pos_right hpoly (by positivity)
-      _ = ((189 / 100 : ℝ) ^ n) ^ 3 := by
-            rw [← mul_pow, show c * (27 / 4 : ℝ) = (189 / 100 : ℝ) ^ 3 by simp [c],
-              ← pow_mul, mul_comm 3 n, pow_mul]
-  by_contra! hge
-  have hge3 : ((189 / 100 : ℝ) ^ n) ^ 3 ≤ (r : ℝ) ^ 3 :=
-    pow_le_pow_left₀ (by positivity) hge 3
-  linarith
+    rw [div_lt_iff₀ (by positivity), pow_succ' c n, one_div,
+      inv_mul_cancel_left₀ (zero_lt_one.trans hc).ne'] at h1
+    exact_mod_cast h1
+  rw [← pow_lt_pow_iff_left₀ (by positivity) (by positivity) three_ne_zero]
+  calc (r : ℝ) ^ 3 ≤ ((n + 1 : ℝ) ^ 3 * n.choose (n / 3)) ^ 3 := by
+        gcongr; exact_mod_cast hr_nat
+    _ = (n + 1 : ℝ) ^ 9 * (n.choose (n / 3) : ℝ) ^ 3 := by ring
+    _ ≤ (n + 1 : ℝ) ^ 9 * (27 / 4 : ℝ) ^ n := by gcongr; exact choose_third_cube_le n
+    _ < c ^ n * (27 / 4 : ℝ) ^ n := by gcongr
+    _ = ((189 / 100 : ℝ) ^ n) ^ 3 := by
+      rw [← mul_pow, show c * (27 / 4 : ℝ) = (189 / 100 : ℝ) ^ 3 by simp [c], ← pow_mul,
+        mul_comm 3 n, pow_mul]
 
 end Theorem1
 
@@ -550,18 +486,10 @@ private theorem hypergeom_choose_le {n m₁ m₂ k w : ℕ} (hm : m₁ + m₂ = 
   have hle_mode : ∀ i ≤ k, g i ≤ g w := by
     intro i hik
     rcases le_total i w with hiw | hwi
-    · have key : ∀ d, i + d ≤ w → g i ≤ g (i + d) := by
-        intro d
-        induction d with
-        | zero => intro _; exact le_rfl
-        | succ d ih => intro hd; exact (ih (by omega)).trans (hup (i + d) (by omega))
-      simpa only [Nat.add_sub_cancel' hiw] using key (w - i) (by omega)
-    · have key : ∀ d, w + d ≤ k → g (w + d) ≤ g w := by
-        intro d
-        induction d with
-        | zero => intro _; exact le_rfl
-        | succ d ih => intro hd; exact (hdown (w + d) (by omega) (by omega)).trans (ih (by omega))
-      simpa only [Nat.add_sub_cancel' hwi] using key (i - w) (by omega)
+    · exact monotoneOn_of_le_add_one Set.ordConnected_Iic (fun j _ _ hj => hup j hj)
+        (Set.mem_Iic.2 hiw) (Set.mem_Iic.2 le_rfl) hiw
+    · exact antitoneOn_of_add_one_le Set.ordConnected_Icc (fun j _ hj hj1 => hdown j hj.1 hj1.2)
+        ⟨le_rfl, hwk⟩ ⟨hwi, hik⟩ hwi
   calc n.choose k
       = (m₁ + m₂).choose k := by rw [hm]
     _ = ∑ ij ∈ antidiagonal k, m₁.choose ij.1 * m₂.choose ij.2 := Nat.add_choose_eq m₁ m₂ k
@@ -577,94 +505,34 @@ private theorem exists_perm_disjoint_pair {α : Type*} [Finite α]
     {a₁ b₁ a₂ b₂ : Finset α} (ha : a₁.card = a₂.card) (hb : b₁.card = b₂.card)
     (hd₁ : Disjoint a₁ b₁) (hd₂ : Disjoint a₂ b₂) :
     ∃ σ : Equiv.Perm α, a₁.map σ.toEmbedding = a₂ ∧ b₁.map σ.toEmbedding = b₂ := by
-  let _ := Fintype.ofFinite α
   classical
-  let c₁ : Finset α := univ \ (a₁ ∪ b₁)
-  let c₂ : Finset α := univ \ (a₂ ∪ b₂)
-  have hc : c₁.card = c₂.card := by
-    rw [card_sdiff_of_subset (subset_univ _), card_sdiff_of_subset (subset_univ _),
-      card_union_of_disjoint hd₁, card_union_of_disjoint hd₂, ha, hb]
-  let ea : a₁ ≃ a₂ := Fintype.equivOfCardEq (by simp only [Fintype.card_coe, ha])
-  let eb : b₁ ≃ b₂ := Fintype.equivOfCardEq (by simp only [Fintype.card_coe, hb])
-  let ec : c₁ ≃ c₂ := Fintype.equivOfCardEq (by simp only [Fintype.card_coe, hc])
-  let f : α → α := fun x =>
-    if hxa : x ∈ a₁ then (ea ⟨x, hxa⟩).val
-    else if hxb : x ∈ b₁ then (eb ⟨x, hxb⟩).val
-    else (ec ⟨x, mem_sdiff.2 ⟨mem_univ x, by simp only [mem_union, hxa, hxb, or_self,
-      not_false_eq_true]⟩⟩).val
-  let g : α → α := fun y =>
-    if hya : y ∈ a₂ then (ea.symm ⟨y, hya⟩).val
-    else if hyb : y ∈ b₂ then (eb.symm ⟨y, hyb⟩).val
-    else (ec.symm ⟨y, mem_sdiff.2 ⟨mem_univ y, by simp only [mem_union, hya, hyb, or_self,
-      not_false_eq_true]⟩⟩).val
-  have hgf : Function.LeftInverse g f := by
-    intro x
-    by_cases hxa : x ∈ a₁
-    · have hfa : f x ∈ a₂ := by simp only [f, hxa, ↓reduceDIte]; exact (ea ⟨x, hxa⟩).property
-      simp only [g, hfa, ↓reduceDIte]
-      simp only [f, hxa, ↓reduceDIte, Subtype.eta, Equiv.symm_apply_apply]
-    · by_cases hxb : x ∈ b₁
-      · have hfb : f x ∈ b₂ := by simp only [f, hxa, hxb, ↓reduceDIte]; exact (eb ⟨x, hxb⟩).property
-        have hfna : f x ∉ a₂ := Finset.disjoint_right.1 hd₂ hfb
-        simp only [g, hfna, hfb, ↓reduceDIte]
-        simp only [f, hxa, hxb, ↓reduceDIte, Subtype.eta, Equiv.symm_apply_apply]
-      · have hfc : f x ∈ c₂ := by simp only [f, hxa, hxb, ↓reduceDIte]; exact (ec ⟨x, _⟩).property
-        have hfna : f x ∉ a₂ := fun h => (mem_sdiff.1 hfc).2 (mem_union_left _ h)
-        have hfnb : f x ∉ b₂ := fun h => (mem_sdiff.1 hfc).2 (mem_union_right _ h)
-        simp only [g, hfna, hfnb, ↓reduceDIte]
-        simp only [f, hxa, hxb, ↓reduceDIte, Subtype.eta, Equiv.symm_apply_apply]
-  let σ : Equiv.Perm α :=
-    Equiv.ofBijective f ⟨hgf.injective, Finite.surjective_of_injective hgf.injective⟩
-  refine ⟨σ, ?_, ?_⟩
-  · refine eq_of_subset_of_card_le (fun y hy => ?_) (by rw [card_map, ha])
-    obtain ⟨x, hxa, rfl⟩ := mem_map.1 hy
-    change f x ∈ a₂
-    simp only [f, hxa, ↓reduceDIte]
-    exact (ea ⟨x, hxa⟩).property
-  · refine eq_of_subset_of_card_le (fun y hy => ?_) (by rw [card_map, hb])
-    obtain ⟨x, hxb, rfl⟩ := mem_map.1 hy
-    have hxa : x ∉ a₁ := Finset.disjoint_right.1 hd₁ hxb
-    change f x ∈ b₂
-    simp only [f, hxa, hxb, ↓reduceDIte]
-    exact (eb ⟨x, hxb⟩).property
+  let e : (a₁ ∪ b₁ : Finset α) ≃ (a₂ ∪ b₂ : Finset α) :=
+    (Equiv.Finset.union a₁ b₁ hd₁).symm.trans <|
+      ((Fintype.equivOfCardEq (by simpa using ha)).sumCongr
+        (Fintype.equivOfCardEq (by simpa using hb))).trans (Equiv.Finset.union a₂ b₂ hd₂)
+  have hσ : ∀ {s₁ s₂ : Finset α}, s₁.card = s₂.card → (∀ x ∈ s₁, e.extendSubtype x ∈ s₂) →
+      s₁.map e.extendSubtype.toEmbedding = s₂ := fun hc h =>
+    eq_of_subset_of_card_le (fun y hy => by obtain ⟨x, hx, rfl⟩ := mem_map.1 hy; exact h x hx)
+      (by rw [card_map, hc])
+  refine ⟨e.extendSubtype, hσ ha fun x hx => ?_, hσ hb fun x hx => ?_⟩
+  · rw [e.extendSubtype_apply_of_mem x (mem_union_left _ hx)]
+    simp [e, hx]
+  · rw [e.extendSubtype_apply_of_mem x (mem_union_right _ hx)]
+    simp [e, hx]
 
 /-- Counting `(u, syn) : U × BitString k` where `syn` is uniquely pinned down when `good u`
 holds. -/
 private theorem card_filter_prod_unique_syn {ι : Type*} {U : Finset ι} {k : ℕ}
     (P : U × BitString k → Prop) [DecidablePred P] (good : ι → Prop) [DecidablePred good]
     (synOf : ι → BitString k)
-    (hiff : ∀ (u : U) (syn : BitString k), P (u, syn) ↔ good u.val ∧ syn = synOf u.val) :
+    (hiff : ∀ (u : U) (syn : BitString k), P (u, syn) ↔ good u.1 ∧ syn = synOf u.1) :
     (univ.filter P).card = (U.filter good).card := by
-  classical
-  have hsum : (univ.filter P).card =
-      ∑ u : U, (univ.filter fun syn : BitString k => P (u, syn)).card := by
-    rw [← card_sigma]
-    refine card_bij (fun s _ => ⟨s.1, s.2⟩) (fun s hs => ?_)
-      (fun s₁ _ s₂ _ h => Prod.ext (Sigma.mk.inj h).1 (eq_of_heq (Sigma.mk.inj h).2))
-      (fun x hx => ⟨(x.1, x.2), ?_, rfl⟩)
-    · rw [mem_filter] at hs
-      exact mem_sigma.2 ⟨mem_univ _, mem_filter.2 ⟨mem_univ _, hs.2⟩⟩
-    · rw [mem_sigma] at hx
-      exact mem_filter.2 ⟨mem_univ _, (mem_filter.1 hx.2).2⟩
-  rw [hsum]
-  have hinner : ∀ u : U,
-      (univ.filter fun syn : BitString k => P (u, syn)).card = if good u.val then 1 else 0 := by
-    intro u
-    have heq_f : (univ.filter fun syn : BitString k => P (u, syn)) =
-        if good u.val then {synOf u.val} else ∅ := by
-      ext syn
-      rw [mem_filter, hiff u syn]
-      split_ifs with hg
-      · simp only [mem_univ, true_and, hg, mem_singleton]
-      · simp only [mem_univ, true_and, hg, false_and, notMem_empty]
-    rw [heq_f]
-    split_ifs <;> simp
-  simp_rw [hinner]
-  rw [← card_filter, univ_eq_attach]
-  refine card_bij (fun u _ => u.val) (fun u hu => mem_filter.2 ⟨u.property, (mem_filter.1 hu).2⟩)
-    (fun u₁ _ u₂ _ h => Subtype.ext h)
-    (fun u hu => ⟨⟨u, (mem_filter.1 hu).1⟩, mem_filter.2 ⟨mem_attach _ _, (mem_filter.1 hu).2⟩,
-      rfl⟩)
+  refine card_bij (fun x _ => x.1.1) (fun x hx => ?_) (fun x hx y hy h => ?_) (fun u hu => ?_)
+  · exact mem_filter.2 ⟨x.1.2, ((hiff x.1 x.2).1 (mem_filter.1 hx).2).1⟩
+  · refine Prod.ext (Subtype.ext h) ?_
+    rw [((hiff x.1 x.2).1 (mem_filter.1 hx).2).2, ((hiff y.1 y.2).1 (mem_filter.1 hy).2).2, h]
+  · obtain ⟨huU, hg⟩ := mem_filter.1 hu
+    exact ⟨(⟨u, huU⟩, synOf u), mem_filter.2 ⟨mem_univ _, (hiff _ _).2 ⟨hg, rfl⟩⟩, rfl⟩
 
 /-- Disjoint subset pairs `(a, b)` of weights `(p, q)` (the `1`-entries of `U_n^{p, q}`). -/
 private def disjointWeightPairs (α : Type*) [Fintype α] [DecidableEq α] (p q : ℕ) :
@@ -677,6 +545,29 @@ private theorem mem_disjointWeightPairs {α : Type*} [Fintype α] [DecidableEq �
     (a, b) ∈ disjointWeightPairs α p q ↔ a.card = p ∧ b.card = q ∧ Disjoint a b := by
   simp only [disjointWeightPairs, mem_filter, mem_product, mem_powersetCard, subset_univ,
     true_and, and_assoc]
+
+/-- Permutation symmetry of [Sergeev2026UniqueDisjointness, §3]: if a family `D` of
+configurations and a predicate `good` are invariant under relabelling by permutations, then the
+number of configurations that are `good` for a disjoint weight pair does not depend on the pair. -/
+private theorem card_filter_eq_of_perm_invariant {α β : Type*} [Fintype α] [DecidableEq α]
+    (D : Finset β) (act : Equiv.Perm α → β → β) (hD : ∀ σ, ∀ t ∈ D, act σ t ∈ D)
+    (hact : ∀ σ t, act σ.symm (act σ t) = t) (good : β → Finset α → Finset α → Prop)
+    [∀ t a b, Decidable (good t a b)]
+    (hgood : ∀ σ t a b, good (act σ t) (a.map σ.toEmbedding) (b.map σ.toEmbedding) ↔ good t a b)
+    {p q : ℕ} {a₁ b₁ a₂ b₂ : Finset α}
+    (hw₁ : (a₁, b₁) ∈ disjointWeightPairs α p q) (hw₂ : (a₂, b₂) ∈ disjointWeightPairs α p q) :
+    (D.filter fun t => good t a₁ b₁).card = (D.filter fun t => good t a₂ b₂).card := by
+  obtain ⟨ha₁, hb₁, hd₁⟩ := mem_disjointWeightPairs.1 hw₁
+  obtain ⟨ha₂, hb₂, hd₂⟩ := mem_disjointWeightPairs.1 hw₂
+  obtain ⟨σ, rfl, rfl⟩ :=
+    exists_perm_disjoint_pair (ha₁.trans ha₂.symm) (hb₁.trans hb₂.symm) hd₁ hd₂
+  have hinv : ∀ t, act σ (act σ.symm t) = t := fun t => by simpa using hact σ.symm t
+  refine card_bij' (fun t _ => act σ t) (fun t _ => act σ.symm t) (fun t ht => ?_)
+    (fun t ht => ?_) (fun t _ => hact σ t) (fun t _ => hinv t)
+  · exact mem_filter.2 ⟨hD σ t (mem_filter.1 ht).1, (hgood σ t a₁ b₁).2 (mem_filter.1 ht).2⟩
+  · refine mem_filter.2 ⟨hD _ t (mem_filter.1 ht).1, (hgood σ _ a₁ b₁).1 ?_⟩
+    rw [hinv]
+    exact (mem_filter.1 ht).2
 
 private theorem card_disjointWeightPairs {α : Type*} [Fintype α] [DecidableEq α] (p q : ℕ) :
     (disjointWeightPairs α p q).card =
@@ -724,13 +615,7 @@ private theorem one_add_log_card_disjointWeightPairs_le {α : Type*} [Fintype α
       rw [card_disjointPairs, card_univ] at hsub
       exact_mod_cast hsub
     have hlog3 : Real.log 3 ≤ 2 := by
-      have h2 : (2 : ℝ) ≤ Real.exp 1 := by linarith [Real.add_one_le_exp (1 : ℝ)]
-      have h4 : (4 : ℝ) ≤ Real.exp 2 := by
-        have hm : (2 : ℝ) * 2 ≤ Real.exp 1 * Real.exp 1 :=
-          mul_le_mul h2 h2 (by norm_num) (by positivity)
-        rwa [← Real.exp_add, show (1 : ℝ) + 1 = 2 by norm_num, show (2 : ℝ) * 2 = 4 by norm_num]
-          at hm
-      exact (Real.log_le_iff_le_exp (by norm_num)).2 (by linarith)
+      linarith [Real.log_le_sub_one_of_pos (by norm_num : (0 : ℝ) < 3)]
     have hlog_le : Real.log (disjointWeightPairs α p q).card ≤ 2 * Fintype.card α := by
       calc Real.log (disjointWeightPairs α p q).card
           ≤ Real.log ((3 : ℝ) ^ Fintype.card α) :=
@@ -742,44 +627,24 @@ private theorem one_add_log_card_disjointWeightPairs_le {α : Type*} [Fintype α
     linarith
 
 private theorem two_pow_half_le_three_div_two_pow (n : ℕ) :
-    ((2 ^ (n / 2) : ℕ) : ℝ) ≤ (3 / 2 : ℝ) ^ n := by
-  have hsq : (((2 ^ (n / 2) : ℕ) : ℝ)) ^ 2 ≤ ((3 / 2 : ℝ) ^ n) ^ 2 := by
-    calc (((2 ^ (n / 2) : ℕ) : ℝ)) ^ 2
-        = (2 : ℝ) ^ (2 * (n / 2)) := by
-            push_cast
-            rw [← pow_mul, mul_comm (n / 2) 2]
-      _ ≤ (2 : ℝ) ^ n := pow_le_pow_right₀ (by norm_num) (Nat.mul_div_le n 2)
-      _ ≤ (9 / 4 : ℝ) ^ n := pow_le_pow_left₀ (by norm_num) (by norm_num) n
-      _ = ((3 / 2 : ℝ) ^ n) ^ 2 := by
-            rw [← pow_mul, mul_comm n 2, pow_mul]
-            norm_num
-  by_contra! hgt
-  have hgt2 : ((3 / 2 : ℝ) ^ n) ^ 2 < (((2 ^ (n / 2) : ℕ) : ℝ)) ^ 2 :=
-    pow_lt_pow_left₀ hgt (by positivity) (by norm_num)
-  linarith
+    ((2 ^ (n / 2) : ℕ) : ℝ) ≤ (3 / 2 : ℝ) ^ n :=
+  calc ((2 ^ (n / 2) : ℕ) : ℝ) = (2 : ℝ) ^ (n / 2) := by norm_num
+    _ ≤ ((3 / 2 : ℝ) ^ 2) ^ (n / 2) := pow_le_pow_left₀ (by norm_num) (by norm_num) _
+    _ = (3 / 2 : ℝ) ^ (2 * (n / 2)) := (pow_mul _ _ _).symm
+    _ ≤ (3 / 2 : ℝ) ^ n := pow_le_pow_right₀ (by norm_num) (Nat.mul_div_le n 2)
 
 private theorem two_mul_div_le_eight_mul_pow_five {n W S M : ℕ} (hM0 : 0 < M)
     (hW_le : W * S ≤ 2 * (n + 1) ^ 2 * 2 ^ (n / 2) * M) :
     2 * (n + 1 : ℝ) * W * S / M ≤ 8 * (n + 1 : ℝ) ^ 5 * (3 / 2 : ℝ) ^ n := by
-  have hdiv : 2 * (n + 1 : ℝ) * W * S / M ≤
-      4 * (n + 1 : ℝ) ^ 3 * ((2 ^ (n / 2) : ℕ) : ℝ) := by
-    rw [div_le_iff₀ (by exact_mod_cast hM0)]
-    have hW_real : (W : ℝ) * S ≤ 2 * (n + 1 : ℝ) ^ 2 * ((2 ^ (n / 2) : ℕ) : ℝ) * M := by
-      have := (Nat.cast_le (α := ℝ)).2 hW_le
-      push_cast at this ⊢
-      linarith
-    nlinarith [Nat.cast_nonneg (α := ℝ) n]
-  calc 2 * (n + 1 : ℝ) * W * S / M
-      ≤ 4 * (n + 1 : ℝ) ^ 3 * ((2 ^ (n / 2) : ℕ) : ℝ) := hdiv
-    _ ≤ 4 * (n + 1 : ℝ) ^ 3 * (3 / 2 : ℝ) ^ n :=
-          mul_le_mul_of_nonneg_left (two_pow_half_le_three_div_two_pow n) (by positivity)
-    _ ≤ 8 * (n + 1 : ℝ) ^ 5 * (3 / 2 : ℝ) ^ n := by
-          refine mul_le_mul_of_nonneg_right ?_ (by positivity)
-          have h1 : (1 : ℝ) ≤ n + 1 := by linarith [Nat.cast_nonneg (α := ℝ) n]
-          have hpow : (n + 1 : ℝ) ^ 3 ≤ (n + 1 : ℝ) ^ 5 :=
-            pow_le_pow_right₀ h1 (by norm_num)
-          have hpos3 : (0 : ℝ) ≤ (n + 1 : ℝ) ^ 3 := by positivity
-          linarith
+  have h2 := two_pow_half_le_three_div_two_pow n
+  have hW_real : (W : ℝ) * S ≤ 2 * (n + 1 : ℝ) ^ 2 * ((2 ^ (n / 2) : ℕ) : ℝ) * M := by
+    exact_mod_cast hW_le
+  have h1 : (1 : ℝ) ≤ n + 1 := by linarith [Nat.cast_nonneg (α := ℝ) n]
+  rw [div_le_iff₀ (by exact_mod_cast hM0)]
+  calc 2 * (n + 1 : ℝ) * W * S = 2 * (n + 1) * (W * S) := by ring
+    _ ≤ 2 * (n + 1) * (2 * (n + 1 : ℝ) ^ 2 * ((2 ^ (n / 2) : ℕ) : ℝ) * M) := by gcongr
+    _ = 4 * (n + 1) ^ 3 * ((2 ^ (n / 2) : ℕ) : ℝ) * M := by ring
+    _ ≤ 8 * (n + 1) ^ 5 * (3 / 2 : ℝ) ^ n * M := by gcongr <;> norm_num
 
 private theorem mul_le_sum_card_filter_of_card_filter_eq {S β γ : Type*} [Fintype S]
     (W : Finset β) (D : Finset γ) (hitS : S → β → Prop) (hitD : γ → β → Prop)
@@ -822,10 +687,10 @@ private theorem exists_coverNumber_weightSlice_le_of_const_hit {α S : Type*} [F
   obtain ⟨G, hGcov, hGcard⟩ := Cslib.exists_cover_card_le_of_const_hit hWne hit hconst
     (by exact_mod_cast hM0) hMreal
   have hisCov : IsCover true (uniqueDisjointnessRel α) (weightSlice α p) (weightSlice α q)
-      (fun s : G => ((row s.val : Set (Finset α)), (col s.val : Set (Finset α)))) := by
+      (fun s : G => ((row s.1 : Set (Finset α)), (col s.1 : Set (Finset α)))) := by
     refine ⟨fun s a _ ha b _ hb => ?_, fun a ha b hb hnd => ?_⟩
     · simp only [uniqueDisjointnessRel, ↓reduceIte]
-      exact hmono s.val a ha b hb
+      exact hmono s.1 a ha b hb
     · simp only [Bool.not_true, uniqueDisjointnessRel, Bool.false_eq_true, ↓reduceIte,
         not_not] at hnd
       obtain ⟨s, hsG, hhit⟩ := hGcov (a, b) (mem_disjointWeightPairs.2 ⟨ha, hb, hnd⟩)
@@ -868,8 +733,8 @@ private theorem exists_coverNumber_weightSlice_case3 {α : Type*} [Fintype α] [
   let S := (univ : Finset α).powersetCard m₁
   let _ : Nonempty S :=
     (powersetCard_nonempty.2 (by rw [card_univ]; exact hm₁n)).coe_sort
-  let row (X₁ : S) : Finset (Finset α) := X₁.val.powersetCard p
-  let col (X₁ : S) : Finset (Finset α) := (univ \ X₁.val).powersetCard q
+  let row (X₁ : S) : Finset (Finset α) := X₁.1.powersetCard p
+  let col (X₁ : S) : Finset (Finset α) := (univ \ X₁.1).powersetCard q
   have hmono : ∀ X₁ : S, ∀ a ∈ row X₁, ∀ b ∈ col X₁, (a ∩ b).card ≠ 1 := by
     intro X₁ a ha b hb
     have hd : Disjoint a b :=
@@ -880,45 +745,12 @@ private theorem exists_coverNumber_weightSlice_case3 {α : Type*} [Fintype α] [
       (univ.filter fun X₁ : S => w₁.1 ∈ row X₁ ∧ w₁.2 ∈ col X₁).card =
         (univ.filter fun X₁ : S => w₂.1 ∈ row X₁ ∧ w₂.2 ∈ col X₁).card := by
     intro ⟨a₁, b₁⟩ hw₁ ⟨a₂, b₂⟩ hw₂
-    obtain ⟨ha₁, hb₁, hd₁⟩ := mem_disjointWeightPairs.1 hw₁
-    obtain ⟨ha₂, hb₂, hd₂⟩ := mem_disjointWeightPairs.1 hw₂
-    obtain ⟨σ, hσa, hσb⟩ := exists_perm_disjoint_pair (ha₁.trans ha₂.symm) (hb₁.trans hb₂.symm)
-      hd₁ hd₂
-    refine card_bij (fun X₁ _ => ⟨X₁.val.map σ.toEmbedding,
-      mem_powersetCard.2 ⟨subset_univ _, by rw [card_map, (mem_powersetCard.1 X₁.property).2]⟩⟩)
-      (fun X₁ hX₁ => ?_) (fun X₁ _ X₂ _ h => ?_) (fun Y₁ hY₁ => ?_)
-    · rw [mem_filter] at hX₁ ⊢
-      dsimp only [row, col] at hX₁ ⊢
-      refine ⟨mem_univ _, ?_, ?_⟩
-      · rw [← hσa]
-        exact mem_powersetCard.2 ⟨map_subset_map.2 (mem_powersetCard.1 hX₁.2.1).1,
-          by rw [card_map, ha₁]⟩
-      · rw [← hσb]
-        refine mem_powersetCard.2 ⟨subset_sdiff.2 ⟨subset_univ _, ?_⟩, by rw [card_map, hb₁]⟩
-        have hdisj : Disjoint b₁ X₁.val :=
-          disjoint_sdiff_self_left.mono_left (mem_powersetCard.1 hX₁.2.2).1
-        exact (disjoint_map σ.toEmbedding).2 hdisj
-    · exact Subtype.ext (map_injective σ.toEmbedding (Subtype.mk.inj h))
-    · rw [mem_filter] at hY₁
-      dsimp only [row, col] at hY₁
-      let X₁_set := Y₁.val.map σ.symm.toEmbedding
-      let X₁ : S := ⟨X₁_set, mem_powersetCard.2 ⟨subset_univ _,
-        by rw [card_map, (mem_powersetCard.1 Y₁.property).2]⟩⟩
-      refine ⟨X₁, mem_filter.2 ⟨mem_univ _, ?_, ?_⟩, Subtype.ext (map_symm_map σ Y₁.val)⟩
-      · refine mem_powersetCard.2 ⟨fun x hx => ?_, ha₁⟩
-        have hσx : σ x ∈ a₂ := hσa ▸ mem_map.2 ⟨x, hx, rfl⟩
-        have hσY : σ x ∈ Y₁.val := (mem_powersetCard.1 hY₁.2.1).1 hσx
-        exact mem_map.2 ⟨σ x, hσY, by simp⟩
-      · refine mem_powersetCard.2 ⟨subset_sdiff.2 ⟨subset_univ _, ?_⟩, hb₁⟩
-        rw [Finset.disjoint_left]
-        intro x hxb hxX
-        obtain ⟨y, hyY, hyx⟩ := mem_map.1 hxX
-        have hy_eq : σ x = y := by
-          have := congrArg σ hyx
-          simpa using this.symm
-        subst hy_eq
-        have hσb_mem : σ x ∈ b₂ := hσb ▸ mem_map.2 ⟨x, hxb, rfl⟩
-        exact (mem_sdiff.1 ((mem_powersetCard.1 hY₁.2.2).1 hσb_mem)).2 hyY
+    refine card_filter_eq_of_perm_invariant (univ : Finset S) (fun σ X₁ => ⟨X₁.1.map σ.toEmbedding,
+        mem_powersetCard.2 ⟨subset_univ _, by rw [card_map, (mem_powersetCard.1 X₁.2).2]⟩⟩)
+      (fun _ _ _ => mem_univ _) (fun σ X₁ => Subtype.ext (by simp [map_map]))
+      (fun X₁ a b => a ∈ row X₁ ∧ b ∈ col X₁) (fun σ X₁ a b => ?_) hw₁ hw₂
+    simp only [row, col, mem_powersetCard, map_subset_map, card_map, subset_sdiff, subset_univ,
+      true_and, disjoint_map]
   let M : ℕ := n.choose m₁ * (m₁.choose p * m₂.choose q)
   have hM0 : 0 < M :=
     Nat.mul_pos (Nat.choose_pos hm₁n) (Nat.mul_pos (Nat.choose_pos hpm₁) (Nat.choose_pos hqm₂))
@@ -927,8 +759,8 @@ private theorem exists_coverNumber_weightSlice_case3 {α : Type*} [Fintype α] [
     have hper : ∀ X₁ : S, m₁.choose p * m₂.choose q ≤
         ((disjointWeightPairs α p q).filter fun w => w.1 ∈ row X₁ ∧ w.2 ∈ col X₁).card := by
       intro X₁
-      have hX₁c : X₁.val.card = m₁ := (mem_powersetCard.1 X₁.property).2
-      have hX₂c : (univ \ X₁.val).card = m₂ := by
+      have hX₁c : X₁.1.card = m₁ := (mem_powersetCard.1 X₁.2).2
+      have hX₂c : (univ \ X₁.1).card = m₂ := by
         rw [card_sdiff_of_subset (subset_univ _), card_univ, hX₁c]
       have hprod : (row X₁ ×ˢ col X₁).card = m₁.choose p * m₂.choose q := by
         rw [card_product, card_powersetCard, card_powersetCard, hX₁c, hX₂c]
@@ -1023,10 +855,10 @@ private theorem exists_coverNumber_weightSlice_case2 {α : Type*} [Fintype α] [
   let codeFib (X₀ : Finset α) (syn : BitString k) : Finset (Finset α) :=
     (X₀.powersetCard x₀).filter fun a₀ => synPad k X₀ a₀ = syn
   let row (s : S) : Finset (Finset α) :=
-    (codeFib s.1.val.1 s.2).biUnion fun a₀ => (s.1.val.2.1.powersetCard m₁).image (a₀ ∪ ·)
+    (codeFib s.1.1.1 s.2).biUnion fun a₀ => (s.1.1.2.1.powersetCard m₁).image (a₀ ∪ ·)
   let col (s : S) : Finset (Finset α) :=
-    (codeFib s.1.val.1 s.2).biUnion fun b₀' =>
-      (s.1.val.2.2.powersetCard m₂).image ((s.1.val.1 \ b₀') ∪ ·)
+    (codeFib s.1.1.1 s.2).biUnion fun b₀' =>
+      (s.1.1.2.2.powersetCard m₂).image ((s.1.1.1 \ b₀') ∪ ·)
   have hmono : ∀ s : S, ∀ a ∈ row s, ∀ b ∈ col s, (a ∩ b).card ≠ 1 := by
     rintro ⟨⟨⟨X₀, X₁, X₂⟩, ht⟩, syn⟩ a ha b hb
     obtain ⟨hmem_prod, hd01, hd02, hd12⟩ := mem_filter.1 ht
@@ -1061,7 +893,7 @@ private theorem exists_coverNumber_weightSlice_case2 {α : Type*} [Fintype α] [
   have hhit_iff : ∀ (t : T) (syn : BitString k) (a b : Finset α),
       (a, b) ∈ disjointWeightPairs α p q →
       ((a ∈ row (t, syn) ∧ b ∈ col (t, syn)) ↔
-        goodB t.val.1 t.val.2.1 t.val.2.2 a b ∧ syn = synPad k t.val.1 (a ∩ t.val.1)) := by
+        goodB t.1.1 t.1.2.1 t.1.2.2 a b ∧ syn = synPad k t.1.1 (a ∩ t.1.1)) := by
     rintro ⟨⟨X₀, X₁, X₂⟩, ht⟩ syn a b hab
     dsimp only [row, col, goodB]
     obtain ⟨hmem_prod, hd01, hd02, hd12⟩ := mem_filter.1 ht
@@ -1150,55 +982,15 @@ private theorem exists_coverNumber_weightSlice_case2 {α : Type*} [Fintype α] [
       (univ.filter fun s : S => w₁.1 ∈ row s ∧ w₁.2 ∈ col s).card =
         (univ.filter fun s : S => w₂.1 ∈ row s ∧ w₂.2 ∈ col s).card := by
     intro ⟨a₁, b₁⟩ hw₁ ⟨a₂, b₂⟩ hw₂
-    classical
     rw [hhit_card (a₁, b₁) hw₁, hhit_card (a₂, b₂) hw₂]
-    obtain ⟨ha₁, hb₁, hd₁⟩ := mem_disjointWeightPairs.1 hw₁
-    obtain ⟨ha₂, hb₂, hd₂⟩ := mem_disjointWeightPairs.1 hw₂
-    obtain ⟨σ, hσa, hσb⟩ := exists_perm_disjoint_pair (ha₁.trans ha₂.symm) (hb₁.trans hb₂.symm)
-      hd₁ hd₂
-    let mapT (e : α ↪ α) (t : Finset α × Finset α × Finset α) :
-        Finset α × Finset α × Finset α :=
-      (t.1.map e, t.2.1.map e, t.2.2.map e)
-    have hmapT_mem : ∀ (π : Equiv.Perm α) {t}, t ∈ T → mapT π.toEmbedding t ∈ T := by
-      intro π ⟨X₀, X₁, X₂⟩ ht
-      obtain ⟨hp_mem, hd01, hd02, hd12⟩ := mem_filter.1 ht
-      obtain ⟨h0, h12⟩ := mem_product.1 hp_mem
-      obtain ⟨h1, h2⟩ := mem_product.1 h12
-      exact mem_filter.2 ⟨mem_product.2
-        ⟨mem_powersetCard.2 ⟨subset_univ _, by rw [card_map, (mem_powersetCard.1 h0).2]⟩,
-         mem_product.2
-          ⟨mem_powersetCard.2 ⟨subset_univ _, by rw [card_map, (mem_powersetCard.1 h1).2]⟩,
-           mem_powersetCard.2 ⟨subset_univ _, by rw [card_map, (mem_powersetCard.1 h2).2]⟩⟩⟩,
-        (disjoint_map π.toEmbedding).2 hd01,
-        (disjoint_map π.toEmbedding).2 hd02,
-        (disjoint_map π.toEmbedding).2 hd12⟩
-    have hgood_map : ∀ (π : Equiv.Perm α) (X₀ X₁ X₂ u v : Finset α),
-        goodB (X₀.map π.toEmbedding) (X₁.map π.toEmbedding) (X₂.map π.toEmbedding)
-          (u.map π.toEmbedding) (v.map π.toEmbedding) ↔ goodB X₀ X₁ X₂ u v := by
-      intro π X₀ X₁ X₂ u v
-      simp only [goodB, ← map_inter, ← map_union, ← map_sdiff, card_map, map_subset_map]
-    refine card_bij (fun t _ => mapT σ.toEmbedding t)
-      (fun t ht => ?_)
-      (fun t₁ _ t₂ _ h => ?_)
-      (fun t' ht' => ?_)
-    · obtain ⟨htT, hg⟩ := mem_filter.1 ht
-      refine mem_filter.2 ⟨hmapT_mem σ htT, ?_⟩
-      rw [← hσa, ← hσb]
-      exact (hgood_map σ t.1 t.2.1 t.2.2 a₁ b₁).2 hg
-    · obtain ⟨h0, h12⟩ := Prod.mk.inj h
-      obtain ⟨h1, h2⟩ := Prod.mk.inj h12
-      exact Prod.ext (map_injective σ.toEmbedding h0)
-        (Prod.ext (map_injective σ.toEmbedding h1) (map_injective σ.toEmbedding h2))
-    · obtain ⟨ht'T, hg'⟩ := mem_filter.1 ht'
-      let t₀ := mapT σ.symm.toEmbedding t'
-      have hback : mapT σ.toEmbedding t₀ = t' :=
-        Prod.ext (map_symm_map σ t'.1)
-          (Prod.ext (map_symm_map σ t'.2.1) (map_symm_map σ t'.2.2))
-      refine ⟨t₀, mem_filter.2 ⟨hmapT_mem σ.symm ht'T, ?_⟩, hback⟩
-      rw [← hgood_map σ t₀.1 t₀.2.1 t₀.2.2 a₁ b₁, hσa, hσb]
-      dsimp only [t₀, mapT]
-      rw [map_symm_map, map_symm_map, map_symm_map]
-      exact hg'
+    refine card_filter_eq_of_perm_invariant T
+      (fun σ t => (t.1.map σ.toEmbedding, t.2.1.map σ.toEmbedding, t.2.2.map σ.toEmbedding))
+      (fun σ t ht => ?_) (fun σ t => by simp [map_map]) (fun t a b => goodB t.1 t.2.1 t.2.2 a b)
+      (fun σ t a b => by
+        simp only [goodB, ← map_inter, ← map_union, ← map_sdiff, card_map, map_subset_map])
+      hw₁ hw₂
+    simpa only [T, mem_filter, mem_product, mem_powersetCard, subset_univ, true_and, card_map,
+      disjoint_map] using ht
   let Cprod : ℕ := (2 * x₀).choose x₀ * (2 * m₁).choose m₁ * (2 * m₂).choose m₂
   let M : ℕ := T.card * Cprod
   have hCprod_pos : 0 < Cprod :=
@@ -1402,20 +1194,20 @@ private theorem exists_coverNumber_weightSlice_case4 {α : Type*} [Fintype α] [
     (powersetCard_nonempty.2 (by rw [card_univ]; exact hm₁n)).coe_sort
   let S := Xdom × BitString k
   let col (s : S) : Finset (Finset α) :=
-    (s.1.val.powersetCard q).filter fun b => synPad k s.1.val b = s.2
+    (s.1.1.powersetCard q).filter fun b => synPad k s.1.1 b = s.2
   let row (s : S) : Finset (Finset α) :=
-    (col s).biUnion fun b' => ((univ \ s.1.val).powersetCard (p - z₀)).image ((s.1.val \ b') ∪ ·)
+    (col s).biUnion fun b' => ((univ \ s.1.1).powersetCard (p - z₀)).image ((s.1.1 \ b') ∪ ·)
   have hmono : ∀ s : S, ∀ a ∈ row s, ∀ b ∈ col s, (a ∩ b).card ≠ 1 := by
     rintro ⟨X, syn⟩ a ha b hb
-    have hXc : X.val.card = m₁ := (mem_powersetCard.1 X.property).2
+    have hXc : X.1.card = m₁ := (mem_powersetCard.1 X.2).2
     obtain ⟨b', hb', ha₁_im⟩ := mem_biUnion.1 ha
     obtain ⟨a₁, ha₁, rfl⟩ := mem_image.1 ha₁_im
     have hb_f := mem_filter.1 hb
     have hb'_f := mem_filter.1 hb'
-    have hb_sub : b ⊆ X.val := (mem_powersetCard.1 hb_f.1).1
-    have hb'_sub : b' ⊆ X.val := (mem_powersetCard.1 hb'_f.1).1
-    have ha₁_sub : a₁ ⊆ univ \ X.val := (mem_powersetCard.1 ha₁).1
-    have hinter : ((X.val \ b') ∪ a₁) ∩ b = b ∩ (X.val \ b') := by
+    have hb_sub : b ⊆ X.1 := (mem_powersetCard.1 hb_f.1).1
+    have hb'_sub : b' ⊆ X.1 := (mem_powersetCard.1 hb'_f.1).1
+    have ha₁_sub : a₁ ⊆ univ \ X.1 := (mem_powersetCard.1 ha₁).1
+    have hinter : ((X.1 \ b') ∪ a₁) ∩ b = b ∩ (X.1 \ b') := by
       ext x
       simp only [mem_inter, mem_union, mem_sdiff]
       refine ⟨fun ⟨hx1, hxb⟩ => ⟨hxb, ?_⟩, fun ⟨hxb, hxXb'⟩ => ⟨Or.inl hxXb', hxb⟩⟩
@@ -1427,17 +1219,17 @@ private theorem exists_coverNumber_weightSlice_case4 {α : Type*} [Fintype α] [
   let goodC (X a b : Finset α) : Prop := b ⊆ X ∧ X \ b ⊆ a
   have hhit_iff : ∀ (X : Xdom) (syn : BitString k) (a b : Finset α),
       (a, b) ∈ disjointWeightPairs α p q →
-      ((a ∈ row (X, syn) ∧ b ∈ col (X, syn)) ↔ goodC X.val a b ∧ syn = synPad k X.val b) := by
+      ((a ∈ row (X, syn) ∧ b ∈ col (X, syn)) ↔ goodC X.1 a b ∧ syn = synPad k X.1 b) := by
     intro X syn a b hab
-    have hXc : X.val.card = m₁ := (mem_powersetCard.1 X.property).2
+    have hXc : X.1.card = m₁ := (mem_powersetCard.1 X.2).2
     obtain ⟨ha_card, hb_card, hdab⟩ := mem_disjointWeightPairs.1 hab
     refine ⟨fun ⟨har, hbc⟩ => ?_, fun ⟨⟨hbX, hXba⟩, hsyn⟩ => ?_⟩
     · obtain ⟨b', hb', ha₁_im⟩ := mem_biUnion.1 har
       obtain ⟨a₁, _, rfl⟩ := mem_image.1 ha₁_im
       have hb_f := mem_filter.1 hbc
       have hb'_f := mem_filter.1 hb'
-      have hb_sub : b ⊆ X.val := (mem_powersetCard.1 hb_f.1).1
-      have hdisj_b : Disjoint (X.val \ b') b := hdab.mono_left subset_union_left
+      have hb_sub : b ⊆ X.1 := (mem_powersetCard.1 hb_f.1).1
+      have hdisj_b : Disjoint (X.1 \ b') b := hdab.mono_left subset_union_left
       have hbb' : b ⊆ b' := fun x hxb => by
         by_contra hxnb'
         exact Finset.disjoint_left.1 hdisj_b (mem_sdiff.2 ⟨hb_sub hxb, hxnb'⟩) hxb
@@ -1447,28 +1239,28 @@ private theorem exists_coverNumber_weightSlice_case4 {α : Type*} [Fintype α] [
       subst hb_eq
       exact ⟨⟨hb_sub, subset_union_left⟩, hb_f.2.symm⟩
     · subst hsyn
-      have hb_col : b ∈ col (X, synPad k X.val b) :=
+      have hb_col : b ∈ col (X, synPad k X.1 b) :=
         mem_filter.2 ⟨mem_powersetCard.2 ⟨hbX, hb_card⟩, rfl⟩
-      let a₁ := a \ X.val
-      have ha_inter : a ∩ X.val = X.val \ b := by
+      let a₁ := a \ X.1
+      have ha_inter : a ∩ X.1 = X.1 \ b := by
         refine (eq_of_subset_of_card_le (subset_inter hXba sdiff_subset) ?_).symm
         refine card_le_card fun x hx => ?_
         rw [mem_inter] at hx
         exact mem_sdiff.2 ⟨hx.2, Finset.disjoint_left.1 hdab hx.1⟩
       have ha₁_card : a₁.card = p - z₀ := by
-        have h1 := card_sdiff_add_card_inter a X.val
-        have h2 : (X.val \ b).card = z₀ := by
+        have h1 := card_sdiff_add_card_inter a X.1
+        have h2 : (X.1 \ b).card = z₀ := by
           rw [card_sdiff_of_subset hbX, hXc, hb_card]
           omega
-        change a₁.card + (a ∩ X.val).card = a.card at h1
+        change a₁.card + (a ∩ X.1).card = a.card at h1
         rw [ha_inter, h2] at h1
         omega
-      have ha₁_mem : a₁ ∈ (univ \ X.val).powersetCard (p - z₀) :=
+      have ha₁_mem : a₁ ∈ (univ \ X.1).powersetCard (p - z₀) :=
         mem_powersetCard.2 ⟨subset_sdiff.2 ⟨subset_univ _, disjoint_sdiff_self_left⟩, ha₁_card⟩
-      have ha_row : a ∈ row (X, synPad k X.val b) := by
+      have ha_row : a ∈ row (X, synPad k X.1 b) := by
         refine mem_biUnion.2 ⟨b, hb_col, mem_image.2 ⟨a₁, ha₁_mem, ?_⟩⟩
         rw [← ha_inter, union_comm]
-        exact sdiff_union_inter a X.val
+        exact sdiff_union_inter a X.1
       exact ⟨ha_row, hb_col⟩
   have hhit_card : ∀ w ∈ disjointWeightPairs α p q,
       (univ.filter fun s : S => w.1 ∈ row s ∧ w.2 ∈ col s).card =
@@ -1480,30 +1272,12 @@ private theorem exists_coverNumber_weightSlice_case4 {α : Type*} [Fintype α] [
       (univ.filter fun s : S => w₁.1 ∈ row s ∧ w₁.2 ∈ col s).card =
         (univ.filter fun s : S => w₂.1 ∈ row s ∧ w₂.2 ∈ col s).card := by
     intro ⟨a₁, b₁⟩ hw₁ ⟨a₂, b₂⟩ hw₂
-    classical
     rw [hhit_card (a₁, b₁) hw₁, hhit_card (a₂, b₂) hw₂]
-    obtain ⟨ha₁, hb₁, hd₁⟩ := mem_disjointWeightPairs.1 hw₁
-    obtain ⟨ha₂, hb₂, hd₂⟩ := mem_disjointWeightPairs.1 hw₂
-    obtain ⟨σ, hσa, hσb⟩ := exists_perm_disjoint_pair (ha₁.trans ha₂.symm) (hb₁.trans hb₂.symm)
-      hd₁ hd₂
-    refine card_bij (fun X _ => X.map σ.toEmbedding)
-      (fun X hX => ?_)
-      (fun X₁ _ X₂ _ h => map_injective σ.toEmbedding h)
-      (fun Y hY => ?_)
-    · obtain ⟨hXd, hg⟩ := mem_filter.1 hX
-      refine mem_filter.2 ⟨mem_powersetCard.2 ⟨subset_univ _,
-        by rw [card_map, (mem_powersetCard.1 hXd).2]⟩, ?_⟩
-      rw [← hσa, ← hσb]
-      simp only [goodC, ← map_sdiff, map_subset_map]
-      exact hg
-    · obtain ⟨hYd, hgY⟩ := mem_filter.1 hY
-      let X₀ := Y.map σ.symm.toEmbedding
-      have hback : X₀.map σ.toEmbedding = Y := map_symm_map σ Y
-      refine ⟨X₀, mem_filter.2 ⟨mem_powersetCard.2 ⟨subset_univ _,
-        by rw [card_map, (mem_powersetCard.1 hYd).2]⟩, ?_⟩, hback⟩
-      have : goodC (X₀.map σ.toEmbedding) (a₁.map σ.toEmbedding) (b₁.map σ.toEmbedding) := by
-        rwa [hback, hσa, hσb]
-      simpa only [goodC, ← map_sdiff, map_subset_map] using this
+    refine card_filter_eq_of_perm_invariant Xdom (fun σ X => X.map σ.toEmbedding)
+      (fun σ X hX =>
+        mem_powersetCard.2 ⟨subset_univ _, by rw [card_map, (mem_powersetCard.1 hX).2]⟩)
+      (fun σ X => by simp [map_map]) goodC (fun σ X a b => ?_) hw₁ hw₂
+    simp only [goodC, ← map_sdiff, map_subset_map]
   let Cprod : ℕ := m₁.choose z₀ * m₂.choose (p - z₀)
   let M : ℕ := n.choose m₁ * Cprod
   have hCprod_pos : 0 < Cprod :=
@@ -1648,7 +1422,7 @@ theorem exists_coverNumber_uniqueDisjointnessRel_le {α : Type*} [Fintype α] [D
         (r : ℝ) ≤ 8 * (Fintype.card α + 1 : ℝ) ^ 7 * (3 / 2 : ℝ) ^ Fintype.card α := by
   set n := Fintype.card α
   choose r_pq hr_pq using fun (p q : Fin (n + 1)) =>
-    exists_coverNumber_weightSlice_le (α := α) p.val q.val
+    exists_coverNumber_weightSlice_le (α := α) p.1 q.1
   have hsum_cov : coverNumber true (uniqueDisjointnessRel α) Set.univ Set.univ ≤
       ((∑ p : Fin (n + 1), ∑ q : Fin (n + 1), r_pq p q : ℕ) : ℕ∞) := by
     calc coverNumber true (uniqueDisjointnessRel α) Set.univ Set.univ

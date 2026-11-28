@@ -168,15 +168,10 @@ theorem residue_low_degree {ell : ℕ} (hell : 1 ≤ ell)
   rw [Finset.sum_eq_single (0 : Fin n → ℕ)]
   · simp [term, target]
   · intro j _ hj
-    have hex : ∃ i, j i ≠ 0 := by
-      by_contra h
-      have hall : ∀ i, j i = 0 := by simpa only [not_exists, not_not] using h
-      exact hj (funext hall)
-    obtain ⟨i, hi⟩ := hex
-    have hji : j i ≤ (∑ i, j i) :=
+    obtain ⟨i, hi⟩ : ∃ i, j i ≠ 0 := Function.ne_iff.mp hj
+    have hji : j i ≤ ∑ i, j i :=
       Finset.single_le_sum (fun _ _ => Nat.zero_le _) (Finset.mem_univ i)
     exact term_eq_zero_of_degree_lt hell r hr v j (by omega)
-  · intro h
-    exact False.elim (h (mem_indices.mpr (fun _ => Nat.zero_le _)))
+  · exact fun h => (h (mem_indices.mpr fun _ => Nat.zero_le _)).elim
 
 end MvPolynomial.PurePower

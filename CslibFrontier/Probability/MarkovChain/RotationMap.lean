@@ -97,9 +97,8 @@ theorem randomWalk_apply (x y : V) :
     G.randomWalk x y = G.edgeCount x y / Fintype.card D := by
   change ((PMF.uniformOfFintype D).map (G.neighbor x)) y = _
   rw [PMF.map_apply, tsum_fintype]
-  simp only [PMF.uniformOfFintype_apply]
-  rw [← sum_filter, sum_const, nsmul_eq_mul, div_eq_mul_inv, edgeCount_eq_card_filter]
-  simp_rw [eq_comm (a := y)]
+  simp [PMF.uniformOfFintype_apply, ← sum_filter, div_eq_mul_inv, edgeCount_eq_card_filter,
+    eq_comm]
 
 variable {G}
 
@@ -119,24 +118,15 @@ theorem sum_component_mul_randomWalk (u y : V) :
   classical
   by_cases hy : G.toSimpleGraph.Reachable u y
   · rw [ite_eq_left hy]
-    have : ∀ x, (if G.toSimpleGraph.Reachable u x then 1 else 0) * G.randomWalk x y =
-        G.randomWalk y x := by
-      intro x
-      by_cases hc : G.edgeCount x y = 0
-      · have h1 : G.randomWalk x y = 0 := by rw [randomWalk_apply, hc]; simp
-        have h0 : G.randomWalk y x = 0 := by
-          rw [randomWalk_apply, G.edgeCount_comm, hc]; simp
-        rw [h0, h1, mul_zero]
-      · rw [ite_eq_left (hy.trans (reachable_of_edgeCount_ne_zero hc).symm), one_mul,
-          randomWalk_apply, randomWalk_apply, G.edgeCount_comm]
-    simp_rw [this]
-    exact sum_apply _ y
+    refine (sum_congr rfl fun x _ => ?_).trans (sum_apply G.randomWalk y)
+    by_cases hc : G.edgeCount x y = 0
+    · simp [randomWalk_apply, G.edgeCount_comm y x, hc]
+    · rw [ite_eq_left (hy.trans (reachable_of_edgeCount_ne_zero hc).symm), one_mul,
+        randomWalk_apply, randomWalk_apply, G.edgeCount_comm]
   · rw [ite_eq_right hy]
     refine sum_eq_zero fun x _ => ?_
     by_cases hx : G.toSimpleGraph.Reachable u x
-    · have : G.edgeCount x y = 0 := by
-        by_contra hc; exact hy (hx.trans (reachable_of_edgeCount_ne_zero hc))
-      rw [randomWalk_apply, this]; simp
+    · simp [randomWalk_apply, not_not.1 fun hc => hy (hx.trans (reachable_of_edgeCount_ne_zero hc))]
     · simp [hx]
 
 /-- In a regular multigraph, every vertex reaches every vertex of its component along transitions
@@ -147,9 +137,9 @@ theorem hittingTime_randomWalk_ne_top {u x : V} (hx : G.toSimpleGraph.Reachable 
     (fun y hy => ?_) hx
   · exact (ha : G.toSimpleGraph.Reachable u a).trans
       (reachable_of_edgeCount_ne_zero (randomWalk_ne_zero_iff.1 hab))
-  · refine Relation.ReflTransGen.mono (fun a b h => randomWalk_ne_zero_iff.2
-      (edgeCount_ne_zero_of_adj h)) _ _ ((SimpleGraph.reachable_iff_reflTransGen y u).1 ?_)
-    exact (hy : G.toSimpleGraph.Reachable u y).symm
+  · exact Relation.ReflTransGen.mono
+      (fun a b h => randomWalk_ne_zero_iff.2 (edgeCount_ne_zero_of_adj h)) _ _
+      ((SimpleGraph.reachable_iff_reflTransGen y u).1 (hy : G.toSimpleGraph.Reachable u y).symm)
 
 /-- **Arora–Barak, Exercise 7.9(c).** The expected return time of the random walk to `u` is the
 number of vertices of the connected component of `u`. -/
@@ -161,9 +151,8 @@ theorem returnTime_randomWalk_eq_card (u : V) :
   · rw [ite_eq_left (SimpleGraph.Reachable.refl u), one_mul] at h
     rw [h, sum_boole, Nat.card_eq_fintype_card, Fintype.card_subtype]
   · refine (ENNReal.sum_lt_top.2 fun x _ => ?_).ne
-    by_cases hx : G.toSimpleGraph.Reachable u x
-    · simpa [hx] using (hittingTime_randomWalk_ne_top hx).lt_top
-    · simp [hx]
+    by_cases hx : G.toSimpleGraph.Reachable u x <;>
+      simp [hx, hittingTime_randomWalk_ne_top, lt_top_iff_ne_top]
 
 /-- **Arora–Barak, Exercise 7.9(c).** On a connected regular multigraph, the expected return time
 to every vertex is the number of vertices. -/
@@ -195,11 +184,9 @@ theorem hittingTime_randomWalk_le_of_edgeCount_ne_zero {x y : V} (h : G.edgeCoun
   have hle : (Fintype.card D : ℝ≥0∞)⁻¹ * hittingTime G.randomWalk y x ≤ Fintype.card V := by
     refine le_trans ?_ (returnTime_randomWalk_le_card (G := G) y)
     rw [returnTime_eq]
-    refine le_trans ?_ le_add_self
-    exact (by gcongr : (Fintype.card D : ℝ≥0∞)⁻¹ * hittingTime G.randomWalk y x ≤
-        G.randomWalk y x * hittingTime G.randomWalk y x).trans
-      (single_le_sum (f := fun z => G.randomWalk y z * hittingTime G.randomWalk y z)
-        (fun _ _ => zero_le) (mem_univ x))
+    exact ((mul_le_mul_of_nonneg_right hP zero_le).trans (single_le_sum
+      (f := fun z => G.randomWalk y z * hittingTime G.randomWalk y z)
+      (fun _ _ => zero_le) (mem_univ x))).trans le_add_self
   calc hittingTime G.randomWalk y x
       = Fintype.card D * ((Fintype.card D : ℝ≥0∞)⁻¹ * hittingTime G.randomWalk y x) := by
         rw [← mul_assoc, ENNReal.mul_inv_cancel
@@ -229,11 +216,9 @@ theorem hittingTime_randomWalk_le_hundred_mul (hD : Fintype.card D ≤ Fintype.c
     {u v : V} (p : G.toSimpleGraph.Walk u v) (hk : p.length ≤ k) :
     hittingTime G.randomWalk v u ≤ 100 * k * (Fintype.card V : ℝ≥0∞) ^ 2 := by
   refine (hittingTime_randomWalk_le_length_mul p).trans ?_
-  have : p.length * (Fintype.card D * Fintype.card V) ≤ 100 * k * Fintype.card V ^ 2 := by
-    calc p.length * (Fintype.card D * Fintype.card V)
-        ≤ k * (Fintype.card V * Fintype.card V) := by gcongr
-      _ ≤ 100 * k * Fintype.card V ^ 2 := by nlinarith
-  exact_mod_cast this
+  exact_mod_cast calc p.length * (Fintype.card D * Fintype.card V)
+      ≤ k * (Fintype.card V * Fintype.card V) := by gcongr
+    _ ≤ 100 * k * Fintype.card V ^ 2 := by nlinarith
 
 /-- For vertices `s`, `t` in the same component of a `d`-regular multigraph on `n` vertices,
 `E_s[τ_t] ≤ (n - 1) d n`: a path has fewer than `n` edges. -/
@@ -243,9 +228,8 @@ theorem hittingTime_randomWalk_le_of_reachable {s t : V} (h : G.toSimpleGraph.Re
   classical
   obtain ⟨p, hp⟩ := h.exists_isPath
   refine (hittingTime_randomWalk_le_length_mul p).trans ?_
-  have := hp.length_lt
   gcongr
-  exact_mod_cast Nat.le_sub_one_of_lt this
+  exact_mod_cast Nat.le_sub_one_of_lt hp.length_lt
 
 /-! ### Survival probabilities count label sequences -/
 
@@ -255,10 +239,7 @@ theorem survival_randomWalk_mul_pow (t : V) :
     ∀ (T : ℕ) (s : V), survival G.randomWalk t T s * (Fintype.card D : ℝ≥0∞) ^ T =
       #{k : Fin T → D | ∀ i ≤ T, G.walkAt (s, k) i ≠ t}
   | 0, s => by
-    by_cases hs : s = t
-    · subst hs; simp
-    · rw [survival_zero_of_ne hs]
-      simp [hs]
+    by_cases hs : s = t <;> simp [hs, survival_zero_of_ne]
   | T + 1, s => by
     by_cases hs : s = t
     · subst hs
@@ -274,21 +255,18 @@ theorem survival_randomWalk_mul_pow (t : V) :
         (fun p _ => by simp)
       · simp only [mem_filter, mem_univ, true_and, mem_sigma] at hk ⊢
         intro i hi
-        have := hk (i + 1) (by omega)
+        have := hk (i + 1) (Nat.succ_le_succ hi)
         rwa [← Fin.cons_self_tail k, walkAt_cons_succ] at this
       · simp only [mem_filter, mem_univ, true_and, mem_sigma] at hp ⊢
-        intro i hi
-        cases i with
-        | zero => exact hs
-        | succ i => rw [walkAt_cons_succ]; exact hp i (by omega)
+        rintro (_ | i) hi
+        · exact hs
+        · simpa only [walkAt_cons_succ] using hp i (Nat.le_of_succ_le_succ hi)
     rw [hcount, Nat.cast_sum, G.sum_comp_neighbor s (fun y => (#{k : Fin T → D |
       ∀ i ≤ T, G.walkAt (y, k) i ≠ t} : ℝ≥0∞))]
     refine sum_congr rfl fun y _ => ?_
-    rw [← survival_randomWalk_mul_pow t T y, randomWalk_apply, nsmul_eq_mul, pow_succ]
-    rw [div_eq_mul_inv]
-    calc (G.edgeCount s y : ℝ≥0∞) * (Fintype.card D : ℝ≥0∞)⁻¹ * survival G.randomWalk t T y *
-          ((Fintype.card D : ℝ≥0∞) ^ T * Fintype.card D)
-        = G.edgeCount s y * (survival G.randomWalk t T y * (Fintype.card D : ℝ≥0∞) ^ T) *
+    rw [← survival_randomWalk_mul_pow t T y, randomWalk_apply, nsmul_eq_mul, pow_succ,
+      div_eq_mul_inv]
+    calc _ = G.edgeCount s y * (survival G.randomWalk t T y * (Fintype.card D : ℝ≥0∞) ^ T) *
           ((Fintype.card D : ℝ≥0∞)⁻¹ * Fintype.card D) := by ring
       _ = _ := by
         rw [ENNReal.inv_mul_cancel
@@ -310,30 +288,22 @@ theorem ten_mul_card_filter_walkAt_ne_le (hD : Fintype.card D ≤ Fintype.card V
     have hM := mul_survival_le_hittingTime (P := G.randomWalk) t T s
     have hH := hittingTime_randomWalk_le_of_reachable h
     have hnum : ((n - 1 : ℕ) : ℝ≥0∞) * (Fintype.card D * n) ≤ (n : ℝ≥0∞) ^ 3 := by
-      have : (n - 1) * (Fintype.card D * n) ≤ n ^ 3 := by
-        calc (n - 1) * (Fintype.card D * n) ≤ n * (n * n) := by gcongr; omega
-          _ = n ^ 3 := by ring
-      exact_mod_cast this
+      exact_mod_cast (show (n - 1) * (Fintype.card D * n) ≤ n ^ 3 by
+        rw [pow_three]; gcongr; omega)
     have hT : (10 : ℝ≥0∞) * (n : ℝ≥0∞) ^ 3 ≤ (T : ℝ≥0∞) + 1 := by
-      have : 10 * n ^ 3 ≤ T + 1 := by omega
-      exact_mod_cast this
+      exact_mod_cast (by omega : 10 * n ^ 3 ≤ T + 1)
     have hn3 : (n : ℝ≥0∞) ^ 3 ≠ 0 := pow_ne_zero _ (by exact_mod_cast (by omega : n ≠ 0))
     have hn3' : (n : ℝ≥0∞) ^ 3 ≠ ⊤ := ENNReal.pow_ne_top (ENNReal.natCast_ne_top _)
-    have key : 10 * survival G.randomWalk t T s * (n : ℝ≥0∞) ^ 3 ≤ 1 * (n : ℝ≥0∞) ^ 3 := by
-      calc 10 * survival G.randomWalk t T s * (n : ℝ≥0∞) ^ 3
-          = (10 * (n : ℝ≥0∞) ^ 3) * survival G.randomWalk t T s := by ring
-        _ ≤ ((T : ℝ≥0∞) + 1) * survival G.randomWalk t T s := by gcongr
-        _ ≤ (n : ℝ≥0∞) ^ 3 := hM.trans (hH.trans hnum)
-        _ = 1 * (n : ℝ≥0∞) ^ 3 := (one_mul _).symm
-    exact (ENNReal.mul_le_mul_iff_left hn3 hn3').1 key
-  have hc := survival_randomWalk_mul_pow (G := G) t T s
-  have : (10 * #{k : Fin T → D | ∀ i ≤ T, G.walkAt (s, k) i ≠ t} : ℝ≥0∞) ≤
-      (Fintype.card D : ℝ≥0∞) ^ T := by
-    rw [← hc, ← mul_assoc]
-    calc 10 * survival G.randomWalk t T s * (Fintype.card D : ℝ≥0∞) ^ T
-        ≤ 1 * (Fintype.card D : ℝ≥0∞) ^ T := by gcongr
-      _ = _ := one_mul _
-  exact_mod_cast this
+    refine (ENNReal.mul_le_mul_iff_left hn3 hn3').1 ?_
+    calc 10 * survival G.randomWalk t T s * (n : ℝ≥0∞) ^ 3
+        = (10 * (n : ℝ≥0∞) ^ 3) * survival G.randomWalk t T s := by ring
+      _ ≤ ((T : ℝ≥0∞) + 1) * survival G.randomWalk t T s := by gcongr
+      _ ≤ (n : ℝ≥0∞) ^ 3 := hM.trans (hH.trans hnum)
+      _ = 1 * (n : ℝ≥0∞) ^ 3 := (one_mul _).symm
+  suffices (10 * #{k : Fin T → D | ∀ i ≤ T, G.walkAt (s, k) i ≠ t} : ℝ≥0∞) ≤
+      (Fintype.card D : ℝ≥0∞) ^ T from mod_cast this
+  rw [← survival_randomWalk_mul_pow (G := G) t T s, ← mul_assoc]
+  exact mul_le_of_le_one_left' hsurv
 
 /-! ### Uniqueness of the stationary distribution -/
 
@@ -344,12 +314,10 @@ theorem isStationary_uniform_randomWalk [Nonempty V] :
   classical
   ext y
   rw [PMF.bind_apply, tsum_fintype]
-  simp only [PMF.uniformOfFintype_apply]
-  rw [← mul_sum]
-  simp_rw [randomWalk_apply, G.edgeCount_comm _ y, div_eq_mul_inv, ← sum_mul]
-  rw [← Nat.cast_sum, G.sum_edgeCount,
-    ENNReal.mul_inv_cancel
-          (Nat.cast_ne_zero.2 Fintype.card_ne_zero) (ENNReal.natCast_ne_top _), mul_one]
+  simp only [PMF.uniformOfFintype_apply, randomWalk_apply, G.edgeCount_comm _ y, div_eq_mul_inv,
+    ← mul_sum, ← sum_mul, ← Nat.cast_sum, G.sum_edgeCount,
+    ENNReal.mul_inv_cancel (Nat.cast_ne_zero.2 Fintype.card_ne_zero) (ENNReal.natCast_ne_top _),
+    mul_one]
 
 omit [DecidableEq V] in
 /-- **Arora–Barak, Exercise 7.9(b)(i).** On a connected regular multigraph, the uniform
@@ -360,33 +328,26 @@ theorem isStationary_randomWalk_iff (hG : G.toSimpleGraph.Connected) (π : PMF V
   have := hG.nonempty
   refine ⟨fun h => ?_, fun h => h ▸ isStationary_uniform_randomWalk⟩
   -- stationarity as an averaging identity in `ℝ≥0∞`
-  have hst : ∀ y, ∑ x, (G.edgeCount y x : ℝ≥0∞) * π x = Fintype.card D * π y := by
-    intro y
-    have hy : ∑ x, π x * G.randomWalk x y = π y := by
-      rw [← tsum_fintype (L := .unconditional V), ← PMF.bind_apply]
-      exact congrArg (· y) h
-    rw [← hy, mul_sum]
+  have hst : ∀ y, ∑ x, (G.edgeCount y x : ℝ≥0∞) * π x = Fintype.card D * π y := fun y => by
+    rw [← congrArg (· y) h, PMF.bind_apply, tsum_fintype, mul_sum]
     refine sum_congr rfl fun x _ => ?_
     rw [randomWalk_apply, G.edgeCount_comm x y, mul_comm (π x), ← mul_assoc,
       ENNReal.mul_div_cancel
           (Nat.cast_ne_zero.2 Fintype.card_ne_zero) (ENNReal.natCast_ne_top _)]
   set f : V → ℝ := fun x => (π x).toReal
-  have hf : ∀ y, ∑ x, (G.edgeCount y x : ℝ) * f x = Fintype.card D * f y := by
-    intro y
+  have hf : ∀ y, ∑ x, (G.edgeCount y x : ℝ) * f x = Fintype.card D * f y := fun y => by
     have := congrArg ENNReal.toReal (hst y)
-    rw [ENNReal.toReal_sum fun x _ => ENNReal.mul_ne_top (ENNReal.natCast_ne_top _)
-      (π.apply_ne_top x), ENNReal.toReal_mul, ENNReal.toReal_natCast] at this
-    simpa [f, ENNReal.toReal_mul] using this
+    simpa [f, ENNReal.toReal_sum fun x _ => ENNReal.mul_ne_top (ENNReal.natCast_ne_top _)
+      (π.apply_ne_top x), ENNReal.toReal_mul] using this
   obtain ⟨u⟩ := hG.nonempty
   have hconst : ∀ x, π x = π u := fun x =>
     (ENNReal.toReal_eq_toReal_iff' (π.apply_ne_top x) (π.apply_ne_top u)).1
       (eq_of_forall_sum_edgeCount_mul_eq hG.preconnected hf x u)
   have hsum : (Fintype.card V : ℝ≥0∞) * π u = 1 := by
-    rw [← π.tsum_coe, tsum_fintype]
-    simp [hconst]
+    simpa [tsum_fintype, hconst] using π.tsum_coe
   ext x
   rw [PMF.uniformOfFintype_apply, hconst x]
-  exact (ENNReal.eq_inv_of_mul_eq_one_left (by rwa [mul_comm] at hsum))
+  exact ENNReal.eq_inv_of_mul_eq_one_left (mul_comm (Fintype.card V : ℝ≥0∞) (π u) ▸ hsum)
 
 /-! ### Spectral expansion and total-variation mixing -/
 
@@ -410,12 +371,9 @@ omit [DecidableEq V] in
 theorem stepOp_randomWalk : G.randomWalk.stepOp = G.walk := by
   ext1 f
   funext x
-  rw [MarkovChain.stepOp_apply, walk_apply]
-  change ∑ y, (((PMF.uniformOfFintype D).map (G.neighbor x)) y).toReal * f y =
-    𝔼 i, f (G.neighbor x i)
-  rw [Cslib.Probability.PMF.sum_map_mul, Fintype.expect_eq_sum_div_card, sum_div]
-  refine sum_congr rfl fun i _ => ?_
-  rw [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast, inv_mul_eq_div]
+  rw [MarkovChain.stepOp_apply, walk_apply, Fintype.expect_eq_sum_div_card, sum_div]
+  exact (Cslib.Probability.PMF.sum_map_mul _ _ _).trans
+    (by simp [PMF.uniformOfFintype_apply, div_eq_inv_mul])
 
 omit [Fintype V] [DecidableEq V] in
 /-- The random walk on the lazy multigraph `G.lazy` is the lazy chain `G.randomWalk.lazy`. -/
@@ -430,9 +388,7 @@ theorem randomWalk_lazy : G.lazy.randomWalk = G.randomWalk.lazy := by
       Fintype.sum_sum_type]
     simp only [neighbor_lazy_inl, neighbor_lazy_inr]
     congr 1
-    rcases eq_or_ne y x with rfl | hyx
-    · simp
-    · simp [hyx, Ne.symm hyx]
+    by_cases hxy : x = y <;> simp [hxy, eq_comm]
   have hne1 : (2 : ℝ≥0∞)⁻¹ * G.randomWalk x y ≠ ⊤ :=
     ENNReal.mul_ne_top (by simp) ((G.randomWalk x).apply_ne_top y)
   have hne2 : (if y = x then (2 : ℝ≥0∞)⁻¹ else 0) ≠ ⊤ := by split_ifs <;> simp
@@ -448,9 +404,7 @@ theorem spectralContraction_randomWalk [Nonempty V] :
     G.randomWalk.spectralContraction (PMF.uniformOfFintype V) = G.spectralExpansion := by
   have hunif (g : V → ℝ) :
       ∑ v, (PMF.uniformOfFintype V v).toReal * g v = 𝔼 v, g v := by
-    rw [Fintype.expect_eq_sum_div_card, sum_div]
-    refine sum_congr rfl fun v _ => ?_
-    rw [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast, inv_mul_eq_div]
+    simp [Fintype.expect_eq_sum_div_card, PMF.uniformOfFintype_apply, div_eq_inv_mul, mul_sum]
   refine le_antisymm ?_ ?_
   · refine ((isStationary_uniform_randomWalk (G := G)).spectralContraction_le_iff
       G.spectralExpansion_nonneg).mpr fun f hf => ?_
@@ -460,9 +414,8 @@ theorem spectralContraction_randomWalk [Nonempty V] :
   · refine G.spectralExpansion_le
       (G.randomWalk.spectralContraction_nonneg (PMF.uniformOfFintype V)) fun f hf => ?_
     rw [← hunif] at hf
-    have hle :=
+    simpa only [stepOp_randomWalk, hunif] using
       (isStationary_uniform_randomWalk (G := G)).sum_mul_stepOp_sq_le_spectralContraction hf
-    rwa [stepOp_randomWalk, hunif, hunif] at hle
 
 omit [DecidableEq V] in
 /-- **Total-variation contraction of a regular random walk**:
@@ -471,15 +424,11 @@ theorem distToStationary_randomWalk_le [Nonempty V] (t : ℕ) :
     G.randomWalk.distToStationary (PMF.uniformOfFintype V) t ≤
       (1 / 2) * Real.sqrt (Fintype.card V - 1) * G.spectralExpansion ^ t := by
   have hcard : (0 : ℝ) < Fintype.card V := Nat.cast_pos.mpr Fintype.card_pos
-  have hmin (v : V) : (Fintype.card V : ℝ)⁻¹ ≤ (PMF.uniformOfFintype V v).toReal := by
-    rw [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast]
   have hd := (isReversible_uniform_randomWalk (G := G)).distToStationary_le_of_le_toReal
-    (inv_pos.mpr hcard) hmin t
-  rw [spectralContraction_randomWalk] at hd
-  refine hd.trans_eq ?_
+    (inv_pos.mpr hcard) (fun v => by simp [PMF.uniformOfFintype_apply]) t
   have hratio : (1 - (Fintype.card V : ℝ)⁻¹) / (Fintype.card V : ℝ)⁻¹ = Fintype.card V - 1 := by
     field_simp [hcard.ne']
-  rw [hratio]
+  rwa [spectralContraction_randomWalk, hratio] at hd
 
 omit [DecidableEq V] in
 /-- **Mixing-time bound for a regular random walk** from `λ(G) < 1`:
@@ -490,18 +439,15 @@ theorem mixingTime_randomWalk_le [Nonempty V] (hlam : G.spectralExpansion < 1)
       (⌈(1 - G.spectralExpansion)⁻¹ *
         ((1 / 2) * Real.log (Fintype.card V) + Real.log (1 / (2 * ε)))⌉₊ : ℕ) := by
   have hcard : (0 : ℝ) < Fintype.card V := Nat.cast_pos.mpr Fintype.card_pos
-  have hmin (v : V) : (Fintype.card V : ℝ)⁻¹ ≤ (PMF.uniformOfFintype V v).toReal := by
-    rw [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast]
   have hgap_eq : G.randomWalk.absSpectralGap (PMF.uniformOfFintype V) =
       1 - G.spectralExpansion := by
     linarith [G.randomWalk.one_sub_absSpectralGap (PMF.uniformOfFintype V),
       G.spectralContraction_randomWalk]
-  have hgap : 0 < G.randomWalk.absSpectralGap (PMF.uniformOfFintype V) := by linarith
-  have hinv_v : 1 / (Fintype.card V : ℝ)⁻¹ = Fintype.card V := by rw [one_div, inv_inv]
   refine ((isReversible_uniform_randomWalk (G := G)).mixingTime_le_of_absSpectralGap_pos
-    (inv_pos.mpr hcard) hmin hgap hε).trans_eq ?_
+    (inv_pos.mpr hcard) (fun v => by simp [PMF.uniformOfFintype_apply])
+    (by linarith) hε).trans_eq ?_
   congr 2
-  rw [hgap_eq, hinv_v]
+  rw [hgap_eq, one_div (Fintype.card V : ℝ)⁻¹, inv_inv]
 
 /-- **Cheeger mixing-time bound for the lazy random walk on a regular multigraph**:
 if `0 < h(G)`, then `G.randomWalk.lazy` mixes to within `ε` of uniform in at most
@@ -521,19 +467,11 @@ theorem mixingTime_lazy_randomWalk_le_of_edgeExpansion [Nontrivial V]
   refine (mixingTime_randomWalk_le (G := G.lazy) hlam hε).trans ?_
   set L := (1 / 2) * Real.log (Fintype.card V) + Real.log (1 / (2 * ε))
   by_cases hL : L ≤ 0
-  · have hnp : (1 - G.lazy.spectralExpansion)⁻¹ * L ≤ 0 :=
-      mul_nonpos_of_nonneg_of_nonpos (inv_nonneg.mpr (by linarith)) hL
-    rw [Nat.ceil_eq_zero.mpr hnp]
+  · rw [Nat.ceil_eq_zero.mpr (mul_nonpos_of_nonneg_of_nonpos (inv_nonneg.mpr (by linarith)) hL)]
     exact zero_le
   push Not at hL
-  have hinv : (1 - G.lazy.spectralExpansion)⁻¹ ≤
-      4 * (Fintype.card D : ℝ) ^ 2 / G.edgeExpansion ^ 2 := by
-    calc (1 - G.lazy.spectralExpansion)⁻¹
-        ≤ (G.edgeExpansion ^ 2 / (4 * (Fintype.card D : ℝ) ^ 2))⁻¹ :=
-          inv_anti₀ hpos_lb hgap_lb
-      _ = 4 * (Fintype.card D : ℝ) ^ 2 / G.edgeExpansion ^ 2 := inv_div _ _
-  exact ENat.natCast_le_natCast.mpr
-    (Nat.ceil_mono (mul_le_mul_of_nonneg_right hinv hL.le))
+  exact ENat.natCast_le_natCast.mpr (Nat.ceil_mono (mul_le_mul_of_nonneg_right
+    ((inv_anti₀ hpos_lb hgap_lb).trans_eq (inv_div _ _)) hL.le))
 
 end SpectralMixing
 

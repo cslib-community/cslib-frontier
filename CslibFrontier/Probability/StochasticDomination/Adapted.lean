@@ -404,9 +404,7 @@ private theorem adaptedCount_min_eq_of_union {Ω : Type*} (A : ℕ → Set Ω) (
   let A' := fun t => A t ∪ {ω' | r ≤ adaptedCount A t ω'}
   have hle : adaptedCount A n ω ≤ adaptedCount A' n ω := by
     refine Finset.sum_le_sum fun t _ => ?_
-    by_cases ht : ω ∈ A t
-    · simp [A', ht]
-    · simp [ht]
+    by_cases ht : ω ∈ A t <;> simp [A', ht]
   by_cases hreach : r ≤ adaptedCount A n ω
   · have hreach' : r ≤ adaptedCount A' n ω := hreach.trans hle
     rw [min_eq_right hreach, min_eq_right hreach']
@@ -830,22 +828,14 @@ private theorem abs_tsum_pmf_mul_le_one {α : Type*} (p : PMF α) (F : α → �
     |∑' a, (p a).toReal * F a| ≤ 1 := by
   have hs : Summable fun a => (p a).toReal * F a :=
     summable_toReal_mul_of_abs_le p F fun a _ => hF a
-  have hg : Summable fun a => (p a).toReal := PMF.summable_toReal p
-  refine abs_le.mpr ⟨?_, ?_⟩
-  · have hlow : -1 ≤ ∑' a, (p a).toReal * F a := by
-      have hneg : ∑' a, -(p a).toReal = -1 := by rw [tsum_neg, PMF.tsum_toReal p]
-      rw [← hneg]
-      refine hg.neg.tsum_le_tsum (fun a => ?_) hs
-      have ha := (abs_le.mp (hF a)).1
-      calc
-        -(p a).toReal = (p a).toReal * (-1) := by ring
-        _ ≤ (p a).toReal * F a := mul_le_mul_of_nonneg_left ha ENNReal.toReal_nonneg
-    exact hlow
-  · calc
-      ∑' a, (p a).toReal * F a ≤ ∑' a, (p a).toReal := by
-        refine hs.tsum_le_tsum (fun a => ?_) hg
-        exact mul_le_of_le_one_right ENNReal.toReal_nonneg (abs_le.mp (hF a)).2
-      _ = 1 := PMF.tsum_toReal p
+  calc |∑' a, (p a).toReal * F a| ≤ ∑' a, |(p a).toReal * F a| := by
+        simpa only [Real.norm_eq_abs] using norm_tsum_le_tsum_norm hs.norm
+    _ ≤ ∑' a, (p a).toReal := hs.abs.tsum_le_tsum (fun a => by
+        calc |(p a).toReal * F a|
+            = (p a).toReal * |F a| := by rw [abs_mul, abs_of_nonneg ENNReal.toReal_nonneg]
+          _ ≤ (p a).toReal := mul_le_of_le_one_right ENNReal.toReal_nonneg (hF a))
+        (PMF.summable_toReal p)
+    _ = 1 := PMF.tsum_toReal p
 
 private theorem tsum_indicator_pmf_toReal {α : Type*} (p : _root_.PMF α) (s : Set α) :
     (∑' a : α, s.indicator (fun a => (p a).toReal) a) = (p.toOuterMeasure s).toReal := by
@@ -1027,11 +1017,7 @@ private theorem seqCount_sub_step_range {α : Type*}
   refine ⟨(seqCount E k h : ℝ) - ∑ t ∈ Finset.range (k + 1), p t,
     (seqCount E k h : ℝ) + 1 - ∑ t ∈ Finset.range (k + 1), p t, by linarith, fun x => ?_⟩
   rw [seqCount_snoc]
-  split_ifs
-  · simp only [Nat.cast_add, Nat.cast_one]
-    exact ⟨by linarith, by linarith⟩
-  · simp only [add_zero]
-    exact ⟨by linarith, by linarith⟩
+  split_ifs <;> push_cast <;> exact ⟨by linarith, by linarith⟩
 
 /-- **Azuma–Hoeffding upper tail for sequential event counts**: if at every step `t < n` and
 supported prefix `h`, the conditional probability of `E t h` is at most `p t`, then `seqCount E n`

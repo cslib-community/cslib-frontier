@@ -111,9 +111,7 @@ theorem isHardCoreSet_iff_isHardCoreMeasure {f : BooleanFunction n} {s : ℕ} {�
   have hagree (g : BooleanFunction n) :
       ∑ x with g x = f x, (if x ∈ H then (1 : ℝ) else 0) = #{x ∈ H | g x = f x} := by
     rw [sum_boole, filter_filter]
-    congr 2
-    ext x
-    simp [and_comm]
+    congr 2; ext x; simp [and_comm]
   constructor
   · intro h
     refine ⟨fun x => by split_ifs <;> simp, hsum ▸ h.mul_two_pow_le_card, fun g hg => ?_⟩
@@ -186,8 +184,7 @@ theorem exists_finset_card_agree_lt (f : BooleanFunction n) (M : BitString n →
       _ < 1 := hcount
   obtain ⟨ω, -, hω⟩ : ∃ ω ∈ S.support, ω ∉ bad₀ ∪ ⋃ g ∈ G, bad g := by
     by_contra! h
-    have h1 := (PMF.toOuterMeasure_apply_eq_one_iff S _).mpr h
-    rw [h1, ENNReal.toReal_one] at hunion
+    rw [(PMF.toOuterMeasure_apply_eq_one_iff S _).mpr h, ENNReal.toReal_one] at hunion
     exact lt_irrefl _ hunion
   simp only [Set.mem_union, Set.mem_iUnion, not_or, not_exists] at hω
   obtain ⟨hω₀, hωG⟩ := hω
@@ -195,12 +192,8 @@ theorem exists_finset_card_agree_lt (f : BooleanFunction n) (M : BitString n →
   refine ⟨({x | ω x = true} : Finset (BitString n)), ?_, fun g hg => ?_⟩
   · have hmean : ∑ x, ∑ b, (coin x b).toReal * size b = ∑ x, M x :=
       sum_congr rfl fun x _ => by simp [hcoin, size]
-    have hsize : ∑ x, size (ω x) = #{x | ω x = true} := by
-      simp only [size]
-      rw [sum_boole]
-    have h := hω₀
-    simp only [bad₀, Set.mem_ofPred_eq, not_le, hmean, hsize] at h
-    exact h
+    have hsize : ∑ x, size (ω x) = #{x | ω x = true} := by simp only [size]; rw [sum_boole]
+    simpa only [bad₀, Set.mem_ofPred_eq, not_le, hmean, hsize] using hω₀
   · have hmean : ∑ x, ∑ b, (coin x b).toReal * score g x b =
         (∑ x with g x = f x, M x) + a * (2 ^ n - ∑ x, M x) := by
       have hx (x : BitString n) : ∑ b, (coin x b).toReal * score g x b =

@@ -142,11 +142,7 @@ theorem exists_polarization {α β : ℝ} (hβ : 0 ≤ β) (hβα : β < α ^ 2)
           dist (polarize p₀ p₁ (m * (Nat.log 2 k + 1)) (2 ^ (b * (Nat.log 2 k + 1))) k false)
             (polarize p₀ p₁ (m * (Nat.log 2 k + 1)) (2 ^ (b * (Nat.log 2 k + 1))) k true) ≤
             (1 / 2) ^ k) := by
-  have hα0 : 0 < α := by
-    rcases hα.eq_or_lt with h | h
-    · rw [← h] at hβα
-      linarith [show (0 : ℝ) ^ 2 = 0 by norm_num]
-    · exact h
+  have hα0 : 0 < α := hα.lt_of_ne (by rintro rfl; norm_num at hβα; linarith)
   have hα2 : 0 < α ^ 2 := by positivity
   -- Choose `m` with `(β / α²) ^ m < 1 / 64`.
   have hr0 : 0 ≤ β / α ^ 2 := div_nonneg hβ hα2.le
@@ -161,37 +157,24 @@ theorem exists_polarization {α β : ℝ} (hβ : 0 ≤ β) (hβα : β < α ^ 2)
   have hA0 : 0 < A := hA ▸ pow_pos hα0 _
   have hA1 : A ≤ 1 := hA ▸ pow_le_one₀ hα hα1
   have hβm : β ^ m < A / 64 := by
-    have : (β / α ^ 2) ^ m = β ^ m / A := by rw [hA, div_pow, pow_mul]
-    rw [this, div_lt_iff₀ hA0] at hrm
+    rw [div_pow, ← pow_mul, ← hA, div_lt_iff₀ hA0] at hrm
     linarith
   -- Choose `b` with `8 / A ≤ 2 ^ b < 18 / A`.
   obtain ⟨b, hb⟩ : ∃ b, b = Nat.clog 2 ⌈8 / A⌉₊ := ⟨_, rfl⟩
   have hceil0 : ⌈8 / A⌉₊ ≠ 0 := (Nat.ceil_pos.2 (by positivity)).ne'
-  have hb_ge : 8 / A ≤ 2 ^ b := by
-    have h₁ := Nat.le_ceil (8 / A)
-    have h₂ : ((⌈8 / A⌉₊ : ℕ) : ℝ) ≤ ((2 ^ b : ℕ) : ℝ) := by
-      rw [hb]
-      exact_mod_cast Nat.le_pow_clog one_lt_two _
-    push_cast at h₂
-    linarith
   have hb_lt : (2 : ℝ) ^ b < 18 / A := by
-    have h₁ : ((2 ^ b : ℕ) : ℝ) ≤ ((2 * ⌈8 / A⌉₊ : ℕ) : ℝ) := by
-      rw [hb]
-      exact_mod_cast Nat.pow_clog_le_mul one_lt_two hceil0
+    have h₁ : (2 : ℝ) ^ b ≤ 2 * ⌈8 / A⌉₊ := by
+      rw [hb]; exact_mod_cast Nat.pow_clog_le_mul one_lt_two hceil0
     have h₂ := Nat.ceil_lt_add_one (show (0 : ℝ) ≤ 8 / A by positivity)
-    push_cast at h₁
-    have h₃ : 8 / A + 1 ≤ 9 / A := by
-      rw [show (9 : ℝ) / A = 8 / A + 1 / A by ring]
-      have : 1 ≤ 1 / A := by rw [le_div_iff₀ hA0]; linarith
-      linarith
-    have h₄ : (18 : ℝ) / A = 2 * (9 / A) := by ring
+    have h₃ : 1 ≤ 1 / A := by rw [le_div_iff₀ hA0]; linarith
+    have h₄ : (18 : ℝ) / A = 2 * (8 / A + 1 / A) := by ring
     linarith
   have hfar : 8 ≤ 2 ^ b * A := by
-    rwa [div_le_iff₀ hA0] at hb_ge
+    rw [← div_le_iff₀ hA0]
+    exact (Nat.le_ceil _).trans (by rw [hb]; exact_mod_cast Nat.le_pow_clog one_lt_two _)
   have hnear : 2 ^ b * β ^ m ≤ 1 / 2 := by
-    have h₁ : 2 ^ b * β ^ m ≤ 18 / A * (A / 64) :=
-      mul_le_mul hb_lt.le hβm.le (pow_nonneg hβ m) (by positivity)
-    have h₂ : 18 / A * (A / 64) = 18 / 64 := by field_simp
+    have := mul_le_mul hb_lt.le hβm.le (pow_nonneg hβ m) (by positivity)
+    rw [show 18 / A * (A / 64) = 18 / 64 by field_simp] at this
     linarith
   refine ⟨m, b, hm0, ?_, polynomiallyBounded_two_pow_mul_log b, ?_⟩
   · simpa only [Nat.log2_eq_log_two] using polynomiallyBounded_mul_log2_add_one m
@@ -201,9 +184,7 @@ theorem exists_polarization {α β : ℝ} (hβ : 0 ≤ β) (hβα : β < α ^ 2)
     Nat.cast_le.2 (Nat.lt_pow_succ_log_self one_lt_two k)
   push_cast at hkj
   generalize hj : Nat.log 2 k + 1 = j at hkj ⊢
-  have hj0 : j ≠ 0 := by
-    rw [← hj]
-    exact Nat.succ_ne_zero _
+  have hj0 : j ≠ 0 := by omega
   rcases eq_or_ne k 0 with rfl | hk
   · simp only [pow_zero, sub_self]
     exact ⟨fun _ => dist_nonneg, fun _ => dist_le_one _ _⟩

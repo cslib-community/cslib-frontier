@@ -7,6 +7,7 @@ Authors: Matthew Doty
 module
 -- upstream: candidate
 
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Chosen
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Graph.Dimacs
 public import Mathlib.Combinatorics.SimpleGraph.Clique
@@ -29,9 +30,9 @@ chosen, `∑ᵥ ~xᵥ`, written here as `∑ᵥ -xᵥ + n`, the objectives of th
 over variables (`Cslib.Logic.PL.VeriPB.Objective`).
 
 **Correctness** (CakePB's `encode_correct`). An assignment `σ` chooses the vertices
-`Cslib.Logic.PL.VeriPB.Graph.chosen n σ`. It satisfies the constraints exactly when the vertices it
+`Cslib.Logic.PL.VeriPB.chosen n σ`. It satisfies the constraints exactly when the vertices it
 chooses form a clique (`Cslib.Logic.PL.VeriPB.Graph.forall_holds_cliqueConstraints_iff`), every set
-of vertices is chosen by some assignment (`Cslib.Logic.PL.VeriPB.Graph.exists_chosen_eq`), and the
+of vertices is chosen by some assignment (`Cslib.Logic.PL.VeriPB.exists_chosen_eq`), and the
 objective is `n` minus the number of vertices chosen
 (`Cslib.Logic.PL.VeriPB.Graph.eval_cliqueObjective`). So the solutions are exactly the cliques, and
 the objective value of a clique `s` is `n - |s|`.
@@ -66,8 +67,6 @@ verified. CakePB's own end-to-end theorem also covers its compiled machine code.
 ## Main definitions
 
 * `Cslib.Logic.PL.VeriPB.Graph.encodeClique`: the encoding.
-* `Cslib.Logic.PL.VeriPB.Graph.chosen`: the vertices an assignment chooses
-  (`Cslib.Logic.PL.VeriPB.Graph.mem_chosen`).
 * `Cslib.Logic.PL.VeriPB.Graph.convConcl`: bounds on clique sizes from a `BOUNDS` conclusion.
 * `Cslib.Logic.PL.VeriPB.Graph.checkCliqueGraph`, `Cslib.Logic.PL.VeriPB.Graph.checkClique`: the
   checkers, for a graph built in Lean and for a DIMACS graph.
@@ -75,7 +74,7 @@ verified. CakePB's own end-to-end theorem also covers its compiled machine code.
 ## Main results
 
 * `Cslib.Logic.PL.VeriPB.Graph.forall_holds_cliqueConstraints_iff`,
-  `Cslib.Logic.PL.VeriPB.Graph.exists_chosen_eq`,
+  `Cslib.Logic.PL.VeriPB.exists_chosen_eq`,
   `Cslib.Logic.PL.VeriPB.Graph.eval_cliqueObjective`: correctness of the encoding.
 * `Cslib.Logic.PL.VeriPB.Graph.clique_bounds_of_checkCliqueGraph`,
   `Cslib.Logic.PL.VeriPB.Graph.cliqueNum_eq_of_checkCliqueGraph`,
@@ -113,12 +112,6 @@ def cliqueObjective (n : ℕ) : Objective := ⟨(List.finRange n).map fun v => (
 def encodeClique (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] : Instance :=
   ⟨cliqueConstraints G, some (cliqueObjective n), none⟩
 
-/-- The vertices an assignment chooses: those whose variable is true. -/
-def chosen (n : ℕ) (σ : ℕ → Bool) : Finset (Fin n) := Finset.univ.filter fun v => σ v.val
-
-@[simp] theorem mem_chosen {σ : ℕ → Bool} {v : Fin n} : v ∈ chosen n σ ↔ σ v.val = true := by
-  simp [chosen]
-
 /-! ### Correctness -/
 
 /-- The constraint `~x + ~y ≥ 1` of the non-edge `x`, `y`. -/
@@ -134,12 +127,7 @@ private theorem mem_cliqueConstraints {G : SimpleGraph (Fin n)} [DecidableRel G.
     {c : PBConstr} :
     c ∈ cliqueConstraints G ↔ ∃ x y : Fin n, x < y ∧ ¬ G.Adj x y ∧ c = nonEdge x y := by
   simp only [cliqueConstraints, List.mem_flatMap, List.mem_finRange, List.mem_map,
-    List.mem_filter, decide_eq_true_eq, true_and]
-  constructor
-  · rintro ⟨x, y, ⟨hxy, hadj⟩, rfl⟩
-    exact ⟨x, y, hxy, hadj, rfl⟩
-  · rintro ⟨x, y, hxy, hadj, rfl⟩
-    exact ⟨x, y, ⟨hxy, hadj⟩, rfl⟩
+    List.mem_filter, decide_eq_true_eq, true_and, and_assoc, @eq_comm PBConstr _ c]
 
 /-- **The solutions of the encoding are the cliques**: an assignment satisfies the constraints of
 the encoding exactly when the vertices it chooses form a clique. -/
@@ -159,10 +147,6 @@ theorem forall_holds_cliqueConstraints_iff (G : SimpleGraph (Fin n)) [DecidableR
     obtain ⟨x, y, hxy, hadj, rfl⟩ := mem_cliqueConstraints.1 hc
     exact holds_nonEdge_iff.2 fun ⟨hx, hy⟩ =>
       hadj (h ((hmem x).2 hx) ((hmem y).2 hy) hxy.ne)
-
-/-- **Every set of vertices is chosen** by some assignment. -/
-theorem exists_chosen_eq (s : Finset (Fin n)) : ∃ σ, chosen n σ = s :=
-  ⟨fun v => decide (∃ h : v < n, (⟨v, h⟩ : Fin n) ∈ s), by ext v; simp⟩
 
 /-- **The objective value** of an assignment is `n` minus the number of vertices it chooses. -/
 theorem eval_cliqueObjective (σ : ℕ → Bool) :
@@ -220,8 +204,7 @@ theorem clique_bounds_of_checkCliqueGraph {G : SimpleGraph (Fin n)} [DecidableRe
       obtain ⟨l', rfl, hle⟩ := hlb σ ((forall_holds_cliqueConstraints_iff G σ).2 hs)
       rw [eval_cliqueObjective] at hle
       have := hcard σ
-      simp only [Option.map_some, Option.getD_some]
-      omega
+      simp only [Option.map_some, Option.getD_some]; omega
     · cases ub with
       | none => exact ⟨∅, by simp, by simp⟩
       | some u' =>
@@ -229,8 +212,7 @@ theorem clique_bounds_of_checkCliqueGraph {G : SimpleGraph (Fin n)} [DecidableRe
         refine ⟨chosen n σ, (forall_holds_cliqueConstraints_iff G σ).1 hσ, ?_⟩
         rw [eval_cliqueObjective] at hle
         have := hcard σ
-        simp only [Option.map_some, Option.getD_some]
-        omega
+        simp only [Option.map_some, Option.getD_some]; omega
   | _ => simp [convConcl] at hconv
 
 /-- **The clique number from an accepted proof** (CakePB's `full_encode_sem_concl_check`): if the

@@ -341,17 +341,14 @@ private theorem PrunedCall.vertex_under_eq_iff {lam : Term} {c : PrunedCall} {k 
     {τ : Vertex (k + 1)} :
     (c.under lam).vertex = ⟨k + 1, τ⟩ ↔ lam = τ 0 ∧ c.vertex = ⟨k, Fin.tail τ⟩ := by
   obtain ⟨⟨k', τ'⟩, T⟩ := c
+  simp only [PrunedCall.under, Sigma.mk.injEq, Nat.add_right_cancel_iff]
   constructor
-  · intro h
-    simp only [PrunedCall.under, Sigma.mk.injEq, Nat.add_right_cancel_iff] at h
-    obtain ⟨rfl, h⟩ := h
+  · rintro ⟨rfl, h⟩
     obtain rfl := eq_of_heq h
     simp
-  · rintro ⟨rfl, h⟩
-    simp only [Sigma.mk.injEq] at h
-    obtain ⟨rfl, h⟩ := h
+  · rintro ⟨rfl, rfl, h⟩
     obtain rfl := eq_of_heq h
-    simp [PrunedCall.under]
+    simp
 
 /-- A vertex is called when its depth and label tuple occur in the recorded call multiset. -/
 def Pruned.Called {L k : ℕ} (encA encB : Leaf L → ℤ) (U : Finset (OutStr L)) (τ : Vertex k) :
@@ -563,13 +560,9 @@ theorem card_leaves_succ {n : ℕ} (S : Finset (OutStr (n + 1))) :
     (Fin.cons_right_injective (α := fun _ : Fin (n + 1) => Term) lam)]
   congr 1
   ext τ
-  simp only [mem_filter, mem_image]
-  constructor
-  · rintro ⟨hτ, rfl⟩
-    exact ⟨Fin.tail τ, mem_leaves_succ.mp hτ, Fin.cons_self_tail τ⟩
-  · rintro ⟨τ', hτ', rfl⟩
-    refine ⟨mem_leaves_succ.mpr ?_, Fin.cons_zero _ _⟩
-    simpa using hτ'
+  simp only [mem_filter, mem_image, mem_leaves_succ]
+  exact ⟨fun ⟨hτ, h0⟩ => ⟨Fin.tail τ, h0 ▸ ⟨hτ, Fin.cons_self_tail τ⟩⟩,
+    fun ⟨τ', hτ', h⟩ => h ▸ ⟨by simpa using hτ', Fin.cons_zero _ _⟩⟩
 
 /-- Different output strings have different private leaves.
 -/

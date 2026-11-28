@@ -41,11 +41,10 @@ theorem mul_toOuterMeasure_le_tsum (p : PMF ι) (f : ι → ℝ≥0∞) (t : ℝ
     t * p.toOuterMeasure {i | t ≤ f i} ≤ ∑' i, p i * f i := by
   rw [PMF.toOuterMeasure_apply, ← ENNReal.tsum_mul_left]
   refine tsum_le_tsum fun i => ?_
-  by_cases hi : t ≤ f i
-  · rw [Set.indicator_of_mem (by exact hi), mul_comm]
-    gcongr
-  · rw [Set.indicator_of_notMem (by exact hi), mul_zero]
-    positivity
+  by_cases hi : i ∈ {i | t ≤ f i}
+  · rw [Set.indicator_of_mem hi, mul_comm]
+    exact mul_le_mul_of_nonneg_left hi zero_le
+  · simp [Set.indicator_of_notMem hi]
 
 /-- **Markov's inequality** for a real score with values in `[0, 1]`:
 `Pr[t ≤ f] ≤ E[f] / t`. -/
@@ -53,9 +52,8 @@ theorem toOuterMeasure_toReal_le_tsum_div (p : PMF ι) {f : ι → ℝ} (hf₀ :
     (hf₁ : ∀ i, f i ≤ 1) {t : ℝ} (ht : 0 < t) :
     (p.toOuterMeasure {i | t ≤ f i}).toReal ≤ (∑' i, (p i).toReal * f i) / t := by
   have hmarkov := mul_toOuterMeasure_le_tsum p (fun i => ENNReal.ofReal (f i)) (ENNReal.ofReal t)
-  have hset : {i | ENNReal.ofReal t ≤ ENNReal.ofReal (f i)} = {i | t ≤ f i} := by
-    ext i
-    simp only [Set.mem_ofPred_eq, ENNReal.ofReal_le_ofReal_iff (hf₀ i)]
+  have hset : {i | ENNReal.ofReal t ≤ ENNReal.ofReal (f i)} = {i | t ≤ f i} :=
+    Set.ext fun i => ENNReal.ofReal_le_ofReal_iff (hf₀ i)
   rw [hset] at hmarkov
   have hne : (∑' i, p i * ENNReal.ofReal (f i)) ≠ ∞ := by
     refine ne_top_of_le_ne_top ENNReal.one_ne_top ?_
@@ -67,9 +65,8 @@ theorem toOuterMeasure_toReal_le_tsum_div (p : PMF ι) {f : ι → ℝ} (hf₀ :
   rw [ENNReal.toReal_mul, ENNReal.toReal_ofReal ht.le,
     ENNReal.tsum_toReal_eq fun i => ENNReal.mul_ne_top (p.apply_ne_top i) ENNReal.ofReal_ne_top]
     at hreal
-  simp only [ENNReal.toReal_mul, ENNReal.toReal_ofReal (hf₀ _)] at hreal
   rw [le_div_iff₀ ht, mul_comm]
-  exact hreal
+  simpa only [ENNReal.toReal_mul, ENNReal.toReal_ofReal (hf₀ _)] using hreal
 
 /-- **One-step integer Markov bound**: if an integer potential `f : ι → ℕ` vanishes on supported
 states only where the next step `step` never lands in `bad`, then the probability of `bad` after
@@ -82,9 +79,7 @@ theorem toOuterMeasure_bind_le_tsum_nat {β : Type*} (p : PMF ι) (step : ι →
   refine tsum_le_tsum fun a => ?_
   by_cases ha : a ∈ p.support
   · rcases Nat.eq_zero_or_pos (f a) with h0 | hpos
-    · rw [h0, Nat.cast_zero, mul_zero,
-        (PMF.toOuterMeasure_apply_eq_zero_iff _ _).2 (Set.disjoint_left.2 (hzero a ha h0)),
-        mul_zero]
+    · simp [h0, (PMF.toOuterMeasure_apply_eq_zero_iff _ _).2 (Set.disjoint_left.2 (hzero a ha h0))]
     · gcongr
       exact (toOuterMeasure_le_one _ _).trans (Nat.one_le_cast.2 hpos)
   · simp [(PMF.apply_eq_zero_iff p a).2 ha]

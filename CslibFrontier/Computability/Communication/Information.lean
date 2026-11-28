@@ -118,14 +118,12 @@ theorem internalInfoCost_map (ν : PMF Ω) (A : Ω → X) (B : Ω → Y) (T : Ω
     internalInfoCost (ν.map fun ω => (A ω, B ω, T ω)) =
       condMutualInfo (ν.map fun ω => (B ω, A ω, T ω)) +
         condMutualInfo (ν.map fun ω => (A ω, B ω, T ω)) := by
-  rw [internalInfoCost, PMF.map_comp]
-  rfl
+  rw [internalInfoCost, PMF.map_comp]; rfl
 
 theorem externalInfoCost_map (ν : PMF Ω) (A : Ω → X) (B : Ω → Y) (T : Ω → τ) :
     externalInfoCost (ν.map fun ω => (A ω, B ω, T ω)) =
       mutualInfo (ν.map fun ω => ((A ω, B ω), T ω)) := by
-  rw [externalInfoCost, PMF.map_comp]
-  rfl
+  rw [externalInfoCost, PMF.map_comp]; rfl
 
 theorem internalInfoCost_nonneg (law : PMF (X × Y × τ)) : 0 ≤ internalInfoCost law :=
   add_nonneg (condMutualInfo_nonneg _) (condMutualInfo_nonneg _)
@@ -254,9 +252,8 @@ private theorem condMutualInfo_eq_zero_alice {ν : PMF (U × V)} (hν : ProductF
   refine condMutualInfo_eq_zero_of_apply_eq_mul _
     (fun x y => w x y * ∑ v, if y = fy v then β v else 0)
     (fun x c => ∑ u, if x = fx u ∧ c = s u then α u else 0) fun x y c => ?_
-  have key : ∀ u v, (if (x, y, c) = (fx u, fy v, s u) then ν (u, v) else 0) =
+  have key (u : U) (v : V) : (if (x, y, c) = (fx u, fy v, s u) then ν (u, v) else 0) =
       (if x = fx u ∧ c = s u then α u else 0) * (w x y * if y = fy v then β v else 0) := by
-    intro u v
     by_cases h1 : x = fx u ∧ c = s u
     · obtain ⟨rfl, rfl⟩ := h1
       by_cases h2 : y = fy v
@@ -271,9 +268,7 @@ private theorem condMutualInfo_eq_zero_alice {ν : PMF (U × V)} (hν : ProductF
         (if x = fx u ∧ c = s u then α u else 0) * (w x y * if y = fy v then β v else 0) := by
         rw [PMF.map_apply, tsum_fintype, Fintype.sum_prod_type]
         exact Finset.sum_congr rfl fun u _ => Finset.sum_congr rfl fun v _ => by convert key u v
-    _ = _ := by
-        simp only [← Finset.mul_sum, ← Finset.sum_mul]
-        ring
+    _ = _ := by simp only [← Finset.mul_sum, ← Finset.sum_mul]; ring
 
 /-- Given his input, a bit of Bob is independent of Alice's input: `I(X; s | Y) = 0`. -/
 private theorem condMutualInfo_eq_zero_bob {ν : PMF (U × V)} (hν : ProductForm fx fy ν)
@@ -381,33 +376,31 @@ private theorem internalInfoCost_le_externalInfoCost_aux (fx : U → X) (fy : V 
     exact externalInfoCost_nonneg _
   | .alice s p₀ p₁, ν, hν => by
     refine internalInfoCost_le_of_step ν _ _ _ (fun ω => s ω.1)
-      (fun i => decide (p₀.leafCount ≤ i.val)) (fun ω => ?_)
-      (Or.inl (condMutualInfo_eq_zero_alice hν s)) fun c => ?_
-    · rw [Protocol.leaf_alice]
-      cases s ω.1 <;> simp
-    · cases c
-      · exact branch_le ν _ _ _ _ false (fun ω => p₀.leaf ω.1 ω.2)
-          (Fin.castAdd_injective _ _) (fun ω h => by rw [Protocol.leaf_alice]; simp [h])
-          fun hc => internalInfoCost_le_externalInfoCost_aux fx fy p₀ _
+      (fun i => decide (p₀.leafCount ≤ i.val))
+      (fun ω => by rcases h : s ω.1 with _ | _ <;> simp [Protocol.leaf_alice, h])
+      (.inl (condMutualInfo_eq_zero_alice hν s)) fun c => ?_
+    cases c
+    · exact branch_le ν _ _ _ _ false (fun ω => p₀.leaf ω.1 ω.2) (Fin.castAdd_injective _ _)
+        (fun ω h => by simp [Protocol.leaf_alice, h]) fun hc =>
+          internalInfoCost_le_externalInfoCost_aux fx fy p₀ _
             (productForm_conditionalSnd_alice hν s hc)
-      · exact branch_le ν _ _ _ _ true (fun ω => p₁.leaf ω.1 ω.2)
-          (Fin.natAdd_injective _ _) (fun ω h => by rw [Protocol.leaf_alice]; simp [h])
-          fun hc => internalInfoCost_le_externalInfoCost_aux fx fy p₁ _
+    · exact branch_le ν _ _ _ _ true (fun ω => p₁.leaf ω.1 ω.2) (Fin.natAdd_injective _ _)
+        (fun ω h => by simp [Protocol.leaf_alice, h]) fun hc =>
+          internalInfoCost_le_externalInfoCost_aux fx fy p₁ _
             (productForm_conditionalSnd_alice hν s hc)
   | .bob s p₀ p₁, ν, hν => by
     refine internalInfoCost_le_of_step ν _ _ _ (fun ω => s ω.2)
-      (fun i => decide (p₀.leafCount ≤ i.val)) (fun ω => ?_)
-      (Or.inr (condMutualInfo_eq_zero_bob hν s)) fun c => ?_
-    · rw [Protocol.leaf_bob]
-      cases s ω.2 <;> simp
-    · cases c
-      · exact branch_le ν _ _ _ _ false (fun ω => p₀.leaf ω.1 ω.2)
-          (Fin.castAdd_injective _ _) (fun ω h => by rw [Protocol.leaf_bob]; simp [h])
-          fun hc => internalInfoCost_le_externalInfoCost_aux fx fy p₀ _
+      (fun i => decide (p₀.leafCount ≤ i.val))
+      (fun ω => by rcases h : s ω.2 with _ | _ <;> simp [Protocol.leaf_bob, h])
+      (.inr (condMutualInfo_eq_zero_bob hν s)) fun c => ?_
+    cases c
+    · exact branch_le ν _ _ _ _ false (fun ω => p₀.leaf ω.1 ω.2) (Fin.castAdd_injective _ _)
+        (fun ω h => by simp [Protocol.leaf_bob, h]) fun hc =>
+          internalInfoCost_le_externalInfoCost_aux fx fy p₀ _
             (productForm_conditionalSnd_bob hν s hc)
-      · exact branch_le ν _ _ _ _ true (fun ω => p₁.leaf ω.1 ω.2)
-          (Fin.natAdd_injective _ _) (fun ω h => by rw [Protocol.leaf_bob]; simp [h])
-          fun hc => internalInfoCost_le_externalInfoCost_aux fx fy p₁ _
+    · exact branch_le ν _ _ _ _ true (fun ω => p₁.leaf ω.1 ω.2) (Fin.natAdd_injective _ _)
+        (fun ω h => by simp [Protocol.leaf_bob, h]) fun hc =>
+          internalInfoCost_le_externalInfoCost_aux fx fy p₁ _
             (productForm_conditionalSnd_bob hν s hc)
 
 end Main
@@ -417,7 +410,7 @@ end Main
 namespace Protocol
 
 /-- `log₂` of the number of leaves is at most the depth. -/
-theorem logb_leafCount_le_depth (p : Protocol X Y Z) : Real.logb 2 p.leafCount ≤ p.depth := by
+theorem logb_leafCount_le_depth (p : Protocol X Y Z) : Real.logb 2 p.leafCount ≤ p.depth :=
   calc Real.logb 2 p.leafCount ≤ Real.logb 2 ((2 : ℝ) ^ p.depth) :=
         Real.logb_le_logb_of_le (by norm_num) (by exact_mod_cast p.leafCount_pos)
           (by exact_mod_cast p.leafCount_le_two_pow_depth)
@@ -447,7 +440,7 @@ theorem internalInfoCost_le_externalInfoCost (p : Protocol X Y Z) (μ : PMF (X �
     internalInfoCost (p.transcriptLaw μ) ≤ externalInfoCost (p.transcriptLaw μ) := by
   rw [transcriptLaw_eq]
   exact internalInfoCost_le_externalInfoCost_aux id id p μ
-    ⟨fun x y => μ (x, y), fun _ => 1, fun _ => 1, fun u v => by simp⟩
+    ⟨fun x y => μ (x, y), fun _ => 1, fun _ => 1, fun _ _ => by simp⟩
 
 /-- **Information is at most communication** for deterministic protocols. -/
 theorem externalInfoCost_le_depth (p : Protocol X Y Z) (μ : PMF (X × Y)) :
@@ -512,7 +505,7 @@ theorem internalInfoCost_le_externalInfoCost (P : PrivateCoin a b X Y Z) (μ : P
   rw [transcriptLaw_eq]
   exact internalInfoCost_le_externalInfoCost_aux Prod.fst Prod.fst P (inputLaw a b μ)
     ⟨fun x y => μ (x, y), fun _ => (Fintype.card (BitString a × BitString b) : ℝ≥0∞)⁻¹,
-      fun _ => 1, fun u v => by rw [inputLaw_apply, mul_one]⟩
+      fun _ => 1, fun _ _ => by rw [inputLaw_apply, mul_one]⟩
 
 /-- **Information is at most communication** for private-coin protocols. -/
 theorem externalInfoCost_le_depth (P : PrivateCoin a b X Y Z) (μ : PMF (X × Y)) :
@@ -567,24 +560,23 @@ noncomputable def externalInfoCost (π : PublicCoin X Y Z) (μ : PMF (X × Y)) :
 /-- The internal information cost of a public-coin protocol is at most its external
 information cost. -/
 theorem internalInfoCost_le_externalInfoCost (π : PublicCoin X Y Z) (μ : PMF (X × Y)) :
-    π.internalInfoCost μ ≤ π.externalInfoCost μ := by
-  refine tsum_le_tsum fun p => ?_
-  gcongr
-  exact p.internalInfoCost_le_externalInfoCost μ
+    π.internalInfoCost μ ≤ π.externalInfoCost μ :=
+  tsum_le_tsum fun p =>
+    mul_le_mul_of_nonneg_left (ENNReal.ofReal_le_ofReal (p.internalInfoCost_le_externalInfoCost μ))
+      zero_le
 
 /-- **Information is at most communication** for public-coin protocols. -/
 theorem externalInfoCost_le_depth (π : PublicCoin X Y Z) (μ : PMF (X × Y)) :
     π.externalInfoCost μ ≤ π.depth := by
-  calc π.externalInfoCost μ ≤ ∑' p, π p * (π.depth : ℝ≥0∞) := by
-        refine tsum_le_tsum fun p => ?_
-        by_cases hp : p ∈ π.support
-        · gcongr
-          calc ENNReal.ofReal (Communication.externalInfoCost (p.transcriptLaw μ))
-              ≤ ENNReal.ofReal p.depth :=
-                ENNReal.ofReal_le_ofReal (p.externalInfoCost_le_depth μ)
-            _ = ((p.depth : ℕ∞) : ℝ≥0∞) := by simp
-            _ ≤ π.depth := ENat.toENNReal_le.mpr (depth_le_depth hp)
-        · rw [(PMF.apply_eq_zero_iff π p).mpr hp, zero_mul, zero_mul]
+  calc π.externalInfoCost μ ≤ ∑' p, π p * (π.depth : ℝ≥0∞) :=
+        tsum_le_tsum fun p => by
+          by_cases hp : p ∈ π.support
+          · gcongr
+            calc ENNReal.ofReal (Communication.externalInfoCost (p.transcriptLaw μ))
+                ≤ ENNReal.ofReal p.depth :=
+                  ENNReal.ofReal_le_ofReal (p.externalInfoCost_le_depth μ)
+              _ ≤ π.depth := by simpa using ENat.toENNReal_le.mpr (depth_le_depth hp)
+          · simp [(PMF.apply_eq_zero_iff π p).mpr hp]
     _ = π.depth := by rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
 
 theorem internalInfoCost_le_depth (π : PublicCoin X Y Z) (μ : PMF (X × Y)) :
@@ -593,9 +585,8 @@ theorem internalInfoCost_le_depth (π : PublicCoin X Y Z) (μ : PMF (X × Y)) :
 
 /-- With independent inputs, the internal and external information costs agree. -/
 theorem internalInfoCost_eq_externalInfoCost (π : PublicCoin X Y Z) (μ : PMF (X × Y))
-    (hμ : mutualInfo μ = 0) : π.internalInfoCost μ = π.externalInfoCost μ := by
-  refine tsum_congr fun p => ?_
-  rw [p.internalInfoCost_eq_externalInfoCost μ hμ]
+    (hμ : mutualInfo μ = 0) : π.internalInfoCost μ = π.externalInfoCost μ :=
+  tsum_congr fun p => by rw [p.internalInfoCost_eq_externalInfoCost μ hμ]
 
 /-- The **information complexity** of `R` on `A × B` with error `ε` on inputs drawn from `μ`: the
 least internal information cost of a public-coin protocol solving `R` with error at most `ε` on
@@ -631,15 +622,13 @@ theorem infoComplexity_le_protocol {p : Protocol X Y Z} {ε : ℝ} {R : X → Y 
 /-- **Information complexity is at most communication complexity.** -/
 theorem infoComplexity_le_ecomplexity (ε : ℝ) (R : X → Y → Z → Prop) (A : Set X) (B : Set Y)
     (μ : PMF (X × Y)) : infoComplexity ε R A B μ ≤ ecomplexity ε R A B := by
-  by_cases h : ecomplexity ε R A B = ⊤
-  · rw [h, ENat.toENNReal_top]
-    exact le_top
-  obtain ⟨k, hk⟩ := ENat.ne_top_iff_exists.mp h
+  rcases eq_top_or_lt_top (ecomplexity ε R A B) with h | h
+  · simp [h]
+  obtain ⟨k, hk⟩ := ENat.ne_top_iff_exists.mp h.ne
   obtain ⟨π, hπ, hd⟩ := ecomplexity_le_iff.mp hk.symm.le
-  rw [← hk]
   calc infoComplexity ε R A B μ ≤ π.internalInfoCost μ := infoComplexity_le_internalInfoCost hπ μ
     _ ≤ π.depth := π.internalInfoCost_le_depth μ
-    _ ≤ ((k : ℕ∞) : ℝ≥0∞) := ENat.toENNReal_le.mpr hd
+    _ ≤ ecomplexity ε R A B := hk ▸ ENat.toENNReal_le.mpr hd
 
 end PublicCoin
 

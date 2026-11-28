@@ -104,8 +104,8 @@ theorem not_mem_of_witnesses
     notOp ∈ C.operations 1 := by
   obtain ⟨n, hn, f, hf, hf0⟩ := hzero
   obtain ⟨m, hm, g, hg, hg1⟩ := hone
-  have hf0' : f (fun _ => false) = true := by cases h0 : f (fun _ => false) <;> simp_all
-  have hg1' : g (fun _ => true) = false := by cases h1 : g (fun _ => true) <;> simp_all
+  have hf0' := Bool.eq_true_of_ne_false hf0
+  have hg1' := Bool.eq_false_of_ne_true hg1
   by_cases hf1 : f (fun _ => true) = false
   · convert C.diagonal hn hf using 1
     funext a
@@ -128,27 +128,19 @@ theorem not_mem_of_witnesses
   have hvals := Bool.lt_iff.mp (lt_of_not_ge hbad)
   have ha : h a = true := hvals.2
   have hb : h b = false := hvals.1
-  let args (i : Fin k) (x : Fin 1 → Bool) : Bool :=
-    if a i then true else if b i then x 0 else false
+  let args (i : Fin k) (x : Fin 1 → Bool) : Bool := if x 0 then b i else a i
   have hargs (i) : args i ∈ C.operations 1 := by
-    cases hai : a i <;> cases hbi : b i
-    · simpa [args, hai, hbi] using hfalse
-    · simpa [args, hai, hbi] using C.projection (0 : Fin 1)
-    · simpa [args, hai] using htrue
-    · simpa [args, hai] using htrue
+    by_cases hi : a i = b i
+    · cases hai : a i
+      · simpa only [args, ← hi, hai, ite_self] using hfalse
+      · simpa only [args, ← hi, hai, ite_self] using htrue
+    · obtain ⟨hai, hbi⟩ := Bool.lt_iff.mp (lt_of_le_of_ne (hab i) hi)
+      convert C.projection (0 : Fin 1) using 1
+      funext x
+      cases hx : x 0 <;> simp only [args, hai, hbi, hx, Bool.false_eq_true, ite_false, ite_true]
   convert C.comp hk (by decide) hh hargs using 1
   funext x
-  cases hx : x 0
-  · have he : (fun i => args i x) = a := by
-      funext i
-      simp only [args, hx]
-      cases a i <;> cases b i <;> rfl
-    simp [notOp, hx, he, ha]
-  · have he : (fun i => args i x) = b := by
-      funext i
-      have hi := hab i
-      cases hai : a i <;> cases hbi : b i <;> simp_all [args, Bool.le_iff_imp]
-    simp [notOp, hx, he, hb]
+  cases hx : x 0 <;> simp [notOp, args, hx, ha, hb]
 
 /-- NOT and failure of self-duality supply both unary constant functions.
 This is Lemma 2 of [PelletierMartin1990], printed p. 467. -/
@@ -160,7 +152,7 @@ theorem constants_mem_of_not_selfDual (hnot : notOp ∈ C.operations 1)
   push Not at hself
   obtain ⟨a, ha⟩ := hself
   have he : f (fun i => !(a i)) = f a := by
-    cases h0 : f a <;> cases h1 : f (fun i => !(a i)) <;> simp_all
+    simpa only [Bool.not_not] using Bool.eq_not_of_ne ha
   let args (i : Fin n) (x : Fin 1 → Bool) : Bool := if a i then x 0 else !(x 0)
   have hargs (i) : args i ∈ C.operations 1 := by
     dsimp only [args]
@@ -262,26 +254,15 @@ theorem and_mem_of_xor_of_not_affine (hnot : notOp ∈ C.operations 1)
     (fun i => C.square_mem hnot hconst hxor (x i) (x i ^^ y i) (x i ^^ z i))
   change (fun a => f (fun i => args i a)) ∈ C.operations 2 at hg
   apply C.and_mem_of_odd_binary hnot hg
-  have h00 : (fun i => args i ![false, false]) = x := by
-    funext i
-    cases hx : x i <;> cases hy : y i <;> cases hz : z i <;>
-      simp [args, hx, hy, hz]
-  have h01 : (fun i => args i ![false, true]) = z := by
-    funext i
-    cases hx : x i <;> cases hy : y i <;> cases hz : z i <;>
-      simp [args, hx, hy, hz]
-  have h10 : (fun i => args i ![true, false]) = y := by
-    funext i
-    cases hx : x i <;> cases hy : y i <;> cases hz : z i <;>
-      simp [args, hx, hy, hz]
-  have h11 : (fun i => args i ![true, true]) = x + y + z := by
-    funext i
-    cases hx : x i <;> cases hy : y i <;> cases hz : z i <;>
-      simp only [args, Pi.add_apply, hx, hy, hz]
-    all_goals decide
+  obtain ⟨h00, h01, h10, h11⟩ : (fun i => args i ![false, false]) = x ∧
+      (fun i => args i ![false, true]) = z ∧ (fun i => args i ![true, false]) = y ∧
+      (fun i => args i ![true, true]) = x + y + z := by
+    refine ⟨?_, ?_, ?_, ?_⟩ <;> funext i <;> simp only [args, Pi.add_apply] <;>
+      cases x i <;> cases y i <;> cases z i <;> decide
   rw [h00, h01, h10, h11]
-  cases hx : f x <;> cases hy : f y <;> cases hz : f z <;>
-    cases hs : f (x + y + z) <;> simp_all [Bool.add_eq_xor]
+  rw [Bool.xor_iff_ne, Bool.xor_assoc (f x) (f z) (f y), Bool.xor_comm (f z) (f y),
+    ← Bool.xor_assoc]
+  exact fun h => hbad h.symm
 
 /-- The shared Schaefer classification supplies AND, using a non-affine witness to handle
 its minority branch. -/
@@ -289,6 +270,11 @@ theorem and_mem_of_not_affine (hnot : notOp ∈ C.operations 1)
     (hconst : ∀ b, (fun _ : Fin 1 → Bool => b) ∈ C.operations 1)
     {n : ℕ} {f : (Fin n → Bool) → Bool} (hf : f ∈ C.operations n)
     (haff : ¬ BitString.IsAffine f) : andOp ∈ C.operations 2 := by
+  have hpin {g : (Fin 3 → Bool) → Bool} (hg : g ∈ C.operations 3) :=
+    C.comp (by decide) (by decide) (g := ![(fun a : Fin 2 → Bool => a 0), (fun a => a 1),
+        (fun _ => false)]) hg
+      (Fin.forall_fin_succ.mpr ⟨C.projection 0,
+        Fin.forall_fin_two.mpr ⟨C.projection 1, C.const_mem (by decide) (hconst false)⟩⟩)
   rcases C.classification with hunary | hand | hor | hmaj | hmin
   · obtain ⟨i, u, hu⟩ := hunary n (C.arity_pos hf) f hf
     apply False.elim (haff ?_)
@@ -301,18 +287,10 @@ theorem and_mem_of_not_affine (hnot : notOp ∈ C.operations 1)
       (C.comp_not hnot (C.projection (1 : Fin 2))))
     convert h using 1
     decide
-  · have h := C.comp (by decide) (by decide) (g := ![(fun a : Fin 2 → Bool => a 0),
-        (fun a => a 1), (fun _ => false)]) hmaj
-      (Fin.forall_fin_succ.mpr ⟨C.projection 0,
-        Fin.forall_fin_two.mpr ⟨C.projection 1, C.const_mem (by decide) (hconst false)⟩⟩)
-    convert h using 1
+  · convert hpin hmaj using 1
     decide
   · have hx : Cslib.parity 2 ∈ C.operations 2 := by
-      have h := C.comp (by decide) (by decide) (g := ![(fun a : Fin 2 → Bool => a 0),
-          (fun a => a 1), (fun _ => false)]) hmin
-        (Fin.forall_fin_succ.mpr ⟨C.projection 0,
-          Fin.forall_fin_two.mpr ⟨C.projection 1, C.const_mem (by decide) (hconst false)⟩⟩)
-      convert h using 1
+      convert hpin hmin using 1
       decide
     exact C.and_mem_of_xor_of_not_affine hnot hconst hx hf haff
 
@@ -364,11 +342,7 @@ theorem isComplete_iff_postCriterion : C.IsComplete ↔ PostCriterion C.operatio
   constructor
   · intro h
     have hnand := h 2 (by decide) (fun a => !(a 0 && a 1))
-    refine ⟨⟨2, by decide, _, hnand, by decide⟩,
-      ⟨2, by decide, _, hnand, by decide⟩,
-      ⟨2, by decide, _, hnand, by decide⟩,
-      ⟨2, by decide, _, hnand, by decide⟩,
-      ⟨2, by decide, _, hnand, by decide⟩⟩
+    refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> exact ⟨2, by decide, _, hnand, by decide⟩
   · rintro ⟨hzero, hone, hmono, hself, haff⟩
     have hnot := C.not_mem_of_witnesses hzero hone hmono
     have hc := C.constants_mem_of_not_selfDual hnot hself
@@ -403,38 +377,18 @@ theorem functionallyComplete_iff (G : (n : ℕ) → Set ((Fin n → Bool) → Bo
   constructor
   · intro h
     refine ⟨?_, ?_, ?_, ?_, ?_⟩
-    · apply generated_witness G h (fun _ f => f (fun _ => false) = false)
-      · intro n i; rfl
-      · intro m n hm hn f g hf hg
-        change f (fun i => g i (fun _ => false)) = false
-        rw [show (fun i => g i (fun _ => false)) = (fun _ => false) from funext hg]
-        exact hf
-      · decide
-    · apply generated_witness G h (fun _ f => f (fun _ => true) = true)
-      · intro n i; rfl
-      · intro m n hm hn f g hf hg
-        change f (fun i => g i (fun _ => true)) = true
-        rw [show (fun i => g i (fun _ => true)) = (fun _ => true) from funext hg]
-        exact hf
-      · decide
-    · apply generated_witness G h (fun _ f => Monotone f)
-      · intro n i a b hab; exact hab i
-      · intro m n hm hn f g hf hg a b hab
-        exact hf (fun i => hg i hab)
-      · decide
-    · apply generated_witness G h (fun _ f => ∀ a, f (fun i => !(a i)) = !(f a))
-      · intro n i a; rfl
-      · intro m n hm hn f g hf hg a
-        change f (fun i => g i (fun j => !(a j))) = _
-        rw [show (fun i => g i (fun j => !(a j))) = (fun i => !(g i a)) from
-          funext (fun i => hg i a)]
-        exact hf _
-      · decide
-    · apply generated_witness G h (fun _ f => BitString.IsAffine f)
-      · intro n i a b c; rfl
-      · intro m n hm hn f g hf hg
-        exact hf.comp (fun a b c => funext (fun i => hg i a b c))
-      · decide
+    · exact generated_witness G h (fun _ f => f (fun _ => false) = false) (fun _ _ => rfl)
+        (fun _ _ _ _ f _ hf hg => (congrArg f (funext hg)).trans hf) (by decide)
+    · exact generated_witness G h (fun _ f => f (fun _ => true) = true) (fun _ _ => rfl)
+        (fun _ _ _ _ f _ hf hg => (congrArg f (funext hg)).trans hf) (by decide)
+    · exact generated_witness G h (fun _ f => Monotone f) (fun _ i _ _ hab => hab i)
+        (fun _ _ _ _ _ _ hf hg _ _ hab => hf fun i => hg i hab) (by decide)
+    · exact generated_witness G h (fun _ f => ∀ a, f (fun i => !(a i)) = !(f a))
+        (fun _ _ _ => rfl)
+        (fun _ _ _ _ f _ hf hg a => (congrArg f (funext fun i => hg i a)).trans (hf _))
+        (by decide)
+    · exact generated_witness G h (fun _ f => BitString.IsAffine f) (fun _ _ _ _ _ => rfl)
+        (fun _ _ _ _ _ _ hf hg => hf.comp fun a b c => funext fun i => hg i a b c) (by decide)
   · intro hG
     apply ((generated G).isComplete_iff_postCriterion).mpr
     exact hG.mono (fun _ hn _ hf => Generated.of_mem hn hf)

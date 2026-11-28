@@ -164,9 +164,9 @@ theorem polynomialAuxCutoff4_eq_one (hθ : 0 < θ) (hv : θ / 4 ≤ v) (hr : r �
 
 /-- On the support relevant to the incoming cap, the concrete auxiliary score is one. -/
 theorem polynomialAuxCutoff4_eq_one_of_rowCutoff_ne_zero (hθ : 0 < θ) (hv : θ / 4 ≤ v)
-    (hr : polynomialRowCutoff4 θ r ≠ 0) : polynomialAuxCutoff4 θ v r = 1 := by
-  have hsmall : r < θ / 500 := lt_of_not_ge fun h => hr (polynomialRowCutoff4_eq_zero hθ h)
-  exact polynomialAuxCutoff4_eq_one hθ hv (by linarith)
+    (hr : polynomialRowCutoff4 θ r ≠ 0) : polynomialAuxCutoff4 θ v r = 1 :=
+  polynomialAuxCutoff4_eq_one hθ hv
+    (by linarith [lt_of_not_ge fun h => hr (polynomialRowCutoff4_eq_zero hθ h)])
 
 theorem polynomialWitnessCutoff4_nonneg (θ v r : ℝ) : 0 ≤ polynomialWitnessCutoff4 θ v r :=
   mul_nonneg (polynomialSwitch4_nonneg _ _ _) (sub_nonneg.mpr (polynomialSwitch4_le_one _ _ _))
@@ -200,39 +200,31 @@ private theorem exists_abs_switch_product_root_sub_le (α β γ δ : ℝ) :
           C * (|v - v'| + |r - r'|) := by
   obtain ⟨Ka, hKa⟩ := exists_lipschitzWith_polynomialSwitch4_root α β
   obtain ⟨Kb, hKb⟩ := exists_lipschitzWith_one_sub_polynomialSwitch4_root γ δ
-  refine ⟨max (Ka : ℝ) Kb, le_max_of_le_left Ka.property, ?_⟩
-  intro v r v' r'
+  refine ⟨max (Ka : ℝ) Kb, le_max_of_le_left Ka.2, fun v r v' r' => ?_⟩
   set A : ℝ → ℝ := fun x => polynomialSwitch4 α β x ^ (4⁻¹ : ℝ)
   set B : ℝ → ℝ := fun x => (1 - polynomialSwitch4 γ δ x) ^ (4⁻¹ : ℝ)
   have ha0 (x : ℝ) : 0 ≤ A x := Real.rpow_nonneg (polynomialSwitch4_nonneg _ _ _) _
   have hb0 (x : ℝ) : 0 ≤ B x :=
     Real.rpow_nonneg (sub_nonneg.mpr (polynomialSwitch4_le_one _ _ _)) _
   have ha1 (x : ℝ) : A x ≤ 1 :=
-    Real.rpow_le_one (polynomialSwitch4_nonneg _ _ _) (polynomialSwitch4_le_one _ _ _)
-      (by norm_num)
-  have hb1 (x : ℝ) : B x ≤ 1 :=
-    Real.rpow_le_one (sub_nonneg.mpr (polynomialSwitch4_le_one _ _ _))
-      (sub_le_self _ (polynomialSwitch4_nonneg _ _ _)) (by norm_num)
-  have hda : |A v - A v'| ≤ Ka * |v - v'| := by
-    simpa only [Real.dist_eq] using hKa.dist_le_mul v v'
-  have hdb : |B r - B r'| ≤ Kb * |r - r'| := by
-    simpa only [Real.dist_eq] using hKb.dist_le_mul r r'
+    Real.rpow_le_one (polynomialSwitch4_nonneg _ _ _) (polynomialSwitch4_le_one _ _ _) (by norm_num)
+  have hb1 (x : ℝ) : B x ≤ 1 := Real.rpow_le_one (sub_nonneg.mpr (polynomialSwitch4_le_one _ _ _))
+    (sub_le_self _ (polynomialSwitch4_nonneg _ _ _)) (by norm_num)
   rw [Real.mul_rpow (polynomialSwitch4_nonneg _ _ _)
       (sub_nonneg.mpr (polynomialSwitch4_le_one _ _ _)),
     Real.mul_rpow (polynomialSwitch4_nonneg _ _ _)
       (sub_nonneg.mpr (polynomialSwitch4_le_one _ _ _))]
   change |A v * B r - A v' * B r'| ≤ _
-  have hsplit : A v * B r - A v' * B r' =
-      (A v - A v') * B r + A v' * (B r - B r') := by ring
-  rw [hsplit]
+  rw [show A v * B r - A v' * B r' = (A v - A v') * B r + A v' * (B r - B r') by ring]
   calc
-    _ ≤ |A v - A v'| * B r + A v' * |B r - B r'| := by
-      refine (abs_add_le _ _).trans_eq ?_
+    _ ≤ |A v - A v'| * B r + A v' * |B r - B r'| := (abs_add_le _ _).trans_eq <| by
       rw [abs_mul, abs_mul, abs_of_nonneg (hb0 r), abs_of_nonneg (ha0 v')]
-    _ ≤ |A v - A v'| + |B r - B r'| := by
-      exact add_le_add (mul_le_of_le_one_right (abs_nonneg _) (hb1 r))
+    _ ≤ |A v - A v'| + |B r - B r'| :=
+      add_le_add (mul_le_of_le_one_right (abs_nonneg _) (hb1 r))
         (mul_le_of_le_one_left (abs_nonneg _) (ha1 v'))
-    _ ≤ (Ka : ℝ) * |v - v'| + (Kb : ℝ) * |r - r'| := add_le_add hda hdb
+    _ ≤ (Ka : ℝ) * |v - v'| + (Kb : ℝ) * |r - r'| := add_le_add
+      (by simpa [Real.dist_eq] using hKa.dist_le_mul v v')
+      (by simpa [Real.dist_eq] using hKb.dist_le_mul r r')
     _ ≤ max (Ka : ℝ) Kb * (|v - v'| + |r - r'|) := by
       rw [mul_add]
       exact add_le_add (mul_le_mul_of_nonneg_right (le_max_left _ _) (abs_nonneg _))

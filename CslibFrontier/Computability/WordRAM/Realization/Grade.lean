@@ -97,14 +97,6 @@ theorem scaled_potential_pay (M G n Φpre Φpost q factor a b : ℕ)
     (hmem : M + Φpost ≤ q + Φpre) :
     n + factor * (a + 1) * Φpost ≤ factor * (a + 1) * q + factor * (b + 1) +
       factor * (a + 1) * Φpre := by
-  have hcharge : M + G + 1 ≤ (a + 1) * M + (b + 1) := by
-    rw [Nat.add_mul, Nat.one_mul]
-    omega
-  have hclock := hn.trans (Nat.mul_le_mul_left factor hcharge)
-  rw [Nat.mul_add, ← Nat.mul_assoc] at hclock
-  have hpotential := Nat.mul_le_mul_left (factor * (a + 1)) hmem
-  rw [Nat.mul_add (factor * (a + 1)) M Φpost,
-    Nat.mul_add (factor * (a + 1)) q Φpre] at hpotential
-  omega
+  grind [Nat.mul_le_mul_left factor hwork, Nat.mul_le_mul_left (factor * (a + 1)) hmem]
 
 end Cslib.WordRAM.Realization

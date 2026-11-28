@@ -329,14 +329,9 @@ private theorem cdf_gaussianReal_taylor_nonneg (n : ℕ) {a : ℝ} (ha : 0 ≤ a
       (-1 : ℝ) ^ (n + 1) * (exp (-u ^ 2 / 2) - expNegTaylor n (u ^ 2 / 2)) := by
     refine intervalIntegral.integral_nonneg ha fun u _ => ?_
     simpa [neg_div] using exp_neg_taylor_nonneg n (show 0 ≤ u ^ 2 / 2 by positivity)
+  rw [hint_diff] at hnn
   rw [hsplit]
-  have hfac : (-1 : ℝ) ^ (n + 1) *
-      ((1 / 2 + (√(2 * π))⁻¹ * ∫ u in (0 : ℝ)..a, exp (-u ^ 2 / 2)) -
-        (1 / 2 + (√(2 * π))⁻¹ * cdfTaylor n a)) =
-      (√(2 * π))⁻¹ * ((-1 : ℝ) ^ (n + 1) *
-        ((∫ u in (0 : ℝ)..a, exp (-u ^ 2 / 2)) - cdfTaylor n a)) := by ring
-  rw [hfac, ← hint_diff]
-  exact mul_nonneg (by positivity) hnn
+  linarith [mul_nonneg (by positivity : (0 : ℝ) ≤ (√(2 * π))⁻¹) hnn]
 
 /-- Upper bound on `cdf (gaussianReal 0 1) a` for `0 ≤ a` from the degree-`4` Taylor envelope. -/
 private theorem cdf_gaussianReal_le_poly {a : ℝ} (ha : 0 ≤ a) :

@@ -93,15 +93,9 @@ theorem P_comm (f : Z → Z) (hf : Isometry f) (hs : Function.Surjective f)
   simp only [hc] at h1
   exact h1.unique card_pos' (A.P_spec (f z))
 
-theorem P_fix (z : Z) : A.Fix (A.P z) := by
-  intro g
-  have h1 := (A.P_spec z).map (A g).isometry (A g).surjective
-  have h2 := (A.P_spec z).comp_equiv (Equiv.mulLeft g)
-  refine h1.unique card_pos' ?_
-  have e : (fun i => A g (A i z)) = (fun g => A g z) ∘ Equiv.mulLeft g :=
-    funext fun k => (A.act_mul g k z).symm
-  rw [e]
-  exact h2
+theorem P_fix (z : Z) : A.Fix (A.P z) := fun g =>
+  ((A.P_spec z).map (A g).isometry (A g).surjective).unique card_pos' <| by
+    simpa [Function.comp_def, act_mul] using (A.P_spec z).comp_equiv (Equiv.mulLeft g)
 
 end proj
 end IsoAct
@@ -123,22 +117,14 @@ theorem angle_num {r r' α β Q A c : ℝ} (hr : 0 < r) (hr' : 0 < r') (hα : 0 
   set s := r * α / T with hs
   set t := r * r' / N with ht
   have hs0 : 0 ≤ s := by positivity
-  have hs1 : s ≤ 1 := by
-    rw [hs, div_le_one hT0, hT]
-    have : 0 ≤ r' * β := by positivity
-    linarith
+  have hs1 : s ≤ 1 := (div_le_one hT0).mpr (by rw [hT]; linarith [mul_nonneg hr'.le hβ.le])
   have ht0 : 0 ≤ t := by positivity
-  have ht1 : t ≤ 1 := by
-    rw [ht, div_le_one hN0, hN]
-    have : 0 ≤ α * β := by positivity
-    linarith
+  have ht1 : t ≤ 1 := (div_le_one hN0).mpr (by rw [hN]; linarith [mul_nonneg hα.le hβ.le])
   have hb := hbox s t hs0 hs1 ht0 ht1
   have hA : (1 - s) * (r ^ 2 + α ^ 2) + s * (r' ^ 2 + β ^ 2) ≤ A := by
-    have h1 := mul_le_mul_of_nonneg_left hA1 (show 0 ≤ 1 - s by linarith)
-    have h2 := mul_le_mul_of_nonneg_left hA2 hs0
-    linarith
-  have hA' := mul_le_mul_of_nonneg_left hA (show 0 ≤ t * (1 - t) from
-    mul_nonneg ht0 (by linarith))
+    linarith [mul_le_mul_of_nonneg_left hA1 (sub_nonneg.mpr hs1),
+      mul_le_mul_of_nonneg_left hA2 hs0]
+  have hA' := mul_le_mul_of_nonneg_left hA (mul_nonneg ht0 (sub_nonneg.mpr ht1))
   have h1 : s * (1 - s) * Q ≤ (1 - t) ^ 2 * ((1 - s) * r ^ 2 + s * r' ^ 2) +
       t ^ 2 * ((1 - s) * α ^ 2 + s * β ^ 2) := by linarith
   have e1 : 1 - s = r' * β / T := by rw [hs, hT]; field_simp; ring
@@ -149,25 +135,19 @@ theorem angle_num {r r' α β Q A c : ℝ} (hr : 0 < r) (hr' : 0 < r') (hα : 0 
     rw [e1, hs, hS]; field_simp; ring
   have e5 : (1 - t) ^ 2 * (r * r' * S / T) + t ^ 2 * (α * β * S / T) =
       (r * r' * (α * β)) * (S / (T * N)) := by
-    rw [e2, ht]
-    field_simp
-    rw [hN]; ring
+    rw [e2, ht]; field_simp; rw [hN]; ring
   have e6 : s * (1 - s) = (r * r' * (α * β)) * (1 / T ^ 2) := by
     rw [e1, hs]; field_simp
   rw [e3, e4, e5, e6, mul_assoc] at h1
   have h2 := le_of_mul_le_mul_left h1 (by positivity)
   have h3 : Q * N ≤ T * S := by
-    have h4 := mul_le_mul_of_nonneg_left h2 (show 0 ≤ T ^ 2 * N by positivity)
-    have e7 : T ^ 2 * N * (1 / T ^ 2 * Q) = Q * N := by field_simp
-    have e8 : T ^ 2 * N * (S / (T * N)) = T * S := by field_simp
-    rw [e7, e8] at h4
-    exact h4
-  have e9 : T * S = α * β * (r ^ 2 + r' ^ 2) + r * r' * (α ^ 2 + β ^ 2) := by
-    rw [hT, hS]; ring
+    calc Q * N = T ^ 2 * N * (1 / T ^ 2 * Q) := by field_simp
+      _ ≤ T ^ 2 * N * (S / (T * N)) := mul_le_mul_of_nonneg_left h2 (by positivity)
+      _ = T * S := by field_simp
   have h4 : r * r' * (α ^ 2 + β ^ 2) ≤ r * r' * (Q + 2 * c * (α * β)) :=
     mul_le_mul_of_nonneg_left (by linarith) (by positivity)
+  have e9 : T * S = α * β * (r ^ 2 + r' ^ 2) + r * r' * (α ^ 2 + β ^ 2) := by rw [hT, hS]; ring
   rw [e9, hN] at h3
-  have h5 : (α * β) * Q ≤ (α * β) * (r ^ 2 + r' ^ 2 + 2 * c * (r * r')) := by linarith
-  exact le_of_mul_le_mul_left h5 (by positivity)
+  exact le_of_mul_le_mul_left (a := α * β) (by linarith) (by positivity)
 
 end Cslib.Circuits.Arithmetic.Separation.Flag

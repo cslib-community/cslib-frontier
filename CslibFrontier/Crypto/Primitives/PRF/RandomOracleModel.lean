@@ -184,12 +184,9 @@ private theorem eval_run_answers (f : X → Y) (O : M → T) {α : Type}
     ProbComp.eval (A.run (OracleComp.sumHandler (fun x => pure (f x)) (fun m => pure (O m)))) =
       OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle (answers f O)) A := by
   rw [ProbOracleComp.eval_run]
-  have h : (fun q => ProbComp.eval
-      (OracleComp.sumHandler (spec₁ := fun _ : X => Y) (spec₂ := fun _ : M => T)
-        (fun x => pure (f x)) (fun m => pure (O m)) q)) = answers f O := by
-    funext q
-    cases q <;> simp [answers]
-  rw [h]
+  congr 1
+  exact congrArg (OracleComp.sumHandler ProbComp.unifOracle)
+    (funext fun q => by cases q <;> simp [answers])
 
 /-- The key of an oracle point of the form `encode k x`, if it has this form. -/
 private noncomputable def keyOf (encode : Key → X → M) (m : M) : Option Key :=
@@ -199,9 +196,7 @@ private theorem keyOf_encode (hencode : Function.Injective2 encode) (k : Key) (x
     keyOf encode (encode k x) = some k := by
   rw [keyOf]
   split
-  · next h =>
-    obtain ⟨x', hx'⟩ := h.choose_spec
-    exact congrArg some (hencode hx').1
+  · next h => exact congrArg some (hencode h.choose_spec.choose_spec).1
   · next h => exact absurd ⟨k, x, rfl⟩ h
 
 variable [DecidableEq Key]
@@ -213,22 +208,18 @@ private noncomputable def track (encode : Key → X → M) : X ⊕ M → Finset 
 
 private theorem subset_track (q : X ⊕ M) (S : Finset Key) : S ⊆ track encode q S := by
   cases q with
-  | inl x => exact subset_rfl
+  | inl => exact subset_rfl
   | inr m =>
     rw [track]
-    cases keyOf encode m with
-    | none => exact subset_rfl
-    | some k => exact Finset.subset_insert k S
+    cases keyOf encode m <;> simp [Finset.subset_insert]
 
 private theorem card_track_le (q : X ⊕ M) (S : Finset Key) :
     (track encode q S).card ≤ S.card + Sum.elim (fun _ => 0) (fun _ => 1) q := by
   cases q with
-  | inl x => exact le_rfl
+  | inl => exact le_rfl
   | inr m =>
     rw [track]
-    cases keyOf encode m with
-    | none => exact Nat.le_succ _
-    | some k => exact Finset.card_insert_le k S
+    cases keyOf encode m <;> simp [Finset.card_insert_le]
 
 /-- The challenger of `answers` that also records the keys named by the `O`-queries. -/
 private noncomputable def tracked (encode : Key → X → M) (f : X → T) (O : M → T) (q : X ⊕ M) :
@@ -246,9 +237,8 @@ private theorem runWith_tracked_map_fst (f : X → T) (O : M → T) {α : Type}
   have h := ProbOracleComp.runWith_map_state (tracked encode f O)
     (fun q => StateT.lift (answers f O q)) (fun _ => ()) (fun q S => by
       rw [tracked_apply, PMF.map_comp]
-      change _ = (answers f O q).bind fun a => PMF.pure (a, ())
-      rw [← PMF.bind_pure_comp]
-      rfl) A S
+      change _ = (answers f O q).bind (PMF.pure ∘ fun a => (a, ()))
+      rw [PMF.bind_pure_comp]; rfl) A S
   rw [ProbOracleComp.runWith_lift] at h
   have h' := congrArg (PMF.map Prod.fst) h
   rw [PMF.map_comp, PMF.map_comp] at h'
@@ -261,23 +251,20 @@ private theorem card_le_of_mem_support_runWith_tracked (f : X → T) (O : M → 
     {z : α × Finset Key} (hz : z ∈ (ProbOracleComp.runWith (tracked encode f O) A ∅).support) :
     z.2.card ≤ Q := by
   rw [ProbOracleComp.runWith_eq_run_interpret] at hz
-  have h := OracleComp.IsCostBounded.measure_le hQ
+  simpa using OracleComp.IsCostBounded.measure_le hQ
     (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) (tracked encode f O))
-    Finset.card (fun q S res S' hres => ?_) (s := ∅) (s' := z.2) (result := z.1) hz
-  · simpa using h
-  · cases q with
-    | inl n =>
-      change (res, S') ∈ (StateT.lift (ProbComp.unifOracle n) S).support at hres
-      simp only [StateT.lift, Probability.PMF.monad_bind_eq_bind,
-        Probability.PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff,
-        Prod.mk.injEq] at hres
-      obtain ⟨_, _, -, rfl⟩ := hres
-      simp
-    | inr q =>
-      change (res, S') ∈ ((answers f O q).map (·, track encode q S)).support at hres
-      obtain ⟨_, -, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hres
-      rw [← (Prod.mk.inj heq).2]
-      exact card_track_le q S
+    Finset.card (fun q S res S' hres => by
+      cases q with
+      | inl n =>
+        simp only [OracleComp.sumHandler, StateT.lift, Probability.PMF.monad_bind_eq_bind,
+          Probability.PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff,
+          Prod.mk.injEq] at hres
+        obtain ⟨_, _, -, rfl⟩ := hres
+        simp
+      | inr q =>
+        obtain ⟨_, -, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hres
+        exact (Prod.mk.inj heq).2 ▸ card_track_le q S)
+    (s := ∅) (s' := z.2) (result := z.1) hz
 
 /-- Until an `O`-query names the key, the challenger whose oracle is replaced on the points of
 that key by the table `f` answers as the challenger with an independent oracle. -/
@@ -285,28 +272,24 @@ private theorem identicalUntilBad_tracked (hencode : Function.Injective2 encode)
     (f : X → T) (O : M → T) :
     ProbOracleComp.IdenticalUntilBad (tracked encode f (Function.extend (encode key) f O))
       (tracked encode f O) (fun S => key ∈ S) := by
+  have hmono {O' q S} (hS : key ∈ S) {x}
+      (hx : x ∈ (tracked encode f O' q S).support) : key ∈ x.2 := by
+    obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
+    exact subset_track q S hS
   refine OracleComp.IdenticalUntilBad.probOracleComp ⟨fun q S _ a S' hS' => ?_,
-    fun q S hS x hx => ?_, fun q S hS x hx => ?_⟩
-  · cases q with
-    | inl x => rfl
-    | inr m =>
-      by_cases hm : ∃ x, encode key x = m
-      · obtain ⟨x, rfl⟩ := hm
-        have hkey : key ∈ track encode (.inr (encode key x) : X ⊕ M) S := by
-          rw [track, keyOf_encode hencode]
-          exact Finset.mem_insert_self key S
-        have hne : S' ≠ track encode (.inr (encode key x) : X ⊕ M) S := fun h => hS' (h ▸ hkey)
-        rw [tracked_apply, tracked_apply]
-        simp [answers, PMF.pure_map, PMF.pure_apply, hne]
-      · rw [tracked_apply, tracked_apply]
-        change (PMF.map _ (PMF.pure (Function.extend (encode key) f O m))) _ = _
-        rw [Function.extend_apply' _ _ _ hm]
-  · obtain ⟨_, -, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-    rw [← heq]
-    exact subset_track q S hS
-  · obtain ⟨_, -, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-    rw [← heq]
-    exact subset_track q S hS
+    fun _ _ => hmono, fun _ _ => hmono⟩
+  cases q with
+  | inl => rfl
+  | inr m =>
+    rw [tracked_apply, tracked_apply]
+    by_cases hm : ∃ x, encode key x = m
+    · obtain ⟨x, rfl⟩ := hm
+      have hne : S' ≠ track encode (.inr (encode key x) : X ⊕ M) S := fun h => hS' <| by
+        rw [h, track, keyOf_encode hencode]
+        exact Finset.mem_insert_self key S
+      simp [answers, PMF.pure_map, PMF.pure_apply, hne]
+    · change (PMF.map _ (PMF.pure (Function.extend (encode key) f O m))) _ = _
+      rw [Function.extend_apply' _ _ _ hm]
 
 end Tracking
 
@@ -323,22 +306,17 @@ private theorem sum_toOuterMeasure_mem_le [DecidableEq Key] (f : X → T) (O : M
     ∑ key : Key, c *
         (ProbOracleComp.runWith (tracked encode f O) A ∅).toOuterMeasure {z | key ∈ z.2} ≤
       Q * c := by
-  set P := ProbOracleComp.runWith (tracked encode f O) A ∅ with hP
+  set P := ProbOracleComp.runWith (tracked encode f O) A ∅
   calc ∑ key : Key, c * P.toOuterMeasure {z | key ∈ z.2}
       = ∑' z, ∑ key : Key, c * Set.indicator {z : α × Finset Key | key ∈ z.2} P z := by
         simp_rw [PMF.toOuterMeasure_apply, ← ENNReal.tsum_mul_left]
         exact (Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable).symm
-    _ ≤ ∑' z, P z * (Q * c) := by
-        refine tsum_le_tsum fun z => ?_
-        have hsum : ∑ key : Key, c * Set.indicator {z : α × Finset Key | key ∈ z.2} P z =
-            z.2.card * (c * P z) := by
-          simp only [Set.indicator_apply, Set.mem_ofPred_eq, mul_ite, mul_zero]
-          rw [Finset.sum_ite_mem, Finset.univ_inter, Finset.sum_const, nsmul_eq_mul]
-        rw [hsum]
+    _ ≤ ∑' z, P z * (Q * c) := tsum_le_tsum fun z => by
+        simp only [Set.indicator_apply, Set.mem_ofPred_eq, mul_ite, mul_zero,
+          Finset.sum_ite_mem, Finset.univ_inter, Finset.sum_const, nsmul_eq_mul]
         by_cases hz : P z = 0
         · simp [hz]
-        · have hcard : z.2.card ≤ Q :=
-            card_le_of_mem_support_runWith_tracked f O hQ ((PMF.mem_support_iff _ _).mpr hz)
+        · have := card_le_of_mem_support_runWith_tracked f O hQ ((PMF.mem_support_iff _ _).mpr hz)
           calc (z.2.card : ℝ≥0∞) * (c * P z) ≤ Q * (c * P z) := by gcongr
             _ = P z * (Q * c) := by ring
     _ = Q * c := by rw [ENNReal.tsum_mul_right, P.tsum_coe, one_mul]
@@ -358,26 +336,24 @@ private theorem advantage_bind_extend_le (hencode : Function.Injective2 encode) 
   classical
   set G1 : Key → PMF Bool := fun key =>
     OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
-      (answers f (Function.extend (encode key) f O))) A with hG1
+      (answers f (Function.extend (encode key) f O))) A
   set G2 : PMF Bool :=
-    OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle (answers f O)) A with hG2
+    OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle (answers f O)) A
   set bad : Key → ℝ≥0∞ := fun key =>
-    (ProbOracleComp.runWith (tracked encode f O) A ∅).toOuterMeasure {z | key ∈ z.2} with hbad
+    (ProbOracleComp.runWith (tracked encode f O) A ∅).toOuterMeasure {z | key ∈ z.2}
   have h1 (key : Key) : G1 key true ≤ G2 true + bad key := by
     have hub := identicalUntilBad_tracked hencode key f O
-    have h := hub.bind_apply_le A ∅ (fun z => PMF.pure z.1) true
+    have h := hub.bind_apply_le A ∅ (PMF.pure ∘ Prod.fst) true
     rw [hub.bad_eq] at h
-    change (PMF.map Prod.fst _) true ≤ (PMF.map Prod.fst _) true + _ at h
-    rwa [runWith_tracked_map_fst, runWith_tracked_map_fst] at h
+    simpa only [PMF.bind_pure_comp, runWith_tracked_map_fst] using h
   have h2 (key : Key) : G2 true ≤ G1 key true + bad key := by
-    have hub := (identicalUntilBad_tracked hencode key f O).symm
-    have h := hub.bind_apply_le A ∅ (fun z => PMF.pure z.1) true
-    change (PMF.map Prod.fst _) true ≤ (PMF.map Prod.fst _) true + _ at h
-    rwa [runWith_tracked_map_fst, runWith_tracked_map_fst] at h
-  set u := uniformOfFintype Key with hu
+    have h := (identicalUntilBad_tracked hencode key f O).symm.bind_apply_le A ∅
+      (PMF.pure ∘ Prod.fst) true
+    simpa only [PMF.bind_pure_comp, runWith_tracked_map_fst] using h
+  set u := uniformOfFintype Key
   have hsum : ∑' key, u key * bad key ≤ Q * (Fintype.card Key : ℝ≥0∞)⁻¹ := by
     rw [tsum_fintype]
-    simp only [hu, Cslib.Probability.PMF.uniformOfFintype_apply]
+    simp only [u, Cslib.Probability.PMF.uniformOfFintype_apply]
     exact sum_toOuterMeasure_mem_le (encode := encode) f O hQ _
   have hB : (Q : ℝ≥0∞) * (Fintype.card Key : ℝ≥0∞)⁻¹ ≠ ⊤ :=
     ENNReal.mul_ne_top (ENNReal.natCast_ne_top Q)
@@ -435,17 +411,9 @@ theorem roAdvantage_const_simulate [Fintype Y] [Nonempty Y] (F : Key → X → Y
     (A : Adversary X Y) :
     roAdvantage (M := M) (T := T) (fun _ => F)
       (ProbOracleComp.simulate (fun x => ProbOracleComp.query (Sum.inl x)) A) = advantage F A := by
-  have hreal : ProbComp.eval (roRealExperiment (M := M) (T := T) (fun _ => F)
-      (ProbOracleComp.simulate (fun x => ProbOracleComp.query (Sum.inl x)) A)) =
-      ProbComp.eval (realExperiment F A) := by
-    simp only [roRealExperiment, realExperiment, ProbComp.eval_uniform, runWith_norm, pmf_norm,
-      PMF.bind_const]
-  have hideal : ProbComp.eval (roIdealExperiment (M := M) (T := T)
-      (ProbOracleComp.simulate (fun x => ProbOracleComp.query (Sum.inl x)) A)) =
-      ProbComp.eval (idealExperiment A) := by
-    simp only [roIdealExperiment, idealExperiment, ProbComp.eval_uniform, runWith_norm, pmf_norm,
-      PMF.bind_const]
-  rw [roAdvantage, advantage, hreal, hideal]
+  rw [roAdvantage, advantage]
+  congr 1 <;> simp only [roRealExperiment, realExperiment, roIdealExperiment, idealExperiment,
+    ProbComp.eval_uniform, runWith_norm, pmf_norm, PMF.bind_const]
 
 /-- **Theorem 8.9, concrete bound** ([BonehShoup2023], Section 8.10.2, p. 329). If `encode` is
 injective in the pair of its arguments, an adversary that makes at most `Q` random-oracle queries
@@ -457,7 +425,7 @@ theorem roAdvantage_prependKey_le {encode : Key → X → M} (hencode : Function
   classical
   rw [roAdvantage, eval_roRealExperiment, eval_roIdealExperiment]
   set G : (X → T) → (M → T) → PMF Bool := fun f O =>
-    OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle (answers f O)) A with hG
+    OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle (answers f O)) A
   have hreal : ((uniformOfFintype (M → T)).bind fun O => (uniformOfFintype Key).bind fun key =>
       G (prependKey encode O key) O) =
       (uniformOfFintype (M → T)).bind fun O => (uniformOfFintype (X → T)).bind fun f =>
@@ -465,19 +433,14 @@ theorem roAdvantage_prependKey_le {encode : Key → X → M} (hencode : Function
     calc _ = (uniformOfFintype Key).bind fun key => (uniformOfFintype (M → T)).bind fun O =>
           G (O ∘ encode key) O := PMF.bind_comm _ _ _
       _ = (uniformOfFintype Key).bind fun key => (uniformOfFintype (M → T)).bind fun O =>
-          (uniformOfFintype (X → T)).bind fun f => G f (Function.extend (encode key) f O) := by
-        congr 1
-        funext key
-        refine (Probability.PMF.uniformOfFintype_bind_bind_extend (encode key)
-          fun O => G (O ∘ encode key) O).symm.trans ?_
-        simp only [Function.extend_comp (hencode.right key)]
+          (uniformOfFintype (X → T)).bind fun f => G f (Function.extend (encode key) f O) :=
+        congrArg _ (funext fun key => (Probability.PMF.uniformOfFintype_bind_bind_extend
+          (encode key) fun O => G (O ∘ encode key) O).symm.trans (by
+            simp only [Function.extend_comp (hencode.right key)]))
       _ = (uniformOfFintype (M → T)).bind fun O => (uniformOfFintype Key).bind fun key =>
           (uniformOfFintype (X → T)).bind fun f => G f (Function.extend (encode key) f O) :=
         PMF.bind_comm _ _ _
-      _ = _ := by
-        congr 1
-        funext O
-        exact PMF.bind_comm _ _ _
+      _ = _ := congrArg _ (funext fun _ => PMF.bind_comm _ _ _)
   rw [hreal]
   exact Game.advantage_bind_le _ _ _ fun O => Game.advantage_bind_le _ _ _ fun f =>
     advantage_bind_extend_le hencode f O hQ

@@ -753,12 +753,12 @@ private lemma proj_removeBranch_step_in
   have hmono : (E_P.eval (Function.update b_base j c₀) : ℝ) ≤
       E_P.eval (Function.update b_base j m₀) := E_P.eval_mono fun i => by
     by_cases hi : i = j
-    · subst hi; simp only [Function.update_self, c₀]; exact m₀.property.1
+    · subst hi; simp only [Function.update_self, c₀]; exact m₀.2.1
     · simp only [Function.update_of_ne hi, le_rfl]
   rw [h0_eq, hm_eq] at hmono
   exact hm_ne_y' (hm₀_eq.symm.trans (by
     rw [show m₀ = ⟨dist (vertex c : MetricGraph W) y', dist_nonneg, le_rfl⟩ from
-      Subtype.ext (le_antisymm m₀.property.2 hmono), hφd]))
+      Subtype.ext (le_antisymm m₀.2.2 hmono), hφd]))
 
 omit [Finite ι] [Nonempty ι] in
 open Classical in
@@ -968,17 +968,12 @@ private lemma proj_removeBranch_of_branchInvOn
           exists_adj_mem_branch_of_mem_subtree hT hS hc hy'_S1.1 (Ne.symm hne_res)
         have hw₁₂ : w₁ ≠ w₂ := fun h => hy'_S1.2 (h ▸ hπy'_br)
         obtain ⟨T, hT3, hT_mem⟩ := hdeg3
-        have hw₃_ex : ∃ w₃ ∈ T, w₃ ≠ w₁ ∧ w₃ ≠ w₂ := by
-          by_contra hnot; push Not at hnot
-          have hsub : T ⊆ {w₁, w₂} := fun w hw => by
-            by_cases h1 : w = w₁
-            · simp [h1]
-            · simp [hnot w hw h1]
-          have hle : T.card ≤ ({w₁, w₂} : Finset V).card := Finset.card_le_card hsub
-          have h2 : ({w₁, w₂} : Finset V).card ≤ 2 :=
-            (Finset.card_insert_le w₁ {w₂}).trans (by simp)
-          linarith
-        obtain ⟨w₃, hw₃_T, hw₃_ne1, hw₃_ne2⟩ := hw₃_ex
+        obtain ⟨w₃, hw₃⟩ : ((T.erase w₁).erase w₂).Nonempty := Finset.card_pos.mp (by
+          have := Finset.pred_card_le_card_erase (s := T) (a := w₁)
+          have := Finset.pred_card_le_card_erase (s := T.erase w₁) (a := w₂)
+          omega)
+        obtain ⟨hw₃_ne2, hw₃_ne1, hw₃_T⟩ : w₃ ≠ w₂ ∧ w₃ ≠ w₁ ∧ w₃ ∈ T := by
+          simpa only [Finset.mem_erase] using hw₃
         obtain ⟨hw₃, hadj₃⟩ := hT_mem w₃ hw₃_T
         have hif_eq : ∀ i, (if i ∈ ({j} : Finset ι) then vertex c else z_y i) = z' i := fun i => by
           by_cases hi : i = j <;> simp [z', z_y, hi]
@@ -1075,11 +1070,8 @@ private lemma two_val_win_mono
     rw [← hmap A, hE_I]
   have hmono : (E_I.eval (c S) : ℝ) ≤ E_I.eval (c T) := E_I.eval_mono fun i => by
     dsimp only [c]; split_ifs with h1 h2
-    · exact le_rfl
-    · exact absurd (hST h1) h2
-    · exact dist_nonneg
-    · exact le_rfl
-  have hpos1 : (0 : ℝ) < E_I.eval (c S) := lt_of_le_of_ne (E_I.eval (c S)).property.1 fun h0 => by
+    exacts [le_rfl, absurd (hST h1) h2, dist_nonneg, le_rfl]
+  have hpos1 : (0 : ℝ) < E_I.eval (c S) := lt_of_le_of_ne (E_I.eval (c S)).2.1 fun h0 => by
     have hfx : f (fun i => if i ∈ S then q else y) = y := by
       rw [hf_eq S, show E_I.eval (c S) = ⟨0, le_rfl, dist_nonneg⟩ from Subtype.ext h0.symm, hφ0]
     rw [hfx] at hwinS
@@ -1166,13 +1158,11 @@ theorem isStrategyProof_and_surjective_iff_exists_treeEMVS [Fintype ι]
         have hdisj := branch_disjoint_of_ne hT hbr
         let x : ι → MetricGraph W := fun i => if i ∈ S then q₁ else q₂
         have hx1 : ∀ i, x i ∈ branch y q₁ ↔ i ∈ S := fun i => by
-          by_cases hi : i ∈ S
-          · simp [x, hi, mem_branch_self hq1]
-          · simp [x, hi, Set.disjoint_right.mp hdisj (mem_branch_self hq2)]
+          by_cases hi : i ∈ S <;>
+            simp [x, hi, mem_branch_self hq1, Set.disjoint_right.mp hdisj (mem_branch_self hq2)]
         have hx2 : ∀ i, x i ∈ branch y q₂ ↔ i ∈ Sᶜ := fun i => by
-          by_cases hi : i ∈ S
-          · simp [x, hi, Set.disjoint_left.mp hdisj (mem_branch_self hq1)]
-          · simp [x, hi, mem_branch_self hq2]
+          by_cases hi : i ∈ S <;>
+            simp [x, hi, Set.disjoint_left.mp hdisj (mem_branch_self hq1), mem_branch_self hq2]
         exact Set.disjoint_left.mp hdisj
           ((hwin_eq hq1 hx1).mpr hw1) ((hwin_eq hq2 hx2).mpr hw2)
       open_interior := fun {y q S} _ hw => by

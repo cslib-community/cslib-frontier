@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.FaceCounts
 public import CslibFrontier.Foundations.GroupTheory.Perm.SelectedOrbits
 public import CslibFrontier.Computability.Complexity.Problems.Graph.DartConnectivity
+import Mathlib.Data.List.GetD
 
 /-!
 # Transport of actual indexed rotations
@@ -22,13 +23,36 @@ and parallel edges remain indexed throughout.
 
 public section
 
+namespace Cslib.Complexity.Graph
+
+/-- Actual indexed edge reindexing preserves declaration of all listed endpoints. -/
+theorem endpoints_declared_edge_reindex {G H : Graph}
+    (e : Fin G.edges.length ≃ Fin H.edges.length)
+    (hv : ∀ i b, Dart.vertex (G := H) (e i, b) = Dart.vertex (G := G) (i, b))
+    (hm : ∀ v, v ∈ G.vertices ↔ v ∈ H.vertices)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) :
+    ∀ v ∈ H.incidenceVertices, v ∈ H.vertices := by
+  intro v hvlist
+  obtain ⟨k, hk, hkv⟩ := List.mem_iff_getElem.mp hvlist
+  let d : Dart H := (Dart.indexEquiv H).symm ⟨k, by simpa only [incidenceVertices_length] using hk⟩
+  have hd : d.vertex = v := by
+    rw [← Dart.vertex_index,
+      show d.index = k from congrArg Fin.val ((Dart.indexEquiv H).apply_symm_apply _),
+      List.getD_eq_getElem _ _ hk]
+    exact hkv
+  have he := hv (e.symm d.1) d.2
+  simp only [e.apply_symm_apply] at he
+  exact (hm v).mp (he.symm.trans hd ▸ RotationSystem.vertex_mem hG (e.symm d.1, d.2))
+
+end Cslib.Complexity.Graph
+
 namespace Cslib.Complexity.Graph.RotationSystem
 
 open Equiv RotationCertificate Perm.SelectedOrbits
 
 /-- Reinterpret literally equal listed graphs by retaining their edge indices and end bits. -/
 @[expose] def graphEqDartEquiv {G H : Graph} (h : G = H) : Dart G ≃ Dart H :=
-  (finCongr (congrArg (fun K : Graph => K.edges.length) h)).prodCongr (Equiv.refl Bool)
+  (finCongr (congrArg (fun K : Graph => K.2.length) h)).prodCongr (Equiv.refl Bool)
 
 /-- Equality transport changes no actual endpoint. -/
 theorem vertex_graphEqDartEquiv {G H : Graph} (h : G = H) (d : Dart G) :
@@ -68,7 +92,7 @@ theorem reverse_graphEqDartEquiv {G H : Graph} (h : G = H) (d : Dart G) :
 /-- Complete reversal orbits are exactly the indexed listed edge occurrences. -/
 theorem sameCycle_reversal_iff {G : Graph} (a b : Dart G) :
     (Dart.reversal G).SameCycle a b ↔ a.1 = b.1 := by
-  have he : Dart.reversal G = Perm.doubled (1 : Perm (Fin G.edges.length)) := by
+  have he : Dart.reversal G = Perm.doubled (1 : Perm (Fin G.2.length)) := by
     apply Equiv.ext
     rintro ⟨i, side⟩
     cases side <;> rfl
@@ -77,7 +101,7 @@ theorem sameCycle_reversal_iff {G : Graph} (a b : Dart G) :
 open Classical in
 /-- Vertex orbits restricted to an actual edge component are its declared vertex set. -/
 noncomputable def vertexOrbitEquiv {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (d : Dart G) :
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (d : Dart G) :
     OrbitOn r.rotate (fun a : Dart G => SameComponent G d.vertex a.vertex) ≃
       ↥(G.componentVertexSet d.vertex) :=
   let p := fun a : Dart G => SameComponent G d.vertex a.vertex
@@ -106,7 +130,7 @@ noncomputable def vertexOrbitEquiv {G : Graph} (r : RotationSystem G)
 open Classical in
 /-- Reversal orbits restricted to an actual edge component are its indexed edge set. -/
 noncomputable def edgeOrbitEquiv (G : Graph)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (d : Dart G) :
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (d : Dart G) :
     OrbitOn (Dart.reversal G) (fun a : Dart G => SameComponent G d.vertex a.vertex) ≃
       ↥(G.componentEdgeSet d.vertex) :=
   let p := fun a : Dart G => SameComponent G d.vertex a.vertex
@@ -139,15 +163,14 @@ edge component into one target component. Injectivity is not required. -/
 theorem sameComponent_map_darts {G H : Graph} (e : Dart G → Dart H)
     (hv : ∀ a b, a.vertex = b.vertex → (e a).vertex = (e b).vertex)
     (he : ∀ a, e a.reverse = (e a).reverse)
-    (hH : ∀ v ∈ H.incidenceVertices, v ∈ H.vertices) {a b : Dart G}
+    (hH : ∀ v ∈ H.incidenceVertices, v ∈ H.1) {a b : Dart G}
     (hc : SameComponent G a.vertex b.vertex) : SameComponent H (e a).vertex (e b).vertex := by
   let dst (a : Dart G) := H.induced.connectedComponentMk ⟨(e a).vertex, vertex_mem hH (e a)⟩
-  have hvertex (a b : Dart G) (h : a.vertex = b.vertex) : dst a = dst b :=
-    congrArg H.induced.connectedComponentMk (Subtype.ext (hv a b h))
-  have hedge (a : Dart G) : dst a = dst a.reverse := by
-    have h := SimpleGraph.ConnectedComponent.sound (sameComponent_reverse hH (e a)).2.2
-    simpa only [dst, he] using h
-  have h := Dart.eq_of_sameComponent dst hvertex hedge hc
+  have h := Dart.eq_of_sameComponent dst
+    (fun a b h => congrArg H.induced.connectedComponentMk (Subtype.ext (hv a b h)))
+    (fun a => by
+      simpa only [dst, he] using
+        SimpleGraph.ConnectedComponent.sound (sameComponent_reverse hH (e a)).2.2) hc
   exact ⟨vertex_mem hH (e a), vertex_mem hH (e b), SimpleGraph.ConnectedComponent.exact h⟩
 
 /-- Endpoint-fiber and reversal preserving dart coordinates retain exactly the edge components.
@@ -155,16 +178,15 @@ There is no injectivity requirement on the natural-number vertex labels themselv
 theorem sameComponent_transport_iff {G H : Graph} (e : Dart G ≃ Dart H)
     (hv : ∀ a b, (e a).vertex = (e b).vertex ↔ a.vertex = b.vertex)
     (he : ∀ a, e a.reverse = (e a).reverse)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
-    (hH : ∀ v ∈ H.incidenceVertices, v ∈ H.vertices) (a b : Dart G) :
-    SameComponent H (e a).vertex (e b).vertex ↔ SameComponent G a.vertex b.vertex := by
-  constructor
-  · intro hc
-    have h := sameComponent_map_darts e.symm (fun a b h =>
-      (hv (e.symm a) (e.symm b)).mp (by simpa only [e.apply_symm_apply] using h))
-      (fun a => by apply e.injective; simp only [he, e.apply_symm_apply]) hG hc
-    simpa only [e.symm_apply_apply] using h
-  · exact sameComponent_map_darts e (fun a b h => (hv a b).mpr h) he hH
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1)
+    (hH : ∀ v ∈ H.incidenceVertices, v ∈ H.1) (a b : Dart G) :
+    SameComponent H (e a).vertex (e b).vertex ↔ SameComponent G a.vertex b.vertex :=
+  ⟨fun hc => by
+      simpa only [e.symm_apply_apply] using sameComponent_map_darts e.symm
+        (fun a b h =>
+          (hv (e.symm a) (e.symm b)).mp (by simpa only [e.apply_symm_apply] using h))
+        (fun a => e.injective (by simp only [he, e.apply_symm_apply])) hG hc,
+    sameComponent_map_darts e (fun a b => (hv a b).mpr) he hH⟩
 
 /-- Exact face-successor conjugacy, retaining the inverse-rotation chirality convention. -/
 theorem faceNext_transport {G H : Graph} (r : RotationSystem G) (e : Dart G ≃ Dart H)
@@ -181,8 +203,8 @@ theorem faceNext_transport {G H : Graph} (r : RotationSystem G) (e : Dart G ≃ 
 theorem component_cards_transport {G H : Graph} (r : RotationSystem G) (e : Dart G ≃ Dart H)
     (hv : ∀ a b, (e a).vertex = (e b).vertex ↔ a.vertex = b.vertex)
     (he : ∀ a, e a.reverse = (e a).reverse)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
-    (hH : ∀ v ∈ H.incidenceVertices, v ∈ H.vertices) (d : Dart G) :
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1)
+    (hH : ∀ v ∈ H.incidenceVertices, v ∈ H.1) (d : Dart G) :
     (H.componentVertexSet (e d).vertex).card = (G.componentVertexSet d.vertex).card ∧
       (H.componentEdgeSet (e d).vertex).card = (G.componentEdgeSet d.vertex).card ∧
       Nat.card (ComponentFace (r.transport e hv) (e d).vertex) =
@@ -213,8 +235,8 @@ allowed on either graph, because the predicate checks their conventional Euler e
 theorem numericalGenusZero_transport {G H : Graph} (r : RotationSystem G) (e : Dart G ≃ Dart H)
     (hv : ∀ a b, (e a).vertex = (e b).vertex ↔ a.vertex = b.vertex)
     (he : ∀ a, e a.reverse = (e a).reverse)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
-    (hH : ∀ v ∈ H.incidenceVertices, v ∈ H.vertices) (hr : r.NumericalGenusZero) :
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1)
+    (hH : ∀ v ∈ H.incidenceVertices, v ∈ H.1) (hr : r.NumericalGenusZero) :
     (r.transport e hv).NumericalGenusZero := by
   apply ((r.transport e hv).numericalGenusZero_iff_component_cards hH).mpr
   intro d

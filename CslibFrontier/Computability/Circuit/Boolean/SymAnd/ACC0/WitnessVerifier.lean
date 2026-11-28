@@ -196,34 +196,18 @@ def badClauseExt (D : Circuit Unbounded.extSignature q (3 * (r + 1)))
 theorem depth_badClauseExt_le (D : Circuit Unbounded.extSignature q (3 * (r + 1)))
     (W : Circuit Unbounded.extSignature r 1) :
     (badClauseExt D W).depth ≤ D.depth + W.depth + 5 := by
-  have hpi : (Circuit.pi fun j : Fin 3 =>
-      W.comp (Circuit.wiring Unbounded.extSignature (SuccinctVerifier.addressWire r j))).depth ≤
-      W.depth := by
-    refine Circuit.depth_pi_le _ fun j => ?_
-    have h1 := Circuit.depth_comp_le W
-      (Circuit.wiring Unbounded.extSignature (SuccinctVerifier.addressWire r j))
-    simp only [Circuit.depth_wiring, Nat.add_zero] at h1
-    exact h1
-  have happ : ((Circuit.pi fun j : Fin 3 =>
-      W.comp (Circuit.wiring Unbounded.extSignature (SuccinctVerifier.addressWire r j))).append
-      (Circuit.wiring Unbounded.extSignature (SuccinctVerifier.signWire r))).depth ≤ W.depth := by
-    have h1 := Circuit.depth_append_le
-      (Circuit.pi fun j : Fin 3 =>
-        W.comp (Circuit.wiring Unbounded.extSignature (SuccinctVerifier.addressWire r j)))
-      (Circuit.wiring Unbounded.extSignature (SuccinctVerifier.signWire r))
-    simp only [Circuit.depth_wiring, Nat.max_zero] at h1
-    exact h1.trans hpi
-  have houter := Circuit.depth_comp_le
-    (violationTestExt.comp
-      ((Circuit.pi fun j : Fin 3 =>
-        W.comp (Circuit.wiring Unbounded.extSignature (SuccinctVerifier.addressWire r j))).append
-        (Circuit.wiring Unbounded.extSignature (SuccinctVerifier.signWire r)))) D
-  have hmid := Circuit.depth_comp_le violationTestExt
-    ((Circuit.pi fun j : Fin 3 =>
-      W.comp (Circuit.wiring Unbounded.extSignature (SuccinctVerifier.addressWire r j))).append
-      (Circuit.wiring Unbounded.extSignature (SuccinctVerifier.signWire r)))
-  have hv := depth_violationTestExt_le
   unfold badClauseExt
+  let wAddr (j : Fin 3) := Circuit.wiring Unbounded.extSignature (SuccinctVerifier.addressWire r j)
+  let wSign := Circuit.wiring Unbounded.extSignature (SuccinctVerifier.signWire r)
+  let piC := Circuit.pi fun j : Fin 3 => W.comp (wAddr j)
+  have hpi : piC.depth ≤ W.depth :=
+    Circuit.depth_pi_le _ fun j => by simpa [wAddr] using Circuit.depth_comp_le W (wAddr j)
+  have happ : (piC.append wSign).depth ≤ W.depth :=
+    hpi.trans' (by simpa [wSign] using Circuit.depth_append_le piC wSign)
+  have houter := Circuit.depth_comp_le (violationTestExt.comp (piC.append wSign)) D
+  have hmid := Circuit.depth_comp_le violationTestExt (piC.append wSign)
+  have hv := depth_violationTestExt_le
+  change ((violationTestExt.comp (piC.append wSign)).comp D).depth ≤ _
   omega
 
 /-- **Pointwise correctness of `badClauseExt`**: returns `true` on clause address `x` iff `W`'s
@@ -265,33 +249,18 @@ private def extOpOfNat : ℕ → Unbounded.ExtOp
     | _ => .gate (n / 3)
 
 private theorem extOpOfNat_toNat (op : Unbounded.ExtOp) : extOpOfNat op.toNat = op := by
-  rcases op with (_ | m | m) | m
-  · rfl
-  · simp only [Unbounded.ExtOp.toNat, extOpOfNat, Nat.mul_mod_right,
-      Nat.mul_div_right _ (by decide : 0 < 3)]
-  · simp only [Unbounded.ExtOp.toNat, extOpOfNat]
-    have h1 : (3 * m + 1) % 3 = 1 := by omega
-    have h2 : (3 * m + 1) / 3 = m := by omega
-    rw [h1, h2]
-    rfl
-  · simp only [Unbounded.ExtOp.toNat, extOpOfNat]
-    have h1 : (3 * m + 2) % 3 = 2 := by omega
-    have h2 : (3 * m + 2) / 3 = m := by omega
-    rw [h1, h2]
-    rfl
+  rcases op with (_ | m | m) | m <;> simp only [Unbounded.ExtOp.toNat, extOpOfNat]
+  · simp [Nat.mul_mod_right, Nat.mul_div_right _ (by decide : 0 < 3)]
+  · rw [show (3 * m + 1) % 3 = 1 by omega, show (3 * m + 1) / 3 = m by omega]; rfl
+  · rw [show (3 * m + 2) % 3 = 2 by omega, show (3 * m + 2) / 3 = m by omega]; rfl
 
 private theorem toNat_extOpOfNat (k : ℕ) : (extOpOfNat k).toNat = k := by
-  cases k with
-  | zero => rfl
-  | succ n =>
-    simp only [extOpOfNat]
-    have hmod : n % 3 < 3 := Nat.mod_lt n (by decide)
-    have hdiv : 3 * (n / 3) + n % 3 = n := Nat.div_add_mod n 3
-    rcases hm : n % 3 with _ | _ | _ | r
-    · simp only [Unbounded.ExtOp.toNat]; omega
-    · simp only [Unbounded.ExtOp.toNat]; omega
-    · simp only [Unbounded.ExtOp.toNat]; omega
-    · omega
+  rcases k with _ | n
+  · rfl
+  · simp only [extOpOfNat]
+    have := Nat.div_add_mod n 3
+    have := Nat.mod_lt n (by decide : 0 < 3)
+    rcases hm : n % 3 with _ | _ | _ | r <;> simp only [Unbounded.ExtOp.toNat] <;> omega
 
 /-- Total polynomial-time decoder for `Unbounded.encExtOp`. -/
 private def decExtOp : Decoder Unbounded.encExtOp :=
@@ -307,15 +276,9 @@ private theorem extArity_eq (op : Unbounded.ExtOp) :
     Unbounded.extSignature.Arity op = if op.toNat = 0 then 1 else (op.toNat - 1) / 3 := by
   rcases op with (_ | m | m) | m
   · rfl
-  · simp only [Unbounded.ExtOp.arity, Unbounded.Op.arity, Unbounded.ExtOp.toNat]
-    have : 3 * m + 1 ≠ 0 := by omega
-    simp only [this, ↓reduceIte]; omega
-  · simp only [Unbounded.ExtOp.arity, Unbounded.Op.arity, Unbounded.ExtOp.toNat]
-    have : 3 * m + 2 ≠ 0 := by omega
-    simp only [this, ↓reduceIte]; omega
-  · simp only [Unbounded.ExtOp.arity, Unbounded.ExtOp.toNat]
-    have : 3 * m + 3 ≠ 0 := by omega
-    simp only [this, ↓reduceIte]; omega
+  · simp [Unbounded.ExtOp.arity, Unbounded.Op.arity, Unbounded.ExtOp.toNat]
+  · simp [Unbounded.ExtOp.arity, Unbounded.Op.arity, Unbounded.ExtOp.toNat]; omega
+  · simp [Unbounded.ExtOp.arity, Unbounded.ExtOp.toNat]; omega
 
 private theorem computableInPolyTime_extArity :
     ComputableInPolyTime Unbounded.extSignature.Arity Unbounded.encExtOp encNat := by
@@ -363,13 +326,12 @@ theorem decodeExtWitness_eq_none_of_depth_gt {d r : ℕ} (W : Circuit Unbounded.
 
 /-- Decoding rejects the empty (non-canonical) certificate word. -/
 theorem decodeExtWitness_nil (d r : ℕ) : decodeExtWitness d r [] = none := by
-  simp only [decodeExtWitness, unframe]
-  have hne : Circuit.encCode Unbounded.encExtOp (decExtCode.decode []) ≠ [] := by
-    intro h
-    have hlen := congrArg List.length h
-    simp only [Circuit.encCode, length_encPair, List.length_nil] at hlen
-    omega
-  simp only [hne, ↓reduceIte]
+  unfold decodeExtWitness
+  dsimp only [unframe]
+  split_ifs with h
+  · have := congrArg List.length h
+    simp [Circuit.encCode] at this
+  · rfl
 
 /-- Any circuit returned by `decodeExtWitness d r w` has depth at most `d` and canonical code
 length at most `w.length / 2`. -/
@@ -379,15 +341,14 @@ theorem depth_and_codeLength_of_decodeExtWitness_eq_some {d r : ℕ} {w : List B
   unfold decodeExtWitness at h
   dsimp only at h
   split_ifs at h with hcan
-  cases hof : Circuit.ofCode (σ := Unbounded.extSignature) r 1 (decExtCode.decode (unframe w)) with
-  | none => simp [hof] at h
-  | some W' =>
-    simp only [hof] at h
+  rcases hof : Circuit.ofCode (σ := Unbounded.extSignature) r 1 (decExtCode.decode (unframe w))
+    with _ | W'
+  · simp [hof] at h
+  · simp only [hof] at h
     split_ifs at h with hd
-    cases h
-    have hcode := Circuit.code_of_ofCode_eq_some hof
-    have hlen := length_unframe_add_dropFrame_le w
-    rw [hcode, hcan]
+    obtain rfl := Option.some.inj h
+    rw [Circuit.code_of_ofCode_eq_some hof, hcan]
+    have := length_unframe_add_dropFrame_le w
     exact ⟨hd, by omega⟩
 
 /-- Constant `true` circuit on `q` inputs over `Unbounded.extSignature` (one nullary AND gate,
@@ -506,21 +467,8 @@ private theorem validRaw_iff {r : ℕ} (code : List (Unbounded.ExtOp × List ℕ
     (codeCheck Unbounded.extSignature r code.1 && decide (code.2.length = 1) &&
         decide (code.2.getD 0 0 < r + code.1.length)) = true ↔
       (Circuit.ofCode (σ := Unbounded.extSignature) r 1 code).isSome := by
-  rw [Circuit.isSome_ofCode_iff, Bool.and_eq_true, Bool.and_eq_true, codeCheck_eq_true_iff,
-    decide_eq_true_eq, decide_eq_true_eq]
-  constructor
-  · rintro ⟨⟨h1, hlen⟩, hlt⟩
-    refine ⟨h1, hlen, fun i hi => ?_⟩
-    obtain ⟨a, ha⟩ := List.length_eq_one_iff.1 hlen
-    rw [ha] at hi hlt
-    simp only [List.mem_singleton] at hi
-    subst hi
-    simpa only [List.getD_cons_zero] using hlt
-  · rintro ⟨h1, hlen, hall⟩
-    obtain ⟨a, ha⟩ := List.length_eq_one_iff.1 hlen
-    refine ⟨⟨h1, hlen⟩, ?_⟩
-    rw [ha, List.getD_cons_zero]
-    exact hall a (by simp [ha])
+  rw [Circuit.isSome_ofCode_iff, Bool.and_eq_true, Bool.and_eq_true, codeCheck_eq_true_iff]
+  rcases code.2 with _ | ⟨a, _ | _⟩ <;> simp
 
 private theorem computableInPolyTime_badClauseExtCode :
     ComputableInPolyTime
@@ -530,75 +478,38 @@ private theorem computableInPolyTime_badClauseExtCode :
       (encPair (encPair encUnary encUnary)
         (encPair (Circuit.encCode Unbounded.encExtOp) (Circuit.encCode Unbounded.encExtOp)))
       (Circuit.encCode Unbounded.encExtOp) := by
-  let encIn := encPair (encPair encUnary encUnary)
-    (encPair (Circuit.encCode Unbounded.encExtOp) (Circuit.encCode Unbounded.encExtOp))
-  have hq : ComputableInPolyTime (fun p : (ℕ × ℕ) × ((List (Unbounded.ExtOp × List ℕ) × List ℕ) ×
-      (List (Unbounded.ExtOp × List ℕ) × List ℕ)) => p.1.1) encIn encUnary := by fun_prop
-  have hr : ComputableInPolyTime (fun p : (ℕ × ℕ) × ((List (Unbounded.ExtOp × List ℕ) × List ℕ) ×
-      (List (Unbounded.ExtOp × List ℕ) × List ℕ)) => p.1.2) encIn encUnary := by fun_prop
-  have hD : ComputableInPolyTime (fun p : (ℕ × ℕ) × ((List (Unbounded.ExtOp × List ℕ) × List ℕ) ×
-      (List (Unbounded.ExtOp × List ℕ) × List ℕ)) => p.2.1)
-      encIn (Circuit.encCode Unbounded.encExtOp) := by fun_prop
-  have hW : ComputableInPolyTime (fun p : (ℕ × ℕ) × ((List (Unbounded.ExtOp × List ℕ) × List ℕ) ×
-      (List (Unbounded.ExtOp × List ℕ) × List ℕ)) => p.2.2)
-      encIn (Circuit.encCode Unbounded.encExtOp) := by fun_prop
-  have hqBin : ComputableInPolyTime (fun p : (ℕ × ℕ) × ((List (Unbounded.ExtOp × List ℕ) × List ℕ) ×
-      (List (Unbounded.ExtOp × List ℕ) × List ℕ)) => p.1.1) encIn encNat :=
-    ComputableInPolyTime.unary_to_binary.comp hq
-  have hnMidBin : ComputableInPolyTime (fun p : (ℕ × ℕ) ×
-      ((List (Unbounded.ExtOp × List ℕ) × List ℕ) ×
-        (List (Unbounded.ExtOp × List ℕ) × List ℕ)) => 3 * (p.1.2 + 1)) encIn encNat :=
+  let Code := List (Unbounded.ExtOp × List ℕ) × List ℕ
+  let In := (ℕ × ℕ) × (Code × Code)
+  let encC := Circuit.encCode Unbounded.encExtOp
+  let encIn := encPair (encPair encUnary encUnary) (encPair encC encC)
+  have hqBin : ComputableInPolyTime (fun p : In => p.1.1) encIn encNat :=
+    ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
+  have hr : ComputableInPolyTime (fun p : In => p.1.2) encIn encUnary := by fun_prop
+  have hD : ComputableInPolyTime (fun p : In => p.2.1) encIn encC := by fun_prop
+  have hW : ComputableInPolyTime (fun p : In => p.2.2) encIn encC := by fun_prop
+  have hnMidBin : ComputableInPolyTime (fun p : In => 3 * (p.1.2 + 1)) encIn encNat :=
     ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
   have haddr (k : ℕ) : ComputableInPolyTime
-      (fun p : (ℕ × ℕ) × ((List (Unbounded.ExtOp × List ℕ) × List ℕ) ×
-        (List (Unbounded.ExtOp × List ℕ) × List ℕ)) =>
-        (([] : List (Unbounded.ExtOp × List ℕ)),
-          (List.range p.1.2).map fun i => k * (p.1.2 + 1) + i))
-      encIn (Circuit.encCode Unbounded.encExtOp) := by
-    have hmap : ComputableInPolyTime
-        (fun p : (ℕ × ℕ) × ((List (Unbounded.ExtOp × List ℕ) × List ℕ) ×
-          (List (Unbounded.ExtOp × List ℕ) × List ℕ)) =>
-          (List.range p.1.2).map fun i => k * (p.1.2 + 1) + i)
-        encIn (encList encNat) :=
+      (fun p : In => (([] : List (Unbounded.ExtOp × List ℕ)),
+        (List.range p.1.2).map fun i => k * (p.1.2 + 1) + i)) encIn encC :=
+    (ComputableInPolyTime.const []).prod <|
       ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hr)
-        (ComputableInPolyTime.unary_to_binary.comp (by fun_prop))
-    exact (ComputableInPolyTime.const []).prod hmap
-  have hc0 := Circuit.computableInPolyTime_compCode hnMidBin hW (haddr 0)
-  have hc1 := Circuit.computableInPolyTime_compCode hnMidBin hW (haddr 1)
-  have hc2 := Circuit.computableInPolyTime_compCode hnMidBin hW (haddr 2)
-  have hlist : ComputableInPolyTime
-      (fun p : (ℕ × ℕ) × ((List (Unbounded.ExtOp × List ℕ) × List ℕ) ×
-        (List (Unbounded.ExtOp × List ℕ) × List ℕ)) =>
-        [Circuit.compCode (3 * (p.1.2 + 1)) p.2.2
-            ([], (List.range p.1.2).map fun i => 0 * (p.1.2 + 1) + i),
-          Circuit.compCode (3 * (p.1.2 + 1)) p.2.2
-            ([], (List.range p.1.2).map fun i => 1 * (p.1.2 + 1) + i),
-          Circuit.compCode (3 * (p.1.2 + 1)) p.2.2
-            ([], (List.range p.1.2).map fun i => 2 * (p.1.2 + 1) + i)])
-      encIn (encList (Circuit.encCode Unbounded.encExtOp)) :=
-    hc0.cons' (hc1.cons' (hc2.cons' (ComputableInPolyTime.const [])))
-  have hpi := Circuit.computableInPolyTime_appendCodes hnMidBin hlist
+        (ComputableInPolyTime.unary_to_binary.comp
+          (show ComputableInPolyTime (fun q : ((ℕ × ℕ) × (Code × Code)) × ℕ =>
+            k * (q.1.1.2 + 1) + q.2) _ _ by fun_prop))
+  have hc (k : ℕ) := Circuit.computableInPolyTime_compCode hnMidBin hW (haddr k)
+  have hpi := Circuit.computableInPolyTime_appendCodes hnMidBin
+    ((hc 0).cons' ((hc 1).cons' ((hc 2).cons' (.const []))))
+  have hs (k : ℕ) : ComputableInPolyTime (fun p : In => k * (p.1.2 + 1) + p.1.2) encIn encNat :=
+    ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
   have hsign : ComputableInPolyTime
-      (fun p : (ℕ × ℕ) × ((List (Unbounded.ExtOp × List ℕ) × List ℕ) ×
-        (List (Unbounded.ExtOp × List ℕ) × List ℕ)) =>
-        (([] : List (Unbounded.ExtOp × List ℕ)),
-          [0 * (p.1.2 + 1) + p.1.2, 1 * (p.1.2 + 1) + p.1.2, 2 * (p.1.2 + 1) + p.1.2]))
-      encIn (Circuit.encCode Unbounded.encExtOp) := by
-    have hs0 : ComputableInPolyTime (fun p : (ℕ × ℕ) × ((List (Unbounded.ExtOp × List ℕ) × List ℕ) ×
-        (List (Unbounded.ExtOp × List ℕ) × List ℕ)) => 0 * (p.1.2 + 1) + p.1.2) encIn encNat :=
-      ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
-    have hs1 : ComputableInPolyTime (fun p : (ℕ × ℕ) × ((List (Unbounded.ExtOp × List ℕ) × List ℕ) ×
-        (List (Unbounded.ExtOp × List ℕ) × List ℕ)) => 1 * (p.1.2 + 1) + p.1.2) encIn encNat :=
-      ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
-    have hs2 : ComputableInPolyTime (fun p : (ℕ × ℕ) × ((List (Unbounded.ExtOp × List ℕ) × List ℕ) ×
-        (List (Unbounded.ExtOp × List ℕ) × List ℕ)) => 2 * (p.1.2 + 1) + p.1.2) encIn encNat :=
-      ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
-    exact (ComputableInPolyTime.const []).prod
-      (hs0.cons' (hs1.cons' (hs2.cons' (ComputableInPolyTime.const []))))
-  have happ := Circuit.computableInPolyTime_appendCode hnMidBin hpi hsign
-  have hmid := Circuit.computableInPolyTime_compCode hnMidBin
-    (ComputableInPolyTime.const violationTestExt.code) happ
-  exact Circuit.computableInPolyTime_compCode hqBin hmid hD
+      (fun p : In => (([] : List (Unbounded.ExtOp × List ℕ)),
+        [0 * (p.1.2 + 1) + p.1.2, 1 * (p.1.2 + 1) + p.1.2, 2 * (p.1.2 + 1) + p.1.2]))
+      encIn encC :=
+    (ComputableInPolyTime.const []).prod ((hs 0).cons' ((hs 1).cons' ((hs 2).cons' (.const []))))
+  exact Circuit.computableInPolyTime_compCode hqBin
+    (Circuit.computableInPolyTime_compCode hnMidBin (.const violationTestExt.code)
+      (Circuit.computableInPolyTime_appendCode hnMidBin hpi hsign)) hD
 
 /-- **Native polynomial-time compilation of `certificateCircuitExt`**: given any polynomial-time
 uniform family of `ACC⁰` succinct 3-CNF decoders `D` and fixed depth cap `d`, compiling `(x, w)`
@@ -614,119 +525,60 @@ theorem computableInPolyTime_certificateCircuitExt
       (fun p : List Bool × List Bool =>
         (⟨q p.1, certificateCircuitExt (D p.1) d p.2⟩ : Σ n, Circuit Unbounded.extSignature n 1))
       (encPair encBits encBits) (Unbounded.encExtCircuit 1) := by
+  let P := List Bool × List Bool
   let encP := encPair encBits encBits
-  let encRaw := encPair encUnary (Circuit.encCode Unbounded.encExtOp)
-  have hqP : ComputableInPolyTime (fun p : List Bool × List Bool => q p.1) encP encUnary :=
-    hq.comp (ComputableInPolyTime.fst encBits encBits)
-  have hrP : ComputableInPolyTime (fun p : List Bool × List Bool => r p.1) encP encUnary :=
-    hr.comp (ComputableInPolyTime.fst encBits encBits)
-  have hDP : ComputableInPolyTime (fun p : List Bool × List Bool => (D p.1).code)
-      encP (Circuit.encCode Unbounded.encExtOp) :=
-    hD.comp (ComputableInPolyTime.fst encBits encBits)
-  have hu : ComputableInPolyTime (fun p : List Bool × List Bool => unframe p.2) encP encBits :=
-    Internal.DecoderWords.unframe_degree.computableInPolyTime.comp
-      (ComputableInPolyTime.snd encBits encBits)
-  have hcode : ComputableInPolyTime
-      (fun p : List Bool × List Bool => decExtCode.decode (unframe p.2))
-      encP (Circuit.encCode Unbounded.encExtOp) :=
-    decExtCode.computableInPolyTime.comp hu
+  let encC := Circuit.encCode Unbounded.encExtOp
+  let encRaw := encPair encUnary encC
+  let dec (p : P) := decExtCode.decode (unframe p.2)
+  have hqP : ComputableInPolyTime (fun p : P => q p.1) encP encUnary :=
+    hq.comp (.fst encBits encBits)
+  have hrP : ComputableInPolyTime (fun p : P => r p.1) encP encUnary :=
+    hr.comp (.fst encBits encBits)
+  have hDP : ComputableInPolyTime (fun p : P => (D p.1).code) encP encC :=
+    hD.comp (.fst encBits encBits)
+  have hu : ComputableInPolyTime (fun p : P => unframe p.2) encP encBits :=
+    Internal.DecoderWords.unframe_degree.computableInPolyTime.comp (.snd encBits encBits)
+  have hcode : ComputableInPolyTime dec encP encC := decExtCode.computableInPolyTime.comp hu
   have hcan : ComputableInPolyTime
-      (fun p : List Bool × List Bool =>
-        decide (Circuit.encCode Unbounded.encExtOp (decExtCode.decode (unframe p.2)) =
-          unframe p.2)) encP encBool :=
+      (fun p : P => decide (Circuit.encCode Unbounded.encExtOp (dec p) = unframe p.2))
+      encP encBool :=
+    ComputableInPolyTime.decide_eq' (hcode.of_enc_eq (encD := encBits) fun _ => rfl) hu
+  have hck := Circuits.computableInPolyTime_codeCheck computableInPolyTime_extArity hrP hcode.fst'
+  have hlen1 : ComputableInPolyTime (fun p : P => decide ((dec p).2.length = 1)) encP encBool :=
     ComputableInPolyTime.decide_eq'
-      (hcode.of_enc_eq (encD := encBits) fun _ => rfl) hu
-  have hck : ComputableInPolyTime
-      (fun p : List Bool × List Bool =>
-        codeCheck Unbounded.extSignature (r p.1) (decExtCode.decode (unframe p.2)).1)
-      encP encBool :=
-    Circuits.computableInPolyTime_codeCheck computableInPolyTime_extArity hrP hcode.fst'
-  have houtLen : ComputableInPolyTime
-      (fun p : List Bool × List Bool => (decExtCode.decode (unframe p.2)).2.length) encP encUnary :=
-    (ComputableInPolyTime.length encNat).comp hcode.snd'
-  have hgateLen : ComputableInPolyTime
-      (fun p : List Bool × List Bool => (decExtCode.decode (unframe p.2)).1.length) encP encUnary :=
-    (ComputableInPolyTime.length (Circuit.encGate Unbounded.encExtOp)).comp hcode.fst'
-  have hlen1 : ComputableInPolyTime
-      (fun p : List Bool × List Bool => decide ((decExtCode.decode (unframe p.2)).2.length = 1))
-      encP encBool :=
-    ComputableInPolyTime.decide_eq' houtLen (ComputableInPolyTime.const 1)
-  have hhead0 : ComputableInPolyTime
-      (fun p : List Bool × List Bool => (decExtCode.decode (unframe p.2)).2.getD 0 0)
-      encP encNat :=
+      ((ComputableInPolyTime.length encNat).comp hcode.snd') (.const 1)
+  have hhead0 : ComputableInPolyTime (fun p : P => (dec p).2.getD 0 0) encP encNat :=
     ((ComputableInPolyTime.headD (encA := encNat) (encL := encList encNat) 0).comp
-      hcode.snd').of_enc_eq fun p => congrArg encNat (by
-        dsimp only [Function.comp_apply]
-        cases (decExtCode.decode (unframe p.2)).2 <;> rfl)
+      hcode.snd').of_enc_eq fun p => congrArg encNat <| by
+        dsimp only [Function.comp_apply, dec]
+        cases (dec p).2 <;> rfl
   have houtLt : ComputableInPolyTime
-      (fun p : List Bool × List Bool =>
-        decide ((decExtCode.decode (unframe p.2)).2.getD 0 0 <
-          r p.1 + (decExtCode.decode (unframe p.2)).1.length)) encP encBool :=
+      (fun p : P => decide ((dec p).2.getD 0 0 < r p.1 + (dec p).1.length)) encP encBool :=
     ComputableInPolyTime.binary_lt' hhead0
-      (ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.unary_add' hrP hgateLen))
-  have hvalid : ComputableInPolyTime
-      (fun p : List Bool × List Bool =>
-        decide (Circuit.encCode Unbounded.encExtOp (decExtCode.decode (unframe p.2)) = unframe p.2)
-          && (codeCheck Unbounded.extSignature (r p.1) (decExtCode.decode (unframe p.2)).1 &&
-            decide ((decExtCode.decode (unframe p.2)).2.length = 1) &&
-            decide ((decExtCode.decode (unframe p.2)).2.getD 0 0 <
-              r p.1 + (decExtCode.decode (unframe p.2)).1.length)))
-      encP encBool :=
-    ComputableInPolyTime.bool_and' hcan
-      (ComputableInPolyTime.bool_and' (ComputableInPolyTime.bool_and' hck hlen1) houtLt)
-  let rawOpt : List Bool × List Bool → Option (Σ n, Circuit Unbounded.extSignature n 1) := fun p =>
-    if Circuit.encCode Unbounded.encExtOp (decExtCode.decode (unframe p.2)) = unframe p.2 then
-      (Circuit.ofCode (σ := Unbounded.extSignature) (r p.1) 1
-        (decExtCode.decode (unframe p.2))).map fun W => ⟨r p.1, W⟩
+      (ComputableInPolyTime.unary_to_binary.comp
+        (ComputableInPolyTime.unary_add' hrP
+          ((ComputableInPolyTime.length (Circuit.encGate Unbounded.encExtOp)).comp hcode.fst')))
+  have hvalid := ComputableInPolyTime.bool_and' hcan
+    (ComputableInPolyTime.bool_and' (ComputableInPolyTime.bool_and' hck hlen1) houtLt)
+  let rawOpt (p : P) : Option (Σ n, Circuit Unbounded.extSignature n 1) :=
+    if Circuit.encCode Unbounded.encExtOp (dec p) = unframe p.2 then
+      (Circuit.ofCode (σ := Unbounded.extSignature) (r p.1) 1 (dec p)).map fun W => ⟨r p.1, W⟩
     else none
   have hrawOpt : ComputableInPolyTime rawOpt encP (encOption (Unbounded.encExtCircuit 1)) := by
-    have hrawData : ComputableInPolyTime
-        (fun p : List Bool × List Bool =>
-          if (decide (Circuit.encCode Unbounded.encExtOp (decExtCode.decode (unframe p.2)) =
-              unframe p.2) &&
-            (codeCheck Unbounded.extSignature (r p.1) (decExtCode.decode (unframe p.2)).1 &&
-              decide ((decExtCode.decode (unframe p.2)).2.length = 1) &&
-              decide ((decExtCode.decode (unframe p.2)).2.getD 0 0 <
-                r p.1 + (decExtCode.decode (unframe p.2)).1.length))) = true
-          then some (r p.1, decExtCode.decode (unframe p.2))
-          else none)
-        encP (encOption encRaw) :=
-      hvalid.ite ((ComputableInPolyTime.optionSome encRaw).comp (hrP.prod hcode))
-        (ComputableInPolyTime.const none)
-    refine hrawData.of_enc_eq fun p => ?_
-    dsimp only [rawOpt]
-    by_cases hcanp : Circuit.encCode Unbounded.encExtOp (decExtCode.decode (unframe p.2)) =
-        unframe p.2
-    · simp only [hcanp, ↓reduceIte, decide_true, Bool.true_and]
-      cases hof : Circuit.ofCode (σ := Unbounded.extSignature) (r p.1) 1
-          (decExtCode.decode (unframe p.2)) with
-      | none =>
-        have hfalse : (codeCheck Unbounded.extSignature (r p.1)
-            (decExtCode.decode (unframe p.2)).1 &&
-            decide ((decExtCode.decode (unframe p.2)).2.length = 1) &&
-            decide ((decExtCode.decode (unframe p.2)).2.getD 0 0 <
-              r p.1 + (decExtCode.decode (unframe p.2)).1.length)) = false := by
-          cases hb : codeCheck Unbounded.extSignature (r p.1)
-              (decExtCode.decode (unframe p.2)).1 &&
-              decide ((decExtCode.decode (unframe p.2)).2.length = 1) &&
-              decide ((decExtCode.decode (unframe p.2)).2.getD 0 0 <
-                r p.1 + (decExtCode.decode (unframe p.2)).1.length)
-          · rfl
-          · have hs := (validRaw_iff _).1 hb
-            simp [hof] at hs
-        rw [hfalse]
-        simp only [Bool.false_eq_true, ↓reduceIte, Option.map_none, encOption_none]
-      | some W =>
-        have htrue : (codeCheck Unbounded.extSignature (r p.1)
-            (decExtCode.decode (unframe p.2)).1 &&
-            decide ((decExtCode.decode (unframe p.2)).2.length = 1) &&
-            decide ((decExtCode.decode (unframe p.2)).2.getD 0 0 <
-              r p.1 + (decExtCode.decode (unframe p.2)).1.length)) = true :=
-          (validRaw_iff _).2 (by simp [hof])
-        have hWcode := Circuit.code_of_ofCode_eq_some hof
-        rw [htrue]
-        simp only [↓reduceIte, Option.map_some, encOption_some,
-          Unbounded.encExtCircuit, Circuit.encCircuit_apply, hWcode, encRaw]
+    refine (hvalid.ite ((ComputableInPolyTime.optionSome encRaw).comp (hrP.prod hcode))
+      (.const none)).of_enc_eq fun p => ?_
+    dsimp only [rawOpt, Function.comp_apply]
+    by_cases hcanp : Circuit.encCode Unbounded.encExtOp (dec p) = unframe p.2
+    · have hval : (codeCheck Unbounded.extSignature (r p.1) (dec p).1 &&
+          decide ((dec p).2.length = 1) &&
+          decide ((dec p).2.getD 0 0 < r p.1 + (dec p).1.length)) =
+          (Circuit.ofCode (σ := Unbounded.extSignature) (r p.1) 1 (dec p)).isSome :=
+        Bool.eq_iff_iff.mpr (validRaw_iff _)
+      simp only [hcanp, ↓reduceIte, decide_true, Bool.true_and, hval]
+      rcases hof : Circuit.ofCode (σ := Unbounded.extSignature) (r p.1) 1 (dec p) with _ | W
+      · simp
+      · simp [Unbounded.encExtCircuit, Circuit.encCircuit_apply,
+          Circuit.code_of_ofCode_eq_some hof, encRaw, encC, dec]
     · simp only [hcanp, ↓reduceIte, decide_false, Bool.false_and, Bool.false_eq_true,
         encOption_none]
   let witnessOpt : List Bool × List Bool → Option (Σ n, Circuit Unbounded.extSignature n 1) :=
@@ -746,7 +598,7 @@ theorem computableInPolyTime_certificateCircuitExt
       (body := fun _ c => if decide (c.2.depth ≤ d) then some c else none)
       (ComputableInPolyTime.const none) hbody
     refine helim.of_enc_eq fun p => congrArg (encOption (Unbounded.encExtCircuit 1)) ?_
-    dsimp only [witnessOpt, rawOpt, decodeExtWitness]
+    dsimp only [witnessOpt, rawOpt, decodeExtWitness, dec]
     split_ifs with hcanp
     · cases hof : Circuit.ofCode (σ := Unbounded.extSignature) (r p.1) 1
           (decExtCode.decode (unframe p.2)) with
@@ -788,10 +640,10 @@ theorem computableInPolyTime_certificateCircuitExt
   cases h : decodeExtWitness d (r p.1) p.2 with
   | none =>
     simp only [Option.map_none, Option.elim_none, Unbounded.encExtCircuit, Circuit.encCircuit_apply,
-      encRaw]
+      encRaw, encC]
   | some W =>
     simp only [Option.map_some, Option.elim_some, Unbounded.encExtCircuit, Circuit.encCircuit_apply,
-      code_badClauseExt, encRaw]
+      code_badClauseExt, encRaw, encC]
 
 end CertDecode
 
@@ -933,29 +785,15 @@ private theorem eventually_poly_mul_two_pow_nthRoot_le {r_w : ℕ} (hr : 0 < r_w
     rw [Real.rpow_natCast]
     exact_mod_cast hnat
   refine hcast.trans (Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_)
-  have hpart1 : (C.size : ℝ) + (d : ℝ) * ((Nat.log 2 (n + 1) : ℝ) + 1) ≤
-      (1 / 2 : ℝ) * (n : ℝ) ^ ε := by
-    rw [pow_one] at hln
-    have hge1 : (1 : ℝ) ≤ (Nat.log 2 (n + 1) : ℝ) + 1 := by
-      linarith [Nat.cast_nonneg (α := ℝ) (Nat.log 2 (n + 1))]
-    have hCsz : (C.size : ℝ) ≤ (C.size : ℝ) * ((Nat.log 2 (n + 1) : ℝ) + 1) :=
-      le_mul_of_one_le_right (Nat.cast_nonneg _) hge1
-    have hcomb : (C.size : ℝ) + (d : ℝ) * ((Nat.log 2 (n + 1) : ℝ) + 1) ≤
-        ((C.size : ℝ) + (d : ℝ) + 1) * ((Nat.log 2 (n + 1) : ℝ) + 1) := by
-      have : (0 : ℝ) ≤ (Nat.log 2 (n + 1) : ℝ) + 1 := by positivity
-      nlinarith
-    push_cast at hln
-    linarith
-  have hpart2 : (d : ℝ) * (Nat.nthRoot r_w n : ℝ) ≤ (1 / 2 : ℝ) * (n : ℝ) ^ ε := by
-    have hnr := nthRoot_le_rpow_real hr n
-    have hd1 : (0 : ℝ) ≤ 2 * ((d : ℝ) + 1) := by positivity
-    have hmul : 2 * ((d : ℝ) + 1) * (Nat.nthRoot r_w n : ℝ) ≤ (n : ℝ) ^ ε :=
-      (mul_le_mul_of_nonneg_left hnr hd1).trans hsn
-    have hdle : (d : ℝ) * (Nat.nthRoot r_w n : ℝ) ≤ ((d : ℝ) + 1) * (Nat.nthRoot r_w n : ℝ) := by
-      nlinarith [Nat.cast_nonneg (α := ℝ) (Nat.nthRoot r_w n)]
-    linarith
-  push_cast
-  linarith
+  rw [pow_one] at hln
+  push_cast at hln ⊢
+  have hlog_nn : (0 : ℝ) ≤ Nat.log 2 (n + 1) := Nat.cast_nonneg _
+  have hnr_nn : (0 : ℝ) ≤ Nat.nthRoot r_w n := Nat.cast_nonneg _
+  have hmul : 2 * ((d : ℝ) + 1) * (Nat.nthRoot r_w n : ℝ) ≤ (n : ℝ) ^ ε :=
+    (mul_le_mul_of_nonneg_left (nthRoot_le_rpow_real hr n) (by positivity)).trans hsn
+  have hCsz : (C.size : ℝ) ≤ (C.size : ℝ) * ((Nat.log 2 (n + 1) : ℝ) + 1) :=
+    le_mul_of_one_le_right (Nat.cast_nonneg _) (by linarith)
+  nlinarith
 
 /-- For `0 < ε < δ < 1`, `0 < c₀`, and `c : ℕ`, eventually:
 (a) `(n : ℝ) ^ ε ≤ (n : ℝ) - (c₀ / 2) * (n : ℝ) ^ δ`,
@@ -1033,15 +871,14 @@ theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (h
   set r_w : ℕ := Nat.ceil (2 / ε) + 1
   have hrw_pos : 0 < r_w := Nat.succ_pos _
   have hrw_lt : (r_w : ℝ)⁻¹ < ε := by
-    have h1 : 2 / ε < (r_w : ℝ) := by
-      have hceil : 2 / ε ≤ (Nat.ceil (2 / ε) : ℝ) := Nat.le_ceil _
-      dsimp only [r_w]; push_cast; linarith
-    have hpos : (0 : ℝ) < (r_w : ℝ) := by positivity
-    rw [inv_lt_comm₀ hpos hε]
-    have h2 : 1 / ε < 2 / ε := by
-      rw [div_lt_div_iff_of_pos_right hε]; norm_num
-    rw [one_div] at h2
-    exact lt_trans h2 h1
+    rw [inv_lt_comm₀ (by positivity) hε]
+    have : 2 / ε ≤ (Nat.ceil (2 / ε) : ℝ) := Nat.le_ceil _
+    have : 1 / ε < 2 / ε := by
+      gcongr
+      norm_num
+    dsimp only [r_w]
+    push_cast
+    linarith [one_div ε]
   refine ⟨r_w, δ, c₀ / 2, hrw_pos, lt_trans hε hεδ, hδ1, by positivity, ?_⟩
   intro q r D c hq hr hD hdepth hq_le
   let padCert : List Bool × List Bool → Σ n, Circuit Unbounded.extSignature n 1 := fun p =>
@@ -1157,31 +994,11 @@ theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (h
     by_cases hx : x.length < M₀
     · simp only [V, hx, ↓reduceIte, decide_eq_true_eq, hS_fin x hx]
       exact ⟨fun ⟨_, _, h⟩ => h, fun h => ⟨List.replicate (ℓ x) false, by simp, h⟩⟩
-    · have hxge : M₀ ≤ x.length := Nat.le_of_not_lt hx
-      simp only [V, hx, ↓reduceIte, Bool.not_eq_true']
-      constructor
-      · rintro ⟨w, hw, hsatf⟩
-        obtain ⟨hd, hl⟩ := hpad_guarded x w hxge hw
-        have hnot : padCert (x, w) ∉
-            SignatureCircuitSAT (Unbounded.extInterpretation (modGate m)) := by
-          rw [← hSAT_corr _ hd hl, hsatf]; decide
-        have hnot' : ⟨q x, certificateCircuitExt (D x) dW w⟩ ∉
-            SignatureCircuitSAT (Unbounded.extInterpretation (modGate m)) :=
-          fun h => hnot ((padInputs_mem_SignatureCircuitSAT_iff m _ _).2 h)
-        exact (exists_cert_not_mem_SignatureCircuitSAT_iff m (D x) dW
-          (2 ^ Nat.nthRoot r_w x.length)).1 ⟨w, hw, hnot'⟩
-      · intro hmem
-        obtain ⟨w, hw, hnot'⟩ :=
-          (exists_cert_not_mem_SignatureCircuitSAT_iff m (D x) dW
-            (2 ^ Nat.nthRoot r_w x.length)).2 hmem
-        obtain ⟨hd, hl⟩ := hpad_guarded x w hxge hw
-        have hnot : padCert (x, w) ∉
-            SignatureCircuitSAT (Unbounded.extInterpretation (modGate m)) :=
-          fun h => hnot' ((padInputs_mem_SignatureCircuitSAT_iff m _ _).1 h)
-        refine ⟨w, hw, ?_⟩
-        cases hb : decideSAT (padCert (x, w))
-        · rfl
-        · exact absurd ((hSAT_corr _ hd hl).1 hb) hnot
+    · simp only [V, hx, ↓reduceIte, Bool.not_eq_true', ← Bool.not_eq_true]
+      refine (exists_congr fun w => and_congr_right fun hw => ?_).trans
+        (exists_cert_not_mem_SignatureCircuitSAT_iff m (D x) dW (2 ^ Nat.nthRoot r_w x.length))
+      obtain ⟨hd, hl⟩ := hpad_guarded x w (Nat.le_of_not_lt hx) hw
+      exact not_congr ((hSAT_corr _ hd hl).trans (padInputs_mem_SignatureCircuitSAT_iff m _ _))
   -- 5. Uniform time envelope for `setOf_exists_mem_NTIME`
   let D_all : ℕ := dr + dm + dg + df + dt + 2
   let C_poly : ℕ := (10 + Cr + Cm * 2 ^ dm + Cg * 7 ^ dg + Cf * 7 ^ df + Ct * 7 ^ dt) * 4
@@ -1221,65 +1038,40 @@ theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (h
         ≤ (7 * (n + 1) * P) ^ k := Nat.pow_le_pow_left hpair k
       _ = 7 ^ k * ((n + 1) ^ k * P ^ k) := by rw [Nat.mul_pow, Nat.mul_pow, Nat.mul_assoc]
       _ ≤ 7 ^ k * E_base := Nat.mul_le_mul_left _ (hpow_le k hk)
-  have hTr_b : Tr x ≤ Cr * E_base := by
-    have h1 : (n + 1) ^ dr ≤ E_base := by
-      have h2 := hpow_le dr (by dsimp only [D_all]; omega)
-      have h3 : (n + 1) ^ dr ≤ (n + 1) ^ dr * P ^ dr :=
-        Nat.le_mul_of_pos_right _ (Nat.pow_pos hP1)
-      exact h3.trans h2
-    exact (hTr_le x).trans (Nat.mul_le_mul_left Cr h1)
-  have hExp_b : (Nat.nthRoot r_w n + 1) * P ≤ E_base := by
-    have h1 : (Nat.nthRoot r_w n + 1) * P ≤ (n + 1) ^ 1 * P ^ 1 := by
-      simp only [pow_one]
-      exact Nat.mul_le_mul_right P (by omega)
-    exact h1.trans (hpow_le 1 (by dsimp only [D_all]; omega))
+  have hTr_b : Tr x ≤ Cr * E_base :=
+    (hTr_le x).trans <| Nat.mul_le_mul_left Cr <|
+      (Nat.le_mul_of_pos_right _ (Nat.pow_pos hP1)).trans
+        (hpow_le dr (by dsimp only [D_all]; omega))
+  have h1_b : (n + 1) * P ≤ E_base := by
+    simpa using hpow_le 1 (by dsimp only [D_all]; omega)
+  have hExp_b : (Nat.nthRoot r_w n + 1) * P ≤ E_base :=
+    (Nat.mul_le_mul_right P (by omega)).trans h1_b
+  have hn_b : n ≤ E_base :=
+    ((Nat.le_succ n).trans (Nat.le_mul_of_pos_right _ hP1)).trans h1_b
   have hTm_b : Tm P ≤ Cm * 2 ^ dm * E_base := by
     have h1 := hTm_le P
     simp only [encUnary_apply, List.length_replicate] at h1
-    have hP2 : (P + 1) ^ dm ≤ 2 ^ dm * P ^ dm := by
-      rw [← Nat.mul_pow]
-      exact Nat.pow_le_pow_left (by omega) dm
     have h3 : P ^ dm ≤ E_base :=
       (Nat.le_mul_of_pos_left _ (Nat.pow_pos (Nat.succ_pos n))).trans
         (hpow_le dm (by dsimp only [D_all]; omega))
     calc Tm P ≤ Cm * (P + 1) ^ dm := h1
-      _ ≤ Cm * (2 ^ dm * P ^ dm) := Nat.mul_le_mul_left Cm hP2
-      _ = Cm * 2 ^ dm * P ^ dm := by ring
+      _ ≤ Cm * (2 * P) ^ dm := Nat.mul_le_mul_left Cm (Nat.pow_le_pow_left (by omega) dm)
+      _ = Cm * 2 ^ dm * P ^ dm := by rw [Nat.mul_pow, Nat.mul_assoc]
       _ ≤ Cm * 2 ^ dm * E_base := Nat.mul_le_mul_left _ h3
-  have hTg_b : Tg (x, w) ≤ Cg * 7 ^ dg * E_base := by
-    have h1 := hPairPow dg (by dsimp only [D_all]; omega)
+  have hPairB {T : List Bool × List Bool → ℕ} {C d : ℕ}
+      (hT : ∀ p, T p ≤ C * ((encPair encBits encBits p).length + 1) ^ d) (hd : d ≤ D_all) :
+      T (x, w) ≤ C * 7 ^ d * E_base := by
     rw [Nat.mul_assoc]
-    exact (hTg_le (x, w)).trans (Nat.mul_le_mul_left Cg h1)
-  have hTf_b : Tf (x, w) ≤ Cf * 7 ^ df * E_base := by
-    have h1 := hPairPow df (by dsimp only [D_all]; omega)
-    rw [Nat.mul_assoc]
-    exact (hTf_le (x, w)).trans (Nat.mul_le_mul_left Cf h1)
-  have hTc_b : Tc (x, w) ≤ Ct * 7 ^ dt * E_base := by
-    have h1 := hPairPow dt (by dsimp only [D_all]; omega)
-    rw [Nat.mul_assoc]
-    exact (hTc_le (x, w)).trans (Nat.mul_le_mul_left Ct h1)
-  have hn_b : n ≤ E_base := by
-    have h1 : n ≤ (n + 1) ^ 1 * P ^ 1 := by
-      simp only [pow_one]
-      exact (Nat.le_succ n).trans (Nat.le_mul_of_pos_right _ hP1)
-    exact h1.trans (hpow_le 1 (by dsimp only [D_all]; omega))
+    exact (hT (x, w)).trans (Nat.mul_le_mul_left C (hPairPow d hd))
+  have hTg_b := hPairB hTg_le (by dsimp only [D_all]; omega)
+  have hTf_b := hPairB hTf_le (by dsimp only [D_all]; omega)
+  have hTc_b := hPairB hTc_le (by dsimp only [D_all]; omega)
   have hpoly_sum : n + (Tr x + (Nat.nthRoot r_w n + 1) * P + Tm P) +
       (Tg (x, w) + max (Tf (x, w)) (Tc (x, w) + 2)) ≤ polyEnv n := by
-    have hmax_le : max (Tf (x, w)) (Tc (x, w) + 2) ≤ Tf (x, w) + Tc (x, w) + 2 := by omega
-    have hsum1 : n + (Tr x + (Nat.nthRoot r_w n + 1) * P + Tm P) +
-        (Tg (x, w) + (Tf (x, w) + Tc (x, w) + 2)) ≤
-        (10 + Cr + Cm * 2 ^ dm + Cg * 7 ^ dg + Cf * 7 ^ df + Ct * 7 ^ dt) * E_base := by
-      have heq : (10 + Cr + Cm * 2 ^ dm + Cg * 7 ^ dg + Cf * 7 ^ df + Ct * 7 ^ dt) * E_base =
-          10 * E_base + Cr * E_base + Cm * 2 ^ dm * E_base + Cg * 7 ^ dg * E_base +
-            Cf * 7 ^ df * E_base + Ct * 7 ^ dt * E_base := by ring
-      omega
-    have hle4 : (10 + Cr + Cm * 2 ^ dm + Cg * 7 ^ dg + Cf * 7 ^ df + Ct * 7 ^ dt) * E_base ≤
-        polyEnv n := by
-      dsimp only [polyEnv, C_poly, E_base]
-      rw [Nat.mul_assoc]
-      have : (10 + Cr + Cm * 2 ^ dm + Cg * 7 ^ dg + Cf * 7 ^ df + Ct * 7 ^ dt) ≤
-          (10 + Cr + Cm * 2 ^ dm + Cg * 7 ^ dg + Cf * 7 ^ df + Ct * 7 ^ dt) * 4 := by omega
-      exact Nat.mul_le_mul_right _ this
+    have heq : polyEnv n =
+        4 * ((10 * E_base + Cr * E_base + Cm * 2 ^ dm * E_base + Cg * 7 ^ dg * E_base +
+          Cf * 7 ^ df * E_base + Ct * 7 ^ dt * E_base)) := by
+      dsimp only [polyEnv, C_poly, E_base]; ring
     omega
   -- Split on `n < M_cut` vs `M_cut ≤ n`
   simp only [encBits_apply, encBool_apply, List.length_singleton]
@@ -1296,27 +1088,24 @@ theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (h
       have hge0 : M₀ ≤ n := Nat.le_of_not_lt hlt0
       obtain ⟨hd, hl⟩ := hpad_guarded x w hge0 hw
       have hsatR := hSAT_time (padCert (x, w)) hd hl
-      have hq'le : (padCert (x, w)).1 ≤ n + c * Nat.log 2 (n + 2) + c :=
-        max_le (by simpa only [← hn] using hq_le x) (by dsimp only; omega)
-      have hsub_le : ((padCert (x, w)).1 : ℝ) - c₀ * ((padCert (x, w)).1 : ℝ) ^ δ ≤
-          ((n + c * Nat.log 2 (n + 2) + c : ℕ) : ℝ) := by
-        have h1 : ((padCert (x, w)).1 : ℝ) ≤ ((n + c * Nat.log 2 (n + 2) + c : ℕ) : ℝ) := by
-          exact_mod_cast hq'le
-        have h2 : 0 ≤ c₀ * ((padCert (x, w)).1 : ℝ) ^ δ :=
-          mul_nonneg hc₀.le (Real.rpow_nonneg (Nat.cast_nonneg _) _)
-        linarith
+      have hq'le : ((padCert (x, w)).1 : ℝ) ≤ ((n + c * Nat.log 2 (n + 2) + c : ℕ) : ℝ) :=
+        mod_cast max_le
+          (by simpa only [← hn] using hq_le x)
+          (by dsimp only; omega)
       have hpowR : (2 : ℝ) ^ (((padCert (x, w)).1 : ℝ) - c₀ * ((padCert (x, w)).1 : ℝ) ^ δ) ≤
-          ((2 ^ (n + c * Nat.log 2 (n + 2) + c) : ℕ) : ℝ) := by
-        rw [Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast]
-        exact Real.rpow_le_rpow_of_exponent_le (by norm_num) hsub_le
-      have hTsat_nat : T_sat (padCert (x, w)) ≤ satEnv n := by
-        have hR : (T_sat (padCert (x, w)) : ℝ) ≤ (satEnv n : ℝ) := by
+          (2 : ℝ) ^ (n + c * Nat.log 2 (n + 2) + c) := by
+        rw [← Real.rpow_natCast]
+        exact Real.rpow_le_rpow_of_exponent_le (by norm_num)
+          (by
+            have hnn := mul_nonneg hc₀.le (Real.rpow_nonneg (Nat.cast_nonneg (padCert (x, w)).1) δ)
+            linarith)
+      have hTsat_nat : T_sat (padCert (x, w)) ≤ satEnv n := mod_cast
+        (by
           have hmul := mul_le_mul_of_nonneg_left hpowR (Nat.cast_nonneg (α := ℝ) M_sat)
-          have h2p : (0 : ℝ) ≤ (2 : ℝ) ^ (n + c * Nat.log 2 (n + 2) + c) := by positivity
           dsimp only [satEnv]
-          push_cast at hmul ⊢
-          nlinarith only [hsatR, hmul, h2p]
-        exact_mod_cast hR
+          push_cast
+          linarith [show (0 : ℝ) ≤ (2 : ℝ) ^ (n + c * Nat.log 2 (n + 2) + c) by positivity] :
+          (T_sat (padCert (x, w)) : ℝ) ≤ (satEnv n : ℝ))
       have hCge : B_fin ≤ C_total := by dsimp only [C_total]; omega
       omega
   · -- Large `n ≥ M_cut`: both `M₀ ≤ n` and `M₁ ≤ n` hold!

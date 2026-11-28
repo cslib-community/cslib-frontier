@@ -109,11 +109,11 @@ theorem exists_oct_program :
           (res = 1 ↔
             ∃ T : Finset (Fin n), G.IsOddCycleTransversal (T : Set (Fin n)) ∧ T.card ≤ k) ∧
           (res = 1 →
-            (∀ v : Fin n, y.mem (sepAddr n v.val) ≤ 1 ∧ y.mem (colAddr n v.val) ≤ 1) ∧
-            let S : Finset (Fin n) := Finset.univ.filter fun v => y.mem (sepAddr n v.val) = 1
+            (∀ v : Fin n, y.mem (sepAddr n v.1) ≤ 1 ∧ y.mem (colAddr n v.1) ≤ 1) ∧
+            let S : Finset (Fin n) := Finset.univ.filter fun v => y.mem (sepAddr n v.1) = 1
             G.IsOddCycleTransversal (S : Set (Fin n)) ∧ S.card ≤ k ∧
               ∀ u v : Fin n, G.Adj u v → u ∉ S → v ∉ S →
-                (y.mem (colAddr n u.val) == 1) ≠ (y.mem (colAddr n v.val) == 1)) := by
+                (y.mem (colAddr n u.1) == 1) ≠ (y.mem (colAddr n v.1) == 1)) := by
   obtain ⟨r, C₀, pc, prog, frontier, _, hprog⟩ :=
     octProg_realizes.exists_standard_init_program_state_from_words 0
   refine ⟨r, 681 * C₀ + 2, pc, by omega, prog, ?_⟩
@@ -140,9 +140,8 @@ theorem exists_oct_program :
   rw [hout_eq] at hhalt
   have hymem : y.mem = ((Memory.spec 0).clientState (Memory.State.init words) (octProg ())).mem :=
     congrArg Memory.State.mem hmem
-  have hpow3 : 1 ≤ 3 ^ k := Nat.one_le_pow k 3 (by decide)
-  have hp5 : 1 ≤ (n + 1) ^ 5 := Nat.one_le_pow 5 (n + 1) (Nat.succ_pos n)
-  have h1_le : 1 ≤ 3 ^ k * (n + 1) ^ 5 := Nat.mul_le_mul hpow3 hp5
+  have h1_le : 1 ≤ 3 ^ k * (n + 1) ^ 5 :=
+    Nat.mul_le_mul (Nat.one_le_pow k 3 (by decide)) (Nat.one_le_pow 5 (n + 1) (Nat.succ_pos n))
   have hsteps_le : steps + 1 ≤ (681 * C₀ + 2) * 3 ^ k * (n + 1) ^ 5 := by
     dsimp only [words] at hbound
     calc steps + 1
@@ -154,34 +153,29 @@ theorem exists_oct_program :
   refine ⟨y, steps, res, hruns, hhalt, hsteps_le, hres_le,
     hres_iff.trans oct_isSome_iff.symm, hres_iff, fun h1 => ?_⟩
   obtain ⟨h01, hcard, hprop⟩ := hres_oct h1
-  have hsep_addr : ∀ v : Fin n, y.mem (sepAddr n v.val) =
+  have hsep_addr : ∀ v : Fin n, y.mem (sepAddr n v.1) =
       ((Memory.spec 0).clientState (Memory.State.init words) (octProg ())).mem
-        (sepBase n + v.val) := fun v => by rw [hymem]; rfl
-  have hcol_addr : ∀ v : Fin n, y.mem (colAddr n v.val) =
+        (sepBase n + v.1) := fun v => by rw [hymem]; rfl
+  have hcol_addr : ∀ v : Fin n, y.mem (colAddr n v.1) =
       ((Memory.spec 0).clientState (Memory.State.init words) (octProg ())).mem
-        (colBase n + v.val) := fun v => by rw [hymem]; rfl
+        (colBase n + v.1) := fun v => by rw [hymem]; rfl
   refine ⟨fun v => ⟨(hsep_addr v).trans_le (h01 v).1, (hcol_addr v).trans_le (h01 v).2⟩, ?_⟩
   dsimp only
-  have hS_eq : (Finset.univ.filter fun v : Fin n => y.mem (sepAddr n v.val) = 1) =
-      (Finset.univ.filter fun v : Fin n =>
-        ((Memory.spec 0).clientState (Memory.State.init words) (octProg ())).mem
-          (sepBase n + v.val) = 1) := by
-    ext v; simp [hsep_addr v]
+  set S' : Finset (Fin n) := Finset.univ.filter fun v =>
+    ((Memory.spec 0).clientState (Memory.State.init words) (octProg ())).mem
+      (sepBase n + v.1) = 1
+  have hS_eq : (Finset.univ.filter fun v : Fin n => y.mem (sepAddr n v.1) = 1) = S' := by
+    ext v
+    simp [S', hsep_addr v]
   rw [hS_eq]
-  have hpropG : ∀ u v : Fin n, G.Adj u v →
-      u ∉ (Finset.univ.filter fun v : Fin n =>
-        ((Memory.spec 0).clientState (Memory.State.init words) (octProg ())).mem
-          (sepBase n + v.val) = 1) →
-      v ∉ (Finset.univ.filter fun v : Fin n =>
-        ((Memory.spec 0).clientState (Memory.State.init words) (octProg ())).mem
-          (sepBase n + v.val) = 1) →
-      (y.mem (colAddr n u.val) == 1) ≠ (y.mem (colAddr n v.val) == 1) := by
+  have hpropG : ∀ u v : Fin n, G.Adj u v → u ∉ S' → v ∉ S' →
+      (y.mem (colAddr n u.1) == 1) ≠ (y.mem (colAddr n v.1) == 1) := by
     intro u v hadj hu hv
     rw [hcol_addr u, hcol_addr v]
     rw [← prefixGraph_of_le G (le_refl n)] at hadj
     exact hprop u v hadj hu hv
   exact ⟨isOddCycleTransversal_iff_exists_bool.mpr
-      ⟨fun v => y.mem (colAddr n v.val) == 1, fun u v hadj hu hv => hpropG u v hadj hu hv⟩,
+      ⟨fun v => y.mem (colAddr n v.1) == 1, hpropG⟩,
     hcard, hpropG⟩
 
 /-! ### Packaged decision problem and `UniformDecidableInTime` certificates -/
@@ -227,11 +221,7 @@ theorem uniformDecidableInTime_oct :
   · intro x
     obtain ⟨w, hlow, hin⟩ :=
       InputFits.exists_width x.encode (Nat.log 2 (octWorkspace x.n) + 1)
-    have hw_fit : Fits w (octWorkspace x.n) := by
-      have hlt : octWorkspace x.n < 2 ^ (Nat.log 2 (octWorkspace x.n) + 1) :=
-        Nat.lt_pow_succ_log_self Nat.one_lt_two _
-      exact Fits.mono hlt hlow
-    exact ⟨w, hw_fit, hin⟩
+    exact ⟨w, Fits.mono (Nat.lt_pow_succ_log_self Nat.one_lt_two _) hlow, hin⟩
 
 /-- **Uniform FPT Word-RAM decision for odd cycle transversal** under the transdichotomous
 logarithmic word-size convention (`size x = x.encode.length`). -/

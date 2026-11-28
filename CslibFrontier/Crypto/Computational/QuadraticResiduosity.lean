@@ -158,22 +158,12 @@ theorem jacobiPosSet_eq_disjoint_union (p q : ℕ) [Fact p.Prime] [Fact q.Prime]
     jacobiPosSet p q = quadResidueSet p q ∪ positiveNonresidues p q ∧
       Disjoint (quadResidueSet p q) (positiveNonresidues p q) := by
   classical
-  refine ⟨?_, ?_⟩
-  · ext x
-    simp only [jacobiPosSet, quadResidueSet, positiveNonresidues, Finset.mem_union,
-      Finset.mem_filter, Finset.mem_univ, true_and]
-    constructor
-    · intro h
-      by_cases hsq : IsSquare x
-      · exact Or.inl hsq
-      · exact Or.inr ⟨hsq, h⟩
-    · rintro (hsq | ⟨_, h⟩)
-      · exact jacobiSymbol_eq_one_of_isSquare p q hsq
-      · exact h
-  · rw [Finset.disjoint_left]
-    intro x hx1 hx2
-    simp only [quadResidueSet, positiveNonresidues, Finset.mem_filter] at hx1 hx2
-    exact hx2.2.1 hx1.2
+  refine ⟨Finset.ext fun x => ?_, Finset.disjoint_left.mpr fun x hx1 hx2 =>
+    (Finset.mem_filter.mp hx2).2.1 (Finset.mem_filter.mp hx1).2⟩
+  simp only [jacobiPosSet, quadResidueSet, positiveNonresidues, Finset.mem_union,
+    Finset.mem_filter, Finset.mem_univ, true_and]
+  exact ⟨fun h => if hsq : IsSquare x then .inl hsq else .inr ⟨hsq, h⟩,
+    fun | .inl hsq => jacobiSymbol_eq_one_of_isSquare p q hsq | .inr ⟨_, h⟩ => h⟩
 
 /-- The Legendre symbol at `p` of a residue modulo `m` is that of its image under any ring map
 `ZMod m →+* ZMod p`. -/
@@ -201,19 +191,10 @@ private theorem legendreSym_crt_snd (p q : ℕ) [Fact p.Prime] [Fact q.Prime]
 private theorem isSquare_unit_iff_legendreSym (p : ℕ) [Fact p.Prime] (_hp : p ≠ 2)
     (u : (ZMod p)ˣ) :
     IsSquare u ↔ legendreSym p ((u : ZMod p).val : ℤ) = 1 := by
-  have hu0 : (((u : ZMod p).val : ℤ) : ZMod p) ≠ 0 := by
-    simp [u.ne_zero]
-  rw [legendreSym.eq_one_iff p hu0]
+  rw [legendreSym.eq_one_iff p (by simp [u.ne_zero])]
   simp only [Int.cast_natCast, ZMod.natCast_zmod_val]
-  constructor
-  · rintro ⟨r, rfl⟩
-    exact ⟨(r : ZMod p), by simp⟩
-  · rintro ⟨r, hr⟩
-    have hr0 : r ≠ 0 := by
-      intro h0
-      rw [h0, mul_zero] at hr
-      exact u.ne_zero hr
-    exact ⟨Units.mk0 r hr0, Units.ext hr⟩
+  exact ⟨fun ⟨r, hr⟩ => ⟨r, by simp [hr]⟩,
+    fun ⟨r, hr⟩ => ⟨Units.mk0 r fun h0 => by simp [h0] at hr, Units.ext hr⟩⟩
 
 /-- For coprime odd primes `p` and `q`, a unit modulo `p * q` lies in `QNR_N^{+1}` iff neither of
 its Chinese remainder components is a square. -/
@@ -343,54 +324,30 @@ in `QR_N`. -/
 theorem blumSqrt_sq (p q : ℕ) [NeZero (p * q)] (h : IsBlumModulus p q) {y : (ZMod (p * q))ˣ}
     (hy : y ∈ quadResidueSet p q) :
     (blumSqrt p q y) ^ 2 = y ∧ blumSqrt p q y ∈ quadResidueSet p q := by
-  simp only [quadResidueSet, Finset.mem_filter, Finset.mem_univ, true_and] at hy
-  obtain ⟨x, rfl⟩ := hy
-  have hp4 : p % 4 = 3 := h.1.2
-  have hq4 : q % 4 = 3 := h.2.1.2
-  have hexp : 2 * (((p - 1) * (q - 1) + 4) / 8) = ((p - 1) * (q - 1)) / 4 + 1 :=
-    blum_exponent_eq p q hp4 hq4
-  have hsq_eq : (blumSqrt p q (x * x)) ^ 2 = x * x := by
-    unfold blumSqrt
-    rw [← pow_two, ← pow_mul, mul_comm (((p - 1) * (q - 1) + 4) / 8) 2, hexp, pow_add, pow_one,
-      blum_sq_pow_eq_one p q h x, one_mul]
-  refine ⟨hsq_eq, ?_⟩
-  simp only [quadResidueSet, Finset.mem_filter, Finset.mem_univ, true_and]
-  refine ⟨x ^ (((p - 1) * (q - 1) + 4) / 8), ?_⟩
-  unfold blumSqrt
-  exact mul_pow x x (((p - 1) * (q - 1) + 4) / 8)
+  obtain ⟨x, rfl⟩ := (Finset.mem_filter.mp hy).2
+  refine ⟨?_, Finset.mem_filter.mpr ⟨Finset.mem_univ _, x ^ _, mul_pow x x _⟩⟩
+  rw [blumSqrt, ← pow_two, ← pow_mul, mul_comm _ 2, blum_exponent_eq p q h.1.2 h.2.1.2,
+    pow_add, pow_one, blum_sq_pow_eq_one p q h x, one_mul]
 
 /-- For a Blum modulus, `blumSqrt p q (x ^ 2) = x` whenever `x ∈ QR_N`. -/
 theorem blumSqrt_sq_self (p q : ℕ) [NeZero (p * q)] (h : IsBlumModulus p q) {x : (ZMod (p * q))ˣ}
     (hx : x ∈ quadResidueSet p q) :
     blumSqrt p q (x ^ 2) = x := by
-  simp only [quadResidueSet, Finset.mem_filter, Finset.mem_univ, true_and] at hx
-  obtain ⟨u, rfl⟩ := hx
-  have hexp : 2 * (((p - 1) * (q - 1) + 4) / 8) = ((p - 1) * (q - 1)) / 4 + 1 :=
-    blum_exponent_eq p q h.1.2 h.2.1.2
-  unfold blumSqrt
-  rw [← pow_mul, hexp, pow_add, pow_one]
-  have hpow : (u * u) ^ (((p - 1) * (q - 1)) / 4) = 1 := by
-    rw [← pow_two]
-    exact blum_sq_pow_eq_one p q h u
-  rw [hpow, one_mul]
+  obtain ⟨u, rfl⟩ := (Finset.mem_filter.mp hx).2
+  rw [blumSqrt, ← pow_mul, blum_exponent_eq p q h.1.2 h.2.1.2, pow_add, pow_one,
+    ← pow_two u, blum_sq_pow_eq_one p q h u, one_mul]
 
 /-- For a Blum modulus, squaring `x ↦ x ^ 2` is a bijection from `QR_N` onto `QR_N`. -/
 theorem sq_bijOn_quadResidueSet (p q : ℕ) [NeZero (p * q)] (h : IsBlumModulus p q) :
     Set.BijOn (fun x : (ZMod (p * q))ˣ => x ^ 2)
       (quadResidueSet p q : Set (ZMod (p * q))ˣ)
-      (quadResidueSet p q : Set (ZMod (p * q))ˣ) := by
-  refine ⟨?_, ?_, ?_⟩
-  · intro x _
-    simp only [Finset.mem_coe, quadResidueSet, Finset.mem_filter, Finset.mem_univ, true_and]
-    exact ⟨x, pow_two x⟩
-  · intro x hx y hy hxy
-    change x ^ 2 = y ^ 2 at hxy
-    calc x = blumSqrt p q (x ^ 2) := (blumSqrt_sq_self p q h (Finset.mem_coe.mp hx)).symm
-      _ = blumSqrt p q (y ^ 2) := by rw [hxy]
-      _ = y := blumSqrt_sq_self p q h (Finset.mem_coe.mp hy)
-  · intro y hy
-    exact ⟨blumSqrt p q y, Finset.mem_coe.mpr (blumSqrt_sq p q h (Finset.mem_coe.mp hy)).2,
-      (blumSqrt_sq p q h (Finset.mem_coe.mp hy)).1⟩
+      (quadResidueSet p q : Set (ZMod (p * q))ˣ) :=
+  ⟨fun x _ => Finset.mem_coe.mpr (Finset.mem_filter.mpr ⟨Finset.mem_univ _, x, pow_two x⟩),
+   fun x hx y hy (hxy : x ^ 2 = y ^ 2) => by
+     calc x = blumSqrt p q (x ^ 2) := (blumSqrt_sq_self p q h hx).symm
+       _ = blumSqrt p q (y ^ 2) := by rw [hxy]
+       _ = y := blumSqrt_sq_self p q h hy,
+   fun y hy => ⟨blumSqrt p q y, (blumSqrt_sq p q h hy).2, (blumSqrt_sq p q h hy).1⟩⟩
 
 /-! ### Computational quadratic residuosity assumption -/
 
@@ -458,7 +415,7 @@ noncomputable def qrRealGame (setup : ℕ → PMF ModulusDesc)
     (adversary : ℕ → ℕ × ℕ → ProbComp Bool) (n : ℕ) : Game := do
   let d ← setup n
   let y ← PMF.uniformOfFintype (quadResidueSet d.p d.q)
-  ProbComp.eval (adversary n (d.p * d.q, y.val.val.val))
+  ProbComp.eval (adversary n (d.p * d.q, y.1.val.val))
 
 /-- Ideal quadratic residuosity experiment: sample `N = p * q` and a uniform quadratic
 nonresidue `y ∈ QNR_N^{+1}` with Jacobi symbol `+1`, and give `(N, y)` to the distinguisher. -/
@@ -466,7 +423,7 @@ noncomputable def qrIdealGame (setup : ℕ → PMF ModulusDesc)
     (adversary : ℕ → ℕ × ℕ → ProbComp Bool) (n : ℕ) : Game := do
   let d ← setup n
   let y ← PMF.uniformOfFintype (positiveNonresidues d.p d.q)
-  ProbComp.eval (adversary n (d.p * d.q, y.val.val.val))
+  ProbComp.eval (adversary n (d.p * d.q, y.1.val.val))
 
 /-- The computational quadratic residuosity assumption ([KatzLindell2020], Section 15.4.3;
 locator not independently inspected in the 3rd-edition PDF): no uniform strict PPT distinguisher
@@ -595,19 +552,10 @@ theorem qrRealGame_factorToQR (setup : ℕ → PMF ModulusDesc)
       modulusFactoringGame (fun k => (setup k).map ModulusDesc.modulus) F n := by
   unfold qrRealGame modulusFactoringGame factorToQR
   simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.bind_map]
-  congr 1
-  funext d
-  have hconst : (fun y : quadResidueSet d.p d.q =>
-      (ProbComp.eval (F n (d.p * d.q))).bind fun ab =>
-        PMF.pure (qrEulerTest (d.p * d.q) y.val.val.val ab.1 ab.2)) =
-      fun _ => (ProbComp.eval (F n (d.p * d.q))).bind fun ab =>
-        PMF.pure (decide (1 < ab.1 ∧ 1 < ab.2 ∧ ab.1 * ab.2 = d.p * d.q)) := by
-    funext y
-    congr 1
-    funext ab
-    rw [qrEulerTest_of_mem_quadResidueSet d y.property ab.1 ab.2]
-  rw [hconst, PMF.bind_const]
+    PMF.monad_pure_eq_pure, PMF.bind_map,
+    fun (d : ModulusDesc) (y : quadResidueSet d.p d.q) a b =>
+      qrEulerTest_of_mem_quadResidueSet d y.2 a b,
+    PMF.bind_const]
   rfl
 
 /-- In `qrIdealGame`, `factorToQR F` always outputs `false`. -/
@@ -615,25 +563,10 @@ theorem qrIdealGame_factorToQR (setup : ℕ → PMF ModulusDesc)
     (F : ℕ → ℕ → ProbComp (ℕ × ℕ)) (n : ℕ) :
     qrIdealGame setup (factorToQR F) n = PMF.pure false := by
   unfold qrIdealGame factorToQR
-  simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind]
-  have hconst : (fun d : ModulusDesc =>
-      (PMF.uniformOfFintype (positiveNonresidues d.p d.q)).bind fun y =>
-        (ProbComp.eval (F n (d.p * d.q))).bind fun ab =>
-          PMF.pure (qrEulerTest (d.p * d.q) y.val.val.val ab.1 ab.2)) =
-      fun _ => PMF.pure false := by
-    funext d
-    have hy : (fun y : positiveNonresidues d.p d.q =>
-        (ProbComp.eval (F n (d.p * d.q))).bind fun ab =>
-          PMF.pure (qrEulerTest (d.p * d.q) y.val.val.val ab.1 ab.2)) =
-        fun _ => PMF.pure false := by
-      funext y
-      have hab : (fun ab : ℕ × ℕ => PMF.pure (qrEulerTest (d.p * d.q) y.val.val.val ab.1 ab.2)) =
-          fun _ => PMF.pure false := by
-        funext ab
-        rw [qrEulerTest_of_mem_positiveNonresidues d y.property ab.1 ab.2]
-      rw [hab, PMF.bind_const]
-    rw [hy, PMF.bind_const]
-  rw [hconst, PMF.bind_const]
+  simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
+    fun (d : ModulusDesc) (y : positiveNonresidues d.p d.q) a b =>
+      qrEulerTest_of_mem_positiveNonresidues d y.2 a b,
+    PMF.bind_const]
 
 /-- The QR distinguishing advantage of `factorToQR F` equals the factoring success probability of
 `F`. -/

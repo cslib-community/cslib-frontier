@@ -132,27 +132,17 @@ private theorem determined_of_mem_inputClauses {t j : ℕ} (ht : t < T)
     .holds_basic ht.le (inPos_mem_basic hj)
   unfold inputClauses at hc
   split_ifs at hc with h₁ h₂
-  · obtain rfl := List.mem_singleton.1 hc
-    rcases Clause.fst_mem_of_mem_imp hl with h | h
-    · rw [List.mem_singleton.1 h]
-      exact hpos
-    · rw [h]
-      exact .holds_inRead ht _
-  · obtain rfl := List.mem_singleton.1 hc
-    rcases Clause.fst_mem_of_mem_imp hl with h | h
-    · rw [List.mem_singleton.1 h]
-      exact hpos
-    · rw [h]
-      exact .holds_inRead ht _
+  · rcases Clause.fst_mem_of_mem_imp (List.mem_singleton.1 hc ▸ hl) with h | h
+    exacts [List.mem_singleton.1 h ▸ hpos, h ▸ .holds_inRead ht _]
+  · rcases Clause.fst_mem_of_mem_imp (List.mem_singleton.1 hc ▸ hl) with h | h
+    exacts [List.mem_singleton.1 h ▸ hpos, h ▸ .holds_inRead ht _]
   · simp only [List.mem_cons, List.not_mem_nil, or_false] at hc
     rcases hc with rfl | rfl <;>
     · rcases Clause.fst_mem_of_mem_impLits hl with ⟨h, hh, he⟩ | h
       · simp only [List.mem_cons, List.not_mem_nil, or_false] at hh
         rcases hh with rfl | rfl <;> rw [he]
-        · exact hpos
-        · exact .cert (by omega)
-      · rw [h]
-        exact .holds_inRead ht _
+        exacts [hpos, .cert (by omega)]
+      · exact h ▸ .holds_inRead ht _
 
 omit [DecidableEq State] in
 private theorem determined_of_mem_readClauses {t : ℕ} (ht : t < T)
@@ -164,8 +154,7 @@ private theorem determined_of_mem_readClauses {t : ℕ} (ht : t < T)
     · simp only [List.mem_cons, List.not_mem_nil, or_false] at h
       rcases h with h | h <;> rw [h]
       exacts [.holds_basic ht.le (head_mem_basic i hz), .holds_basic ht.le (cell_mem_basic i hz s)]
-    · rw [h]
-      exact .holds_read ht i s
+    · exact h ▸ .holds_read ht i s
   · exact determined_of_mem_inputClauses ht hj hc hl
 
 omit [DecidableEq State] in
@@ -175,14 +164,9 @@ private theorem determined_of_mem_sitClauses {t : ℕ} (ht : t < T) (hc : c ∈ 
   rcases Clause.fst_mem_of_mem_imp hl with h | h
   · simp only [List.mem_cons, List.mem_map, List.mem_finRange, true_and] at h
     rcases h with h | h | ⟨i, h⟩
-    · rw [h]
-      exact .holds_basic ht.le (state_mem_basic _)
-    · rw [h]
-      exact .holds_inRead ht _
-    · rw [← h]
-      exact .holds_read ht i _
-  · rw [h]
-    exact .holds_sit ht y
+    exacts [h ▸ .holds_basic ht.le (state_mem_basic _), h ▸ .holds_inRead ht _,
+      h.symm ▸ .holds_read ht i _]
+  · exact h ▸ .holds_sit ht y
 
 private theorem determined_of_mem_uniqueClauses {t : ℕ} (ht : t < T)
     (hc : c ∈ uniqueClauses t) (hl : l ∈ c) : Determined (u.length + L) L T l.1 := by
@@ -190,20 +174,15 @@ private theorem determined_of_mem_uniqueClauses {t : ℕ} (ht : t < T)
     mem_situations, List.mem_cons, List.mem_map] at hc
   rcases hc with (⟨i, hc⟩ | hc) | ⟨y, rfl | rfl | ⟨i, rfl⟩⟩
   · obtain ⟨s, -, he⟩ := List.mem_map.1 (CNF.fst_mem_of_mem_atMostOne hc hl)
-    rw [← he]
-    exact .holds_read ht i s
+    exact he ▸ .holds_read ht i s
   · obtain ⟨s, -, he⟩ := List.mem_map.1 (CNF.fst_mem_of_mem_atMostOne hc hl)
-    rw [← he]
-    exact .holds_inRead ht s
+    exact he ▸ .holds_inRead ht s
   -- each implication `sit y → x` mentions `sit y` and its conclusion `x`
   all_goals
     rcases Clause.fst_mem_of_mem_imp hl with h | h
-    · rw [List.mem_singleton.1 h]
-      exact .holds_sit ht y
+    · exact List.mem_singleton.1 h ▸ .holds_sit ht y
     rw [h]
-  · exact .holds_basic ht.le (state_mem_basic _)
-  · exact .holds_inRead ht _
-  · exact .holds_read ht i _
+  exacts [.holds_basic ht.le (state_mem_basic _), .holds_inRead ht _, .holds_read ht i _]
 
 private theorem determined_of_mem_stepClauses {t : ℕ} (ht : t < T)
     (hc : c ∈ stepClauses tm u L T t) (hl : l ∈ c) : Determined (u.length + L) L T l.1 := by
@@ -212,11 +191,9 @@ private theorem determined_of_mem_stepClauses {t : ℕ} (ht : t < T)
   rcases Clause.fst_mem_of_mem_impLits hl with ⟨h, hh, he⟩ | h
   · obtain ⟨l', hl', rfl⟩ := List.mem_map.1 hh
     rw [he]
-    rcases mem_basic_of_mem_stepTerms tm hφ hc' hl' with hb | ⟨y, rfl⟩
-    · exact .holds_basic ht.le hb
-    · exact .holds_sit ht y
-  · rw [h]
-    exact .holds_basic ht hφ
+    exact (mem_basic_of_mem_stepTerms tm hφ hc' hl').elim (.holds_basic ht.le)
+      fun ⟨y, hy⟩ => hy ▸ .holds_sit ht y
+  · exact h ▸ .holds_basic ht hφ
 
 omit [DecidableEq State] in
 private theorem determined_of_mem_acceptClauses
@@ -233,30 +210,25 @@ theorem determined_of_mem_vars_tableau {v : Var k State} (hv : v ∈ (tableau tm
   change Determined (u.length + L) L T (v, b).1
   simp only [tableau, List.mem_append, List.mem_flatMap, List.mem_range] at hc
   rcases hc with ((hc | ⟨t, ht, hc⟩) | ⟨t, ht, ((hc | hc) | hc) | hc⟩) | hc
-  · exact determined_of_mem_initClauses hc hl
-  · exact determined_of_mem_oneHotClauses (by omega) hc hl
-  · exact determined_of_mem_readClauses ht hc hl
-  · exact determined_of_mem_sitClauses ht hc hl
-  · exact determined_of_mem_uniqueClauses ht hc hl
-  · exact determined_of_mem_stepClauses ht hc hl
-  · exact determined_of_mem_acceptClauses hc hl
+  exacts [determined_of_mem_initClauses hc hl, determined_of_mem_oneHotClauses (by omega) hc hl,
+    determined_of_mem_readClauses ht hc hl, determined_of_mem_sitClauses ht hc hl,
+    determined_of_mem_uniqueClauses ht hc hl, determined_of_mem_stepClauses ht hc hl,
+    determined_of_mem_acceptClauses hc hl]
 
 /-- When the tableau unrolls at least one step, it mentions every certificate bit. -/
 private theorem cert_mem_vars_tableau (hT : 0 < T) {j : ℕ} (hj : j < L) :
     Var.cert j ∈ (tableau tm u L T).vars := by
   refine CNF.mem_vars.2 ⟨Clause.impLits [(.holds 0 (.inPos (u.length + 1 + j)), true),
-    (.cert j, true)] (.holds 0 (.inRead (some true))), ?_, false, ?_⟩
-  · simp only [tableau, List.mem_append, List.mem_flatMap, List.mem_range]
-    refine Or.inl (Or.inr ⟨0, hT, Or.inl (Or.inl (Or.inl ?_))⟩)
-    simp only [readClauses, List.mem_append, List.mem_flatMap, List.mem_range]
-    refine Or.inr ⟨u.length + 1 + j, by omega, ?_⟩
-    unfold inputClauses
-    split_ifs with h₁ h₂
-    · omega
-    · omega
-    · rw [show u.length + 1 + j - 1 - u.length = j by omega]
-      exact List.mem_cons_self ..
-  · simp [Clause.impLits, Std.Sat.Literal.negate]
+    (.cert j, true)] (.holds 0 (.inRead (some true))), ?_, false,
+    by simp [Clause.impLits, Std.Sat.Literal.negate]⟩
+  simp only [tableau, List.mem_append, List.mem_flatMap, List.mem_range]
+  refine Or.inl (Or.inr ⟨0, hT, Or.inl (Or.inl (Or.inl ?_))⟩)
+  simp only [readClauses, List.mem_append, List.mem_flatMap, List.mem_range]
+  refine Or.inr ⟨u.length + 1 + j, by omega, ?_⟩
+  unfold inputClauses
+  split_ifs <;> try omega
+  rw [show u.length + 1 + j - 1 - u.length = j by omega]
+  exact List.mem_cons_self ..
 
 end Vars
 
@@ -345,17 +317,15 @@ theorem modelCount_tableau :
       (tm.runFrom (tm.initCfg (u ++ List.ofFn w)) T).state = none ∧
         (tm.runFrom (tm.initCfg (u ++ List.ofFn w)) T).output = [true]).card := by
   refine CNF.modelCount_eq_card_filter (fun σ (j : Fin L) => σ (.cert j)) _
-    (fun σ τ hσ hτ => ⟨fun h v hv => ?_, fun h => funext fun j => ?_⟩) fun w => ⟨?_, ?_⟩
-  · refine eq_of_eval_tableau_of_certWord_eq hσ hτ ?_ hv
-    rw [certWord_eq_ofFn, certWord_eq_ofFn, h]
+    (fun σ τ hσ hτ => ⟨fun h v hv => eq_of_eval_tableau_of_certWord_eq hσ hτ
+      (by rw [certWord_eq_ofFn, certWord_eq_ofFn, h]) hv, fun h => funext fun j => ?_⟩)
+    fun w => ⟨?_, ?_⟩
   · rcases Nat.eq_zero_or_pos T with rfl | hT
-    · rw [eval_tableau_zero] at hσ
-      exact absurd hσ Bool.false_ne_true
-    · exact h _ (cert_mem_vars_tableau hT j.isLt)
-  · rintro ⟨hhalt, hout⟩
-    refine ⟨runAssignment tm u (List.ofFn w), eval_tableau_runAssignment (by simp) hhalt hout,
-      funext fun j => ?_⟩
-    simp [runAssignment, List.getD_eq_getElem?_getD]
+    · simp [eval_tableau_zero] at hσ
+    · exact h _ (cert_mem_vars_tableau hT j.2)
+  · exact fun ⟨hhalt, hout⟩ => ⟨runAssignment tm u (List.ofFn w),
+      eval_tableau_runAssignment (by simp) hhalt hout,
+      funext fun j => by simp [runAssignment, List.getD_eq_getElem?_getD]⟩
   · rintro ⟨σ, hσ, rfl⟩
     rw [← certWord_eq_ofFn]
     exact (exists_eval_tableau_iff (z := certWord σ L)).1
@@ -375,12 +345,8 @@ theorem modelCount_reduce {α : Type} {enc : α ↪ List Bool} {p : Polynomial �
   rw [reduce, parameters, CNF.modelCount_relabel Var.index_injective, modelCount_tableau,
     acceptCount]
   refine congrArg Finset.card (Finset.filter_congr fun w _ => ?_)
-  have hw : (List.ofFn w).length = p.eval (enc a).length := List.length_ofFn
-  have hlen : (encPair enc encBits (a, List.ofFn w)).length =
-      2 * (enc a).length + 1 + p.eval (enc a).length := by
-    rw [length_encPair, encBits_apply, hw]
-  obtain ⟨hhalt, hout⟩ := hrun _ hw
-  rw [hlen, encPair_apply, encBits_apply] at hhalt hout
+  obtain ⟨hhalt, hout⟩ := hrun _ List.length_ofFn
+  rw [length_encPair, encBits_apply, List.length_ofFn, encPair_apply, encBits_apply] at hhalt hout
   rw [hhalt, hout]
   simp
 

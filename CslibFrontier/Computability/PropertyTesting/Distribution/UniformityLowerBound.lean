@@ -178,14 +178,9 @@ theorem collisionProbability_paninskiMixture [NeZero m] {ε : ℝ} (hε : |ε| �
     rw [paninskiMixture_apply_toReal, ← mul_sum, mul_pow, hc, pow_two, sum_mul_sum]
     simp only [prod_mul_distrib]
   rw [collisionProbability_eq_sum]
-  simp only [hx]
-  rw [← mul_sum]
-  congr 1
-  refine sum_comm.trans ?_
-  refine sum_congr rfl fun σ _ => ?_
-  refine sum_comm.trans ?_
-  refine sum_congr rfl fun τ _ => ?_
-  rw [Fintype.sum_pow]
+  simp only [hx, ← mul_sum]
+  exact congrArg (_ * ·) <| sum_comm.trans <| sum_congr rfl fun σ _ =>
+    sum_comm.trans <| sum_congr rfl fun τ _ => by rw [Fintype.sum_pow]
 
 private theorem one_add_pow_le_exp {k : ℕ} {x : ℝ} (hx : -1 ≤ x) :
     (1 + x) ^ k ≤ Real.exp (k * x) := by
@@ -205,18 +200,14 @@ theorem collisionProbability_paninskiMixture_le [NeZero m] {ε : ℝ} (hε : |ε
       (2 * m : ℝ) ^ k * (∑ y, paninskiWeight ε σ y * paninskiWeight ε τ y) ^ k ≤
         Real.exp (lam * ∑ i, if σ i = τ i then (1 : ℝ) else -1) := by
     have hS : -(m : ℝ) ≤ ∑ i, if σ i = τ i then (1 : ℝ) else -1 := by
-      have h := sum_le_sum fun i (_ : i ∈ (univ : Finset (Fin m))) =>
+      simpa using sum_le_sum fun i (_ : i ∈ (univ : Finset (Fin m))) =>
         (show (-1 : ℝ) ≤ if σ i = τ i then 1 else -1 by split_ifs <;> norm_num)
-      simpa using h
-    have h2m : (2 * m : ℝ) ≠ 0 := by positivity
-    rw [sum_paninskiWeight_mul, ← mul_pow, mul_div_assoc', mul_div_cancel_left₀ _ h2m]
-    refine (one_add_pow_le_exp ?_).trans_eq ?_
-    · have := mul_le_mul_of_nonneg_left hS (by positivity : (0 : ℝ) ≤ ε ^ 2 / m)
-      rw [mul_neg, div_mul_cancel₀ _ hm.ne'] at this
-      linarith
-    · rw [hlam]
-      congr 1
-      ring
+    rw [sum_paninskiWeight_mul, ← mul_pow, mul_div_assoc',
+      mul_div_cancel_left₀ _ (by positivity : (2 * m : ℝ) ≠ 0)]
+    refine (one_add_pow_le_exp ?_).trans_eq (congrArg Real.exp (by rw [hlam]; ring))
+    have := mul_le_mul_of_nonneg_left hS (by positivity : (0 : ℝ) ≤ ε ^ 2 / m)
+    rw [mul_neg, div_mul_cancel₀ _ hm.ne'] at this
+    linarith
   have hpair (σ : Fin m → Bool) :
       ∑ τ : Fin m → Bool, Real.exp (lam * ∑ i, if σ i = τ i then (1 : ℝ) else -1) =
         (2 * Real.cosh lam) ^ m := by
@@ -227,9 +218,11 @@ theorem collisionProbability_paninskiMixture_le [NeZero m] {ε : ℝ} (hε : |ε
       rw [prod_const, card_univ, Fintype.card_fin]]
     refine prod_congr rfl fun i _ => ?_
     rw [Fintype.sum_bool, Real.cosh_eq]
-    cases σ i <;>
-      simp only [Bool.false_eq_true, Bool.true_eq_false, ite_true, ite_false, 
-        mul_one, mul_neg] <;> ring
+    cases σ i
+    · simp only [Bool.false_eq_true, ite_true, ite_false, mul_one, mul_neg]
+      ring
+    · simp only [Bool.true_eq_false, ite_true, ite_false, mul_one, mul_neg]
+      ring
   calc (2 * m : ℝ) ^ k * collisionProbability (paninskiMixture m hε k)
       = ((4 : ℝ) ^ m)⁻¹ * ∑ σ : Fin m → Bool, ∑ τ : Fin m → Bool,
           (2 * m : ℝ) ^ k * (∑ y, paninskiWeight ε σ y * paninskiWeight ε τ y) ^ k := by
@@ -257,13 +250,10 @@ theorem dist_paninskiMixture_sq_le [NeZero m] {ε : ℝ} (hε : |ε| ≤ 1) (k :
     4 * dist (iid (uniformOfFintype (Fin m × Bool)) k) (paninskiMixture m hε k) ^ 2 ≤
       Real.exp (k ^ 2 * ε ^ 4 / (2 * m)) - 1 := by
   have h := dist_uniform_sq_le (paninskiMixture m hε k)
-  rw [Fintype.card_fun, Fintype.card_prod, Fintype.card_fin, Fintype.card_fin,
-    Fintype.card_bool] at h
-  push_cast at h
-  rw [mul_comm (m : ℝ) 2] at h
+  simp only [Fintype.card_fun, Fintype.card_prod, Fintype.card_fin, Fintype.card_bool,
+    Nat.cast_pow, Nat.cast_mul, Nat.cast_ofNat, mul_comm (m : ℝ) 2] at h
   rw [iid_uniformOfFintype, dist_comm]
-  have h2 := collisionProbability_paninskiMixture_le (m := m) hε k
-  linarith
+  linarith [collisionProbability_paninskiMixture_le (m := m) hε k]
 
 /-- **Paninski's lower bound** on `Fin m × Bool`: every `k`-sample uniformity tester with proximity
 `δ ≤ 1 / 2` satisfies `2 m ≤ 52 k² δ⁴`. -/
@@ -273,30 +263,22 @@ theorem two_mul_le_of_isTester_uniform_prod [NeZero m] {k : ℕ}
     (2 * m : ℝ) ≤ 52 * k ^ 2 * δ ^ 4 := by
   have hm : (0 : ℝ) < m := Nat.cast_pos.mpr (NeZero.pos m)
   rcases le_or_gt δ 0 with hδ0 | hδ0
-  · exfalso
-    have h1 := hT.accept _ (Set.mem_singleton _)
-    have h2 := hT.reject (uniformOfFintype (Fin m × Bool)) fun q hq => by
-      rw [Set.mem_singleton_iff] at hq
-      rw [hq, dist_self]
-      exact hδ0
-    linarith
+  · linarith [hT.accept _ (Set.mem_singleton _),
+      hT.reject (uniformOfFintype (Fin m × Bool)) fun q hq => by
+        simpa [Set.mem_singleton_iff.mp hq] using hδ0]
   have hε : |2 * δ| ≤ 1 := by grind
-  have hfar : ∀ σ : Fin m → Bool, ∀ q ∈ ({uniformOfFintype (Fin m × Bool)} :
-      Set (PMF (Fin m × Bool))), δ ≤ dist (paninski hε σ) q := by
-    intro σ q hq
-    rw [Set.mem_singleton_iff] at hq
-    rw [hq, dist_paninski_uniform, abs_of_pos (by linarith)]
-    linarith
   have h3 : 1 / 3 ≤ dist (iid (uniformOfFintype (Fin m × Bool)) k) (paninskiMixture m hε k) :=
     one_third_le_dist_iid_bind hT (Set.mem_singleton _) (uniformOfFintype (Fin m → Bool))
-      (fun σ => paninski hε σ) hfar
+      (fun σ => paninski hε σ) fun σ q hq => by
+        rw [Set.mem_singleton_iff.mp hq, dist_paninski_uniform, abs_of_pos (by linarith)]
+        linarith
   have h4 := dist_paninskiMixture_sq_le (m := m) hε k
   set x := (k : ℝ) ^ 2 * (2 * δ) ^ 4 / (2 * m) with hx
   have hx0 : 0 ≤ x := by positivity
   have h5 : 13 / 9 ≤ Real.exp x := by nlinarith
   have hx4 : 4 / 13 ≤ x := by
     rcases lt_or_ge x 1 with hx1 | hx1
-    · have h7 : 13 / 9 ≤ 1 / (1 - x) := h5.trans (Real.exp_bound_div_one_sub_of_interval hx0 hx1)
+    · have h7 := h5.trans (Real.exp_bound_div_one_sub_of_interval hx0 hx1)
       rw [le_div_iff₀ (by linarith)] at h7
       linarith
     · linarith
@@ -315,10 +297,7 @@ theorem card_le_of_isTester_uniform [Nonempty α] (hα : Even (Fintype.card α))
     {T : (Fin k → α) → PMF Bool} {δ : ℝ} (hT : IsTester T {uniformOfFintype α} δ)
     (hδ : δ ≤ 1 / 2) : (Fintype.card α : ℝ) ≤ 52 * k ^ 2 * δ ^ 4 := by
   obtain ⟨m, hm⟩ := hα
-  have hm0 : m ≠ 0 := by
-    rintro rfl
-    exact Fintype.card_ne_zero hm
-  have : NeZero m := ⟨hm0⟩
+  have : NeZero m := ⟨fun h => Fintype.card_ne_zero (h ▸ hm)⟩
   have hcard : Fintype.card α = Fintype.card (Fin m × Bool) := by
     rw [hm, Fintype.card_prod, Fintype.card_fin, Fintype.card_bool]
     ring

@@ -551,12 +551,8 @@ private theorem query_count_le_two_pow_succ_clog_pow {n m B P C_B β C_P e_B e_�
     have h4 : 4 ≤ 2 ^ M := (show 4 = 2 ^ 2 by norm_num).trans_le
       (Nat.pow_le_pow_right two_pos (by dsimp only [M]; omega))
     have hM_le : M + 1 ≤ (C_B + β + 4) * lam1 := by
-      have hCB := Nat.le_mul_of_pos_right C_B hlam1
-      have h2lam : 2 + lam1 ≤ 4 * lam1 := by omega
-      calc M + 1 = C_B + lam1 * β + (2 + lam1) := by dsimp only [M]; ring
-        _ ≤ C_B * lam1 + β * lam1 + 4 * lam1 := by
-            rw [mul_comm lam1 β]; exact Nat.add_le_add (Nat.add_le_add_right hCB _) h2lam
-        _ = (C_B + β + 4) * lam1 := by ring
+      dsimp only [M]
+      linarith [Nat.le_mul_of_pos_right C_B hlam1]
     calc 2 * m + 4 ≤ 2 * 2 ^ M := by omega
       _ = 2 ^ (M + 1) := (pow_succ' 2 M).symm
       _ ≤ 2 ^ ((C_B + β + 4) * lam1) := Nat.pow_le_pow_right two_pos hM_le
@@ -855,46 +851,19 @@ private theorem uniform_tree_leaf_time_bound
             (2 : ℝ) ^ ((C_q : ℝ) * ((Nat.clog 2 n : ℝ) + 1) ^ d_q) :=
           query_term_le_two_pow_succ_clog hm hB hP
         clear_value C_q d_q
-        have ht1 : (C_node : ℝ) * ((n : ℝ) + (m : ℝ) + 1) ^ d_node ≤
-            ((n : ℝ) + (m : ℝ) + 1) ^ d_total * (C_node : ℝ) :=
-          (mul_comm _ _).trans_le (by gcongr)
-        have ht2 := le_mul_of_one_le_left (by positivity :
-          (0 : ℝ) ≤ (C_init_coeff : ℝ) * (2 : ℝ) ^ ((C_init : ℝ) * (Nat.clog 2 n : ℝ) ^ d_init))
-          hd_pos
-        have ht3 : ((n : ℝ) + (m_leaf : ℝ) + 1) ^ d_leaf *
-              (3 * (n : ℝ) * (2 * (m_leaf : ℝ) + 2) ^ P_leaf + 1) *
-              (2 : ℝ) ^ (A_sys * interpolationScale n) ≤
-            ((n : ℝ) + (m : ℝ) + 1) ^ d_total *
-              ((((C_B + 1) ^ d_leaf : ℕ) : ℝ) *
+        refine htr.trans (le_trans ?_ (mul_le_mul_of_nonneg_left (hG_main n) hpoly_nn))
+        calc _ ≤ T n * ((C_node : ℝ) * ((n : ℝ) + (m : ℝ) + 1) ^ d_total +
+              (C_init_coeff : ℝ) * (2 : ℝ) ^ ((C_init : ℝ) * (Nat.clog 2 n : ℝ) ^ d_init) *
+                ((n : ℝ) + (m : ℝ) + 1) ^ d_total +
+              (((C_B + 1) ^ d_leaf : ℕ) : ℝ) * ((n : ℝ) + (m : ℝ) + 1) ^ d_total *
                 (2 : ℝ) ^ ((C_q : ℝ) * ((Nat.clog 2 n : ℝ) + 1) ^ d_q) *
                 (2 : ℝ) ^ (A' * interpolationScale n)) := by
-          calc ((n : ℝ) + (m_leaf : ℝ) + 1) ^ d_leaf *
-                  (3 * (n : ℝ) * (2 * (m_leaf : ℝ) + 2) ^ P_leaf + 1) *
-                  (2 : ℝ) ^ (A_sys * interpolationScale n)
-              ≤ ((((C_B + 1) ^ d_leaf : ℕ) : ℝ) * ((n : ℝ) + (m : ℝ) + 1) ^ d_total) *
-                  (2 : ℝ) ^ ((C_q : ℝ) * ((Nat.clog 2 n : ℝ) + 1) ^ d_q) *
-                  (2 : ℝ) ^ (A' * interpolationScale n) := by gcongr
-            _ = ((n : ℝ) + (m : ℝ) + 1) ^ d_total *
-                  ((((C_B + 1) ^ d_leaf : ℕ) : ℝ) *
-                    (2 : ℝ) ^ ((C_q : ℝ) * ((Nat.clog 2 n : ℝ) + 1) ^ d_q) *
-                    (2 : ℝ) ^ (A' * interpolationScale n)) := by ring
-        have hinner :
-            (C_node : ℝ) * ((n : ℝ) + (m : ℝ) + 1) ^ d_node +
-                (C_init_coeff : ℝ) * (2 : ℝ) ^ ((C_init : ℝ) * (Nat.clog 2 n : ℝ) ^ d_init) +
-                ((n : ℝ) + (m_leaf : ℝ) + 1) ^ d_leaf *
-                  (3 * (n : ℝ) * (2 * (m_leaf : ℝ) + 2) ^ P_leaf + 1) *
-                  (2 : ℝ) ^ (A_sys * interpolationScale n) ≤
-              ((n : ℝ) + (m : ℝ) + 1) ^ d_total *
-                ((C_node : ℝ) +
-                  (C_init_coeff : ℝ) * (2 : ℝ) ^ ((C_init : ℝ) * (Nat.clog 2 n : ℝ) ^ d_init) +
-                  (((C_B + 1) ^ d_leaf : ℕ) : ℝ) *
-                    (2 : ℝ) ^ ((C_q : ℝ) * ((Nat.clog 2 n : ℝ) + 1) ^ d_q) *
-                    (2 : ℝ) ^ (A' * interpolationScale n)) :=
-          (add_le_add (add_le_add ht1 ht2) ht3).trans_eq (by ring)
-        have hF : time n m ≤ ((n : ℝ) + (m : ℝ) + 1) ^ d_total * F_main n :=
-          htr.trans ((mul_le_mul_of_nonneg_left hinner (hT_nn n)).trans_eq
-            (by dsimp only [F_main]; ring))
-        exact hF.trans (mul_le_mul_of_nonneg_left (hG_main n) hpoly_nn))
+              refine mul_le_mul_of_nonneg_left ?_ (hT_nn n)
+              gcongr ?_ + ?_ + ?_
+              · gcongr
+              · exact le_mul_of_one_le_right (by positivity) hd_pos
+              · gcongr
+          _ = _ := by dsimp only [F_main]; ring)
     (by
       clear_value C_q d_q d_total
       filter_upwards [hfb_ev, hT_ev,
@@ -903,39 +872,28 @@ private theorem uniform_tree_leaf_time_bound
         with n hfb_n hT_n hinit_ev hq_ev
       rw [hG_large n hfb_n]
       have hrho := interpolationScale_nonneg n
-      have hb1 : (C_node : ℝ) ≤ (C_node : ℝ) * (2 : ℝ) ^ ((A' + 1) * interpolationScale n) :=
-        le_mul_of_one_le_right (Nat.cast_nonneg _)
-          (Real.one_le_rpow one_le_two (mul_nonneg (by positivity) hrho))
-      have hb2 : (C_init_coeff : ℝ) * (2 : ℝ) ^ ((C_init : ℝ) * (Nat.clog 2 n : ℝ) ^ d_init) ≤
-          (C_init_coeff : ℝ) * (2 : ℝ) ^ ((A' + 1) * interpolationScale n) := by
-        have := rpow_two_le_add_one n hA'_nn hinit_ev
-        gcongr
-      have hb3 : (((C_B + 1) ^ d_leaf : ℕ) : ℝ) *
-            (2 : ℝ) ^ ((C_q : ℝ) * ((Nat.clog 2 n : ℝ) + 1) ^ d_q) *
-            (2 : ℝ) ^ (A' * interpolationScale n) ≤
-          (((C_B + 1) ^ d_leaf : ℕ) : ℝ) * (2 : ℝ) ^ ((A' + 1) * interpolationScale n) := by
-        rw [mul_assoc]
-        exact mul_le_mul_of_nonneg_left (rpow_two_mul_le_add_one (A := A') n hq_ev)
-          (Nat.cast_nonneg _)
-      have hinner_ev :
-          (C_node : ℝ) +
-              (C_init_coeff : ℝ) * (2 : ℝ) ^ ((C_init : ℝ) * (Nat.clog 2 n : ℝ) ^ d_init) +
-              (((C_B + 1) ^ d_leaf : ℕ) : ℝ) *
-                (2 : ℝ) ^ ((C_q : ℝ) * ((Nat.clog 2 n : ℝ) + 1) ^ d_q) *
-                (2 : ℝ) ^ (A' * interpolationScale n) ≤
-            (K_coeff : ℝ) * (2 : ℝ) ^ ((A' + 1) * interpolationScale n) :=
-        (add_le_add (add_le_add hb1 hb2) hb3).trans_eq (by rw [hK]; ring)
+      have h2 : (2 : ℝ) ^ (A_total * interpolationScale n) =
+          (2 : ℝ) ^ (A_T * interpolationScale n) * (2 : ℝ) ^ ((A' + 1) * interpolationScale n) := by
+        rw [← Real.rpow_add two_pos]
+        dsimp only [A_total]
+        ring_nf
       calc F_main n
           ≤ ((C_T : ℝ) * (2 : ℝ) ^ (A_T * interpolationScale n)) *
-              ((K_coeff : ℝ) * (2 : ℝ) ^ ((A' + 1) * interpolationScale n)) := by
+              ((C_node : ℝ) * (2 : ℝ) ^ ((A' + 1) * interpolationScale n) +
+                (C_init_coeff : ℝ) * (2 : ℝ) ^ ((A' + 1) * interpolationScale n) +
+                (((C_B + 1) ^ d_leaf : ℕ) : ℝ) * (2 : ℝ) ^ ((A' + 1) * interpolationScale n)) := by
             dsimp only [F_main]
-            exact mul_le_mul hT_n hinner_ev (by positivity) (by positivity)
-        _ = (C_large : ℝ) * ((2 : ℝ) ^ (A_T * interpolationScale n) *
-              (2 : ℝ) ^ ((A' + 1) * interpolationScale n)) := by rw [hC_cast]; ring
+            gcongr ?_ * (?_ + ?_ + ?_)
+            · exact le_mul_of_one_le_right (Nat.cast_nonneg _)
+                (Real.one_le_rpow one_le_two (mul_nonneg (by positivity) hrho))
+            · exact mul_le_mul_of_nonneg_left (rpow_two_le_add_one n hA'_nn hinit_ev)
+                (Nat.cast_nonneg _)
+            · rw [mul_assoc]
+              exact mul_le_mul_of_nonneg_left (rpow_two_mul_le_add_one (A := A') n hq_ev)
+                (Nat.cast_nonneg _)
         _ = (C_large : ℝ) * (2 : ℝ) ^ (A_total * interpolationScale n) := by
-            rw [← Real.rpow_add two_pos]
-            dsimp only [A_total]
-            ring_nf)
+            rw [hC_cast, hK, h2]
+            ring)
   exact ⟨C_total, d_total, A_total, hA_pos, hC⟩
 
 /-- **Section 6.3 equation `(6.4)` (counting one sparse formula)**: on the promised sparse domain

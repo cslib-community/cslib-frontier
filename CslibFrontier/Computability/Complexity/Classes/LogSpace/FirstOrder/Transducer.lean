@@ -582,10 +582,8 @@ private theorem reaches_unrankCode_loop (hC : Correct n C w) {m A r u₀ : ℕ} 
   | succ u ih =>
     intro hu
     obtain ⟨rs, hreach, h4, h5, h7, hl, hkeep, hB'⟩ := ih (by omega)
-    obtain ⟨rs', hstep, h4', h5', h7', hl', hkeep', hB''⟩ :=
-      reaches_unrankCode_step hC hm hcoords hdom hc₀ hc₁ hc₂ hnB hNB hrB regs h0 hlen
-        hu₀ hru₀ (by omega) rs h4 h5 h7 hl hkeep hB'
-    exact ⟨rs', hreach.trans hstep, h4', h5', h7', hl', hkeep', hB''⟩
+    exact (reaches_unrankCode_step hC hm hcoords hdom hc₀ hc₁ hc₂ hnB hNB hrB regs h0 hlen
+      hu₀ hru₀ (by omega) rs h4 h5 h7 hl hkeep hB').imp fun _ h => ⟨hreach.trans h.1, h.2⟩
 
 /-- **Finding the element of a given rank**: from the unranking code for block `m`, with the
 cardinality of a well-formed input in register `0`, the number `n' > 0` of elements of the
@@ -742,10 +740,8 @@ private theorem reaches_unranks (hC : Correct n C w) (j : Fin v'.count) {b t : �
   | succ m ih =>
     intro hm
     obtain ⟨rs₁, hreach₁, hl₁, h0₁, h3₁, h6₁, hB₁, htupleReg₁⟩ := ih (by omega)
-    have hpos : 0 < modelCard I e n := by
-      rcases Nat.eq_zero_or_pos (modelCard I e n) with h | h
-      · rw [h, zero_pow (by omega)] at ht; omega
-      · exact h
+    have hpos : 0 < modelCard I e n := Nat.pos_of_ne_zero fun h => by
+      rw [h, zero_pow (by omega)] at ht; omega
     have hcode := CodeAt.flatMap_range
       (f := fun m => unrankCode C v' e I m (b + 3 + (d + codeLength I.domain + 6) * m))
       (fun i => length_unrankCode (C := C) (v' := v') (e := e) (I := I) i _) hunr m (by omega)
@@ -757,9 +753,8 @@ private theorem reaches_unranks (hC : Correct n C w) (j : Fin v'.count) {b t : �
     refine ⟨rs₂, hreach₁.trans ?_, hl₂.trans hl₁,
       (hlow 0 (.inl rfl)).trans h0₁, (hlow 3 (.inr (.inl rfl))).trans h3₁,
       (hlow 6 (.inr (.inr rfl))).trans h6₁, hB₂, fun m' hm' i => ?_⟩
-    · rw [show b + 3 + (d + codeLength I.domain + 6) * m + d + codeLength I.domain + 6 =
+    · rwa [show b + 3 + (d + codeLength I.domain + 6) * m + d + codeLength I.domain + 6 =
         b + 3 + (d + codeLength I.domain + 6) * (m + 1) by rw [Nat.mul_succ]; omega] at hreach₂
-      exact hreach₂
     · rcases lt_or_eq_of_le (Nat.lt_succ_iff.mp hm') with hlt | rfl
       · rw [hkeep₂ _ (tupleReg_lt_base v' (by omega) (e i).isLt) (by unfold tupleReg; omega)
           (by unfold tupleReg; omega) (by unfold tupleReg; omega)
@@ -829,8 +824,8 @@ private theorem reachesOut_relTableCode_step (hC : Correct n C w) (j : Fin v'.co
   refine hreach₁.reachesOut.trans (hreach₂.reachesOut.trans ?_)
   rw [hbit]
   cases res
-  · exact ReachesOut.emit hn₀ hB₂ (ReachesOut.emit hn₁ hB₂ (ReachesOut.refl _))
-  · exact ReachesOut.emit hy₀ hB₂ (ReachesOut.emit hy₁ hB₂ (ReachesOut.refl _))
+  exacts [ReachesOut.emit hn₀ hB₂ (ReachesOut.emit hn₁ hB₂ (ReachesOut.refl _)),
+    ReachesOut.emit hy₀ hB₂ (ReachesOut.emit hy₁ hB₂ (ReachesOut.refl _))]
 
 /-- **Emitting the truth table of a symbol of the interpreted structure**: from the table code
 for the symbol `j`, with the cardinality of a well-formed input in register `0` and the number `n'`
@@ -1047,8 +1042,8 @@ theorem computableInLogSpace_encodedMapWith :
     (length_le_pow_maxArity v a).trans (Nat.pow_le_pow_right (Nat.succ_pos _) hE)
   have hnB : a.1 ≤ B := (card_le_length_encStructure a).trans hwB
   have hdE : d ≤ exponent v v' d := by
-    have := Nat.mul_le_mul_left d (show 1 ≤ maxArity v' + 1 by omega)
-    simp only [Nat.mul_one] at this; unfold exponent; omega
+    have := Nat.le_mul_of_pos_right d (show 0 < maxArity v' + 1 by omega)
+    unfold exponent; omega
   obtain ⟨hshape, hguard', -, -, -, hreject⟩ := codeAt_program I C v' e
   have hlenD : base v' d + boundDepth I.domain ≤ P.registers :=
     Nat.add_le_add_left (le_max_left _ _) _

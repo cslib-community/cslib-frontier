@@ -63,13 +63,11 @@ open Turing.MultiTapeTM
 private theorem card_le_two_pow_of_length_eq {α : Type*} (enc : α ↪ List Bool) (n : ℕ)
     (T : Finset α) (hT : ∀ x ∈ T, (enc x).length = n) : T.card ≤ 2 ^ n := by
   classical
-  have h := Finset.card_le_card_of_injOn (s := T) (t := (Finset.univ : Finset (Fin n → Bool)))
-    (fun x i => (enc x).getD i false)
-    (fun _ _ => Finset.mem_coe.2 (Finset.mem_univ _)) (fun x hx y hy hxy => by
-      refine enc.injective (List.ext_getElem ((hT x hx).trans (hT y hy).symm) fun i hi hi' => ?_)
-      have := congrFun hxy ⟨i, (hT x hx) ▸ hi⟩
-      simpa [List.getD_eq_getElem?_getD, hi, hi'] using this)
-  simpa using h
+  simpa using Finset.card_le_card_of_injOn (s := T) (t := (Finset.univ : Finset (Fin n → Bool)))
+    (fun x i => (enc x).getD i false) (fun _ _ => Finset.mem_coe.2 (Finset.mem_univ _))
+    fun x hx y hy hxy => enc.injective <| List.ext_getElem ((hT x hx).trans (hT y hy).symm)
+      fun i hi hi' => by
+        simpa [List.getD_eq_getElem?_getD, hi, hi'] using congrFun hxy ⟨i, (hT x hx) ▸ hi⟩
 
 /-- **Ko's advice for a selector.** If `f` is a selector for `A`, then for each length `n` some
 list of at most `n + 1` members of `A`, each of encoded length `n`, decides membership in `A` at
@@ -83,29 +81,23 @@ theorem IsSelector.exists_advice {α : Type*} {A : Set α} {f : α → α → α
   classical
   have key (n : ℕ) : ∃ S : Finset α, S.card ≤ n + 1 ∧ (∀ y ∈ S, y ∈ A ∧ (enc y).length = n) ∧
       ∀ x, (enc x).length = n → (x ∈ A ↔ ∃ y ∈ S, f x y = x ∨ f y x = x) := by
-    let T : Finset α :=
-      (((List.finite_length_eq Bool n).preimage_embedding enc).inter_of_left A).toFinset
+    let T := (((List.finite_length_eq Bool n).preimage_embedding enc).inter_of_left A).toFinset
     have hT (x : α) : x ∈ T ↔ (enc x).length = n ∧ x ∈ A := by
       simp only [T, Set.Finite.mem_toFinset, Set.mem_inter_iff, Set.mem_preimage,
         Set.mem_ofPred_eq]
-    have hcard : T.card < 2 ^ (n + 1) := by
-      have := card_le_two_pow_of_length_eq enc n T fun x hx => ((hT x).1 hx).1
-      rw [pow_succ]
-      have : 0 < 2 ^ n := by positivity
-      omega
+    have hcard : T.card < 2 ^ (n + 1) :=
+      (card_le_two_pow_of_length_eq enc n T fun x hx => ((hT x).1 hx).1).trans_lt
+        (Nat.pow_lt_pow_right (by decide) (Nat.lt_succ_self n))
     obtain ⟨S, hST, hScard, hS⟩ := Finset.exists_dominating_subset_of_card_lt_two_pow
-      (fun x y => f x y = x ∨ f y x = x) (n + 1) T (fun x _ y _ => by
-        rcases hf.eq_or_eq x y with h | h
-        · exact .inl (.inl h)
-        · exact .inr (.inr h)) hcard
-    refine ⟨S, hScard, fun y hy => ((hT y).1 (hST hy)).symm, fun x hx => ⟨fun hxA => ?_, ?_⟩⟩
-    · exact hS x ((hT x).2 ⟨hx, hxA⟩)
-    · rintro ⟨y, hy, h⟩
-      exact hf.mem_of_mem_of_eq ((hT y).1 (hST hy)).2 h
+      (fun x y => f x y = x ∨ f y x = x) (n + 1) T
+      (fun x _ y _ => (hf.eq_or_eq x y).imp .inl .inr) hcard
+    exact ⟨S, hScard, fun y hy => ((hT y).1 (hST hy)).symm, fun x hx =>
+      ⟨fun hxA => hS x ((hT x).2 ⟨hx, hxA⟩),
+        fun ⟨y, hy, h⟩ => hf.mem_of_mem_of_eq ((hT y).1 (hST hy)).2 h⟩⟩
   choose S hScard hSA hS using key
-  refine ⟨fun n => (S n).toList, fun n => ⟨by simpa using hScard n, fun y hy => hSA n y
-    (Finset.mem_toList.1 hy), fun x hx => (hS n x hx).trans ?_⟩⟩
-  simp only [Finset.mem_toList]
+  exact ⟨fun n => (S n).toList, fun n => ⟨(Finset.length_toList _).trans_le (hScard n),
+    fun y hy => hSA n y (Finset.mem_toList.1 hy),
+    fun x hx => (hS n x hx).trans (by simp only [Finset.mem_toList])⟩⟩
 
 /-- **P-selective sets are in `P/quadratic`.** A P-selective set is decided by a polynomial-time
 function `D` of the advice and the instance, with advice `adv n` for the instances of encoded
@@ -131,14 +123,12 @@ theorem exists_advice_polyTime_of_mem_PSel {α : Type} {enc : α ↪ List Bool} 
         (ComputableInPolyTime.decide_eq' (hf.comp (hx.prod hy)) hx)
         (ComputableInPolyTime.decide_eq' (hf.comp (hy.prod hx)) hx))
   · rw [length_encList]
-    have h := List.sum_le_length_nsmul ((adv n).map fun a => 2 * (enc a).length + 1)
-      (2 * n + 1) (fun x hx => by
-        obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hx
-        rw [((hadv n).2.1 y hy).2])
-    rw [List.length_map, smul_eq_mul] at h
-    exact h.trans (Nat.mul_le_mul_right _ (hadv n).1)
-  · rw [(hadv _).2.2 a rfl, List.any_eq_true]
-    simp only [decide_eq_true_eq]
+    refine (List.sum_le_length_nsmul _ (2 * n + 1) fun x hx => ?_).trans
+      ((List.length_map _).symm ▸ smul_eq_mul ((adv n).length) _ ▸
+        Nat.mul_le_mul_right (2 * n + 1) (hadv n).1)
+    obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hx
+    rw [((hadv n).2.1 y hy).2]
+  · simp only [(hadv _).2.2 a rfl, List.any_eq_true, decide_eq_true_eq]
 
 open Circuits.Boolean in
 /-- **Ko's theorem.** Every P-selective set is in `P/poly` [Ko1983]. -/
@@ -146,12 +136,9 @@ theorem PSel_subset_PPolyOn {α : Type} {enc : α ↪ List Bool} : PSel enc ⊆ 
   intro A hA
   obtain ⟨D, hD, adv, hadv, hA⟩ := exists_advice_polyTime_of_mem_PSel hA
   obtain ⟨M, hM, hDM⟩ := PPoly.exists_of_polyTime hD
-  let w : ℕ → List Bool := fun n => encList enc (adv n)
-  have hw : PolynomiallyBounded fun n => (w n).length :=
-    PolynomiallyBounded.mono_of_le (g := fun n => (n + 1) * (2 * n + 1)) (by fun_prop) hadv
-  refine ⟨{x : List Bool | frame (w x.length) ++ x ∈ M}, PPoly.of_advice hM w hw
+  refine ⟨{x | frame (encList enc (adv x.length)) ++ x ∈ M}, PPoly.of_advice hM _
+    ((show PolynomiallyBounded fun n => (n + 1) * (2 * n + 1) by fun_prop).mono_of_le hadv)
     (fun _ => Iff.rfl), fun a => ?_⟩
-  change a ∈ A ↔ frame (w (enc a).length) ++ enc a ∈ M
-  rw [hA, hDM (adv (enc a).length, a), encPair_apply]
+  exact (hA a).trans ((hDM (adv (enc a).length, a)).trans (by rw [encPair_apply]; rfl))
 
 end Cslib.Complexity

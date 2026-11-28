@@ -193,38 +193,31 @@ private theorem dual_sum_split {lp : LP κ ι} (x : κ → ι → ℝ) (α : κ 
       (∑ j, (∑ i, lp.bid i j * x i j) * β j) + ∑ i, (∑ j, x i j) * α i := by
   calc
     ∑ i, ∑ j, (α i + lp.bid i j * β j) * x i j
-        = ∑ i, ∑ j, (α i * x i j + lp.bid i j * β j * x i j) := by
-          refine Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j _ => add_mul ..
-    _ = (∑ i, ∑ j, α i * x i j) + ∑ i, ∑ j, lp.bid i j * β j * x i j := by
-          simp_rw [Finset.sum_add_distrib]
+        = (∑ i, ∑ j, α i * x i j) + ∑ i, ∑ j, lp.bid i j * β j * x i j := by
+          simp_rw [add_mul, Finset.sum_add_distrib]
     _ = (∑ j, (∑ i, lp.bid i j * x i j) * β j) + ∑ i, (∑ j, x i j) * α i := by
-          rw [add_comm]
-          congr 1
-          · rw [Finset.sum_comm]
-            refine Finset.sum_congr rfl fun j _ => ?_
-            rw [Finset.sum_mul]
-            refine Finset.sum_congr rfl fun i _ => by ring
-          · refine Finset.sum_congr rfl fun i _ => ?_
-            rw [← Finset.mul_sum, mul_comm]
+          rw [add_comm, Finset.sum_comm]
+          refine congrArg₂ (· + ·) (Finset.sum_congr rfl fun j _ => ?_)
+            (Finset.sum_congr rfl fun i _ => ?_)
+          · rw [Finset.sum_mul]
+            exact Finset.sum_congr rfl fun i _ => by ring
+          · rw [← Finset.mul_sum, mul_comm]
 
 /-- **Weak duality** for the AdWords LP relaxation Eq. (28.11)
 ([LahaiePennockSaberiVohra2007], §28.4.1, p. 708). -/
 theorem primalObj_le_dualObj {lp : LP κ ι} {x : κ → ι → ℝ} {α : κ → ℝ} {β : ι → ℝ}
     (hx : lp.IsPrimalFeasible x) (hd : lp.IsDualFeasible α β) :
-    lp.primalObj x ≤ lp.dualObj α β := by
-  have h1 : lp.primalObj x ≤ ∑ i, ∑ j, (α i + lp.bid i j * β j) * x i j :=
-    Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun j _ =>
-      mul_le_mul_of_nonneg_right (hd.bid_le i j) (hx.nonneg i j)
-  have h2 : ∑ j, (∑ i, lp.bid i j * x i j) * β j ≤ ∑ j, lp.budget j * β j :=
-    Finset.sum_le_sum fun j _ =>
-      mul_le_mul_of_nonneg_right (hx.budget_le j) (hd.beta_nonneg j)
-  have h3 : ∑ i, (∑ j, x i j) * α i ≤ ∑ i, lp.demand i * α i :=
-    Finset.sum_le_sum fun i _ =>
-      mul_le_mul_of_nonneg_right (hx.demand_le i) (hd.alpha_nonneg i)
-  calc
-    lp.primalObj x ≤ ∑ i, ∑ j, (α i + lp.bid i j * β j) * x i j := h1
+    lp.primalObj x ≤ lp.dualObj α β :=
+  calc lp.primalObj x
+      ≤ ∑ i, ∑ j, (α i + lp.bid i j * β j) * x i j :=
+        Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun j _ =>
+          mul_le_mul_of_nonneg_right (hd.bid_le i j) (hx.nonneg i j)
     _ = (∑ j, (∑ i, lp.bid i j * x i j) * β j) + ∑ i, (∑ j, x i j) * α i := dual_sum_split x α β
-    _ ≤ lp.dualObj α β := add_le_add h2 h3
+    _ ≤ lp.dualObj α β := add_le_add
+        (Finset.sum_le_sum fun j _ =>
+          mul_le_mul_of_nonneg_right (hx.budget_le j) (hd.beta_nonneg j))
+        (Finset.sum_le_sum fun i _ =>
+          mul_le_mul_of_nonneg_right (hx.demand_le i) (hd.alpha_nonneg i))
 
 /-- **Complementary slackness** for Eq. (28.11) ([LahaiePennockSaberiVohra2007], §28.4.1, p. 708):
 at primal–dual equality `primalObj x = dualObj α β`, every pair `(i, j)` with `x i j > 0`
@@ -234,12 +227,8 @@ theorem complementarySlackness {lp : LP κ ι} {x : κ → ι → ℝ} {α : κ 
     (hx : lp.IsPrimalFeasible x) (hd : lp.IsDualFeasible α β)
     (heq : lp.primalObj x = lp.dualObj α β) {i : κ} {j : ι} (hxpos : 0 < x i j) :
     (1 - β j) * lp.bid i j = α i ∧ ∀ k, (1 - β k) * lp.bid i k ≤ (1 - β j) * lp.bid i j := by
-  have hslack_nonneg : ∀ i' j', 0 ≤ (α i' + lp.bid i' j' * β j' - lp.bid i' j') * x i' j' :=
-    fun i' j' => mul_nonneg (sub_nonneg.mpr (hd.bid_le i' j')) (hx.nonneg i' j')
-  have h1 : ∑ i', ∑ j', lp.bid i' j' * x i' j' ≤
-      ∑ i', ∑ j', (α i' + lp.bid i' j' * β j') * x i' j' :=
-    Finset.sum_le_sum fun i' _ => Finset.sum_le_sum fun j' _ =>
-      mul_le_mul_of_nonneg_right (hd.bid_le i' j') (hx.nonneg i' j')
+  have hslack (i' : κ) (j' : ι) : 0 ≤ (α i' + lp.bid i' j' * β j' - lp.bid i' j') * x i' j' :=
+    mul_nonneg (sub_nonneg.mpr (hd.bid_le i' j')) (hx.nonneg i' j')
   have h2 : ∑ i', ∑ j', (α i' + lp.bid i' j' * β j') * x i' j' ≤ lp.dualObj α β := by
     rw [dual_sum_split]
     exact add_le_add
@@ -247,25 +236,18 @@ theorem complementarySlackness {lp : LP κ ι} {x : κ → ι → ℝ} {α : κ 
         mul_le_mul_of_nonneg_right (hx.budget_le j') (hd.beta_nonneg j'))
       (Finset.sum_le_sum fun i' _ =>
         mul_le_mul_of_nonneg_right (hx.demand_le i') (hd.alpha_nonneg i'))
-  have hsum_zero :
-      ∑ i', ∑ j', (α i' + lp.bid i' j' * β j' - lp.bid i' j') * x i' j' = 0 := by
-    have hsub :
-        ∑ i', ∑ j', (α i' + lp.bid i' j' * β j' - lp.bid i' j') * x i' j' =
-          (∑ i', ∑ j', (α i' + lp.bid i' j' * β j') * x i' j') -
-            ∑ i', ∑ j', lp.bid i' j' * x i' j' := by
+  have hsum_zero : ∑ i', ∑ j', (α i' + lp.bid i' j' * β j' - lp.bid i' j') * x i' j' = 0 := by
+    have hsub : ∑ i', ∑ j', (α i' + lp.bid i' j' * β j' - lp.bid i' j') * x i' j' =
+        (∑ i', ∑ j', (α i' + lp.bid i' j' * β j') * x i' j') - lp.primalObj x := by
       simp_rw [sub_mul, Finset.sum_sub_distrib]
-    have hpr : lp.primalObj x = ∑ i', ∑ j', lp.bid i' j' * x i' j' := rfl
-    linarith
-  have hi_zero : ∑ j', (α i + lp.bid i j' * β j' - lp.bid i j') * x i j' = 0 :=
-    (Finset.sum_eq_zero_iff_of_nonneg fun i' _ =>
-      Finset.sum_nonneg fun j' _ => hslack_nonneg i' j').mp hsum_zero i (mem_univ i)
-  have hij_zero : (α i + lp.bid i j * β j - lp.bid i j) * x i j = 0 :=
-    (Finset.sum_eq_zero_iff_of_nonneg fun j' _ => hslack_nonneg i j').mp hi_zero j (mem_univ j)
-  have htight : α i + lp.bid i j * β j - lp.bid i j = 0 :=
-    (mul_eq_zero.mp hij_zero).resolve_right hxpos.ne'
-  have hval : (1 - β j) * lp.bid i j = α i := by linarith
-  refine ⟨hval, fun k => ?_⟩
-  rw [hval]
+      rfl
+    exact le_antisymm (by linarith)
+      (Finset.sum_nonneg fun i' _ => Finset.sum_nonneg fun j' _ => hslack i' j')
+  have hi_zero := (Finset.sum_eq_zero_iff_of_nonneg fun i' _ =>
+    Finset.sum_nonneg fun j' _ => hslack i' j').mp hsum_zero i (mem_univ i)
+  have htight := (mul_eq_zero.mp ((Finset.sum_eq_zero_iff_of_nonneg fun j' _ =>
+    hslack i j').mp hi_zero j (mem_univ j))).resolve_right hxpos.ne'
+  refine ⟨by linarith, fun k => ?_⟩
   linarith [hd.bid_le i k]
 
 end Core
@@ -298,56 +280,44 @@ theorem exists_unitPrimal_of_countLP {T : ℕ} {κ ι : Type*} [Fintype κ] [Dec
           (countLP bid budget queries).primalObj x := by
   let cnt : κ → ℕ := fun i => (univ.filter fun t : Fin T => queries t = i).card
   let y : Fin T → ι → ℝ := fun t j => x (queries t) j / (cnt (queries t) : ℝ)
-  have hcnt_pos : ∀ t : Fin T, 0 < cnt (queries t) := fun t =>
+  have hcnt_pos (t : Fin T) : 0 < cnt (queries t) :=
     Finset.card_pos.mpr ⟨t, mem_filter.mpr ⟨mem_univ t, rfl⟩⟩
-  have hx_zero_of_cnt : ∀ i, cnt i = 0 → ∀ j, x i j = 0 := by
-    intro i hci j
-    have hle : ∑ j', x i j' ≤ 0 := by
-      simpa [countLP, cnt, hci] using hx.demand_le i
-    have hge : 0 ≤ ∑ j', x i j' := Finset.sum_nonneg fun j' _ => hx.nonneg i j'
-    exact (Finset.sum_eq_zero_iff_of_nonneg fun j' _ => hx.nonneg i j').mp
-      (le_antisymm hle hge) j (mem_univ j)
-  have hsum_j : ∀ j, ∑ t : Fin T, bid (queries t) j * y t j = ∑ i : κ, bid i j * x i j := by
-    intro j
-    calc
-      ∑ t : Fin T, bid (queries t) j * y t j
-          = ∑ i : κ, ∑ t ∈ univ.filter (fun t : Fin T => queries t = i),
-              bid (queries t) j * y t j := by
-            rw [← Finset.sum_fiberwise_of_maps_to (g := queries) (t := (univ : Finset κ))
-              (fun _ _ => mem_univ _)]
+  have hx_zero (i : κ) (hci : cnt i = 0) (j : ι) : x i j = 0 :=
+    (Finset.sum_eq_zero_iff_of_nonneg fun j' _ => hx.nonneg i j').mp
+      (le_antisymm (by simpa [countLP, cnt, hci] using hx.demand_le i)
+        (Finset.sum_nonneg fun j' _ => hx.nonneg i j')) j (mem_univ j)
+  have hsum_j (j : ι) : ∑ t : Fin T, bid (queries t) j * y t j = ∑ i : κ, bid i j * x i j := by
+    calc ∑ t : Fin T, bid (queries t) j * y t j
+        = ∑ i : κ, ∑ t ∈ univ.filter (fun t : Fin T => queries t = i),
+            bid (queries t) j * y t j := by
+          rw [← Finset.sum_fiberwise_of_maps_to (g := queries) (t := univ) (fun _ _ => mem_univ _)]
       _ = ∑ i : κ, bid i j * x i j := by
           refine Finset.sum_congr rfl fun i _ => ?_
           have hconst : ∑ t ∈ univ.filter (fun t : Fin T => queries t = i),
               bid (queries t) j * y t j =
               (cnt i : ℝ) * (bid i j * (x i j / (cnt i : ℝ))) := by
-            calc
-              ∑ t ∈ univ.filter (fun t : Fin T => queries t = i), bid (queries t) j * y t j
-                  = ∑ _t ∈ univ.filter (fun t : Fin T => queries t = i),
-                      bid i j * (x i j / (cnt i : ℝ)) := by
-                    refine Finset.sum_congr rfl fun t ht => ?_
-                    have hqt : queries t = i := (mem_filter.mp ht).2
+            calc ∑ t ∈ univ.filter (fun t : Fin T => queries t = i), bid (queries t) j * y t j
+                = ∑ _t ∈ univ.filter (fun t : Fin T => queries t = i),
+                    bid i j * (x i j / (cnt i : ℝ)) :=
+                  Finset.sum_congr rfl fun t ht => by
+                    have hqt := (mem_filter.mp ht).2
                     simp only [y, hqt]
               _ = (cnt i : ℝ) * (bid i j * (x i j / (cnt i : ℝ))) := by
-                    rw [Finset.sum_const, nsmul_eq_mul]
+                  rw [Finset.sum_const, nsmul_eq_mul]
           rw [hconst]
           rcases Nat.eq_zero_or_pos (cnt i) with h0 | hpos
-          · rw [hx_zero_of_cnt i h0 j, h0]
-            simp only [CharP.cast_eq_zero, zero_mul, mul_zero]
+          · simp [hx_zero i h0 j, h0]
           · have hne : (cnt i : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hpos.ne'
             field_simp [hne]
-  refine ⟨y, ⟨?_, ?_, ?_⟩, ?_⟩
-  · intro t j
-    exact div_nonneg (hx.nonneg _ _) (Nat.cast_nonneg _)
-  · intro t
-    have hpos : (0 : ℝ) < cnt (queries t) := Nat.cast_pos.mpr (hcnt_pos t)
-    calc
-      ∑ j, y t j = (∑ j, x (queries t) j) / (cnt (queries t) : ℝ) := by
-        simp only [y, Finset.sum_div]
+  refine ⟨y, ⟨fun _ _ => div_nonneg (hx.nonneg _ _) (Nat.cast_nonneg _), fun t => ?_,
+    fun j => ?_⟩, ?_⟩
+  · have hpos : (0 : ℝ) < cnt (queries t) := Nat.cast_pos.mpr (hcnt_pos t)
+    calc ∑ j, y t j
+        = (∑ j, x (queries t) j) / (cnt (queries t) : ℝ) := by simp only [y, Finset.sum_div]
       _ ≤ (cnt (queries t) : ℝ) / (cnt (queries t) : ℝ) :=
         div_le_div_of_nonneg_right (hx.demand_le (queries t)) hpos.le
       _ = 1 := div_self hpos.ne'
-  · intro j
-    change ∑ t : Fin T, bid (queries t) j * y t j ≤ budget j
+  · change ∑ t : Fin T, bid (queries t) j * y t j ≤ budget j
     rw [hsum_j j]
     exact hx.budget_le j
   · change ∑ t : Fin T, ∑ j, bid (queries t) j * y t j = ∑ i : κ, ∑ j, bid i j * x i j
@@ -374,9 +344,8 @@ private theorem argmaxOver_eq_none_iff {ι : Type*} [LinearOrder ι] (S : Finset
 private theorem argmaxOver_mem {ι : Type*} [LinearOrder ι] {S : Finset ι} {score : ι → ℝ}
     {j : ι} (h : argmaxOver S score = some j) : j ∈ S := by
   classical
-  have hmem : j ∈ S.sort (· ≤ ·) :=
-    List.argmax_mem (l := S.sort (· ≤ ·)) (by simpa [argmaxOver] using h)
-  exact (Finset.mem_sort (· ≤ ·)).mp hmem
+  exact (Finset.mem_sort (· ≤ ·)).mp
+    (List.argmax_mem (l := S.sort (· ≤ ·)) (by simpa [argmaxOver] using h))
 
 private theorem le_of_argmaxOver_eq_some {ι : Type*} [LinearOrder ι] {S : Finset ι}
     {score : ι → ℝ} {j k : ι} (h : argmaxOver S score = some j) (hk : k ∈ S) :
@@ -388,10 +357,8 @@ private theorem le_of_argmaxOver_eq_some {ι : Type*} [LinearOrder ι] {S : Fins
 private theorem exists_argmaxOver_of_mem {ι : Type*} [LinearOrder ι] {S : Finset ι}
     {score : ι → ℝ} {k : ι} (hk : k ∈ S) :
     ∃ j, argmaxOver S score = some j ∧ score k ≤ score j := by
-  have hne : argmaxOver S score ≠ none := by
-    rw [ne_eq, argmaxOver_eq_none_iff]
-    exact Finset.Nonempty.ne_empty ⟨k, hk⟩
-  obtain ⟨j, hj⟩ := Option.ne_none_iff_exists'.mp hne
+  obtain ⟨j, hj⟩ := Option.ne_none_iff_exists'.mp
+    (mt (argmaxOver_eq_none_iff S score).mp (Finset.Nonempty.ne_empty ⟨k, hk⟩))
   exact ⟨j, hj, le_of_argmaxOver_eq_some hj hk⟩
 
 /-- Specification characterizing the exact tie-breaking choice `argmaxOver S score = some j`:
@@ -403,51 +370,34 @@ theorem argmaxOver_eq_some_iff {ι : Type*} [LinearOrder ι] {S : Finset ι} {sc
       j ∈ S ∧ (∀ k ∈ S, score k ≤ score j) ∧ (∀ k ∈ S, k < j → score k < score j) := by
   classical
   set l := S.sort (· ≤ ·)
-  have hle_pw : l.Pairwise (· ≤ ·) := S.pairwise_sort (· ≤ ·)
-  have hnd : l.Nodup := S.sort_nodup (· ≤ ·)
   have hsorted : l.Pairwise (· < ·) :=
-    (hle_pw.and hnd).imp fun h => lt_of_le_of_ne h.1 h.2
-  have hmem_iff : ∀ x, x ∈ l ↔ x ∈ S := fun x => Finset.mem_sort (· ≤ ·)
-  have hlt_of_idx : ∀ {a b}, a ∈ l → b ∈ l → l.idxOf a < l.idxOf b → a < b := by
-    intro a b ha hb hlt
-    have h1 := List.pairwise_iff_getElem.mp hsorted (l.idxOf a) (l.idxOf b)
-      (List.idxOf_lt_length_of_mem ha) (List.idxOf_lt_length_of_mem hb) hlt
-    rwa [List.getElem_idxOf (List.idxOf_lt_length_of_mem ha),
-      List.getElem_idxOf (List.idxOf_lt_length_of_mem hb)] at h1
-  have heq_of_idx : ∀ {a b}, a ∈ l → b ∈ l → l.idxOf a = l.idxOf b → a = b := by
-    intro a b ha hb heq
-    have ha_eq : l[l.idxOf a]'(List.idxOf_lt_length_of_mem ha) = a :=
-      List.getElem_idxOf (List.idxOf_lt_length_of_mem ha)
-    have hb_eq : l[l.idxOf b]'(List.idxOf_lt_length_of_mem hb) = b :=
-      List.getElem_idxOf (List.idxOf_lt_length_of_mem hb)
-    rw [← ha_eq, ← hb_eq]
+    ((S.pairwise_sort (· ≤ ·)).and (S.sort_nodup (· ≤ ·))).imp fun h => lt_of_le_of_ne h.1 h.2
+  have hlt_of_idx {a b : ι} (ha : a ∈ S) (hb : b ∈ S) (hlt : l.idxOf a < l.idxOf b) : a < b := by
+    have ha' := List.idxOf_lt_length_of_mem ((Finset.mem_sort (· ≤ ·)).mpr ha)
+    have hb' := List.idxOf_lt_length_of_mem ((Finset.mem_sort (· ≤ ·)).mpr hb)
+    have hp := List.pairwise_iff_getElem.mp hsorted _ _ ha' hb' hlt
+    rwa [List.getElem_idxOf ha', List.getElem_idxOf hb'] at hp
+  have heq_of_idx {a b : ι} (ha : a ∈ S) (hb : b ∈ S) (heq : l.idxOf a = l.idxOf b) : a = b := by
+    have ha' := List.idxOf_lt_length_of_mem ((Finset.mem_sort (· ≤ ·)).mpr ha)
+    have hb' := List.idxOf_lt_length_of_mem ((Finset.mem_sort (· ≤ ·)).mpr hb)
+    rw [← List.getElem_idxOf ha', ← List.getElem_idxOf hb']
     congr 1
-  constructor
-  · intro h
-    refine ⟨argmaxOver_mem h, fun k hk => le_of_argmaxOver_eq_some h hk, fun k hk hkj => ?_⟩
-    by_contra hnot
-    have hle : score j ≤ score k := le_of_not_gt hnot
-    have hidx : l.idxOf j ≤ l.idxOf k :=
-      List.index_of_argmax (by simpa [argmaxOver, l] using h) hle
-    rcases lt_or_eq_of_le hidx with hlt | heq
-    · exact absurd (hlt_of_idx ((hmem_iff j).mpr (argmaxOver_mem h)) ((hmem_iff k).mpr hk) hlt)
-        (not_lt_of_gt hkj)
-    · exact hkj.ne' (heq_of_idx ((hmem_iff j).mpr (argmaxOver_mem h)) ((hmem_iff k).mpr hk) heq)
-  · rintro ⟨hj, hmax, htie⟩
-    have hne : argmaxOver S score ≠ none := by
-      rw [ne_eq, argmaxOver_eq_none_iff]
-      exact Finset.Nonempty.ne_empty ⟨j, hj⟩
-    rcases Option.ne_none_iff_exists'.mp hne with ⟨m, hm⟩
-    have hm_mem : m ∈ S := argmaxOver_mem hm
-    have hsm_le : score m ≤ score j := hmax m hm_mem
-    have hsj_le : score j ≤ score m := le_of_argmaxOver_eq_some hm hj
-    have hidx : l.idxOf m ≤ l.idxOf j :=
-      List.index_of_argmax (by simpa [argmaxOver, l] using hm) hsm_le
-    rcases lt_or_eq_of_le hidx with hlt | heq
-    · have hmj : m < j := hlt_of_idx ((hmem_iff m).mpr hm_mem) ((hmem_iff j).mpr hj) hlt
-      exact absurd (htie m hm_mem hmj) (not_lt_of_ge hsj_le)
-    · have hmj : m = j := heq_of_idx ((hmem_iff m).mpr hm_mem) ((hmem_iff j).mpr hj) heq
-      rwa [← hmj]
+  refine ⟨fun h => ⟨argmaxOver_mem h, fun _ hk => le_of_argmaxOver_eq_some h hk,
+    fun k hk hkj => ?_⟩, fun ⟨hj, hmax, htie⟩ => ?_⟩
+  · by_contra hnot
+    have hidx := List.index_of_argmax (by simpa [argmaxOver, l] using h)
+      ((Finset.mem_sort (· ≤ ·)).mpr hk) (le_of_not_gt hnot)
+    exact hidx.lt_or_eq.elim (fun hlt => (hlt_of_idx (argmaxOver_mem h) hk hlt).not_gt hkj)
+      fun heq => hkj.ne' (heq_of_idx (argmaxOver_mem h) hk heq)
+  · obtain ⟨m, hm⟩ := Option.ne_none_iff_exists'.mp
+      (mt (argmaxOver_eq_none_iff S score).mp (Finset.Nonempty.ne_empty ⟨j, hj⟩))
+    have hmS := argmaxOver_mem hm
+    have hidx := List.index_of_argmax (by simpa [argmaxOver, l] using hm)
+      ((Finset.mem_sort (· ≤ ·)).mpr hj) (hmax m hmS)
+    exact hidx.lt_or_eq.elim
+      (fun hlt => absurd (htie m hmS (hlt_of_idx hmS hj hlt)) (not_lt_of_ge
+        (le_of_argmaxOver_eq_some hm hj)))
+      fun heq => heq_of_idx hmS hj heq ▸ hm
 
 /-- One-step outcome produced by an online allocation rule on a single arriving query. -/
 structure StepResult (ι : Type*) where
@@ -515,35 +465,29 @@ private theorem spentAt_mono {T : ℕ} {ι : Type*} [DecidableEq ι] {rule : All
     {b : Fin T → ι → ℝ} (hnonneg : ∀ t : Fin T, 0 ≤ paymentAt rule b t)
     {t₁ t₂ : Fin (T + 1)} (ht : t₁ ≤ t₂) (j : ι) :
     spentAt rule b t₁ j ≤ spentAt rule b t₂ j := by
-  have aux : ∀ n (hn : n ≤ T) m (hm : m ≤ n),
+  have aux (n : ℕ) (hn : n ≤ T) : ∀ m (hm : m ≤ n),
       spentAux rule b m (hm.trans hn) j ≤ spentAux rule b n hn j := by
-    intro n hn m hm
     induction n with
     | zero =>
-        have : m = 0 := Nat.le_zero.mp hm
-        subst this
-        exact le_rfl
+      rintro m hm
+      obtain rfl := Nat.le_zero.mp hm
+      exact le_rfl
     | succ k ih =>
-        rcases eq_or_lt_of_le hm with rfl | hlt
-        · exact le_rfl
-        · have hmk : m ≤ k := Nat.lt_succ_iff.mp hlt
-          have hkT : k ≤ T := Nat.le_of_succ_le hn
-          have hstep := ih hkT hmk
-          refine hstep.trans ?_
-          change spentAux rule b k hkT j ≤
-            applyStep (spentAux rule b k hkT)
-              (rule (spentAux rule b k hkT) (b ⟨k, hn⟩)) j
-          have hp : 0 ≤ (rule (spentAux rule b k hkT) (b ⟨k, hn⟩)).payment :=
-            hnonneg ⟨k, hn⟩
-          cases hch : (rule (spentAux rule b k hkT) (b ⟨k, hn⟩)).choice with
-          | none => simp only [applyStep, hch, le_refl]
-          | some j₀ =>
-              simp only [applyStep, hch]
-              by_cases hj : j = j₀
-              · subst hj
-                simp only [Function.update_self]
-                linarith
-              · simp only [Function.update_of_ne hj, le_refl]
+      intro m hm
+      rcases eq_or_lt_of_le hm with rfl | hlt
+      · exact le_rfl
+      · have hkT : k ≤ T := Nat.le_of_succ_le hn
+        have hmk : m ≤ k := Nat.lt_succ_iff.mp hlt
+        refine (ih hkT m hmk).trans ?_
+        have hp : 0 ≤ (rule (spentAux rule b k hkT) (b ⟨k, hn⟩)).payment := hnonneg ⟨k, hn⟩
+        change spentAux rule b k hkT j ≤ applyStep (spentAux rule b k hkT) (rule _ (b ⟨k, hn⟩)) j
+        cases hch : (rule (spentAux rule b k hkT) (b ⟨k, hn⟩)).choice with
+        | none => simp [applyStep, hch]
+        | some j₀ =>
+          by_cases hj : j = j₀
+          · subst hj
+            simp only [applyStep, hch, Function.update_self]; linarith
+          · simp [applyStep, hch, hj]
   exact aux t₂.val (Nat.le_of_lt_succ t₂.isLt) t₁.val ht
 
 private theorem spentAt_telescope {T : ℕ} {ι : Type*} [Fintype ι] [DecidableEq ι]
@@ -553,62 +497,44 @@ private theorem spentAt_telescope {T : ℕ} {ι : Type*} [Fintype ι] [Decidable
         match choiceAt rule b t with
         | none => 0
         | some j => f j (spentAt rule b t.succ j) - f j (spentAt rule b t.castSucc j) := by
-  have step_diff : ∀ t : Fin T,
+  have step_diff (t : Fin T) :
       ∑ j, f j (spentAt rule b t.succ j) - ∑ j, f j (spentAt rule b t.castSucc j) =
         match choiceAt rule b t with
         | none => 0
         | some j => f j (spentAt rule b t.succ j) - f j (spentAt rule b t.castSucc j) := by
-    intro t
     rw [← Finset.sum_sub_distrib]
     cases hch : choiceAt rule b t with
     | none =>
-        refine Finset.sum_eq_zero fun j _ => ?_
-        have hch' : (rule (spentAt rule b t.castSucc) (b t)).choice = none := hch
-        simp only [spentAt_succ, applyStep, hch', sub_self]
+      have hch' : (rule (spentAt rule b t.castSucc) (b t)).choice = none := hch
+      exact Finset.sum_eq_zero fun j _ => by simp [spentAt_succ, applyStep, hch']
     | some j₀ =>
-        have hch' : (rule (spentAt rule b t.castSucc) (b t)).choice = some j₀ := hch
-        rw [Finset.sum_eq_single j₀]
-        · intro j _ hj
-          simp only [spentAt_succ, applyStep, hch', Function.update_of_ne hj, sub_self]
-        · intro hmem
-          exact absurd (mem_univ j₀) hmem
-  have htele : ∀ n (hn : n ≤ T),
+      have hch' : (rule (spentAt rule b t.castSucc) (b t)).choice = some j₀ := hch
+      exact Finset.sum_eq_single j₀
+        (fun j _ hj => by simp [spentAt_succ, applyStep, hch', hj])
+        fun hmem => absurd (mem_univ j₀) hmem
+  have htele (n : ℕ) (hn : n ≤ T) :
       ∑ j, f j (spentAux rule b n hn j) - ∑ j, f j 0 =
-        ∑ k : Fin n,
-          (∑ j, f j (spentAt rule b ⟨k.val + 1, by omega⟩ j) -
-            ∑ j, f j (spentAt rule b ⟨k.val, by omega⟩ j)) := by
-    intro n hn
+        ∑ k : Fin n, (∑ j, f j (spentAt rule b ⟨k.val + 1, by omega⟩ j) -
+          ∑ j, f j (spentAt rule b ⟨k.val, by omega⟩ j)) := by
     induction n with
-    | zero => simp only [spentAux, Pi.zero_apply, sub_self, Finset.univ_eq_empty, Finset.sum_empty]
+    | zero => simp [spentAux]
     | succ m ih =>
-        rw [Fin.sum_univ_castSucc]
-        have hm : m ≤ T := Nat.le_of_succ_le hn
-        have ih' := ih hm
-        change (∑ j, f j (spentAt rule b ⟨m + 1, by omega⟩ j) - ∑ j, f j 0) = _
-        have heq_sub :
-            ∑ k : Fin m,
-                (∑ j, f j (spentAt rule b ⟨k.val + 1, by omega⟩ j) -
-                  ∑ j, f j (spentAt rule b ⟨k.val, by omega⟩ j)) =
-              ∑ j, f j (spentAux rule b m hm j) - ∑ j, f j 0 := ih'.symm
-        change _ = (∑ k : Fin m, _) +
+      rw [Fin.sum_univ_castSucc]
+      have hm : m ≤ T := Nat.le_of_succ_le hn
+      have hcast (k : Fin m) : (k.castSucc : Fin (m + 1)).val = k.val := rfl
+      have hml : ∑ j, f j (spentAux rule b m hm j) =
+          ∑ j, f j (spentAt rule b ⟨m, Nat.lt_succ_of_le hm⟩ j) := rfl
+      change (∑ j, f j (spentAt rule b ⟨m + 1, by omega⟩ j) - ∑ j, f j 0) =
+        (∑ k : Fin m, _) +
           (∑ j, f j (spentAt rule b ⟨m + 1, by omega⟩ j) -
             ∑ j, f j (spentAt rule b ⟨m, by omega⟩ j))
-        have hcast : ∀ k : Fin m, (k.castSucc : Fin (m + 1)).val = k.val := fun _ => rfl
-        have hml : ∑ j, f j (spentAux rule b m hm j) =
-            ∑ j, f j (spentAt rule b ⟨m, Nat.lt_succ_of_le hm⟩ j) := rfl
-        rw [← hml]
-        simp_rw [hcast]
-        linarith [ih']
-  calc
-    ∑ j, f j (finalSpent rule b j) - ∑ j, f j 0
-        = ∑ k : Fin T,
-            (∑ j, f j (spentAt rule b k.succ j) -
-              ∑ j, f j (spentAt rule b k.castSucc j)) := htele T le_rfl
-    _ = ∑ t : Fin T,
-          match choiceAt rule b t with
-          | none => 0
-          | some j => f j (spentAt rule b t.succ j) - f j (spentAt rule b t.castSucc j) :=
-        Finset.sum_congr rfl fun t _ => step_diff t
+      rw [← hml]
+      simp_rw [hcast]
+      linarith [ih hm]
+  calc ∑ j, f j (finalSpent rule b j) - ∑ j, f j 0
+      = ∑ k : Fin T, (∑ j, f j (spentAt rule b k.succ j) -
+          ∑ j, f j (spentAt rule b k.castSucc j)) := htele T le_rfl
+    _ = _ := Finset.sum_congr rfl fun t _ => step_diff t
 
 /-- When an unallocated query always charges `0`, `revenue` equals the sum of per-step payments. -/
 theorem revenue_eq_sum_paymentAt {T : ℕ} {ι : Type*} [Fintype ι] [DecidableEq ι]
@@ -617,14 +543,12 @@ theorem revenue_eq_sum_paymentAt {T : ℕ} {ι : Type*} [Fintype ι] [DecidableE
     revenue rule b = ∑ t : Fin T, paymentAt rule b t := by
   have ht := spentAt_telescope rule b (fun _ x => x)
   simp only [Finset.sum_const_zero, sub_zero] at ht
-  change revenue rule b = _ at ht
-  rw [ht]
-  refine Finset.sum_congr rfl fun t _ => ?_
+  refine ht.trans (Finset.sum_congr rfl fun t _ => ?_)
   cases hch : choiceAt rule b t with
   | none => exact (hnone t hch).symm
   | some j =>
-      simp only [spentAt_succ, applyStep, choiceAt, paymentAt] at hch ⊢
-      simp only [hch, Function.update_self, add_sub_cancel_left]
+    simp only [spentAt_succ, applyStep, choiceAt, paymentAt] at hch ⊢
+    simp [hch]
 
 /-! ### The four online allocation rules -/
 
@@ -705,31 +629,26 @@ private theorem trunc_invariant {T : ℕ} {ι : Type*} [DecidableEq ι]
       | some j => 0 ≤ (rule s q).payment ∧ s j + (rule s q).payment ≤ budget j)
     (t : Fin (T + 1)) (j : ι) :
     0 ≤ spentAt rule b t j ∧ spentAt rule b t j ≤ budget j := by
-  have aux : ∀ n (hn : n ≤ T) j,
+  have aux (n : ℕ) (hn : n ≤ T) : ∀ j,
       0 ≤ spentAux rule b n hn j ∧ spentAux rule b n hn j ≤ budget j := by
-    intro n hn
     induction n with
-    | zero => intro j; exact ⟨le_rfl, hB j⟩
+    | zero => exact fun j => ⟨le_rfl, hB j⟩
     | succ m ih =>
-        have hm : m ≤ T := Nat.le_of_succ_le hn
-        have hprev := ih hm
-        have hs := hstep (spentAux rule b m hm) (b ⟨m, hn⟩) hprev (hb ⟨m, hn⟩)
-        intro j
-        change 0 ≤ applyStep (spentAux rule b m hm) _ j ∧
-          applyStep (spentAux rule b m hm) _ j ≤ budget j
-        cases hch : (rule (spentAux rule b m hm) (b ⟨m, hn⟩)).choice with
-        | none =>
-            simp only [applyStep, hch]
-            exact hprev j
-        | some j₀ =>
-            simp only [hch] at hs
-            simp only [applyStep, hch]
-            by_cases hj : j = j₀
-            · subst hj
-              simp only [Function.update_self]
-              exact ⟨add_nonneg (hprev j).1 hs.1, hs.2⟩
-            · simp only [Function.update_of_ne hj]
-              exact hprev j
+      have hmT : m ≤ T := Nat.le_of_succ_le hn
+      have hprev := ih hmT
+      have hs := hstep (spentAux rule b m hmT) (b ⟨m, hn⟩) hprev (hb ⟨m, hn⟩)
+      intro j
+      change 0 ≤ applyStep (spentAux rule b m hmT) _ j ∧
+        applyStep (spentAux rule b m hmT) _ j ≤ budget j
+      cases hch : (rule (spentAux rule b m hmT) (b ⟨m, hn⟩)).choice with
+      | none => simpa [applyStep, hch] using hprev j
+      | some j₀ =>
+        simp only [hch] at hs
+        by_cases hj : j = j₀
+        · subst hj
+          simp only [applyStep, hch, Function.update_self]
+          exact ⟨add_nonneg (hprev j).1 hs.1, hs.2⟩
+        · simpa [applyStep, hch, hj] using hprev j
   exact aux t.val (Nat.le_of_lt_succ t.isLt) j
 
 private theorem truncRule_bounds {ι : Type*} [Fintype ι] [LinearOrder ι] {budget : ι → ℝ}
@@ -862,64 +781,56 @@ theorem greedyTrunc_competitive {T : ℕ} {ι : Type*} [Fintype ι] [LinearOrder
     (LP.unit b budget).primalObj x ≤ 2 * revenue (greedyTruncRule budget) b := by
   classical
   set rule := greedyTruncRule budget
-  have hB0 : ∀ j, 0 ≤ budget j := fun j => (hB j).le
   have hinv : ∀ t j, 0 ≤ spentAt rule b t j ∧ spentAt rule b t j ≤ budget j :=
-    greedyTrunc_spent_mem hB0 hb0
+    greedyTrunc_spent_mem (fun j => (hB j).le) hb0
   have hpay_nonneg : ∀ t : Fin T, 0 ≤ paymentAt rule b t :=
-    paymentAt_nonneg_of_step hinv hb0 (fun _ _ hs hq =>
-      truncRule_bounds (budget := budget) (fun s q j => min (q j) (budget j - s j)) hs hq)
-  let α : Fin T → ℝ := fun t => paymentAt rule b t
+    paymentAt_nonneg_of_step hinv hb0 fun _ _ hs hq =>
+      truncRule_bounds (budget := budget) (fun s q j => min (q j) (budget j - s j)) hs hq
+  let α : Fin T → ℝ := paymentAt rule b
   let β : ι → ℝ := fun j => finalSpent rule b j / budget j
-  have hmono : ∀ (t : Fin T) (j : ι), spentAt rule b t.castSucc j ≤ finalSpent rule b j :=
-    fun t j => spentAt_mono hpay_nonneg (Fin.le_last t.castSucc) j
+  have hmono (t : Fin T) (j : ι) : spentAt rule b t.castSucc j ≤ finalSpent rule b j :=
+    spentAt_mono hpay_nonneg (Fin.le_last t.castSucc) j
   have hdual : (LP.unit b budget).IsDualFeasible α β := by
     refine ⟨hpay_nonneg, fun j => div_nonneg (hinv _ j).1 (hB j).le, fun t j => ?_⟩
     have hrem : min (b t j) (budget j - finalSpent rule b j) ≤ α t := by
       rcases lt_or_ge (spentAt rule b t.castSucc j) (budget j) with hlt | hge
-      · have hmem : j ∈ univ.filter (fun k => spentAt rule b t.castSucc k < budget k) :=
+      · have hmem : j ∈ univ.filter fun k => spentAt rule b t.castSucc k < budget k :=
           mem_filter.mpr ⟨mem_univ j, hlt⟩
         obtain ⟨jstar, hjstar, hle⟩ := exists_argmaxOver_of_mem hmem
           (score := fun k => min (b t k) (budget k - spentAt rule b t.castSucc k))
         have hαeq : α t = min (b t jstar) (budget jstar - spentAt rule b t.castSucc jstar) := by
           change (greedyTruncRule budget (spentAt rule b t.castSucc) (b t)).payment = _
           simp only [greedyTruncRule, hjstar]
-        rw [hαeq]
-        exact (min_le_min_left (b t j) (sub_le_sub_left (hmono t j) (budget j))).trans hle
-      · have hfinal_eq : finalSpent rule b j = budget j :=
+        exact hαeq ▸ (min_le_min_left (b t j) (sub_le_sub_left (hmono t j) _)).trans hle
+      · have hfeq : finalSpent rule b j = budget j :=
           le_antisymm (hinv (Fin.last T) j).2 (hge.trans (hmono t j))
-        rw [hfinal_eq, sub_self]
+        rw [hfeq, sub_self]
         exact (min_le_right _ _).trans (hpay_nonneg t)
     have hprod_le : b t j * (1 - β j) ≤ min (b t j) (budget j - finalSpent rule b j) := by
       refine le_min ?_ ?_
       · have hβ0 : 0 ≤ β j := div_nonneg (hinv _ j).1 (hB j).le
         nlinarith [hb0 t j]
-      · have hmul : b t j * (1 - β j) = (b t j / budget j) * (budget j - finalSpent rule b j) := by
-          have hne : budget j ≠ 0 := (hB j).ne'
+      · have hprod_eq : b t j * (1 - β j) =
+            (b t j / budget j) * (budget j - finalSpent rule b j) := by
           simp only [β]
-          field_simp [hne]
-        rw [hmul]
-        have hratio : b t j / budget j ≤ 1 := (div_le_one (hB j)).mpr (hbB t j)
-        have hrem_nn : 0 ≤ budget j - finalSpent rule b j :=
-          sub_nonneg.mpr (hinv (Fin.last T) j).2
-        nlinarith
+          field_simp [(hB j).ne']
+        rw [hprod_eq]
+        have hrem_nn : 0 ≤ budget j - finalSpent rule b j := sub_nonneg.mpr (hinv (Fin.last T) j).2
+        nlinarith [(div_le_one (hB j)).mpr (hbB t j)]
     change b t j ≤ α t + b t j * β j
-    linarith [hprod_le, hrem]
-  have hweak := LP.primalObj_le_dualObj hx hdual
-  have hsumβ : ∑ j, budget j * β j = revenue rule b := by
-    refine Finset.sum_congr rfl fun j _ => ?_
-    simp only [β]
-    exact mul_div_cancel₀ _ (hB j).ne'
-  have hsumα : ∑ t : Fin T, (1 : ℝ) * α t = revenue rule b := by
-    simp_rw [one_mul]
+    linarith
+  have hsumβ : ∑ j, budget j * β j = revenue rule b :=
+    Finset.sum_congr rfl fun j _ => mul_div_cancel₀ _ (hB j).ne'
+  have hsumα : ∑ t : Fin T, α t = revenue rule b := by
     refine (revenue_eq_sum_paymentAt fun t ht => ?_).symm
     exact trunc_payment_eq_zero_of_none (budget := budget)
       (fun s q j => min (q j) (budget j - s j))
       (by simpa [rule, choiceAt, greedyTruncRule] using ht)
   have hdobj : (LP.unit b budget).dualObj α β = 2 * revenue rule b := by
-    change ∑ j, budget j * β j + ∑ t : Fin T, 1 * α t = 2 * revenue rule b
-    rw [hsumβ, hsumα]
-    ring
-  linarith [hweak, hdobj]
+    change ∑ j, budget j * β j + ∑ t : Fin T, 1 * α t = _
+    simp_rw [one_mul]
+    linarith
+  exact (LP.primalObj_le_dualObj hx hdual).trans_eq hdobj
 
 /-- Exact **`(1 - R) / (2 - R)`-competitive ratio** for all-or-nothing **Greedy** against the
 offline fractional LP relaxation (28.11) ([LahaiePennockSaberiVohra2007], §28.4.1, p. 709) when all
@@ -935,70 +846,57 @@ theorem greedyAllOrNothing_competitive {T : ℕ} {ι : Type*} [Fintype ι] [Line
       (2 - R) * revenue (greedyAllOrNothingRule budget) b := by
   classical
   set rule := greedyAllOrNothingRule budget
-  have hB0 : ∀ j, 0 ≤ budget j := fun j => (hB j).le
-  have hinv := greedyAllOrNothing_spent_mem hB0 hb0
+  have hinv : ∀ t j, 0 ≤ spentAt rule b t j ∧ spentAt rule b t j ≤ budget j :=
+    greedyAllOrNothing_spent_mem (fun j => (hB j).le) hb0
   have hpay_nonneg : ∀ t : Fin T, 0 ≤ paymentAt rule b t :=
-    paymentAt_nonneg_of_step hinv hb0 (fun _ _ _ hq =>
-      aonRule_bounds (budget := budget) (fun _ q j => q j) hq)
-  let α : Fin T → ℝ := fun t => paymentAt rule b t
+    paymentAt_nonneg_of_step hinv hb0 fun _ _ _ hq =>
+      aonRule_bounds (budget := budget) (fun _ q j => q j) hq
+  let α : Fin T → ℝ := paymentAt rule b
   let β : ι → ℝ := fun j => if (1 - R) * budget j < finalSpent rule b j then 1 else 0
-  have hmono : ∀ (t : Fin T) (j : ι), spentAt rule b t.castSucc j ≤ finalSpent rule b j :=
-    fun t j => spentAt_mono hpay_nonneg (Fin.le_last t.castSucc) j
+  have hmono (t : Fin T) (j : ι) : spentAt rule b t.castSucc j ≤ finalSpent rule b j :=
+    spentAt_mono hpay_nonneg (Fin.le_last t.castSucc) j
   have hdual : (LP.unit b budget).IsDualFeasible α β := by
     refine ⟨hpay_nonneg, fun j => by dsimp only [β]; split_ifs <;> norm_num, fun t j => ?_⟩
     by_cases hhigh : (1 - R) * budget j < finalSpent rule b j
-    · have hβ : β j = 1 := ite_eq_left_iff.mpr fun h => absurd hhigh h
-      change b t j ≤ α t + b t j * β j
-      rw [hβ, mul_one]
-      linarith [hpay_nonneg t]
-    · have hlow : finalSpent rule b j ≤ (1 - R) * budget j := le_of_not_gt hhigh
-      have hfit : spentAt rule b t.castSucc j + b t j ≤ budget j := by
-        linarith [hmono t j, hbR t j]
-      have hmem : j ∈ univ.filter (fun k => spentAt rule b t.castSucc k + b t k ≤ budget k) :=
-        mem_filter.mpr ⟨mem_univ j, hfit⟩
+    · change b t j ≤ α t + b t j * β j
+      simp only [β, hhigh, ↓reduceIte, mul_one]; linarith [hpay_nonneg t]
+    · have hmem : j ∈ univ.filter fun k => spentAt rule b t.castSucc k + b t k ≤ budget k :=
+        mem_filter.mpr ⟨mem_univ j, by linarith [hmono t j, hbR t j]⟩
       obtain ⟨jstar, hjstar, hle⟩ := exists_argmaxOver_of_mem hmem (score := b t)
       have hαeq : α t = b t jstar := by
         change (greedyAllOrNothingRule budget (spentAt rule b t.castSucc) (b t)).payment = _
         simp only [greedyAllOrNothingRule, hjstar]
-      have hβ : β j = 0 := ite_eq_right_iff.mpr fun h => absurd h hhigh
       change b t j ≤ α t + b t j * β j
-      rw [hαeq, hβ, mul_zero, add_zero]
-      exact hle
-  have hweak := LP.primalObj_le_dualObj hx hdual
+      simpa [β, hhigh, hαeq] using hle
   have hsumβ : (1 - R) * ∑ j, budget j * β j ≤ revenue rule b := by
     rw [Finset.mul_sum]
     refine Finset.sum_le_sum fun j _ => ?_
     dsimp only [β]
     split_ifs with hhigh
     · linarith
-    · rw [mul_zero, mul_zero]
+    · simp only [mul_zero]
       exact (hinv (Fin.last T) j).1
-  have hsumα : ∑ t : Fin T, (1 : ℝ) * α t = revenue rule b := by
-    simp_rw [one_mul]
+  have hsumα : ∑ t : Fin T, α t = revenue rule b := by
     refine (revenue_eq_sum_paymentAt fun t ht => ?_).symm
     exact aon_payment_eq_zero_of_none (budget := budget) (fun _ q j => q j)
       (by simpa [rule, choiceAt, greedyAllOrNothingRule] using ht)
-  have h1R : 0 ≤ 1 - R := sub_nonneg.mpr hR1
-  have hmul : (1 - R) * (LP.unit b budget).primalObj x ≤
-      (1 - R) * (LP.unit b budget).dualObj α β := mul_le_mul_of_nonneg_left hweak h1R
-  have hdual_eq : (LP.unit b budget).dualObj α β =
-      ∑ j, budget j * β j + revenue rule b := by
+  have hdual_eq : (LP.unit b budget).dualObj α β = ∑ j, budget j * β j + revenue rule b := by
     change ∑ j, budget j * β j + ∑ t : Fin T, 1 * α t = _
+    simp_rw [one_mul]
     rw [hsumα]
   have hrev_nn : 0 ≤ revenue rule b := Finset.sum_nonneg fun j _ => (hinv (Fin.last T) j).1
-  nlinarith [hR0, hmul, hdual_eq, hsumβ, hrev_nn]
+  nlinarith [mul_le_mul_of_nonneg_left (LP.primalObj_le_dualObj hx hdual) (sub_nonneg.mpr hR1)]
 
 /-- As the bid-to-budget ratio `R → 0`, the all-or-nothing Greedy factor `(1 - R) / (2 - R)`
 converges to `1 / 2`. -/
 theorem tendsto_greedyAllOrNothing_factor :
     Filter.Tendsto (fun R : ℝ => (1 - R) / (2 - R)) (nhds 0) (nhds (1 / 2)) := by
-  have hnum : Filter.Tendsto (fun R : ℝ => 1 - R) (nhds 0) (nhds (1 - 0)) :=
-    tendsto_const_nhds.sub Filter.tendsto_id
-  have hden : Filter.Tendsto (fun R : ℝ => 2 - R) (nhds 0) (nhds (2 - 0)) :=
-    tendsto_const_nhds.sub Filter.tendsto_id
   have hdiv : Filter.Tendsto (fun R : ℝ => (1 - R) / (2 - R)) (nhds 0)
-      (nhds ((1 - 0) / (2 - 0))) := hnum.div hden (by norm_num)
-  simpa [show (1 - 0 : ℝ) / (2 - 0) = 1 / 2 by norm_num] using hdiv
+      (nhds ((1 - 0) / (2 - 0))) :=
+    (tendsto_const_nhds.sub Filter.tendsto_id).div
+      (tendsto_const_nhds.sub Filter.tendsto_id) (by norm_num)
+  norm_num at hdiv
+  exact hdiv
 
 /-! ### Tight two-bidder worst-case example for Greedy (NRTV p. 709) -/
 
@@ -1035,42 +933,35 @@ theorem greedy_two_bidder_example {ε : ℝ} (hε0 : 0 < ε) (hε2 : ε < 2) :
     have harg : argmaxOver (univ.filter fun j : Fin 2 => (0 : Fin 2 → ℝ) j < twoBidderBudget j)
         (fun j => min (twoBidderBids ε 0 j) (twoBidderBudget j - (0 : Fin 2 → ℝ) j)) = some 0 := by
       rw [argmaxOver_eq_some_iff]
-      refine ⟨mem_filter.mpr ⟨mem_univ 0, by norm_num [twoBidderBudget]⟩, ?_, ?_⟩
-      · intro k _
-        fin_cases k
-        · exact le_rfl
-        · change min (2 - ε) (2 - 0) ≤ min (2 : ℝ) (2 - 0)
-          simp only [sub_zero, min_self]
-          exact min_le_of_left_le (by linarith)
-      · intro k _ hlt
-        exact absurd hlt (Fin.not_lt_zero k)
+      refine ⟨mem_filter.mpr ⟨mem_univ 0, by norm_num [twoBidderBudget]⟩,
+        fun k _ => ?_, fun k _ hlt => absurd hlt (Fin.not_lt_zero k)⟩
+      fin_cases k
+      · exact le_rfl
+      · change min (2 - ε) (2 - 0) ≤ min (2 : ℝ) (2 - 0)
+        simp only [sub_zero, min_self]
+        exact min_le_of_left_le (by linarith)
     simp only [greedyTruncRule, harg]
     change (⟨some 0, min (2 : ℝ) (2 - 0)⟩ : StepResult (Fin 2)) = ⟨some 0, 2⟩
     simp only [sub_zero, min_self]
   have hs1_t : spentAt (greedyTruncRule twoBidderBudget) (twoBidderBids ε) 1 = ![2, 0] := by
     funext j
-    have hstep := spentAt_succ (greedyTruncRule twoBidderBudget) (twoBidderBids ε) 0
     change spentAt _ _ (Fin.succ 0) j = _
-    rw [hstep]
-    simp only [Fin.castSucc_zero, spentAt_zero, htrunc0, applyStep]
-    fin_cases j <;> simp [Function.update]
+    rw [spentAt_succ]
+    fin_cases j <;> simp [Fin.castSucc_zero, spentAt_zero, htrunc0, applyStep, Function.update]
   have htrunc1 : greedyTruncRule twoBidderBudget ![2, 0] (twoBidderBids ε 1) = ⟨some 1, ε⟩ := by
     have harg : argmaxOver
         (univ.filter fun j : Fin 2 => (![2, 0] : Fin 2 → ℝ) j < twoBidderBudget j)
         (fun j => min (twoBidderBids ε 1 j) (twoBidderBudget j - (![2, 0] : Fin 2 → ℝ) j)) =
         some 1 := by
       rw [argmaxOver_eq_some_iff]
-      refine ⟨mem_filter.mpr ⟨mem_univ 1, by norm_num [twoBidderBudget]⟩, ?_, ?_⟩
-      · intro k hk
+      have h1only (k : Fin 2) (hk : k ∈ univ.filter fun j : Fin 2 =>
+          (![2, 0] : Fin 2 → ℝ) j < twoBidderBudget j) : k = 1 := by
         have hk' := (mem_filter.mp hk).2
         fin_cases k
         · norm_num [twoBidderBudget] at hk'
-        · exact le_rfl
-      · intro k hk hlt
-        have hk' := (mem_filter.mp hk).2
-        fin_cases k
-        · norm_num [twoBidderBudget] at hk'
-        · exact absurd hlt (lt_irrefl 1)
+        · rfl
+      exact ⟨mem_filter.mpr ⟨mem_univ 1, by norm_num [twoBidderBudget]⟩,
+        fun k hk => by rw [h1only k hk], fun k hk hlt => absurd (h1only k hk ▸ hlt) (lt_irrefl 1)⟩
     simp only [greedyTruncRule, harg]
     change (⟨some 1, min ε (2 - 0)⟩ : StepResult (Fin 2)) = ⟨some 1, ε⟩
     simp only [sub_zero, min_eq_left hε2.le]
@@ -1078,9 +969,8 @@ theorem greedy_two_bidder_example {ε : ℝ} (hε0 : 0 < ε) (hε2 : ε < 2) :
     have hfin : finalSpent (greedyTruncRule twoBidderBudget) (twoBidderBids ε) = ![2, ε] := by
       funext j
       change spentAt _ _ (Fin.succ 1) j = _
-      rw [spentAt_succ]
       have hcs : (1 : Fin 2).castSucc = (1 : Fin 3) := rfl
-      rw [hcs, hs1_t, htrunc1]
+      rw [spentAt_succ, hcs, hs1_t, htrunc1]
       fin_cases j <;> simp [applyStep, Function.update]
     simp only [revenue, hfin, Fin.sum_univ_two, Matrix.cons_val_zero, Matrix.cons_val_one]
   have haon0 : greedyAllOrNothingRule twoBidderBudget 0 (twoBidderBids ε 0) = ⟨some 0, 2⟩ := by
@@ -1088,41 +978,35 @@ theorem greedy_two_bidder_example {ε : ℝ} (hε0 : 0 < ε) (hε2 : ε < 2) :
         (0 : Fin 2 → ℝ) j + twoBidderBids ε 0 j ≤ twoBidderBudget j) (twoBidderBids ε 0) =
         some 0 := by
       rw [argmaxOver_eq_some_iff]
-      refine ⟨mem_filter.mpr ⟨mem_univ 0, by norm_num [twoBidderBids, twoBidderBudget]⟩, ?_, ?_⟩
-      · intro k _
-        fin_cases k
-        · exact le_rfl
-        · change (2 - ε : ℝ) ≤ 2
-          linarith
-      · intro k _ hlt
-        exact absurd hlt (Fin.not_lt_zero k)
+      refine ⟨mem_filter.mpr ⟨mem_univ 0, by norm_num [twoBidderBids, twoBidderBudget]⟩,
+        fun k _ => ?_, fun k _ hlt => absurd hlt (Fin.not_lt_zero k)⟩
+      fin_cases k
+      · exact le_rfl
+      · change (2 - ε : ℝ) ≤ 2
+        linarith
     simp only [greedyAllOrNothingRule, harg]
     rfl
   have hs1_a : spentAt (greedyAllOrNothingRule twoBidderBudget) (twoBidderBids ε) 1 = ![2, 0] := by
     funext j
     change spentAt _ _ (Fin.succ 0) j = _
     rw [spentAt_succ]
-    simp only [Fin.castSucc_zero, spentAt_zero, haon0, applyStep]
-    fin_cases j <;> simp [Function.update]
+    fin_cases j <;> simp [Fin.castSucc_zero, spentAt_zero, haon0, applyStep, Function.update]
   have haon1 : greedyAllOrNothingRule twoBidderBudget ![2, 0] (twoBidderBids ε 1) =
       ⟨some 1, ε⟩ := by
     have harg : argmaxOver (univ.filter fun j : Fin 2 =>
         (![2, 0] : Fin 2 → ℝ) j + twoBidderBids ε 1 j ≤ twoBidderBudget j) (twoBidderBids ε 1) =
         some 1 := by
       rw [argmaxOver_eq_some_iff]
-      refine ⟨mem_filter.mpr ⟨mem_univ 1, ?_⟩, ?_, ?_⟩
-      · change (0 + ε : ℝ) ≤ 2
-        linarith
-      · intro k hk
+      have h1only (k : Fin 2) (hk : k ∈ univ.filter fun j : Fin 2 =>
+          (![2, 0] : Fin 2 → ℝ) j + twoBidderBids ε 1 j ≤ twoBidderBudget j) : k = 1 := by
         have hk' := (mem_filter.mp hk).2
         fin_cases k
         · norm_num [twoBidderBids, twoBidderBudget] at hk'
-        · exact le_rfl
-      · intro k hk hlt
-        have hk' := (mem_filter.mp hk).2
-        fin_cases k
-        · norm_num [twoBidderBids, twoBidderBudget] at hk'
-        · exact absurd hlt (lt_irrefl 1)
+        · rfl
+      refine ⟨mem_filter.mpr ⟨mem_univ 1, ?_⟩,
+        fun k hk => by rw [h1only k hk], fun k hk hlt => absurd (h1only k hk ▸ hlt) (lt_irrefl 1)⟩
+      change (0 + ε : ℝ) ≤ 2
+      linarith
     simp only [greedyAllOrNothingRule, harg]
     rfl
   have hrev_a : revenue (greedyAllOrNothingRule twoBidderBudget) (twoBidderBids ε) = 2 + ε := by
@@ -1130,9 +1014,8 @@ theorem greedy_two_bidder_example {ε : ℝ} (hε0 : 0 < ε) (hε2 : ε < 2) :
         ![2, ε] := by
       funext j
       change spentAt _ _ (Fin.succ 1) j = _
-      rw [spentAt_succ]
       have hcs : (1 : Fin 2).castSucc = (1 : Fin 3) := rfl
-      rw [hcs, hs1_a, haon1]
+      rw [spentAt_succ, hcs, hs1_a, haon1]
       fin_cases j <;> simp [applyStep, Function.update]
     simp only [revenue, hfin, Fin.sum_univ_two, Matrix.cons_val_zero, Matrix.cons_val_one]
   have hfeas : (LP.unit (twoBidderBids ε) twoBidderBudget).IsPrimalFeasible twoBidderOptAlloc := by
@@ -1158,50 +1041,44 @@ theorem greedy_two_bidder_example {ε : ℝ} (hε0 : 0 < ε) (hε2 : ε < 2) :
       · change (0 : ℝ) ≤ ε; linarith
     · fin_cases j
       · change (0 : ℝ) ≤ 1 - ε / 2; linarith
-      · change (0 : ℝ) ≤ 0; exact le_rfl
+      · exact le_rfl
     · fin_cases i <;> fin_cases j
       · change (2 : ℝ) ≤ (2 - ε) + 2 * (1 - ε / 2); linarith
       · change (2 - ε : ℝ) ≤ (2 - ε) + (2 - ε) * 0; linarith
       · change (2 : ℝ) ≤ ε + 2 * (1 - ε / 2); linarith
       · change (ε : ℝ) ≤ ε + ε * 0; linarith
-  have hweak := LP.primalObj_le_dualObj hx hd
   have hdobj : (LP.unit (twoBidderBids ε) twoBidderBudget).dualObj α β = 4 - ε := by
     simp only [LP.dualObj, Fin.sum_univ_two]
     change (2 * (1 - ε / 2) + 2 * 0) + (1 * (2 - ε) + 1 * ε) = 4 - ε
     ring
-  linarith [hweak, hdobj]
+  exact (LP.primalObj_le_dualObj hx hd).trans_eq hdobj
 
 /-- The ratio `(2 + ε) / (4 - ε)` of the two-bidder greedy revenue to its true optimum `4 - ε`
 converges to `1 / 2` as `ε → 0`. -/
 theorem tendsto_two_bidder_ratio :
     Filter.Tendsto (fun ε : ℝ => (2 + ε) / (4 - ε)) (nhds 0) (nhds (1 / 2)) := by
-  have hnum : Filter.Tendsto (fun ε : ℝ => 2 + ε) (nhds 0) (nhds (2 + 0)) :=
-    tendsto_const_nhds.add Filter.tendsto_id
-  have hden : Filter.Tendsto (fun ε : ℝ => 4 - ε) (nhds 0) (nhds (4 - 0)) :=
-    tendsto_const_nhds.sub Filter.tendsto_id
   have hdiv : Filter.Tendsto (fun ε : ℝ => (2 + ε) / (4 - ε)) (nhds 0)
-      (nhds ((2 + 0) / (4 - 0))) := hnum.div hden (by norm_num)
-  rw [show (2 + 0 : ℝ) / (4 - 0) = 1 / 2 by norm_num] at hdiv
+      (nhds ((2 + 0) / (4 - 0))) :=
+    (tendsto_const_nhds.add Filter.tendsto_id).div
+      (tendsto_const_nhds.sub Filter.tendsto_id) (by norm_num)
+  norm_num at hdiv
   exact hdiv
 
 /-! ### Exponential inequalities for the primal-dual MSVV proof -/
 
 private theorem exp_sub_one_le_mul_exp (u : ℝ) : Real.exp u - 1 ≤ u * Real.exp u := by
-  have h : -u + 1 ≤ Real.exp (-u) := Real.add_one_le_exp (-u)
-  have hmul := mul_le_mul_of_nonneg_right h (Real.exp_pos u).le
+  have hmul := mul_le_mul_of_nonneg_right (Real.add_one_le_exp (-u)) (Real.exp_pos u).le
   rw [Real.exp_neg, inv_mul_cancel₀ (Real.exp_pos u).ne'] at hmul
   linarith
 
 private theorem one_sub_exp_neg_le (u : ℝ) : 1 - Real.exp (-u) ≤ u := by
   linarith [Real.add_one_le_exp (-u)]
 
-private theorem exp_one_sub_one_pos : 0 < Real.exp 1 - 1 := by
-  have h : (1 : ℝ) < Real.exp 1 := Real.one_lt_exp_iff.mpr one_pos
-  linarith
+private theorem exp_one_sub_one_pos : 0 < Real.exp 1 - 1 :=
+  sub_pos.mpr (Real.one_lt_exp_iff.mpr one_pos)
 
-private theorem one_sub_exp_neg_one_pos : 0 < 1 - Real.exp (-1) := by
-  have h : Real.exp (-1) < 1 := Real.exp_lt_one_iff.mpr (by norm_num)
-  linarith
+private theorem one_sub_exp_neg_one_pos : 0 < 1 - Real.exp (-1) :=
+  sub_pos.mpr (Real.exp_lt_one_iff.mpr (by norm_num))
 
 private theorem msvv_rescale_le {a r R : ℝ}
     (h : a ≤ r * (Real.exp 1 / (Real.exp 1 - 1)) * Real.exp R) :
@@ -1214,13 +1091,9 @@ private theorem msvv_rescale_le {a r R : ℝ}
     rw [eq_comm, inv_eq_iff_eq_inv, inv_div]
     field_simp [hden_pos.ne', (Real.exp_pos 1).ne']
     linarith
-  have hscale_pos : 0 < (1 - Real.exp (-1)) * Real.exp (-R) :=
-    mul_pos hc_pos (Real.exp_pos (-R))
-  have hmul := mul_le_mul_of_nonneg_left h hscale_pos.le
+  have hmul := mul_le_mul_of_nonneg_left h (mul_pos hc_pos (Real.exp_pos (-R))).le
   have hRcan : Real.exp (-R) * Real.exp R = 1 := by
     rw [← Real.exp_add, neg_add_cancel, Real.exp_zero]
-  have hccan : (1 - Real.exp (-1)) * (1 - Real.exp (-1))⁻¹ = 1 :=
-    mul_inv_cancel₀ hc_pos.ne'
   have hcancel : (1 - Real.exp (-1)) * Real.exp (-R) *
       (r * (Real.exp 1 / (Real.exp 1 - 1)) * Real.exp R) = r := by
     rw [hfactor]
@@ -1228,28 +1101,19 @@ private theorem msvv_rescale_le {a r R : ℝ}
       (1 - Real.exp (-1)) * Real.exp (-R) * (r * (1 - Real.exp (-1))⁻¹ * Real.exp R)
           = r * ((1 - Real.exp (-1)) * (1 - Real.exp (-1))⁻¹) *
               (Real.exp (-R) * Real.exp R) := by ring
-      _ = r := by rw [hccan, hRcan, mul_one, mul_one]
+      _ = r := by rw [mul_inv_cancel₀ hc_pos.ne', hRcan, mul_one, mul_one]
   linarith [hmul, hcancel]
 
 private theorem msvvWeight_eq_dual_factor (x : ℝ) :
     msvvWeight x / (1 - Real.exp (-1)) = (Real.exp 1 - Real.exp x) / (Real.exp 1 - 1) := by
-  have he : Real.exp 1 ≠ 0 := (Real.exp_pos 1).ne'
-  have hden1 : 1 - Real.exp (-1) ≠ 0 := one_sub_exp_neg_one_pos.ne'
-  have hden2 : Real.exp 1 - 1 ≠ 0 := exp_one_sub_one_pos.ne'
-  rw [msvvWeight, div_eq_div_iff hden1 hden2]
+  rw [msvvWeight, div_eq_div_iff one_sub_exp_neg_one_pos.ne' exp_one_sub_one_pos.ne']
   have hex1 : Real.exp 1 * Real.exp (-1) = 1 := by
     rw [← Real.exp_add, add_neg_cancel, Real.exp_zero]
   have hex2 : Real.exp 1 * Real.exp (x - 1) = Real.exp x := by
     rw [← Real.exp_add, add_sub_cancel]
-  have h1 : (1 - Real.exp (x - 1)) * (Real.exp 1 - 1) =
-      Real.exp 1 - 1 - Real.exp x + Real.exp (x - 1) := by
-    linear_combination -hex2
-  have h2 : (Real.exp 1 - Real.exp x) * (1 - Real.exp (-1)) =
-      Real.exp 1 - 1 - Real.exp x + Real.exp (x - 1) := by
-    have hmul_neg : Real.exp x * Real.exp (-1) = Real.exp (x - 1) := by
-      rw [← Real.exp_add, sub_eq_add_neg]
-    linear_combination -hex1 + hmul_neg
-  linarith
+  have hex3 : Real.exp x * Real.exp (-1) = Real.exp (x - 1) := by
+    rw [← Real.exp_add, sub_eq_add_neg]
+  linear_combination hex1 - hex2 - hex3
 
 /-- One-step numerator bound for the exponential primal-dual potential `β(f) = (e^f - 1)/(e - 1)`:
 both non-truncating (`pay = bid ≤ B - s`) and truncating (`pay = B - s < bid`) steps satisfy the
@@ -1275,26 +1139,19 @@ private theorem msvv_step_numerator_le {B s bid R : ℝ} (hB : 0 < B) (hsB : s �
       ring
     have hsub1 : B * (Real.exp f' - Real.exp f) ≤ bid * Real.exp f * Real.exp u := by
       rw [hstep_exp]
-      have heu := exp_sub_one_le_mul_exp u
-      have hmul : Real.exp f * (Real.exp u - 1) ≤ Real.exp f * (u * Real.exp u) :=
-        mul_le_mul_of_nonneg_left heu (Real.exp_pos f).le
-      have hBmul := mul_le_mul_of_nonneg_left hmul hB.le
       have heq : B * (Real.exp f * (u * Real.exp u)) = bid * Real.exp f * Real.exp u := by
         simp only [u]
         field_simp [hB.ne']
-      linarith
-    have hcombine : bid * (Real.exp 1 - Real.exp f) + bid * Real.exp f * Real.exp u =
-        bid * (Real.exp 1 + Real.exp f * (Real.exp u - 1)) := by ring
-    have hef_le : Real.exp f ≤ Real.exp 1 := Real.exp_le_exp.mpr hf_le
-    have heu_nn : 0 ≤ Real.exp u - 1 := sub_nonneg.mpr (Real.one_le_exp hu0)
-    have hbound1 : Real.exp f * (Real.exp u - 1) ≤ Real.exp 1 * (Real.exp u - 1) :=
-      mul_le_mul_of_nonneg_right hef_le heu_nn
+      linarith [mul_le_mul_of_nonneg_left
+        (mul_le_mul_of_nonneg_left (exp_sub_one_le_mul_exp u) (Real.exp_pos f).le) hB.le]
     have hbound2 : Real.exp 1 + Real.exp f * (Real.exp u - 1) ≤ Real.exp 1 * Real.exp u := by
+      have := mul_le_mul_of_nonneg_right (Real.exp_le_exp.mpr hf_le)
+        (sub_nonneg.mpr (Real.one_le_exp hu0))
       linarith
     calc
       bid * (Real.exp 1 - Real.exp f) + B * (Real.exp f' - Real.exp f)
           ≤ bid * (Real.exp 1 - Real.exp f) + bid * Real.exp f * Real.exp u := by linarith
-      _ = bid * (Real.exp 1 + Real.exp f * (Real.exp u - 1)) := hcombine
+      _ = bid * (Real.exp 1 + Real.exp f * (Real.exp u - 1)) := by ring
       _ ≤ bid * (Real.exp 1 * Real.exp u) := mul_le_mul_of_nonneg_left hbound2 hbid0
       _ ≤ bid * (Real.exp 1 * Real.exp R) :=
           mul_le_mul_of_nonneg_left
@@ -1314,37 +1171,25 @@ private theorem msvv_step_numerator_le {B s bid R : ℝ} (hB : 0 < B) (hsB : s �
         congr 1
         ring
       rw [hexp]
-      have := one_sub_exp_neg_le (1 - f)
-      have hpos : 0 ≤ Real.exp 1 := (Real.exp_pos 1).le
-      nlinarith
+      nlinarith [one_sub_exp_neg_le (1 - f), (Real.exp_pos 1).le]
     have hdiff_pay : B * (Real.exp 1 - Real.exp f) ≤ pay * Real.exp 1 := by
-      have h1 : B * (Real.exp 1 - Real.exp f) ≤ B * (Real.exp 1 * (1 - f)) :=
-        mul_le_mul_of_nonneg_left hdiff_exp hB.le
+      have h1 := mul_le_mul_of_nonneg_left hdiff_exp hB.le
       rw [hrem] at h1
       have h2 : B * (Real.exp 1 * (pay / B)) = pay * Real.exp 1 := by
         field_simp [hB.ne']
       linarith
     have hbid_term : bid * (Real.exp 1 - Real.exp f) ≤ R * pay * Real.exp 1 := by
-      have hdiff_nn : 0 ≤ Real.exp 1 - Real.exp f :=
-        sub_nonneg.mpr (Real.exp_le_exp.mpr hf_le)
-      have h1 : bid * (Real.exp 1 - Real.exp f) ≤ R * B * (Real.exp 1 - Real.exp f) :=
-        mul_le_mul_of_nonneg_right hbidR hdiff_nn
-      have hR0 : 0 ≤ R := by
-        by_contra hlt
-        have hlt' : R < 0 := lt_of_not_ge hlt
-        have : R * B < 0 := mul_neg_of_neg_of_pos hlt' hB
-        linarith
-      have h2 : R * (B * (Real.exp 1 - Real.exp f)) ≤ R * (pay * Real.exp 1) :=
-        mul_le_mul_of_nonneg_left hdiff_pay hR0
-      linarith
-    have h1R : R + 1 ≤ Real.exp R := Real.add_one_le_exp R
-    have hnn : 0 ≤ pay * Real.exp 1 := mul_nonneg hpay0 (Real.exp_pos 1).le
+      have h1 := mul_le_mul_of_nonneg_right hbidR (sub_nonneg.mpr (Real.exp_le_exp.mpr hf_le))
+      have hR0 : 0 ≤ R := by nlinarith
+      linarith [mul_le_mul_of_nonneg_left hdiff_pay hR0]
     rw [hf']
     calc
       bid * (Real.exp 1 - Real.exp f) + B * (Real.exp 1 - Real.exp f)
           ≤ R * pay * Real.exp 1 + pay * Real.exp 1 := by linarith
       _ = (R + 1) * (pay * Real.exp 1) := by ring
-      _ ≤ Real.exp R * (pay * Real.exp 1) := mul_le_mul_of_nonneg_right h1R hnn
+      _ ≤ Real.exp R * (pay * Real.exp 1) :=
+          mul_le_mul_of_nonneg_right (Real.add_one_le_exp R)
+            (mul_nonneg hpay0 (Real.exp_pos 1).le)
       _ = pay * Real.exp 1 * Real.exp R := by ring
 
 /-! ### Continuous trade-off inequality (analogue of NRTV Lemma 28.4) and Theorem 28.3 -/
@@ -1820,36 +1665,28 @@ theorem tendsto_msvvAllOrNothing_factor :
   1 - (1 - 1 / (k : ℝ)) ^ (k - s)
 
 private theorem discretePhi_nonneg {k : ℕ} (hk : 0 < k) (s : ℕ) : 0 ≤ discretePhi k s := by
-  rw [discretePhi, sub_nonneg]
   have hkpos : (0 : ℝ) < k := Nat.cast_pos.mpr hk
-  have hbase0 : 0 ≤ 1 - 1 / (k : ℝ) := by
-    have : 1 / (k : ℝ) ≤ 1 := (div_le_one hkpos).mpr (by exact_mod_cast hk)
-    linarith
-  have hbase1 : 1 - 1 / (k : ℝ) ≤ 1 := by
-    have : 0 ≤ 1 / (k : ℝ) := div_nonneg zero_le_one hkpos.le
-    linarith
-  exact pow_le_one₀ hbase0 hbase1
+  rw [discretePhi, sub_nonneg]
+  exact pow_le_one₀ (sub_nonneg.mpr ((div_le_one hkpos).mpr (by exact_mod_cast hk)))
+    (sub_le_self _ (by positivity))
 
 private theorem sum_discretePhi_eq (k : ℕ) (hk : 0 < k) (j : ℕ) (hj : j ≤ k) :
     (1 / (k : ℝ)) * ∑ i ∈ Finset.range (j + 1), discretePhi k i =
       (j : ℝ) / k + discretePhi k j - discretePhi k 0 + discretePhi k 0 / k := by
-  have hkpos : (0 : ℝ) < k := Nat.cast_pos.mpr hk
-  have hkne : (k : ℝ) ≠ 0 := hkpos.ne'
+  have hkne : (k : ℝ) ≠ 0 := (Nat.cast_pos.mpr hk).ne'
   induction j with
   | zero =>
       simp only [Nat.cast_zero, zero_div, zero_add, Finset.range_one, Finset.sum_singleton,
         sub_self]
       ring
   | succ m ih =>
-      have hm : m ≤ k := Nat.le_of_succ_le hj
-      rw [Finset.sum_range_succ, mul_add, ih hm]
+      rw [Finset.sum_range_succ, mul_add, ih (Nat.le_of_succ_le hj)]
       have hpow : (1 - 1 / (k : ℝ)) ^ (k - m) =
           (1 - 1 / (k : ℝ)) * (1 - 1 / (k : ℝ)) ^ (k - (m + 1)) := by
         rw [← pow_succ']
         congr 1
         omega
-      simp only [discretePhi, Nat.cast_add, Nat.cast_one]
-      rw [hpow]
+      simp only [discretePhi, Nat.cast_add, Nat.cast_one, hpow]
       field_simp [hkne]
       ring
 
@@ -1857,19 +1694,12 @@ private theorem sum_discretePhi_Icc_eq (k : ℕ) (hk : 0 < k) (j : ℕ) (hj : j 
     (1 / (k : ℝ)) * ∑ i ∈ Finset.Icc 1 j, discretePhi k i =
       (j : ℝ) / k + discretePhi k j - discretePhi k 0 := by
   have hsum := sum_discretePhi_eq k hk j hj
-  have hsplit : ∑ i ∈ Finset.range (j + 1), discretePhi k i =
-      discretePhi k 0 + ∑ i ∈ Finset.Icc 1 j, discretePhi k i := by
-    have hdisj : Disjoint {0} (Finset.Icc 1 j) := by
-      simp only [Finset.disjoint_singleton_left, Finset.mem_Icc]
-      omega
-    have hunion : Finset.range (j + 1) = insert 0 (Finset.Icc 1 j) := by
-      ext x
-      simp only [Finset.mem_range, Finset.mem_insert, Finset.mem_Icc]
-      omega
-    rw [hunion, Finset.sum_insert (by simp only [Finset.mem_Icc]; omega)]
-  rw [hsplit, mul_add] at hsum
-  have heq : (1 / (k : ℝ)) * discretePhi k 0 = discretePhi k 0 / k := by ring
-  linarith [hsum, heq]
+  have hunion : Finset.range (j + 1) = insert 0 (Finset.Icc 1 j) := by
+    ext x
+    simp only [Finset.mem_range, Finset.mem_insert, Finset.mem_Icc]
+    omega
+  rw [hunion, Finset.sum_insert (by simp), mul_add] at hsum
+  linarith [show (1 / (k : ℝ)) * discretePhi k 0 = discretePhi k 0 / k by ring]
 
 /-- The exact discrete geometric-series step proving NRTV p. 710–711 from display (28.13)
 (correcting the printed inner index typo `∑_{j=0}^i Φ(i)` → `∑_{j=0}^i Φ(j)` on p. 710).
@@ -1886,30 +1716,22 @@ theorem discretePhi_tradeoff {k : ℕ} (hk : 0 < k) {s w : Fin (k + 1) → ℝ}
     rw [Finset.mul_sum]
     refine Finset.sum_le_sum fun i _ => ?_
     have := mul_le_mul_of_nonneg_left (hw i) (discretePhi_nonneg hk i.val)
-    linarith [show discretePhi k i.val * ((∑ j with i ≤ j, s j) / k) =
-      1 / (k : ℝ) * (discretePhi k i.val * ∑ j with i ≤ j, s j) by ring]
+    have hmul : discretePhi k i.val * ((∑ j with i ≤ j, s j) / k) =
+        1 / (k : ℝ) * (discretePhi k i.val * ∑ j with i ≤ j, s j) := by ring
+    linarith
   have hswap : ∑ i : Fin (k + 1), discretePhi k i.val * ∑ j : Fin (k + 1) with i ≤ j, s j =
       ∑ j : Fin (k + 1), (∑ i ∈ Finset.range (j.val + 1), discretePhi k i) * s j := by
-    have hrewrite : ∀ i : Fin (k + 1),
-        discretePhi k i.val * ∑ j : Fin (k + 1) with i ≤ j, s j =
-          ∑ j : Fin (k + 1), if i ≤ j then discretePhi k i.val * s j else 0 := by
-      intro i
-      rw [Finset.mul_sum, Finset.sum_filter]
-    rw [Finset.sum_congr rfl fun i _ => hrewrite i, Finset.sum_comm]
+    rw [Finset.sum_congr rfl fun i _ => by rw [Finset.mul_sum, Finset.sum_filter],
+      Finset.sum_comm]
     refine Finset.sum_congr rfl fun j _ => ?_
     rw [← Finset.sum_filter, ← Finset.sum_mul]
     congr 1
-    refine Finset.sum_bij (fun i _ => i.val) ?_ ?_ ?_ ?_
-    · intro i hi
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Fin.le_def] at hi
-      exact Finset.mem_range.mpr (Nat.lt_succ_of_le hi)
-    · intro a _ b _ hab
-      exact Fin.ext hab
-    · intro n hn
-      have hn' : n ≤ j.val := Nat.lt_succ_iff.mp (Finset.mem_range.mp hn)
-      exact ⟨⟨n, lt_of_le_of_lt hn' j.isLt⟩,
-        mem_filter.mpr ⟨mem_univ _, hn'⟩, rfl⟩
-    · intro i _; rfl
+    exact Finset.sum_bij (fun i _ => i.val)
+      (fun i hi => Finset.mem_range.mpr (Nat.lt_succ_of_le (mem_filter.mp hi).2))
+      (fun _ _ _ _ => Fin.ext)
+      (fun n hn => ⟨⟨n, lt_of_le_of_lt (Nat.lt_succ_iff.mp (Finset.mem_range.mp hn)) j.isLt⟩,
+        mem_filter.mpr ⟨mem_univ _, Nat.lt_succ_iff.mp (Finset.mem_range.mp hn)⟩, rfl⟩)
+      (fun _ _ => rfl)
   have hcalc : (1 / (k : ℝ)) * ∑ j : Fin (k + 1),
         (∑ i ∈ Finset.range (j.val + 1), discretePhi k i) * s j =
       ∑ j : Fin (k + 1), ((j.val : ℝ) / k + discretePhi k j.val -
@@ -1946,54 +1768,33 @@ theorem discretePhi_tradeoff_zero {k : ℕ} (hk : 0 < k) {s w : Fin (k + 1) → 
       (1 / (k : ℝ)) * ∑ i : Fin (k + 1) with 0 < i.val,
         discretePhi k i.val * ∑ j : Fin (k + 1) with i ≤ j, s j := by
     rw [Finset.mul_sum]
-    have hsplit : ∑ i : Fin (k + 1), discretePhi k i.val * w i =
-        discretePhi k 0 * w 0 +
-          ∑ i : Fin (k + 1) with 0 < i.val, discretePhi k i.val * w i := by
-      have huniv : (univ : Finset (Fin (k + 1))) =
-          insert 0 (univ.filter fun i : Fin (k + 1) => 0 < i.val) := by
-        ext i
-        simp only [Finset.mem_univ, Finset.mem_insert, Finset.mem_filter, true_and, true_iff]
-        rcases Nat.eq_zero_or_pos i.val with h0 | hpos
-        · exact Or.inl (Fin.ext h0)
-        · exact Or.inr hpos
-      conv_lhs => rw [huniv]
-      rw [Finset.sum_insert (by simp only [Finset.mem_filter, Fin.val_zero, lt_self_iff_false,
-        and_false, not_false_eq_true])]
-      rfl
-    rw [hsplit, hw0, mul_zero, zero_add]
+    have huniv : (univ : Finset (Fin (k + 1))) =
+        insert 0 (univ.filter fun i : Fin (k + 1) => 0 < i.val) := by
+      ext i
+      simp only [Finset.mem_univ, Finset.mem_insert, Finset.mem_filter, true_and, true_iff,
+        Fin.ext_iff, Fin.val_zero]
+      omega
+    conv_lhs => rw [huniv]
+    rw [Finset.sum_insert (by simp), Fin.val_zero, hw0, mul_zero, zero_add]
     refine Finset.sum_le_sum fun i hi => ?_
-    have hipos : 0 < i.val := (mem_filter.mp hi).2
-    have := mul_le_mul_of_nonneg_left (hw i hipos) (discretePhi_nonneg hk i.val)
-    linarith [show discretePhi k i.val * ((∑ j with i ≤ j, s j) / k) =
-      1 / (k : ℝ) * (discretePhi k i.val * ∑ j with i ≤ j, s j) by ring]
+    have := mul_le_mul_of_nonneg_left (hw i (mem_filter.mp hi).2) (discretePhi_nonneg hk i.val)
+    have hmul : discretePhi k i.val * ((∑ j with i ≤ j, s j) / k) =
+        1 / (k : ℝ) * (discretePhi k i.val * ∑ j with i ≤ j, s j) := by ring
+    linarith
   have hswap : ∑ i : Fin (k + 1) with 0 < i.val,
         discretePhi k i.val * ∑ j : Fin (k + 1) with i ≤ j, s j =
       ∑ j : Fin (k + 1), (∑ i ∈ Finset.Icc 1 j.val, discretePhi k i) * s j := by
-    have hrewrite : ∀ i : Fin (k + 1),
-        discretePhi k i.val * ∑ j : Fin (k + 1) with i ≤ j, s j =
-          ∑ j : Fin (k + 1), if i ≤ j then discretePhi k i.val * s j else 0 := by
-      intro i
-      rw [Finset.mul_sum, Finset.sum_filter]
-    rw [Finset.sum_congr rfl fun i _ => hrewrite i, Finset.sum_comm]
+    rw [Finset.sum_congr rfl fun i _ => by rw [Finset.mul_sum, Finset.sum_filter],
+      Finset.sum_comm]
     refine Finset.sum_congr rfl fun j _ => ?_
-    have hfi : ∑ i ∈ univ.filter (fun i : Fin (k + 1) => 0 < i.val),
-        (if i ≤ j then discretePhi k i.val * s j else 0) =
-        (∑ i ∈ univ.filter (fun i : Fin (k + 1) => 0 < i.val ∧ i ≤ j),
-          discretePhi k i.val) * s j := by
-      rw [← Finset.sum_filter, Finset.filter_filter, Finset.sum_mul]
-    rw [hfi]
+    rw [← Finset.sum_filter, Finset.filter_filter, ← Finset.sum_mul]
     congr 1
-    refine Finset.sum_bij (fun i _ => i.val) ?_ ?_ ?_ ?_
-    · intro i hi
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Fin.le_def] at hi
-      exact Finset.mem_Icc.mpr ⟨hi.1, hi.2⟩
-    · intro a _ b _ hab
-      exact Fin.ext hab
-    · intro n hn
-      rcases Finset.mem_Icc.mp hn with ⟨h1n, hnj⟩
-      exact ⟨⟨n, lt_of_le_of_lt hnj j.isLt⟩,
-        mem_filter.mpr ⟨mem_univ _, h1n, hnj⟩, rfl⟩
-    · intro i _; rfl
+    exact Finset.sum_bij (fun i _ => i.val)
+      (fun _ hi => Finset.mem_Icc.mpr ⟨(mem_filter.mp hi).2.1, (mem_filter.mp hi).2.2⟩)
+      (fun _ _ _ _ => Fin.ext)
+      (fun n hn => ⟨⟨n, lt_of_le_of_lt (Finset.mem_Icc.mp hn).2 j.isLt⟩,
+        mem_filter.mpr ⟨mem_univ _, (Finset.mem_Icc.mp hn).1, (Finset.mem_Icc.mp hn).2⟩, rfl⟩)
+      (fun _ _ => rfl)
   have hcalc : (1 / (k : ℝ)) * ∑ j : Fin (k + 1),
         (∑ i ∈ Finset.Icc 1 j.val, discretePhi k i) * s j =
       ∑ j : Fin (k + 1),

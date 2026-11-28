@@ -90,18 +90,14 @@ theorem pow_add_one_div_four_sq_modEq {p y : ℕ} (hp : p.Prime) (hp3 : p % 4 = 
   push_cast at hx ⊢
   rw [ZMod.natCast_mod, Nat.cast_pow, ← hx]
   by_cases hx0 : (x : ZMod p) = 0
-  · have hpos : 0 < (p + 1) / 4 := by omega
-    rw [hx0, zero_pow (by norm_num), zero_pow (Nat.ne_of_gt hpos), zero_pow (by norm_num)]
-  · have h4 : 4 * ((p + 1) / 4) = p + 1 := by omega
-    calc
-      (((x : ZMod p) ^ 2) ^ ((p + 1) / 4)) ^ 2
-          = (x : ZMod p) ^ (4 * ((p + 1) / 4)) := by ring
-      _ = (x : ZMod p) ^ (p + 1) := by rw [h4]
-      _ = (x : ZMod p) ^ (p - 1) * (x : ZMod p) ^ 2 := by
-        have hp1 : 1 ≤ p := hp.one_lt.le
-        rw [← pow_add, show p - 1 + 2 = p + 1 by omega]
-      _ = 1 * (x : ZMod p) ^ 2 := by rw [ZMod.pow_card_sub_one_eq_one hx0]
-      _ = (x : ZMod p) ^ 2 := one_mul _
+  · rw [hx0, zero_pow (by norm_num), zero_pow (by omega), zero_pow (by norm_num)]
+  · calc (((x : ZMod p) ^ 2) ^ ((p + 1) / 4)) ^ 2
+        = (x : ZMod p) ^ (4 * ((p + 1) / 4)) := by ring
+      _ = (x : ZMod p) ^ (p - 1 + 2) := by
+        have := hp.one_lt
+        congr 1
+        omega
+      _ = (x : ZMod p) ^ 2 := by rw [pow_add, ZMod.pow_card_sub_one_eq_one hx0, one_mul]
 
 /-- **Goldreich, Exercise 6.16, item 2.** If `s ^ e * t ^ e' = 1` with `e` odd and `e'` even, then
 `s ^ ((e + 1) / 2) * t ^ (e' / 2)` is a square root of `s`. -/
@@ -109,9 +105,8 @@ theorem sq_eq_of_pow_mul_pow_eq_one {M : Type*} [CommMonoid M] {s t : M} {e e' :
     (he' : Even e') (h : s ^ e * t ^ e' = 1) : (s ^ ((e + 1) / 2) * t ^ (e' / 2)) ^ 2 = s := by
   obtain ⟨k, rfl⟩ := he
   obtain ⟨k', rfl⟩ := he'
-  have h1 : (2 * k + 1 + 1) / 2 = k + 1 := by omega
-  have h2 : (k' + k') / 2 = k' := by omega
-  rw [h1, h2, mul_pow, ← pow_mul, ← pow_mul, show (k + 1) * 2 = (2 * k + 1) + 1 by ring,
+  rw [show (2 * k + 1 + 1) / 2 = k + 1 by omega, show (k' + k') / 2 = k' by omega, mul_pow,
+    ← pow_mul, ← pow_mul, show (k + 1) * 2 = (2 * k + 1) + 1 by ring,
     show k' * 2 = k' + k' by ring, pow_succ, mul_right_comm, h, one_mul]
 
 /-- One round of the descent of footnote 23 on the exponent pair `(e, e')`: if `e` is even, halve
@@ -148,56 +143,49 @@ private def Inv (P s t : ℕ) (i : ℕ) (st : ℕ × ℕ) : Prop :=
 /-- The test of a descent round computes, modulo `P`, whether `s ^ a * t ^ b = 1`. -/
 private theorem test_iff (hP : 1 < P) (a b : ℕ) :
     powMod P s a * powMod P t b % P = 1 ↔ (s : ZMod P) ^ a * (t : ZMod P) ^ b = 1 := by
-  rw [powMod_of_ne_zero (by omega), powMod_of_ne_zero (by omega)]
   have hcast : (((s ^ a % P) * (t ^ b % P) % P : ℕ) : ZMod P) =
       (s : ZMod P) ^ a * (t : ZMod P) ^ b := by
     push_cast [ZMod.natCast_mod]
     rfl
-  rw [← hcast, show (1 : ZMod P) = ((1 : ℕ) : ZMod P) from Nat.cast_one.symm,
-    ZMod.natCast_eq_natCast_iff', Nat.mod_mod, Nat.one_mod_eq_one.mpr (by omega)]
+  rw [powMod_of_ne_zero (by omega), powMod_of_ne_zero (by omega), ← hcast,
+    ← Nat.cast_one (R := ZMod P), ZMod.natCast_eq_natCast_iff', Nat.mod_mod,
+    Nat.one_mod_eq_one.mpr (by omega)]
 
 private theorem inv_descentStep [Fact P.Prime] (ht : P % 4 = 3 ∨ (t : ZMod P) ^ (P / 2) = -1)
     {i : ℕ} {st : ℕ × ℕ} (h : Inv P s t i st) : Inv P s t (i + 1) (descentStep P s t st) := by
   obtain ⟨e, e'⟩ := st
   obtain ⟨hdvd, hodd, hdvd', hone⟩ := h
-  dsimp only at hdvd hodd hdvd' hone
+  dsimp only at hdvd hodd hdvd' hone ⊢
+  obtain ⟨m, rfl⟩ := hdvd'
   have hP : 1 < P := (Fact.out : P.Prime).one_lt
   unfold descentStep
   dsimp only
   by_cases he : e % 2 = 0
   swap
   · rw [ite_eq_right he]
-    exact ⟨hdvd, by omega, hdvd', hone⟩
+    exact ⟨hdvd, by omega, ⟨m, rfl⟩, hone⟩
   rw [ite_eq_left he]
   obtain ⟨k, rfl⟩ : 2 ∣ e := Nat.dvd_of_mod_eq_zero he
-  obtain ⟨m, rfl⟩ := hdvd'
   have h2 : 2 * (2 * k) * m / 2 = 2 * k * m := by
     rw [show 2 * (2 * k) * m = 2 * (2 * k * m) by ring, Nat.mul_div_cancel_left _ two_pos]
   have hodd' : k * 2 ^ (i + 1) = P / 2 := by
     rcases hodd with h | h
     · omega
-    · rw [pow_succ, ← h]
-      ring
+    · rw [pow_succ, ← h]; ring
   have hk : k ∣ P / 2 := Nat.dvd_trans (Dvd.intro_left 2 rfl) hdvd
   simp only [Nat.mul_div_cancel_left k two_pos, h2]
   split_ifs with hx <;> rw [test_iff hP] at hx
   · -- `x = 1`: halve both exponents.
     exact ⟨hk, Or.inr hodd', ⟨m, by ring⟩, hx⟩
   · -- `x = -1`: also multiply by `t ^ (P / 2) = -1`.
-    have htm : (t : ZMod P) ^ (P / 2) = -1 := by
-      rcases ht with h3 | h
-      · exfalso
-        have : 2 ∣ P / 2 := ⟨k * 2 ^ i, by rw [← hodd', pow_succ]; ring⟩
-        omega
-      · exact h
+    have htm : (t : ZMod P) ^ (P / 2) = -1 := ht.resolve_left fun h3 => by
+      have : 2 ∣ P / 2 := ⟨k * 2 ^ i, by rw [← hodd', pow_succ]; ring⟩
+      omega
     have hsq : ((s : ZMod P) ^ k * (t : ZMod P) ^ (2 * k * m)) *
-        ((s : ZMod P) ^ k * (t : ZMod P) ^ (2 * k * m)) = 1 := by
-      rw [← hone]
-      ring
+        ((s : ZMod P) ^ k * (t : ZMod P) ^ (2 * k * m)) = 1 := by rw [← hone]; ring
     have hneg := (mul_self_eq_one_iff.mp hsq).resolve_left hx
     refine ⟨hk, Or.inr hodd', Nat.dvd_add ⟨m, by ring⟩ hdvd, ?_⟩
-    rw [pow_add, ← mul_assoc, hneg, htm]
-    norm_num
+    rw [pow_add, ← mul_assoc, hneg, htm]; norm_num
 
 private theorem inv_iterate [Fact P.Prime] (hs : (s : ZMod P) ^ (P / 2) = 1)
     (ht : P % 4 = 3 ∨ (t : ZMod P) ^ (P / 2) = -1) (i : ℕ) :
@@ -222,15 +210,12 @@ theorem descentExponents_spec (hP : P.Prime) (hs0 : (s : ZMod P) ≠ 0)
   obtain ⟨hdvd, hodd, hdvd', hone⟩ :=
     inv_iterate ((ZMod.euler_criterion P hs0).mp hs) ht P.size
   set e := ((descentStep P s t)^[P.size] (P / 2, 0)).1
-  have hpos : 0 < P / 2 := by have := hP.two_le; omega
-  have he : e % 2 = 1 := by
-    rcases hodd with h | h
-    · exact h
-    · exfalso
-      have hlt : P / 2 < 2 ^ P.size := (Nat.div_le_self _ _).trans_lt (Nat.lt_size_self P)
-      have he0 : e ≠ 0 := fun h0 => by rw [h0, zero_dvd_iff] at hdvd; omega
-      have hle : 2 ^ P.size ≤ e * 2 ^ P.size := Nat.le_mul_of_pos_left _ (Nat.pos_of_ne_zero he0)
-      omega
+  have he : e % 2 = 1 := hodd.resolve_right fun h => by
+    have hpos : 0 < P / 2 := by have := hP.two_le; omega
+    have hlt : P / 2 < 2 ^ P.size := (Nat.div_le_self _ _).trans_lt (Nat.lt_size_self P)
+    have he0 : e ≠ 0 := fun h0 => by rw [h0, zero_dvd_iff] at hdvd; omega
+    have := Nat.le_mul_of_pos_left (2 ^ P.size) (Nat.pos_of_ne_zero he0)
+    omega
   exact ⟨Nat.odd_iff.mpr he, even_iff_two_dvd.mpr ((Dvd.intro e rfl).trans hdvd'), hone⟩
 
 /-- The first descent exponent stays positive: it starts at `P / 2 ≥ 1` and only an even one is
@@ -243,10 +228,10 @@ private theorem one_le_iterate_fst (hP : 2 ≤ P) (i : ℕ) :
     rw [Function.iterate_succ_apply']
     generalize (descentStep P s t)^[i] (P / 2, 0) = st at ih ⊢
     obtain ⟨e, e'⟩ := st
-    dsimp only at ih
     unfold descentStep
-    dsimp only
-    split_ifs <;> dsimp only <;> omega
+    dsimp only at ih ⊢
+    split_ifs <;>
+    · dsimp only; omega
 
 /-- **A square root modulo a prime from a non-residue.** For a prime `P`, a quadratic residue `s`
 modulo `P` (zero included) and a quadratic non-residue `t`, `sqrtMod P s t` is a square root of
@@ -280,43 +265,28 @@ private theorem computableInPolyTime_descentStep :
       (encPair encNat encNat) := by
   let enc := encPair (encPair encNat (encPair encNat encNat)) (encPair encNat encNat)
   have two : ComputableInPolyTime (fun _ : (ℕ × ℕ × ℕ) × (ℕ × ℕ) => (2 : ℕ)) enc encNat :=
-    ComputableInPolyTime.const 2
+    .const 2
   have hP : ComputableInPolyTime (fun p : (ℕ × ℕ × ℕ) × (ℕ × ℕ) => p.1.1) enc encNat := by
     fun_prop
   have he : ComputableInPolyTime (fun p : (ℕ × ℕ × ℕ) × (ℕ × ℕ) => p.2.1 / 2) enc encNat :=
-    ComputableInPolyTime.binary_div' (by fun_prop) two
+    .binary_div' (by fun_prop) two
   have he' : ComputableInPolyTime (fun p : (ℕ × ℕ × ℕ) × (ℕ × ℕ) => p.2.2 / 2) enc encNat :=
-    ComputableInPolyTime.binary_div' (by fun_prop) two
-  have hhalf : ComputableInPolyTime (fun p : (ℕ × ℕ × ℕ) × (ℕ × ℕ) => p.1.1 / 2) enc encNat :=
-    ComputableInPolyTime.binary_div' hP two
-  have hpar : ComputableInPolyTime (fun p : (ℕ × ℕ × ℕ) × (ℕ × ℕ) => decide (p.2.1 % 2 = 0))
-      enc encBool :=
-    ComputableInPolyTime.decide_eq' (ComputableInPolyTime.binary_mod' (by fun_prop) two)
-      (ComputableInPolyTime.const 0)
+    .binary_div' (by fun_prop) two
   have hs := computableInPolyTime_powMod hP (x := fun p => p.1.2.1) (by fun_prop) he
   have ht := computableInPolyTime_powMod hP (x := fun p => p.1.2.2) (by fun_prop) he'
-  have htest : ComputableInPolyTime (fun p : (ℕ × ℕ × ℕ) × (ℕ × ℕ) =>
-      decide (powMod p.1.1 p.1.2.1 (p.2.1 / 2) * powMod p.1.1 p.1.2.2 (p.2.2 / 2) % p.1.1 = 1))
-      enc encBool :=
-    ComputableInPolyTime.decide_eq'
-      (ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_mul' hs ht) hP)
-      (ComputableInPolyTime.const 1)
-  have hkeep : ComputableInPolyTime (fun p : (ℕ × ℕ × ℕ) × (ℕ × ℕ) => (p.2.1 / 2, p.2.2 / 2))
-      enc (encPair encNat encNat) := he.prod he'
-  have hadd : ComputableInPolyTime
-      (fun p : (ℕ × ℕ × ℕ) × (ℕ × ℕ) => (p.2.1 / 2, p.2.2 / 2 + p.1.1 / 2))
-      enc (encPair encNat encNat) := he.prod (ComputableInPolyTime.binary_add' he' hhalf)
-  exact ComputableInPolyTime.ite_decide hpar (ComputableInPolyTime.ite_decide htest hkeep hadd)
+  exact .ite_decide (.decide_eq' (.binary_mod' (by fun_prop) two) (.const 0))
+    (.ite_decide (.decide_eq' (.binary_mod' (.binary_mul' hs ht) hP) (.const 1))
+      (he.prod he') (he.prod (.binary_add' he' (.binary_div' hP two))))
     (by fun_prop)
 
 /-- The descent keeps both exponents at most `P`. -/
 private theorem descentStep_le {P s t : ℕ} {st : ℕ × ℕ} (h : st.1 ≤ P ∧ st.2 ≤ P) :
     (descentStep P s t st).1 ≤ P ∧ (descentStep P s t st).2 ≤ P := by
   obtain ⟨e, e'⟩ := st
-  dsimp only at h
   unfold descentStep
-  dsimp only
-  split_ifs <;> dsimp only <;> omega
+  dsimp only at h ⊢
+  split_ifs <;>
+  · dsimp only; omega
 
 private theorem computableInPolyTime_descentExponents_triple :
     ComputableInPolyTime (fun x : ℕ × ℕ × ℕ => descentExponents x.1 x.2.1 x.2.2)
@@ -343,9 +313,8 @@ theorem computableInPolyTime_descentExponents {α : Type} {input : α ↪ List B
     (hs : ComputableInPolyTime s input encNat) (ht : ComputableInPolyTime t input encNat) :
     ComputableInPolyTime (fun a => descentExponents (P a) (s a) (t a)) input
       (encPair encNat encNat) := by
-  have h := computableInPolyTime_descentExponents_triple.comp (hP.prod (hs.prod ht))
-  simp only [Function.comp_def] at h
-  exact h
+  simpa only [Function.comp_def] using
+    computableInPolyTime_descentExponents_triple.comp (hP.prod (hs.prod ht))
 
 /-- **The square-root algorithm runs in polynomial time**, on binary naturals. -/
 theorem computableInPolyTime_sqrtMod {α : Type} {input : α ↪ List Bool} {P s t : α → ℕ}

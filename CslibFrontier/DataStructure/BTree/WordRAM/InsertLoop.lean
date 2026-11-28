@@ -126,14 +126,10 @@ private theorem insertDescendAfterSplit_spec {w base capNodes t u slot c cnt₁ 
   have hna_u : base + u * (6 * t) + 1 + 1 = au := by
     rw [← hau_def]; simp only [nodeAddr, nodeStride]; omega
   have hau2_eq : au + 1 + 1 = au + 2 := by omega
-  have hf_umul : Fits w (u * (6 * t)) := hfit.of_le (by
-    rw [← hau_def] at hau_le; simp only [nodeAddr, nodeStride] at hau_le; omega)
-  have hf_ub0 : Fits w (base + u * (6 * t)) := hfit.of_le (by
-    rw [← hau_def] at hau_le; simp only [nodeAddr, nodeStride] at hau_le; omega)
-  have hf_ub1 : Fits w (base + u * (6 * t) + 1) := hfit.of_le (by
-    rw [← hau_def] at hau_le; simp only [nodeAddr, nodeStride] at hau_le; omega)
-  have hf_ub2 : Fits w (base + u * (6 * t) + 1 + 1) := hfit.of_le (by
-    rw [← hau_def] at hau_le; simp only [nodeAddr, nodeStride] at hau_le; omega)
+  have hf_umul : Fits w (u * (6 * t)) := hfit.of_le (by omega)
+  have hf_ub0 : Fits w (base + u * (6 * t)) := hfit.of_le (by omega)
+  have hf_ub1 : Fits w (base + u * (6 * t) + 1) := hfit.of_le (by omega)
+  have hf_ub2 : Fits w (base + u * (6 * t) + 1 + 1) := hfit.of_le (by omega)
   have hf_au : Fits w au := hfit.of_le (by omega)
   have hf_au1 : Fits w (au + 1) := hfit.of_le (by omega)
   have hf_au11 : Fits w (au + 1 + 1) := hfit.of_le (by omega)
@@ -264,16 +260,11 @@ private theorem insertDescendOrLeaf_int_spec
   have hf_t40 : Fits w (au + t + t + t + t) := hfit.of_le (by omega)
   have hf_t4 : Fits w (au + 4 * t) := hfit.of_le (by omega)
   have hf_cs : Fits w (au + 4 * t + slot) := hfit.of_le (by omega)
-  have hf_cmul : Fits w (c * (6 * t)) := hfit.of_le (by
-    rw [← hac_def] at hac_le'; simp only [nodeAddr, nodeStride] at hac_le'; omega)
-  have hf_cb0 : Fits w (base + c * (6 * t)) := hfit.of_le (by
-    rw [← hac_def] at hac_le'; simp only [nodeAddr, nodeStride] at hac_le'; omega)
-  have hf_cb1 : Fits w (base + c * (6 * t) + 1) := hfit.of_le (by
-    rw [← hac_def] at hac_le'; simp only [nodeAddr, nodeStride] at hac_le'; omega)
-  have hf_cb2 : Fits w (base + c * (6 * t) + 1 + 1) := hfit.of_le (by
-    rw [← hac_def] at hac_le'; simp only [nodeAddr, nodeStride] at hac_le'; omega)
-  have hf_ac10 : Fits w (base + c * (6 * t) + 1 + 1 + 1) := hfit.of_le (by
-    rw [← hac_def] at hac_le'; simp only [nodeAddr, nodeStride] at hac_le'; omega)
+  have hf_cmul : Fits w (c * (6 * t)) := hfit.of_le (by omega)
+  have hf_cb0 : Fits w (base + c * (6 * t)) := hfit.of_le (by omega)
+  have hf_cb1 : Fits w (base + c * (6 * t) + 1) := hfit.of_le (by omega)
+  have hf_cb2 : Fits w (base + c * (6 * t) + 1 + 1) := hfit.of_le (by omega)
+  have hf_ac10 : Fits w (base + c * (6 * t) + 1 + 1 + 1) := hfit.of_le (by omega)
   have hf_ac1 : Fits w (ac + 1) := hfit.of_le (by omega)
   have hf_2t : Fits w (t + t) := hfit.of_le (by omega)
   have hf_2tm10 : Fits w (t + t - 1) := hfit.of_le (by omega)
@@ -316,8 +307,8 @@ private theorem insertDescendOrLeaf_int_spec
         hf_cmul, hf_cb0, hf_cb1, hf_cb2, hf_ac10, hf_ac1, hf_2t, hf_2tm10, hf_2tm1]
       refine WP.of_execWithin hsc_exec ?_
       exact WP.of_execWithin hdas ⟨by omega, rfl⟩
-    have hmod_all : Modifies (Block.mk base (arenaWords t capNodes)).footprint mem₀ x₃.mem := by
-      simpa only [Finset.union_self] using hmod_sc.trans hmod_das
+    have hmod_all : Modifies (Block.mk base (arenaWords t capNodes)).footprint mem₀ x₃.mem :=
+      by simpa using hmod_sc.trans hmod_das
     rw [hmem_z₂] at hbr_das
     rw [hact_z₂.trans hactz] at hbr_das
     simp only [Nat.add_sub_cancel] at hbr_das
@@ -506,10 +497,10 @@ theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 20}
       readNodeSet l base t y.mem u ⊆ readNodeSet l base t x.mem u ∪ Finset.Ico cnt cnt' ∧
       (readTree l base t y.mem u).toList =
         Cslib.SortedAssoc.insert k v (readTree l base t x.mem u).toList := by
-  induction l generalizing u cnt x with
-  | zero =>
+  induction l generalizing u cnt x
+  all_goals
     have hu_lt_cnt : u < cnt :=
-      Finset.mem_range.mp (hrange (self_mem_readNodeSet 0 base t x.mem u))
+      Finset.mem_range.mp (hrange (self_mem_readNodeSet _ base t x.mem u))
     have hu_cap : u < capNodes := by omega
     set m := numKeys base t x.mem u
     have hau_le := nodeAddr_add_le_arena (base := base) hu_cap (o := 6 * t) le_rfl
@@ -525,383 +516,279 @@ theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 20}
     by_cases hhit : slot < m ∧ keyAt base t x.mem u slot = k
     · exact insertLoop_overwrite_spec ht hu_cap hbdd hfit hv hs hnonfull hcnt_mem hcond_in
         h12 hb₂ hmem₂ hz₂ ho₂ hb₂_reg hd₂ hst₂ hk₂ hv₂ hcur₂ hsrc₂ hnk₂ hslot₂ hhit
-    · have hgt_all : ∀ i, slot ≤ i → i < m → k < keyAt base t x.mem u i :=
-        keyAt_gt_of_slotCount_not_hit (fun _ _ => hs.keys_strict) hhit
-      have hf_au1 : Fits w (nodeAddr base t u + 2 - 1) := hfit.of_le (by omega)
-      have hf_au : Fits w (nodeAddr base t u) := hfit.of_le (by omega)
-      have hsub2 : nodeAddr base t u + 2 - 1 - 1 = nodeAddr base t u := by omega
-      have h1_ne_0 : (1 : ℕ) ≠ 0 := by omega
-      obtain ⟨y, h3, hymem, hmod_y, hb_y, hd_y, hz_y, hact_y⟩ :=
-        insertBranch_of_not_hit hu_cap hnonfull hfit hb₂ hmem₂ hk₂ hnk₂ hslot₂ hsrc₂ hhit
-          (P := fun y => y.mem = memInsertLeaf base t u m slot k v x.mem ∧
-            Modifies (Block.mk base (arenaWords t capNodes)).footprint x.mem y.mem ∧
-            y.regs rBase = base ∧ y.regs rDeg = t ∧ y.regs rZero = 0 ∧ y.regs rActive = 0)
-          (T := 36 * t + 28) (fun z hbz hmz hreg_z => by
-            have hzz : z.regs rZero = 0 := (hreg_z rZero (by decide) (by decide)).trans hz₂
-            have hoz : z.regs rOne = 1 := (hreg_z rOne (by decide) (by decide)).trans ho₂
-            have hbaz : z.regs rBase = base := (hreg_z rBase (by decide) (by decide)).trans hb₂_reg
-            have hdz : z.regs rDeg = t := (hreg_z rDeg (by decide) (by decide)).trans hd₂
-            have hkz : z.regs rKey = k := (hreg_z rKey (by decide) (by decide)).trans hk₂
-            have hvz : z.regs rVal = v := (hreg_z rVal (by decide) (by decide)).trans hv₂
-            have hnkz : z.regs rNumK = m := (hreg_z rNumK (by decide) (by decide)).trans hnk₂
-            have hslz : z.regs rSlot = slot := (hreg_z rSlot (by decide) (by decide)).trans hslot₂
-            have hsrcz : z.regs rSrc = nodeAddr base t u + 2 :=
-              (hreg_z rSrc (by decide) (by decide)).trans hsrc₂
-            have hlfz : z.mem (nodeAddr base t u) = 1 := by rw [hmz]; exact hv.leafFlag_eq
-            let z' := ((z.set rTmp1 (nodeAddr base t u + 2 - 1)).set rTmp1
-              (nodeAddr base t u)).set rTmp2 1
-            obtain ⟨y, hli, _, hym, hmod_l, hby, hdy, hzy, hacty⟩ :=
-              leafInsertCode_spec (x := z') ht hu_cap hnonfull hslot_le
-                (((hbz.set hf_au1).set hf_au).set (hfit.of_le (by omega)))
-                hfit hoz hbaz hdz hkz hvz hnkz hslz hsrcz
-            have he_dl : ExecWithin w insertDescendOrLeaf z y (36 * t + 28) := by
-              unfold insertDescendOrLeaf
-              apply WP.execWithin
-              wram_exec [hzz, hoz, hsrcz, hsub2, hlfz, h1_ne_0, hf_au1, hf_au]
-              exact WP.of_execWithin hli ⟨by omega, rfl⟩
-            simp only [z', Data.set_mem, Data.set_regs_of_ne (by decide : rZero ≠ rTmp2) _,
-              Data.set_regs_of_ne (by decide : rZero ≠ rTmp1) _] at hym hmod_l hzy
-            rw [hmz] at hym hmod_l
-            exact ⟨y, he_dl, hym, hmod_l, hby, hdy, hzy.trans hzz, hacty⟩)
-      have hstep : ExecWithin w insertStep x y (91 * t + 158) :=
-        (h12.seq h3).mono (by omega)
-      have hexit : ExecWithin w insertLoop y y 2 :=
-        ExecWithin.loop_exit (by simp only [Cond.holds_lt, hz_y, hact_y, Nat.lt_irrefl,
-          not_false_eq_true])
-      obtain ⟨hv', hs', hnk', htr'⟩ := memInsertLeaf_spec ht hv hs hnonfull hslot_le hsc.2.1 hgt_all
-      have hb_lo := base_lt_nodeAddr base t u 0
-      refine ⟨y, cnt, (hstep.loop_iter hcond_in hexit).mono (by omega),
-        (hstep.loop_iter hcond_in hexit).bounded hbdd, le_rfl, le_rfl, ?_, ?_,
-        hb_y, hd_y, hmod_y, ?_, hymem ▸ hv', hymem ▸ hs', ?_, ?_, hymem ▸ htr'⟩
-      · rw [hymem]; exact memInsertLeaf_outside ht hnonfull hslot_le x.mem base (by omega)
-      · rw [hymem, memInsertLeaf_outside ht hnonfull hslot_le x.mem (base + 1) (by omega),
-          hcnt_mem]
-      · intro w_id hnot o ho_lt
-        have hw_ne : w_id ≠ u := fun heq => hnot (by
-          rw [heq]; exact Finset.mem_union_left _ (self_mem_readNodeSet 0 base t x.mem u))
-        have hsep := nodeAddr_sep base t hw_ne
-        rw [hymem]
-        exact memInsertLeaf_outside ht hnonfull hslot_le x.mem _ (by omega)
-      · rw [hymem, hnk']; omega
-      · simp only [readNodeSet_zero]; exact Finset.subset_union_left
-  | succ l ih =>
-    have hu_lt_cnt : u < cnt :=
-      Finset.mem_range.mp (hrange (self_mem_readNodeSet (l + 1) base t x.mem u))
-    have hu_cap : u < capNodes := by omega
-    set m := numKeys base t x.mem u
-    have hau_le := nodeAddr_add_le_arena (base := base) hu_cap (o := 6 * t) le_rfl
-    obtain ⟨x₂, h12, hb₂, hmem₂, hz₂, ho₂, hb₂_reg, hd₂, hst₂, hk₂, hcur₂, hsrc₂, hnk₂,
-        hslot₂, hreg₂⟩ :=
-      loadAndScan_spec ht hu_cap hv.numKeys_le hbdd hfit hz ho hbase hdeg hstride hkey hcur
-    have hv₂ : x₂.regs rVal = v := (hreg₂ rVal (by decide)).trans hval
+    have hgt_all : ∀ i, slot ≤ i → i < m → k < keyAt base t x.mem u i :=
+      keyAt_gt_of_slotCount_not_hit (fun _ _ => hs.keys_strict) hhit
+  · have hf_au1 : Fits w (nodeAddr base t u + 2 - 1) := hfit.of_le (by omega)
+    have hf_au : Fits w (nodeAddr base t u) := hfit.of_le (by omega)
+    have hsub2 : nodeAddr base t u + 2 - 1 - 1 = nodeAddr base t u := by omega
+    have h1_ne_0 : (1 : ℕ) ≠ 0 := by omega
+    obtain ⟨y, h3, hymem, hmod_y, hb_y, hd_y, hz_y, hact_y⟩ :=
+      insertBranch_of_not_hit hu_cap hnonfull hfit hb₂ hmem₂ hk₂ hnk₂ hslot₂ hsrc₂ hhit
+        (P := fun y => y.mem = memInsertLeaf base t u m slot k v x.mem ∧
+          Modifies (Block.mk base (arenaWords t capNodes)).footprint x.mem y.mem ∧
+          y.regs rBase = base ∧ y.regs rDeg = t ∧ y.regs rZero = 0 ∧ y.regs rActive = 0)
+        (T := 36 * t + 28) (fun z hbz hmz hreg_z => by
+          have hzz : z.regs rZero = 0 := (hreg_z rZero (by decide) (by decide)).trans hz₂
+          have hoz : z.regs rOne = 1 := (hreg_z rOne (by decide) (by decide)).trans ho₂
+          have hbaz : z.regs rBase = base := (hreg_z rBase (by decide) (by decide)).trans hb₂_reg
+          have hdz : z.regs rDeg = t := (hreg_z rDeg (by decide) (by decide)).trans hd₂
+          have hkz : z.regs rKey = k := (hreg_z rKey (by decide) (by decide)).trans hk₂
+          have hvz : z.regs rVal = v := (hreg_z rVal (by decide) (by decide)).trans hv₂
+          have hnkz : z.regs rNumK = m := (hreg_z rNumK (by decide) (by decide)).trans hnk₂
+          have hslz : z.regs rSlot = slot := (hreg_z rSlot (by decide) (by decide)).trans hslot₂
+          have hsrcz : z.regs rSrc = nodeAddr base t u + 2 :=
+            (hreg_z rSrc (by decide) (by decide)).trans hsrc₂
+          have hlfz : z.mem (nodeAddr base t u) = 1 := by rw [hmz]; exact hv.leafFlag_eq
+          let z' := ((z.set rTmp1 (nodeAddr base t u + 2 - 1)).set rTmp1
+            (nodeAddr base t u)).set rTmp2 1
+          obtain ⟨y, hli, _, hym, hmod_l, hby, hdy, hzy, hacty⟩ :=
+            leafInsertCode_spec (x := z') ht hu_cap hnonfull hslot_le
+              (((hbz.set hf_au1).set hf_au).set (hfit.of_le (by omega)))
+              hfit hoz hbaz hdz hkz hvz hnkz hslz hsrcz
+          have he_dl : ExecWithin w insertDescendOrLeaf z y (36 * t + 28) := by
+            unfold insertDescendOrLeaf
+            apply WP.execWithin
+            wram_exec [hzz, hoz, hsrcz, hsub2, hlfz, h1_ne_0, hf_au1, hf_au]
+            exact WP.of_execWithin hli ⟨by omega, rfl⟩
+          simp only [z', Data.set_mem, Data.set_regs_of_ne (by decide : rZero ≠ rTmp2) _,
+            Data.set_regs_of_ne (by decide : rZero ≠ rTmp1) _] at hym hmod_l hzy
+          rw [hmz] at hym hmod_l
+          exact ⟨y, he_dl, hym, hmod_l, hby, hdy, hzy.trans hzz, hacty⟩)
+    have hstep : ExecWithin w insertStep x y (91 * t + 158) :=
+      (h12.seq h3).mono (by omega)
+    have hexit : ExecWithin w insertLoop y y 2 :=
+      ExecWithin.loop_exit (by simp only [Cond.holds_lt, hz_y, hact_y, Nat.lt_irrefl,
+        not_false_eq_true])
+    obtain ⟨hv', hs', hnk', htr'⟩ := memInsertLeaf_spec ht hv hs hnonfull hslot_le hsc.2.1 hgt_all
+    have hb_lo := base_lt_nodeAddr base t u 0
+    refine ⟨y, cnt, (hstep.loop_iter hcond_in hexit).mono (by omega),
+      (hstep.loop_iter hcond_in hexit).bounded hbdd, le_rfl, le_rfl, ?_, ?_,
+      hb_y, hd_y, hmod_y, ?_, hymem ▸ hv', hymem ▸ hs', ?_, ?_, hymem ▸ htr'⟩
+    · rw [hymem]; exact memInsertLeaf_outside ht hnonfull hslot_le x.mem base (by omega)
+    · rw [hymem, memInsertLeaf_outside ht hnonfull hslot_le x.mem (base + 1) (by omega),
+        hcnt_mem]
+    · intro w_id hnot o ho_lt
+      have hw_ne : w_id ≠ u := fun heq => hnot (by
+        rw [heq]; exact Finset.mem_union_left _ (self_mem_readNodeSet 0 base t x.mem u))
+      have hsep := nodeAddr_sep base t hw_ne
+      rw [hymem]
+      exact memInsertLeaf_outside ht hnonfull hslot_le x.mem _ (by omega)
+    · rw [hymem, hnk']; omega
+    · simp only [readNodeSet_zero]; exact Finset.subset_union_left
+  · rename_i l ih
     have hcnt₂ : x₂.regs rCnt = cnt := (hreg₂ rCnt (by decide)).trans hcnt_reg
     have hact₂ : x₂.regs rActive = 1 := (hreg₂ rActive (by decide)).trans hact
-    set slot := slotCount base t x.mem u k m
-    have hsc := slotCount_spec (k := k) (fun _ _ => hs.keys_strict) m le_rfl
-    have hslot_le : slot ≤ m := hsc.1
-    have hcond_in : (Cond.lt rZero rActive).Holds x := by
-      simp only [Cond.holds_lt, hz, hact, Nat.zero_lt_one]
     have hmul_step : (91 * t + 160) * (l + 1 + 1) = (91 * t + 160) * (l + 1) + (91 * t + 160) :=
       Nat.mul_succ _ _
-    by_cases hhit : slot < m ∧ keyAt base t x.mem u slot = k
-    · exact insertLoop_overwrite_spec ht hu_cap hbdd hfit hv hs hnonfull hcnt_mem hcond_in
-        h12 hb₂ hmem₂ hz₂ ho₂ hb₂_reg hd₂ hst₂ hk₂ hv₂ hcur₂ hsrc₂ hnk₂ hslot₂ hhit
-    · have hgt_all : ∀ i, slot ≤ i → i < m → k < keyAt base t x.mem u i :=
-        keyAt_gt_of_slotCount_not_hit (fun _ _ => hs.keys_strict) hhit
-      obtain ⟨c, hc_def⟩ : ∃ c, childAt base t x.mem u slot = c := ⟨_, rfl⟩
-      have hslot_lt1 : slot < m + 1 := by omega
-      have hv_c : ValidNode l base t x.mem c := hc_def ▸ hv.child_valid hslot_lt1
-      have hs_c : SortedNode l base t x.mem c := hc_def ▸ hs.child_sorted hslot_lt1
-      have hrange_c : readNodeSet l base t x.mem c ⊆ Finset.range cnt :=
-        (hc_def ▸ child_subset_readNodeSet l base t x.mem u slot hslot_lt1).trans hrange
-      have hc_lt_cnt : c < cnt :=
-        Finset.mem_range.mp (hrange_c (self_mem_readNodeSet l base t x.mem c))
-      have hc_cap : c < capNodes := by omega
-      have hac_le := nodeAddr_add_le_arena (base := base) hc_cap (o := 6 * t) le_rfl
-      have huc : u ≠ c := fun heq =>
-        (hc_def ▸ hv.not_mem_child_readNodeSet hslot_lt1)
-          (Eq.ndrec (motive := fun w_id => w_id ∈ readNodeSet l base t x.mem c)
-            (self_mem_readNodeSet l base t x.mem c) heq.symm)
-      obtain ⟨x₃, h3, hbx₃, hmod₃, hz₃, ho₃, hb₃, hd₃, hst₃, hk₃, hv₃, hbr₃⟩ :=
-        insertBranch_of_not_hit hu_cap hnonfull hfit hb₂ hmem₂ hk₂ hnk₂ hslot₂ hsrc₂ hhit
-          (P := fun x₃ => x₃.Bounded w ∧
-            Modifies (Block.mk base (arenaWords t capNodes)).footprint x.mem x₃.mem ∧
-            x₃.regs rZero = 0 ∧ x₃.regs rOne = 1 ∧
-            x₃.regs rBase = base ∧ x₃.regs rDeg = t ∧ x₃.regs rStride = 6 * t ∧
-            x₃.regs rKey = k ∧ x₃.regs rVal = v ∧
-            (if numKeys base t x.mem c = 2 * t - 1 then
-              let mem₁ := memSplitChild base t u m slot c cnt x.mem
-              x₃.regs rCnt = cnt + 1 ∧
-              (if keyAt base t mem₁ u slot = k then
-                x₃.mem = memOverwriteVal base t u slot v mem₁ ∧ x₃.regs rActive = 0
-              else if k < keyAt base t mem₁ u slot then
-                x₃.mem = mem₁ ∧ x₃.regs rCur = c ∧ x₃.regs rActive = 1
-              else
-                x₃.mem = mem₁ ∧ x₃.regs rCur = cnt ∧ x₃.regs rActive = 1)
+    obtain ⟨c, hc_def⟩ : ∃ c, childAt base t x.mem u slot = c := ⟨_, rfl⟩
+    have hslot_lt1 : slot < m + 1 := by omega
+    have hv_c : ValidNode l base t x.mem c := hc_def ▸ hv.child_valid hslot_lt1
+    have hs_c : SortedNode l base t x.mem c := hc_def ▸ hs.child_sorted hslot_lt1
+    have hrange_c : readNodeSet l base t x.mem c ⊆ Finset.range cnt :=
+      (hc_def ▸ child_subset_readNodeSet l base t x.mem u slot hslot_lt1).trans hrange
+    have hc_lt_cnt : c < cnt :=
+      Finset.mem_range.mp (hrange_c (self_mem_readNodeSet l base t x.mem c))
+    have hc_cap : c < capNodes := by omega
+    have hac_le := nodeAddr_add_le_arena (base := base) hc_cap (o := 6 * t) le_rfl
+    have huc : u ≠ c := fun heq =>
+      (hc_def ▸ hv.not_mem_child_readNodeSet hslot_lt1)
+        (Eq.ndrec (motive := fun w_id => w_id ∈ readNodeSet l base t x.mem c)
+          (self_mem_readNodeSet l base t x.mem c) heq.symm)
+    obtain ⟨x₃, h3, hbx₃, hmod₃, hz₃, ho₃, hb₃, hd₃, hst₃, hk₃, hv₃, hbr₃⟩ :=
+      insertBranch_of_not_hit hu_cap hnonfull hfit hb₂ hmem₂ hk₂ hnk₂ hslot₂ hsrc₂ hhit
+        (P := fun x₃ => x₃.Bounded w ∧
+          Modifies (Block.mk base (arenaWords t capNodes)).footprint x.mem x₃.mem ∧
+          x₃.regs rZero = 0 ∧ x₃.regs rOne = 1 ∧
+          x₃.regs rBase = base ∧ x₃.regs rDeg = t ∧ x₃.regs rStride = 6 * t ∧
+          x₃.regs rKey = k ∧ x₃.regs rVal = v ∧
+          (if numKeys base t x.mem c = 2 * t - 1 then
+            let mem₁ := memSplitChild base t u m slot c cnt x.mem
+            x₃.regs rCnt = cnt + 1 ∧
+            (if keyAt base t mem₁ u slot = k then
+              x₃.mem = memOverwriteVal base t u slot v mem₁ ∧ x₃.regs rActive = 0
+            else if k < keyAt base t mem₁ u slot then
+              x₃.mem = mem₁ ∧ x₃.regs rCur = c ∧ x₃.regs rActive = 1
             else
-              x₃.mem = x.mem ∧ x₃.regs rCur = c ∧ x₃.regs rCnt = cnt ∧ x₃.regs rActive = 1))
-          (T := 75 * t + 155) (fun z hbz hmz hreg_z => by
-            obtain ⟨x₃, hdl, hbx₃, hmod₃, hz₃, ho₃, hb₃, hd₃, hst₃, hk₃, hv₃, hbr₃⟩ :=
-              insertDescendOrLeaf_int_spec (z := z) ht hu_lt_cnt hc_lt_cnt huc (by omega) hnonfull
-                hslot_le hv.leafFlag_eq hc_def hfit hbz hmz
-                ((hreg_z rZero (by decide) (by decide)).trans hz₂)
-                ((hreg_z rOne (by decide) (by decide)).trans ho₂)
-                ((hreg_z rBase (by decide) (by decide)).trans hb₂_reg)
-                ((hreg_z rDeg (by decide) (by decide)).trans hd₂)
-                ((hreg_z rStride (by decide) (by decide)).trans hst₂)
-                ((hreg_z rKey (by decide) (by decide)).trans hk₂)
-                ((hreg_z rVal (by decide) (by decide)).trans hv₂)
-                ((hreg_z rCur (by decide) (by decide)).trans hcur₂)
-                ((hreg_z rCnt (by decide) (by decide)).trans hcnt₂)
-                ((hreg_z rNumK (by decide) (by decide)).trans hnk₂)
-                ((hreg_z rSlot (by decide) (by decide)).trans hslot₂)
-                ((hreg_z rSrc (by decide) (by decide)).trans hsrc₂)
-                ((hreg_z rActive (by decide) (by decide)).trans hact₂)
-            exact ⟨x₃, hdl, hbx₃, hmod₃, hz₃, ho₃, hb₃, hd₃, hst₃, hk₃, hv₃, hbr₃⟩)
-      have hstep : ExecWithin w insertStep x x₃ (91 * t + 158) :=
-        (h12.seq h3).mono (by omega)
-      by_cases hfull_c : numKeys base t x.mem c = 2 * t - 1
-      · simp only [hfull_c, ↓reduceIte] at hbr₃
-        obtain ⟨hcnt₃, hbr₃⟩ := hbr₃
-        obtain ⟨mem₁, hmem₁_def⟩ :
-            ∃ mem₁, memSplitChild base t u m slot c cnt x.mem = mem₁ := ⟨_, rfl⟩
-        rw [hmem₁_def] at hbr₃
-        have hcnt_fresh : cnt ∉ readNodeSet (l + 1) base t x.mem u := fun hin => by
-          have := Finset.mem_range.mp (hrange hin); omega
-        have hmsc := memSplitChild_spec ht hv hs hnonfull hslot_le
-          (hc_def.symm ▸ hfull_c) hcnt_fresh
-        dsimp only at hmsc
-        change (let m' := m; let c' := childAt base t x.mem u slot; _) at hmsc
-        rw [hc_def, hmem₁_def] at hmsc
-        obtain ⟨hm1_b1, hm1_b0, hv_u1, hs_u1, hnk_u1, hk_s1, hv_s1, hc_s1, hc_s11, hnk_c1, hnk_z1,
-            hsub_u1, htr_u1⟩ := hmsc
-        have hrange_u1 : readNodeSet (l + 1) base t mem₁ u ⊆ Finset.range (cnt + 1) := by
+              x₃.mem = mem₁ ∧ x₃.regs rCur = cnt ∧ x₃.regs rActive = 1)
+          else
+            x₃.mem = x.mem ∧ x₃.regs rCur = c ∧ x₃.regs rCnt = cnt ∧ x₃.regs rActive = 1))
+        (T := 75 * t + 155) (fun z hbz hmz hreg_z => by
+          obtain ⟨x₃, hdl, hbx₃, hmod₃, hz₃, ho₃, hb₃, hd₃, hst₃, hk₃, hv₃, hbr₃⟩ :=
+            insertDescendOrLeaf_int_spec (z := z) ht hu_lt_cnt hc_lt_cnt huc (by omega) hnonfull
+              hslot_le hv.leafFlag_eq hc_def hfit hbz hmz
+              ((hreg_z rZero (by decide) (by decide)).trans hz₂)
+              ((hreg_z rOne (by decide) (by decide)).trans ho₂)
+              ((hreg_z rBase (by decide) (by decide)).trans hb₂_reg)
+              ((hreg_z rDeg (by decide) (by decide)).trans hd₂)
+              ((hreg_z rStride (by decide) (by decide)).trans hst₂)
+              ((hreg_z rKey (by decide) (by decide)).trans hk₂)
+              ((hreg_z rVal (by decide) (by decide)).trans hv₂)
+              ((hreg_z rCur (by decide) (by decide)).trans hcur₂)
+              ((hreg_z rCnt (by decide) (by decide)).trans hcnt₂)
+              ((hreg_z rNumK (by decide) (by decide)).trans hnk₂)
+              ((hreg_z rSlot (by decide) (by decide)).trans hslot₂)
+              ((hreg_z rSrc (by decide) (by decide)).trans hsrc₂)
+              ((hreg_z rActive (by decide) (by decide)).trans hact₂)
+          exact ⟨x₃, hdl, hbx₃, hmod₃, hz₃, ho₃, hb₃, hd₃, hst₃, hk₃, hv₃, hbr₃⟩)
+    have hstep : ExecWithin w insertStep x x₃ (91 * t + 158) :=
+      (h12.seq h3).mono (by omega)
+    by_cases hfull_c : numKeys base t x.mem c = 2 * t - 1
+    · simp only [hfull_c, ↓reduceIte] at hbr₃
+      obtain ⟨hcnt₃, hbr₃⟩ := hbr₃
+      obtain ⟨mem₁, hmem₁_def⟩ :
+          ∃ mem₁, memSplitChild base t u m slot c cnt x.mem = mem₁ := ⟨_, rfl⟩
+      rw [hmem₁_def] at hbr₃
+      have hcnt_fresh : cnt ∉ readNodeSet (l + 1) base t x.mem u := fun hin => by
+        have := Finset.mem_range.mp (hrange hin); omega
+      have hmsc := memSplitChild_spec ht hv hs hnonfull hslot_le
+        (hc_def.symm ▸ hfull_c) hcnt_fresh
+      dsimp only at hmsc
+      change (let m' := m; let c' := childAt base t x.mem u slot; _) at hmsc
+      rw [hc_def, hmem₁_def] at hmsc
+      obtain ⟨hm1_b1, hm1_b0, hv_u1, hs_u1, hnk_u1, hk_s1, hv_s1, hc_s1, hc_s11, hnk_c1, hnk_z1,
+          hsub_u1, htr_u1⟩ := hmsc
+      have hrange_u1 : readNodeSet (l + 1) base t mem₁ u ⊆ Finset.range (cnt + 1) := by
+        intro w_id hwin
+        rw [Finset.mem_range]
+        rcases Finset.mem_insert.mp (hsub_u1 hwin) with rfl | hold
+        · omega
+        · have := Finset.mem_range.mp (hrange hold); omega
+      have hframe_mem₁ : ∀ w_id, w_id ≠ u → w_id ≠ c → w_id ≠ cnt →
+          ∀ o < nodeStride t, mem₁ (nodeAddr base t w_id + o) =
+            x.mem (nodeAddr base t w_id + o) := by
+        intro w_id hnu hnc hnz o ho_lt
+        have hb_lo := base_lt_nodeAddr base t w_id o
+        have hsu := nodeAddr_sep base t hnu
+        have hsc_d := nodeAddr_sep base t hnc
+        have hsz := nodeAddr_sep base t hnz
+        rw [← hmem₁_def]
+        exact memSplitChild_outside ht hnonfull hslot_le x.mem _ (by omega) (by omega)
+          (by omega) (by omega)
+      have hu_in_old : u ∈ readNodeSet (l + 1) base t x.mem u :=
+        self_mem_readNodeSet (l + 1) base t x.mem u
+      have hc_in_old : c ∈ readNodeSet (l + 1) base t x.mem u :=
+        hc_def ▸ child_subset_readNodeSet l base t x.mem u slot hslot_lt1
+          (self_mem_readNodeSet l base t x.mem (childAt base t x.mem u slot))
+      by_cases heq_med : keyAt base t mem₁ u slot = k
+      · simp only [heq_med, ↓reduceIte] at hbr₃
+        obtain ⟨hmem₃_eq, hact₃⟩ := hbr₃
+        have hexit : ExecWithin w insertLoop x₃ x₃ 2 :=
+          ExecWithin.loop_exit (by simp only [Cond.holds_lt, hz₃, hact₃, Nat.lt_irrefl,
+            not_false_eq_true])
+        have hslot_lt_u1 : slot < numKeys base t mem₁ u := by rw [hnk_u1]; omega
+        obtain ⟨hv_u2, hs_u2, hset_u2, htr_u2⟩ :=
+          memOverwriteVal_spec ht hv_u1 hs_u1 hslot_lt_u1 heq_med
+        have hb_lo := base_lt_nodeAddr base t u (2 * t + 1 + slot)
+        refine ⟨x₃, cnt + 1, (hstep.loop_iter hcond_in hexit).mono (by omega),
+          (hstep.loop_iter hcond_in hexit).bounded hbdd, by omega, by omega, ?_, ?_,
+          hb₃, hd₃, hmod₃, ?_, hmem₃_eq ▸ hv_u2, hmem₃_eq ▸ hs_u2, ?_, ?_, ?_⟩
+        · rw [hmem₃_eq, memOverwriteVal, Function.update_of_ne (by omega), hm1_b0]
+        · rw [hmem₃_eq, memOverwriteVal, Function.update_of_ne (by omega), hm1_b1]
+        · intro w_id hnot o ho_lt
+          simp only [Finset.mem_union, Finset.mem_Ico, not_or] at hnot
+          have hnu : w_id ≠ u := fun heq => hnot.1 (heq ▸ hu_in_old)
+          have hnc : w_id ≠ c := fun heq => hnot.1 (heq ▸ hc_in_old)
+          have hnz : w_id ≠ cnt := by omega
+          have hsep := nodeAddr_disjoint (base := base) (o₂ := (2 * t + 1) + slot) hnu ho_lt
+            (by simp only [nodeStride]; omega)
+          rw [← Nat.add_assoc] at hsep
+          rw [hmem₃_eq]; dsimp only [memOverwriteVal]
+          rw [Function.update_of_ne hsep]
+          exact hframe_mem₁ w_id hnu hnc hnz o ho_lt
+        · rw [hmem₃_eq]; dsimp only [numKeys, memOverwriteVal]
+          have hst_eq : nodeStride t = 6 * t := rfl
+          rw [Function.update_of_ne (by omega)]
+          change m ≤ numKeys base t mem₁ u
+          rw [hnk_u1]; omega
+        · rw [hmem₃_eq, hset_u2]
           intro w_id hwin
-          rw [Finset.mem_range]
           rcases Finset.mem_insert.mp (hsub_u1 hwin) with rfl | hold
-          · omega
-          · have := Finset.mem_range.mp (hrange hold); omega
-        have hframe_mem₁ : ∀ w_id, w_id ≠ u → w_id ≠ c → w_id ≠ cnt →
-            ∀ o < nodeStride t, mem₁ (nodeAddr base t w_id + o) =
-              x.mem (nodeAddr base t w_id + o) := by
-          intro w_id hnu hnc hnz o ho_lt
-          have hb_lo := base_lt_nodeAddr base t w_id o
-          have hsu := nodeAddr_sep base t hnu
-          have hsc_d := nodeAddr_sep base t hnc
-          have hsz := nodeAddr_sep base t hnz
-          rw [← hmem₁_def]
-          exact memSplitChild_outside ht hnonfull hslot_le x.mem _ (by omega) (by omega)
-            (by omega) (by omega)
-        have hu_in_old : u ∈ readNodeSet (l + 1) base t x.mem u :=
-          self_mem_readNodeSet (l + 1) base t x.mem u
-        have hc_in_old : c ∈ readNodeSet (l + 1) base t x.mem u :=
-          hc_def ▸ child_subset_readNodeSet l base t x.mem u slot hslot_lt1
-            (self_mem_readNodeSet l base t x.mem (childAt base t x.mem u slot))
-        by_cases heq_med : keyAt base t mem₁ u slot = k
-        · simp only [heq_med, ↓reduceIte] at hbr₃
-          obtain ⟨hmem₃_eq, hact₃⟩ := hbr₃
-          have hexit : ExecWithin w insertLoop x₃ x₃ 2 :=
-            ExecWithin.loop_exit (by simp only [Cond.holds_lt, hz₃, hact₃, Nat.lt_irrefl,
-              not_false_eq_true])
-          have hslot_lt_u1 : slot < numKeys base t mem₁ u := by rw [hnk_u1]; omega
-          obtain ⟨hv_u2, hs_u2, hset_u2, htr_u2⟩ :=
-            memOverwriteVal_spec ht hv_u1 hs_u1 hslot_lt_u1 heq_med
-          have hb_lo := base_lt_nodeAddr base t u (2 * t + 1 + slot)
-          refine ⟨x₃, cnt + 1, (hstep.loop_iter hcond_in hexit).mono (by omega),
-            (hstep.loop_iter hcond_in hexit).bounded hbdd, by omega, by omega, ?_, ?_,
-            hb₃, hd₃, hmod₃, ?_, hmem₃_eq ▸ hv_u2, hmem₃_eq ▸ hs_u2, ?_, ?_, ?_⟩
-          · rw [hmem₃_eq]; dsimp only [memOverwriteVal]
-            rw [Function.update_of_ne (by omega), hm1_b0]
-          · rw [hmem₃_eq]; dsimp only [memOverwriteVal]
-            rw [Function.update_of_ne (by omega), hm1_b1]
-          · intro w_id hnot o ho_lt
-            simp only [Finset.mem_union, Finset.mem_Ico, not_or] at hnot
-            have hnu : w_id ≠ u := fun heq => hnot.1 (heq ▸ hu_in_old)
-            have hnc : w_id ≠ c := fun heq => hnot.1 (heq ▸ hc_in_old)
-            have hnz : w_id ≠ cnt := by omega
-            have hsep := nodeAddr_disjoint (base := base) (o₂ := (2 * t + 1) + slot) hnu ho_lt
-              (by simp only [nodeStride]; omega)
-            rw [← Nat.add_assoc] at hsep
-            rw [hmem₃_eq]; dsimp only [memOverwriteVal]
-            rw [Function.update_of_ne hsep]
-            exact hframe_mem₁ w_id hnu hnc hnz o ho_lt
-          · rw [hmem₃_eq]; dsimp only [numKeys, memOverwriteVal]
-            have hst_eq : nodeStride t = 6 * t := rfl
-            rw [Function.update_of_ne (by omega)]
-            change m ≤ numKeys base t mem₁ u
-            rw [hnk_u1]; omega
-          · rw [hmem₃_eq, hset_u2]
-            intro w_id hwin
-            rcases Finset.mem_insert.mp (hsub_u1 hwin) with rfl | hold
-            · exact Finset.mem_union_right _ (Finset.mem_Ico.mpr ⟨le_rfl, by omega⟩)
-            · exact Finset.mem_union_left _ hold
-          · rw [hmem₃_eq, htr_u2, htr_u1]
-        · by_cases hlt_med : k < keyAt base t mem₁ u slot
-          · simp only [heq_med, hlt_med, ↓reduceIte] at hbr₃
-            obtain ⟨hmem₃_eq, hcur₃, hact₃⟩ := hbr₃
-            have hslot_le_u1 : slot ≤ numKeys base t mem₁ u := by rw [hnk_u1]; omega
-            have hslot_lt1_u1 : slot < numKeys base t mem₁ u + 1 := by rw [hnk_u1]; omega
-            have hv_c_m1 : ValidNode l base t x₃.mem c := by
-              rw [hmem₃_eq, ← hc_s1]; exact hv_u1.child_valid hslot_lt1_u1
-            have hs_c_m1 : SortedNode l base t x₃.mem c := by
-              rw [hmem₃_eq, ← hc_s1]; exact hs_u1.child_sorted hslot_lt1_u1
-            have hnf_c_m1 : numKeys base t x₃.mem c ≤ 2 * t - 2 := by
-              rw [hmem₃_eq, hnk_c1]; omega
-            have hrange_c_m1 : readNodeSet l base t x₃.mem c ⊆ Finset.range (cnt + 1) := by
-              rw [hmem₃_eq, ← hc_s1]
-              exact (child_subset_readNodeSet l base t mem₁ u slot hslot_lt1_u1).trans hrange_u1
-            obtain ⟨y, cnt', hy_rec, hby, hcnt1_le, hcnt'_hi, hmb0, hmb1, hby_reg, hdy_reg,
-                hmod_rec, hfr_rec, hv_c', hs_c', hnk_c_le, hsub_c', htr_c'⟩ :=
-              ih hbx₃ hv_c_m1 hs_c_m1 hnf_c_m1 hrange_c_m1 (by omega) (hmem₃_eq ▸ hm1_b1)
-                hz₃ ho₃ hb₃ hd₃ hst₃ hk₃ hv₃ hcur₃ hcnt₃ hact₃
-            rw [hmem₃_eq] at hfr_rec hnk_c_le hsub_c' htr_c' hmb0
-            have hlt_u1 : ∀ i < slot, keyAt base t mem₁ u i < k := by
-              intro i hi
-              rw [← hmem₁_def,
-                keyAt_memSplitChild_lt ht hnonfull hslot_le huc (by omega) hi]
-              exact hsc.2.1 i hi
-            have hgt_u1 : ∀ i, slot ≤ i → i < numKeys base t mem₁ u →
-                k < keyAt base t mem₁ u i := by
-              intro i hge hi
-              rcases eq_or_lt_of_le hge with rfl | hgt
-              · exact hlt_med
-              · exact hlt_med.trans (hs_u1.keys_strict hgt hi)
-            obtain ⟨hv_u', hs_u', hnk_u', hsub_u', htr_u'⟩ :=
-              childInsert_spec (cnt := cnt + 1) (cnt' := cnt') ht hv_u1 hs_u1 hslot_le_u1
-                hlt_u1 hgt_u1 hrange_u1
-                (by rwa [hc_s1])
-                (by rwa [hc_s1])
-                (by rwa [hc_s1])
-                (by rw [hc_s1]; omega)
-                (by rwa [hc_s1])
-                (by rwa [hc_s1])
-            refine ⟨y, cnt', (hstep.loop_iter hcond_in hy_rec).mono (by omega), hby,
-              by omega, by omega, hmb0.trans hm1_b0, hmb1, hby_reg, hdy_reg,
-              by simpa only [Finset.union_self] using hmod₃.trans hmod_rec, ?_, hv_u', hs_u',
-              by rw [hnk_u', hnk_u1]; omega, ?_, by rw [htr_u', htr_u1]⟩
-            · intro w_id hnot o ho_lt
-              have hnot_rec : w_id ∉ readNodeSet l base t mem₁ c ∪ Finset.Ico (cnt + 1) cnt' := by
-                intro hin
-                apply hnot
-                rcases Finset.mem_union.mp hin with hinc | hico
-                · have hin_u1 : w_id ∈ readNodeSet (l + 1) base t mem₁ u := by
-                    rw [← hc_s1] at hinc
-                    exact child_subset_readNodeSet l base t mem₁ u slot hslot_lt1_u1 hinc
-                  rcases Finset.mem_insert.mp (hsub_u1 hin_u1) with rfl | hold
-                  · exact Finset.mem_union_right _ (Finset.mem_Ico.mpr ⟨le_rfl, by omega⟩)
-                  · exact Finset.mem_union_left _ hold
-                · exact Finset.mem_union_right _ (Finset.mem_Ico.mpr
-                    ⟨by have := (Finset.mem_Ico.mp hico).1; omega, (Finset.mem_Ico.mp hico).2⟩)
-              rw [hfr_rec w_id hnot_rec o ho_lt]
-              simp only [Finset.mem_union, Finset.mem_Ico, not_or] at hnot
-              exact hframe_mem₁ w_id (fun h => hnot.1 (h ▸ hu_in_old))
-                (fun h => hnot.1 (h ▸ hc_in_old)) (by omega) o ho_lt
-            · intro w_id hwin
-              rcases Finset.mem_union.mp (hsub_u' hwin) with hin_u1 | hico
-              · rcases Finset.mem_insert.mp (hsub_u1 hin_u1) with rfl | hold
-                · exact Finset.mem_union_right _ (Finset.mem_Ico.mpr ⟨le_rfl, by omega⟩)
-                · exact Finset.mem_union_left _ hold
-              · exact Finset.mem_union_right _ (Finset.mem_Ico.mpr
-                  ⟨by have := (Finset.mem_Ico.mp hico).1; omega, (Finset.mem_Ico.mp hico).2⟩)
-          · simp only [heq_med, hlt_med, ↓reduceIte] at hbr₃
-            obtain ⟨hmem₃_eq, hcur₃, hact₃⟩ := hbr₃
-            have hmed_lt_k : keyAt base t mem₁ u slot < k := by omega
-            have hslot1_le_u1 : slot + 1 ≤ numKeys base t mem₁ u := by rw [hnk_u1]; omega
-            have hslot1_lt1_u1 : slot + 1 < numKeys base t mem₁ u + 1 := by rw [hnk_u1]; omega
-            have hv_z_m1 : ValidNode l base t x₃.mem cnt := by
-              rw [hmem₃_eq, ← hc_s11]; exact hv_u1.child_valid hslot1_lt1_u1
-            have hs_z_m1 : SortedNode l base t x₃.mem cnt := by
-              rw [hmem₃_eq, ← hc_s11]; exact hs_u1.child_sorted hslot1_lt1_u1
-            have hnf_z_m1 : numKeys base t x₃.mem cnt ≤ 2 * t - 2 := by
-              rw [hmem₃_eq, hnk_z1]; omega
-            have hrange_z_m1 : readNodeSet l base t x₃.mem cnt ⊆ Finset.range (cnt + 1) := by
-              rw [hmem₃_eq]; nth_rw 1 [← hc_s11]
-              exact (child_subset_readNodeSet l base t mem₁ u (slot + 1) hslot1_lt1_u1).trans
-                hrange_u1
-            obtain ⟨y, cnt', hy_rec, hby, hcnt1_le, hcnt'_hi, hmb0, hmb1, hby_reg, hdy_reg,
-                hmod_rec, hfr_rec, hv_z', hs_z', hnk_z_le, hsub_z', htr_z'⟩ :=
-              ih hbx₃ hv_z_m1 hs_z_m1 hnf_z_m1 hrange_z_m1 (by omega) (hmem₃_eq ▸ hm1_b1)
-                hz₃ ho₃ hb₃ hd₃ hst₃ hk₃ hv₃ hcur₃ hcnt₃ hact₃
-            rw [hmem₃_eq] at hfr_rec hnk_z_le hsub_z' htr_z' hmb0
-            have hlt_u1 : ∀ i < slot + 1, keyAt base t mem₁ u i < k := by
-              intro i hi
-              rcases eq_or_lt_of_le (Nat.le_of_lt_succ hi) with rfl | hlt_s
-              · exact hmed_lt_k
-              · exact (hs_u1.keys_strict hlt_s (by rw [hnk_u1]; omega)).trans hmed_lt_k
-            have hgt_u1 : ∀ i, slot + 1 ≤ i → i < numKeys base t mem₁ u →
-                k < keyAt base t mem₁ u i := by
-              intro i hge hi
-              rw [hnk_u1] at hi
-              rw [← hmem₁_def,
-                keyAt_memSplitChild_gt ht hnonfull hslot_le huc (by omega) hge hi]
-              exact hgt_all (i - 1) (by omega) (by omega)
-            obtain ⟨hv_u', hs_u', hnk_u', hsub_u', htr_u'⟩ :=
-              childInsert_spec (slot := slot + 1) (cnt := cnt + 1) (cnt' := cnt') ht hv_u1 hs_u1
-                hslot1_le_u1 hlt_u1 hgt_u1 hrange_u1
-                (by rwa [hc_s11])
-                (by rwa [hc_s11])
-                (by rwa [hc_s11])
-                (by rw [hc_s11]; omega)
-                (by rwa [hc_s11])
-                (by rwa [hc_s11])
-            refine ⟨y, cnt', (hstep.loop_iter hcond_in hy_rec).mono (by omega), hby,
-              by omega, by omega, hmb0.trans hm1_b0, hmb1, hby_reg, hdy_reg,
-              by simpa only [Finset.union_self] using hmod₃.trans hmod_rec, ?_, hv_u', hs_u',
-              by rw [hnk_u', hnk_u1]; omega, ?_, by rw [htr_u', htr_u1]⟩
-            · intro w_id hnot o ho_lt
-              have hnot_rec : w_id ∉ readNodeSet l base t mem₁ cnt ∪ Finset.Ico (cnt + 1) cnt' := by
-                intro hin
-                apply hnot
-                rcases Finset.mem_union.mp hin with hinz | hico
-                · have hin_u1 : w_id ∈ readNodeSet (l + 1) base t mem₁ u := by
-                    rw [← hc_s11] at hinz
-                    exact child_subset_readNodeSet l base t mem₁ u (slot + 1) hslot1_lt1_u1 hinz
-                  rcases Finset.mem_insert.mp (hsub_u1 hin_u1) with rfl | hold
-                  · exact Finset.mem_union_right _ (Finset.mem_Ico.mpr ⟨le_rfl, by omega⟩)
-                  · exact Finset.mem_union_left _ hold
-                · exact Finset.mem_union_right _ (Finset.mem_Ico.mpr
-                    ⟨by have := (Finset.mem_Ico.mp hico).1; omega, (Finset.mem_Ico.mp hico).2⟩)
-              rw [hfr_rec w_id hnot_rec o ho_lt]
-              simp only [Finset.mem_union, Finset.mem_Ico, not_or] at hnot
-              exact hframe_mem₁ w_id (fun h => hnot.1 (h ▸ hu_in_old))
-                (fun h => hnot.1 (h ▸ hc_in_old)) (by omega) o ho_lt
-            · intro w_id hwin
-              rcases Finset.mem_union.mp (hsub_u' hwin) with hin_u1 | hico
-              · rcases Finset.mem_insert.mp (hsub_u1 hin_u1) with rfl | hold
-                · exact Finset.mem_union_right _ (Finset.mem_Ico.mpr ⟨le_rfl, by omega⟩)
-                · exact Finset.mem_union_left _ hold
-              · exact Finset.mem_union_right _ (Finset.mem_Ico.mpr
-                  ⟨by have := (Finset.mem_Ico.mp hico).1; omega, (Finset.mem_Ico.mp hico).2⟩)
-      · simp only [hfull_c, ↓reduceIte] at hbr₃
-        obtain ⟨hmem₃_eq, hcur₃, hcnt₃, hact₃⟩ := hbr₃
-        have hnf_c : numKeys base t x₃.mem c ≤ 2 * t - 2 := by
-          rw [hmem₃_eq]
-          have := hv_c.numKeys_le
-          omega
-        obtain ⟨y, cnt', hy_rec, hby, hcnt_le, hcnt'_hi, hmb0, hmb1, hby_reg, hdy_reg,
-            hmod_rec, hfr_rec, hv_c', hs_c', hnk_c_le, hsub_c', htr_c'⟩ :=
-          ih hbx₃ (hmem₃_eq ▸ hv_c) (hmem₃_eq ▸ hs_c) hnf_c (hmem₃_eq ▸ hrange_c) (by omega)
-            (hmem₃_eq ▸ hcnt_mem) hz₃ ho₃ hb₃ hd₃ hst₃ hk₃ hv₃ hcur₃ hcnt₃ hact₃
-        rw [hmem₃_eq] at hmb0 hfr_rec hnk_c_le hsub_c' htr_c'
-        have hnk_c_ge : t - 1 ≤ numKeys base t y.mem c :=
-          le_trans (hc_def ▸ hv.child_numKeys_ge hslot_lt1) hnk_c_le
-        obtain ⟨hv_u', hs_u', hnk_u', hsub_u', htr_u'⟩ :=
-          childInsert_spec (cnt := cnt) (cnt' := cnt') ht hv hs hslot_le hsc.2.1 hgt_all hrange
-            (hc_def.symm ▸ hfr_rec) (hc_def.symm ▸ hv_c') (hc_def.symm ▸ hs_c')
-            (hc_def.symm ▸ hnk_c_ge) (hc_def.symm ▸ hsub_c') (hc_def.symm ▸ htr_c')
-        refine ⟨y, cnt', (hstep.loop_iter hcond_in hy_rec).mono (by omega), hby,
-          hcnt_le, by omega, hmb0, hmb1, hby_reg, hdy_reg,
-          by simpa only [Finset.union_self] using hmod₃.trans hmod_rec, ?_,
-          hv_u', hs_u', by rw [hnk_u'], hsub_u', htr_u'⟩
-        intro w_id hnot o ho_lt
-        apply hfr_rec w_id _ o ho_lt
-        intro hin
-        apply hnot
-        rcases Finset.mem_union.mp hin with hinc | hico
-        · rw [← hc_def] at hinc
-          exact Finset.mem_union_left _ (child_subset_readNodeSet l base t x.mem u slot hslot_lt1
-            hinc)
-        · exact Finset.mem_union_right _ hico
+          · exact Finset.mem_union_right _ (Finset.mem_Ico.mpr ⟨le_rfl, by omega⟩)
+          · exact Finset.mem_union_left _ hold
+        · rw [hmem₃_eq, htr_u2, htr_u1]
+      -- Otherwise the loop descends into the new child `d` at position `s ∈ {slot, slot + 1}`:
+      simp only [heq_med, ↓reduceIte] at hbr₃
+      obtain ⟨s, d, hs, hcd, hlt_s, hgt_s, hnk_d, hmem₃_eq, hcur₃, hact₃⟩ :
+          ∃ s d, s ≤ numKeys base t mem₁ u ∧ childAt base t mem₁ u s = d ∧
+            (∀ i < s, keyAt base t mem₁ u i < k) ∧
+            (∀ i, s ≤ i → i < numKeys base t mem₁ u → k < keyAt base t mem₁ u i) ∧
+            numKeys base t mem₁ d = t - 1 ∧
+            x₃.mem = mem₁ ∧ x₃.regs rCur = d ∧ x₃.regs rActive = 1 := by
+        by_cases hlt_med : k < keyAt base t mem₁ u slot
+        · simp only [hlt_med, ↓reduceIte] at hbr₃
+          refine ⟨slot, c, by omega, hc_s1, fun i hi => ?_, fun i hge hi => ?_, hnk_c1, hbr₃⟩
+          · rw [← hmem₁_def, keyAt_memSplitChild_lt ht hnonfull hslot_le huc (by omega) hi]
+            exact hsc.2.1 i hi
+          · rcases eq_or_lt_of_le hge with rfl | hgt
+            exacts [hlt_med, hlt_med.trans (hs_u1.keys_strict hgt hi)]
+        · simp only [hlt_med, ↓reduceIte] at hbr₃
+          have hmed_lt_k : keyAt base t mem₁ u slot < k := by omega
+          refine ⟨slot + 1, cnt, by omega, hc_s11, fun i hi => ?_, fun i hge hi => ?_, hnk_z1,
+            hbr₃⟩
+          · rcases eq_or_lt_of_le (Nat.le_of_lt_succ hi) with rfl | hlt_s
+            exacts [hmed_lt_k, (hs_u1.keys_strict hlt_s (by omega)).trans hmed_lt_k]
+          · rw [hnk_u1] at hi
+            rw [← hmem₁_def, keyAt_memSplitChild_gt ht hnonfull hslot_le huc (by omega) hge hi]
+            exact hgt_all (i - 1) (by omega) (by omega)
+      have hs1 : s < numKeys base t mem₁ u + 1 := by omega
+      have hsub_d : readNodeSet l base t mem₁ d ⊆ readNodeSet (l + 1) base t mem₁ u := by
+        rw [← hcd]; exact child_subset_readNodeSet l base t mem₁ u s hs1
+      have hv_d : ValidNode l base t x₃.mem d := by
+        rw [hmem₃_eq, ← hcd]; exact hv_u1.child_valid hs1
+      have hs_d : SortedNode l base t x₃.mem d := by
+        rw [hmem₃_eq, ← hcd]; exact hs_u1.child_sorted hs1
+      obtain ⟨y, cnt', hy_rec, hby, hcnt1_le, hcnt'_hi, hmb0, hmb1, hby_reg, hdy_reg,
+          hmod_rec, hfr_rec, hv_d', hs_d', hnk_d_le, hsub_d', htr_d'⟩ :=
+        ih hbx₃ hv_d hs_d (by rw [hmem₃_eq, hnk_d]; omega)
+          (by rw [hmem₃_eq]; exact hsub_d.trans hrange_u1) (by omega) (hmem₃_eq ▸ hm1_b1)
+          hz₃ ho₃ hb₃ hd₃ hst₃ hk₃ hv₃ hcur₃ hcnt₃ hact₃
+      rw [hmem₃_eq] at hfr_rec hnk_d_le hsub_d' htr_d' hmb0
+      obtain ⟨hv_u', hs_u', hnk_u', hsub_u', htr_u'⟩ :=
+        childInsert_spec (slot := s) (cnt := cnt + 1) (cnt' := cnt') ht hv_u1 hs_u1 hs hlt_s
+          hgt_s hrange_u1 (by rwa [hcd]) (by rwa [hcd]) (by rwa [hcd]) (by rw [hcd]; omega)
+          (by rwa [hcd]) (by rwa [hcd])
+      have hsub_mid : readNodeSet (l + 1) base t mem₁ u ∪ Finset.Ico (cnt + 1) cnt' ⊆
+          readNodeSet (l + 1) base t x.mem u ∪ Finset.Ico cnt cnt' := by
+        intro w_id hw
+        rcases Finset.mem_union.mp hw with hw | hw
+        · rcases Finset.mem_insert.mp (hsub_u1 hw) with rfl | hw
+          · exact Finset.mem_union_right _ (Finset.mem_Ico.mpr ⟨le_rfl, by omega⟩)
+          · exact Finset.mem_union_left _ hw
+        · have := Finset.mem_Ico.mp hw
+          exact Finset.mem_union_right _ (Finset.mem_Ico.mpr ⟨by omega, this.2⟩)
+      refine ⟨y, cnt', (hstep.loop_iter hcond_in hy_rec).mono (by omega), hby,
+        by omega, by omega, hmb0.trans hm1_b0, hmb1, hby_reg, hdy_reg,
+        by simpa using hmod₃.trans hmod_rec, fun w_id hnot o ho_lt => ?_, hv_u',
+        hs_u', by rw [hnk_u', hnk_u1]; omega, hsub_u'.trans hsub_mid, by rw [htr_u', htr_u1]⟩
+      rw [hfr_rec w_id (fun hin => hnot (hsub_mid (Finset.union_subset_union hsub_d
+        subset_rfl hin))) o ho_lt]
+      simp only [Finset.mem_union, Finset.mem_Ico, not_or] at hnot
+      exact hframe_mem₁ w_id (fun h => hnot.1 (h ▸ hu_in_old))
+        (fun h => hnot.1 (h ▸ hc_in_old)) (by omega) o ho_lt
+    · simp only [hfull_c, ↓reduceIte] at hbr₃
+      obtain ⟨hmem₃_eq, hcur₃, hcnt₃, hact₃⟩ := hbr₃
+      have hnf_c : numKeys base t x₃.mem c ≤ 2 * t - 2 := by
+        rw [hmem₃_eq]
+        have := hv_c.numKeys_le
+        omega
+      obtain ⟨y, cnt', hy_rec, hby, hcnt_le, hcnt'_hi, hmb0, hmb1, hby_reg, hdy_reg,
+          hmod_rec, hfr_rec, hv_c', hs_c', hnk_c_le, hsub_c', htr_c'⟩ :=
+        ih hbx₃ (hmem₃_eq ▸ hv_c) (hmem₃_eq ▸ hs_c) hnf_c (hmem₃_eq ▸ hrange_c) (by omega)
+          (hmem₃_eq ▸ hcnt_mem) hz₃ ho₃ hb₃ hd₃ hst₃ hk₃ hv₃ hcur₃ hcnt₃ hact₃
+      rw [hmem₃_eq] at hmb0 hfr_rec hnk_c_le hsub_c' htr_c'
+      have hnk_c_ge : t - 1 ≤ numKeys base t y.mem c :=
+        le_trans (hc_def ▸ hv.child_numKeys_ge hslot_lt1) hnk_c_le
+      obtain ⟨hv_u', hs_u', hnk_u', hsub_u', htr_u'⟩ :=
+        childInsert_spec (cnt := cnt) (cnt' := cnt') ht hv hs hslot_le hsc.2.1 hgt_all hrange
+          (hc_def.symm ▸ hfr_rec) (hc_def.symm ▸ hv_c') (hc_def.symm ▸ hs_c')
+          (hc_def.symm ▸ hnk_c_ge) (hc_def.symm ▸ hsub_c') (hc_def.symm ▸ htr_c')
+      refine ⟨y, cnt', (hstep.loop_iter hcond_in hy_rec).mono (by omega), hby,
+        hcnt_le, by omega, hmb0, hmb1, hby_reg, hdy_reg,
+        by simpa using hmod₃.trans hmod_rec,
+        fun w_id hnot o ho_lt => hfr_rec w_id (fun hin => hnot (Finset.union_subset_union
+          (hc_def ▸ child_subset_readNodeSet l base t x.mem u slot hslot_lt1) subset_rfl hin))
+          o ho_lt,
+        hv_u', hs_u', by rw [hnk_u'], hsub_u', htr_u'⟩
 
 theorem not_readsWidth_insertLoop : ¬insertLoop.ReadsWidth := by
   simp [insertLoop, insertStep, insertBranch, insertDescendOrLeaf, insertDescendAfterSplit,

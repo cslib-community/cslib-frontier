@@ -160,13 +160,10 @@ theorem IsConsistent.ae_not_isEpsNet_of_lt_error [MeasurableSpace β] [Decidable
     {D : Measure (α × β)} [SigmaFinite D] (hD : IsRealizableBy D C) (ε : ℝ) :
     ∀ᵐ S ∂Measure.pi (fun _ : Fin m => D),
       ENNReal.ofReal ε < error D (A S) → ¬ IsEpsNet D (lossClass C) ε S := by
-  filter_upwards [hA.ae_mem_versionSpace hD] with S hS hlt hnet
-  obtain ⟨hAC, hAS⟩ := hS
-  have hset : {z : α × β | decide (A S z.1 ≠ z.2) = true} = {p | A S p.1 ≠ p.2} := by
-    ext z
-    simp only [Set.mem_ofPred_eq, decide_eq_true_eq]
-  obtain ⟨i, hi⟩ := hnet _ ⟨A S, hAC, rfl⟩ (by rw [hset]; exact le_of_lt hlt)
-  simp only [hAS i, ne_eq, not_true_eq_false, decide_false, Bool.false_eq_true] at hi
+  filter_upwards [hA.ae_mem_versionSpace hD] with S ⟨hAC, hAS⟩ hlt hnet
+  obtain ⟨i, hi⟩ := hnet _ ⟨A S, hAC, rfl⟩
+    (by simpa only [error, decide_eq_true_eq] using le_of_lt hlt)
+  simp [hAS i] at hi
 
 variable [MeasurableSingletonClass α] [Countable α]
 
@@ -224,12 +221,9 @@ theorem isPACLearnerFor_realizableDistributions_of_vcSampleSize_le {C : ConceptC
   · exact isPACLearnerFor_realizableDistributions_empty (fun _ _ => false) ε δ
   obtain ⟨A, hA⟩ := exists_isConsistent (m := m) hne
   refine ⟨A, fun D _ hD => ?_⟩
-  have h := hA.measure_pi_lt_error_le_of_vcSampleSize_le hC hD (by exact_mod_cast ε.property.1)
-    (by exact_mod_cast ε.property.2.le) (by exact_mod_cast δ.property.1)
-    (by exact_mod_cast δ.property.2.le) hm
-  rw [ENNReal.ofReal_coe_nnreal, ENNReal.ofReal_coe_nnreal] at h
-  rw [IsRealizableBy.optimalError_eq_zero hD, zero_add]
-  exact h
+  simpa only [ENNReal.ofReal_coe_nnreal, IsRealizableBy.optimalError_eq_zero hD, zero_add] using
+    hA.measure_pi_lt_error_le_of_vcSampleSize_le hC hD (by exact_mod_cast ε.2.1)
+      (by exact_mod_cast ε.2.2.le) (by exact_mod_cast δ.2.1) (by exact_mod_cast δ.2.2.le) hm
 
 /-- The realizable sample complexity of a class of finite VC dimension on a countable domain is at
 most `⌈(8 / ε) (vcDim C log (48 / ε) + log (4 / δ))⌉`. -/

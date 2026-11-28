@@ -24,7 +24,7 @@ Extends `CslibFrontier.Computability.Circuit.Frontier.Layouts.Matching` to fract
 straddle weights `λ ∈ [0, 1]` on a clean sub-matching `M_clean ⊆ M` of a loopless cubic multigraph:
 
 * Lifting `SimpleGraph.exists_isMatching_mul_eight_ge` to loopless edge-simple cubic multigraphs
-  (`Multigraph.exists_isMatching_mul_eight_ge`).
+  (`Multigraph.exists_isMatching_seven_eighths`).
 * An exact natural-number prefix slack bound (`ncard_edgeCut_add_inactive_le_matchingCost`) showing
   that every clean `(1, 1)` pair whose high-score outer edges do *not* both stay on the prefix cut
   already saves at least `1` cut edge below `matchingCost`.
@@ -51,8 +51,9 @@ equal-key `PairNode` layout (`exists_u2_pairNode_layout`) are original to this l
 
 ## Main results
 
-* `Cslib.Circuits.Frontier.Multigraph.exists_isMatching_mul_eight_ge`: `7/8` vertex-coverage
-  matching on loopless edge-simple cubic multigraphs.
+* `Cslib.Circuits.Frontier.Multigraph.ncard_matchedVertices_eq_two_mul`,
+  `Cslib.Circuits.Frontier.Multigraph.exists_isMatching_seven_eighths`: `7/8` vertex-coverage and
+  `7/16` edge-count matching bounds on loopless edge-simple cubic multigraphs.
 * `Cslib.Circuits.Frontier.Multigraph.ncard_edgeCut_add_inactive_le_matchingCost`,
   `Cslib.Circuits.Frontier.Multigraph.ncard_edgeCut_sub_active_le_weightedMatchingCost`:
   natural-number prefix slack and real effective-cut bounds.
@@ -70,11 +71,48 @@ section CubicMatching
 
 variable {V E : Type*} (G : Multigraph V E)
 
-/-- Lift the `7/8` vertex-coverage matching theorem from `SimpleGraph` to a cubic `Multigraph`
-without loops or parallel edges. -/
-theorem exists_isMatching_mul_eight_ge [Finite V] (hloop : G.Loopless)
+/-- A matching `M` in a loopless multigraph covers `2 * M.ncard` vertices. -/
+theorem ncard_matchedVertices_eq_two_mul (hloop : G.Loopless) {M : Set E} (hM : G.IsMatching M) :
+    (G.matchedVertices M).ncard = 2 * M.ncard := by
+  classical
+  let f : M × Bool → G.matchedVertices M := fun ⟨e, b⟩ =>
+    if b then ⟨G.src e.1, e.1, e.2, Or.inl rfl⟩ else ⟨G.tgt e.1, e.1, e.2, Or.inr rfl⟩
+  have hbij : Function.Bijective f := by
+    refine ⟨?_, ?_⟩
+    · rintro ⟨e₁, b₁⟩ ⟨e₂, b₂⟩ heq
+      have hval := congrArg Subtype.val heq
+      have he_eq : e₁ = e₂ := by
+        by_contra hne
+        have hdis := hM e₁.2 e₂.2 fun h => hne (Subtype.ext h)
+        have hm₁ : (f ⟨e₁, b₁⟩).1 ∈ ({G.src e₁.1, G.tgt e₁.1} : Set V) := by
+          cases b₁ <;> simp [f]
+        have hm₂ : (f ⟨e₁, b₁⟩).1 ∈ ({G.src e₂.1, G.tgt e₂.1} : Set V) := by
+          rw [hval]; cases b₂ <;> simp [f]
+        exact Set.disjoint_left.mp hdis hm₁ hm₂
+      subst he_eq
+      cases b₁ <;> cases b₂
+      · rfl
+      · exfalso; exact hloop e₁.1 (by simpa [f] using hval.symm)
+      · exfalso; exact hloop e₁.1 (by simpa [f] using hval)
+      · rfl
+    · rintro ⟨v, e, heM, hev⟩
+      rcases hev with rfl | rfl
+      · exact ⟨⟨⟨e, heM⟩, true⟩, rfl⟩
+      · exact ⟨⟨⟨e, heM⟩, false⟩, rfl⟩
+  have hcard := Nat.card_congr (Equiv.ofBijective f hbij)
+  rw [Nat.card_prod, Nat.card_eq_fintype_card (α := Bool), Fintype.card_bool,
+    Nat.card_coe_set_eq, Nat.card_coe_set_eq] at hcard
+  omega
+
+/-- **The `7 / 8` matching bound for simple cubic multigraphs.** Every finite loopless multigraph
+without parallel edges in which every vertex has degree three has a matching `M` covering at least
+`7 / 8` of the vertices (`7 * Nat.card V ≤ 8 * (G.matchedVertices M).ncard`, equivalently
+`7 * Nat.card V ≤ 16 * M.ncard`). -/
+theorem exists_isMatching_seven_eighths [Finite V] (hloop : G.Loopless)
     (hinj : Function.Injective G.ends) (h3 : ∀ v, (G.incidenceSet v).ncard = 3) :
-    ∃ M : Set E, G.IsMatching M ∧ 7 * Nat.card V ≤ 8 * (G.matchedVertices M).ncard := by
+    ∃ M : Set E, G.IsMatching M ∧
+      7 * Nat.card V ≤ 8 * (G.matchedVertices M).ncard ∧
+      7 * Nat.card V ≤ 16 * M.ncard := by
   classical
   let otherEnd (v : V) (e : E) : V := if G.src e = v then G.tgt e else G.src e
   have hends_other {v : V} {e : E} (he : e ∈ G.incidenceSet v) :
@@ -106,20 +144,15 @@ theorem exists_isMatching_mul_eight_ge [Finite V] (hloop : G.Loopless)
     change M_sg.Adj (G.src e₁) (G.tgt e₁) at he₁
     change M_sg.Adj (G.src e₂) (G.tgt e₂) at he₂
     refine Set.disjoint_left.mpr fun v hv₁ hv₂ => hne ?_
-    have hadj₁ : M_sg.Adj v (otherEnd v e₁) := by
-      rcases hv₁ with rfl | rfl
-      · simp only [otherEnd, ↓reduceIte]; exact he₁
-      · simp only [otherEnd, hloop e₁, ↓reduceIte]; exact M_sg.symm.symm _ _ he₁
-    have hadj₂ : M_sg.Adj v (otherEnd v e₂) := by
-      rcases hv₂ with rfl | rfl
-      · simp only [otherEnd, ↓reduceIte]; exact he₂
-      · simp only [otherEnd, hloop e₂, ↓reduceIte]; exact M_sg.symm.symm _ _ he₂
-    have heq : otherEnd v e₁ = otherEnd v e₂ := hM_sg.eq_of_adj_left hadj₁ hadj₂
-    have hi₁ : e₁ ∈ G.incidenceSet v := by
-      rcases hv₁ with rfl | rfl <;> [exact Or.inl rfl; exact Or.inr rfl]
-    have hi₂ : e₂ ∈ G.incidenceSet v := by
-      rcases hv₂ with rfl | rfl <;> [exact Or.inl rfl; exact Or.inr rfl]
-    exact hinj ((hends_other hi₁).trans (heq ▸ (hends_other hi₂).symm))
+    have hadj {e : E} (he : M_sg.Adj (G.src e) (G.tgt e)) (hv : v = G.src e ∨ v = G.tgt e) :
+        M_sg.Adj v (otherEnd v e) ∧ e ∈ G.incidenceSet v := by
+      rcases hv with rfl | rfl
+      · refine ⟨?_, Or.inl rfl⟩
+        simpa only [otherEnd, ↓reduceIte] using he
+      · refine ⟨?_, Or.inr rfl⟩
+        simpa only [otherEnd, hloop e, ↓reduceIte] using M_sg.symm.symm _ _ he
+    have heq := hM_sg.eq_of_adj_left (hadj he₁ hv₁).1 (hadj he₂ hv₂).1
+    exact hinj ((hends_other (hadj he₁ hv₁).2).trans (heq ▸ (hends_other (hadj he₂ hv₂).2).symm))
   have hverts : G.matchedVertices M = M_sg.verts := by
     ext v
     simp only [matchedVertices, mem_ofPred_eq]
@@ -134,7 +167,9 @@ theorem exists_isMatching_mul_eight_ge [Finite V] (hloop : G.Loopless)
       · exact ⟨e, by change M_sg.Adj _ _; rwa [hs, ht], Or.inl hs⟩
       · exact ⟨e, by change M_sg.Adj _ _; rw [hs, ht]; exact M_sg.symm.symm _ _ hvw, Or.inr ht⟩
   rw [← hverts] at h78
-  exact ⟨M, hM, h78⟩
+  refine ⟨M, hM, h78, ?_⟩
+  rw [G.ncard_matchedVertices_eq_two_mul hloop hM] at h78
+  omega
 
 end CubicMatching
 
@@ -335,40 +370,26 @@ private theorem pairStraddlesBoth_spec [Finite E] {G : Multigraph V E} (hloop : 
   set b := G.outerHigh score (G.src e) e
   set c := G.outerLow score (G.tgt e) e
   set d := G.outerHigh score (G.tgt e) e
-  have hstr_s : score a < t ∧ t ≤ score b := by
-    obtain ⟨⟨f₁, hf₁, hlt⟩, ⟨f₂, hf₂, hge⟩⟩ := hboth.1
-    rw [hbs.2.1] at hf₁ hf₂
-    rcases hf₁ with rfl | rfl <;> rcases hf₂ with rfl | rfl
-    · linarith
-    · exact ⟨hlt, hge⟩
-    · linarith [hbs.2.2]
-    · linarith
-  have hstr_t : score c < t ∧ t ≤ score d := by
-    obtain ⟨⟨f₁, hf₁, hlt⟩, ⟨f₂, hf₂, hge⟩⟩ := hboth.2
-    rw [hdt.2.1] at hf₁ hf₂
-    rcases hf₁ with rfl | rfl <;> rcases hf₂ with rfl | rfl
-    · linarith
-    · exact ⟨hlt, hge⟩
-    · linarith [hdt.2.2]
-    · linarith
+  have hstr {p q : E} (hpq : score p ≤ score q) {S : Set E} (hS : S = {p, q})
+      (hex : (∃ f ∈ S, score f < t) ∧ (∃ f ∈ S, t ≤ score f)) :
+      score p < t ∧ t ≤ score q := by
+    obtain ⟨⟨f₁, hf₁, hlt⟩, ⟨f₂, hf₂, hge⟩⟩ := hex
+    rw [hS] at hf₁ hf₂
+    rcases hf₁ with rfl | rfl <;> rcases hf₂ with rfl | rfl <;> constructor <;> linarith
+  have hstr_s := hstr hbs.2.2 hbs.2.1 hboth.1
+  have hstr_t := hstr hdt.2.2 hdt.2.1 hboth.2
   obtain ⟨hks, hkt⟩ := matchingKey_outer hloop h3 hM score heM
   change G.matchingKey M score (G.src e) = pairKey (score a) (score b) (score c) (score d) at hks
   change G.matchingKey M score (G.tgt e) = pairKey (score c) (score d) (score a) (score b) at hkt
-  have hks_eq : pairKey (score a) (score b) (score c) (score d) = max (score a) (score c) := by
-    have hm1 : min (score a) (score b) = score a := min_eq_left hbs.2.2
-    have hm2 : min (score c) (score d) = score c := min_eq_left hdt.2.2
-    have hmx1 : max (score a) (score b) = score b := max_eq_right hbs.2.2
-    simp only [pairKey, hm1, hm2, hmx1]
-    exact min_eq_right (max_le hbs.2.2 (hstr_t.1.le.trans hstr_s.2))
-  have hkt_eq : pairKey (score c) (score d) (score a) (score b) = max (score a) (score c) := by
-    have hm1 : min (score c) (score d) = score c := min_eq_left hdt.2.2
-    have hm2 : min (score a) (score b) = score a := min_eq_left hbs.2.2
-    have hmx1 : max (score c) (score d) = score d := max_eq_right hdt.2.2
-    simp only [pairKey, hm1, hm2, hmx1, max_comm (score c) (score a)]
-    exact min_eq_right (max_le (hstr_s.1.le.trans hstr_t.2) hdt.2.2)
+  have hpkey {x y z w : ℝ} (hxy : x ≤ y) (hzw : z ≤ w) (hzy : z ≤ y) :
+      pairKey x y z w = max x z := by
+    simp only [pairKey, min_eq_left hxy, min_eq_left hzw, max_eq_right hxy]
+    exact min_eq_right (max_le hxy hzy)
+  have hks_eq := hpkey hbs.2.2 hdt.2.2 (hstr_t.1.le.trans hstr_s.2)
+  have hkt_eq := (hpkey hdt.2.2 hbs.2.2 (hstr_s.1.le.trans hstr_t.2)).trans (max_comm _ _)
   have hmax_lt : max (score a) (score c) < t := max_lt hstr_s.1 hstr_t.1
   exact ⟨hstr_s, hstr_t, by rw [hks, hkt, hks_eq, hkt_eq],
-    by rw [hks, hks_eq]; exact hmax_lt, by rw [hkt, hkt_eq]; exact hmax_lt⟩
+    by rwa [hks, hks_eq], by rwa [hkt, hkt_eq]⟩
 
 /-- **Exact natural-number prefix slack.** For `P₀ = {v | matchingKey v < t} ⊆ P`, every clean
 `(1, 1)` pair `e ∈ M_clean` whose two high-score outer edges do *not* both lie in `G.edgeCut P`
@@ -437,29 +458,23 @@ theorem ncard_edgeCut_add_inactive_le_matchingCost [Finite V] [Finite E]
       obtain ⟨hAB_b, hend_b⟩ := check_outer (G.src e) hkey_lt.1 (Or.inl rfl) b hb_mem
         hstr_s.2 hb_cut
       exact ⟨b, hAB_b, Or.inl rfl, hend_b⟩
-  choose f_of hf_mem _ hf_end using fun e : S₂ => hS₂_witness e.val e.property
-  let side (e : S₂) : Bool := decide (G.src (f_of e) ∈ ({G.src e.val, G.tgt e.val} : Set V))
+  choose f_of hf_mem _ hf_end using fun e : S₂ => hS₂_witness e.1 e.2
+  let side (e : S₂) : Bool := decide (G.src (f_of e) ∈ ({G.src e.1, G.tgt e.1} : Set V))
   have hinj_S₂ : Function.Injective fun e : S₂ =>
       ((⟨f_of e, hf_mem e⟩ : ↑(A_set ∪ B_set)), side e) := by
     rintro e₁ e₂ hpair
     obtain ⟨hf_eq, hs_eq⟩ := Prod.mk.inj hpair
     have hf_val : f_of e₁ = f_of e₂ := congrArg Subtype.val hf_eq
     by_contra hne
-    have hne_val : e₁.val ≠ e₂.val := fun h => hne (Subtype.ext h)
-    have hdisj := hM (hclean e₁.property.1) (hclean e₂.property.1) hne_val
-    by_cases hs₁ : G.src (f_of e₁) ∈ ({G.src e₁.val, G.tgt e₁.val} : Set V)
-    · have hs₂ : G.src (f_of e₁) ∈ ({G.src e₂.val, G.tgt e₂.val} : Set V) := by
-        have htrue : side e₂ = true := hs_eq.symm.trans (decide_eq_true hs₁)
-        rw [hf_val]
-        exact of_decide_eq_true htrue
-      exact Set.disjoint_left.mp hdisj hs₁ hs₂
-    · have ht₁ : G.tgt (f_of e₁) ∈ ({G.src e₁.val, G.tgt e₁.val} : Set V) :=
-        (hf_end e₁).resolve_left hs₁
-      have hs₂_false : ¬G.src (f_of e₂) ∈ ({G.src e₂.val, G.tgt e₂.val} : Set V) :=
-        of_decide_eq_false (hs_eq.symm.trans (decide_eq_false hs₁))
-      have ht₂ : G.tgt (f_of e₁) ∈ ({G.src e₂.val, G.tgt e₂.val} : Set V) := by
-        rw [hf_val]; exact (hf_end e₂).resolve_left hs₂_false
-      exact Set.disjoint_left.mp hdisj ht₁ ht₂
+    have hne_val : e₁.1 ≠ e₂.1 := fun h => hne (Subtype.ext h)
+    have hdisj := hM (hclean e₁.2.1) (hclean e₂.2.1) hne_val
+    have hs_iff : G.src (f_of e₁) ∈ ({G.src e₁.1, G.tgt e₁.1} : Set V) ↔
+        G.src (f_of e₂) ∈ ({G.src e₂.1, G.tgt e₂.1} : Set V) :=
+      decide_eq_decide.mp hs_eq
+    by_cases hs₁ : G.src (f_of e₁) ∈ ({G.src e₁.1, G.tgt e₁.1} : Set V)
+    · exact Set.disjoint_left.mp hdisj hs₁ (hf_val ▸ hs_iff.mp hs₁)
+    · exact Set.disjoint_left.mp hdisj ((hf_end e₁).resolve_left hs₁)
+        (hf_val ▸ (hf_end e₂).resolve_left (hs_iff.not.mp hs₁))
   have hS₂_le : S₂.ncard ≤ 2 * (A_set.ncard + B_set.ncard) := by
     have h1 := Nat.card_le_card_of_injective _ hinj_S₂
     rw [Nat.card_coe_set_eq, Nat.card_prod, Nat.card_coe_set_eq, Nat.card_eq_fintype_card,
@@ -552,39 +567,38 @@ abbrev PairNode (G : Multigraph V E) (M M_clean : Set E) (score : E → ℝ) : T
 `matchingKey` on equal-key clean pairs. -/
 noncomputable def pairNodeKey (G : Multigraph V E) (M M_clean : Set E) (score : E → ℝ) :
     G.PairNode M M_clean score → ℝ
-  | .inl v => G.matchingKey M score v.val
-  | .inr e => G.matchingKey M score (G.src e.val)
+  | .inl v => G.matchingKey M score v.1
+  | .inr e => G.matchingKey M score (G.src e.1)
 
 /-- Vertex subset of `V` expanded from a set of `PairNode`s. -/
 @[expose]
 def pairNodeVerts (G : Multigraph V E) (M M_clean : Set E) (score : E → ℝ)
     (S : Set (G.PairNode M M_clean score)) : Set V :=
   {v | (∃ hv : v ∉ G.matchedVertices (G.equalKeyPairs M M_clean score), .inl ⟨v, hv⟩ ∈ S) ∨
-    ∃ e : G.equalKeyPairs M M_clean score, (G.src e.val = v ∨ G.tgt e.val = v) ∧ .inr e ∈ S}
+    ∃ e : G.equalKeyPairs M M_clean score, (G.src e.1 = v ∨ G.tgt e.1 = v) ∧ .inr e ∈ S}
 
 theorem mem_pairNodeVerts_of_notMem {G : Multigraph V E} {M M_clean : Set E} {score : E → ℝ}
     {S : Set (G.PairNode M M_clean score)} {v : V}
     (hv : v ∉ G.matchedVertices (G.equalKeyPairs M M_clean score)) :
     v ∈ G.pairNodeVerts M M_clean score S ↔ .inl ⟨v, hv⟩ ∈ S := by
   simp only [pairNodeVerts, mem_ofPred_eq]
-  exact ⟨fun h => h.elim (fun ⟨_, hm⟩ => hm)
-      (fun ⟨e, hev, _⟩ => (hv ⟨e.val, e.property, hev⟩).elim),
+  exact ⟨fun h => h.elim (fun ⟨_, hm⟩ => hm) (fun ⟨e, hev, _⟩ => (hv ⟨e.1, e.2, hev⟩).elim),
     fun hm => Or.inl ⟨hv, hm⟩⟩
 
 theorem mem_pairNodeVerts_of_mem {G : Multigraph V E} {M M_clean : Set E}
     (hM : G.IsMatching M) (hclean : M_clean ⊆ M) {score : E → ℝ}
     {S : Set (G.PairNode M M_clean score)} (e : G.equalKeyPairs M M_clean score) {v : V}
-    (hev : G.src e.val = v ∨ G.tgt e.val = v) :
+    (hev : G.src e.1 = v ∨ G.tgt e.1 = v) :
     v ∈ G.pairNodeVerts M M_clean score S ↔ .inr e ∈ S := by
-  have hv_mat : v ∈ G.matchedVertices (G.equalKeyPairs M M_clean score) := ⟨e.val, e.property, hev⟩
+  have hv_mat : v ∈ G.matchedVertices (G.equalKeyPairs M M_clean score) := ⟨e.1, e.2, hev⟩
   simp only [pairNodeVerts, mem_ofPred_eq]
   refine ⟨fun h => ?_, fun hm => Or.inr ⟨e, hev, hm⟩⟩
   rcases h with ⟨hnot, _⟩ | ⟨e', he'v, hm⟩
   · exact (hnot hv_mat).elim
   · suffices h_eq : e' = e by rwa [h_eq] at hm
     by_contra hne
-    have hne_val : e'.val ≠ e.val := fun h => hne (Subtype.ext h)
-    exact Set.disjoint_left.mp (hM (hclean e'.property.1) (hclean e.property.1) hne_val)
+    have hne_val : e'.1 ≠ e.1 := fun h => hne (Subtype.ext h)
+    exact Set.disjoint_left.mp (hM (hclean e'.2.1) (hclean e.2.1) hne_val)
       (he'v.imp Eq.symm Eq.symm) (hev.imp Eq.symm Eq.symm)
 
 /-- **Grid bound on `PairNode` prefixes.** Sorting `PairNode G M M_clean score` by `pairNodeKey`
@@ -606,41 +620,29 @@ theorem exists_u2_pairNode_layout [Finite V] [Finite E]
   have hB0 : 0 ≤ B := le_trans (by positivity) low
   have h1lam : 0 ≤ 1 - lam := by linarith
   have := Finite.of_injective
-    (fun x : {v : V // v ∉ G.matchedVertices (G.equalKeyPairs M M_clean score)} => x.val)
+    (fun x : {v : V // v ∉ G.matchedVertices (G.equalKeyPairs M M_clean score)} => x.1)
     Subtype.val_injective
   obtain ⟨σ, hσ⟩ := Layout.exists_threshold (G.pairNodeKey M M_clean score)
   refine ⟨σ, fun s => ?_⟩
   intro P
+  have node_of (v : V) : ∃ u : G.PairNode M M_clean score,
+      G.pairNodeKey M M_clean score u = G.matchingKey M score v ∧
+      ∀ S, v ∈ G.pairNodeVerts M M_clean score S ↔ u ∈ S := by
+    by_cases hv_mat : v ∈ G.matchedVertices (G.equalKeyPairs M M_clean score)
+    · obtain ⟨e, he_eq, hev⟩ := hv_mat
+      refine ⟨.inr ⟨e, he_eq⟩, ?_, fun _ => mem_pairNodeVerts_of_mem hM hclean ⟨e, he_eq⟩ hev⟩
+      rcases hev with rfl | rfl
+      · rfl
+      · exact he_eq.2
+    · exact ⟨.inl ⟨v, hv_mat⟩, rfl, fun _ => mem_pairNodeVerts_of_notMem hv_mat⟩
   rcases lt_or_ge s (Nat.card (G.PairNode M M_clean score)) with hs | hs
   · obtain ⟨m, hm_le, hm_ge⟩ := hσ s hs
-    have hP_le : ∀ v ∈ P, G.matchingKey M score v ≤ m := by
-      intro v hv
-      by_cases hv_mat : v ∈ G.matchedVertices (G.equalKeyPairs M M_clean score)
-      · obtain ⟨e, he_eq, hev⟩ := hv_mat
-        have hinr : .inr ⟨e, he_eq⟩ ∈ σ.initial s :=
-          (mem_pairNodeVerts_of_mem hM hclean ⟨e, he_eq⟩ hev).mp hv
-        have hk := hm_le (.inr ⟨e, he_eq⟩) hinr
-        dsimp only [pairNodeKey] at hk
-        rcases hev with rfl | rfl
-        · exact hk
-        · rwa [← he_eq.2]
-      · have hinl : .inl ⟨v, hv_mat⟩ ∈ σ.initial s :=
-          (mem_pairNodeVerts_of_notMem hv_mat).mp hv
-        exact hm_le (.inl ⟨v, hv_mat⟩) hinl
-    have hP_ge : ∀ v ∉ P, m ≤ G.matchingKey M score v := by
-      intro v hv
-      by_cases hv_mat : v ∈ G.matchedVertices (G.equalKeyPairs M M_clean score)
-      · obtain ⟨e, he_eq, hev⟩ := hv_mat
-        have hinr : .inr ⟨e, he_eq⟩ ∉ σ.initial s := fun h =>
-          hv ((mem_pairNodeVerts_of_mem hM hclean ⟨e, he_eq⟩ hev).mpr h)
-        have hk := hm_ge (.inr ⟨e, he_eq⟩) hinr
-        dsimp only [pairNodeKey] at hk
-        rcases hev with rfl | rfl
-        · exact hk
-        · rwa [← he_eq.2]
-      · have hinl : .inl ⟨v, hv_mat⟩ ∉ σ.initial s := fun h =>
-          hv ((mem_pairNodeVerts_of_notMem hv_mat).mpr h)
-        exact hm_ge (.inl ⟨v, hv_mat⟩) hinl
+    have hP_le : ∀ v ∈ P, G.matchingKey M score v ≤ m := fun v hv => by
+      obtain ⟨u, hkey, hmem⟩ := node_of v
+      exact hkey ▸ hm_le u ((hmem _).mp hv)
+    have hP_ge : ∀ v ∉ P, m ≤ G.matchingKey M score v := fun v hv => by
+      obtain ⟨u, hkey, hmem⟩ := node_of v
+      exact hkey ▸ hm_ge u (mt (hmem _).mpr hv)
     exact G.le_of_matchingKey_separated_grid hloop h3 hM score hP_le hP_ge
       (sub_le_self _ (mul_nonneg h1lam (Nat.cast_nonneg _))) hδ
       (G.weightedMatchingCost M M_clean lam score)
@@ -648,13 +650,9 @@ theorem exists_u2_pairNode_layout [Finite V] [Finite E]
         ncard_edgeCut_sub_active_le_weightedMatchingCost hloop h3 hM hclean hlam0 hlam1 score t hP₀)
       low high mid
   · have hinit : σ.initial s = univ := σ.initial_of_card_le hs
-    have hP_univ : P = univ := by
-      ext v
-      simp only [mem_univ, iff_true]
-      by_cases hv_mat : v ∈ G.matchedVertices (G.equalKeyPairs M M_clean score)
-      · obtain ⟨e, he_eq, hev⟩ := hv_mat
-        exact (mem_pairNodeVerts_of_mem hM hclean ⟨e, he_eq⟩ hev).mpr (by simp [hinit])
-      · exact (mem_pairNodeVerts_of_notMem hv_mat).mpr (by simp [hinit])
+    have hP_univ : P = univ := Set.eq_univ_of_forall fun v => by
+      obtain ⟨u, -, hmem⟩ := node_of v
+      exact (hmem _).mpr (hinit ▸ mem_univ u)
     have hcut0 : G.edgeCut P = ∅ := by ext e; simp [hP_univ]
     have hact0 : G.activeCleanPairs M M_clean score P = ∅ := by
       ext e; simp [activeCleanPairs, hcut0]

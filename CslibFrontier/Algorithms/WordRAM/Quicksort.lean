@@ -1041,13 +1041,13 @@ private theorem popAndSample_spec {w n k_sp : ℕ} {x : Data 16}
       (∀ r, r ≠ sp → r ≠ lo → r ≠ hi → r ≠ tmp → p.regs r = x.regs r) := by
   intro vlo vhi
   have hfit (v : ℕ) (hv : v ≤ 3 * n + 3) : Fits w v := hfit_all.of_le hv
-  have hpre : ∃ p, Exec w popPrefix x p 7 ∧ p.mem = x.mem ∧ p.regs sp = k_sp ∧
-      p.regs lo = vlo ∧ p.regs hi = vhi ∧ p.regs tmp = vhi - vlo - 1 := by
+  obtain ⟨p, e_pre, hpmem, hsp_p, hlo_p, hhi_p, htmp_p⟩ :
+      ∃ p, Exec w popPrefix x p 7 ∧ p.mem = x.mem ∧ p.regs sp = k_sp ∧
+        p.regs lo = vlo ∧ p.regs hi = vhi ∧ p.regs tmp = vhi - vlo - 1 := by
     refine WP.Exact.exists_exec ?_
     unfold popPrefix readAt
     wram_exec [hsp, hone, hsLo, hsHi, hfit]
     wram_simp [Nat.add_sub_cancel, vlo, vhi]
-  obtain ⟨p, e_pre, hpmem, hsp_p, hlo_p, hhi_p, htmp_p⟩ := hpre
   have hr := ExecRand.rand (B := .standard) (w := w) (dst := tmp) (src := tmp) (x := p)
     (by rw [htmp_p]; exact hfit_all.of_le (by dsimp only [vlo, vhi]; omega))
   rw [htmp_p] at hr
@@ -1096,25 +1096,17 @@ theorem outerBody_spec {w : ℕ} {input : List ℕ} {x : Data 16}
       List.length_range] at h2; omega
   obtain ⟨p, e_pop, hpmem, hsp_p, hlo_p, hhi_p, hfr_p⟩ := popAndSample_spec hsp_succ
     hI.one_eq hI.stackLo_eq hI.stackHi_eq (fits_three_mul_add_three hI.hw) hk_lt_n hp_hi.2.2
-  have hpart_all : ∀ k : Fin (vhi - vlo - 1 + 1),
-      ∃ y t, Exec w partitionAndPush (p.set tmp k.val) y t ∧
-        t ≤ 11 * (vhi - vlo) + 23 ∧ OuterInv w input y ∧
-        let u := memSlice vlo vhi x.mem
-        let m₁ := u.countP (· < u[k.val]'(by have := k.isLt; simp [u]; omega))
-        let m₂ := u.countP (u[k.val]'(by have := k.isLt; simp [u]; omega) < ·)
-        let S₁ := if 2 ≤ m₁ then S₀ ++ [(vlo, vlo + m₁)] else S₀
-        readStack n y = (if 2 ≤ m₂ then S₁ ++ [(vhi - m₂, vhi)] else S₁) := fun k => by
-    have hpres := partitionAndPush_spec (x := p.set tmp k.val) ⟨k.val, by have := k.isLt; omega⟩
+  choose y t hspec using fun k : Fin (vhi - vlo - 1 + 1) =>
+    partitionAndPush_spec (x := p.set tmp k.val) ⟨k.val, by have := k.isLt; omega⟩
       (by simp) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
       (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
       hI.hw (by simp [readStack, hsp_p, hpmem, S₀, n]) hVS
       (by rw [Data.set_mem, hpmem, ← hstack_eq]; exact hI.no_ext_inv)
       (by simpa only [Data.set_mem, hpmem] using hI.perm)
       (by simpa only [Data.set_mem, hpmem] using hI.modifies)
-    simpa only [Data.set_mem, hpmem, vlo, vhi, n] using hpres
-  choose y t hspec using hpart_all
   exact ⟨S₀, vlo, vhi, hstack_eq, hp_hi.2.1, y, t,
-    execRand_seq_det_map e_pop fun k => (hspec k).1, fun k => (hspec k).2⟩
+    execRand_seq_det_map e_pop fun k => (hspec k).1,
+    fun k => by simpa only [Data.set_mem, hpmem, vlo, vhi, n] using (hspec k).2⟩
 
 /-- Quadratic worst-case step potential `∑_{(a,b) ∈ S} 20 * (b - a) ^ 2`. -/
 def stepPotential (n : ℕ) (x : Data 16) : ℕ :=
@@ -1196,10 +1188,8 @@ private theorem outerBody_worstCase_step {w : ℕ} {input : List ℕ} {x : Data 
     obtain ⟨d, hd⟩ : ∃ d, m = d + 2 := ⟨m - 2, by omega⟩
     have hd1 : m - 1 = d + 1 := by omega
     rw [hd1] at this; rw [hd]; nlinarith
-  have hq : 11 * (vhi - vlo) + 33 +
-      (20 * ((memSlice vlo vhi x.mem).countP (· < (memSlice vlo vhi x.mem)[k.val]'hk_lt)) ^ 2 +
-       20 * ((memSlice vlo vhi x.mem).countP ((memSlice vlo vhi x.mem)[k.val]'hk_lt < ·)) ^ 2) ≤
-      20 * (vhi - vlo) ^ 2 := hsq _ _ hm12_le
+  have hq := hsq _ _ hm12_le
+  dsimp only [m] at hq
   simp only [stepPotential, callPotential, hstack, List.map_append, List.sum_append,
     List.map_singleton, List.sum_singleton] at hstep hcall ⊢
   exact ⟨⟨hIy, by omega, by omega⟩, by omega⟩
@@ -1318,10 +1308,7 @@ private theorem alloc_stack_spec {w n base : ℕ} {dst : Fin 16} {x : Data 16}
     tauto
   refine ⟨_, he.within.mono (by rw [hlen]), ?_, ?_, ?_, ?_, by rw [hgt, hlen],
     fun r h0 h1 h2 h3 h4 => by simp [h0, h1, h2, h3, h4]⟩
-  · simp [Function.update_of_ne, hdz.symm]
-  · simp [Function.update_of_ne, hdo.symm]
-  · simp [Function.update_of_ne, hdc, hgd.symm, hgt]
-  · simp [Function.update_of_ne, hgt, hlen]
+  all_goals simp [Function.update_of_ne, hdz.symm, hdo.symm, hdc, hgd.symm, hgt, hlen]
 
 /-- `setup` executes deterministically from `Data.init input` within `8 * input.length + 29`
 instructions, establishing `OuterInv` with initial stack `[(1, n + 1)]` (if `2 ≤ n`) or `[]`. -/

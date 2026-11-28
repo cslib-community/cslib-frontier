@@ -12,13 +12,13 @@ public import CslibFrontier.Computability.Complexity.Classes.PP.Closure
 public import CslibFrontier.Computability.Complexity.Classes.SharpP
 public import CslibFrontier.Computability.Complexity.Reduction.TruthTable
 public import CslibFrontier.Foundations.Order.BooleanSubalgebra
+public import CslibFrontier.Computability.Complexity.Classes.PP.SignWeights
 import CslibFrontier.Computability.Complexity.Classes.PP.Characterization
 import CslibFrontier.Computability.Complexity.Classes.SharpP.Products
 import CslibFrontier.Computability.Complexity.Classes.SharpP.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignProduct
 import CslibFrontier.Foundations.Data.List.Lookup
 import Cslib.Foundations.Data.Polynomial.Monotone
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
@@ -38,7 +38,7 @@ Given an indexed language `A ∈ PP (encPair enc encUnary)`, a polynomial-time u
 and a polynomial-time Boolean combiner `d`, let `g₀ ∈ GapP (encPair enc encUnary)` witness `A` via
 `0 < g₀ x ↔ x ∈ A`, and set `g x = 2 * g₀ x - 1`. Then `g x` is never zero, has the sign of
 membership in `A`, and satisfies `|g (a, i)| ≤ 2 ^ M a` for all `i < r a` for a polynomial-time
-unary bound `M a`. Evaluating Newman's polynomial [Newman][Newman1964]
+unary bound `M a`. Evaluating the dyadic variant of Newman's geometric-root product
 $$\operatorname{newmanPoly}(M, z) = \prod_{j=0}^{M} (2^j + z)$$
 and raising to the even exponent `2 * (r a + 1)` yields nonnegative `GapP` weights
 `A⁺ (a, i)` and `A⁻ (a, i)` such that at each query `i < r a`, the weight matching the true
@@ -49,11 +49,6 @@ each guessed answer word `w : Fin (r a) → Bool` makes the weight of the true a
 words. Summing `(if d (a, List.ofFn w) then 1 else -1)` times the word weight over all `w` via
 `GapP.sum_bits_mem` produces a `GapP` function whose sign is determined by the single term for
 `truthTableAnswers A r a`.
-
-## Main definitions
-
-* `Cslib.Complexity.newmanPoly`: Newman's integer polynomial `∏ j ∈ range (M + 1), (2 ^ j + z)`
-  [Newman][Newman1964].
 
 ## Main results
 
@@ -83,32 +78,12 @@ open Turing.MultiTapeTM Finset
 
 variable {α : Type} {enc : α ↪ List Bool}
 
-/-! ### Newman's polynomial and amplified weights -/
-
-/-- Newman's polynomial `∏ j ∈ range (M + 1), (2 ^ j + z)` [Newman][Newman1964], used to
-rationalize the sign of an integer `z` with `1 ≤ |z| ≤ 2 ^ M`. -/
-def newmanPoly (M : ℕ) (z : ℤ) : ℤ :=
-  ∏ j ∈ range (M + 1), ((2 : ℤ) ^ j + z)
+/-! ### Dyadic sign products and amplified weights -/
 
 /-- Even-power amplification of `newmanPoly`, ensuring nonnegativity and a multiplicative dominance
 ratio of at least `2 ^ (2 * K)`. -/
 private def newmanAmp (M K : ℕ) (z : ℤ) : ℤ :=
   newmanPoly M z ^ (2 * K)
-
-/-- Newman's polynomial is at least `1` at every positive integer. -/
-private theorem one_le_newmanPoly {M : ℕ} {z : ℤ} (hz : 1 ≤ z) : 1 ≤ newmanPoly M z :=
-  one_le_prod₀ fun j _ => by
-    have : (0 : ℤ) ≤ (2 : ℤ) ^ j := by positivity
-    omega
-
-/-- **Newman's inequality:** for `1 ≤ z ≤ 2 ^ M`, twice `|newmanPoly M (-z)|` is at most
-`newmanPoly M z`. -/
-theorem two_mul_abs_newmanPoly_neg_le {M : ℕ} {z : ℤ} (hz₁ : 1 ≤ z) (hz₂ : z ≤ (2 : ℤ) ^ M) :
-    2 * |newmanPoly M (-z)| ≤ newmanPoly M z := by
-  have h : 3 * |newmanPoly M (-z)| ≤ newmanPoly M z := by
-    simpa only [newmanPoly, sub_eq_add_neg] using
-      Polynomial.three_mul_abs_prod_two_pow_sub_le hz₁ hz₂
-  exact (mul_le_mul_of_nonneg_right (by decide : (2 : ℤ) ≤ 3) (abs_nonneg _)).trans h
 
 /-- The amplified weight is nonnegative, being an even power. -/
 private theorem newmanAmp_nonneg (M K : ℕ) (z : ℤ) : 0 ≤ newmanAmp M K z :=
@@ -131,19 +106,8 @@ private theorem newmanAmp_mem_GapP {M r : α → ℕ} {h : α × ℕ → ℤ}
     (hh : h ∈ GapP (encPair enc encUnary))
     (hM : ComputableInPolyTime M enc encUnary)
     (hr : ComputableInPolyTime r enc encUnary) :
-    (fun x : α × ℕ => newmanAmp (M x.1) (r x.1 + 1) (h x)) ∈ GapP (encPair enc encUnary) := by
-  have htwo : (fun _ : (α × ℕ) × ℕ => (2 : ℤ)) ∈
-      GapP (encPair (encPair enc encUnary) encUnary) :=
-    GapP.add_mem GapP.one_mem GapP.one_mem
-  have hpow2 : (fun p : (α × ℕ) × ℕ => (2 : ℤ) ^ p.2) ∈
-      GapP (encPair (encPair enc encUnary) encUnary) :=
-    GapP.pow_mem_polyTime htwo ((.snd (encPair enc encUnary) encUnary))
-  have hbody : (fun p : (α × ℕ) × ℕ => (2 : ℤ) ^ p.2 + h p.1) ∈
-      GapP (encPair (encPair enc encUnary) encUnary) :=
-    GapP.add_mem hpow2 (GapP.comp_mem hh ((.fst (encPair enc encUnary) encUnary)))
-  have hprod : (fun x : α × ℕ => newmanPoly (M x.1) (h x)) ∈ GapP (encPair enc encUnary) :=
-    GapP.prod_range_mem hbody (by fun_prop)
-  exact GapP.pow_mem_polyTime hprod (by fun_prop)
+    (fun x : α × ℕ => newmanAmp (M x.1) (r x.1 + 1) (h x)) ∈ GapP (encPair enc encUnary) :=
+  GapP.pow_mem_polyTime (GapP.newmanPoly_mem hh (hM.comp (.fst enc encUnary))) (by fun_prop)
 
 /-! ### Word weights and truth-table gap construction -/
 
@@ -185,8 +149,8 @@ private theorem ppWordWeight_eq_prod_univ (M r : α → ℕ) (g : α × ℕ → 
     (w : Fin (r a) → Bool) :
     ppWordWeight M r g a w =
       ∏ i : Fin (r a),
-        if w i then newmanAmp (M a) (r a + 1) (g (a, i.val))
-        else newmanAmp (M a) (r a + 1) (-g (a, i.val)) := by
+        if w i then newmanAmp (M a) (r a + 1) (g (a, i.1))
+        else newmanAmp (M a) (r a + 1) (-g (a, i.1)) := by
   unfold ppWordWeight
   rw [← Fin.prod_univ_eq_prod_range]
   simp only [List.getD_ofFn]
@@ -203,48 +167,41 @@ private theorem sum_erase_ppWordWeight_lt {A : Set (α × ℕ)} {M r : α → �
     (hneg : ∀ i < r a, (a, i) ∉ A → 1 ≤ -g (a, i))
     (hbnd : ∀ i < r a, |g (a, i)| ≤ (2 : ℤ) ^ M a) :
     letI := Classical.decPred (· ∈ A)
-    let v : Fin (r a) → Bool := fun i => decide ((a, i.val) ∈ A)
+    let v : Fin (r a) → Bool := fun i => decide ((a, i.1) ∈ A)
     ∑ w ∈ univ.erase v, ppWordWeight M r g a w < ppWordWeight M r g a v := by
   classical
   intro v
   let factor (w : Fin (r a) → Bool) (i : Fin (r a)) : ℤ :=
-    if w i then newmanAmp (M a) (r a + 1) (g (a, i.val))
-    else newmanAmp (M a) (r a + 1) (-g (a, i.val))
+    if w i then newmanAmp (M a) (r a + 1) (g (a, i.1))
+    else newmanAmp (M a) (r a + 1) (-g (a, i.1))
   have hfactor_nonneg (w : Fin (r a) → Bool) (i : Fin (r a)) : 0 ≤ factor w i := by
     dsimp [factor]
     split_ifs <;> exact newmanAmp_nonneg _ _ _
   have hfactor_v_pos (i : Fin (r a)) : 1 ≤ factor v i := by
-    dsimp [factor, v]
-    by_cases hi : (a, i.val) ∈ A
-    · simp only [decide_eq_true hi, ↓reduceIte]
-      exact one_le_newmanAmp (hpos i.val i.isLt hi)
-    · simp only [decide_eq_false hi, Bool.false_eq_true, ↓reduceIte]
-      exact one_le_newmanAmp (hneg i.val i.isLt hi)
+    by_cases hi : (a, i.1) ∈ A
+    · simpa [factor, v, hi] using one_le_newmanAmp (hpos i.1 i.2 hi)
+    · simpa [factor, v, hi] using one_le_newmanAmp (hneg i.1 i.2 hi)
   have hfactor_mismatch (w : Fin (r a) → Bool) (i : Fin (r a)) (hne : w i ≠ v i) :
       (2 : ℤ) ^ (2 * (r a + 1)) * factor w i ≤ factor v i := by
-    have habs := abs_le.mp (hbnd i.val i.isLt)
-    dsimp [factor, v] at hne ⊢
-    by_cases hi : (a, i.val) ∈ A
-    · have hw : w i = false := by simpa [hi] using hne
-      simp only [hw, Bool.false_eq_true, ↓reduceIte, decide_eq_true hi]
-      exact two_pow_mul_newmanAmp_neg_le (hpos i.val i.isLt hi) habs.2
-    · have hw : w i = true := by simpa [hi] using hne
-      simp only [hw, ↓reduceIte, decide_eq_false hi, Bool.false_eq_true]
-      simpa only [neg_neg] using two_pow_mul_newmanAmp_neg_le (hneg i.val i.isLt hi) (by omega)
+    have habs := abs_le.mp (hbnd i.1 i.2)
+    by_cases hi : (a, i.1) ∈ A
+    · simpa [factor, v, hi, show w i = false by simpa [v, hi] using hne] using
+        two_pow_mul_newmanAmp_neg_le (hpos i.1 i.2 hi) habs.2
+    · simpa [factor, v, hi, show w i = true by simpa [v, hi] using hne] using
+        two_pow_mul_newmanAmp_neg_le (hneg i.1 i.2 hi) (by omega)
   have hfactor_le (w : Fin (r a) → Bool) (i : Fin (r a)) : factor w i ≤ factor v i := by
     by_cases h : w i = v i
-    · dsimp [factor]; rw [h]
-    · have hpow : (1 : ℤ) ≤ (2 : ℤ) ^ (2 * (r a + 1)) := one_le_pow₀ (by omega)
-      exact (le_mul_of_one_le_left (hfactor_nonneg w i) hpow).trans (hfactor_mismatch w i h)
+    · simp only [factor, h, le_refl]
+    · exact (le_mul_of_one_le_left (hfactor_nonneg w i) (one_le_pow₀ (by omega))).trans
+        (hfactor_mismatch w i h)
   have hPv_pos : 1 ≤ ppWordWeight M r g a v := by
     rw [ppWordWeight_eq_prod_univ]
     exact one_le_prod₀ fun i _ => hfactor_v_pos i
   have hdom (w : Fin (r a) → Bool) (hw : w ∈ univ.erase v) :
       2 * (2 : ℤ) ^ r a * ppWordWeight M r g a w ≤ ppWordWeight M r g a v := by
     obtain ⟨i₀, hi₀⟩ : ∃ i₀, w i₀ ≠ v i₀ := Function.ne_iff.mp (mem_erase.mp hw).1
-    have hpow_le : 2 * (2 : ℤ) ^ r a ≤ (2 : ℤ) ^ (2 * (r a + 1)) := by
-      rw [show (2 : ℤ) * (2 : ℤ) ^ r a = (2 : ℤ) ^ (r a + 1) by ring]
-      exact pow_le_pow_right₀ (by omega) (by omega)
+    have hpow_le : 2 * (2 : ℤ) ^ r a ≤ (2 : ℤ) ^ (2 * (r a + 1)) :=
+      (pow_succ' (2 : ℤ) (r a)).symm.trans_le (pow_le_pow_right₀ (by omega) (by omega))
     have hprod_dom : (2 : ℤ) ^ (2 * (r a + 1)) * ppWordWeight M r g a w ≤
         ppWordWeight M r g a v := by
       rw [ppWordWeight_eq_prod_univ, ppWordWeight_eq_prod_univ]
@@ -262,10 +219,8 @@ private theorem sum_erase_ppWordWeight_lt {A : Set (α × ℕ)} {M r : α → �
     rw [mul_sum]
     refine (sum_le_sum hdom).trans ?_
     rw [sum_const, nsmul_eq_mul]
-    have hcard : ((univ.erase v).card : ℤ) ≤ (2 : ℤ) ^ r a := by
-      have hc : (univ.erase v).card ≤ 2 ^ r a := by simp
-      exact_mod_cast hc
-    exact mul_le_mul_of_nonneg_right hcard (by omega)
+    exact mul_le_mul_of_nonneg_right
+      (by exact_mod_cast (show (univ.erase v).card ≤ 2 ^ r a by simp)) (by omega)
   have h2pow_pos : (0 : ℤ) < (2 : ℤ) ^ r a := by positivity
   nlinarith
 
@@ -290,7 +245,7 @@ theorem truthTable_mem_PP (hA : A ∈ PP (encPair enc encUnary))
   have hM : ComputableInPolyTime M enc encUnary := by dsimp [M]; fun_prop
   refine mem_PP_iff_exists_GapP.mpr ⟨ppTruthTableGap M r g d, ppTruthTableGap_mem hg hM hr hd,
     fun a => ?_⟩
-  let v : Fin (r a) → Bool := fun i => decide ((a, i.val) ∈ A)
+  let v : Fin (r a) → Bool := fun i => decide ((a, i.1) ∈ A)
   have hv_ofFn : List.ofFn v = truthTableAnswers A r a := rfl
   have hdom : ∑ w ∈ univ.erase v, ppWordWeight M r g a w < ppWordWeight M r g a v := by
     refine sum_erase_ppWordWeight_lt (A := A)
@@ -303,18 +258,12 @@ theorem truthTable_mem_PP (hA : A ∈ PP (encPair enc encUnary))
       enc_len
   unfold ppTruthTableGap
   rw [← add_sum_erase univ _ (mem_univ v), hv_ofFn]
-  have hrest_lower : -(∑ w ∈ univ.erase v, ppWordWeight M r g a w) ≤
-      ∑ w ∈ univ.erase v, (if d (a, List.ofFn w) then 1 else -1) * ppWordWeight M r g a w := by
-    rw [← sum_neg_distrib]
-    refine sum_le_sum fun w _ => ?_
-    have := ppWordWeight_nonneg M r g a w
-    split_ifs <;> omega
-  have hrest_upper :
-      ∑ w ∈ univ.erase v, (if d (a, List.ofFn w) then 1 else -1) * ppWordWeight M r g a w ≤
-      ∑ w ∈ univ.erase v, ppWordWeight M r g a w := by
-    refine sum_le_sum fun w _ => ?_
-    have := ppWordWeight_nonneg M r g a w
-    split_ifs <;> omega
+  have hrest : |∑ w ∈ univ.erase v, (if d (a, List.ofFn w) then 1 else -1) *
+      ppWordWeight M r g a w| ≤ ∑ w ∈ univ.erase v, ppWordWeight M r g a w :=
+    (abs_sum_le_sum_abs _ _).trans (sum_le_sum fun w _ => by
+      have := ppWordWeight_nonneg M r g a w
+      split_ifs <;> simp [abs_of_nonneg this])
+  rw [abs_le] at hrest
   change d (a, truthTableAnswers A r a) = true ↔ _
   cases hd_val : d (a, truthTableAnswers A r a) <;> simp only [Bool.false_eq_true,
     ↓reduceIte, one_mul, neg_one_mul, true_iff, false_iff, not_lt] <;> omega

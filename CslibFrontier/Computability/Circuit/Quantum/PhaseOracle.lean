@@ -9,6 +9,9 @@ module
 
 public import CslibFrontier.Computability.Circuit.Quantum.Controlled
 public import CslibFrontier.Computability.Circuit.Quantum.GateMatrix
+public import CslibFrontier.Computability.Circuit.Quantum.Uniform
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 
 /-!
 # Phase oracles and the reflection about zero
@@ -19,7 +22,9 @@ negate the amplitudes of the basis strings with bit `t` set
 (`Cslib.Quantum.Circuit.eval_ofCodes_zCodes`). Computing a bit with classical codes, flipping its
 phase and uncomputing gives the **phase oracle** of the computation
 (`Cslib.Quantum.Circuit.eval_ofCodes_phaseOracleCodes`): the amplitude of `|y⟩` is negated when
-the computed bit is one, and nothing else changes.
+the computed bit is one, and nothing else changes. For arbitrary quantum codes, the amplitude of
+returning to the input after this construction on the output qubit is one minus twice the original
+acceptance probability (`Cslib.Quantum.Circuit.run_phaseOracleCodes_input`).
 
 Toffoli gates compute the AND of any number of qubits into a qubit, given zeroed scratch qubits
 (`Cslib.Quantum.GateCode.readBit_classicalRun_andCodes`). After NOT gates on the inputs they test
@@ -103,12 +108,10 @@ namespace GateCode
 @[expose] def zCodes (t : ℕ) : List GateCode := [(true, t, []), (false, t, []), (true, t, [])]
 
 theorem wellFormed_zCodes {t : ℕ} (ht : t < m) : ∀ g ∈ zCodes t, WellFormed m g := by
-  intro g hg
-  simp only [zCodes, List.mem_cons, List.not_mem_nil, or_false] at hg
-  rcases hg with rfl | rfl | rfl <;> simp [WellFormed, ht]
+  simp [zCodes, WellFormed, ht]
 
-/-- Classical codes, the phase flip on qubit `t`, and the codes run backwards: the **phase oracle**
-of bit `t` of `classicalRun gs`. -/
+/-- Apply the circuit, flip the phase on qubit `t`, then uncompute. For classical codes this is
+the phase oracle of bit `t` of `classicalRun gs`. -/
 @[expose] def phaseOracleCodes (gs : List GateCode) (t : ℕ) : List GateCode :=
   gs ++ zCodes t ++ gs.reverse
 
@@ -137,6 +140,43 @@ theorem eval_ofCodes_phaseOracleCodes {gs : List GateCode} (h : IsClassical m gs
   rw [phaseOracleCodes, ofCodes_append, ofCodes_append, eval_append, eval_append,
     eval_ofCodes_apply h.reverse, classicalUnrun_reverse, eval_ofCodes_zCodes ht,
     eval_ofCodes_apply h, classicalUnrun_classicalRun h]
+
+/-- The amplitude of returning to the initial basis state after applying a circuit, flipping the
+phase of its accepting subspace, and running it backwards is its rejection probability minus its
+acceptance probability. This also applies when the circuit prepares a superposition. -/
+theorem run_phaseOracleCodes_input {gs : List GateCode} (hgs : ∀ g ∈ gs, WellFormed m g)
+    (hm : 0 < m) (x : List Bool) :
+    (run (ofCodes m (phaseOracleCodes gs 0)) (inputState m x)).ofLp (inputState m x) =
+      1 - 2 * (acceptProb m gs x : ℂ) := by
+  let X := inputState m x
+  let ψ := run (ofCodes m gs) X
+  have hnorm : ‖ψ‖ = 1 := norm_run _ _
+  have hinner : inner ℂ ψ (eval (ofCodes m (zCodes 0)) ψ) =
+      (measureProb ψ (accepting m)ᶜ : ℂ) - measureProb ψ (accepting m) := by
+    rw [EuclideanSpace.inner_eq_star_dotProduct, dotProduct,
+      ← Finset.sum_add_sum_compl (accepting m)]
+    simp only [measureProb, Complex.ofReal_sum, Pi.star_apply]
+    have hsummand (y : Fin m → Bool) :
+        (eval (ofCodes m (zCodes 0)) ψ).ofLp y * star (ψ.ofLp y) =
+          if y ∈ accepting m then -(‖ψ.ofLp y‖ ^ 2 : ℝ) else (‖ψ.ofLp y‖ ^ 2 : ℝ) := by
+      simp only [eval_ofCodes_zCodes hm, readBit_of_lt _ hm, mem_accepting hm]
+      split_ifs <;> simp_all [Complex.sq_norm, ← Complex.mul_conj]
+    simp only [hsummand, apply_ite Complex.ofReal, Complex.ofReal_neg]
+    rw [Finset.sum_congr rfl (fun y hy => ite_eq_left hy),
+      Finset.sum_congr rfl (fun y hy => ite_eq_right (Finset.mem_compl.mp hy)),
+      Finset.sum_neg_distrib]
+    ring
+  change (eval (ofCodes m (phaseOracleCodes gs 0)) (ket X)).ofLp X = _
+  rw [show ∀ φ : Qubits m, φ.ofLp X = inner ℂ (ket X) φ by
+    intro φ
+    simp [ket, EuclideanSpace.inner_single_left]]
+  rw [phaseOracleCodes, ofCodes_append, ofCodes_append, eval_append, eval_append,
+    ← (eval (ofCodes m gs)).inner_map_map, eval_ofCodes_of_reverse hgs]
+  change inner ℂ ψ (eval (ofCodes m (zCodes 0)) ψ) = _
+  rw [hinner, measureProb_compl, hnorm, one_pow]
+  change (((1 - measureProb ψ (accepting m) : ℝ) : ℂ) - _ = 1 - 2 * (measureProb ψ _ : ℂ))
+  push_cast
+  ring
 
 end Circuit
 
@@ -171,18 +211,15 @@ theorem isClassical_andCodes {cs : List ℕ} {w : ℕ} (hc : ∀ c ∈ cs, c < w
     obtain rfl := List.mem_singleton.mp hg
     exact ⟨rfl, by simp, by simp, by simpa using hw⟩
   | cons c cs ih =>
-    have hc' := hc c (List.mem_cons_self ..)
+    have := hc c List.mem_cons_self
     simp only [List.length_cons] at hw
-    refine IsClassical.append.mpr ⟨ih (fun c' hc'' => ?_) (by omega), fun g hg => ?_⟩
-    · have := hc c' (List.mem_cons_of_mem _ hc'')
-      omega
-    · obtain rfl := List.mem_singleton.mp hg
-      refine ⟨rfl, by simp, ?_, ?_⟩
-      · simp only [List.nodup_cons, List.mem_cons, List.not_mem_nil, or_false, List.nodup_nil,
-          not_false_eq_true, and_true]
-        omega
-      · simp only [List.mem_cons, List.not_mem_nil, or_false]
-        omega
+    refine IsClassical.append.mpr
+      ⟨ih (fun c' h => Nat.lt_succ_of_lt (hc c' (List.mem_cons_of_mem _ h))) (by omega), ?_⟩
+    intro g hg
+    obtain rfl := List.mem_singleton.mp hg
+    exact ⟨rfl, by simp,
+      by simp; omega,
+      by simp; omega⟩
 
 /-- **`andCodes cs w` computes the AND of `cs` into qubit `w`** when the scratch qubits
 `w, …, w + |cs|` start at zero. -/
@@ -196,27 +233,51 @@ theorem readBit_classicalRun_andCodes {cs : List ℕ} {w : ℕ} (hc : ∀ c ∈ 
       target_mk, controls_mk, List.all_nil, Bool.and_true, hx w le_rfl (by simp)]
     simp [show w < m by simpa using hw]
   | cons c cs ih =>
-    have hc' := hc c (List.mem_cons_self ..)
+    have := hc c List.mem_cons_self
     simp only [List.length_cons] at hw hx
-    have hcs : ∀ c' ∈ cs, c' < w + 1 := fun c' h => by
-      have := hc c' (List.mem_cons_of_mem _ h)
-      omega
-    have hne (i : ℕ) (hi : i < w + 1) : ∀ g ∈ andCodes cs (w + 1), g.2.1 ≠ i :=
+    have hne {i : ℕ} (hi : i < w + 1) : ∀ g ∈ andCodes cs (w + 1), g.2.1 ≠ i :=
       fun ⟨b, t, d⟩ hg => by
-        change t ≠ i
         have := (target_mem_andCodes b t d hg).1
+        dsimp
         omega
     rw [andCodes, classicalRun_append, classicalRun_cons, classicalRun_nil, readBit_classicalStep,
-      readBit_classicalRun_of_forall_ne (hne w (by omega))]
+      readBit_classicalRun_of_forall_ne (hne (by omega))]
     simp only [target_mk, controls_mk, List.all_cons, List.all_nil, Bool.and_true,
-      readBit_classicalRun_of_forall_ne (hne c (by omega)),
-      ih hcs (by omega) fun i h₁ h₂ => hx i (by omega) (by omega), hx w le_rfl (by omega)]
+      readBit_classicalRun_of_forall_ne (hne (i := c) (by omega)),
+      ih (fun c' h => Nat.lt_succ_of_lt (hc c' (List.mem_cons_of_mem _ h))) (by omega)
+        fun i h₁ h₂ => hx i (by omega) (by omega),
+      hx w le_rfl (by omega)]
     simp [show w < m by omega]
 
 /-- NOT gates on the qubits `cs`, then `andCodes`: computes into qubit `w` whether all the qubits
 `cs` are zero. -/
 @[expose] def zeroTestCodes (cs : List ℕ) (w : ℕ) : List GateCode :=
   cs.map (fun c => (false, c, [])) ++ andCodes cs w
+
+private theorem andCodes_eq_zipIdx (cs : List ℕ) (w : ℕ) :
+    andCodes cs w = (false, w + cs.length, []) ::
+      ((cs.zipIdx w).map (fun p => (false, p.2, [p.1, p.2 + 1]))).reverse := by
+  induction cs generalizing w with
+  | nil => simp [andCodes]
+  | cons c cs ih =>
+    rw [andCodes, ih]
+    simp only [List.length_cons, List.zipIdx_cons, List.map_cons, List.reverse_cons,
+      List.cons_append, List.cons.injEq, and_true]
+    congr 2
+    omega
+
+open Turing.MultiTapeTM in
+/-- A polynomial-time generator of control indices and a scratch base gives a polynomial-time
+generator of the elementary gates testing those controls for zero. -/
+@[fun_prop] theorem computableInPolyTime_zeroTestCodes {α : Type} {enc : α ↪ List Bool}
+    {cs : α → List ℕ} {w : α → ℕ} (hcs : ComputableInPolyTime cs enc (encList encUnary))
+    (hw : ComputableInPolyTime w enc encUnary) :
+    ComputableInPolyTime (fun a => zeroTestCodes (cs a) (w a)) enc (encList encGateCode) := by
+  have hz : ComputableInPolyTime (fun a => (cs a).zipIdx) enc
+      (encList (encPair encUnary encUnary)) := (ComputableInPolyTime.zipIdx encUnary).comp hcs
+  simp only [zeroTestCodes, andCodes_eq_zipIdx, List.zipIdx_eq_map_add (i := w _), List.map_map,
+    Function.comp_def]
+  fun_prop
 
 theorem isClassical_zeroTestCodes {cs : List ℕ} {w : ℕ} (hc : ∀ c ∈ cs, c < w)
     (hw : w + cs.length < m) : IsClassical m (zeroTestCodes cs w) := by
@@ -231,30 +292,28 @@ theorem readBit_classicalRun_zeroTestCodes {cs : List ℕ} (hnd : cs.Nodup) {w :
     (hc : ∀ c ∈ cs, c < w) (hw : w + cs.length < m) (x : Fin m → Bool)
     (hx : ∀ i, w ≤ i → i ≤ w + cs.length → readBit x i = false) :
     readBit (classicalRun (zeroTestCodes cs w) x) w = cs.all fun c => !readBit x c := by
-  have hread : ∀ g ∈ cs.map (fun c => ((false, c, []) : GateCode)), ∀ g' ∈ cs.map
-      (fun c => ((false, c, []) : GateCode)), g.2.1 ∉ g'.2.2 := fun g _ g' hg' => by
-    obtain ⟨c, -, rfl⟩ := List.mem_map.mp hg'
-    simp
   have hflip (i : ℕ) : readBit (classicalRun (cs.map fun c => ((false, c, []) : GateCode)) x) i =
       (readBit x i ^^ decide (i ∈ cs)) := by
     by_cases hi : i ∈ cs
-    · have := readBit_classicalRun_of_mem (fun g hg => by
-        obtain ⟨c, hc', rfl⟩ := List.mem_map.mp hg
-        exact show c < m by have := hc c hc'; omega)
-        (by simpa [List.map_map, Function.comp_def] using hnd) hread x
+    · simpa [hi] using readBit_classicalRun_of_mem
+        (fun g hg => by
+          obtain ⟨c, hc', rfl⟩ := List.mem_map.mp hg
+          have := hc c hc'
+          exact show c < m by omega)
+        (by simpa [List.map_map, Function.comp_def] using hnd)
+        (fun _ _ _ hg => by
+          obtain ⟨_, -, rfl⟩ := List.mem_map.mp hg
+          simp) x
         (List.mem_map_of_mem (f := fun c => ((false, c, []) : GateCode)) hi)
-      simpa [hi] using this
     · rw [readBit_classicalRun_of_forall_ne fun g hg h => by
         obtain ⟨c, hc', rfl⟩ := List.mem_map.mp hg
         exact hi (h ▸ hc')]
       simp [hi]
-  rw [zeroTestCodes, classicalRun_append,
-    readBit_classicalRun_andCodes hc hw _ fun i h₁ h₂ => by
-      rw [hflip, hx i h₁ h₂]
-      simp only [Bool.false_xor, decide_eq_false_iff_not]
-      intro hi
-      have := hc i hi
-      omega]
+  rw [zeroTestCodes, classicalRun_append, readBit_classicalRun_andCodes hc hw _ fun i h₁ h₂ => by
+    rw [hflip, hx i h₁ h₂, Bool.false_xor, decide_eq_false_iff_not]
+    intro hi
+    have := hc i hi
+    omega]
   rw [Bool.eq_iff_iff, List.all_eq_true, List.all_eq_true]
   exact forall₂_congr fun c hc => by simp [hflip, hc]
 

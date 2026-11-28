@@ -201,9 +201,9 @@ theorem exponentialMechanism_toOuterMeasure_utility_le_opt_sub_log_card {u : D �
     (exponentialMechanism u Δ ε x).toOuterMeasure
         {r | u x r ≤ optUtility u x - 2 * Δ / ε * (Real.log (Fintype.card R) + t)} ≤
       ENNReal.ofReal (Real.exp (-t)) := by
-  refine le_trans (MeasureTheory.measure_mono fun r hr => ?_)
+  refine (MeasureTheory.measure_mono fun r hr => ?_).trans
     (exponentialMechanism_toOuterMeasure_utility_le_opt_sub hΔ hε x t)
-  simp only [Set.mem_ofPred_eq] at hr ⊢
+  change u x r ≤ _ at hr ⊢
   refine hr.trans (sub_le_sub_left (mul_le_mul_of_nonneg_left ?_ (by positivity)) _)
   have hcard : (1 : ℝ) ≤ (optSet u x).card := by exact_mod_cast card_optSet_pos u x
   have hR : (0 : ℝ) < Fintype.card R := by exact_mod_cast Fintype.card_pos

@@ -92,10 +92,8 @@ theorem faceEven_of_body (arity : Rel → ℕ) (sem : Rel → List Bool → Bool
     (cert : Graph.RotationCertificate) (h : verifyRotation (incidenceGraph F) cert = true)
     (σ : ℕ → Bool) (hsat : (body arity sem F cert).eval Table.sem σ = true) :
     (polygonRotation (decode _ cert h)).FaceEven (fun i => σ i.val) := by
-  have hh : (blackConstraints arity sem F).eval Table.sem σ = true ∧
-      (whiteConstraints F.occurrences.length (whiteScopes F cert)).eval Table.sem σ = true := by
-    simpa only [body, CSP.eval, List.all_append, Bool.and_eq_true] using hsat
-  obtain ⟨hb, hw⟩ := hh
+  simp only [body, CSP.eval, List.all_append, Bool.and_eq_true] at hsat
+  obtain ⟨hb, hw⟩ := hsat
   apply (faceEven_iff_dart _ _).mpr
   intro d
   obtain ⟨o, ho⟩ := exists_polygonDart d
@@ -141,10 +139,8 @@ theorem satisfiable_source_of_body (arity : Rel → ℕ) (sem : Rel → List Boo
       (polygonGraph F).edgeGradient spin (polygonDart o false).1 :=
     (congrFun hspin (polygonDart o false).1).symm
   have hb : (blackConstraints arity sem F).eval Table.sem σ = true := by
-    have hh : (blackConstraints arity sem F).eval Table.sem σ = true ∧
-        (whiteConstraints F.occurrences.length (whiteScopes F cert)).eval Table.sem σ = true := by
-      simpa only [body, CSP.eval, List.all_append, Bool.and_eq_true] using hσ
-    exact hh.1
+    simp only [body, CSP.eval, List.all_append, Bool.and_eq_true] at hσ
+    exact hσ.1
   refine ⟨fun v => spin (F.distinctVars.idxOf v), List.all_eq_true.mpr ?_⟩
   intro c hc
   obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hc
@@ -177,8 +173,7 @@ theorem satisfiable_body_of_source (arity : Rel → ℕ) (sem : Rel → List Boo
     unfold spin
     rw [List.getD_eq_getElem _ _ (List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr o.var_mem)),
       List.getElem_idxOf (List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr o.var_mem))]
-  have hσ (i : Fin (polygonGraph F).edges.length) : σ i.val =
-      (polygonGraph F).edgeGradient spin i := by
+  have hσ (i : Fin (polygonGraph F).2.length) : σ i.val = (polygonGraph F).edgeGradient spin i := by
     unfold σ
     rw [List.getD_eq_getElem _ _ (by simpa only [List.length_ofFn] using i.isLt)]
     simp only [List.getElem_ofFn]
@@ -206,9 +201,8 @@ theorem satisfiable_body_of_source (arity : Rel → ℕ) (sem : Rel → List Boo
       simpa only [incidenceGraph_edges, List.length_map] using hlt)
     have hface := (polygonRotation (decode _ cert h)).faceEven_edgeGradient spin
       (Quotient.mk _ (polygonDart o true))
-    have heq : (fun i : Fin (polygonGraph F).edges.length => σ i.val) =
-        (polygonGraph F).edgeGradient spin := funext hσ
-    rw [← heq, faceParity_white cert h] at hface
+    rw [← show (fun i : Fin (polygonGraph F).2.length => σ i.val) = _ from funext hσ,
+      faceParity_white cert h] at hface
     simpa only [ho] using hface
   have hbound : ∀ scope ∈ whiteScopes F cert, ∀ v ∈ scope, v < F.occurrences.length := by
     intro scope hs
@@ -219,9 +213,7 @@ theorem satisfiable_body_of_source (arity : Rel → ℕ) (sem : Rel → List Boo
   have hbτ : (blackConstraints arity sem F).eval Table.sem τ = true := by
     apply (eval_blackConstraints_iff arity sem τ).mpr
     intro i hpos
-    have hrow : (blackScope F i F[i.val].scope).map τ = (blackScope F i F[i.val].scope).map σ :=
-      List.map_congr_left (fun v hv => hτ v ((blackScope_bounds i).2 v hv))
-    rw [hrow]
+    rw [List.map_congr_left fun v hv => hτ v ((blackScope_bounds i).2 v hv)]
     exact (eval_blackConstraints_iff arity sem σ).mp hb i hpos
   refine ⟨τ, ?_⟩
   simpa only [body, CSP.eval, List.all_append, Bool.and_eq_true] using And.intro hbτ hw

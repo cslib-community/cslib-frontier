@@ -49,8 +49,8 @@ open RotationSystem Polygonal
 private theorem star_eval (n : ℕ) (e : Fin (starGraph n).edges.length)
     (i : Fin ((star n).route e).segments) (t : ℝ) :
     ((star n).route e).eval i t = (1 - t) • (⟨(e.val : ℝ) + 1, 1⟩ : ℂ) := by
-  have hi : i = (0 : Fin 1) := Subsingleton.elim (α := Fin 1) _ _
-  subst i
+  have hi : i = (0 : Fin 1) := Fin.eq_zero i
+  subst hi
   change AffineMap.lineMap _ (0 : ℂ) t = _
   rw [AffineMap.lineMap_apply_module, smul_zero, add_zero]
   rfl
@@ -65,43 +65,32 @@ Distinct edges meet only at their center, including when the degree is greater t
 theorem star_isEmbedding (n : ℕ) : (star n).IsEmbedding where
   vertices_injective := by
     intro u _ v _ h
-    change starPoint n u = starPoint n v at h
     by_cases hu : u = n <;> by_cases hv : v = n
     · exact hu.trans hv.symm
-    · have hi := congrArg Complex.im h
-      simp [starPoint, hu, hv] at hi
-    · have hi := congrArg Complex.im h
-      simp [starPoint, hu, hv] at hi
-    · have hr := congrArg Complex.re h
-      simp only [starPoint, hu, hv, ↓reduceIte, add_left_inj] at hr
+    · simpa [star, starPoint, hu, hv] using congrArg Complex.im h
+    · simpa [star, starPoint, hu, hv] using congrArg Complex.im h
+    · have hr : (u : ℝ) = v := by simpa [star, starPoint, hu, hv] using congrArg Complex.re h
       exact_mod_cast hr
-  simple := by
-    intro e
-    apply Route.isSimple_line
-    intro h
-    have hi := congrArg Complex.im h
-    norm_num at hi
+  simple e := Route.isSimple_line fun h => by norm_num [Complex.ext_iff] at h
   vertex_contacts := by
     intro e i t _ v _ h
     rw [star_eval] at h
-    change (1 - t) • (⟨(e.val : ℝ) + 1, 1⟩ : ℂ) = starPoint n v at h
     have hi := congrArg Complex.im h
     have hr := congrArg Complex.re h
-    have hi0 : i.val = 0 := by have := i.isLt; change i.val < 1 at this; omega
+    have hi0 : i.val = 0 := congrArg Fin.val (Fin.eq_zero i)
     by_cases hv : v = n
     · have ht : t = 1 := by
-        simp only [starPoint, hv, ↓reduceIte, Complex.smul_im, smul_eq_mul, mul_one,
+        simp only [star, starPoint, hv, ↓reduceIte, Complex.smul_im, smul_eq_mul, mul_one,
           Complex.zero_im] at hi
         linarith
       refine ⟨true, ?_, ?_⟩
       · simp [Route.AtEnd, Route.position, star, Route.line, hi0, ht]
       · simpa only [star_endpoint, ↓reduceIte] using hv.symm
     · have ht : t = 0 := by
-        simp only [starPoint, hv, ↓reduceIte, Complex.smul_im, smul_eq_mul, mul_one] at hi
+        simp only [star, starPoint, hv, ↓reduceIte, Complex.smul_im, smul_eq_mul, mul_one] at hi
         linarith
       have he : e.val = v := by
-        simp only [ht, sub_zero, one_smul, starPoint, hv, ↓reduceIte,
-          add_left_inj] at hr
+        simp only [ht, sub_zero, one_smul, star, starPoint, hv, ↓reduceIte, add_left_inj] at hr
         exact_mod_cast hr
       refine ⟨false, ?_, ?_⟩
       · simp [Route.AtEnd, Route.position, hi0, ht]
@@ -119,8 +108,8 @@ theorem star_isEmbedding (n : ℕ) : (star n).IsEmbedding where
       rcases mul_eq_zero.mp hprod with h | h
       · linarith
       · exact False.elim (hef (Fin.ext (by exact_mod_cast sub_eq_zero.mp h)))
-    have hi0 : i.val = 0 := by have := i.isLt; change i.val < 1 at this; omega
-    have hj0 : j.val = 0 := by have := j.isLt; change j.val < 1 at this; omega
+    have hi0 : i.val = 0 := congrArg Fin.val (Fin.eq_zero i)
+    have hj0 : j.val = 0 := congrArg Fin.val (Fin.eq_zero j)
     refine ⟨true, true, ?_, ?_, ?_⟩
     · simp [Route.AtEnd, Route.position, star, Route.line, hi0, hs]
     · simp [Route.AtEnd, Route.position, star, Route.line, hj0, ← hst, hs]

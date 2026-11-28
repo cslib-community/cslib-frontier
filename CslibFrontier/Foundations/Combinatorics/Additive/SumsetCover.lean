@@ -53,37 +53,28 @@ theorem exists_add_cover_of_degree (A B : Finset (ι → Bool)) (p q : ℕ) :
       #A₀ + #B₀ ≤ #{S : Finset ι | #S ≤ p} + #{S : Finset ι | #S ≤ q} +
         (2 ^ Fintype.card ι - #{S : Finset ι | #S ≤ p + q + 1}) := by
   classical
-  let restrictA := LinearMap.funLeft (ZMod 2) (ZMod 2) (fun a : A => a.val)
-  let restrictB := LinearMap.funLeft (ZMod 2) (ZMod 2) (fun b : B => b.val)
+  let restrictA := LinearMap.funLeft (ZMod 2) (ZMod 2) (fun a : A => a.1)
+  let restrictB := LinearMap.funLeft (ZMod 2) (ZMod 2) (fun b : B => b.1)
   have hdecomp := (hasSliceDecomposition_add (K := ZMod 2) (ι := ι) p q).comp
-    (fun a : A => a.val) (fun b : B => b.val)
+    (fun a : A => a.1) (fun b : B => b.1)
   obtain ⟨s, t, hcard, hcover⟩ := exists_image_cover hdecomp
-  refine ⟨s.image Subtype.val, t.image Subtype.val, ?_, ?_, ?_, ?_⟩
-  · intro a ha
-    obtain ⟨a', _, rfl⟩ := mem_image.mp ha
-    exact a'.property
-  · intro b hb
-    obtain ⟨b', _, rfl⟩ := mem_image.mp hb
-    exact b'.property
+  refine ⟨s.image Subtype.val, t.image Subtype.val, image_subset_iff.mpr fun a _ => a.2,
+    image_subset_iff.mpr fun b _ => b.2, ?_, ?_⟩
   · ext x
     constructor
     · intro hx
       obtain ⟨a, ha, b, hb, hab⟩ := mem_add.mp hx
-      rcases hcover ⟨a, ha⟩ ⟨b, hb⟩ with hleft | hright
-      · obtain ⟨a', ha', b', hab'⟩ := hleft
-        exact mem_union_left _ (mem_add.mpr
-          ⟨a'.val, mem_image.mpr ⟨a', ha', rfl⟩, b'.val, b'.property, hab'.trans hab⟩)
-      · obtain ⟨b', hb', a', hab'⟩ := hright
-        exact mem_union_right _ (mem_add.mpr
-          ⟨a'.val, a'.property, b'.val, mem_image.mpr ⟨b', hb', rfl⟩, hab'.trans hab⟩)
+      rcases hcover ⟨a, ha⟩ ⟨b, hb⟩ with ⟨a', ha', b', hab'⟩ | ⟨b', hb', a', hab'⟩
+      · exact mem_union_left _ (mem_add.mpr
+          ⟨a'.1, mem_image.mpr ⟨a', ha', rfl⟩, b'.1, b'.2, hab'.trans hab⟩)
+      · exact mem_union_right _ (mem_add.mpr
+          ⟨a'.1, a'.2, b'.1, mem_image.mpr ⟨b', hb', rfl⟩, hab'.trans hab⟩)
     · intro hx
-      rcases mem_union.mp hx with hx | hx
-      · obtain ⟨a, ha, b, hb, hab⟩ := mem_add.mp hx
-        obtain ⟨a', _, rfl⟩ := mem_image.mp ha
-        exact mem_add.mpr ⟨a'.val, a'.property, b, hb, hab⟩
-      · obtain ⟨a, ha, b, hb, hab⟩ := mem_add.mp hx
-        obtain ⟨b', _, rfl⟩ := mem_image.mp hb
-        exact mem_add.mpr ⟨a, ha, b'.val, b'.property, hab⟩
+      rcases mem_union.mp hx with hx | hx <;> obtain ⟨a, ha, b, hb, hab⟩ := mem_add.mp hx
+      · obtain ⟨a', _, rfl⟩ := mem_image.mp ha
+        exact mem_add.mpr ⟨a'.1, a'.2, b, hb, hab⟩
+      · obtain ⟨b', _, rfl⟩ := mem_image.mp hb
+        exact mem_add.mpr ⟨a, ha, b'.1, b'.2, hab⟩
   · have hA := Submodule.finrank_map_le restrictA (lowDegree (ZMod 2) ι p)
     have hB := Submodule.finrank_map_le restrictB (lowDegree (ZMod 2) ι q)
     rw [finrank_lowDegree] at hA hB

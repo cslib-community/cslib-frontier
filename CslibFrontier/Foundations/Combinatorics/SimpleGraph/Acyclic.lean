@@ -91,21 +91,12 @@ theorem adj_iff_parent {x y : ι} :
     T.Adj x y ↔ (x ≠ r ∧ hT.parent r x = y) ∨ (y ≠ r ∧ hT.parent r y = x) := by
   refine ⟨fun h => ?_, ?_⟩
   · by_cases hy : y ∈ (hT.pathTo r x).support
-    · left
-      have hxr : x ≠ r := by
-        rintro rfl
-        rw [pathTo_self] at hy
-        simp only [Walk.support_nil, List.mem_singleton] at hy
-        exact h.ne hy.symm
-      exact ⟨hxr, (hT.isAcyclic.eq_snd_of_adj_start (hT.isPath_pathTo r x) h hy).symm⟩
-    · right
-      have hq : (Walk.cons h.symm (hT.pathTo r x)).IsPath := (hT.isPath_pathTo r x).cons hy
-      have hyr : y ≠ r := by
-        rintro rfl
-        exact hy (Walk.end_mem_support _)
-      refine ⟨hyr, ?_⟩
-      rw [parent, ← hT.eq_pathTo r hq]
-      exact Walk.snd_cons _ _
+    · refine Or.inl ⟨?_, (hT.isAcyclic.eq_snd_of_adj_start (hT.isPath_pathTo r x) h hy).symm⟩
+      rintro rfl
+      simp [pathTo_self, h.ne.symm] at hy
+    · refine Or.inr ⟨fun hr => hy (hr ▸ Walk.end_mem_support _), ?_⟩
+      have hp : (Walk.cons h.symm (hT.pathTo r x)).IsPath := (hT.isPath_pathTo r x).cons hy
+      rw [parent, ← hT.eq_pathTo r hp, Walk.snd_cons]
   · rintro (⟨hx, rfl⟩ | ⟨hy, rfl⟩)
     · exact hT.adj_parent r hx
     · exact (hT.adj_parent r hy).symm
@@ -139,11 +130,9 @@ theorem parentTree_eq_parentGraph {n : ℕ} {p : Fin (n + 1) → Fin (n + 1)} (h
   · rintro (⟨-, h⟩ | ⟨-, h⟩)
     · exact Or.inl h
     · exact Or.inr h
-  · rintro (h | h)
-    · refine Or.inl ⟨fun hi => hij ?_, h⟩
-      rw [← h, hi, h0]
-    · refine Or.inr ⟨fun hj => hij ?_, h⟩
-      rw [← h, hj, h0]
+  · rintro (rfl | rfl)
+    · exact Or.inl ⟨fun hi => hij (by rw [hi, h0]), rfl⟩
+    · exact Or.inr ⟨fun hj => hij (by rw [hj, h0]), rfl⟩
 
 section ParentArray
 
@@ -152,11 +141,10 @@ variable {n : ℕ} {p : Fin (n + 1) → Fin (n + 1)}
 theorem parentTree_adj (hlt : ∀ i, i ≠ 0 → p i < i) {i j : Fin (n + 1)} :
     (parentTree p).Adj i j ↔ (i ≠ 0 ∧ p i = j) ∨ (j ≠ 0 ∧ p j = i) := by
   rw [parentTree, fromRel_adj]
-  constructor
-  · exact fun h => h.2
-  · rintro (⟨hi, rfl⟩ | ⟨hj, rfl⟩)
-    · exact ⟨(hlt i hi).ne', Or.inl ⟨hi, rfl⟩⟩
-    · exact ⟨(hlt j hj).ne, Or.inr ⟨hj, rfl⟩⟩
+  refine ⟨And.right, ?_⟩
+  rintro (⟨hi, rfl⟩ | ⟨hj, rfl⟩)
+  · exact ⟨(hlt i hi).ne', Or.inl ⟨hi, rfl⟩⟩
+  · exact ⟨(hlt j hj).ne, Or.inr ⟨hj, rfl⟩⟩
 
 theorem parentTree_adj_self (hlt : ∀ i, i ≠ 0 → p i < i) {i : Fin (n + 1)} (hi : i ≠ 0) :
     (parentTree p).Adj i (p i) :=
@@ -179,36 +167,26 @@ private theorem parent_iterate_le_of (h0 : p 0 = 0) (hlt : ∀ i, i ≠ 0 → p 
 /-- A parent array with `p i < i` for every `i ≠ 0` describes a tree. -/
 theorem parentTree_isTree (hlt : ∀ i, i ≠ 0 → p i < i) : (parentTree p).IsTree := by
   classical
-  have hreach : ∀ i, (parentTree p).Reachable i 0 := by
-    intro i
+  have hreach (i) : (parentTree p).Reachable i 0 := by
     induction i using WellFoundedLT.induction with
     | ind i ih =>
-      by_cases hi : i = 0
-      · rw [hi]
-      · exact (parentTree_adj_self hlt hi).reachable.trans (ih _ (hlt i hi))
+      exact if hi : i = 0 then hi ▸ .refl _
+        else (parentTree_adj_self hlt hi).reachable.trans (ih _ (hlt i hi))
   rw [isTree_iff_connected_and_card]
   refine ⟨⟨fun i j => (hreach i).trans (hreach j).symm⟩, ?_⟩
-  let f : {i : Fin (n + 1) // i ≠ 0} → (parentTree p).edgeSet :=
-    fun i => ⟨s(i.val, p i.val), parentTree_adj_self hlt i.property⟩
-  have hf : Function.Bijective f := by
-    constructor
+  have hf : Function.Bijective (fun i : {i : Fin (n + 1) // i ≠ 0} =>
+      (⟨s(i.1, p i.1), parentTree_adj_self hlt i.2⟩ : (parentTree p).edgeSet)) := by
+    refine ⟨?_, ?_⟩
     · rintro ⟨i, hi⟩ ⟨j, hj⟩ h
-      have h' : s(i, p i) = s(j, p j) := congrArg Subtype.val h
-      rcases Sym2.eq_iff.1 h' with ⟨h, -⟩ | ⟨h1, h2⟩
+      rcases Sym2.eq_iff.1 (congrArg Subtype.val h) with ⟨h, -⟩ | ⟨rfl, h2⟩
       · exact Subtype.ext h
-      · exfalso
-        have h3 := hlt i hi
-        have h4 := hlt j hj
-        rw [h2] at h3
-        rw [← h1] at h4
-        exact lt_asymm h3 h4
+      · exact (lt_asymm (h2.symm.trans_lt (hlt _ hi)) (hlt j hj)).elim
     · rintro ⟨e, he⟩
-      induction e using Sym2.ind with
-      | h i j =>
-        rcases (parentTree_adj hlt).1 ((mem_edgeSet _).1 he) with ⟨hi, rfl⟩ | ⟨hj, rfl⟩
-        · exact ⟨⟨i, hi⟩, rfl⟩
-        · exact ⟨⟨j, hj⟩, Subtype.ext Sym2.eq_swap⟩
-  rw [← Nat.card_eq_of_bijective f hf, Nat.card_eq_fintype_card, Fintype.card_subtype_compl,
+      induction e using Sym2.ind with | h i j =>
+      rcases (parentTree_adj hlt).1 ((mem_edgeSet _).1 he) with ⟨hi, rfl⟩ | ⟨hj, rfl⟩
+      · exact ⟨⟨i, hi⟩, rfl⟩
+      · exact ⟨⟨j, hj⟩, Subtype.ext Sym2.eq_swap⟩
+  rw [← Nat.card_eq_of_bijective _ hf, Nat.card_eq_fintype_card, Fintype.card_subtype_compl,
     Fintype.card_subtype_eq, Fintype.card_fin, Nat.card_eq_fintype_card, Fintype.card_fin]
   omega
 
@@ -219,37 +197,28 @@ theorem eq_of_preconnected_parentTree (h0 : p 0 = 0) (hlt : ∀ i, i ≠ 0 → p
     (ha : a ∈ S) (hat : a = 0 ∨ p a ∉ S) (hb : b ∈ S) (hbt : b = 0 ∨ p b ∉ S) : a = b := by
   -- Every element of `S` climbs to a topmost element `a` through `S`: otherwise a walk inside
   -- `S` would cross from the ancestors-of-`a` side to the other along a parent edge.
-  have key : ∀ {a b : Fin (n + 1)}, a ∈ S → (a = 0 ∨ p a ∉ S) → b ∈ S → ∃ k, p^[k] b = a := by
-    intro a b ha hat hb
+  have key {a b : Fin (n + 1)} (ha : a ∈ S) (hat : a = 0 ∨ p a ∉ S) (hb : b ∈ S) :
+      ∃ k, p^[k] b = a := by
     by_contra hnot
     obtain ⟨w⟩ := hS ⟨a, ha⟩ ⟨b, hb⟩
     let w' := w.map (Embedding.induce S).toHom
-    obtain ⟨d, hd, hd1, hd2⟩ := w'.exists_boundary_dart {x | ∃ k, p^[k] x = a} ⟨0, rfl⟩
+    obtain ⟨d, hd, ⟨k, hk⟩, hd2⟩ := w'.exists_boundary_dart {x | ∃ k, p^[k] x = a} ⟨0, rfl⟩
       (by simpa using hnot)
     have hd2S : d.snd ∈ S := by
-      have := w'.dart_snd_mem_support_of_mem_darts hd
-      simp only [w', Walk.support_map, List.mem_map] at this
-      obtain ⟨x, -, hx⟩ := this
-      rw [← hx]
-      exact x.property
-    obtain ⟨k, hk⟩ := hd1
-    rcases (parentTree_adj hlt).1 d.adj with ⟨-, hpd⟩ | ⟨hne, hpd⟩
+      obtain ⟨x, -, hx⟩ := List.mem_map.1
+        (Walk.support_map _ _ ▸ w'.dart_snd_mem_support_of_mem_darts hd)
+      exact hx ▸ x.2
+    rcases (parentTree_adj hlt).1 d.adj with ⟨-, hpd⟩ | ⟨-, hpd⟩
     · rcases k with _ | k
       · simp only [Function.iterate_zero, id_eq] at hk
         subst hk
-        rcases hat with h0' | hpa
-        · exact hd2 ⟨0, by
-            have : d.snd = p d.fst := hpd.symm
-            rw [this, h0', h0]
-            rfl⟩
-        · exact hpa (hpd ▸ hd2S)
+        exact hat.elim (fun h0' => hd2 ⟨0, by simp [← hpd, h0', h0]⟩)
+          fun hpa => hpa (hpd ▸ hd2S)
       · exact hd2 ⟨k, by rw [← hpd, ← Function.iterate_succ_apply]; exact hk⟩
-    · exact hd2 ⟨k + 1, by rw [Function.iterate_succ_apply, hpd]; exact hk⟩
+    · exact hd2 ⟨k + 1, by rw [Function.iterate_succ_apply, hpd, hk]⟩
   obtain ⟨k, hk⟩ := key ha hat hb
   obtain ⟨l, hl⟩ := key hb hbt ha
-  have h1 : a ≤ b := hk ▸ parent_iterate_le_of h0 hlt k b
-  have h2 : b ≤ a := hl ▸ parent_iterate_le_of h0 hlt l a
-  exact le_antisymm h1 h2
+  exact le_antisymm (hk ▸ parent_iterate_le_of h0 hlt k b) (hl ▸ parent_iterate_le_of h0 hlt l a)
 
 end ParentArray
 

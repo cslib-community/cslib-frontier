@@ -34,24 +34,25 @@ open Cslib.Code Finset
 section ParameterHelpers
 
 private theorem card_monomials_zero (D : ℕ) : #(Sudan.monomials 0 D) = (D + 1) ^ 2 := by
-  have heq : Sudan.monomials 0 D = range (D + 1) ×ˢ range (D + 1) := by
-    ext ⟨a, b⟩
-    simp only [Sudan.mem_monomials, mem_product, mem_range, Nat.lt_succ_iff, zero_mul, add_zero]
-    tauto
-  rw [heq, card_product, card_range, sq]
+  suffices Sudan.monomials 0 D = range (D + 1) ×ˢ range (D + 1) by
+    rw [this, card_product, card_range, sq]
+  ext ⟨a, b⟩
+  simp [Sudan.mem_monomials, and_comm]
 
-private theorem maxYDeg_zero_le (D : ℕ) : maxYDeg 0 D ≤ D := by
-  refine Finset.sup_le fun ab hab => ?_
-  exact (Sudan.mem_monomials.1 hab).2.1
+private theorem maxYDeg_zero_le (D : ℕ) : maxYDeg 0 D ≤ D :=
+  Finset.sup_le fun _ hab => (Sudan.mem_monomials.1 hab).2.1
 
 private theorem mul_maxYDeg_le (d D : ℕ) : d * maxYDeg d D ≤ D := by
   rcases Nat.eq_zero_or_pos d with rfl | hd
   · simp
-  · have hle : maxYDeg d D ≤ D / d := by
-      refine Finset.sup_le fun ab hab => ?_
-      obtain ⟨_, _, hwd⟩ := Sudan.mem_monomials.1 hab
-      exact (Nat.le_div_iff_mul_le hd).2 (by linarith)
-    exact (Nat.mul_le_mul_left d hle).trans (Nat.mul_div_le D d)
+  · refine (Nat.mul_le_mul_left d (Finset.sup_le fun ab hab => ?_)).trans (Nat.mul_div_le D d)
+    exact (Nat.le_div_iff_mul_le hd).2 (by linarith [(Sudan.mem_monomials.1 hab).2.2])
+
+private theorem two_mul_cast_mul_div_two_le (n a : ℕ) :
+    2 * ((n * (a * (a + 1) / 2) : ℕ) : ℝ) ≤ (n : ℝ) * ((a : ℝ) * (a + 1)) := by
+  have : 2 * (n * (a * (a + 1) / 2)) ≤ n * (a * (a + 1)) := by
+    rw [Nat.mul_left_comm]; exact Nat.mul_le_mul_left n (Nat.mul_div_le _ 2)
+  exact_mod_cast this
 
 private theorem sqrt_rate_bounds {n k : ℕ} {ρ : ℝ} (hρ : ρ = (k : ℝ) / (n : ℝ))
     (hk : 1 ≤ k) (hkn : k ≤ n) :
@@ -87,45 +88,33 @@ private theorem johnson_monomial_gap {n k m : ℕ} (hk : 1 ≤ k) (hkn : k ≤ n
   have hkR : (0 : ℝ) < k := by exact_mod_cast hk
   have hmR : (0 : ℝ) < m := by exact_mod_cast hm
   have hm'R : (0 : ℝ) < m' := by positivity
-  have h1_le_t₀ : 1 ≤ t₀ := by
-    have hsq : (1 : ℝ) ≤ Real.sqrt ((n : ℝ) * k) :=
-      (Real.le_sqrt (by norm_num) (by positivity)).2 <| (by norm_num : (1 : ℝ) ^ 2 ≤ 1).trans
-        (one_le_mul_of_one_le_of_one_le (by exact_mod_cast hk.trans hkn) (by exact_mod_cast hk))
-    have hle : (1 : ℝ) ≤ (t₀ : ℝ) := hsq.trans (by
-      calc Real.sqrt ((n : ℝ) * k) ≤ (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k) :=
-            le_mul_of_one_le_left (Real.sqrt_nonneg _)
-              (by linarith [show (0 : ℝ) ≤ 1 / (2 * m) by positivity])
-        _ ≤ (t₀ : ℝ) := Nat.le_ceil _)
-    exact_mod_cast hle
+  have h1_le_t₀ : 1 ≤ t₀ := Nat.one_le_ceil_iff.2 (by positivity)
   have hD_succ : D + 1 = m' * t₀ := by
     have : 1 ≤ m' * t₀ := Nat.mul_pos (by omega) h1_le_t₀; omega
   have hmt_sq_lower :
       ((m' : ℝ) * (m' + 1) + 5 / 4) * ((n : ℝ) * k) < ((m' : ℝ) * t₀) ^ 2 := by
     have hmul : (m' : ℝ) * (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k) ≤
         (m' : ℝ) * t₀ := by
-      have := mul_le_mul_of_nonneg_left (Nat.le_ceil _ : _ ≤ (t₀ : ℝ)) hm'R.le; linarith
+      rw [mul_assoc]
+      exact mul_le_mul_of_nonneg_left (Nat.le_ceil _) hm'R.le
     have hsq := pow_le_pow_left₀ (by positivity) hmul 2
     rw [mul_pow, Real.sq_sqrt (by positivity)] at hsq
     have hcoeff : (m' : ℝ) * (m' + 1) + 5 / 4 < ((m' : ℝ) * (1 + 1 / (2 * (m : ℝ)))) ^ 2 := by
-      have hm'_cast : (m' : ℝ) = (m : ℝ) + 1 := by exact_mod_cast rfl
-      rw [hm'_cast, mul_pow]
-      have hdiff : ((m : ℝ) + 1) ^ 2 * (1 + 1 / (2 * m)) ^ 2 -
+      have hpos : (0 : ℝ) < (6 * m + 1) / (4 * m ^ 2) := by positivity
+      have hdiff : (((m : ℝ) + 1) * (1 + 1 / (2 * m))) ^ 2 -
           (((m : ℝ) + 1) * (m + 1 + 1) + 5 / 4) = (6 * m + 1) / (4 * m ^ 2) := by
         field_simp; ring
-      linarith [show (0 : ℝ) < (6 * m + 1) / (4 * m ^ 2) by positivity]
+      push_cast [m']
+      linarith
     exact (mul_lt_mul_of_pos_right hcoeff (by positivity)).trans_le hsq
   set R_eq := n * (m' * (m' + 1) / 2); set C_mon := #(Sudan.monomials (k - 1) D)
-  have h2Req : 2 * (R_eq : ℝ) ≤ (n : ℝ) * ((m' : ℝ) * (m' + 1)) := by
-    exact_mod_cast (by
-      have := Nat.mul_le_mul_left n (Nat.div_mul_le_self (m' * (m' + 1)) 2)
-      linarith [show 2 * R_eq = n * (m' * (m' + 1) / 2 * 2) by ring] :
-        2 * R_eq ≤ n * (m' * (m' + 1)))
+  have h2Req : 2 * (R_eq : ℝ) ≤ (n : ℝ) * ((m' : ℝ) * (m' + 1)) :=
+    two_mul_cast_mul_div_two_le n m'
   have hgap : (R_eq : ℝ) + (5 / 8) * n < C_mon := by
     rcases Nat.eq_or_lt_of_le hk with rfl | hk2
     · have hC : (C_mon : ℝ) = ((m' : ℝ) * t₀) ^ 2 := by
-        exact_mod_cast (by rw [show C_mon = #(Sudan.monomials 0 D) from rfl,
-          card_monomials_zero, hD_succ] : C_mon = (m' * t₀) ^ 2)
-      rw [hC]; simp only [Nat.cast_one, mul_one] at hmt_sq_lower; linarith
+        exact_mod_cast (card_monomials_zero D).trans (congrArg (· ^ 2) hD_succ)
+      simp only [hC, Nat.cast_one, mul_one] at hmt_sq_lower ⊢; linarith
     · have hsq_lt : (m' * t₀) ^ 2 < 2 * (k - 1) * C_mon := calc
         (m' * t₀) ^ 2 = (D + 1) * (D + 1) := by rw [sq, hD_succ]
         _ < (D + 1) * (D + 2) := Nat.mul_lt_mul_of_pos_left (by omega) (by omega)
@@ -173,64 +162,47 @@ private theorem johnson_curve_params_gap {n k e m r : ℕ}
     dsimp only [ρ]; field_simp
   have hmul_he : (e : ℝ) ≤ n - (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k) := by
     have h1 := (div_le_iff₀ hnR).1 he
-    rw [hsqnk_eq]
-    linarith [show (1 - Real.sqrt ρ - Real.sqrt ρ / (2 * m)) * n =
-      n - (1 + 1 / (2 * m)) * (n * Real.sqrt ρ) by field_simp; ring]
-  have he_le_n : e ≤ n := by
-    have hlt : (e : ℝ) < n := by
-      linarith [show (0 : ℝ) < (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k) by positivity]
-    exact_mod_cast hlt.le
+    have hid : (1 - Real.sqrt ρ - Real.sqrt ρ / (2 * m)) * n =
+        n - (1 + 1 / (2 * m)) * ((n : ℝ) * Real.sqrt ρ) := by field_simp; ring
+    rw [hsqnk_eq]; linarith
+  have he_le_n : e ≤ n :=
+    Nat.cast_le.1 (hmul_he.trans (sub_le_self _ (by positivity)))
   have ht₀_le_sub : t₀ ≤ n - e :=
     Nat.ceil_le.2 (by rw [Nat.cast_sub he_le_n]; linarith)
-  have hk_le_t₀ : k ≤ t₀ := by
-    have hknR : (k : ℝ) ≤ n := by exact_mod_cast hkn
-    have h1 : (k : ℝ) ≤ Real.sqrt ((n : ℝ) * k) :=
-      (Real.le_sqrt (by positivity) (by positivity)).2
-        (by rw [sq]; exact mul_le_mul_of_nonneg_right hknR hkR.le)
-    have h2 : Real.sqrt ((n : ℝ) * k) ≤
-        (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k) :=
-      le_mul_of_one_le_left (Real.sqrt_nonneg _)
-        (by linarith [show (0 : ℝ) ≤ 1 / (2 * (m : ℝ)) by positivity])
-    have h3 : (k : ℝ) ≤ (t₀ : ℝ) := (h1.trans h2).trans (Nat.le_ceil _)
-    exact_mod_cast h3
+  have hk_sqrt : (k : ℝ) ≤ Real.sqrt ((n : ℝ) * k) :=
+    Real.le_sqrt_of_sq_le (by rw [sq]; gcongr)
+  have hk_le_t₀ : k ≤ t₀ := Nat.cast_le.1 <| (hk_sqrt.trans <|
+    le_mul_of_one_le_left (Real.sqrt_nonneg _) (le_add_of_nonneg_right (by positivity))).trans
+      (Nat.le_ceil _)
   have hroot : D < m' * (n - e) := by
     have : 1 ≤ m' * t₀ := Nat.mul_pos (by omega) (hk.trans hk_le_t₀)
     have := Nat.mul_le_mul_left m' ht₀_le_sub; omega
   obtain ⟨hinterp, hdiff_lower⟩ := johnson_monomial_gap hk hkn hm
   have hD_upper : (D : ℝ) ≤ (5 / 2) * (m' : ℝ) * n * Real.sqrt ρ := by
-    have hsq1 : (1 : ℝ) ≤ Real.sqrt ((n : ℝ) * k) :=
-      (Real.le_sqrt (by norm_num) (by positivity)).2 <| (by norm_num : (1 : ℝ) ^ 2 ≤ 1).trans
-        (one_le_mul_of_one_le_of_one_le (by exact_mod_cast hk.trans hkn) (by exact_mod_cast hk))
+    have hsq1 : (1 : ℝ) ≤ Real.sqrt ((n : ℝ) * k) := (Nat.one_le_cast.2 hk).trans hk_sqrt
     have hlt := Nat.ceil_lt_add_one (a := (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k))
       (by positivity)
-    have hhalf : 1 + 1 / (2 * (m : ℝ)) ≤ 3 / 2 := by
-      have : (1 : ℝ) ≤ m := by exact_mod_cast hm
-      have : 1 / (2 * (m : ℝ)) ≤ 1 / 2 :=
-        (div_le_div_iff₀ (by positivity) (by norm_num)).2 (by linarith)
-      linarith
+    have hm1 : (1 : ℝ) ≤ m := Nat.one_le_cast.2 hm
+    have hhalf : 1 / (2 * (m : ℝ)) ≤ 1 / 2 := (div_le_iff₀ (by positivity)).2 (by linarith)
     have ht_up : (t₀ : ℝ) ≤ (5 / 2) * Real.sqrt ((n : ℝ) * k) := by
-      linarith [mul_le_mul_of_nonneg_right hhalf (Real.sqrt_nonneg ((n : ℝ) * k))]
+      linarith [mul_le_mul_of_nonneg_right (add_le_add_right hhalf 1) (Real.sqrt_nonneg (n * k))]
     have hD_le : (D : ℝ) ≤ (m' : ℝ) * t₀ := by exact_mod_cast (show D ≤ m' * t₀ by omega)
     have := mul_le_mul_of_nonneg_left ht_up hm'R.le
     rw [hsqnk_eq] at this; linarith
   have hDY_upper : (maxYDeg (k - 1) D : ℝ) ≤ 5 * (m' : ℝ) / Real.sqrt ρ := by
     rcases Nat.eq_or_lt_of_le hk with rfl | hk2
-    · have hle : (maxYDeg (1 - 1) D : ℝ) ≤ D := by exact_mod_cast maxYDeg_zero_le D
-      have hρ1 : (n : ℝ) * Real.sqrt ρ = 1 / Real.sqrt ρ := by
+    · have hρ1 : (n : ℝ) * Real.sqrt ρ = 1 / Real.sqrt ρ := by
         rw [eq_div_iff hsqρ_pos.ne', mul_assoc, ← sq, hsqρ_sq]
-        dsimp only [ρ]; push_cast; field_simp
-      have : (0 : ℝ) ≤ (m' : ℝ) / Real.sqrt ρ := by positivity
-      have heq : (5 / 2) * (m' : ℝ) * n * Real.sqrt ρ = (5 / 2) * ((m' : ℝ) / Real.sqrt ρ) := by
-        rw [mul_assoc ((5 / 2) * (m' : ℝ)), hρ1]; ring
-      have heq2 : 5 * (m' : ℝ) / Real.sqrt ρ = 5 * ((m' : ℝ) / Real.sqrt ρ) := by ring
-      linarith
+        dsimp only [ρ]
+        push_cast; field_simp
+      refine ((Nat.cast_le.2 (maxYDeg_zero_le D)).trans hD_upper).trans ?_
+      rw [mul_assoc ((5 / 2) * (m' : ℝ)), hρ1, ← div_eq_mul_one_div]
+      exact div_le_div_of_nonneg_right (by linarith) hsqρ_pos.le
     · have hmulR : ((k - 1 : ℕ) : ℝ) * (maxYDeg (k - 1) D : ℝ) ≤ D := by
         exact_mod_cast mul_maxYDeg_le (k - 1) D
-      have hk_half : (k : ℝ) / 2 ≤ ((k - 1 : ℕ) : ℝ) := by
-        have : (k : ℝ) ≤ 2 * ((k - 1 : ℕ) : ℝ) := by exact_mod_cast (show k ≤ 2 * (k - 1) by omega)
-        linarith
+      have hk2' : (k : ℝ) ≤ 2 * ((k - 1 : ℕ) : ℝ) := by exact_mod_cast (by omega : k ≤ 2 * (k - 1))
       have h1 : (k : ℝ) / 2 * (maxYDeg (k - 1) D : ℝ) ≤ (5 / 2) * m' * n * Real.sqrt ρ :=
-        (mul_le_mul_of_nonneg_right hk_half (by positivity)).trans (hmulR.trans hD_upper)
+        (mul_le_mul_of_nonneg_right (by linarith) (by positivity)).trans (hmulR.trans hD_upper)
       rw [le_div_iff₀ hsqρ_pos]
       have h2 := mul_le_mul_of_nonneg_right h1 hsqρ_pos.le
       have hsqeq : (5 / 2) * (m' : ℝ) * n * Real.sqrt ρ * Real.sqrt ρ = (5 / 2) * m' * k := by
@@ -244,21 +216,15 @@ private theorem johnson_curve_params_gap {n k e m r : ℕ}
     have hdiff_pos : (0 : ℝ) < ((C_mon - R_eq : ℕ) : ℝ) := by linarith
     have hdiv_le : (siegelZDeg n m' (k - 1) D r : ℝ) ≤
         (r : ℝ) * ((R_eq : ℝ) * (maxYDeg (k - 1) D : ℝ)) / ((C_mon - R_eq : ℕ) : ℝ) := by
-      rw [le_div_iff₀ hdiff_pos]
-      have hcast : ((siegelZDeg n m' (k - 1) D r * (C_mon - R_eq) : ℕ) : ℝ) ≤
-          ((R_eq * r * maxYDeg (k - 1) D : ℕ) : ℝ) := by
-        exact_mod_cast Nat.div_mul_le_self (R_eq * r * maxYDeg (k - 1) D) (C_mon - R_eq)
-      push_cast at hcast; linarith
+      rw [le_div_iff₀ hdiff_pos, mul_left_comm (r : ℝ), ← mul_assoc]
+      exact_mod_cast Nat.div_mul_le_self (R_eq * r * maxYDeg (k - 1) D) (C_mon - R_eq)
     have hReq_up : (R_eq : ℝ) ≤ (3 / 4) * (n : ℝ) * (m' : ℝ) ^ 2 := by
-      have h2Req : 2 * (R_eq : ℝ) ≤ (n : ℝ) * ((m' : ℝ) * (m' + 1)) := by
-        exact_mod_cast (by
-          have := Nat.mul_le_mul_left n (Nat.div_mul_le_self (m' * (m' + 1)) 2)
-          linarith [show 2 * R_eq = n * (m' * (m' + 1) / 2 * 2) by ring] :
-            2 * R_eq ≤ n * (m' * (m' + 1)))
+      have h2Req := two_mul_cast_mul_div_two_le n m'
       have hm2 : (2 : ℝ) ≤ m' := by exact_mod_cast (show 2 ≤ m' by omega)
-      linarith [mul_le_mul_of_nonneg_left
-          (mul_le_mul_of_nonneg_left (by linarith : (m' : ℝ) + 1 ≤ 3 / 2 * m') hm'R.le) hnR.le,
-        show (n : ℝ) * ((m' : ℝ) * (3 / 2 * m')) = 2 * ((3 / 4) * n * m' ^ 2) by ring]
+      have hle := mul_le_mul_of_nonneg_left
+        (mul_le_mul_of_nonneg_left (by linarith : (m' : ℝ) + 1 ≤ 3 / 2 * m') hm'R.le) hnR.le
+      have hring : (n : ℝ) * ((m' : ℝ) * (3 / 2 * m')) = 2 * ((3 / 4) * n * m' ^ 2) := by ring
+      linarith
     have hfrac : (r : ℝ) * ((R_eq : ℝ) * (maxYDeg (k - 1) D : ℝ)) / ((C_mon - R_eq : ℕ) : ℝ) ≤
         (r : ℝ) * ((3 / 4 * n * (m' : ℝ) ^ 2) * (5 * m' / Real.sqrt ρ)) / (5 / 8 * n) :=
       div_le_div₀ (by positivity)
@@ -277,10 +243,8 @@ at most `W_tot / n`. -/
 theorem johnsonCurveBound_mul_le {n m d D r W_tot : ℕ} (hW : n ≤ W_tot) :
     johnsonCurveBound n m d D r W_tot * n ≤ johnsonCurveBound n m d D r n * W_tot := by
   dsimp only [johnsonCurveBound]
-  have hA : (siegelZDeg n m d D r + 2 * maxYDeg d D * (D + siegelZDeg n m d D r)) * n ≤
-      (siegelZDeg n m d D r + 2 * maxYDeg d D * (D + siegelZDeg n m d D r)) * W_tot :=
-    Nat.mul_le_mul_left _ hW
-  linarith
+  nlinarith [Nat.mul_le_mul_left
+    (siegelZDeg n m d D r + 2 * maxYDeg d D * (D + siegelZDeg n m d D r)) hW]
 
 /-- Quantitative Guruswami–Sudan parameter packaging for degree-`r` curves (`1 ≤ r`): given
 `1 ≤ k ≤ n`, `1 ≤ m`, and `(e : ℝ) / n ≤ 1 - √ρ - √ρ / (2 * m)` with `ρ = k / n`, the choice
@@ -319,56 +283,54 @@ theorem johnson_curve_params_bound {n k e m r : ℕ}
   have hm'2 := hm'p 2 (by norm_num); have hm'3 := hm'p 3 (by norm_num)
   have hm'4 := hm'p 4 (by norm_num)
   have ht1 : (B_Z : ℝ) ≤ 6 * r * U := calc
-    _ ≤ 6 * r * ((m' : ℝ) ^ 3 * (1 * (1 / Real.sqrt ρ))) := by
-        linarith [hBZ_upper, show 6 * (r : ℝ) * ((m' : ℝ) ^ 3 * (1 * (1 / Real.sqrt ρ))) =
-          6 * r * (m' : ℝ) ^ 3 / Real.sqrt ρ by ring]
+    _ ≤ 6 * r * ((m' : ℝ) ^ 3 * (1 * (1 / Real.sqrt ρ))) :=
+        hBZ_upper.trans_eq (by ring)
     _ ≤ 6 * r * ((m' : ℝ) ^ 6 * ((n : ℝ) ^ 2 * (1 / ρ))) := by gcongr
     _ = 6 * r * U := by ring
   have ht2 : 2 * (D_Y : ℝ) * D ≤ 25 * r * U := by
-    have hprod := mul_le_mul hDY_upper hD_upper (by positivity) (by positivity)
-    rw [show (5 * (m' : ℝ) / Real.sqrt ρ) * ((5 / 2) * m' * n * Real.sqrt ρ) =
-      (25 / 2) * (m' : ℝ) ^ 2 * (n * 1) by field_simp; ring] at hprod
+    have hprod := (mul_le_mul hDY_upper hD_upper (by positivity) (by positivity)).trans_eq
+      (by field_simp; ring : _ = (25 / 2) * (m' : ℝ) ^ 2 * (n * 1))
     have hmono : (m' : ℝ) ^ 2 * ((n : ℝ) * 1) ≤ (m' : ℝ) ^ 6 * ((n : ℝ) ^ 2 * (1 / ρ)) := by gcongr
     calc 2 * (D_Y : ℝ) * D ≤ 25 * 1 * U := by linarith
       _ ≤ 25 * (r : ℝ) * U := by gcongr
   have ht3 : 2 * (D_Y : ℝ) * B_Z ≤ 60 * r * U := by
     have hprod := mul_le_mul hDY_upper hBZ_upper (by positivity) (by positivity)
-    rw [div_mul_div_comm, show Real.sqrt ρ * Real.sqrt ρ = ρ from by rw [← sq, hsqρ_sq]] at hprod
-    have hmono : (m' : ℝ) ^ 4 * (1 * (1 / ρ)) ≤ (m' : ℝ) ^ 6 * ((n : ℝ) ^ 2 * (1 / ρ)) := by gcongr
+    rw [div_mul_div_comm, ← sq, hsqρ_sq] at hprod
     have hmono' : 60 * (r : ℝ) * ((m' : ℝ) ^ 4 * (1 * (1 / ρ))) ≤
         60 * (r : ℝ) * ((m' : ℝ) ^ 6 * ((n : ℝ) ^ 2 * (1 / ρ))) := by gcongr
-    calc 2 * (D_Y : ℝ) * B_Z ≤ 60 * r * ((m' : ℝ) ^ 4 * (1 * (1 / ρ))) := by
-          linarith [show 2 * ((5 * (m' : ℝ) * (6 * r * m' ^ 3)) / ρ) =
-            60 * r * (m' ^ 4 * (1 * (1 / ρ))) by ring]
+    have hring : 2 * ((5 * (m' : ℝ) * (6 * r * m' ^ 3)) / ρ) =
+        60 * r * (m' ^ 4 * (1 * (1 / ρ))) := by ring
+    calc 2 * (D_Y : ℝ) * B_Z ≤ 60 * r * ((m' : ℝ) ^ 4 * (1 * (1 / ρ))) := by linarith
       _ ≤ 60 * r * U := hmono'.trans_eq (by dsimp only [U]; ring)
-  have ht4 : 4 * (n : ℝ) * (D_Y : ℝ) ^ 2 * D * B_Z ≤ 1500 * r * U := by
-    have hmul := mul_le_mul_of_nonneg_left
-      (mul_le_mul (pow_le_pow_left₀ (by positivity) hDY_upper 2)
-        (mul_le_mul hD_upper hBZ_upper (by positivity) (by positivity))
-        (by positivity) (by positivity))
-      (show (0 : ℝ) ≤ 4 * n by positivity)
-    have hrhs : 4 * (n : ℝ) * ((5 * m' / Real.sqrt ρ) ^ 2 * (((5 / 2) * m' * n * Real.sqrt ρ) *
-        (6 * r * m' ^ 3 / Real.sqrt ρ))) = 1500 * r * U := by
-      dsimp only [U]; rw [div_pow, hsqρ_sq]; field_simp; ring
-    linarith
+  have ht4 : 4 * (n : ℝ) * (D_Y : ℝ) ^ 2 * D * B_Z ≤ 1500 * r * U := calc
+    _ ≤ 4 * n * (5 * m' / Real.sqrt ρ) ^ 2 * ((5 / 2) * m' * n * Real.sqrt ρ) *
+          (6 * r * m' ^ 3 / Real.sqrt ρ) := by gcongr
+    _ = 1500 * r * U := by
+        dsimp only [U]
+        rw [div_pow, hsqρ_sq]
+        field_simp; ring
   have ht5 : (n : ℝ) * (D_Y : ℝ) ^ 2 * ((r : ℝ) * D_Y) ≤ 125 * r * U := by
     have hDY3 := mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (by positivity) hDY_upper 3) hnR.le
-    rw [div_pow, show Real.sqrt ρ ^ 3 = ρ * Real.sqrt ρ by rw [pow_succ, hsqρ_sq]] at hDY3
+    rw [div_pow, pow_succ (Real.sqrt ρ) 2, hsqρ_sq] at hDY3
     have hn_inv : (n : ℝ) * (1 / Real.sqrt ρ) ≤ (n : ℝ) ^ 2 :=
       (mul_le_mul_of_nonneg_left hinvsq_le_n hnR.le).trans_eq (sq _).symm
     have hbase : (n : ℝ) * (D_Y : ℝ) ^ 3 ≤ 125 * U := by
       have hmono : (m' : ℝ) ^ 3 * (n * (1 / Real.sqrt ρ)) * (1 / ρ) ≤
           (m' : ℝ) ^ 6 * (n : ℝ) ^ 2 * (1 / ρ) := by gcongr
-      linarith [show (n : ℝ) * ((5 * m') ^ 3 / (ρ * Real.sqrt ρ)) =
-        125 * ((m' : ℝ) ^ 3 * (n * (1 / Real.sqrt ρ)) * (1 / ρ)) by field_simp; ring]
+      have hring5 : (n : ℝ) * ((5 * m') ^ 3 / (ρ * Real.sqrt ρ)) =
+          125 * ((m' : ℝ) ^ 3 * (n * (1 / Real.sqrt ρ)) * (1 / ρ)) := by field_simp; ring
+      linarith
     linarith [mul_le_mul_of_nonneg_left hbase (show (0 : ℝ) ≤ r by positivity)]
   refine ⟨hk_le_sub, hinterp, hroot, ?_⟩
   have hcast : (johnsonCurveBound n m' (k - 1) D r n : ℝ) =
       (B_Z : ℝ) + 2 * D_Y * D + 2 * D_Y * B_Z + 4 * n * D_Y ^ 2 * D * B_Z +
         n * D_Y ^ 2 * (r * D_Y) := by
     simp only [johnsonCurveBound, D_Y, B_Z]; push_cast; ring
-  rw [hcast, show 1800 * (r : ℝ) * ((m + 1 : ℝ) ^ 6) * ((n : ℝ) ^ 2) / ((k : ℝ) / n) =
-    1800 * r * U by dsimp only [U, m', ρ]; push_cast; ring]
+  have hrhs_eq : 1800 * (r : ℝ) * ((m + 1 : ℝ) ^ 6) * ((n : ℝ) ^ 2) / ((k : ℝ) / n) =
+      1800 * r * U := by
+    dsimp only [U, m', ρ]
+    push_cast; ring
+  rw [hcast, hrhs_eq]
   have : 0 ≤ (r : ℝ) * U := by positivity
   linarith only [ht1, ht2, ht3, ht4, ht5, this]
 
@@ -410,28 +372,25 @@ theorem exists_multiplicity_of_eta {n k e : ℕ} {η : ℝ}
   have hx1 : (1 : ℝ) ≤ Real.sqrt ρ / (2 * η') :=
     (one_le_div (by positivity)).2 (by linarith [min_le_right η (Real.sqrt ρ / 2)])
   have hm : 1 ≤ m := by exact_mod_cast hx1.trans (Nat.le_ceil _)
-  have hfrac : Real.sqrt ρ / (2 * m) ≤ η := by
-    have hceil : Real.sqrt ρ / (2 * η') ≤ (m : ℝ) := Nat.le_ceil _
-    have : Real.sqrt ρ / (2 * m) ≤ η' :=
-      (div_le_iff₀ (by positivity)).2 (by linarith [(div_le_iff₀ (by positivity)).1 hceil])
-    exact this.trans (min_le_left _ _)
+  have hceil : Real.sqrt ρ ≤ m * (2 * η') := (div_le_iff₀ (by positivity)).1 (Nat.le_ceil _)
+  have hfrac : Real.sqrt ρ / (2 * m) ≤ η :=
+    ((div_le_iff₀ (by positivity)).2
+      (by linarith)).trans (min_le_left _ _)
   have hm1_le : (m : ℝ) + 1 ≤ 2 / η := by
     by_cases hle : η ≤ Real.sqrt ρ / 2
     · have hη'_eq : η' = η := min_eq_left hle
-      have hlt : (m : ℝ) < Real.sqrt ρ / (2 * η) + 1 := by
-        have h0 := Nat.ceil_lt_add_one (a := Real.sqrt ρ / (2 * η')) (by positivity)
-        change (m : ℝ) < _ at h0; rwa [hη'_eq] at h0
-      have hx1' : (1 : ℝ) ≤ Real.sqrt ρ / (2 * η) := by rwa [hη'_eq] at hx1
-      have : 3 * (Real.sqrt ρ / (2 * η)) ≤ 2 / η := by
-        rw [show 3 * (Real.sqrt ρ / (2 * η)) = (3 / 2 * Real.sqrt ρ) / η by ring]
-        exact div_le_div_of_nonneg_right (by linarith) hη.le
+      have hlt : (m : ℝ) < Real.sqrt ρ / (2 * η) + 1 :=
+        hη'_eq ▸ Nat.ceil_lt_add_one (a := Real.sqrt ρ / (2 * η')) (by positivity)
+      have hx1' : (1 : ℝ) ≤ Real.sqrt ρ / (2 * η) := hη'_eq ▸ hx1
+      have : 3 * (Real.sqrt ρ / (2 * η)) ≤ 2 / η :=
+        (by ring : 3 * (Real.sqrt ρ / (2 * η)) = (3 / 2 * Real.sqrt ρ) / η).trans_le
+          (div_le_div_of_nonneg_right (by linarith) hη.le)
       linarith
-    · have hη'_eq : η' = Real.sqrt ρ / 2 := min_eq_right (le_of_not_ge hle)
-      have hm1 : m = 1 := by
-        dsimp only [m]; rw [hη'_eq, show Real.sqrt ρ / (2 * (Real.sqrt ρ / 2)) = 1 by field_simp]
-        norm_num
-      rw [hm1, Nat.cast_one, le_div_iff₀ hη]
-      linarith [show (0 : ℝ) ≤ (e : ℝ) / n by positivity]
+    · have h1 : Real.sqrt ρ / (2 * η') = 1 := by
+        simp only [η', min_eq_right (le_of_not_ge hle)]; field_simp
+      have he0 : (0 : ℝ) ≤ (e : ℝ) / n := by positivity
+      simp only [m, h1, Nat.ceil_one, Nat.cast_one, le_div_iff₀ hη]
+      linarith
   refine ⟨m, hm, by linarith, (pow_le_pow_left₀ (by positivity) hm1_le 6).trans_eq ?_⟩
   rw [div_pow]; norm_num
 

@@ -74,14 +74,10 @@ variable {σ F : Type*} [Field F]
 /-- A polynomial is in the ideal of the variables exactly when it has no constant term. -/
 theorem mem_idealOfVars_iff_constantCoeff {p : MvPolynomial σ F} :
     p ∈ idealOfVars σ F ↔ constantCoeff p = 0 := by
-  have h := mem_pow_idealOfVars_iff' (σ := σ) (R := F) 1 p
-  rw [pow_one] at h
-  rw [h, constantCoeff_eq]
+  rw [← pow_one (idealOfVars σ F), mem_pow_idealOfVars_iff', constantCoeff_eq]
   refine ⟨fun hp => hp 0 (by simp), fun hp x hx => ?_⟩
-  obtain rfl : x = 0 := by
-    rw [Nat.lt_one_iff, Finsupp.degree_eq_zero_iff] at hx
-    exact hx
-  exact hp
+  rw [Nat.lt_one_iff, Finsupp.degree_eq_zero_iff] at hx
+  exact hx ▸ hp
 
 /-- Polynomials that agree to order `d + 1` have the same truncation to degree at most `d`. -/
 theorem truncateTotalDegree_eq_of_sub_mem {d : ℕ} {p q : MvPolynomial σ F}
@@ -91,8 +87,7 @@ theorem truncateTotalDegree_eq_of_sub_mem {d : ℕ} {p q : MvPolynomial σ F}
   ext x
   rw [coeff_truncateTotalDegree, coeff_truncateTotalDegree]
   split_ifs with hx
-  · have := h x (Nat.lt_succ_of_le hx)
-    rwa [AddMonoidAlgebra.coeff_sub_apply, sub_eq_zero] at this
+  · simpa only [coeff_sub, sub_eq_zero] using h x (Nat.lt_succ_of_le hx)
   · rfl
 
 /-! ### A simple root at the origin -/
@@ -111,10 +106,8 @@ theorem truncateTotalDegree_root_eq [CharZero F] {P : Polynomial (MvPolynomial �
   set a := constantCoeff (P.coeff 1) with haa
   set G : Polynomial (MvPolynomial σ F) := Polynomial.X - Polynomial.C (C a⁻¹) * P with hG
   have hP0 : constantCoeff (P.coeff 0) = 0 := by
-    have h := congrArg constantCoeff hroot
-    rw [map_zero, ← Polynomial.eval₂_id, Polynomial.hom_eval₂, RingHom.comp_id, hf0,
-      Polynomial.eval₂_at_zero] at h
-    exact h
+    simpa only [map_zero, ← Polynomial.eval₂_id, Polynomial.hom_eval₂, RingHom.comp_id, hf0,
+      Polynomial.eval₂_at_zero] using congrArg constantCoeff hroot
   have h0 : G.coeff 0 ∈ idealOfVars σ F := by
     rw [mem_idealOfVars_iff_constantCoeff, hG, Polynomial.coeff_sub, Polynomial.coeff_X_zero,
       Polynomial.coeff_C_mul, map_sub, map_zero, map_mul, hP0, mul_zero, sub_zero]
@@ -137,16 +130,14 @@ theorem exists_iterate_derivative_eval_ne_zero [CharZero F] {P : Polynomial (MvP
     ∃ j : ℕ, (Polynomial.derivative^[j] P).eval f = 0 ∧
       (Polynomial.derivative^[j + 1] P).eval f ≠ 0 := by
   have hk : 0 < P.rootMultiplicity f := (Polynomial.rootMultiplicity_pos hP).2 hroot
-  refine ⟨P.rootMultiplicity f - 1, ?_, ?_⟩
-  · exact (Polynomial.lt_rootMultiplicity_iff_isRoot_iterate_derivative hP).1
-      (Nat.sub_lt hk Nat.one_pos) _ le_rfl
-  · intro h0
-    refine lt_irrefl (P.rootMultiplicity f)
-      ((Polynomial.lt_rootMultiplicity_iff_isRoot_iterate_derivative hP).2 fun m hm => ?_)
-    rcases Nat.lt_or_ge m (P.rootMultiplicity f) with hlt | hge
-    · exact (Polynomial.lt_rootMultiplicity_iff_isRoot_iterate_derivative hP).1 hlt m le_rfl
-    · obtain rfl : m = P.rootMultiplicity f - 1 + 1 := by omega
-      exact h0
+  refine ⟨P.rootMultiplicity f - 1,
+    (Polynomial.lt_rootMultiplicity_iff_isRoot_iterate_derivative hP).1
+      (Nat.sub_lt hk Nat.one_pos) _ le_rfl, fun h0 =>
+    lt_irrefl (P.rootMultiplicity f)
+      ((Polynomial.lt_rootMultiplicity_iff_isRoot_iterate_derivative hP).2 fun m hm => ?_)⟩
+  rcases Nat.lt_or_ge m (P.rootMultiplicity f) with hlt | hge
+  · exact (Polynomial.lt_rootMultiplicity_iff_isRoot_iterate_derivative hP).1 hlt m le_rfl
+  · exact (show m = P.rootMultiplicity f - 1 + 1 by omega) ▸ h0
 
 /-- **The low-degree part of any root.** Let `P ≠ 0` be a polynomial in `y` over `F[x]`, in
 characteristic zero, and `f` a polynomial with `P (f) = 0`. Then for some `j` and some point
@@ -170,45 +161,39 @@ theorem exists_shift_eq_truncate_sum_of_root [CharZero F]
   classical
   have : Infinite F := Infinite.of_injective Nat.cast Nat.cast_injective
   obtain ⟨j, hj0, hj1⟩ := exists_iterate_derivative_eval_ne_zero hP hroot
-  obtain ⟨x₀, hx₀⟩ : ∃ x₀ : σ → F,
-      eval x₀ ((Polynomial.derivative^[j + 1] P).eval f) ≠ 0 := by
-    by_contra hall
-    push Not at hall
+  obtain ⟨x₀, hx₀⟩ : ∃ x₀ : σ → F, eval x₀ ((Polynomial.derivative^[j + 1] P).eval f) ≠ 0 := by
+    by_contra! hall
     exact hj1 (funext fun x => by rw [hall x, map_zero])
-  set φ : MvPolynomial σ F →+* MvPolynomial σ F := (shift x₀ : _ →ₐ[F] _).toRingHom with hφ
-  have hcc : ∀ p : MvPolynomial σ F, constantCoeff (φ p) = eval x₀ p := fun p => by
+  set φ : MvPolynomial σ F →+* MvPolynomial σ F := (shift x₀ : _ →ₐ[F] _).toRingHom
+  have hcc (p : MvPolynomial σ F) : constantCoeff (φ p) = eval x₀ p := by
     rw [constantCoeff_eq]
     exact coeff_zero_shift x₀ p
-  have hmapeval : ∀ R : Polynomial (MvPolynomial σ F),
-      (R.map φ).eval (shift x₀ f) = φ (R.eval f) := fun R => by
+  have hmapeval (R : Polynomial (MvPolynomial σ F)) :
+      (R.map φ).eval (shift x₀ f) = φ (R.eval f) := by
     rw [Polynomial.eval_map]
     exact Polynomial.eval₂_hom φ f
-  set α := eval x₀ f with hα
+  set α := eval x₀ f
   set Q := Polynomial.taylor (C α) ((Polynomial.derivative^[j] P).map φ) with hQ
   set f₁ := shift x₀ f - C α with hf₁
   have hf₁0 : constantCoeff f₁ = 0 := by
-    rw [hf₁, map_sub, constantCoeff_C]
-    exact sub_eq_zero.2 (hcc f)
+    rw [hf₁, map_sub, constantCoeff_C, sub_eq_zero]
+    exact hcc f
   have hQroot : Q.eval f₁ = 0 := by
     rw [hQ, Polynomial.taylor_eval, hf₁, sub_add_cancel, hmapeval, hj0, map_zero]
-  have hcceval : ∀ (R : Polynomial (MvPolynomial σ F)) (z : MvPolynomial σ F),
-      constantCoeff (R.eval z) = (R.map constantCoeff).eval (constantCoeff z) := fun R z => by
+  have hcceval (R : Polynomial (MvPolynomial σ F)) (z : MvPolynomial σ F) :
+      constantCoeff (R.eval z) = (R.map constantCoeff).eval (constantCoeff z) := by
     rw [Polynomial.eval_map, Polynomial.eval₂_hom]
   have hder : constantCoeff (Q.coeff 1) ≠ 0 := by
     rw [hQ, Polynomial.taylor_coeff_one, ← Polynomial.iterate_derivative_map,
-      ← Function.iterate_succ_apply' Polynomial.derivative, Polynomial.iterate_derivative_map]
-    have hev : constantCoeff (((Polynomial.derivative^[j + 1] P).map φ).eval (C α)) =
-        constantCoeff (((Polynomial.derivative^[j + 1] P).map φ).eval (shift x₀ f)) := by
-      rw [hcceval, hcceval, constantCoeff_C, show constantCoeff (shift x₀ f) = α from hcc f]
-    rw [hev, hmapeval, hcc]
+      ← Function.iterate_succ_apply' Polynomial.derivative, Polynomial.iterate_derivative_map,
+      hcceval, constantCoeff_C, ← show constantCoeff (shift x₀ f) = α from hcc f, ← hcceval,
+      hmapeval, hcc]
     exact hx₀
   refine ⟨j, x₀, hder, fun D hD => ?_⟩
-  have hdeg : f₁.totalDegree ≤ D := by
-    refine (totalDegree_sub _ _).trans (max_le ((totalDegree_aeval_le (fun i =>
-      (totalDegree_add _ _).trans (max_le (totalDegree_X i).le
-        (by rw [totalDegree_C]; exact Nat.zero_le _))) f).trans hD) ?_)
-    rw [totalDegree_C]
-    exact Nat.zero_le _
+  have hdeg : f₁.totalDegree ≤ D := (totalDegree_sub _ _).trans <| max_le
+    ((totalDegree_aeval_le (fun i => (totalDegree_add _ _).trans
+      (max_le (totalDegree_X i).le ((totalDegree_C (x₀ i)).trans_le (Nat.zero_le 1)))) f).trans hD)
+    ((totalDegree_C α).trans_le (Nat.zero_le D))
   rw [← truncateTotalDegree_root_eq hf₁0 hQroot hder D, truncateTotalDegree_eq_self hdeg, hf₁,
     add_sub_cancel]
 

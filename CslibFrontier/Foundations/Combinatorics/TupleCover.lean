@@ -68,7 +68,6 @@ private theorem mem_tupleCover {R : Finset α} {F : (Fin t → α) → β} {y : 
     a ∈ tupleCover R F y ↔
       a ∈ R ∧ ∃ g : Fin t → α, (∀ i, g i ∈ R) ∧ a ∈ Set.range g ∧ F g = y := by
   classical
-  unfold tupleCover
   exact Finset.mem_filter
 
 private theorem tupleCover_subset (R : Finset α) (F : (Fin t → α) → β) (y : β) :

@@ -150,9 +150,10 @@ private theorem primrec_guard {α} [Primcodable α] (t : Code) {c : α → Code}
   primrec₂_comp.comp (primrec₂_prec.comp (const zero) (primrec₂_comp.comp hc (const left)))
     (const _)
 
--- Under the module system `ℕ →. ℕ` does not unfold to `ℕ → Part ℕ` for `simp`, so binds into
--- partial functions are eta-expanded before Mathlib's `Part.bind` lemmas apply.
-private theorem bind_pfun (x : Part ℕ) (f : ℕ →. ℕ) : x >>= f = x.bind fun y => f y := rfl
+/-- A bind into a partial function, eta-expanded. Under the module system `ℕ →. ℕ` does not unfold
+to `ℕ → Part ℕ` for `simp`, so binds into partial functions are rewritten by this lemma before
+Mathlib's `Part.bind` lemmas apply. -/
+theorem bind_pfun (x : Part ℕ) (f : ℕ →. ℕ) : x >>= f = x.bind fun y => f y := rfl
 
 private theorem eval_guard_zero (g : ℕ →. ℕ) {t c : Code} {n : ℕ}
     (ht : eval g t n = Part.some 0) : eval g (guard t c) n = Part.some 0 := by

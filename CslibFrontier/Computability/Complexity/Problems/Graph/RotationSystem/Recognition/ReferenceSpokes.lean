@@ -47,8 +47,7 @@ theorem exists_reference_spokes_at_cutPorts {I : FixedRotationInput} (hI : Valid
       ⟨((Dart.indexEquiv I.graph) d.val).isLt, (Dart.vertex_index d.val).trans d.property⟩)
   cases hlen : word.length with
   | zero =>
-    have hnil : word = [] := List.length_eq_zero_iff.mp hlen
-    have hnone (d : Fiber) : False := by simpa only [hnil, List.not_mem_nil] using hword d
+    have hnone (d : Fiber) : False := by simpa [List.length_eq_zero_iff.mp hlen] using hword d
     exact ⟨fun d => (hnone d).elim, fun d => (hnone d).elim, fun {d} _ _ => (hnone d).elim⟩
   | succ n =>
     let code (i : Fin (n + 1)) := word[i.val]'(by omega)
@@ -63,10 +62,8 @@ theorem exists_reference_spokes_at_cutPorts {I : FixedRotationInput} (hI : Valid
     have hrank (i : Fin (n + 1)) : word.idxOf (d i).index = i.val := by
       rw [hindex]
       exact (hI.2.2.2 v word hw).1.idxOf_getElem _ (by omega)
-    have hdinj : Function.Injective d := by
-      intro i j heq
-      apply Fin.ext
-      rw [← hrank i, ← hrank j, heq]
+    have hdinj : Function.Injective d := fun i j heq =>
+      Fin.ext (by rw [← hrank i, ← hrank j, heq])
     let w (i : Fin (n + 1)) := (referenceDrawing I).germ (subdivisionDart I (d i))
     let a (i : Fin (n + 1)) : ℝ := (ρ / 2) / ‖w i‖
     let p (i : Fin (n + 1)) := D.vertex v + a i • w i
@@ -85,30 +82,22 @@ theorem exists_reference_spokes_at_cutPorts {I : FixedRotationInput} (hI : Valid
           (referenceDrawing I).direction (subdivisionDart I (d i)) := by
       simp only [p, add_sub_cancel_left, Complex.real_smul, Complex.arg_ofReal_mul (hapos i) _,
         PolygonalDrawing.direction, w]
-    have hpinj : Function.Injective (fun i => ((p i - D.vertex v).arg : Real.Angle)) := by
-      intro i j heq
-      apply hdinj
-      exact referenceDrawing_fixedWord_directions_injective hI hw (hdmem i) (hdmem j)
-        (by simpa only [hpdir] using heq)
-    have hqinj : Function.Injective (fun i => ((q i - D.vertex v).arg : Real.Angle)) := by
-      intro i j heq
-      exact hdinj (hD.cutPort_direction_injective v hρ (Metric.mem_ball_self hρ)
+    have hpinj : Function.Injective (fun i => ((p i - D.vertex v).arg : Real.Angle)) :=
+      fun i j heq => hdinj (referenceDrawing_fixedWord_directions_injective hI hw (hdmem i)
+        (hdmem j) (by simpa only [hpdir] using heq))
+    have hqinj : Function.Injective (fun i => ((q i - D.vertex v).arg : Real.Angle)) :=
+      fun i j heq => hdinj (hD.cutPort_direction_injective v hρ (Metric.mem_ball_self hρ)
         (d i) (d j) (hdv i) (hdv j) heq)
-    have hbefore (i : Fin (n + 1)) (hi : i ≠ Fin.last n) : i.val < n := by
-      have hne : i.val ≠ n := fun h => hi (Fin.ext h)
-      have := i.isLt
-      omega
     have horder (i j : Fin (n + 1)) (hi : i ≠ Fin.last n) (hj : j ≠ Fin.last n)
         (hij : i ≠ j) :
         sbtw ((referenceDrawing I).direction (subdivisionDart I (d (Fin.last n))))
           ((referenceDrawing I).direction (subdivisionDart I (d i)))
           ((referenceDrawing I).direction (subdivisionDart I (d j))) ↔ j.val < i.val := by
-      have hi' := hbefore i hi
-      have hj' := hbefore j hj
+      have hi' : i.val ≠ n := fun h => hi (Fin.ext h)
+      have hj' : j.val ≠ n := fun h => hj (Fin.ext h)
       rw [referenceDrawing_fixedWord_clockwise_iff hI hw (hdmem j) (hdmem i)
         (hdmem (Fin.last n)) (hdinj.ne hij.symm) (hdinj.ne hi) (hdinj.ne hj)]
-      simp only [hrank, Fin.val_last]
-      omega
+      simp only [hrank, Fin.val_last]; omega
     obtain ⟨T, hT, hpair⟩ := exists_annular_spokes n (D.vertex v) (half_pos hρ)
       (half_lt_self hρ) p q hp hq hpinj hqinj
       (fun i j hi hj hij => by simpa only [hpdir] using horder i j hi hj hij)
@@ -117,20 +106,15 @@ theorem exists_reference_spokes_at_cutPorts {I : FixedRotationInput} (hI : Valid
         (hdinj.ne hij.symm) (hdinj.ne hi) (hdinj.ne hj)).trans (horder i j hi hj hij))
     let rank (a : Fiber) : Fin (n + 1) :=
       ⟨word.idxOf a.val.index, by have := List.idxOf_lt_length_of_mem (hword a); omega⟩
-    have hback (a : Fiber) : d (rank a) = a.val := by
-      apply (Dart.indexEquiv I.graph).injective
-      apply Fin.ext
-      change (d (rank a)).index = a.val.index
-      exact (hindex (rank a)).trans (List.getElem_idxOf (List.idxOf_lt_length_of_mem (hword a)))
-    have hrank_inj : Function.Injective rank := by
-      intro a b he
-      exact Subtype.ext ((hback a).symm.trans ((congrArg d he).trans (hback b)))
-    refine ⟨fun a => T (rank a), ?_, fun _ _ h => hpair (hrank_inj.ne h)⟩
-    intro a'
+    have hback (a : Fiber) : d (rank a) = a.val :=
+      (Dart.indexEquiv I.graph).injective (Fin.ext ((hindex (rank a)).trans
+        (List.getElem_idxOf (List.idxOf_lt_length_of_mem (hword a)))))
+    have hrank_inj : Function.Injective rank := fun a b he =>
+      Subtype.ext ((hback a).symm.trans ((congrArg d he).trans (hback b)))
+    refine ⟨fun a => T (rank a), fun a' => ?_, fun _ _ h => hpair (hrank_inj.ne h)⟩
     obtain ⟨hstart, hfinish, hgerm, hsimple, hbound⟩ := hT (rank a')
-    refine ⟨hstart, ?_, ⟨a (rank a'), hapos _, ?_⟩, hsimple, ?_⟩
-    · simpa only [q, hback] using hfinish
-    · simpa only [p, add_sub_cancel_left, w, hback] using hgerm
-    · simpa only [q, hback] using hbound
+    exact ⟨hstart, by simpa only [q, hback] using hfinish,
+      ⟨a (rank a'), hapos _, by simpa only [p, add_sub_cancel_left, w, hback] using hgerm⟩,
+      hsimple, by simpa only [q, hback] using hbound⟩
 
 end Cslib.Complexity.Graph.RotationRecognition

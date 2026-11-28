@@ -33,7 +33,22 @@ theorem numericalGenusZero_disjointUnion {G H : Graph} (r : RotationSystem G)
   let t := r.disjointUnion s
   let e := disjointDartEquiv G H
   have hT := endpoints_declared_disjointUnion G H hG hH
-  apply (t.numericalGenusZero_iff_component_cards hT).mpr
+  have horbit {K : Graph} (rot : RotationSystem K)
+      (hK : ∀ v ∈ K.incidenceVertices, v ∈ K.1) :
+      rot.NumericalGenusZero ↔ ∀ x : Dart K,
+        Nat.card (OrbitOn rot.rotate (fun b => SameComponent K x.vertex b.vertex)) +
+          Nat.card (OrbitOn rot.faceNext (fun b => SameComponent K x.vertex b.vertex)) =
+        Nat.card (OrbitOn (Dart.reversal K) (fun b => SameComponent K x.vertex b.vertex)) + 2 := by
+    rw [rot.numericalGenusZero_iff_component_cards hK]
+    refine forall_congr' fun x => ?_
+    have hv := Nat.card_congr (rot.vertexOrbitEquiv hK x)
+    have hε := Nat.card_congr (edgeOrbitEquiv K hK x)
+    simp only [Nat.card_eq_finsetCard] at hv hε
+    rw [← hv, ← hε, card_componentFaceIndices,
+      rot.count_faceRepresentatives_eq_card_componentFace hK]
+  have hEmpty {V : Type} (w : Perm V) : Nat.card (OrbitOn w (fun _ => False)) = 0 :=
+    @Nat.card_of_isEmpty _ ⟨fun ⟨_, _, hb, _⟩ => hb⟩
+  apply (horbit t hT).mpr
   intro d
   obtain ⟨a, rfl⟩ := e.surjective d
   let q (b : Dart (G.disjointUnion H)) := SameComponent (G.disjointUnion H) (e a).vertex b.vertex
@@ -53,49 +68,17 @@ theorem numericalGenusZero_disjointUnion {G H : Graph} (r : RotationSystem G)
     | inl a =>
       change Nat.card (OrbitOn (Equiv.sumCongr f g)
         (Sum.elim (fun b => SameComponent G a.vertex b.vertex) (fun _ => False))) = _
-      rw [card_orbitOn_sum]
-      have hi : IsEmpty (OrbitOn g (fun _ => False)) := ⟨by
-        rintro ⟨_, b, hb, _⟩
-        exact hb⟩
-      let := hi
-      simp only [Nat.card_of_isEmpty, Nat.add_zero]
+      rw [card_orbitOn_sum, hEmpty, Nat.add_zero]
     | inr a =>
       change Nat.card (OrbitOn (Equiv.sumCongr f g)
         (Sum.elim (fun _ => False) (fun b => SameComponent H a.vertex b.vertex))) = _
-      rw [card_orbitOn_sum]
-      have hi : IsEmpty (OrbitOn f (fun _ => False)) := ⟨by
-        rintro ⟨_, b, hb, _⟩
-        exact hb⟩
-      let := hi
-      simp only [Nat.card_of_isEmpty, Nat.zero_add]
-  have hv := hcount r.rotate s.rotate t.rotate (fun b =>
-    (rotate_disjointUnion r s b).symm)
-  have hf := hcount r.faceNext s.faceNext t.faceNext (fun b =>
-    (faceNext_disjointUnion r s b).symm)
-  have hε := hcount (Dart.reversal G) (Dart.reversal H) (Dart.reversal (G.disjointUnion H))
-    (reverse_disjointDartEquiv G H)
-  have hV := Nat.card_congr (t.vertexOrbitEquiv hT (e a))
-  have hE := Nat.card_congr (edgeOrbitEquiv (G.disjointUnion H) hT (e a))
-  simp only [Nat.card_eq_finsetCard] at hV hE
-  rw [← hV, ← hE, card_componentFaceIndices,
-    t.count_faceRepresentatives_eq_card_componentFace hT]
-  change Nat.card (OrbitOn t.rotate q) + Nat.card (OrbitOn t.faceNext q) =
-    Nat.card (OrbitOn (Dart.reversal (G.disjointUnion H)) q) + 2
-  rw [hv, hf, hε]
+      rw [card_orbitOn_sum, hEmpty, Nat.zero_add]
+  rw [hcount r.rotate s.rotate t.rotate (fun b => (rotate_disjointUnion r s b).symm),
+    hcount r.faceNext s.faceNext t.faceNext (fun b => (faceNext_disjointUnion r s b).symm),
+    hcount (Dart.reversal G) (Dart.reversal H) (Dart.reversal (G.disjointUnion H))
+      (reverse_disjointDartEquiv G H)]
   cases a with
-  | inl a =>
-    have he := (r.numericalGenusZero_iff_component_cards hG).mp hr a
-    rw [card_componentFaceIndices, r.count_faceRepresentatives_eq_card_componentFace hG] at he
-    have hv := Nat.card_congr (r.vertexOrbitEquiv hG a)
-    have hε := Nat.card_congr (edgeOrbitEquiv G hG a)
-    simp only [Nat.card_eq_finsetCard] at hv hε
-    simpa only [hv, hε] using he
-  | inr a =>
-    have he := (s.numericalGenusZero_iff_component_cards hH).mp hs a
-    rw [card_componentFaceIndices, s.count_faceRepresentatives_eq_card_componentFace hH] at he
-    have hv := Nat.card_congr (s.vertexOrbitEquiv hH a)
-    have hε := Nat.card_congr (edgeOrbitEquiv H hH a)
-    simp only [Nat.card_eq_finsetCard] at hv hε
-    simpa only [hv, hε] using he
+  | inl a => exact (horbit r hG).mp hr a
+  | inr a => exact (horbit s hH).mp hs a
 
 end Cslib.Complexity.Graph.RotationSystem

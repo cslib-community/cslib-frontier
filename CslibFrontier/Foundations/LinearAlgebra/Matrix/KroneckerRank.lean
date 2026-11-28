@@ -67,7 +67,7 @@ section Minors
 
 /-- Every finite matrix `A` over a field contains an injective `A.rank × A.rank` submatrix with
 nonzero determinant. -/
-theorem exists_submatrix_det_ne_zero {m n K : Type*} [Field K] [Finite m] [Finite n]
+theorem exists_submatrix_det_ne_zero {m n K : Type*} [Field K] [Finite m] [Fintype n]
     (A : Matrix m n K) :
     ∃ (r : Fin A.rank → m) (c : Fin A.rank → n),
       Function.Injective r ∧ Function.Injective c ∧ (A.submatrix r c).det ≠ 0 := by
@@ -77,34 +77,27 @@ theorem exists_submatrix_det_ne_zero {m n K : Type*} [Field K] [Finite m] [Finit
   have : Finite κ := Finite.of_injective c hc
   let _ : Fintype κ := Fintype.ofFinite κ
   have hcard_c : Fintype.card κ = A.rank := by
-    rw [← finrank_span_range_col, ← hspan_c, finrank_span_eq_card hli_c]
-  have hcol_eq : Set.range (A.submatrix id c).col = Set.range (A.col ∘ c) := by
-    ext v
-    simp only [Set.mem_range, Function.comp_apply]
-    exact ⟨fun ⟨i, hi⟩ => ⟨i, hi⟩, fun ⟨i, hi⟩ => ⟨i, hi⟩⟩
+    rw [rank_eq_finrank_span_cols, ← hspan_c, finrank_span_eq_card hli_c]
   have hrank_sub : (A.submatrix id c).rank = Fintype.card κ := by
-    rw [← finrank_span_range_col, hcol_eq, finrank_span_eq_card hli_c]
+    rw [rank_eq_finrank_span_cols, show (A.submatrix id c).col = A.col ∘ c from rfl,
+      finrank_span_eq_card hli_c]
   obtain ⟨μ, r, hr, hspan_r, hli_r⟩ := exists_linearIndependent' K (A.submatrix id c).row
   have : Finite μ := Finite.of_injective r hr
   let _ : Fintype μ := Fintype.ofFinite μ
   have hcard_r : Fintype.card μ = Fintype.card κ := by
-    rw [← hrank_sub, ← finrank_span_range_row, ← hspan_r, finrank_span_eq_card hli_r]
+    rw [← hrank_sub, rank_eq_finrank_span_row, ← hspan_r, finrank_span_eq_card hli_r]
   let ec : Fin A.rank ≃ κ := (Fintype.equivFinOfCardEq hcard_c).symm
   let er : Fin A.rank ≃ μ := (Fintype.equivFinOfCardEq (hcard_r.trans hcard_c)).symm
-  refine ⟨r ∘ er, c ∘ ec, hr.comp er.injective, hc.comp ec.injective, ?_⟩
-  let S : Matrix (Fin A.rank) (Fin A.rank) K := A.submatrix (r ∘ er) (c ∘ ec)
-  have hS_li : LinearIndependent K S.row := by
-    have h1 : LinearIndependent K (((A.submatrix id c).row ∘ r) ∘ er) :=
-      hli_r.comp er er.injective
-    have h2 : S.row = (LinearEquiv.funCongrLeft K K ec) ∘
-        (((A.submatrix id c).row ∘ r) ∘ er) := by
-      ext i j
-      rfl
-    rw [h2]
-    exact h1.map' (LinearEquiv.funCongrLeft K K ec).toLinearMap
-      (LinearEquiv.ker _)
-  exact IsUnit.ne_zero ((Matrix.isUnit_iff_isUnit_det _).mp
-    (Matrix.linearIndependent_row_iff_isUnit.mp hS_li))
+  refine ⟨r ∘ er, c ∘ ec, hr.comp er.injective, hc.comp ec.injective,
+    IsUnit.ne_zero ((Matrix.isUnit_iff_isUnit_det _).mp (Matrix.linearIndependent_row_iff_isUnit.mp
+      ?_))⟩
+  have hrow : (A.submatrix (r ∘ er) (c ∘ ec)).row =
+      LinearEquiv.funCongrLeft K K ec ∘ (((A.submatrix id c).row ∘ r) ∘ er) := by
+    ext
+    rfl
+  rw [hrow]
+  exact (hli_r.comp er er.injective).map' (LinearEquiv.funCongrLeft K K ec).toLinearMap
+    (LinearEquiv.ker _)
 
 /-- Eigenvector and eigenvalue equations transfer along any ring homomorphism. -/
 theorem mulVec_map_eq_smul {m R S : Type*} [Semiring R] [Semiring S] [Fintype m]
@@ -129,14 +122,7 @@ nonzero ([AroraBarak07, Chapter 16, Exercise 14]). -/
 theorem mul_prod_ne_zero_iff {m n R : Type*} [MulZeroClass R] [NoZeroDivisors R]
     {u : m → R} {v : n → R} :
     (fun q : m × n => u q.1 * v q.2) ≠ 0 ↔ u ≠ 0 ∧ v ≠ 0 := by
-  constructor
-  · intro h
-    obtain ⟨⟨i, j⟩, hij⟩ := Function.ne_iff.mp h
-    exact ⟨fun hu => hij (by simp [hu]), fun hv => hij (by simp [hv])⟩
-  · rintro ⟨hu, hv⟩ h
-    obtain ⟨i, hi⟩ := Function.ne_iff.mp hu
-    obtain ⟨j, hj⟩ := Function.ne_iff.mp hv
-    exact mul_ne_zero hi hj (congrFun h (i, j))
+  simp [Function.ne_iff, exists_and_left, exists_and_right]
 
 end Minors
 
@@ -147,26 +133,24 @@ section KroneckerRank
 /-- **Multiplicativity of rank under Kronecker product** over a field:
 `(A ⊗ₖ B).rank = A.rank * B.rank`. -/
 @[simp]
-theorem rank_kronecker {l m n p K : Type*} [Field K] [Finite l] [Finite m] [Finite n] [Finite p]
+theorem rank_kronecker {l m n p K : Type*} [Field K] [Finite l] [Fintype m] [Finite n] [Fintype p]
     (A : Matrix l m K) (B : Matrix n p K) :
     (A ⊗ₖ B).rank = A.rank * B.rank := by
   refine le_antisymm (rank_kronecker_le A B) ?_
   obtain ⟨rA, cA, _, _, hdetA⟩ := exists_submatrix_det_ne_zero A
   obtain ⟨rB, cB, _, _, hdetB⟩ := exists_submatrix_det_ne_zero B
-  let SA : Matrix (Fin A.rank) (Fin A.rank) K := A.submatrix rA cA
-  let SB : Matrix (Fin B.rank) (Fin B.rank) K := B.submatrix rB cB
-  have hsub : SA ⊗ₖ SB = (A ⊗ₖ B).submatrix (Prod.map rA rB) (Prod.map cA cB) := by
-    ext ⟨i₁, i₂⟩ ⟨j₁, j₂⟩
+  have hunit : IsUnit (A.submatrix rA cA ⊗ₖ B.submatrix rB cB) :=
+    (isUnit_iff_isUnit_det _).mpr (IsUnit.mk0 _ <| by
+      rw [det_kronecker]
+      exact mul_ne_zero (pow_ne_zero _ hdetA) (pow_ne_zero _ hdetB))
+  have hrank : (A.submatrix rA cA ⊗ₖ B.submatrix rB cB).rank = A.rank * B.rank := by
+    simpa using rank_of_isUnit _ hunit
+  have hsub : A.submatrix rA cA ⊗ₖ B.submatrix rB cB =
+      (A ⊗ₖ B).submatrix (Prod.map rA rB) (Prod.map cA cB) := by
+    ext ⟨_, _⟩ ⟨_, _⟩
     rfl
-  have hdet : (SA ⊗ₖ SB).det ≠ 0 := by
-    rw [det_kronecker]
-    exact mul_ne_zero (pow_ne_zero _ hdetA) (pow_ne_zero _ hdetB)
-  have hunit : IsUnit (SA ⊗ₖ SB) :=
-    (isUnit_iff_isUnit_det _).mpr (IsUnit.mk0 _ hdet)
-  have hrank : (SA ⊗ₖ SB).rank = A.rank * B.rank := by
-    simpa using rank_of_isUnit (SA ⊗ₖ SB) hunit
   rw [← hrank, hsub]
-  exact rank_submatrix_le (A ⊗ₖ B) (Prod.map rA rB) (Prod.map cA cB)
+  exact rank_submatrix_le _ _ _
 
 end KroneckerRank
 
@@ -191,8 +175,7 @@ theorem kroneckerPow_apply {m n R : Type*} [CommMonoid R] (A : Matrix m n R) (k 
 theorem kroneckerPow_zero {m R : Type*} [CommSemiring R] [DecidableEq m] (A : Matrix m m R) :
     kroneckerPow A 0 = 1 := by
   ext x y
-  have hxy : x = y := Subsingleton.elim x y
-  subst hxy
+  rw [Subsingleton.elim x y]
   simp
 
 /-- Reindexing `kroneckerPow A 1` along `Equiv.funUnique` recovers `A`. -/
@@ -227,13 +210,10 @@ theorem kroneckerPow_mul {l m n R : Type*} [CommSemiring R] [Fintype m]
 theorem kroneckerPow_one_matrix {m R : Type*} [CommSemiring R] [DecidableEq m] (k : ℕ) :
     kroneckerPow (1 : Matrix m m R) k = 1 := by
   ext x y
-  simp only [kroneckerPow_apply, Matrix.one_apply]
-  by_cases h : x = y
-  · subst h
-    simp
+  rcases eq_or_ne x y with rfl | h
+  · simp
   · obtain ⟨i, hi⟩ := Function.ne_iff.mp h
-    rw [ite_eq_right h]
-    exact Finset.prod_eq_zero (Finset.mem_univ i) (by simp [hi])
+    simpa [Matrix.one_apply, h] using Finset.prod_eq_zero (Finset.mem_univ i) (by simp [hi])
 
 /-- `kroneckerPow` commutes with matrix powers:
 `kroneckerPow (A ^ d) k = (kroneckerPow A k) ^ d`. -/
@@ -298,33 +278,24 @@ factor `v i` is nonzero. -/
 theorem prod_vec_ne_zero_iff {m R : Type*} [CommMonoidWithZero R] [NoZeroDivisors R]
     [Nontrivial R] {k : ℕ} {v : Fin k → m → R} :
     (fun y : Fin k → m => ∏ i, v i (y i)) ≠ 0 ↔ ∀ i, v i ≠ 0 := by
-  constructor
-  · intro h i hi
-    apply h
-    funext y
-    exact Finset.prod_eq_zero (Finset.mem_univ i) (by simp [hi])
-  · intro h
-    have hex : ∀ i, ∃ x, v i x ≠ 0 := fun i => Function.ne_iff.mp (h i)
-    choose y hy using hex
-    intro h0
-    exact Finset.prod_ne_zero_iff.mpr (fun i _ => hy i) (congrFun h0 y)
+  simp only [Function.ne_iff, Pi.zero_apply, Finset.prod_ne_zero_iff, Finset.mem_univ,
+    forall_true_left]
+  exact ⟨fun ⟨y, hy⟩ i => ⟨y i, hy i⟩, fun h => by
+    choose y hy using h
+    exact ⟨y, hy⟩⟩
 
 /-- **Rank of a Kronecker power** over a field: `(kroneckerPow A k).rank = A.rank ^ k`. -/
 @[simp]
-theorem rank_kroneckerPow {m n K : Type*} [Field K] [Finite m] [Finite n]
+theorem rank_kroneckerPow {m n K : Type*} [Field K] [Finite m] [Fintype n]
     (A : Matrix m n K) (k : ℕ) :
     (kroneckerPow A k).rank = A.rank ^ k := by
   cases nonempty_fintype m
   induction k with
   | zero =>
-      let B : Matrix (Fin 0 → m) (Fin 0 → n) K := kroneckerPow A 0
-      have hli : LinearIndependent K B.row := by
-        refine Fintype.linearIndependent_iff.mpr fun g hg i => ?_
-        have hi : i = default := Subsingleton.elim i default
-        subst hi
-        have h0 := congrFun hg default
-        simpa [B, kroneckerPow] using h0
-      simpa [B] using hli.rank_matrix
+      have hli : LinearIndependent K (kroneckerPow A 0).row :=
+        Fintype.linearIndependent_iff.mpr fun g hg i => by
+          simpa [Subsingleton.elim i default, kroneckerPow] using congrFun hg default
+      simpa using hli.rank_matrix
   | succ k ih =>
       rw [kroneckerPow_succ_eq_submatrix, rank_submatrix, rank_kronecker, ih, pow_succ']
 

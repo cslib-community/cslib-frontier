@@ -445,16 +445,13 @@ theorem isLinearWeakSeedCB_blockDot {D ℓ : ℕ} (hD : 1 ≤ D) (t : ℕ) {kSrc
     funext j
     by_cases hj : j = α
     · subst hj; exact hαeq
-    · have h1 := congrFun (hfix b₁ hb₁) ⟨j, hj⟩
-      have h2 := congrFun (hfix b₂ hb₂) ⟨j, hj⟩
-      exact h1.trans h2.symm
+    · exact (congrFun (hfix b₁ hb₁) ⟨j, hj⟩).trans (congrFun (hfix b₂ hb₂) ⟨j, hj⟩).symm
   have hkα : kSrc - ((D - 1) * ℓ : ℕ) - Real.logb 2 δ⁻¹ ≤
       minEntropy ((conditionalSnd JB rest).map fun b => BitString.block b α) := by
     refine le_minEntropy_map_of_injOn (conditionalSnd JB rest) hinj ?_
     have hchain := minEntropy_map_conditionalSnd_ge_of_apply_ge JB id (k := kSrc) hδ
       (by rw [hJB_snd, PMF.map_id]; exact hB) hrest
-    rw [PMF.map_id, hlog_other] at hchain
-    exact hchain
+    rwa [PMF.map_id, hlog_other] at hchain
   let tamper (j : Fin r) : BitString ℓ := rest ⟨α' j, hα' j⟩
   have hP_eq : P rest = (conditionalSnd JB rest).bind fun b =>
       J.map fun ⟨y, y'⟩ => (BitString.block b α ⬝ᵥ y, fun j => tamper j ⬝ᵥ y' j) :=
@@ -475,10 +472,8 @@ theorem isLinearWeakSeedCB_blockDot {D ℓ : ℕ} (hD : 1 ≤ D) (t : ℕ) {kSrc
   rw [hP_eq, hQ_eq]
   refine (dist_dotProduct_fiber_le _ J _ tamper hkα hJ).trans_eq ?_
   congr 2
-  have hDmul : (D * ℓ : ℕ) = (D - 1) * ℓ + ℓ := by
-    have : D = (D - 1) + 1 := by omega
-    conv_lhs => rw [this, Nat.add_mul, one_mul]
-  rw [hDmul]
+  rw [show D * ℓ = (D - 1) * ℓ + ℓ by
+    rw [Nat.sub_one_mul, Nat.sub_add_cancel (Nat.le_mul_of_pos_left ℓ hD)]]
   push_cast
   ring
 
@@ -654,31 +649,17 @@ theorem dist_sumsetTable_coord_le {n m t : ℕ} {Seed : Type*} [Fintype Seed] [N
       rw [hJw_eq]
       linarith
     -- On `Aw.support × Bℓ.support`, `sumsetTable (a + b)` is `w + (LCB b (seedOf a))`.
-    let addW : Bool × (Fin r → Bool) ≃ Bool × (Fin r → Bool) :=
-      { toFun := fun p => (w.1 + p.1, fun j => w.2 j + p.2 j)
-        invFun := fun p => (w.1 + p.1, fun j => w.2 j + p.2 j)
-        left_inv := fun ⟨b₀, bs⟩ => Prod.ext (by simp [← add_assoc, BooleanRing.add_self])
-          (funext fun j => by simp [← add_assoc, BooleanRing.add_self])
-        right_inv := fun ⟨b₀, bs⟩ => Prod.ext (by simp [← add_assoc, BooleanRing.add_self])
-          (funext fun j => by simp [← add_assoc, BooleanRing.add_self]) }
+    let addW : Bool × (Fin r → Bool) ≃ Bool × (Fin r → Bool) := Equiv.addLeft w
     have htab (a b : BitString n) (ha : a ∈ Aw.support) (hb : b ∈ Bℓ.support) :
         (sumsetTable LExt LCB (a + b) s₀, fun j => sumsetTable LExt LCB (a + b) (s' j)) =
         addW (LCB b (seedOf a).1 s₀, fun j => LCB b ((seedOf a).2 j) (s' j)) := by
       have hfa := hAw_fix a ha
       have hfb := hBℓ_fix b hb
-      have h0 : sumsetTable LExt LCB (a + b) s₀ = w.1 + LCB b (seedOf a).1 s₀ := by
-        simp only [sumsetTable, hLExt.2, hfb.1]
-        rw [hCB.1]
-        have hw1 : LCB a (LExt a s₀ + ℓ.1) s₀ = w.1 := congrArg Prod.fst hfa
-        exact congrArg (· + _) hw1
-      have hj (j : Fin r) :
-          sumsetTable LExt LCB (a + b) (s' j) = w.2 j + LCB b ((seedOf a).2 j) (s' j) := by
-        simp only [sumsetTable, hLExt.2, hfb.2]
-        rw [hCB.1]
-        have hw2 : LCB a (LExt a (s' j) + ℓ.2 j) (s' j) = w.2 j :=
-          congrFun (congrArg Prod.snd hfa) j
-        exact congrArg (· + _) hw2
-      exact Prod.ext h0 (funext hj)
+      refine Prod.ext ?_ (funext fun j => ?_)
+      · simp only [sumsetTable, hLExt.2, hfb.1, hCB.1]
+        exact congrArg (· + _) (congrArg Prod.fst hfa)
+      · simp only [sumsetTable, hLExt.2, hfb.2, hCB.1]
+        exact congrArg (· + _) (congrFun (congrArg Prod.snd hfa) j)
     have hPA_eq : PA w =
         (Bℓ.bind fun b => Jw.map fun yy =>
           (LCB b yy.1 s₀, fun j => LCB b (yy.2 j) (s' j))).map addW := by
@@ -820,27 +801,18 @@ private theorem isKWiseSmallBias_extendOutside {ι : Type*} [Fintype ι] [Decida
       exact ⟨⟨i, hsub hi⟩, Finset.mem_map.mpr ⟨⟨i, hi⟩, Finset.mem_attach _ _, rfl⟩⟩
     · simpa [S'] using hSk
   · -- Some coordinate `i₀ ∈ S` lies in `Q`, so the independent uniform bit `u i₀` kills the bias.
-    obtain ⟨i₀, hi₀S, hi₀Q⟩ : ∃ i₀ ∈ S, i₀ ∈ Q := by
-      rw [Finset.subset_iff] at hsub
-      push Not at hsub
-      obtain ⟨i₀, hi₀S, hi₀not⟩ := hsub
-      exact ⟨i₀, hi₀S, by simpa using hi₀not⟩
+    obtain ⟨i₀, hi₀S, hi₀Q⟩ : ∃ i₀ ∈ S, i₀ ∈ Q := by simpa [Finset.subset_iff] using hsub
     have hzero : bias (extendOutside Q D) S = 0 := by
       rw [bias, extendOutside, sum_bind_mul]
       refine Finset.sum_eq_zero fun z _ => mul_eq_zero_of_right _ ?_
       rw [sum_map_mul]
       -- Flip bit `⟨i₀, hi₀Q⟩` in `u` to cancel terms pairwise.
       let flip : (Q → Bool) ≃ (Q → Bool) :=
-        { toFun := fun u => Function.update u ⟨i₀, hi₀Q⟩ !(u ⟨i₀, hi₀Q⟩)
-          invFun := fun u => Function.update u ⟨i₀, hi₀Q⟩ !(u ⟨i₀, hi₀Q⟩)
-          left_inv := fun u => funext fun j => by
+        Function.Involutive.toPerm (fun u => Function.update u ⟨i₀, hi₀Q⟩ !(u ⟨i₀, hi₀Q⟩))
+          fun u => funext fun j => by
             by_cases hj : j = ⟨i₀, hi₀Q⟩
             · subst hj; simp
             · simp [hj]
-          right_inv := fun u => funext fun j => by
-            by_cases hj : j = ⟨i₀, hi₀Q⟩
-            · subst hj; simp
-            · simp [hj] }
       have hneg (u : Q → Bool) :
           chi ℝ S (fun i => if h : i ∈ Q then flip u ⟨i, h⟩ else z ⟨i, Finset.mem_compl.mpr h⟩) =
           -chi ℝ S (fun i => if h : i ∈ Q then u ⟨i, h⟩ else z ⟨i, Finset.mem_compl.mpr h⟩) := by
@@ -849,7 +821,8 @@ private theorem isKWiseSmallBias_extendOutside {ι : Type*} [Fintype ι] [Decida
         have hhead :
             signVal (if h : i₀ ∈ Q then flip u ⟨i₀, h⟩ else z ⟨i₀, Finset.mem_compl.mpr h⟩) =
             -signVal (if h : i₀ ∈ Q then u ⟨i₀, h⟩ else z ⟨i₀, Finset.mem_compl.mpr h⟩) := by
-          simp only [hi₀Q, ↓reduceDIte, flip, Equiv.coe_fn_mk, Function.update_self]
+          simp only [hi₀Q, ↓reduceDIte, flip, Function.Involutive.toPerm, Equiv.coe_fn_mk,
+            Function.update_self]
           cases u ⟨i₀, hi₀Q⟩ <;> norm_num [signVal]
         have hrest :
             (∏ i ∈ S.erase i₀, signVal (if h : i ∈ Q then flip u ⟨i, h⟩
@@ -859,7 +832,7 @@ private theorem isKWiseSmallBias_extendOutside {ι : Type*} [Fintype ι] [Decida
           refine Finset.prod_congr rfl fun i hi => ?_
           have hne : i ≠ i₀ := (Finset.mem_erase.mp hi).1
           split_ifs with h
-          · simp only [flip, Equiv.coe_fn_mk,
+          · simp only [flip, Function.Involutive.toPerm, Equiv.coe_fn_mk,
               Function.update_of_ne (show (⟨i, h⟩ : Q) ≠ ⟨i₀, hi₀Q⟩ from fun h' =>
                 hne (congrArg Subtype.val h'))]
           · rfl
@@ -910,15 +883,11 @@ private theorem abs_sub_prob_true_le_coalitionInfluence {ι : Type*} [Fintype ι
       by_cases h : R x = true <;> simp [h, eq_comm]
     rw [hPtrue, sum_map_mul, sum_map_mul]
     constructor <;> refine Finset.sum_le_sum fun x _ => mul_le_mul_of_nonneg_left ?_
-      ENNReal.toReal_nonneg
-    · dsimp only [lo]
+      ENNReal.toReal_nonneg <;> dsimp only [lo, hi] <;>
       by_cases hu : IsUndetermined Q R (pad0 (Qᶜ.restrict x))
-      · rw [ite_eq_left hu]; split_ifs <;> norm_num
-      · rw [ite_eq_right hu, hdet x hu]
-    · dsimp only [hi]
-      by_cases hu : IsUndetermined Q R (pad0 (Qᶜ.restrict x))
-      · rw [ite_eq_left hu]; split_ifs <;> norm_num
-      · rw [ite_eq_right hu, hdet x hu]
+    all_goals first
+      | rw [ite_eq_left hu]; split_ifs <;> norm_num
+      | rw [ite_eq_right hu, hdet x hu]
   have hdiff : ∑ z, ((D'.map Qᶜ.restrict) z).toReal * hi z -
       ∑ z, ((D'.map Qᶜ.restrict) z).toReal * lo z = coalitionInfluence D' Q R := by
     rw [← Finset.sum_sub_distrib]

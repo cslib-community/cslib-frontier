@@ -168,18 +168,7 @@ theorem fastDelete_afterDel_reloc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_m
       rebInsCount := rebQuad.2.2.2 }
   have hfs2_eq :
       fastDeleteMoveLast c U n_max θ b loc_del loc_last rebActiveB fs1 = fs2 := rfl
-  set cf := capFrontWhp n_max
-  set freePair :=
-    if cf ≤ loc_last then
-      (fs2.poolFreeTop + 1,
-       Function.update fs2.poolFreeStack fs2.poolFreeTop (fs2.backPtr b (loc_last - cf)))
-    else (fs2.poolFreeTop, fs2.poolFreeStack)
-  set fsA : FastState :=
-    { fs2 with
-      locState := Function.update fs2.locState b (Function.update (fs2.locState b) loc_last 0)
-      bktCount := Function.update fs2.bktCount b loc_last
-      poolFreeTop := freePair.1
-      poolFreeStack := freePair.2 }
+  let fsA := fastDeleteShrink n_max b loc_last fs2
   have hfsA_eq : fastDeleteShrink n_max b loc_last fs2 = fsA := rfl
   dsimp only
   rw [hfs1_eq, hfs2_eq, hfsA_eq]
@@ -234,6 +223,9 @@ theorem fastDelete_afterDel_reloc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_m
   have hphys_eq : fsA.physSlot n_max = fs.physSlot n_max := rfl
   have hcnt_lt_orig : ∀ {b' loc}, loc < fsA.bktCount b' → loc < fs.bktCount b' :=
     fun hloc => lt_of_lt_update_le (by omega) hloc
+  have hcntA_b : fsA.bktCount b = loc_last := Function.update_self _ _ _
+  have hcntA_other {b' : ℕ} (hbb : b' ≠ b) : fsA.bktCount b' = fs.bktCount b' :=
+    Function.update_of_ne hbb _ _
   have hqv_pres : ∀ b' < numBucketsWhp n_max, ∀ loc < fsA.bktCount b',
       ¬(b' = b ∧ loc = loc_del) →
       fsA.quotArr (fs.physSlot n_max b' loc) = fs.quotArr (fs.physSlot n_max b' loc) ∧
@@ -245,7 +237,7 @@ theorem fastDelete_afterDel_reloc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_m
   have hqv_at_del :
       fsA.quotArr (fs.physSlot n_max b loc_del) = fs.quotArr (fs.physSlot n_max b loc_last) ∧
       fsA.valArr (fs.physSlot n_max b loc_del) = fs.valArr (fs.physSlot n_max b loc_last) := by
-    dsimp only [fsA, fs2, qArr', vArr', fs1]
+    dsimp only [fsA, fastDeleteShrink, fs2, qArr', vArr', fs1]
     exact ⟨Function.update_self _ _ _, Function.update_self _ _ _⟩
   have hkv_pres : ∀ b' < numBucketsWhp n_max, ∀ loc < fsA.bktCount b',
       ¬(b' = b ∧ loc = loc_del) →
@@ -276,7 +268,7 @@ theorem fastDelete_afterDel_reloc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_m
   have hls_pres : ∀ b' < numBucketsWhp n_max, ∀ loc < fsA.bktCount b',
       ¬(b' = b ∧ loc = loc_del) → fsA.locState b' loc = fs.locState b' loc := by
     intro b' _ loc hloc hne
-    dsimp only [fsA, fs2, fs1] at hloc ⊢
+    dsimp only [fsA, fastDeleteShrink, fs2, fs1] at hloc ⊢
     by_cases hbb : b' = b
     · rw [hbb] at hloc hne ⊢
       rw [Function.update_self] at hloc ⊢
@@ -285,9 +277,37 @@ theorem fastDelete_afterDel_reloc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_m
         Function.update_of_ne hne_d]
     · simp [hbb]
   have hls_at_del : fsA.locState b loc_del = fs.locState b loc_last := by
-    dsimp only [fsA, fs2, fs1, st_last]
+    dsimp only [fsA, fastDeleteShrink, fs2, fs1, st_last]
     rw [Function.update_self, Function.update_self,
       Function.update_of_ne (Nat.ne_of_lt hlt_ll_b), Function.update_self]
+  -- Coordinate `l` of bucket `b'` in `fsA` holds the item of coordinate `orig b' l` in `fs`.
+  let orig (b' l : ℕ) : ℕ := if b' = b ∧ l = loc_del then loc_last else l
+  have horig : ∀ b' < numBucketsWhp n_max, ∀ l < fsA.bktCount b',
+      orig b' l < fs.bktCount b' ∧ fsA.locState b' l = fs.locState b' (orig b' l) ∧
+      (∀ salt, fsA.fpAt c U n_max θ salt b' l = fs.fpAt c U n_max θ salt b' (orig b' l)) ∧
+      fsA.rKeyAt c U n_max θ b' l = fs.rKeyAt c U n_max θ b' (orig b' l) ∧
+      fsA.keyValAt c U n_max θ.1 b' l = fs.keyValAt c U n_max θ.1 b' (orig b' l) ∧
+      fsA.quotArr (fs.physSlot n_max b' l) = fs.quotArr (fs.physSlot n_max b' (orig b' l)) ∧
+      fsA.valArr (fs.physSlot n_max b' l) = fs.valArr (fs.physSlot n_max b' (orig b' l)) ∧
+      (b' = b → orig b' l ≠ loc_del) := by
+    intro b' hb' l hl
+    by_cases hbd : b' = b ∧ l = loc_del
+    · simp only [orig, ite_eq_left hbd]
+      rw [hbd.1, hbd.2]
+      exact ⟨hll_lt, hls_at_del, hfp_at_del, hrk_at_del, hkv_at_del, hqv_at_del.1, hqv_at_del.2,
+        fun _ => (Nat.ne_of_lt hlt_ll_b).symm⟩
+    · simp only [orig, ite_eq_right hbd]
+      exact ⟨hcnt_lt_orig hl, hls_pres b' hb' l hl hbd, fun salt => hfp_pres salt b' hb' l hl hbd,
+        hrk_pres b' hb' l hl hbd, hkv_pres b' hb' l hl hbd, (hqv_pres b' hb' l hl hbd).1,
+        (hqv_pres b' hb' l hl hbd).2, fun h h' => hbd ⟨h, h'⟩⟩
+  have horig_inj : ∀ {b' l₁ l₂}, l₁ < fsA.bktCount b' → l₂ < fsA.bktCount b' →
+      orig b' l₁ = orig b' l₂ → l₁ = l₂ := by
+    intro b' l₁ l₂ h₁ h₂ heq
+    by_cases hbb : b' = b
+    · rw [hbb, hcntA_b] at h₁ h₂
+      simp only [orig, hbb, true_and] at heq
+      split_ifs at heq <;> omega
+    · simpa only [orig, hbb, false_and, ↓reduceIte] using heq
   -- Parametric slice non-interference across `slices1`, `slices2`, `slices3`, `sl_live'`,
   -- `sl_om'`, and `rebQuad.1`
   have hsl1_ne : ∀ {idx}, idx ≠ lIdx → slices1 idx = fs.slices idx := fun hne => by
@@ -300,29 +320,10 @@ theorem fastDelete_afterDel_reloc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_m
     dsimp only [sl_live', fs1]; split_ifs <;> [exact Function.update_of_ne hne _ _; rfl]
   have hslom_ne : ∀ {idx}, idx ≠ omIdx → sl_om' idx = sl_live' idx := fun hne => by
     dsimp only [sl_om', omPair]
-    by_cases h1 : fs1.overmarsActive b = 1 ∧
-        inLiveTree fs1.rebStage fs1.oldEp (fs1.rebDoneFlag b) st_last = true
-    · rw [ite_eq_left h1]
-      by_cases h2 : loc_last < fs1.overmarsCursor b
-      · rw [ite_eq_left h2]; exact Function.update_of_ne hne _ _
-      · rw [ite_eq_right h2]
-        by_cases h3 : loc_del < fs1.overmarsCursor b
-        · rw [ite_eq_left h3]; exact Function.update_of_ne hne _ _
-        · rw [ite_eq_right h3]
-    · rw [ite_eq_right h1]
+    split_ifs <;> first | rfl | exact Function.update_of_ne hne _ _
   have hrebQ_ne : ∀ {idx}, idx ≠ rIdx → rebQuad.1 idx = sl_om' idx := fun hne => by
     dsimp only [rebQuad]
-    by_cases h1 : (rebActiveB && decide (st_last = 1 ∨ st_last = 2 + fs1.oldEp)) = true
-    · rw [ite_eq_left h1]
-      by_cases h2 : loc_last < fs1.rebScanCursor
-      · rw [ite_eq_left h2]; exact Function.update_of_ne hne _ _
-      · rw [ite_eq_right h2]
-        by_cases h3 : loc_del < fs1.rebScanCursor
-        · rw [ite_eq_left h3]
-          cases btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max) (sl_om' rIdx)
-            fp_cand_last <;> exact Function.update_of_ne hne _ _
-        · rw [ite_eq_right h3]
-    · rw [ite_eq_right h1]
+    split_ifs <;> (try split) <;> first | rfl | exact Function.update_of_ne hne _ _
   have hsl3_l : slices3 lIdx = slices1 lIdx := (hsl3_ne hl_ne_r).trans (hsl2_ne hl_ne_om)
   have hsl1_om : slices1 omIdx = fs.slices omIdx := hsl1_ne hl_ne_om.symm
   have hsl2_r : slices2 rIdx = fs.slices rIdx :=
@@ -339,41 +340,25 @@ theorem fastDelete_afterDel_reloc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_m
     exact (hrebQ_ne hne3).trans ((hslom_ne hne2).trans ((hsll_ne hne1).trans
       ((hsl3_ne hne3).trans ((hsl2_ne hne2).trans (hsl1_ne hne1)))))
   have hpool := pool_release_last (fs' := fsA) hv.toCore hb hcnt rfl rfl rfl
-    (by dsimp only [fsA, freePair, fs2, fs1]; split_ifs <;> rfl)
-    (by dsimp only [fsA, freePair, fs2, fs1]; split_ifs <;> rfl)
+    (by dsimp only [fsA, fastDeleteShrink, fs2, fs1]; split_ifs <;> rfl)
+    (by dsimp only [fsA, fastDeleteShrink, fs2, fs1]; split_ifs <;> rfl)
   obtain ⟨hq_inj, hdict_map⟩ := dict_map_after_delete (fs' := fsA) hv.toCore rfl hcnt
     (by omega) hq_del rfl
     (fun b' hb' hbb loc hloc =>
-      hqv_pres b' hb' loc (by dsimp only [fsA, fs2, fs1]; rwa [Function.update_of_ne hbb])
-        (fun ⟨h, _⟩ => hbb h))
+      hqv_pres b' hb' loc (hcntA_other hbb ▸ hloc) (fun ⟨h, _⟩ => hbb h))
     (fun loc' hloc' => by
-      by_cases hld : loc' = loc_del
-      · rw [hld]
-        refine ⟨loc_last, by omega, by omega, hqv_at_del.1, hqv_at_del.2, fun l₂ hl₂ heq => ?_⟩
-        by_cases h2 : l₂ = loc_del
-        · exact h2.symm
-        · have hp2 := (hqv_pres b hb l₂ (by dsimp [fsA, fs2, fs1]; simp [hl₂])
-            (fun ⟨_, h⟩ => h2 h)).1
-          rw [hphys_eq, hqv_at_del.1, hp2] at heq
-          have := hv.quot_inj b hb loc_last hll_lt l₂ (by omega) heq
-          omega
-      · have hp1 := hqv_pres b hb loc' (by dsimp [fsA, fs2, fs1]; simp [hloc'])
-          (fun ⟨_, h⟩ => hld h)
-        refine ⟨loc', by omega, hld, hp1.1, hp1.2, fun l₂ hl₂ heq => ?_⟩
-        by_cases h2 : l₂ = loc_del
-        · rw [h2, hphys_eq, hp1.1, hqv_at_del.1] at heq
-          have := hv.quot_inj b hb loc' (by omega) loc_last hll_lt heq
-          omega
-        · have hp2 := (hqv_pres b hb l₂ (by dsimp [fsA, fs2, fs1]; simp [hl₂])
-            (fun ⟨_, h⟩ => h2 h)).1
-          rw [hphys_eq, hp1.1, hp2] at heq
-          exact hv.quot_inj b hb loc' (by omega) l₂ (by omega) heq)
+      have hl' : loc' < fsA.bktCount b := by omega
+      obtain ⟨ho, -, -, -, -, hq, hv', hne⟩ := horig b hb loc' hl'
+      refine ⟨orig b loc', by omega, hne rfl, hq, hv',
+        fun l₂ hl₂ heq => horig_inj hl' (by omega) ?_⟩
+      obtain ⟨ho₂, -, -, -, -, hq₂, -⟩ := horig b hb l₂ (by omega)
+      rw [hphys_eq, hq, hq₂] at heq
+      exact hv.quot_inj b hb _ ho _ ho₂ heq)
     (fun loc hloc hne => by
       by_cases hll : loc = loc_last
       · rw [hll]; exact ⟨loc_del, hlt_ll_b, hqv_at_del.1, hqv_at_del.2⟩
-      · have hlt' : loc < loc_last := by omega
-        have hp := hqv_pres b hb loc (by dsimp [fsA, fs2, fs1]; simp [hlt']) (fun ⟨_, h⟩ => hne h)
-        exact ⟨loc, hlt', hp.1, hp.2⟩)
+      · have hp := hqv_pres b hb loc (by omega) (fun ⟨_, h⟩ => hne h)
+        exact ⟨loc, by omega, hp.1, hp.2⟩)
   -- Live slice preservation on bucket `b` via `sliceMapRel_relocate_full`
   have hlive_b : ∃ liveMap',
       ValidWhpSlice n_max (fsA.liveInsCount b) (fsA.slices (fsA.liveSliceIdx b)) liveMap' ∧
@@ -388,11 +373,9 @@ theorem fastDelete_afterDel_reloc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_m
       (P' := fun loc => inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fsA.locState b loc) =
         true)
       hlt_ll_b (fun l₁ hl₁ l₂ hl₂ => hv.live_fp_inj b hb l₁ (hcnt ▸ hl₁) l₂ (hcnt ▸ hl₂))
-      (fun loc hlt hne => hfp_pres _ b hb loc (by dsimp [fsA, fs2, fs1]; simp [hlt])
-        (fun ⟨_, h⟩ => hne h))
+      (fun loc hlt hne => hfp_pres _ b hb loc (by omega) (fun ⟨_, h⟩ => hne h))
       (hfp_at_del _)
-      (fun loc hlt hne => by
-        rw [hls_pres b hb loc (by dsimp [fsA, fs2, fs1]; simp [hlt]) (fun ⟨_, h⟩ => hne h)])
+      (fun loc hlt hne => by rw [hls_pres b hb loc (by omega) (fun ⟨_, h⟩ => hne h)])
       (by rw [hls_at_del])
     have hlic_le := hv.liveInsCount_le hb
     let m1 :=
@@ -485,28 +468,24 @@ theorem fastDelete_afterDel_reloc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_m
         rebStage_le := hv.rebStage_le
         rebCollision_zero := hv.rebCollision_zero
         qv_global := fun p => by
-          dsimp only [fsA, fs2, qArr', vArr', fs1]
+          dsimp only [fsA, fastDeleteShrink, fs2, qArr', vArr', fs1]
           by_cases hp : p = p_del
           · rw [hp]; simp [hv.qv_global p_last]
           · simp [hp, hv.qv_global p]
         bktCount_le := fun b' hb' => by
-          dsimp only [fsA, fs2, fs1]
+          dsimp only [fsA, fastDeleteShrink, fs2, fs1]
           by_cases hbb : b' = b
           · rw [hbb, Function.update_self]
             have := hv.bktCount_le b hb; omega
           · rw [Function.update_of_ne hbb]; exact hv.bktCount_le b' hb'
         bktCount_ge_zero := fun b' hge => by
-          dsimp only [fsA, fs2, fs1]
+          dsimp only [fsA, fastDeleteShrink, fs2, fs1]
           rw [Function.update_of_ne (by omega)]; exact hv.bktCount_ge_zero b' hge
         locState_active := fun b' hb' loc hloc => by
-          by_cases hbd : b' = b ∧ loc = loc_del
-          · rcases hbd with ⟨hb_eq, hl_eq⟩
-            rw [hb_eq, hl_eq, hls_at_del]
-            exact hv.locState_active b hb loc_last hll_lt
-          · rw [hls_pres b' hb' loc hloc hbd]
-            exact hv.locState_active b' hb' loc (hcnt_lt_orig hloc)
+          obtain ⟨ho, hs, -⟩ := horig b' hb' loc hloc
+          rw [hs]; exact hv.locState_active b' hb' _ ho
         locState_inactive := fun b' loc hna => by
-          dsimp only [fsA, fs2, fs1] at hna ⊢
+          dsimp only [fsA, fastDeleteShrink, fs2, fs1] at hna ⊢
           by_cases hbb : b' = b
           · rw [hbb] at hna ⊢
             rw [Function.update_self] at hna ⊢
@@ -519,15 +498,10 @@ theorem fastDelete_afterDel_reloc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_m
           · simp only [Function.update_of_ne hbb] at hna ⊢
             exact hv.locState_inactive b' loc hna
         active_item := fun b' hb' loc hloc => by
-          by_cases hbd : b' = b ∧ loc = loc_del
-          · rcases hbd with ⟨hb_eq, hl_eq⟩
-            dsimp only
-            rw [hb_eq, hl_eq, hkv_at_del, hphys_eq, hqv_at_del.1, hqv_at_del.2]
-            exact hv.active_item b hb loc_last hll_lt
-          · dsimp only
-            rw [hkv_pres b' hb' loc hloc hbd, hphys_eq, (hqv_pres b' hb' loc hloc hbd).1,
-              (hqv_pres b' hb' loc hloc hbd).2]
-            exact hv.active_item b' hb' loc (hcnt_lt_orig hloc)
+          obtain ⟨ho, -, -, -, hk, hq, hv', -⟩ := horig b' hb' loc hloc
+          dsimp only
+          rw [hk, hphys_eq, hq, hv']
+          exact hv.active_item b' hb' _ ho
         quot_inj := hq_inj
         dict_map := hdict_map
         poolFreeTop_le := hpool.1
@@ -540,90 +514,34 @@ theorem fastDelete_afterDel_reloc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_m
         roles_valid := hv.roles_valid
         bktSalt_lt := hv.bktSalt_lt
         live_fp_inj := fun b' hb' l₁ hl₁ l₂ hl₂ hin₁ hin₂ hfeq => by
-          have mapL : ∀ l < fsA.bktCount b', ∃ l₀ < fs.bktCount b',
-              fsA.locState b' l = fs.locState b' l₀ ∧
-              FastState.fpAt c U n_max θ fsA (fs.bktSalt b') b' l =
-                FastState.fpAt c U n_max θ fs (fs.bktSalt b') b' l₀ ∧
-              (b' = b → (l = loc_del ↔ l₀ = loc_last) ∧ (l ≠ loc_del → l₀ = l)) ∧
-              (b' ≠ b → l₀ = l) := by
-            intro l hl
-            by_cases hbd : b' = b ∧ l = loc_del
-            · rcases hbd with ⟨hb_eq, hl_eq⟩
-              rw [hb_eq, hl_eq]
-              exact ⟨loc_last, hll_lt, hls_at_del, hfp_at_del _,
-                fun _ => ⟨⟨fun _ => rfl, fun _ => rfl⟩, fun h => absurd rfl h⟩,
-                fun h => absurd rfl h⟩
-            · refine ⟨l, hcnt_lt_orig hl, hls_pres b' hb' l hl hbd, hfp_pres _ b' hb' l hl hbd,
-                fun hbb => ⟨⟨fun hd => absurd ⟨hbb, hd⟩ hbd, fun hll => ?_⟩, fun _ => rfl⟩,
-                fun _ => rfl⟩
-              rw [hbb, hll] at hl
-              dsimp only [fsA, fs2, fs1] at hl; rw [Function.update_self] at hl; omega
-          obtain ⟨l₁₀, hl₁₀, hls₁, hfp₁, hb₁_iff, hnb₁⟩ := mapL l₁ hl₁
-          obtain ⟨l₂₀, hl₂₀, hls₂, hfp₂, hb₂_iff, hnb₂⟩ := mapL l₂ hl₂
-          rw [hls₁] at hin₁; rw [hls₂] at hin₂
+          obtain ⟨ho₁, hs₁, hf₁, -⟩ := horig b' hb' l₁ hl₁
+          obtain ⟨ho₂, hs₂, hf₂, -⟩ := horig b' hb' l₂ hl₂
+          rw [hs₁] at hin₁; rw [hs₂] at hin₂
           change FastState.fpAt c U n_max θ fsA (fs.bktSalt b') b' l₁ =
             FastState.fpAt c U n_max θ fsA (fs.bktSalt b') b' l₂ at hfeq
-          rw [hfp₁, hfp₂] at hfeq
-          have heq0 := hv.live_fp_inj b' hb' l₁₀ hl₁₀ l₂₀ hl₂₀ hin₁ hin₂ hfeq
-          by_cases hbb : b' = b
-          · by_cases hd1 : l₁ = loc_del <;> by_cases hd2 : l₂ = loc_del
-            · exact hd1.trans hd2.symm
-            · have := (hb₁_iff hbb).1.mp hd1
-              have := (hb₂_iff hbb).2 hd2
-              have : l₂ < loc_last := by
-                rw [hbb] at hl₂; dsimp only [fsA, fs2, fs1] at hl₂
-                rwa [Function.update_self] at hl₂
-              omega
-            · have := (hb₂_iff hbb).1.mp hd2
-              have := (hb₁_iff hbb).2 hd1
-              have : l₁ < loc_last := by
-                rw [hbb] at hl₁; dsimp only [fsA, fs2, fs1] at hl₁
-                rwa [Function.update_self] at hl₁
-              omega
-            · rw [← (hb₁_iff hbb).2 hd1, heq0, (hb₂_iff hbb).2 hd2]
-          · rw [← hnb₁ hbb, heq0, hnb₂ hbb]
+          rw [hf₁, hf₂] at hfeq
+          exact horig_inj hl₁ hl₂ (hv.live_fp_inj b' hb' _ ho₁ _ ho₂ hin₁ hin₂ hfeq)
         live_valid := fun b' hb' => by
           by_cases hbb : b' = b
           · rw [hbb]; exact hlive_b
           · obtain ⟨lm, hvl, hrl⟩ := hv.live_valid b' hb'
             refine ⟨lm, ?_, ?_⟩
-            · dsimp only [fsA, fs2, FastState.liveSliceIdx, fs1]
+            · dsimp only [fsA, fastDeleteShrink, fs2, FastState.liveSliceIdx, fs1]
               rw [hreb_other b' hb' hbb _ (hv.roles_valid b' hb').1]
               exact hvl
-            · have hcnt_eq : fsA.bktCount b' = fs.bktCount b' := by
-                dsimp only [fsA, fs2, fs1]; exact Function.update_of_ne hbb _ _
-              rw [hcnt_eq]
+            · rw [hcntA_other hbb]
               refine hrl.congr
-                (fun loc hloc => hfp_pres _ b' hb' loc (hcnt_eq ▸ hloc) (fun ⟨h, _⟩ => hbb h))
+                (fun loc hloc => hfp_pres _ b' hb' loc (hcntA_other hbb ▸ hloc)
+                  (fun ⟨h, _⟩ => hbb h))
                 (fun loc _ => ?_)
-              dsimp only [fsA, fs2, fs1, FastState.oldEp]
+              dsimp only [fsA, fastDeleteShrink, fs2, fs1, FastState.oldEp]
               simp only [Function.update_of_ne hbb]
         rKey_buf_inj := fun b₁ hb₁ l₁ hl₁ b₂ hb₂ l₂ hl₂ hst₁ hst₂ hrkeq => by
-          let orig (b' : ℕ) (l : ℕ) : ℕ :=
-            if b' = b ∧ l = loc_del then loc_last else l
-          have horig_props : ∀ b' < numBucketsWhp n_max, ∀ l < fsA.bktCount b',
-              orig b' l < fs.bktCount b' ∧
-              fsA.locState b' l = fs.locState b' (orig b' l) ∧
-              fsA.rKeyAt c U n_max θ b' l = fs.rKeyAt c U n_max θ b' (orig b' l) := by
-            intro b' hb' l hl
-            dsimp only [orig]
-            split_ifs with hbd
-            · rcases hbd with ⟨hb_eq, hl_eq⟩
-              rw [hb_eq, hl_eq]
-              exact ⟨hll_lt, hls_at_del, hrk_at_del⟩
-            · exact ⟨hcnt_lt_orig hl, hls_pres b' hb' l hl hbd, hrk_pres b' hb' l hl hbd⟩
-          obtain ⟨ho₁, hs₁, hr₁⟩ := horig_props b₁ hb₁ l₁ hl₁
-          obtain ⟨ho₂, hs₂, hr₂⟩ := horig_props b₂ hb₂ l₂ hl₂
+          obtain ⟨ho₁, hs₁, -, hr₁, -⟩ := horig b₁ hb₁ l₁ hl₁
+          obtain ⟨ho₂, hs₂, -, hr₂, -⟩ := horig b₂ hb₂ l₂ hl₂
           rw [hs₁] at hst₁; rw [hs₂] at hst₂; rw [hr₁, hr₂] at hrkeq
           obtain ⟨rfl, heq_o⟩ := hv.rKey_buf_inj b₁ hb₁ _ ho₁ b₂ hb₂ _ ho₂ hst₁ hst₂ hrkeq
-          refine ⟨rfl, ?_⟩
-          dsimp only [orig] at heq_o
-          by_cases hbb : b₁ = b
-          · rw [hbb] at hl₁ hl₂ heq_o
-            dsimp only [fsA, fs2, fs1] at hl₁ hl₂
-            rw [Function.update_self] at hl₁ hl₂
-            split_ifs at heq_o with hd1 hd2 <;> omega
-          · simp only [hbb, false_and, ↓reduceIte] at heq_o; exact heq_o
+          exact ⟨rfl, horig_inj hl₁ hl₂ heq_o⟩
         bufCur_valid := by
           have hb1 : buf1 fs.curEp =
               if st_del = 2 + fs.curEp then
@@ -648,148 +566,103 @@ theorem fastDelete_afterDel_reloc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_m
           rfl rfl hb_old_eq (fun heq => absurd heq (Nat.ne_of_lt hlt_ll_b)) hpres_lt }
   · -- `OvermarsBucketInv` on `b' ≠ b`
     intro b' hb' hbb
-    have hcnt_b' : fsA.bktCount b' = fs.bktCount b' := by
-      dsimp only [fsA, fs2, fs1]; exact Function.update_of_ne hbb _ _
     refine OvermarsBucketInv.of_eq_lt (hv.overmars_valid b' hb') rfl
-      (fun loc hloc => hfp_pres _ b' hb' loc (hcnt_b' ▸ hloc) (fun ⟨h, _⟩ => hbb h))
+      (fun loc hloc => hfp_pres _ b' hb' loc (hcntA_other hbb ▸ hloc) (fun ⟨h, _⟩ => hbb h))
       rfl rfl rfl
-      (fun loc hloc => hls_pres b' hb' loc (hcnt_b' ▸ hloc) (fun ⟨h, _⟩ => hbb h))
-      (by omega) rfl rfl rfl ?_ ?_
-    · dsimp only [fsA, fs2, omIns', omPair]
-      by_cases h1 : fs1.overmarsActive b = 1 ∧
-          inLiveTree fs1.rebStage fs1.oldEp (fs1.rebDoneFlag b) st_last = true
-      · rw [ite_eq_left h1]
-        by_cases h2 : loc_last < fs1.overmarsCursor b
-        · rw [ite_eq_left h2]
-        · rw [ite_eq_right h2]
-          by_cases h3 : loc_del < fs1.overmarsCursor b
-          · rw [ite_eq_left h3]; exact Function.update_of_ne hbb _ _
-          · rw [ite_eq_right h3]
-      · rw [ite_eq_right h1]
-    · dsimp only [fsA, fs2, FastState.overmarsSliceIdx, fs1]
+      (fun loc hloc => hls_pres b' hb' loc (hcntA_other hbb ▸ hloc) (fun ⟨h, _⟩ => hbb h))
+      (hcntA_other hbb).ge rfl rfl rfl ?_ ?_
+    · dsimp only [fsA, fastDeleteShrink, fs2, omIns', omPair]
+      split_ifs <;> first | rfl | exact Function.update_of_ne hbb _ _
+    · dsimp only [fsA, fastDeleteShrink, fs2, FastState.overmarsSliceIdx, fs1]
       exact hreb_other b' hb' hbb _ (hv.roles_valid b' hb').2.1
   · -- `PreOvermarsBucketInv` on `b`
-    have hcntA_b : fsA.bktCount b = loc_last := by
-      dsimp only [fsA]; exact Function.update_self _ _ _
     rcases hv.overmars_valid b hb with
       ⟨ha0, hlic⟩ | ⟨ha1, h16, hcur_lt, hlin, hins, omM, hv_om, hr_om⟩
     · exact Or.inl ⟨ha0, hlic.le⟩
-    · dsimp only [PreOvermarsBucketInv]
-      right
-      have hcur_le : fs.overmarsCursor b ≤ loc_last := by omega
-      have hnll_cur : ¬(loc_last < fs.overmarsCursor b) := by omega
-      have hoi_ub : fs.overmarsInsCount b ≤ 8 * (slabScale n_max) ^ 12 := by omega
-      have hoa_eq : fsA.overmarsActive b = fs.overmarsActive b := rfl
-      have hlic_eq : fsA.liveInsCount b = fs.liveInsCount b := rfl
-      have hreb_eq : fsA.rebStage = fs.rebStage := rfl
-      have hold_eq : fsA.oldEp = fs.oldEp := rfl
-      have hdone_eq : fsA.rebDoneFlag b = fs.rebDoneFlag b := rfl
-      have hsalt_eq : fsA.bktSalt b = fs.bktSalt b := rfl
-      have hoc_eq : fsA.overmarsCursor b = fs.overmarsCursor b := rfl
-      rw [hoa_eq, hoc_eq, hlic_eq, hcntA_b, Nat.min_eq_right hcur_le,
-        hsalt_eq, hreb_eq, hold_eq, hdone_eq]
-      by_cases hld_cur : loc_del < fs.overmarsCursor b
-      · let m1 :=
-          if inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_del) = true then
-            Function.update omM (fs.fpAt c U n_max θ (fs.bktSalt b) b loc_del) none
-          else omM
-        have hv_om1 : ValidWhpSlice n_max (fs.overmarsInsCount b) (slices2 omIdx) m1 := by
-          dsimp only [slices2, m1, st_del]
-          by_cases hin_d :
-              inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_del) = true
-          · rw [ite_eq_left ⟨ha1, hld_cur, hin_d⟩, ite_eq_left hin_d, Function.update_self,
-              hsl1_om, ← hfp_live_del]
-            exact hv_om.delete_spec hv.hth hoi_ub (fpAt_lt θ fs (fs.bktSalt b) b loc_del)
-          · rw [ite_eq_right (fun ⟨_, _, h⟩ => hin_d h), ite_eq_right hin_d, hsl1_om]
-            exact hv_om
-        have hrel_pre := sliceMapRel_relocate_prefix hr_om
-          (f' := fsA.fpAt c U n_max θ (fs.bktSalt b) b)
-          (P' := fun loc => inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b)
-            (fsA.locState b loc) = true)
-          (loc_last := loc_last)
-          hld_cur
-          (fun l₁ hl₁ l₂ hl₂ => hv.live_fp_inj b hb l₁ (hl₁.trans hcur_lt) l₂ (hl₂.trans hcur_lt))
-          (fun hpl l hl _ hpl_l heq =>
-            Nat.ne_of_lt (hl.trans_le hcur_le)
-              (hv.live_fp_inj b hb l (hl.trans hcur_lt) loc_last hll_lt hpl_l hpl heq))
-          (fun loc hlt hne => hfp_pres _ b hb loc
-            (by rw [hcntA_b]; exact hlt.trans_le hcur_le) (fun ⟨_, h⟩ => hne h))
-          (hfp_at_del _)
-          (fun loc hlt hne => by
-            rw [hls_pres b hb loc (by rw [hcntA_b]; exact hlt.trans_le hcur_le)
-              (fun ⟨_, h⟩ => hne h)])
-          (by rw [hls_at_del])
-        dsimp only at hrel_pre
-        by_cases hin_l :
-            inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_last) = true
-        · have hcond_om : fs1.overmarsActive b = 1 ∧
-              inLiveTree fs1.rebStage fs1.oldEp (fs1.rebDoneFlag b) st_last = true :=
-            ⟨ha1, hin_l⟩
-          have homPair_eq : omPair =
-              (Function.update sl_live' omIdx
-                (btreeInsert (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-                  (sl_live' omIdx) fp_live_last loc_del),
-               Function.update fs.overmarsInsCount b (fs.overmarsInsCount b + 1)) := by
-            dsimp only [omPair]
-            rw [ite_eq_left hcond_om, ite_eq_right hnll_cur, ite_eq_left hld_cur]
-          have hloc_val : loc_del < 2 ^ valLaneBitsWhp n_max := by
-            rw [two_pow_valLaneBitsWhp]; omega
-          have hins_om := hv_om1.insert_spec hv.hth hoi_ub
-            (fpAt_lt θ fs (fs.bktSalt b) b loc_last) hloc_val
-          let m_om2 :=
-            Function.update m1 (fs.fpAt c U n_max θ (fs.bktSalt b) b loc_last) (some loc_del)
-          refine ⟨ha1, h16, hcur_le, by omega, ?_, m_om2, ?_, ?_⟩
-          · dsimp only [fsA, fs2, omIns']; rw [homPair_eq]; dsimp only
-            rw [Function.update_self]; omega
-          · dsimp only [fsA, fs2, omIns', sl_om', FastState.overmarsSliceIdx, fs1]
-            change ValidWhpSlice n_max (omPair.2 b) (rebQuad.1 omIdx) m_om2
-            rw [hreb_om]
-            change ValidWhpSlice n_max (omPair.2 b) (omPair.1 omIdx) m_om2
-            rw [homPair_eq]; dsimp only
-            rw [Function.update_self, Function.update_self, hsll_om, hfp1_live]
-            exact hins_om.2
-          · rwa [ite_eq_left hin_l] at hrel_pre
-        · have hncond_om : ¬(fs1.overmarsActive b = 1 ∧
-              inLiveTree fs1.rebStage fs1.oldEp (fs1.rebDoneFlag b) st_last = true) :=
-            fun ⟨_, h⟩ => hin_l h
-          have homPair_eq : omPair = (sl_live', fs.overmarsInsCount) := by
-            dsimp only [omPair]; rw [ite_eq_right hncond_om]
-          refine ⟨ha1, h16, hcur_le, by omega, ?_, m1, ?_, ?_⟩
-          · dsimp only [fsA, fs2, omIns']; rw [homPair_eq]; dsimp only; omega
-          · dsimp only [fsA, fs2, omIns', sl_om', FastState.overmarsSliceIdx, fs1]
-            change ValidWhpSlice n_max (omPair.2 b) (rebQuad.1 omIdx) m1
-            rw [hreb_om]
-            change ValidWhpSlice n_max (omPair.2 b) (omPair.1 omIdx) m1
-            rw [homPair_eq]; dsimp only; rw [hsll_om]
-            exact hv_om1
-          · rwa [ite_eq_right hin_l] at hrel_pre
-      · have homPair_eq : omPair = (sl_live', fs.overmarsInsCount) := by
-          dsimp only [omPair]
-          by_cases h1 : fs1.overmarsActive b = 1 ∧
-              inLiveTree fs1.rebStage fs1.oldEp (fs1.rebDoneFlag b) st_last = true
-          · rw [ite_eq_left h1, ite_eq_right hnll_cur, ite_eq_right hld_cur]
-          · rw [ite_eq_right h1]
-        have hsl2_om : slices2 omIdx = fs.slices omIdx := by
-          dsimp only [slices2]
-          rw [ite_eq_right (fun ⟨_, h, _⟩ => hld_cur h), hsl1_om]
-        refine ⟨ha1, h16, hcur_le, by omega, ?_, omM, ?_, ?_⟩
-        · dsimp only [fsA, fs2, omIns']; rw [homPair_eq]; dsimp only; omega
-        · dsimp only [fsA, fs2, omIns', sl_om', FastState.overmarsSliceIdx, fs1]
-          change ValidWhpSlice n_max (omPair.2 b) (rebQuad.1 omIdx) omM
-          rw [hreb_om]
-          change ValidWhpSlice n_max (omPair.2 b) (omPair.1 omIdx) omM
-          rw [homPair_eq]; dsimp only; rw [hsll_om, hsl2_om]
+    dsimp only [PreOvermarsBucketInv]
+    right
+    have hcur_le : fs.overmarsCursor b ≤ loc_last := by omega
+    have hnll_cur : ¬(loc_last < fs.overmarsCursor b) := by omega
+    have hoi_ub : fs.overmarsInsCount b ≤ 8 * (slabScale n_max) ^ 12 := by omega
+    have hom_sl : fsA.slices (fsA.overmarsSliceIdx b) = omPair.1 omIdx := hreb_om
+    have hom_ins : fsA.overmarsInsCount b = omPair.2 b := rfl
+    have hoa_eq : fsA.overmarsActive b = fs.overmarsActive b := rfl
+    have hlic_eq : fsA.liveInsCount b = fs.liveInsCount b := rfl
+    have hreb_eq : fsA.rebStage = fs.rebStage := rfl
+    have hold_eq : fsA.oldEp = fs.oldEp := rfl
+    have hdone_eq : fsA.rebDoneFlag b = fs.rebDoneFlag b := rfl
+    have hsalt_eq : fsA.bktSalt b = fs.bktSalt b := rfl
+    have hoc_eq : fsA.overmarsCursor b = fs.overmarsCursor b := rfl
+    rw [hom_sl, hom_ins, hoa_eq, hoc_eq, hlic_eq, hcntA_b, Nat.min_eq_right hcur_le,
+      hsalt_eq, hreb_eq, hold_eq, hdone_eq]
+    by_cases hld_cur : loc_del < fs.overmarsCursor b
+    · let m1 :=
+        if inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_del) = true then
+          Function.update omM (fs.fpAt c U n_max θ (fs.bktSalt b) b loc_del) none
+        else omM
+      have hv_om1 : ValidWhpSlice n_max (fs.overmarsInsCount b) (slices2 omIdx) m1 := by
+        dsimp only [slices2, m1, st_del]
+        by_cases hin_d :
+            inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_del) = true
+        · rw [ite_eq_left ⟨ha1, hld_cur, hin_d⟩, ite_eq_left hin_d, Function.update_self,
+            hsl1_om, ← hfp_live_del]
+          exact hv_om.delete_spec hv.hth hoi_ub (fpAt_lt θ fs (fs.bktSalt b) b loc_del)
+        · rw [ite_eq_right (fun ⟨_, _, h⟩ => hin_d h), ite_eq_right hin_d, hsl1_om]
           exact hv_om
-        · exact hr_om.congr
-            (fun loc hlt => hfp_pres _ b hb loc
-              (by rw [hcntA_b]; exact hlt.trans_le hcur_le)
-              (fun ⟨_, h⟩ => hld_cur (h ▸ hlt)))
-            (fun loc hlt => by
-              rw [hls_pres b hb loc (by rw [hcntA_b]; exact hlt.trans_le hcur_le)
-                (fun ⟨_, h⟩ => hld_cur (h ▸ hlt))])
+      have hrel_pre := sliceMapRel_relocate_prefix hr_om
+        (f' := fsA.fpAt c U n_max θ (fs.bktSalt b) b)
+        (P' := fun loc => inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b)
+          (fsA.locState b loc) = true)
+        (loc_last := loc_last)
+        hld_cur
+        (fun l₁ hl₁ l₂ hl₂ => hv.live_fp_inj b hb l₁ (hl₁.trans hcur_lt) l₂ (hl₂.trans hcur_lt))
+        (fun hpl l hl _ hpl_l heq =>
+          Nat.ne_of_lt (hl.trans_le hcur_le)
+            (hv.live_fp_inj b hb l (hl.trans hcur_lt) loc_last hll_lt hpl_l hpl heq))
+        (fun loc hlt hne => hfp_pres _ b hb loc (by omega) (fun ⟨_, h⟩ => hne h))
+        (hfp_at_del _)
+        (fun loc hlt hne => by rw [hls_pres b hb loc (by omega) (fun ⟨_, h⟩ => hne h)])
+        (by rw [hls_at_del])
+      dsimp only at hrel_pre
+      by_cases hin_l :
+          inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_last) = true
+      · have hcond_om : fs1.overmarsActive b = 1 ∧
+            inLiveTree fs1.rebStage fs1.oldEp (fs1.rebDoneFlag b) st_last = true :=
+          ⟨ha1, hin_l⟩
+        have homPair_eq : omPair =
+            (Function.update sl_live' omIdx
+              (btreeInsert (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
+                (sl_live' omIdx) fp_live_last loc_del),
+             Function.update fs.overmarsInsCount b (fs.overmarsInsCount b + 1)) := by
+          dsimp only [omPair]
+          rw [ite_eq_left hcond_om, ite_eq_right hnll_cur, ite_eq_left hld_cur]
+        have hloc_val : loc_del < 2 ^ valLaneBitsWhp n_max := by
+          rw [two_pow_valLaneBitsWhp]; omega
+        have hins_om := hv_om1.insert_spec hv.hth hoi_ub
+          (fpAt_lt θ fs (fs.bktSalt b) b loc_last) hloc_val
+        rw [homPair_eq]; dsimp only
+        rw [Function.update_self, Function.update_self, hsll_om, hfp1_live]
+        rw [ite_eq_left hin_l] at hrel_pre
+        exact ⟨ha1, h16, hcur_le, by omega, by omega, _, hins_om.2, hrel_pre⟩
+      · have hncond_om : ¬(fs1.overmarsActive b = 1 ∧
+            inLiveTree fs1.rebStage fs1.oldEp (fs1.rebDoneFlag b) st_last = true) :=
+          fun ⟨_, h⟩ => hin_l h
+        have homPair_eq : omPair = (sl_live', fs.overmarsInsCount) := by
+          dsimp only [omPair]; rw [ite_eq_right hncond_om]
+        rw [homPair_eq]; dsimp only; rw [hsll_om]
+        rw [ite_eq_right hin_l] at hrel_pre
+        exact ⟨ha1, h16, hcur_le, by omega, by omega, m1, hv_om1, hrel_pre⟩
+    · have homPair_eq : omPair = (sl_live', fs.overmarsInsCount) := by
+        dsimp only [omPair]; rw [ite_eq_right hnll_cur, ite_eq_right hld_cur, ite_self]
+      have hsl2_om : slices2 omIdx = fs.slices omIdx := by
+        dsimp only [slices2]
+        rw [ite_eq_right (fun ⟨_, h, _⟩ => hld_cur h), hsl1_om]
+      rw [homPair_eq]; dsimp only; rw [hsll_om, hsl2_om]
+      refine ⟨ha1, h16, hcur_le, by omega, by omega, omM, hv_om, hr_om.congr
+        (fun loc hlt => hfp_pres _ b hb loc (by omega) (fun ⟨_, h⟩ => hld_cur (h ▸ hlt)))
+        (fun loc hlt => ?_)⟩
+      rw [hls_pres b hb loc (by omega) (fun ⟨_, h⟩ => hld_cur (h ▸ hlt))]
   · -- `ValidEpochStagePreTick` on `fsA`: Stages 0, 1, 3 via `preTick_after_delete_of_stage2`
-    have hcntA_b : fsA.bktCount b = loc_last := by
-      dsimp only [fsA]; exact Function.update_self _ _ _
     refine preTick_after_delete_of_stage2 hv.toCore hv.stage_valid.toPreTick hb hcnt
       (hcnt ▸ hld_lt_b) hrk_del rfl rfl rfl rfl rfl rfl rfl rfl rfl hb_old_eq
       (fun heq => absurd heq (Nat.ne_of_lt hlt_ll_b)) hpres_lt fun hs2 => ?_
@@ -798,13 +671,9 @@ theorem fastDelete_afterDel_reloc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_m
     simp only [hs2, show ¬(2 = 0) by decide, show ¬(2 = 1) by decide, ↓reduceIte] at hstg_full
     rcases hstg_full with ⟨hd1, hd2, hd3, hd4, hd5, hd6, hreb⟩
     refine ⟨hd1, hd2, hd3, hd4, hd5, fun b' hb' loc hloc hst_old => ?_, ?_⟩
-    · by_cases hbd : b' = b ∧ loc = loc_del
-      · rcases hbd with ⟨hb_eq, hl_eq⟩
-        rw [hb_eq, hl_eq, hls_at_del] at hst_old
-        rw [hb_eq]
-        exact hd6 b hb loc_last hll_lt hst_old
-      · rw [hls_pres b' hb' loc hloc hbd] at hst_old
-        exact hd6 b' hb' loc (hcnt_lt_orig hloc) hst_old
+    · obtain ⟨ho, hs, -⟩ := horig b' hb' loc hloc
+      rw [hs] at hst_old
+      exact hd6 b' hb' _ ho hst_old
     · set bc := fs.dirtyBuckets fs.dirtyIdx
       have hbc : bc < numBucketsWhp n_max := hd3 fs.dirtyIdx hd2
       change rebQuad.2.1 < sMaxWhp c n_max →
@@ -839,22 +708,34 @@ theorem fastDelete_afterDel_reloc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_m
         change _ ∧ _ ∧ ∃ rebMap,
           ValidWhpSlice n_max rebQuad.2.2.2 (rebQuad.1 rIdx) rebMap ∧ _
         rw [hcntA_b]
-        have hcur_le_ll : fs.rebScanCursor ≤ loc_last := by
-          rcases hcur_r with ⟨hc0, _⟩ | ⟨_, hc_lt, _⟩ <;> omega
+        have hcur_le_ll : fs.rebScanCursor ≤ loc_last := by omega
         have hnll_r : ¬(loc_last < fs.rebScanCursor) := by omega
         have hmin_old : min (fs.bktCount b) fs.rebScanCursor = fs.rebScanCursor :=
           Nat.min_eq_right (by omega)
         rw [hmin_old] at hinj_r hrr0
-        have hri_ub : fs.rebInsCount ≤ 8 * (slabScale n_max) ^ 12 := by
-          rcases hcur_r with ⟨_, hi0⟩ | ⟨_, _, hins⟩ <;> omega
+        have hri_ub : fs.rebInsCount ≤ 8 * (slabScale n_max) ^ 12 := by omega
+        let P_r (st : ℕ → ℕ) (loc : ℕ) : Prop :=
+          st loc = 1 ∨ st loc = 2 + fs.oldEp
+        -- Coordinates below the cursor other than `loc_del` are unchanged.
+        have hpres_r : ∀ l < fs.rebScanCursor, l ≠ loc_del →
+            fsA.locState b l = fs.locState b l ∧
+            fsA.fpAt c U n_max θ fs.rebCandSalt b l = fs.fpAt c U n_max θ fs.rebCandSalt b l :=
+          fun l _ hne => ⟨hls_pres b hb l (by omega) (fun ⟨_, h⟩ => hne h),
+            hfp_pres _ b hb l (by omega) (fun ⟨_, h⟩ => hne h)⟩
+        have hinj_ne : ∀ l₁ < fs.rebScanCursor, ∀ l₂ < fs.rebScanCursor,
+            l₁ ≠ loc_del → l₂ ≠ loc_del → P_r (fsA.locState b) l₁ → P_r (fsA.locState b) l₂ →
+            fsA.fpAt c U n_max θ fs.rebCandSalt b l₁ = fsA.fpAt c U n_max θ fs.rebCandSalt b l₂ →
+            l₁ = l₂ := by
+          intro l₁ hl₁ l₂ hl₂ hne₁ hne₂ hp₁ hp₂ hfeq
+          obtain ⟨hs₁, hf₁⟩ := hpres_r l₁ hl₁ hne₁
+          obtain ⟨hs₂, hf₂⟩ := hpres_r l₂ hl₂ hne₂
+          dsimp only [P_r] at hp₁ hp₂
+          rw [hs₁] at hp₁; rw [hs₂] at hp₂; rw [hf₁, hf₂] at hfeq
+          exact hinj_r l₁ hl₁ l₂ hl₂ hp₁ hp₂ hfeq
         by_cases hld_r : loc_del < fs.rebScanCursor
         · have hcur_pos :
               16 ≤ fs.rebScanCursor ∧ 16 * fs.rebInsCount + 16 ≤ 17 * fs.rebScanCursor := by
-            rcases hcur_r with ⟨hc0, _⟩ | ⟨h16, _, hins⟩
-            · omega
-            · exact ⟨h16, hins⟩
-          let P_r (st : ℕ → ℕ) (loc : ℕ) : Prop :=
-            st loc = 1 ∨ st loc = 2 + fs.oldEp
+            omega
           let mr1 :=
             if P_r (fs.locState b) loc_del then
               Function.update rm0 (fs.fpAt c U n_max θ fs.rebCandSalt b loc_del) none
@@ -863,19 +744,19 @@ theorem fastDelete_afterDel_reloc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_m
             dsimp only [slices3, mr1, P_r, st_del]
             rw [hrbt, Bool.true_and]
             by_cases hpd : fs.locState b loc_del = 1 ∨ fs.locState b loc_del = 2 + fs.oldEp
-            · have hd_true : decide (loc_del < fs.rebScanCursor ∧
-                  (fs.locState b loc_del = 1 ∨ fs.locState b loc_del = 2 + fs.oldEp)) = true :=
-                decide_eq_true ⟨hld_r, hpd⟩
-              rw [hd_true, ite_eq_left rfl, ite_eq_left hpd, Function.update_self, hsl2_r,
-                ← hfp_cand_del]
+            · rw [decide_eq_true ⟨hld_r, hpd⟩, ite_eq_left rfl, ite_eq_left hpd,
+                Function.update_self, hsl2_r, ← hfp_cand_del]
               exact hvr0.delete_spec hv.hth hri_ub (fpAt_lt θ fs fs.rebCandSalt b loc_del)
-            · have hd_fls : decide (loc_del < fs.rebScanCursor ∧
-                  (fs.locState b loc_del = 1 ∨ fs.locState b loc_del = 2 + fs.oldEp)) = false :=
-                decide_eq_false (fun ⟨_, h⟩ => hpd h)
-              rw [hd_fls]
+            · rw [decide_eq_false (fun ⟨_, h⟩ => hpd h)]
               simp only [Bool.false_eq_true, ↓reduceIte]
               rw [ite_eq_right hpd, hsl2_r]
               exact hvr0
+          have hrel_of := fun hno => sliceMapRel_relocate_prefix hrr0
+            (f' := fsA.fpAt c U n_max θ fs.rebCandSalt b)
+            (P' := P_r (fsA.locState b)) (loc_last := loc_last) hld_r hinj_r hno
+            (fun loc hlt hne => (hpres_r loc hlt hne).2) (hfp_at_del _)
+            (fun loc hlt hne => by dsimp only [P_r]; rw [(hpres_r loc hlt hne).1])
+            (by dsimp only [P_r]; rw [hls_at_del])
           by_cases hpl_r : fs.locState b loc_last = 1 ∨ fs.locState b loc_last = 2 + fs.oldEp
           · have hcond_q :
                 (rebActiveB && decide (st_last = 1 ∨ st_last = 2 + fs1.oldEp)) = true := by
@@ -934,47 +815,20 @@ theorem fastDelete_afterDel_reloc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_m
                 rw [two_pow_valLaneBitsWhp]; omega
               have hins_r := hv_r1.insert_spec hv.hth hri_ub
                 (fpAt_lt θ fs fs.rebCandSalt b loc_last) hloc_val
-              have hrel_r := sliceMapRel_relocate_prefix hrr0
-                (f' := fsA.fpAt c U n_max θ fs.rebCandSalt b)
-                (P' := P_r (fsA.locState b)) (loc_last := loc_last)
-                hld_r hinj_r (fun _ => hno_coll_r)
-                (fun loc hlt hne => hfp_pres _ b hb loc
-                  (by rw [hcntA_b]; exact hlt.trans_le hcur_le_ll) (fun ⟨_, h⟩ => hne h))
-                (hfp_at_del _)
-                (fun loc hlt hne => by
-                  dsimp only [P_r]
-                  rw [hls_pres b hb loc (by rw [hcntA_b]; exact hlt.trans_le hcur_le_ll)
-                    (fun ⟨_, h⟩ => hne h)])
-                (by dsimp only [P_r]; rw [hls_at_del])
+              have hrel_r := hrel_of fun _ => hno_coll_r
               dsimp only at hrel_r
               rw [ite_eq_left hpl_r] at hrel_r
               refine ⟨Or.inr ⟨hcur_pos.1, hcur_le_ll, by omega⟩, ?_, _, hins_r.2, hrel_r⟩
               intro l₁ hl₁ l₂ hl₂ hp₁ hp₂ hfeq
               by_cases hd1 : l₁ = loc_del <;> by_cases hd2 : l₂ = loc_del
               · exact hd1.trans hd2.symm
-              · rw [hd1, hfp_at_del, hfp_pres _ b hb l₂
-                  (by rw [hcntA_b]; exact hl₂.trans_le hcur_le_ll)
-                  (fun ⟨_, h⟩ => hd2 h)] at hfeq
-                rw [hls_pres b hb l₂ (by rw [hcntA_b]; exact hl₂.trans_le hcur_le_ll)
-                  (fun ⟨_, h⟩ => hd2 h)] at hp₂
+              · obtain ⟨hs₂, hf₂⟩ := hpres_r l₂ hl₂ hd2
+                rw [hd1, hfp_at_del, hf₂] at hfeq; rw [hs₂] at hp₂
                 exact absurd hfeq.symm (hno_coll_r l₂ hl₂ hd2 hp₂)
-              · rw [hd2, hfp_pres _ b hb l₁
-                  (by rw [hcntA_b]; exact hl₁.trans_le hcur_le_ll)
-                  (fun ⟨_, h⟩ => hd1 h), hfp_at_del] at hfeq
-                rw [hls_pres b hb l₁ (by rw [hcntA_b]; exact hl₁.trans_le hcur_le_ll)
-                  (fun ⟨_, h⟩ => hd1 h)] at hp₁
+              · obtain ⟨hs₁, hf₁⟩ := hpres_r l₁ hl₁ hd1
+                rw [hd2, hfp_at_del, hf₁] at hfeq; rw [hs₁] at hp₁
                 exact absurd hfeq (hno_coll_r l₁ hl₁ hd1 hp₁)
-              · rw [hfp_pres _ b hb l₁
-                  (by rw [hcntA_b]; exact hl₁.trans_le hcur_le_ll)
-                  (fun ⟨_, h⟩ => hd1 h),
-                  hfp_pres _ b hb l₂
-                  (by rw [hcntA_b]; exact hl₂.trans_le hcur_le_ll)
-                  (fun ⟨_, h⟩ => hd2 h)] at hfeq
-                rw [hls_pres b hb l₁ (by rw [hcntA_b]; exact hl₁.trans_le hcur_le_ll)
-                  (fun ⟨_, h⟩ => hd1 h)] at hp₁
-                rw [hls_pres b hb l₂ (by rw [hcntA_b]; exact hl₂.trans_le hcur_le_ll)
-                  (fun ⟨_, h⟩ => hd2 h)] at hp₂
-                exact hinj_r l₁ hl₁ l₂ hl₂ hp₁ hp₂ hfeq
+              · exact hinj_ne l₁ hl₁ l₂ hl₂ hd1 hd2 hp₁ hp₂ hfeq
           · have hcond_q :
                 (rebActiveB && decide (st_last = 1 ∨ st_last = 2 + fs1.oldEp)) = false := by
               rw [Bool.and_eq_false_iff]
@@ -985,35 +839,13 @@ theorem fastDelete_afterDel_reloc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_m
             rw [hrebQ_eq]
             dsimp only
             rw [Nat.min_eq_right hcur_le_ll, hslom_r]
-            have hrel_r := sliceMapRel_relocate_prefix hrr0
-              (f' := fsA.fpAt c U n_max θ fs.rebCandSalt b)
-              (P' := P_r (fsA.locState b)) (loc_last := loc_last)
-              hld_r hinj_r (fun h => absurd h hpl_r)
-              (fun loc hlt hne => hfp_pres _ b hb loc
-                (by rw [hcntA_b]; exact hlt.trans_le hcur_le_ll) (fun ⟨_, h⟩ => hne h))
-              (hfp_at_del _)
-              (fun loc hlt hne => by
-                dsimp only [P_r]
-                rw [hls_pres b hb loc (by rw [hcntA_b]; exact hlt.trans_le hcur_le_ll)
-                  (fun ⟨_, h⟩ => hne h)])
-              (by dsimp only [P_r]; rw [hls_at_del])
+            have hrel_r := hrel_of fun h => absurd h hpl_r
             dsimp only at hrel_r
             rw [ite_eq_right hpl_r] at hrel_r
-            refine ⟨Or.inr ⟨hcur_pos.1, hcur_le_ll, by omega⟩, ?_, mr1, hv_r1, hrel_r⟩
-            intro l₁ hl₁ l₂ hl₂ hp₁ hp₂ hfeq
-            have hne1 : l₁ ≠ loc_del := fun h => by
-              rw [h, hls_at_del] at hp₁; exact hpl_r hp₁
-            have hne2 : l₂ ≠ loc_del := fun h => by
-              rw [h, hls_at_del] at hp₂; exact hpl_r hp₂
-            rw [hls_pres b hb l₁ (by rw [hcntA_b]; exact hl₁.trans_le hcur_le_ll)
-              (fun ⟨_, h⟩ => hne1 h)] at hp₁
-            rw [hls_pres b hb l₂ (by rw [hcntA_b]; exact hl₂.trans_le hcur_le_ll)
-              (fun ⟨_, h⟩ => hne2 h)] at hp₂
-            rw [hfp_pres _ b hb l₁ (by rw [hcntA_b]; exact hl₁.trans_le hcur_le_ll)
-                (fun ⟨_, h⟩ => hne1 h),
-              hfp_pres _ b hb l₂ (by rw [hcntA_b]; exact hl₂.trans_le hcur_le_ll)
-                (fun ⟨_, h⟩ => hne2 h)] at hfeq
-            exact hinj_r l₁ hl₁ l₂ hl₂ hp₁ hp₂ hfeq
+            refine ⟨Or.inr ⟨hcur_pos.1, hcur_le_ll, by omega⟩,
+              fun l₁ hl₁ l₂ hl₂ hp₁ hp₂ => hinj_ne l₁ hl₁ l₂ hl₂ ?_ ?_ hp₁ hp₂, mr1, hv_r1, hrel_r⟩
+            · intro h; rw [h, hls_at_del] at hp₁; exact hpl_r hp₁
+            · intro h; rw [h, hls_at_del] at hp₂; exact hpl_r hp₂
         · have hrebQ_eq :
               rebQuad = (sl_om', (fs.rebCandSalt, (fs.rebScanCursor, fs.rebInsCount))) := by
             dsimp only [rebQuad]
@@ -1030,29 +862,11 @@ theorem fastDelete_afterDel_reloc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_m
           rw [hrebQ_eq]
           dsimp only
           rw [Nat.min_eq_right hcur_le_ll, hslom_r, hsl3_r]
-          refine ⟨?_, ?_, rm0, hvr0, ?_⟩
-          · rcases hcur_r with ⟨hc0, hi0⟩ | ⟨h16, _, hins⟩
-            · exact Or.inl ⟨hc0, hi0⟩
-            · exact Or.inr ⟨h16, hcur_le_ll, by omega⟩
-          · intro l₁ hl₁ l₂ hl₂ hp₁ hp₂ hfeq
-            have hne1 : l₁ ≠ loc_del := fun h => hld_r (h ▸ hl₁)
-            have hne2 : l₂ ≠ loc_del := fun h => hld_r (h ▸ hl₂)
-            rw [hls_pres b hb l₁ (by rw [hcntA_b]; exact hl₁.trans_le hcur_le_ll)
-              (fun ⟨_, h⟩ => hne1 h)] at hp₁
-            rw [hls_pres b hb l₂ (by rw [hcntA_b]; exact hl₂.trans_le hcur_le_ll)
-              (fun ⟨_, h⟩ => hne2 h)] at hp₂
-            rw [hfp_pres _ b hb l₁ (by rw [hcntA_b]; exact hl₁.trans_le hcur_le_ll)
-                (fun ⟨_, h⟩ => hne1 h),
-              hfp_pres _ b hb l₂ (by rw [hcntA_b]; exact hl₂.trans_le hcur_le_ll)
-                (fun ⟨_, h⟩ => hne2 h)] at hfeq
-            exact hinj_r l₁ hl₁ l₂ hl₂ hp₁ hp₂ hfeq
-          · exact hrr0.congr
-              (fun loc hlt => hfp_pres _ b hb loc
-                (by rw [hcntA_b]; exact hlt.trans_le hcur_le_ll)
-                (fun ⟨_, heq⟩ => hld_r (heq ▸ hlt)))
-              (fun loc hlt => by
-                rw [hls_pres b hb loc (by rw [hcntA_b]; exact hlt.trans_le hcur_le_ll)
-                  (fun ⟨_, heq⟩ => hld_r (heq ▸ hlt))])
+          have hne : ∀ l < fs.rebScanCursor, l ≠ loc_del := fun l hl h => hld_r (h ▸ hl)
+          refine ⟨by omega, fun l₁ hl₁ l₂ hl₂ =>
+              hinj_ne l₁ hl₁ l₂ hl₂ (hne l₁ hl₁) (hne l₂ hl₂), rm0, hvr0, ?_⟩
+          exact hrr0.congr (fun loc hlt => (hpres_r loc hlt (hne loc hlt)).2)
+            (fun loc hlt => by rw [(hpres_r loc hlt (hne loc hlt)).1])
       · have hrbf : rebActiveB = false :=
           decide_eq_false (fun ⟨_, _, h, _, _⟩ => hbb h)
         have hrebQ_eq :
@@ -1061,36 +875,27 @@ theorem fastDelete_afterDel_reloc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_m
         rw [hrebQ_eq] at hcs_new ⊢
         dsimp only at hcs_new ⊢
         obtain ⟨hcur_r, hinj_r, rm0, hvr0, hrr0⟩ := hreb hcs_new
-        have hcntA_bc : fsA.bktCount bc = fs.bktCount bc := by
-          dsimp only [fsA, fs2, fs1]; exact Function.update_of_ne hbb _ _
-        rw [hcntA_bc]
         have hsl_bc : sl_om' (fs.rebSliceIdx bc) = fs.slices (fs.rebSliceIdx bc) := by
           have hr_lt := (rebRole_props (hv.roles_valid bc hbc).1
             (hv.roles_valid bc hbc).2.1 (hv.roles_valid bc hbc).2.2).1
           have hsl_eq := hreb_other bc hbc hbb (fs.rebRole bc) hr_lt
           rw [hrebQ_eq] at hsl_eq
           exact hsl_eq
-        rw [hsl_bc]
-        refine ⟨?_, ?_, rm0, hvr0, ?_⟩
-        · rcases hcur_r with ⟨hc0, hi0⟩ | ⟨h16, hc_lt, hins⟩
-          · exact Or.inl ⟨hc0, hi0⟩
-          · exact Or.inr ⟨h16, hc_lt.le, by omega⟩
-        · intro l₁ hl₁ l₂ hl₂ hp₁ hp₂ hfeq
-          have hl₁_b : l₁ < fsA.bktCount bc :=
-            hcntA_bc ▸ (Nat.min_le_left _ _).trans_lt' hl₁
-          have hl₂_b : l₂ < fsA.bktCount bc :=
-            hcntA_bc ▸ (Nat.min_le_left _ _).trans_lt' hl₂
-          rw [hls_pres bc hbc l₁ hl₁_b (fun ⟨h, _⟩ => hbb h)] at hp₁
-          rw [hls_pres bc hbc l₂ hl₂_b (fun ⟨h, _⟩ => hbb h)] at hp₂
-          rw [hfp_pres _ bc hbc l₁ hl₁_b (fun ⟨h, _⟩ => hbb h),
-            hfp_pres _ bc hbc l₂ hl₂_b (fun ⟨h, _⟩ => hbb h)] at hfeq
-          exact hinj_r l₁ hl₁ l₂ hl₂ hp₁ hp₂ hfeq
-        · exact hrr0.congr
-            (fun loc hlt => hfp_pres _ bc hbc loc
-              (hcntA_bc ▸ (Nat.min_le_left _ _).trans_lt' hlt) (fun ⟨h, _⟩ => hbb h))
-            (fun loc hlt => by
-              rw [hls_pres bc hbc loc
-                (hcntA_bc ▸ (Nat.min_le_left _ _).trans_lt' hlt) (fun ⟨h, _⟩ => hbb h)])
+        have hpres_bc : ∀ l < min (fs.bktCount bc) fs.rebScanCursor,
+            fsA.locState bc l = fs.locState bc l ∧
+            fsA.fpAt c U n_max θ fs.rebCandSalt bc l = fs.fpAt c U n_max θ fs.rebCandSalt bc l :=
+          fun l hl =>
+            have hlt := hcntA_other hbb ▸ hl.trans_le (Nat.min_le_left _ _)
+            ⟨hls_pres bc hbc l hlt (fun ⟨h, _⟩ => hbb h),
+              hfp_pres _ bc hbc l hlt (fun ⟨h, _⟩ => hbb h)⟩
+        rw [hcntA_other hbb, hsl_bc]
+        refine ⟨by omega, fun l₁ hl₁ l₂ hl₂ hp₁ hp₂ hfeq => ?_, rm0, hvr0,
+          hrr0.congr (fun loc hlt => (hpres_bc loc hlt).2)
+            (fun loc hlt => by rw [(hpres_bc loc hlt).1])⟩
+        obtain ⟨hs₁, hf₁⟩ := hpres_bc l₁ hl₁
+        obtain ⟨hs₂, hf₂⟩ := hpres_bc l₂ hl₂
+        rw [hs₁] at hp₁; rw [hs₂] at hp₂; rw [hf₁, hf₂] at hfeq
+        exact hinj_r l₁ hl₁ l₂ hl₂ hp₁ hp₂ hfeq
 
 end Cslib.DataStructure.Dictionary.SuccinctWhp
 

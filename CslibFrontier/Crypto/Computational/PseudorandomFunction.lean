@@ -51,6 +51,7 @@ queries and answers all have `n` bits.
   `prfOracle`.
 * `Cslib.Crypto.wordOracle_bitStrings`, `Cslib.Crypto.wordOracle_bitStrings_answer`: agreement of
   `OracleCodec.bitStrings` with `randomFunctionOracle` and `lazyRandomFunctionOracle`.
+* `Cslib.Crypto.randomFunctionOracle_keyed`: the finite keyed table presents the same word oracle.
 * `Cslib.Crypto.prfIdealGame_eq_lazy`: an exact lazy implementation of the ideal experiment.
 * `Cslib.Crypto.PseudorandomFunctionOver.outLen_polyTime`: computing the unary output width
   from the unary input width schedule.
@@ -107,6 +108,22 @@ their bits. -/
 def randomFunctionOracle (n : ℕ) {w : ℕ} (table : BitString n → BitString w)
     (query : List Bool) : List Bool :=
   if query.length = n then List.ofFn (table (BitString.ofList n query)) else []
+
+/-- The finite table of a keyed family presents the keyed word oracle when the family has
+the declared reply width on valid inputs. Both presentations reject malformed queries. -/
+theorem randomFunctionOracle_keyed {family : List Bool → List Bool → List Bool}
+    {keyWidth width outWidth : ℕ}
+    (hlength : ∀ key query, key.length = keyWidth → query.length = width →
+      (family key query).length = outWidth)
+    (key : BitString keyWidth) (query : List Bool) :
+    randomFunctionOracle width
+        (fun block => BitString.ofList outWidth (family (List.ofFn key) (List.ofFn block))) query =
+      prfOracle family width (List.ofFn key) query := by
+  by_cases hquery : query.length = width
+  · have hreply := hlength (List.ofFn key) query List.length_ofFn hquery
+    simp only [randomFunctionOracle, prfOracle, ite_eq_left hquery,
+      BitString.ofFn_ofList hquery, BitString.ofFn_ofList hreply]
+  · simp only [randomFunctionOracle, prfOracle, ite_eq_right hquery]
 
 /-- Adapt a valid word to the finite domain. Malformed words make no external call; this is
 `(OracleCodec.bitStrings n w).wordOracle ProbOracleComp.query` on `()`, `query`. -/

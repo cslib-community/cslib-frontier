@@ -51,18 +51,12 @@ theorem portRank_loops_laminar
   have hvb : (Dart.vertex (G := G) (f, false)) = Dart.vertex (e, true) := hv.symm.trans he
   have hsame : ((e, false) ∈ r.rotationInterval (f, false) (f, true)) ↔
       ((e, true) ∈ r.rotationInterval (f, false) (f, true)) := by
-    have hnot : ¬(((e, false) ∈ r.rotationInterval (f, false) (f, true)) ↔
-        ((e, true) ∉ r.rotationInterval (f, false) (f, true))) := fun h =>
-      r.not_alternates_loops hG hr e f hef he hf
-        ⟨hends e, hends f, hcross false false, hcross false true,
-          hcross true false, hcross true true, he, hf, hv, h⟩
-    constructor
-    · intro ha
-      by_contra hb
-      exact hnot ⟨fun _ => hb, fun _ => ha⟩
-    · intro hb
-      by_contra ha
-      exact hnot ⟨fun h => False.elim (ha h), fun h => False.elim (h hb)⟩
+    by_contra h
+    exact r.not_alternates_loops hG hr e f hef he hf
+      ⟨hends e, hends f, hcross false false, hcross false true,
+        hcross true false, hcross true true, he, hf, hv,
+        ⟨fun hp hq => h ⟨fun _ => hq, fun _ => hp⟩,
+          fun hnq => Classical.byContradiction fun hp => h (iff_of_false hp hnq)⟩⟩
   rw [r.mem_rotationInterval_iff_portRank _ _ _ hva (hv.trans hf)
       (hcross false false).symm (hcross false true) (hends f),
     r.mem_rotationInterval_iff_portRank _ _ _ hvb (he.symm.trans (hv.trans hf))

@@ -48,21 +48,10 @@ theorem dens_recover_ne_le_of_noise_degree {n : ℕ} (S : Finset (Fin n)) (hS : 
     5 * S.card < 8 * (S.filter ((sample S ω).Adj v)).card}
   have hsub : ({ω : Coins n | recover ω ≠ S} : Finset _) ⊆ N ∪ D := by
     intro ω hω
-    simp only [mem_filter, mem_univ, true_and] at hω
-    by_cases hN : ω ∈ N
-    · exact mem_union_left D hN
-    by_cases hD : ω ∈ D
-    · exact mem_union_right N hD
-    have hnoise : ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (noise S ω)‖ ≤ 36 * sqrt n := by
-      simpa only [N, mem_filter, mem_univ, true_and, not_lt] using hN
-    have hdegree : ∀ v ∉ S, 8 * (S.filter ((sample S ω).Adj v)).card ≤ 5 * S.card := by
-      intro v hv
-      apply le_of_not_gt
-      intro h
-      apply hD
-      simp only [D, mem_filter, mem_univ, true_and]
-      exact ⟨v, hv, h⟩
-    exact (hω (hrecover ω hnoise hdegree)).elim
+    by_contra hnot
+    rw [mem_union, not_or] at hnot
+    simp only [N, D, mem_filter, mem_univ, true_and, not_lt, not_exists, not_and] at hω hnot
+    exact hω (hrecover ω hnot.1 fun v hv => hnot.2 v hv)
   calc
     _ ≤ (dens (N ∪ D) : ℝ) := by exact_mod_cast dens_le_dens hsub
     _ ≤ (dens N : ℝ) + (dens D : ℝ) := by exact_mod_cast dens_union_le N D

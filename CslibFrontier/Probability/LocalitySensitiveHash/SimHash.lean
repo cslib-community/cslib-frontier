@@ -75,16 +75,7 @@ side of `⟪u, r⟫` and weakly on the other. -/
 theorem simHash_eq_iff (r u v : E) :
     simHash r u = simHash r v ↔ (0 : ℝ) ∉ Ι ⟪u, r⟫ ⟪v, r⟫ := by
   simp only [simHash, decide_eq_decide, mem_uIoc, not_or, not_and, not_le]
-  rcases le_or_gt 0 ⟪u, r⟫ with hu | hu <;> rcases le_or_gt 0 ⟪v, r⟫ with hv | hv
-  · exact iff_of_true (iff_of_true hu hv) ⟨fun h => absurd h hu.not_gt, fun h => absurd h hv.not_gt⟩
-  · refine iff_of_false (fun h => not_lt.2 (h.1 hu) hv) ?_
-    rintro ⟨_, h2⟩
-    exact absurd (h2 hv) hu.not_gt
-  · refine iff_of_false (fun h => not_lt.2 (h.2 hv) hu) ?_
-    rintro ⟨h1, _⟩
-    exact absurd (h1 hu) hv.not_gt
-  · exact iff_of_true (iff_of_false (not_le.2 hu) (not_le.2 hv))
-      ⟨fun _ => hv, fun _ => hu⟩
+  grind
 
 end Definition
 
@@ -96,10 +87,7 @@ variable {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
 /-- The SimHash collision event `{r | simHash r u = simHash r v}` is measurable. -/
 theorem measurableSet_simHash_eq (u v : E) :
     MeasurableSet {r : E | simHash r u = simHash r v} := by
-  have hev : {r : E | simHash r u = simHash r v} = {r : E | (0 : ℝ) ∈ Ι ⟪u, r⟫ ⟪v, r⟫}ᶜ := by
-    ext r
-    exact simHash_eq_iff r u v
-  rw [hev]
+  simp only [simHash_eq_iff]
   exact (measurableSet_setOf_mem_uIoc (by fun_prop) (by fun_prop) 0).compl
 
 variable [FiniteDimensional ℝ E]
@@ -108,11 +96,9 @@ variable [FiniteDimensional ℝ E]
 two nonzero vectors collide with probability `1 - angle u v / π`. -/
 theorem measureCollisionProb_simHash {u v : E} (hu : u ≠ 0) (hv : v ≠ 0) :
     measureCollisionProb (stdGaussian E) simHash u v = 1 - InnerProductGeometry.angle u v / π := by
-  have hev : {r : E | simHash r u = simHash r v} = {r : E | (0 : ℝ) ∈ Ι ⟪u, r⟫ ⟪v, r⟫}ᶜ := by
-    ext r
-    exact simHash_eq_iff r u v
-  rw [measureCollisionProb, hev,
-    probReal_compl_eq_one_sub (measurableSet_setOf_mem_uIoc (by fun_prop) (by fun_prop) 0),
+  simp only [measureCollisionProb, simHash_eq_iff]
+  change (stdGaussian E).real {r : E | (0 : ℝ) ∈ Ι ⟪u, r⟫ ⟪v, r⟫}ᶜ = _
+  rw [probReal_compl_eq_one_sub (measurableSet_setOf_mem_uIoc (by fun_prop) (by fun_prop) 0),
     measureReal_stdGaussian_zero_mem_uIoc_eq_angle hu hv]
 
 /-- **SimHash collision law on unit vectors**: for `‖u‖ = 1` and `‖v‖ = 1`, the collision

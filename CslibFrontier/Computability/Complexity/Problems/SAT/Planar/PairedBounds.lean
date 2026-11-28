@@ -61,15 +61,10 @@ private def OutputBound (φ : CNF ℕ) (p : Point) : Prop :=
 private theorem outputBound_add {φ : CNF ℕ} {p a : Point} (hp : CellBound φ p)
     (ha : 0 ≤ a.1 ∧ a.1 ≤ 240 ∧ 0 ≤ a.2 ∧ a.2 ≤ 240) :
     OutputBound φ (cellOrigin 120 p + a) := by
-  simp only [OutputBound, gridWidth, gridHeight, PlanarCompile.gridWidth, PlanarCompile.gridHeight,
-    Prod.fst_add, Prod.snd_add, cellOrigin, Nat.cast_mul, Nat.cast_add, Nat.cast_ofNat]
-  dsimp only [CellBound] at hp
-  norm_num at *
-  constructor
-  · nlinarith [hp.1, ha.1]
-  constructor
-  · nlinarith [hp.2.1, ha.2.1]
-  constructor <;> nlinarith [hp.2.2.1, hp.2.2.2, ha.2.2.1, ha.2.2.2]
+  dsimp only [OutputBound, gridWidth, gridHeight, PlanarCompile.gridWidth, PlanarCompile.gridHeight,
+    CellBound, cellOrigin, Prod.fst_add, Prod.snd_add] at hp ⊢
+  push_cast
+  exact ⟨by linarith, by linarith, by linarith, by linarith⟩
 
 private theorem cellBound_path {φ : CNF ℕ} {r : Route} (hr : r ∈ paths φ)
     {p : Point} (hp : p ∈ r) : CellBound φ p := by
@@ -178,45 +173,37 @@ private theorem ordinaryClauses_bounds {φ : CNF ℕ} {p : Point} (hp : CellBoun
     ∀ pc ∈ ordinaryClauses p, ClauseBound φ pc := by
   intro pc hpc
   obtain ⟨ci, hci, rfl⟩ := List.mem_map.mp hpc
-  refine ⟨?_, ?_, ?_⟩
-  · apply outputBound_add hp
-    have hi : ci.2 < OrdinaryRing.clausePositions.length := by
+  refine ⟨outputBound_add hp ?_, fun _ hl => ?_, fun _ hr _ ha => ?_⟩
+  · have hi : ci.2 < OrdinaryRing.clausePositions.length := by
       rw [OrdinaryRing.drawing_sizes.1]
-      exact (OrdinaryRing.formula_sizes.1 ▸ (List.mem_zipIdx' hci).1)
-    have hb := OrdinaryRing.clause_bounds _ (List.getD_mem (0, 0) hi)
+      exact OrdinaryRing.formula_sizes.1 ▸ (List.mem_zipIdx' hci).1
+    have := OrdinaryRing.clause_bounds _ (List.getD_mem (0, 0) hi)
     omega
-  · intro l hl
-    obtain ⟨v, _, rfl⟩ := List.mem_map.mp hl
+  · obtain ⟨_, _, rfl⟩ := List.mem_map.mp hl
     exact outputBound_variable hp
-  · intro r hr a ha
-    obtain ⟨e, he, rfl⟩ := List.mem_map.mp hr
+  · obtain ⟨e, he, rfl⟩ := List.mem_map.mp hr
     obtain ⟨b, hb, rfl⟩ := List.mem_map.mp ha
     rw [add_comm]
-    apply outputBound_add hp
-    have h := OrdinaryRing.core_bounds e (List.mem_filter.mp he).1 b hb
-    omega
+    exact outputBound_add hp
+      (by have := OrdinaryRing.core_bounds e (List.mem_filter.mp he).1 b hb; omega)
 
 private theorem crossingClauses_bounds {φ : CNF ℕ} {p : Point} (hp : CellBound φ p) :
     ∀ pc ∈ crossingClauses p, ClauseBound φ pc := by
   intro pc hpc
   obtain ⟨ci, hci, rfl⟩ := List.mem_map.mp hpc
-  refine ⟨?_, ?_, ?_⟩
-  · apply outputBound_add hp
-    have hi : ci.2 < PairedCrossover.clausePositions.length := by
+  refine ⟨outputBound_add hp ?_, fun _ hl => ?_, fun _ hr _ ha => ?_⟩
+  · have hi : ci.2 < PairedCrossover.clausePositions.length := by
       rw [show PairedCrossover.clausePositions.length = 78 by decide +kernel]
-      exact (PairedCrossover.length_formula ▸ (List.mem_zipIdx' hci).1)
-    have hb := PairedCrossover.clause_bounds _ (List.getD_mem (0, 0) hi)
+      exact PairedCrossover.length_formula ▸ (List.mem_zipIdx' hci).1
+    have := PairedCrossover.clause_bounds _ (List.getD_mem (0, 0) hi)
     omega
-  · intro l hl
-    obtain ⟨v, _, rfl⟩ := List.mem_map.mp hl
+  · obtain ⟨_, _, rfl⟩ := List.mem_map.mp hl
     exact outputBound_variable hp
-  · intro r hr a ha
-    obtain ⟨e, he, rfl⟩ := List.mem_map.mp hr
+  · obtain ⟨e, he, rfl⟩ := List.mem_map.mp hr
     obtain ⟨b, hb, rfl⟩ := List.mem_map.mp ha
     rw [add_comm]
-    apply outputBound_add hp
-    have h := PairedCrossover.core_bounds e (List.mem_filter.mp he).1 b hb
-    omega
+    exact outputBound_add hp
+      (by have := PairedCrossover.core_bounds e (List.mem_filter.mp he).1 b hb; omega)
 
 
 private theorem link_bounds {φ : CNF ℕ} (sites : List Point) (lane : Fin 2) {p q : Point}
@@ -312,16 +299,12 @@ private theorem original_route_cost (φ : CNF ℕ) (sites : List Point) (cost : 
       cost (lastLiteral sites (occurrencePath φ o) o.lit.2).2 = k) :
     ((originalClauses φ sites).map fun c => (c.2.2.map cost).sum).sum = k * φ.vars.length := by
   have hm : (originalClauses φ sites).map (fun c => (c.2.2.map cost).sum) =
-      (originalClauses φ sites).map (fun c => k * c.2.2.length) := by
-    apply List.map_congr_left
-    intro c hc
-    have he : c.2.2.map cost = c.2.2.map (fun _ => k) := by
-      apply List.map_congr_left
-      intro r hr
-      obtain ⟨i, j, x, ho, rfl⟩ := (exists_occurrence_of_mem_originalClauses hc).2 r hr
-      exact h _ ho
-    rw [he]
-    simp [Nat.mul_comm]
+      (originalClauses φ sites).map (fun c => k * c.2.2.length) :=
+    List.map_congr_left fun c hc => by
+      rw [List.map_congr_left (g := fun _ => k) fun r hr => by
+        obtain ⟨_, _, _, ho, rfl⟩ := (exists_occurrence_of_mem_originalClauses hc).2 r hr
+        exact h _ ho]
+      simp [Nat.mul_comm]
   rw [hm, List.sum_map_mul_left, original_route_count]
 
 private theorem total_route_cost (φ : CNF ℕ) (cost : Route → ℕ)
@@ -335,24 +318,18 @@ private theorem total_route_cost (φ : CNF ℕ) (cost : Route → ℕ)
     ((routes φ).map cost).sum = source * φ.vars.length +
       ordinary * (ordinaryCells φ).length + crossing * (crossingSites φ).length +
         seam * PlanarCompile.linkCount φ := by
-  simp only [routes, List.flatMap, List.map_flatten, List.sum_flatten, List.map_map,
-    Function.comp_def]
-  simp only [placedClauses, List.map_append, List.sum_append, List.flatMap,
-    List.map_flatten, List.sum_flatten, List.map_map, Function.comp_def]
+  simp only [routes, placedClauses, List.flatMap, List.map_flatten, List.sum_flatten,
+    List.map_append, List.sum_append, List.map_map, Function.comp_def]
   simp_rw [hs, ho, hc, hl]
   simp [PlanarCompile.linkCount, List.sum_map_mul_left, Nat.mul_comm, Nat.add_assoc]
 
 private theorem links_stat (sites : List Point) (r : Route) (cost : PlacedClause → ℕ)
     (k : ℕ) (h : ∀ p q lane, cost (link sites p q lane) = k) :
     ((links sites r).map cost).sum = (2 * k) * (r.length - 2) := by
-  have hm : (links sites r).map cost = (links sites r).map (fun _ => k) := by
-    apply List.map_congr_left
-    intro c hc
-    obtain ⟨e, _, rfl | rfl⟩ := mem_links.mp hc <;> exact h _ _ _
-  rw [hm]
-  have he : ((links sites r).map fun _ => k).sum = k * (links sites r).length := by
-    simp [Nat.mul_comm]
-  rw [he, length_links, ← Nat.mul_assoc, Nat.mul_comm k 2]
+  rw [List.map_congr_left (g := fun _ => k) fun c hc => by
+    obtain ⟨_, _, rfl | rfl⟩ := mem_links.mp hc <;> exact h _ _ _]
+  simp only [List.map_const', List.sum_replicate, length_links, smul_eq_mul]
+  ring
 
 private theorem ordinary_route_costs (p : Point) :
     ((ordinaryClauses p).map fun c => c.2.2.length).sum = 16 ∧

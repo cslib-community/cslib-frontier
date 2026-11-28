@@ -104,8 +104,8 @@ abbrev Desc.totient (d : Desc) : ℕ := (d.p - 1) * (d.q - 1)
 
 /-- The modulus is greater than `1`. -/
 theorem Desc.one_lt_modulus (d : Desc) : 1 < d.modulus := by
-  have hp := d.property.two_lt_fst
-  have hq := d.property.two_lt_snd
+  have hp := d.2.two_lt_fst
+  have hq := d.2.two_lt_snd
   change 1 < d.val.1 * d.val.2
   nlinarith
 
@@ -116,14 +116,13 @@ instance (d : Desc) : NeZero (d.modulus ^ 2) := ⟨pow_ne_zero 2 (NeZero.ne _)�
 /-- The computed totient `(p - 1) * (q - 1)` is Euler's totient of `N = p * q`. -/
 theorem Desc.totient_eq (d : Desc) : d.totient = d.modulus.totient := by
   rw [Desc.totient, Desc.modulus,
-    Nat.totient_mul ((Nat.coprime_primes d.property.prime_fst d.property.prime_snd).mpr
-        d.property.fst_ne_snd),
-    Nat.totient_prime d.property.prime_fst, Nat.totient_prime d.property.prime_snd]
+    Nat.totient_mul ((Nat.coprime_primes d.2.prime_fst d.2.prime_snd).mpr d.2.fst_ne_snd),
+    Nat.totient_prime d.2.prime_fst, Nat.totient_prime d.2.prime_snd]
 
 /-- **Claim 15.7** ([KatzLindell2020]) for a valid description: `gcd(N, φ(N)) = 1`. -/
 theorem Desc.coprime_totient (d : Desc) : d.modulus.Coprime d.modulus.totient :=
-  Paillier.coprime_totient d.property.prime_fst d.property.prime_snd d.property.fst_ne_snd
-    d.property.two_lt_fst d.property.two_lt_snd d.property.size_eq
+  Paillier.coprime_totient d.2.prime_fst d.2.prime_snd d.2.fst_ne_snd d.2.two_lt_fst
+    d.2.two_lt_snd d.2.size_eq
 
 /-- Descriptions are encoded as the binary pair `(p, q)`. -/
 def encDesc : Desc ↪ List Bool :=
@@ -215,20 +214,12 @@ theorem isPPTOn_factorToDCR {F : ℕ → ℕ → ProbComp (ℕ × ℕ)}
 private theorem val_pow_mod_sq_eq_one_iff (d : Desc) (u : (ZMod (d.modulus ^ 2))ˣ)
     (t : ℕ) :
     (u : ZMod (d.modulus ^ 2)).val ^ t % (d.modulus ^ 2) = 1 ↔ u ^ t = 1 := by
-  have h1 : 1 < d.modulus ^ 2 := by
-    have := d.one_lt_modulus
-    nlinarith
-  have : Fact (1 < d.modulus ^ 2) := ⟨h1⟩
-  have hmod : (u : ZMod (d.modulus ^ 2)).val ^ t % (d.modulus ^ 2) = 1 ↔
-      (((u : ZMod (d.modulus ^ 2)).val : ZMod (d.modulus ^ 2)) ^ t = 1) := by
-    rw [← Nat.cast_pow, ← ZMod.natCast_mod]
-    constructor
-    · intro h
-      rw [h, Nat.cast_one]
-    · intro h
-      have hval := congrArg ZMod.val h
-      rwa [ZMod.val_natCast, Nat.mod_mod, ZMod.val_one] at hval
-  rw [hmod, ZMod.natCast_zmod_val, ← Units.val_pow_eq_pow_val, ← Units.val_one, Units.ext_iff]
+  have : Fact (1 < d.modulus ^ 2) := ⟨by have := d.one_lt_modulus; nlinarith⟩
+  rw [Units.ext_iff, Units.val_pow_eq_pow_val, Units.val_one]
+  conv_rhs => rw [← ZMod.natCast_zmod_val (u : ZMod (d.modulus ^ 2)), ← Nat.cast_pow,
+    ← ZMod.natCast_mod]
+  refine ⟨fun h => by rw [h, Nat.cast_one], fun h => ?_⟩
+  simpa only [ZMod.val_natCast, Nat.mod_mod, ZMod.val_one] using congrArg ZMod.val h
 
 private theorem powSelfHom_pow_totient (N : ℕ) [NeZero N] (b : (ZMod N)ˣ) :
     (Paillier.powSelfHom N b) ^ N.totient = 1 := by
@@ -243,24 +234,16 @@ private theorem dcrTotientTest_eq_decide (d : Desc) (u : (ZMod (d.modulus ^ 2))�
     (a b : ℕ) :
     dcrTotientTest d.modulus (u : ZMod (d.modulus ^ 2)).val a b =
       decide (1 < a ∧ 1 < b ∧ a * b = d.modulus ∧ u ^ d.modulus.totient = 1) := by
-  have hN0 : d.modulus ≠ 0 := NeZero.ne d.modulus
   unfold dcrTotientTest
-  simp only [hN0, ↓reduceIte]
-  by_cases hfac : 1 < a ∧ 1 < b ∧ a * b = d.modulus
-  · rcases hfac with ⟨ha, hb, hab⟩
-    have htot : (a - 1) * (b - 1) = d.modulus.totient := by
-      rw [← d.totient_eq]
-      rcases mul_eq_mul_primes_cases d.property.prime_fst d.property.prime_snd ha hb hab with
-        ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-      · rfl
-      · exact mul_comm _ _
-    simp [ha, hb, hab, htot, val_pow_mod_sq_eq_one_iff]
-  · have hf1 : decide (1 < a ∧ 1 < b ∧ a * b = d.modulus ∧
-        (u : ZMod (d.modulus ^ 2)).val ^ ((a - 1) * (b - 1)) % (d.modulus ^ 2) = 1) = false :=
-      decide_eq_false fun h => hfac ⟨h.1, h.2.1, h.2.2.1⟩
-    have hf2 : decide (1 < a ∧ 1 < b ∧ a * b = d.modulus ∧ u ^ d.modulus.totient = 1) = false :=
-      decide_eq_false fun h => hfac ⟨h.1, h.2.1, h.2.2.1⟩
-    rw [hf1, hf2]
+  simp only [NeZero.ne d.modulus, ↓reduceIte, decide_eq_decide]
+  refine and_congr_right fun ha => and_congr_right fun hb => and_congr_right fun hab => ?_
+  have htot : (a - 1) * (b - 1) = d.modulus.totient := by
+    rw [← d.totient_eq]
+    rcases mul_eq_mul_primes_cases d.2.prime_fst d.2.prime_snd ha hb hab with
+      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+    · rfl
+    · exact mul_comm _ _
+  rw [htot, val_pow_mod_sq_eq_one_iff]
 
 /-- In `dcrRealGame`, `factorToDCR F` succeeds with the exact distribution of `modulusFactoringGame`
 on the pushed-forward modulus distribution. -/
@@ -270,21 +253,8 @@ theorem dcrRealGame_factorToDCR (setup : ℕ → PMF Desc)
       modulusFactoringGame (fun k => (setup k).map Desc.modulus) F n := by
   unfold dcrRealGame Game.withSetup dcrRealExperiment modulusFactoringGame factorToDCR
   simp only [ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
-    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_map, Function.comp_def]
-  congr 1
-  funext d
-  have hconst : (fun s : (ZMod (d.modulus ^ 2))ˣ =>
-      (ProbComp.eval (F n d.modulus)).bind fun ab =>
-        PMF.pure (dcrTotientTest d.modulus ((s ^ d.modulus : (ZMod (d.modulus ^ 2))ˣ) :
-          ZMod (d.modulus ^ 2)).val ab.1 ab.2)) =
-      fun _ => (ProbComp.eval (F n d.modulus)).bind fun ab =>
-        PMF.pure (decide (1 < ab.1 ∧ 1 < ab.2 ∧ ab.1 * ab.2 = d.modulus)) := by
-    funext s
-    congr 1
-    funext ab
-    rw [dcrTotientTest_eq_decide, pow_modulus_pow_totient]
-    simp
-  rw [hconst, PMF.bind_const]
+    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_map, Function.comp_def,
+    dcrTotientTest_eq_decide, pow_modulus_pow_totient, and_true, PMF.bind_const]
 
 private theorem unitsEquiv_pow_totient_eq_one_iff (d : Desc)
     (p : Multiplicative (ZMod d.modulus) × (ZMod d.modulus)ˣ) :
@@ -293,53 +263,40 @@ private theorem unitsEquiv_pow_totient_eq_one_iff (d : Desc)
       Paillier.oneAddPowHom d.modulus p.1 * Paillier.powSelfHom d.modulus p.2 := rfl
   rw [heq, mul_pow (Paillier.oneAddPowHom d.modulus p.1) (Paillier.powSelfHom d.modulus p.2),
     powSelfHom_pow_totient, mul_one]
-  constructor
-  · intro hpow
-    have hdvdT : orderOf (Paillier.oneAddPowHom d.modulus p.1) ∣ d.modulus.totient :=
-      orderOf_dvd_of_pow_eq_one hpow
-    have hdvdN : orderOf (Paillier.oneAddPowHom d.modulus p.1) ∣ d.modulus := by
-      refine orderOf_dvd_of_pow_eq_one ?_
-      rw [Paillier.oneAddPowHom_apply, ← pow_mul, mul_comm, pow_mul]
-      unfold Paillier.oneAddUnit
-      rw [Units.pow_ofPowEqOne, one_pow]
-    have hord1 : orderOf (Paillier.oneAddPowHom d.modulus p.1) = 1 :=
-      Nat.eq_one_of_dvd_coprimes d.coprime_totient hdvdN hdvdT
-    have h1 : Paillier.oneAddPowHom d.modulus p.1 = 1 := orderOf_eq_one_iff.mp hord1
-    have hinj : Paillier.unitsEquiv d.modulus d.coprime_totient (p.1, 1) =
-        Paillier.unitsEquiv d.modulus d.coprime_totient (1, 1) := by
-      change Paillier.oneAddPowHom d.modulus p.1 * Paillier.powSelfHom d.modulus 1 = _
-      rw [h1, map_one, mul_one]
-      exact (map_one (Paillier.unitsEquiv d.modulus d.coprime_totient)).symm
-    exact congrArg Prod.fst ((Paillier.unitsEquiv d.modulus d.coprime_totient).injective hinj)
-  · rintro h1
-    rw [h1, map_one, one_pow]
+  refine ⟨fun hpow => ?_, fun h1 => by rw [h1, map_one, one_pow]⟩
+  have hdvdN : orderOf (Paillier.oneAddPowHom d.modulus p.1) ∣ d.modulus :=
+    orderOf_dvd_of_pow_eq_one <| by
+      rw [Paillier.oneAddPowHom_apply, ← pow_mul, mul_comm, pow_mul, Paillier.oneAddUnit,
+        Units.pow_ofPowEqOne, one_pow]
+  have h1 : Paillier.oneAddPowHom d.modulus p.1 = 1 := orderOf_eq_one_iff.mp <|
+    Nat.eq_one_of_dvd_coprimes d.coprime_totient hdvdN (orderOf_dvd_of_pow_eq_one hpow)
+  exact congrArg Prod.fst <| (Paillier.unitsEquiv d.modulus d.coprime_totient).injective
+    (a₁ := (p.1, 1)) (a₂ := (1, 1)) <| by
+      change Paillier.oneAddPowHom d.modulus p.1 * Paillier.powSelfHom d.modulus 1 =
+        Paillier.oneAddPowHom d.modulus 1 * Paillier.powSelfHom d.modulus 1
+      rw [h1, map_one, map_one]
 
 private theorem two_mul_card_filter_pow_totient_eq_one_le (d : Desc) :
     2 * (Finset.univ.filter (fun y : (ZMod (d.modulus ^ 2))ˣ =>
       y ^ d.modulus.totient = 1)).card ≤ Fintype.card (ZMod (d.modulus ^ 2))ˣ := by
+  let e := Paillier.unitsEquiv d.modulus d.coprime_totient
   have hcard : (Finset.univ.filter (fun y : (ZMod (d.modulus ^ 2))ˣ =>
       y ^ d.modulus.totient = 1)).card = Fintype.card (ZMod d.modulus)ˣ := by
     rw [← Finset.card_univ]
-    refine (Finset.card_bij (fun b _ => Paillier.unitsEquiv d.modulus d.coprime_totient (1, b))
-      (fun b _ => ?_) (fun b₁ _ b₂ _ h => ?_) (fun y hy => ?_)).symm
-    · rw [Finset.mem_filter]
-      exact ⟨Finset.mem_univ _, (unitsEquiv_pow_totient_eq_one_iff d (1, b)).mpr rfl⟩
-    · exact congrArg Prod.snd ((Paillier.unitsEquiv d.modulus d.coprime_totient).injective h)
-    · rw [Finset.mem_filter] at hy
-      set p := (Paillier.unitsEquiv d.modulus d.coprime_totient).symm y
-      have hp : Paillier.unitsEquiv d.modulus d.coprime_totient p = y :=
-        (Paillier.unitsEquiv d.modulus d.coprime_totient).apply_symm_apply y
-      have hp1 : p.1 = 1 :=
-        (unitsEquiv_pow_totient_eq_one_iff d p).mp (hp.symm ▸ hy.2)
-      refine ⟨p.2, Finset.mem_univ _, ?_⟩
-      calc Paillier.unitsEquiv d.modulus d.coprime_totient (1, p.2)
-          = Paillier.unitsEquiv d.modulus d.coprime_totient (p.1, p.2) := by rw [hp1]
-        _ = y := hp
-  have hcard_sq : Fintype.card (ZMod (d.modulus ^ 2))ˣ =
-      d.modulus * Fintype.card (ZMod d.modulus)ˣ := by
-    rw [← Fintype.card_congr (Paillier.unitsEquiv d.modulus d.coprime_totient).toEquiv,
-      Fintype.card_prod, Fintype.card_congr Multiplicative.toAdd, ZMod.card]
-  rw [hcard, hcard_sq]
+    refine (Finset.card_bij (fun b _ => e (1, b))
+      (fun b _ => Finset.mem_filter.mpr ⟨Finset.mem_univ _,
+        (unitsEquiv_pow_totient_eq_one_iff d (1, b)).mpr rfl⟩)
+      (fun _ _ _ _ h => congrArg Prod.snd (e.injective h)) fun y hy => ?_).symm
+    have hp1 : (e.symm y).1 = 1 := by
+      apply (unitsEquiv_pow_totient_eq_one_iff d (e.symm y)).mp
+      rw [e.apply_symm_apply]
+      exact (Finset.mem_filter.mp hy).2
+    refine ⟨(e.symm y).2, Finset.mem_univ _, ?_⟩
+    calc e (1, (e.symm y).2)
+        = e ((e.symm y).1, (e.symm y).2) := by rw [hp1]
+      _ = y := by rw [Prod.mk.eta, e.apply_symm_apply]
+  rw [hcard, ← Fintype.card_congr e.toEquiv, Fintype.card_prod,
+    Fintype.card_congr Multiplicative.toAdd, ZMod.card]
   exact Nat.mul_le_mul_right _ d.one_lt_modulus
 
 /-- Twice the success probability of `factorToDCR F` in `dcrRandomGame` is at most the factoring
@@ -407,25 +364,17 @@ theorem succProbability_modulusFactoringGame_le_two_mul_advantage_dcrGame
         (modulusFactoringGame (fun k => (setup k).map Desc.modulus) F n) ≤
       2 * Game.advantage (dcrRealGame setup (factorToDCR F) n)
         (dcrRandomGame setup (factorToDCR F) n) := by
-  have hreal : Game.succProbability (dcrRealGame setup (factorToDCR F) n) =
-      Game.succProbability
-        (modulusFactoringGame (fun k => (setup k).map Desc.modulus) F n) := by
-    rw [dcrRealGame_factorToDCR]
   have hrand := two_mul_succProbability_dcrRandomGame_factorToDCR_le setup F n
   unfold Game.advantage
-  rw [hreal]
-  set p := Game.succProbability
-    (modulusFactoringGame (fun k => (setup k).map Desc.modulus) F n)
+  rw [dcrRealGame_factorToDCR, NNReal.nndist_eq]
+  set p := Game.succProbability (modulusFactoringGame (fun k => (setup k).map Desc.modulus) F n)
   set q := Game.succProbability (dcrRandomGame setup (factorToDCR F) n)
-  have hle : q ≤ p := by
-    have : 1 * q ≤ 2 * q := mul_le_mul_of_nonneg_right (by norm_num) zero_le
-    exact (one_mul q ▸ this).trans hrand
-  rw [NNReal.nndist_eq]
-  have hsub : p ≤ 2 * (p - q) := by
-    rw [← NNReal.coe_le_coe, NNReal.coe_mul, NNReal.coe_ofNat, NNReal.coe_sub hle]
-    rw [← NNReal.coe_le_coe, NNReal.coe_mul, NNReal.coe_ofNat] at hrand
-    linarith
-  exact hsub.trans (mul_le_mul_of_nonneg_left (le_max_left (p - q) (q - p)) zero_le)
+  have hle : q ≤ p := le_trans
+    (by simpa using mul_le_mul_of_nonneg_right (by norm_num : (1 : ℝ≥0) ≤ 2) zero_le) hrand
+  refine (NNReal.coe_le_coe.mp ?_).trans (mul_le_mul_of_nonneg_left (le_max_left _ _) zero_le)
+  rw [NNReal.coe_mul, NNReal.coe_ofNat, NNReal.coe_sub hle]
+  rw [← NNReal.coe_le_coe, NNReal.coe_mul, NNReal.coe_ofNat] at hrand
+  linarith
 
 /-- **Decisional composite residuosity hardness implies integer factoring hardness**: if `setup`
 satisfies `DCR`, then factoring `N = d.modulus` is hard for

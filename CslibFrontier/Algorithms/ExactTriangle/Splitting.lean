@@ -248,10 +248,7 @@ private theorem one_le_gap_mul (D : ℕ) :
   have hle := sOf_le_sqrt D
   have hlt := sqrt_lt_sOf_add_one D
   have hinteger : (D : ℝ) + 1 ≤ ((sOf D : ℝ) + 1) ^ 2 := by
-    have hreal : (D : ℝ) < ((sOf D : ℝ) + 1) ^ 2 :=
-      hsq ▸ pow_lt_pow_left₀ hlt (Real.sqrt_nonneg _) two_ne_zero
-    have hnat : D < (sOf D + 1) ^ 2 := by exact_mod_cast hreal
-    exact_mod_cast hnat
+    exact_mod_cast (sq (sOf D + 1) ▸ Nat.lt_succ_sqrt D : D + 1 ≤ (sOf D + 1) ^ 2)
   calc (1 : ℝ) ≤ ((sOf D : ℝ) + 1) ^ 2 - Real.sqrt D ^ 2 := by linarith [hinteger, hsq]
     _ = ((sOf D : ℝ) + 1 - Real.sqrt D) * ((sOf D : ℝ) + 1 + Real.sqrt D) := by ring
     _ ≤ ((sOf D : ℝ) + 1 - Real.sqrt D) * (2 * Real.sqrt D + 1) :=

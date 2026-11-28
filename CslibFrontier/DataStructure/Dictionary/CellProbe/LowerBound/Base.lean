@@ -187,33 +187,16 @@ theorem det_expectedSeqProbes_ge_linear (withQueries : Bool) {U V n cells w : �
         rw [take_n_modeOps_eq_initInsertSeq, take_n_modeOps_eq_initInsertSeq]
         exact hget_eq k hk hne
       rwa [List.getElem?_take_of_lt hk, List.getElem?_take_of_lt hk] at h
-    have hlen_ge (s' : HardKeyValSeed U V n) : n ≤ (s'.modeOps withQueries).length := by
-      have h := congrArg List.length (take_n_modeOps_eq_initInsertSeq withQueries s')
-      rw [List.length_take, length_initInsertSeq] at h; omega
-    have htake_i : ops₁.take i.val = ops₂.take i.val := by
-      refine List.ext_getElem (by
-        simp only [List.length_take]
-        have := hlen_ge s; have := hlen_ge s₂; dsimp only [ops₁, ops₂]; omega) fun j hj₁ hj₂ => ?_
-      have hj_lt_i : j < i.val := by
-        simp only [List.length_take, lt_inf_iff] at hj₁; exact hj₁.1
-      have hj_lt_n : j < n := hj_lt_i.trans i.isLt
-      rw [List.getElem_take, List.getElem_take]
-      have hopt := hops_raw hj_lt_n hj_lt_i.ne
-      rw [List.getElem?_eq_getElem (hj_lt_n.trans_le (hlen_ge s)),
-        List.getElem?_eq_getElem (hj_lt_n.trans_le (hlen_ge s₂))] at hopt
-      exact Option.some.inj hopt
+    have htake_i : ops₁.take i.val = ops₂.take i.val := List.ext_getElem? fun j => by
+      rw [List.getElem?_take, List.getElem?_take]
+      split_ifs with hj
+      exacts [hops_raw (hj.trans i.isLt) hj.ne, rfl]
     have hslice_after : elemSlice 0 1 ops₁ (i.val + 1) n = elemSlice 0 1 ops₂ (i.val + 1) n := by
       simp only [elemSlice, Nat.zero_add, Nat.one_mul]
-      refine List.ext_getElem (by
-        simp only [List.length_take, List.length_drop]
-        have := hlen_ge s; have := hlen_ge s₂; dsimp only [ops₁, ops₂]; omega) fun k hk₁ hk₂ => ?_
-      have hk_lt : i.val + 1 + k < n := by
-        simp only [List.length_take, lt_inf_iff] at hk₁; omega
-      rw [List.getElem_take, List.getElem_take, List.getElem_drop, List.getElem_drop]
-      have hopt := hops_raw hk_lt (by omega)
-      rw [List.getElem?_eq_getElem (hk_lt.trans_le (hlen_ge s)),
-        List.getElem?_eq_getElem (hk_lt.trans_le (hlen_ge s₂))] at hopt
-      exact Option.some.inj hopt
+      refine List.ext_getElem? fun k => ?_
+      rw [List.getElem?_take, List.getElem?_take, List.getElem?_drop, List.getElem?_drop]
+      split_ifs with hk
+      exacts [hops_raw (by omega) (by omega), rfl]
     have hmem_step_zero (s' : HardKeyValSeed U V n) (hp : stepProbe s' i.val = 0) :
         memAt D_det (s'.modeOps withQueries) (i.val + 1) =
           memAt D_det (s'.modeOps withQueries) i.val := by
@@ -280,39 +263,24 @@ theorem det_expectedSeqProbes_ge_linear (withQueries : Bool) {U V n cells w : �
         swapInitKeySeed_delPerm, Function.Embedding.trans_apply, Equiv.coe_toEmbedding,
         liftDelPerm_apply_lt s.delPerm k.isLt, u] at heq
       have hinj := s.keys.injective heq
-      by_cases hk : s.delPerm k = i
-      · have hidx : (⟨(s.delPerm k).val, by have := (s.delPerm k).isLt; omega⟩ : Fin (2 * n)) =
-            ⟨i.val, by have := i.isLt; omega⟩ := Fin.ext (congrArg (Fin.val (n := n)) hk)
-        rw [hidx, Equiv.swap_apply_left] at hinj
-        have hv := congrArg Fin.val hinj; dsimp only at hv; omega
-      · have hne1 : (⟨(s.delPerm k).val, by have := (s.delPerm k).isLt; omega⟩ : Fin (2 * n)) ≠
-            ⟨i.val, by have := i.isLt; omega⟩ :=
-          fun h => hk (Fin.ext (congrArg (Fin.val (n := 2 * n)) h))
-        have hne2 : (⟨(s.delPerm k).val, by have := (s.delPerm k).isLt; omega⟩ : Fin (2 * n)) ≠
-            ⟨n + i.val, by have := i.isLt; omega⟩ := by
-          intro h; have hv := congrArg Fin.val h; dsimp only at hv
-          have := (s.delPerm k).isLt; omega
-        rw [Equiv.swap_apply_of_ne_of_ne hne1 hne2] at hinj
-        exact hne1 hinj
+      have := i.isLt; have := (s.delPerm k).isLt
+      rw [Equiv.swap_apply_def] at hinj
+      split_ifs at hinj with h1 h2
+      · simp only [Fin.ext_iff] at hinj; omega
+      · simp only [Fin.ext_iff] at h2; omega
+      · exact h1 hinj
     have hcon := (congrFun hdict_eq u).symm.trans hu1
     rw [hu2] at hcon; cases hcon
   have hstep_ge (i : Fin n) : (1 / 2 : ℝ) ≤ ∑ s, (μ s).toReal * (stepProbe s i.val : ℝ) := by
-    have hμ_const (s : HardKeyValSeed U V n) : (μ (swapInitKeySeed i s)).toReal = (μ s).toReal := by
-      simp only [μ, PMF.uniformOfFintype_apply]
     have hswap_sum : (∑ s, (μ s).toReal * (stepProbe (swapInitKeySeed i s) i.val : ℝ)) =
         ∑ s, (μ s).toReal * (stepProbe s i.val : ℝ) := by
       conv_rhs => rw [← Equiv.sum_comp (swapInitKeySeed i)]
-      exact Finset.sum_congr rfl fun s _ => by rw [hμ_const]
-    have h2 : (1 : ℝ) ≤ 2 * ∑ s, (μ s).toReal * (stepProbe s i.val : ℝ) :=
-      calc (1 : ℝ) = ∑ s, (μ s).toReal * 1 := by rw [← Finset.sum_mul, PMF.sum_toReal, one_mul]
-        _ ≤ ∑ s, (μ s).toReal *
-              ((stepProbe s i.val : ℝ) + (stepProbe (swapInitKeySeed i s) i.val : ℝ)) :=
-            Finset.sum_le_sum fun s _ =>
-              mul_le_mul_of_nonneg_left (by exact_mod_cast hone_le_pair i s) ENNReal.toReal_nonneg
-        _ = (∑ s, (μ s).toReal * (stepProbe s i.val : ℝ)) +
-              (∑ s, (μ s).toReal * (stepProbe (swapInitKeySeed i s) i.val : ℝ)) := by
-            simp_rw [mul_add, Finset.sum_add_distrib]
-        _ = 2 * ∑ s, (μ s).toReal * (stepProbe s i.val : ℝ) := by rw [hswap_sum]; ring
+      simp only [μ, PMF.uniformOfFintype_apply]
+    have h1 : (1 : ℝ) ≤ ∑ s, (μ s).toReal *
+        ((stepProbe s i.val : ℝ) + (stepProbe (swapInitKeySeed i s) i.val : ℝ)) :=
+      (PMF.sum_toReal μ).symm.le.trans (Finset.sum_le_sum fun s _ =>
+        le_mul_of_one_le_right ENNReal.toReal_nonneg (by exact_mod_cast hone_le_pair i s))
+    simp only [mul_add, Finset.sum_add_distrib, hswap_sum] at h1
     linarith
   calc ((n : ℝ) / 2) = ∑ _i : Fin n, (1 / 2 : ℝ) := by
         rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]; ring

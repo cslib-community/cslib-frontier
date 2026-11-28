@@ -57,18 +57,16 @@ theorem ofRotation_deleteLastArgumentRotation (F : CSP Rel V) (r : Rel) (scope :
     RotationCertificate.ofRotation (deleteLastArgumentRotation F r scope v ρ) =
       restrictPrefix (2 * (F ++ [Constraint.mk r scope]).occurrences.length)
         (RotationCertificate.ofRotation ρ) := by
-  have he : (lastArgumentPrefixGraph F r scope v).edges.length =
-      (F ++ [Constraint.mk r scope]).occurrences.length := by
-    simp [lastArgumentPrefixGraph]
   change RotationCertificate.ofRotation
     (((lastArgumentSourceRotation F r scope v ρ).deleteLastEdge
       (G := lastArgumentPrefixGraph F r scope v)
       (u := (F ++ [Constraint.mk r (scope ++ [v])]).distinctVars.idxOf v)
       (v := (F ++ [Constraint.mk r (scope ++ [v])]).numVars + F.length)).transport
         (lastArgumentDartEquiv F r scope v) (lastArgumentDartEquiv_vertex_eq_iff F r scope v)) = _
-  rw [ofRotation_transport _ _ _ (by intro a; rfl)]
-  rw [← restrictPrefix_ofRotation_deleteLastEdge, he]
-  rw [lastArgumentSourceRotation, ofRotation_graphEqDartEquiv]
+  rw [ofRotation_transport _ _ _ fun _ => rfl, ← restrictPrefix_ofRotation_deleteLastEdge,
+    show (lastArgumentPrefixGraph F r scope v).2.length =
+      (F ++ [Constraint.mk r scope]).occurrences.length by simp [lastArgumentPrefixGraph],
+    lastArgumentSourceRotation, ofRotation_graphEqDartEquiv]
 
 /-- On an accepted raw numerical source certificate, the literal boundary restriction
 passes the actual target numerical checker. Dense renaming, repeated variables and
@@ -80,19 +78,12 @@ theorem verifyGenusZero_restrictPrefix_lastArgument (F : CSP Rel V) (r : Rel)
     RotationCertificate.verifyGenusZero (incidenceGraph (F ++ [Constraint.mk r scope]))
       (restrictPrefix (2 * (F ++ [Constraint.mk r scope]).occurrences.length) c) = true := by
   obtain ⟨hrot, hgenus⟩ := (RotationCertificate.verifyGenusZero_eq_true_iff _ _).mp h
-  let ρ :=
-    RotationCertificate.decode (incidenceGraph (F ++ [Constraint.mk r (scope ++ [v])])) c hrot
-  let τ := deleteLastArgumentRotation F r scope v ρ
-  have hτ : τ.NumericalGenusZero :=
-    numericalGenusZero_deleteLastArgumentRotation F r scope v ρ hgenus
-  have hout : RotationCertificate.ofRotation τ =
-      restrictPrefix (2 * (F ++ [Constraint.mk r scope]).occurrences.length) c := by
-    rw [ofRotation_deleteLastArgumentRotation, RotationCertificate.ofRotation_decode hrot]
-  rw [← hout]
-  apply (RotationCertificate.verifyGenusZero_eq_true_iff _ _).mpr
+  let τ := deleteLastArgumentRotation F r scope v (RotationCertificate.decode _ c hrot)
+  rw [← RotationCertificate.ofRotation_decode hrot, ← ofRotation_deleteLastArgumentRotation,
+    RotationCertificate.verifyGenusZero_eq_true_iff]
   refine ⟨RotationCertificate.verifyRotation_ofRotation τ (incidenceVertices_declared _), ?_⟩
   rw [RotationCertificate.decode_ofRotation _ (incidenceVertices_declared _)]
-  exact hτ
+  exact numericalGenusZero_deleteLastArgumentRotation F r scope v _ hgenus
 
 omit [DecidableEq V] in
 private theorem argumentOrder_restrictPrefix_lastArgument_of_clock (F : CSP Rel V)

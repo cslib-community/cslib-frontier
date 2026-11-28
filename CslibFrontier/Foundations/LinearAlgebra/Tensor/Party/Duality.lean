@@ -51,14 +51,13 @@ theorem UpperFunctional.exists_spectralPoint_le (P : UpperFunctional K I) :
       ∀ (x y : PartyTensor K I) (c : ℝ), 0 ≤ c → (∀ t, P (t * x) ≤ c * P (t * y)) →
         ∀ t, F (t * x) ≤ c * F (t * y) := by
   obtain ⟨F, hF, hmul, hle, hk⟩ := P.isUpperFunctional_lift.exists_map_mul
-  let G : SpectralPoint K I :=
-    { toFun t := F (toAntisymmetrization (· ≤ ·) t)
+  refine ⟨{
+      toFun t := F (toAntisymmetrization (· ≤ ·) t)
       nonneg _ := hF.nonneg _
       map_one := hF.map_one
-      le_sum s b hb := hF.le_sum _ _ (tensorCovering_coveredBy.2 hb)
-      map_mul s t := by rw [toAntisymmetrization_mul, hmul] }
-  refine ⟨G,
-    fun t => hle _, fun x y c hc h t => ?_⟩
+      le_sum _ _ hb := hF.le_sum _ _ (tensorCovering_coveredBy.2 hb)
+      map_mul _ _ := by rw [toAntisymmetrization_mul, hmul] },
+    fun _ => hle _, fun x y c hc h t => ?_⟩
   have h1 := hk _ _ c hc (UpperFunctional.respects_lift h) (toAntisymmetrization (· ≤ ·) t)
   rwa [← toAntisymmetrization_mul, ← toAntisymmetrization_mul] at h1
 
@@ -87,12 +86,10 @@ theorem exists_coveredBy_pow_of_forall_le [Nonempty I] {B : Type} [Fintype B] [D
     intro N
     rw [← mul_pow, ← Real.rpow_add (by norm_num), add_halves, Real.rpow_mul (by norm_num),
       Real.rpow_natCast]
-  have hone : ∀ t : Antisymmetrization (PartyTensor K I) (· ≤ ·),
-      ∃ r : ℕ, (tensorCovering K I).CoveredBy t (fun _ : Fin r => 1) := by
-    intro t
-    obtain ⟨r, hr⟩ := exists_coveredBy_copies (ofAntisymmetrization (· ≤ ·) t) (le_refl 1)
-    rw [toAntisymmetrization_ofAntisymmetrization] at hr
-    exact ⟨r, hr⟩
+  have hone (t : Antisymmetrization (PartyTensor K I) (· ≤ ·)) :
+      ∃ r : ℕ, (tensorCovering K I).CoveredBy t (fun _ : Fin r => 1) :=
+    toAntisymmetrization_ofAntisymmetrization (· ≤ ·) t ▸
+      exists_coveredBy_copies (ofAntisymmetrization (· ≤ ·) t) le_rfl
   obtain ⟨β₀, hβ₀⟩ := hA
   by_cases hcert : ∃ k W,
       Nonempty (Certificate (tensorCovering K I) (toAntisymmetrization (· ≤ ·) C)
@@ -128,7 +125,7 @@ theorem exists_coveredBy_pow_of_forall_le [Nonempty I] {B : Type} [Fintype B] [D
       simpa only [UpperFunctional.ofIsUpperFunctional_apply] using h5) 1
     rw [F.congr (antisymmRel_one_mul _), F.congr (antisymmRel_one_mul _)] at h2
     obtain ⟨x, hx⟩ := hC
-    have h3 : 1 ≤ F C := F.one_le hx
-    nlinarith
+    exact not_lt_of_ge (hβ.trans h2)
+      ((mul_lt_mul_of_pos_right hη1 (by linarith [F.one_le hx])).trans_eq (one_mul _))
 
 end Cslib.PartyTensor

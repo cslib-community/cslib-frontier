@@ -131,9 +131,7 @@ private theorem size_le_two_pow (c ℓ e g T F K : ℕ) (hT : T ≤ 2 ^ (4 * g +
         (8 + 2 * (2 ^ K - 1) * (2 ^ K + 1))) + 3 * T + 1 ≤
       2 ^ (11 * g + 9 * e + 3 * ℓ + 80) * (c + 1) := by
   have hN := nwTerm_le ℓ
-  have hP8 : 8 ≤ 2 ^ (3 * ℓ + 3) :=
-    calc 8 = 2 ^ 3 := by norm_num
-      _ ≤ 2 ^ (3 * ℓ + 3) := Nat.pow_le_pow_right (by norm_num) (by omega)
+  have hP8 : 2 ^ 3 ≤ 2 ^ (3 * ℓ + 3) := Nat.pow_le_pow_right (by norm_num) (by omega)
   set N := 2 ^ ℓ * (2 ^ (ℓ - 1) * (2 * (ℓ - 1) + 3) + 1)
   set P := 2 ^ (3 * ℓ + 3) with hP
   set B := 2 ^ K with hB
@@ -148,8 +146,7 @@ private theorem size_le_two_pow (c ℓ e g T F K : ℕ) (hT : T ≤ 2 ^ (4 * g +
       5 * B ^ 2 * (c + N + 3) := by
     have h1 : (B - 1) * (c + N + 3) ≤ B ^ 2 * (c + N + 3) := by
       gcongr
-      calc B - 1 ≤ B := Nat.sub_le _ _
-        _ ≤ B ^ 2 := Nat.le_self_pow (by norm_num) B
+      exact (Nat.sub_le _ _).trans (Nat.le_self_pow (by norm_num) B)
     have h2 : 2 * (B - 1) * (B + 1) ≤ 4 * B ^ 2 :=
       calc 2 * (B - 1) * (B + 1) ≤ 2 * B * (B + B) := by gcongr; omega
         _ = 4 * B ^ 2 := by ring
@@ -194,8 +191,7 @@ private theorem size_le_two_pow (c ℓ e g T F K : ℕ) (hT : T ≤ 2 ^ (4 * g +
   have hsum : 2 ^ (5 * g + 5 * e + 39) * (2 ^ (6 * g + 4 * e + 3 * ℓ + 40) * (c + 1)) =
       2 ^ (11 * g + 9 * e + 3 * ℓ + 79) * (c + 1) := by ring
   have htot : 2 ^ (11 * g + 9 * e + 3 * ℓ + 80) * (c + 1) =
-      2 * (2 ^ (11 * g + 9 * e + 3 * ℓ + 79) * (c + 1)) := by
-    ring
+      2 * (2 ^ (11 * g + 9 * e + 3 * ℓ + 79) * (c + 1)) := by ring
   have ht1 : 1 ≤ 2 ^ (4 * g + 3 * e + 26) := Nat.one_le_two_pow
   omega
 

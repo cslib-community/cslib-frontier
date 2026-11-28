@@ -70,15 +70,15 @@ open Cslib.BitString
 
 /-! ### Single-coordinate contraction helpers -/
 
-private theorem abs_apply_le_of_lipschitzWith {g : ℝ → ℝ} {K : ℝ≥0} (hg : LipschitzWith K g)
-    {t B : ℝ} (ht : |t| ≤ B) :
-    |g t| ≤ |g 0| + K * max B 0 := by
-  have hdist : |g t - g 0| ≤ K * |t| := by
-    simpa only [Real.dist_eq, sub_zero] using hg.dist_le_mul t 0
+private theorem abs_apply_le_of_lipschitzWith {m : ℕ} {φ : Fin m → ℝ → ℝ} {K : ℝ≥0}
+    (hφ : ∀ i, LipschitzWith K (φ i)) (i : Fin m) {t B : ℝ} (ht : |t| ≤ B) :
+    |φ i t| ≤ (∑ i' : Fin m, |φ i' 0|) + K * max B 0 := by
+  have hdist : |φ i t - φ i 0| ≤ K * |t| := by
+    simpa only [Real.dist_eq, sub_zero] using (hφ i).dist_le_mul t 0
   have hmul : (K : ℝ) * |t| ≤ K * max B 0 :=
     mul_le_mul_of_nonneg_left (ht.trans (le_max_left _ _)) K.coe_nonneg
-  have habs : |g t| - |g 0| ≤ |g t - g 0| := abs_sub_abs_le_abs_sub (g t) (g 0)
-  linarith
+  linarith [abs_sub_abs_le_abs_sub (φ i t) (φ i 0), Finset.single_le_sum
+    (f := fun i' : Fin m => |φ i' 0|) (fun _ _ => abs_nonneg _) (Finset.mem_univ i)]
 
 /-- Two-sign contraction step: for any bounded `u, x : ι → ℝ` and `K`-Lipschitz `g : ℝ → ℝ`,
 averaging over the two signs `+1` and `-1` replaces `g (x j)` by `K * x j`. -/
@@ -99,24 +99,17 @@ private theorem ciSup_add_ciSup_lipschitz_le {ι : Type*} [Nonempty ι] {u x : �
     linarith
   have hbdd_pos : BddAbove (Set.range fun j => u j + (K : ℝ) * x j) := hbdd_lin hx
   have hbdd_neg : BddAbove (Set.range fun j => u j - (K : ℝ) * x j) := by
-    simpa only [mul_neg, ← sub_eq_add_neg] using hbdd_lin (v := fun j => -x j) fun j => by
-      rw [abs_neg]
-      exact hx j
+    simpa only [mul_neg, ← sub_eq_add_neg] using
+      hbdd_lin (v := fun j => -x j) fun j => (abs_neg _).trans_le (hx j)
   set S := (⨆ j, (u j + (K : ℝ) * x j)) + ⨆ j, (u j - (K : ℝ) * x j)
   have hpair : ∀ j₁ j₂ : ι, (u j₁ + g (x j₁)) + (u j₂ - g (x j₂)) ≤ S := by
     intro j₁ j₂
     have hlip : |g (x j₁) - g (x j₂)| ≤ K * |x j₁ - x j₂| := by
       simpa only [Real.dist_eq] using hg.dist_le_mul (x j₁) (x j₂)
     have hdiff : g (x j₁) - g (x j₂) ≤ K * |x j₁ - x j₂| := (le_abs_self _).trans hlip
-    rcases le_total (x j₂) (x j₁) with hle | hle
-    · rw [abs_of_nonneg (sub_nonneg.2 hle)] at hdiff
-      have h1 := le_ciSup hbdd_pos j₁
-      have h2 := le_ciSup hbdd_neg j₂
-      linarith
-    · rw [abs_of_nonpos (sub_nonpos.2 hle)] at hdiff
-      have h1 := le_ciSup hbdd_pos j₂
-      have h2 := le_ciSup hbdd_neg j₁
-      linarith
+    rcases abs_cases (x j₁ - x j₂) with ⟨h, -⟩ | ⟨h, -⟩ <;> rw [h] at hdiff <;>
+      linarith [le_ciSup hbdd_pos j₁, le_ciSup hbdd_neg j₂, le_ciSup hbdd_pos j₂,
+        le_ciSup hbdd_neg j₁]
   have hstep : ∀ j₁ : ι, u j₁ + g (x j₁) ≤ S - ⨆ j₂, (u j₂ - g (x j₂)) := by
     intro j₁
     have h2 : (⨆ j₂, (u j₂ - g (x j₂))) ≤ S - (u j₁ + g (x j₁)) :=
@@ -128,13 +121,9 @@ private def flipSignAt {m : ℕ} (i₀ : Fin m) (σ : Fin m → Bool) : Fin m �
   Function.update σ i₀ (!σ i₀)
 
 private theorem flipSignAt_involutive {m : ℕ} (i₀ : Fin m) :
-    Function.Involutive (flipSignAt i₀) := by
-  intro σ
-  funext i
-  by_cases hi : i = i₀
-  · subst hi
-    simp only [flipSignAt, Function.update_self, Bool.not_not]
-  · simp only [flipSignAt, Function.update_of_ne hi]
+    Function.Involutive (flipSignAt i₀) := fun σ => by
+  simp only [flipSignAt, Function.update_idem, Function.update_self, Bool.not_not,
+    Function.update_eq_self]
 
 private theorem two_mul_expect_eq_expect_add_flipSignAt {m : ℕ} (i₀ : Fin m)
     (F : (Fin m → Bool) → ℝ) :
@@ -188,17 +177,13 @@ private theorem expect_ciSup_sum_update_lipschitz_le {ι : Type*} [Nonempty ι] 
     rw [ciSup_sum_update_add_flipSignAt i₀ b (fun j => g (x j)) σ,
       ciSup_sum_update_add_flipSignAt i₀ b (fun j => (K : ℝ) * x j) σ]
     refine ciSup_add_ciSup_lipschitz_le (Bu := m * max Bb 0) (fun j => ?_) hx hg
-    calc |∑ i ∈ Finset.univ.erase i₀, b j i * signVal (σ i)|
-        ≤ ∑ i ∈ Finset.univ.erase i₀, |b j i * signVal (σ i)| := abs_sum_le_sum_abs _ _
-      _ ≤ ∑ _i ∈ Finset.univ.erase i₀, max Bb 0 :=
-          Finset.sum_le_sum fun i _ => by
-            rw [abs_mul, abs_signVal, mul_one]
-            exact (hb j i).trans (le_max_left _ _)
-      _ = ((Finset.univ.erase i₀).card : ℝ) * max Bb 0 := by
-          rw [Finset.sum_const, nsmul_eq_mul]
-      _ ≤ m * max Bb 0 := by
-          gcongr
-          exact_mod_cast (Finset.card_le_univ _).trans_eq (Fintype.card_fin m)
+    refine (abs_sum_le_sum_abs _ _).trans <|
+      (Finset.sum_le_card_nsmul _ _ (max Bb 0) fun i _ => ?_).trans ?_
+    · rw [abs_mul, abs_signVal, mul_one]
+      exact (hb j i).trans (le_max_left _ _)
+    · rw [nsmul_eq_mul]
+      gcongr
+      exact_mod_cast (Finset.card_le_univ _).trans_eq (Fintype.card_fin m)
   have h2 := Finset.expect_le_expect (s := Finset.univ) fun σ _ => hle σ
   rw [← two_mul_expect_eq_expect_add_flipSignAt i₀ F₁,
     ← two_mul_expect_eq_expect_add_flipSignAt i₀ F₂] at h2
@@ -223,15 +208,10 @@ theorem rademacherAverage_comp_le {ι : Type*} {m : ℕ} {a : ι → Fin m → �
   have hinterp_bdd (k : ℕ) (j : ι) (i : Fin m) : |interp k j i| ≤ M0 := by
     dsimp only [interp, M0]
     split_ifs with hik
-    · have h0 : |φ i 0| ≤ ∑ i' : Fin m, |φ i' 0| :=
-        Finset.single_le_sum (f := fun i' : Fin m => |φ i' 0|) (fun _ _ => abs_nonneg _)
-          (Finset.mem_univ i)
-      linarith [abs_apply_le_of_lipschitzWith (hφ i) (ha j i)]
-    · have hsum_nn : 0 ≤ ∑ i' : Fin m, |φ i' 0| := Finset.sum_nonneg fun _ _ => abs_nonneg _
-      have hmul : |(K : ℝ) * a j i| ≤ K * max B 0 := by
-        rw [abs_mul, abs_of_nonneg K.coe_nonneg]
-        exact mul_le_mul_of_nonneg_left ((ha j i).trans (le_max_left _ _)) K.coe_nonneg
-      linarith
+    · exact abs_apply_le_of_lipschitzWith hφ i (ha j i)
+    · rw [abs_mul, NNReal.abs_eq]
+      have := mul_le_mul_of_nonneg_left ((ha j i).trans (le_max_left B 0)) K.coe_nonneg
+      linarith [Finset.sum_nonneg (s := Finset.univ) fun i' _ => abs_nonneg (φ i' 0)]
   have hind : ∀ k ≤ m,
       (𝔼 σ : Fin m → Bool, ⨆ j, ∑ i, interp k j i * signVal (σ i)) ≤
         𝔼 σ : Fin m → Bool, ⨆ j, ∑ i, interp 0 j i * signVal (σ i) := by
@@ -282,7 +262,7 @@ theorem rademacherAverage_comp_le_empiricalRademacherComplexity {Z : Type*} {F :
     rademacherAverage (fun (f : F) i => φ i ((f : Z → ℝ) (S i))) ≤
       K * empiricalRademacherComplexity F S := by
   rw [empiricalRademacherComplexity_def]
-  exact rademacherAverage_comp_le (fun (f : F) i => hF f.val f.property (S i)) hφ
+  exact rademacherAverage_comp_le (fun (f : F) i => hF f.1 f.2 (S i)) hφ
 
 /-- **Empirical Rademacher contraction under example-dependent Lipschitz maps**: if `F` is a
 uniformly bounded set of functions `X → ℝ`, `g : Z → X` extracts features from examples, and
@@ -296,12 +276,8 @@ theorem empiricalRademacherComplexity_image_comp_le_of_map {Z X : Type*} {F : Se
       K * empiricalRademacherComplexity F (fun i => g (S i)) := by
   rw [empiricalRademacherComplexity_def]
   have hcomp_bdd : ∀ (f : F) (i : Fin m),
-      |φ (S i) ((f : X → ℝ) (g (S i)))| ≤ (∑ i' : Fin m, |φ (S i') 0|) + K * max B 0 := by
-    intro f i
-    have h0 : |φ (S i) 0| ≤ ∑ i' : Fin m, |φ (S i') 0| :=
-      Finset.single_le_sum (f := fun i' : Fin m => |φ (S i') 0|) (fun _ _ => abs_nonneg _)
-        (Finset.mem_univ i)
-    linarith [abs_apply_le_of_lipschitzWith (hφ (S i)) (hF f.val f.property (g (S i)))]
+      |φ (S i) ((f : X → ℝ) (g (S i)))| ≤ (∑ i' : Fin m, |φ (S i') 0|) + K * max B 0 :=
+    fun f i => abs_apply_le_of_lipschitzWith (fun i => hφ (S i)) i (hF f.1 f.2 (g (S i)))
   refine (rademacherAverage_le_of_forall_exists hcomp_bdd ?_).trans
     (rademacherAverage_comp_le_empiricalRademacherComplexity hF (fun i => g (S i))
       fun i => hφ (S i))
@@ -329,9 +305,8 @@ theorem rademacherComplexity_image_comp_le_of_map {Z X : Type*} [Fintype Z] [Fin
   rw [rademacherComplexity_def, rademacherComplexity_def, Probability.PMF.pi_map,
     Probability.PMF.sum_map_mul, Finset.mul_sum]
   refine Finset.sum_le_sum fun S _ => ?_
-  rw [← mul_assoc, mul_comm (K : ℝ), mul_assoc]
-  exact mul_le_mul_of_nonneg_left
-    (empiricalRademacherComplexity_image_comp_le_of_map hF g hφ S) ENNReal.toReal_nonneg
+  exact (mul_le_mul_of_nonneg_left (empiricalRademacherComplexity_image_comp_le_of_map hF g hφ S)
+    ENNReal.toReal_nonneg).trans_eq (mul_left_comm _ _ _)
 
 /-- **Population Rademacher contraction for `(φ ∘ ·) '' F`**
 [MohriRostamizadehTalwalkar2018, Lemma 5.7]: composing a uniformly bounded class `F : Set (Z → ℝ)`
@@ -342,7 +317,6 @@ theorem rademacherComplexity_image_comp_le {Z : Type*} [Fintype Z] (D : PMF Z)
     (hφ : LipschitzWith K φ) (m : ℕ) :
     rademacherComplexity D ((φ ∘ ·) '' F) m ≤ K * rademacherComplexity D F m := by
   have h := rademacherComplexity_image_comp_le_of_map D hF id (fun _ => hφ) m
-  rw [PMF.map_id] at h
-  exact h
+  rwa [PMF.map_id] at h
 
 end Cslib.MachineLearning

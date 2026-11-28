@@ -1143,18 +1143,10 @@ private theorem length_interleavedOpenRoundStep_le {Msg : Type} [Inhabited Msg]
   refine length_interleavedOpenRoundStep_le_aux hlenStep (fun m hm ct hct => ?_) (fun c hc => ?_)
   · have he := hlenEnc (q.2.1.1, q.2.1.2, m) ct hct
     simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply] at he
-    have hbase :
-        2 * q.2.1.1 + 1 + (2 * q.2.1.2.length + 1 + (encMsg m).length) + 1 ≤
-          2 * q.2.1.1 + 2 * q.2.1.2.length + cs * (q.2.1.1 + q.2.1.2.length + 2) ^ ds + 5 := by
-      omega
-    exact he.trans (Nat.mul_le_mul_left ce (Nat.pow_le_pow_left hbase de))
+    exact he.trans (Nat.mul_le_mul_left ce (Nat.pow_le_pow_left (by omega) de))
   · have hd := hlenDec (q.2.1.1, c)
     simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply] at hd
-    have hbase :
-        2 * q.2.1.1 + 1 + c.length + 1 ≤
-          2 * q.2.1.1 + cs * (q.2.1.1 + q.2.1.2.length + 2) ^ ds + 3 := by
-      omega
-    exact hd.trans (Nat.mul_le_mul_left cd (Nat.pow_le_pow_left hbase dd))
+    exact hd.trans (Nat.mul_le_mul_left cd (Nat.pow_le_pow_left (by omega) dd))
 
 /-- Iterating `interleavedOpenRoundStep` `q.1` times from `q.2.2` is uniformly strict oracle PPT in
 `q = (count, (n, pk), initSt)`. -/
@@ -1322,11 +1314,8 @@ theorem isPPT_interleavedToSingleAt {Msg : Type} [Inhabited Msg]
       (encPair encUnary encBits) encUnary)
     (hA : adversary.IsPPT encMsg) (split : ℕ) :
     (interleavedToSingleAt valid encrypt decBound adversary split).IsPPT encMsg where
-  choose := by
-    have h := (isOraclePPTOn_interleavedToSingleAt_choose
-      hvalid hencrypt hdecBound hA).preprocess
-      (ComputableInPolyTime.prod ComputableInPolyTime.id' (ComputableInPolyTime.const split))
-    exact h.isOraclePPT
+  choose := ((isOraclePPTOn_interleavedToSingleAt_choose hvalid hencrypt hdecBound hA).preprocess
+    (input := encPair encUnary encBits) (prepare := fun x => (x, split)) (by fun_prop)).isOraclePPT
   guess :=
     isOraclePPTOn_interleavedToSingleAt_guess valid encrypt hvalid hencrypt hdecBound hA split
 
@@ -1459,16 +1448,11 @@ private theorem mem_S_of_mem_support_interleavedRoundStep {Msg Out : Type}
   obtain ⟨⟨⟨q, state'⟩, ⟨⟩⟩, -, hreply⟩ := hst'
   cases q with
   | challenge m₀ m₁ =>
-    dsimp only at hreply
-    by_cases hv : valid n pk m₀ m₁ = true
-    · simp only [hv, ↓reduceIte] at hreply
+    cases hv : valid n pk m₀ m₁ <;> simp only [hv, Bool.false_eq_true, ↓reduceIte] at hreply <;>
       supp_cases hreply
-      exact List.mem_cons_of_mem _ hct
-    · simp only [hv, Bool.false_eq_true, ↓reduceIte] at hreply
-      supp_cases hreply
-      exact hct
+    · exact hct
+    · exact List.mem_cons_of_mem _ hct
   | decrypt c =>
-    dsimp only at hreply
     by_cases hmem : c ∈ st.2.2 <;>
       simp only [hmem, decide_true, decide_false, Bool.false_eq_true, ↓reduceIte] at hreply <;>
       supp_cases hreply <;> exact hct
@@ -1524,10 +1508,8 @@ private theorem eval_interpret_iterate_interleavedOpenRoundStep_phase2 {Msg Out 
   simp only [OracleComp.run_interpret_iterate, ProbComp.eval_iterate]
   symm
   apply Probability.PMF.RepInv.map_eq (inv := fun st' => ct ∈ st'.2.2)
-  apply Probability.PMF.RepInv.iterate (fun (_ : ℕ) (st' : InterleavedLoopState) => ct ∈ st'.2.2)
-  · rfl
-  · exact hct
-  intro _ _ st' hst'
+  refine Probability.PMF.RepInv.iterate (fun (_ : ℕ) (st' : InterleavedLoopState) => ct ∈ st'.2.2)
+    rfl hct fun _ _ st' hst' => ?_
   exact ⟨(eval_interpret_interleavedOpenRoundStep_phase2 valid encOut encrypt decrypt decBound
     adversary roundBit n pk sk ct st' hst' hdecBound).symm,
     fun _ h => mem_S_of_mem_support_interleavedRoundStep h hst'⟩
@@ -1762,10 +1744,10 @@ private theorem eval_interleavedHybridGameOn_split_of_lt {Msg Out : Type}
             (interleavedHybridAfterStep valid encOut encrypt decrypt adversary split n
               keys.1 keys.2 roundBit stMid stepOut.1) := by
   cases roundBit
-  · have hmin : min split (adversary.numRounds n) = split := Nat.min_eq_left (Nat.le_of_lt hlt)
-    have hsub : adversary.numRounds n - split = (adversary.numRounds n - 1 - split) + 1 := by omega
-    simp only [Bool.false_eq_true, ↓reduceIte, interleavedHybridGameOn, hmin, hsub,
-      OracleComp.iterate_succ_bind, ProbComp.eval_bind, PMF.bind_bind]
+  · have hsub : adversary.numRounds n - split = (adversary.numRounds n - 1 - split) + 1 := by omega
+    simp only [Bool.false_eq_true, ↓reduceIte, interleavedHybridGameOn,
+      Nat.min_eq_left (Nat.le_of_lt hlt), hsub, OracleComp.iterate_succ_bind,
+      ProbComp.eval_bind, PMF.bind_bind]
     apply PMF.bind_congr_on_support
     intro keys _
     apply PMF.bind_congr_on_support
@@ -1773,9 +1755,8 @@ private theorem eval_interleavedHybridGameOn_split_of_lt {Msg Out : Type}
     dsimp only [interleavedHybridAfterStep]
     rw [interleavedRoundStep]
     simp only [pmf_norm]
-  · have hmin : min (split + 1) (adversary.numRounds n) = split + 1 := Nat.min_eq_left hlt
-    have hsub : adversary.numRounds n - (split + 1) = adversary.numRounds n - 1 - split := by omega
-    simp only [↓reduceIte, interleavedHybridGameOn, hmin, hsub,
+  · have hsub : adversary.numRounds n - (split + 1) = adversary.numRounds n - 1 - split := by omega
+    simp only [↓reduceIte, interleavedHybridGameOn, Nat.min_eq_left hlt, hsub,
       OracleComp.iterate_succ, ProbComp.eval_bind, PMF.bind_bind]
     apply PMF.bind_congr_on_support
     intro keys _

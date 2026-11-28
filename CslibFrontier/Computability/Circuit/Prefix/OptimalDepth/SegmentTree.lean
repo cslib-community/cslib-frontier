@@ -53,14 +53,20 @@ namespace Cslib.Circuits.Prefix
 /-- Nonempty contiguous integer ranges `List.range'` coincide iff their starts and lengths do. -/
 theorem range'_eq_range'_iff {a₁ len₁ a₂ len₂ : ℕ} (h1 : 1 ≤ len₁)
     (heq : List.range' a₁ len₁ = List.range' a₂ len₂) : a₁ = a₂ ∧ len₁ = len₂ := by
-  have hlen : len₁ = len₂ := by
-    have := congrArg List.length heq
-    simpa only [List.length_range'] using this
-  subst hlen
-  obtain ⟨m, rfl⟩ : ∃ m, len₁ = m + 1 := ⟨len₁ - 1, by omega⟩
-  simp only [List.range'_succ, List.cons.injEq] at heq
-  exact ⟨heq.1, rfl⟩
+  obtain ⟨rfl, h⟩ := List.range'_inj.mp heq
+  exact ⟨h.resolve_left (by omega), rfl⟩
 
+private theorem gateWord_range_split {N g : ℕ} (p : Program prefixSignature N g)
+    (k : Fin g) (wires : Fin 2 → Wire N g) (hline : p.lines k = ⟨.mul, wires⟩) {a b : ℕ}
+    (hw : programWord p (.gate k) = List.range' a (b - a)) :
+    ∃ m, a < m ∧ m < b ∧ programWord p (wires 0) = List.range' a (m - a) ∧
+      programWord p (wires 1) = List.range' m (b - m) := by
+  rw [programWord_gate_mul p k wires hline] at hw
+  obtain ⟨hleft, hright, hw0, hw1⟩ := range_split_of_append
+    (programWord_ne_nil p (wires 0)) (programWord_ne_nil p (wires 1)) hw
+  refine ⟨a + (programWord p (wires 0)).length, by lia, by lia, ?_, ?_⟩
+  · simpa only [Nat.add_sub_cancel_left] using hw0
+  · simpa only [Nat.sub_add_eq] using hw1
 
 private theorem exists_wireIntervalTree {N g : ℕ} (p : Program prefixSignature N g)
     (w : Wire N g) :
@@ -73,31 +79,18 @@ private theorem exists_wireIntervalTree {N g : ℕ} (p : Program prefixSignature
     (fun i a b hab hw => ?_)
     (fun k wires hline ih0 a b hab hw => ?_)
     (fun k wires hline ih0 ih1 a b hab hw => ?_) w
-  · rw [programWord_input] at hw
-    have hlen : b - a = 1 := by
-      have := congrArg List.length hw
-      simpa only [List.length_singleton, List.length_range'] using this.symm
+  · have :=
+      (List.range'_inj (s := i.val) (n := 1)).mp ((programWord_input p i).symm.trans hw)
     obtain rfl : b = a + 1 := by omega
-    refine ⟨.leaf a, Nat.zero_le _, fun j hj => ?_⟩
-    rw [ancMul_input] at hj
-    exact absurd hj (Finset.notMem_empty j)
+    exact ⟨.leaf a, Nat.zero_le _, fun j hj => by
+      simp only [ancMul_input, Finset.notMem_empty] at hj⟩
   · rw [programWord_gate_id p k wires hline] at hw
     obtain ⟨I, hd, hanc⟩ := ih0 a b hab hw
-    refine ⟨I, ?_, ?_⟩
-    · rw [wireDepths_gate_id p k wires hline]; omega
-    · rw [ancMul_gate_id p k wires hline]; exact hanc
-  · have hw_orig := hw
-    rw [programWord_gate_mul p k wires hline] at hw
-    obtain ⟨hm1, hm2, hw0, hw1⟩ := range_split_of_append
-      (programWord_ne_nil p (wires 0)) (programWord_ne_nil p (wires 1)) hw
-    set len0 := (programWord p (wires 0)).length
-    set m := a + len0
-    obtain ⟨IL, hdL, hancL⟩ :=
-      ih0 a m (by omega) (by simpa only [m, Nat.add_sub_cancel_left] using hw0)
-    obtain ⟨IR, hdR, hancR⟩ := ih1 m b (by omega) (by
-      have hbm : b - m = b - a - len0 := by omega
-      rw [hbm]
-      exact hw1)
+    rw [wireDepths_gate_id p k wires hline, ancMul_gate_id p k wires hline]
+    exact ⟨I, by omega, hanc⟩
+  · obtain ⟨m, ham, hmb, hw0, hw1⟩ := gateWord_range_split p k wires hline hw
+    obtain ⟨IL, hdL, hancL⟩ := ih0 a m ham hw0
+    obtain ⟨IR, hdR, hancR⟩ := ih1 m b hmb hw1
     refine ⟨.node IL IR, ?_, ?_⟩
     · rw [wireDepths_gate_mul p k wires hline]
       simp only [IntervalTree.depth]
@@ -106,7 +99,7 @@ private theorem exists_wireIntervalTree {N g : ℕ} (p : Program prefixSignature
       rw [ancMul_gate_mul p k wires hline, Finset.mem_insert, Finset.mem_union] at hj
       simp only [IntervalTree.intervals, Finset.mem_insert, Finset.mem_union]
       rcases hj with rfl | hj0 | hj1
-      · obtain ⟨rfl, hlen⟩ := range'_eq_range'_iff (by omega) (hjw.symm.trans hw_orig)
+      · obtain ⟨rfl, hlen⟩ := range'_eq_range'_iff (by omega) (hjw.symm.trans hw)
         exact Or.inl (Prod.ext rfl (by omega))
       · exact Or.inr (Or.inl (hancL j hj0 p₀ q₀ hpq hjw))
       · exact Or.inr (Or.inr (hancR j hj1 p₀ q₀ hpq hjw))
@@ -138,22 +131,13 @@ private theorem spine_decomposition {N g : ℕ} (p : Program prefixSignature N g
     (fun i M _ hw _ => ?_)
     (fun k wires hline _ M _ _ hlen => ?_)
     (fun k wires hline ih0 _ M _ hw hlen => ?_) w
-  · rw [programWord_input] at hw
-    have hM1 : M = 1 := by
-      have := congrArg List.length hw
-      simpa only [List.length_singleton, List.length_range'] using this.symm
-    subst hM1
-    simp only [List.range'_one, List.cons.injEq, and_true] at hw
-    have hi0 : i = ⟨0, hN⟩ := Fin.ext hw
-    subst hi0
+  · obtain ⟨rfl, h⟩ :=
+      (List.range'_inj (s := i.val) (n := 1)).mp ((programWord_input p i).symm.trans hw)
+    obtain rfl : i = ⟨0, hN⟩ := Fin.ext (h.resolve_left (by omega))
     refine ⟨fun _ => .input ⟨0, hN⟩, fun _ => .input ⟨0, hN⟩, fun _ => 1,
-      rfl, rfl, rfl, rfl, ?_, ?_⟩
-    · intro d hd
-      simp only [Program.wireDepths_input] at hd
-      omega
-    · intro j hj
-      rw [ancMul_input] at hj
-      exact absurd hj (Finset.notMem_empty j)
+      rfl, rfl, rfl, rfl, fun d hd => ?_, fun j hj => ?_⟩
+    · simp only [Program.wireDepths_input] at hd; omega
+    · simp only [ancMul_input, Finset.notMem_empty] at hj
   · rw [leftSpine_gate_id p k wires hline, wireDepths_gate_id p k wires hline] at hlen
     have hle := leftSpine_length_le_wireDepths p (wires 0)
     omega
@@ -164,12 +148,11 @@ private theorem spine_decomposition {N g : ℕ} (p : Program prefixSignature N g
     have hd1_le : p.wireDepths (wires 1) ≤ p.wireDepths (wires 0) := by omega
     have hdepth_gate : p.wireDepths (.gate k) = p.wireDepths (wires 0) + 1 := by
       rw [wireDepths_gate_mul p k wires hline]; omega
-    rw [programWord_gate_mul p k wires hline] at hw
-    obtain ⟨hm1, hm2, hw0, hw1⟩ := range_split_of_append
-      (programWord_ne_nil p (wires 0)) (programWord_ne_nil p (wires 1)) hw
-    set M₀ := (programWord p (wires 0)).length
+    obtain ⟨M₀, hM₀, hm, hw0, hw1⟩ := gateWord_range_split p k wires hline (a := 0) (b := M)
+      (by simpa only [Nat.sub_zero] using hw)
+    rw [Nat.sub_zero] at hw0
     set D₀ := p.wireDepths (wires 0)
-    obtain ⟨v₀, u₀, T₀, hv0, hT0, hvD0, hTD0, hseg0, hanc0⟩ := ih0 M₀ (by omega) hw0 hlen0
+    obtain ⟨v₀, u₀, T₀, hv0, hT0, hvD0, hTD0, hseg0, hanc0⟩ := ih0 M₀ hM₀ hw0 hlen0
     let v : ℕ → Wire N g := fun d => if d = D₀ + 1 then .gate k else v₀ d
     let u : ℕ → Wire N g := fun d => if d = D₀ then wires 1 else u₀ d
     let T : ℕ → ℕ := fun d => if d = D₀ + 1 then M else T₀ d
@@ -180,45 +163,17 @@ private theorem spine_decomposition {N g : ℕ} (p : Program prefixSignature N g
     · simp only [T, hdepth_gate, ↓reduceIte]
     · intro d hd
       rw [hdepth_gate] at hd
-      by_cases hd_eq : d = D₀
-      · subst hd_eq
-        have hsg : (leftSpine p (.gate k))[D₀]? = some k := by
-          simp only [leftSpine_gate_mul p k wires hline,
-            List.getElem?_append_right (by rw [hlen0]), hlen0, Nat.sub_self,
-            List.getElem?_cons_zero]
-        have hv_D0 : v D₀ = wires 0 := by
-          simp only [v, show D₀ ≠ D₀ + 1 by omega, ↓reduceIte, hvD0]
-        have hv_succ : v (D₀ + 1) = .gate k := by simp only [v, ↓reduceIte]
-        have hu_D0 : u D₀ = wires 1 := by simp only [u, ↓reduceIte]
-        have hT_D0 : T D₀ = M₀ := by
-          simp only [T, show D₀ ≠ D₀ + 1 by omega, ↓reduceIte, hTD0]
-        have hT_succ : T (D₀ + 1) = M := by simp only [T, ↓reduceIte]
-        refine ⟨by omega, ⟨k, hsg, hv_succ, wires, hline, hv_D0.symm, hu_D0.symm⟩, ?_, ?_, ?_, ?_⟩
-        · rw [hv_D0]
-        · rw [hu_D0]; exact hd1_le
-        · rw [hv_D0, hT_D0]; exact hw0
-        · rw [hu_D0, hT_D0, hT_succ]; simpa only [Nat.zero_add] using hw1
-      · have hd_lt : d < D₀ := by omega
-        obtain ⟨hTd_lt, ⟨sg₀, hsg₀, hvd_succ, hwires_d⟩, hvd_d, hud_d, hvd_w, hud_w⟩ :=
-          hseg0 d hd_lt
-        have hsg : (leftSpine p (.gate k))[d]? = some sg₀ := by
-          rw [leftSpine_gate_mul p k wires hline,
-            List.getElem?_append_left (by rw [hlen0]; exact hd_lt)]
-          exact hsg₀
-        have hv_d : v d = v₀ d := by simp only [v, show d ≠ D₀ + 1 by omega, ↓reduceIte]
-        have hv_s : v (d + 1) = v₀ (d + 1) := by
-          simp only [v, show d + 1 ≠ D₀ + 1 by omega, ↓reduceIte]
-        have hu_d : u d = u₀ d := by simp only [u, hd_eq, ↓reduceIte]
-        have hT_d : T d = T₀ d := by simp only [T, show d ≠ D₀ + 1 by omega, ↓reduceIte]
-        have hT_s : T (d + 1) = T₀ (d + 1) := by
-          simp only [T, show d + 1 ≠ D₀ + 1 by omega, ↓reduceIte]
-        refine ⟨by omega, ⟨sg₀, hsg, ?_, ?_⟩, ?_, ?_, ?_, ?_⟩
-        · rw [hv_s]; exact hvd_succ
-        · rw [hv_d, hu_d]; exact hwires_d
-        · rw [hv_d]; exact hvd_d
-        · rw [hu_d]; exact hud_d
-        · rw [hv_d, hT_d]; exact hvd_w
-        · rw [hu_d, hT_d, hT_s]; exact hud_w
+      rcases Nat.lt_succ_iff_lt_or_eq.mp hd with hd_lt | rfl
+      · obtain ⟨hTd_lt, ⟨sg₀, hsg₀, hvd_succ, hwires_d⟩, hrest⟩ := hseg0 d hd_lt
+        simp only [v, u, T, show d ≠ D₀ + 1 by omega, show d + 1 ≠ D₀ + 1 by omega,
+          show d ≠ D₀ by omega, ↓reduceIte]
+        refine ⟨hTd_lt, ⟨sg₀, ?_, hvd_succ, hwires_d⟩, hrest⟩
+        rwa [leftSpine_gate_mul p k wires hline, List.getElem?_append_left (by omega)]
+      · simp only [v, u, T, show D₀ ≠ D₀ + 1 by omega, ↓reduceIte, hvD0, hTD0]
+        refine ⟨hm, ⟨k, ?_, rfl, wires, hline, rfl, rfl⟩, rfl, hd1_le, hw0, hw1⟩
+        simp only [leftSpine_gate_mul p k wires hline,
+          List.getElem?_append_right (by rw [hlen0]), hlen0, Nat.sub_self,
+          List.getElem?_cons_zero]
     · intro j hj
       rw [ancMul_gate_mul p k wires hline, Finset.mem_insert, Finset.mem_union] at hj
       rw [leftSpine_gate_mul p k wires hline, List.mem_append, List.mem_singleton, hdepth_gate]
@@ -240,10 +195,7 @@ private theorem spine_decomposition {N g : ℕ} (p : Program prefixSignature N g
 private theorem rank_firstInput_lt {N g : ℕ} (p : Program prefixSignature N g) (k : Fin g) :
     (firstInput (p.lines k)).rank < (Wire.gate k : Wire N g).rank := by
   cases h : p.lines k with
-  | mk op wires =>
-    cases op
-    · exact rank_lt_of_lines_eq p k h 0
-    · exact rank_lt_of_lines_eq p k h 0
+  | mk op wires => cases op <;> exact rank_lt_of_lines_eq p k h 0
 
 /-- Every gate has depth strictly greater than its `firstInput` wire. -/
 theorem wireDepths_firstInput_lt {N g : ℕ} (p : Program prefixSignature N g) (k : Fin g) :
@@ -251,12 +203,8 @@ theorem wireDepths_firstInput_lt {N g : ℕ} (p : Program prefixSignature N g) (
   cases h : p.lines k with
   | mk op wires =>
     cases op
-    · rw [wireDepths_gate_mul p k wires h]
-      simp only [firstInput]
-      omega
-    · rw [wireDepths_gate_id p k wires h]
-      simp only [firstInput]
-      omega
+    · rw [wireDepths_gate_mul p k wires h, firstInput]; omega
+    · rw [wireDepths_gate_id p k wires h, firstInput]
 
 private def firstSlotOfGate {N m : ℕ} (c : Circuit prefixSignature N m) (k : Fin c.size) :
     c.Slot :=
@@ -333,6 +281,10 @@ theorem segActive_iff {N : ℕ} (c : PrefixCircuit N) (a b : ℕ)
     split_ifs with h
     · exact h3
     · exact absurd ⟨h1, h2⟩ h
+
+private theorem segChildren_nodup {N : ℕ} (c : PrefixCircuit N) (a b : ℕ)
+    (root w : Wire N c.size) : (segChildren c a b root w).Nodup :=
+  (List.nodup_finRange c.size).filter _
 
 /-- Every gate in `segChildren c a b root w` has rank strictly greater than `w.rank`. -/
 theorem segChildren_rank_lt {N : ℕ} (c : PrefixCircuit N) (a b : ℕ)
@@ -416,38 +368,22 @@ private theorem ReachesInSeg.child_unique {N : ℕ} {c : PrefixCircuit N} {a b :
     (hg₁ : g₁ ∈ segChildren c a b root w) (hg₂ : g₂ ∈ segChildren c a b root w)
     (h₁ : ReachesInSeg c a b root (.gate g₁) u) (h₂ : ReachesInSeg c a b root (.gate g₂) u) :
     g₁ = g₂ := by
+  have hfi {p : Wire N c.size} {g : Fin c.size} (hg : g ∈ segChildren c a b root p) :
+      firstInput (c.program.lines g) = p := ((mem_segChildren_iff c a b root p g).mp hg).2.1
+  have hback {g : Fin c.size} (hg : g ∈ segChildren c a b root w)
+      (hr : ReachesInSeg c a b root (.gate g) w) : False := by
+    have hlt := rank_firstInput_lt c.program g
+    rw [hfi hg] at hlt
+    exact hlt.not_ge hr.rank_le
   induction h₁ with
   | refl =>
     cases h₂ with
     | refl => rfl
-    | step hg' hsub =>
-      obtain ⟨_, hfi', _⟩ := (mem_segChildren_iff c a b root _ _).mp hg'
-      obtain ⟨_, hfi₁, _⟩ := (mem_segChildren_iff c a b root w g₁).mp hg₁
-      obtain ⟨_, hfi₂, _⟩ := (mem_segChildren_iff c a b root w g₂).mp hg₂
-      have hp := hfi'.symm.trans hfi₁
-      rw [hp] at hsub
-      have hrk := hsub.rank_le
-      have hlt : w.rank < (Wire.gate g₂ : Wire N c.size).rank :=
-        hfi₂ ▸ rank_firstInput_lt c.program g₂
-      omega
+    | step hg' hsub => exact (hback hg₂ ((hfi hg').symm.trans (hfi hg₁) ▸ hsub)).elim
   | step hg' hsub₁ ih =>
     cases h₂ with
-    | refl =>
-      obtain ⟨_, hfi', _⟩ := (mem_segChildren_iff c a b root _ _).mp hg'
-      obtain ⟨_, hfi₁, _⟩ := (mem_segChildren_iff c a b root w g₁).mp hg₁
-      obtain ⟨_, hfi₂, _⟩ := (mem_segChildren_iff c a b root w g₂).mp hg₂
-      have hp := hfi'.symm.trans hfi₂
-      rw [hp] at hsub₁
-      have hrk := hsub₁.rank_le
-      have hlt : w.rank < (Wire.gate g₁ : Wire N c.size).rank :=
-        hfi₁ ▸ rank_firstInput_lt c.program g₁
-      omega
-    | step hg₂' hsub₂ =>
-      obtain ⟨_, hfi', _⟩ := (mem_segChildren_iff c a b root _ _).mp hg'
-      obtain ⟨_, hfi₂', _⟩ := (mem_segChildren_iff c a b root _ _).mp hg₂'
-      have hp := hfi₂'.symm.trans hfi'
-      rw [hp] at hsub₂
-      exact ih hsub₂
+    | refl => exact (hback hg₁ ((hfi hg').symm.trans (hfi hg₂) ▸ hsub₁)).elim
+    | step hg₂' hsub₂ => exact ih ((hfi hg₂').symm.trans (hfi hg') ▸ hsub₂)
 
 /-- `segActive` propagates forward along `ReachesInSeg`. -/
 theorem ReachesInSeg.segActive_of {N : ℕ} {c : PrefixCircuit N} {a b : ℕ}
@@ -483,66 +419,30 @@ private theorem countWireInSeg_iff {N : ℕ} (c : PrefixCircuit N) (a b : ℕ)
       (ReachesInSeg c a b root w target → countWireInSeg c a b root target w = 1) ∧
       (¬ ReachesInSeg c a b root w target → countWireInSeg c a b root target w = 0) := by
   intro w
-  have haux : ∀ rem, ∀ w : Wire N c.size, c.size - w.rank = rem →
-      (ReachesInSeg c a b root w target → countWireInSeg c a b root target w = 1) ∧
-      (¬ ReachesInSeg c a b root w target → countWireInSeg c a b root target w = 0) := by
-    intro rem
-    induction rem using Nat.strong_induction_on with
-    | _ rem ih =>
-      intro w hrem
-      have hnodup : (segChildren c a b root w).Nodup := (List.nodup_finRange c.size).filter _
-      have hch_ih : ∀ i : Fin (segChildren c a b root w).length,
-          (ReachesInSeg c a b root (.gate (segChildren c a b root w)[i]) target →
-            countWireInSeg c a b root target (.gate (segChildren c a b root w)[i]) = 1) ∧
-          (¬ ReachesInSeg c a b root (.gate (segChildren c a b root w)[i]) target →
-            countWireInSeg c a b root target (.gate (segChildren c a b root w)[i]) = 0) := by
-        intro i
-        have hlt := segChildren_rank_lt c a b root w i
-        have hle := Wire.rank_le (Wire.gate (segChildren c a b root w)[i] : Wire N c.size)
-        exact ih (c.size - (Wire.gate (segChildren c a b root w)[i] : Wire N c.size).rank)
-          (by omega) (.gate (segChildren c a b root w)[i]) rfl
-      refine ⟨fun hreach => ?_, fun hnreach => ?_⟩
-      · rw [countWireInSeg_def]
-        by_cases hwt : w = target
-        · have hzero : ∀ i : Fin (segChildren c a b root w).length,
-              countWireInSeg c a b root target (.gate (segChildren c a b root w)[i]) = 0 := by
-            intro i
-            refine (hch_ih i).2 fun hr => ?_
-            have hrk := hr.rank_le
-            have hlt := segChildren_rank_lt c a b root w i
-            have hwt_rk : w.rank = target.rank := congrArg Wire.rank hwt
-            omega
-          rw [Finset.sum_eq_zero fun i _ => hzero i]
-          simp only [hwt, ↓reduceIte, Nat.add_zero]
-        · obtain ⟨g, hg_mem, hg_sub⟩ := (hreach.top_inversion).resolve_left (Ne.symm hwt)
-          obtain ⟨idx, hidx_lt, hidx_eq⟩ := List.getElem_of_mem hg_mem
-          let i₀ : Fin (segChildren c a b root w).length := ⟨idx, hidx_lt⟩
-          have hi₀ : countWireInSeg c a b root target
-              (.gate (segChildren c a b root w)[i₀]) = 1 := by
-            refine (hch_ih i₀).1 ?_
-            dsimp only [i₀]
-            rw [Fin.getElem_fin, hidx_eq]
-            exact hg_sub
-          have hother : ∀ i : Fin (segChildren c a b root w).length, i ≠ i₀ →
-              countWireInSeg c a b root target (.gate (segChildren c a b root w)[i]) = 0 := by
-            intro i hne
-            refine (hch_ih i).2 fun hi_sub => ?_
-            have heq_g := ReachesInSeg.child_unique (List.getElem_mem _) hg_mem hi_sub hg_sub
-            rw [← hidx_eq] at heq_g
-            have heq_idx := (List.Nodup.getElem_inj_iff hnodup).mp heq_g
-            exact hne (Fin.ext heq_idx)
-          rw [Fintype.sum_eq_single i₀ hother, hi₀]
-          simp only [hwt, ↓reduceIte, Nat.zero_add]
-      · rw [countWireInSeg_def]
-        have hwt : w ≠ target := fun heq => hnreach (heq ▸ ReachesInSeg.refl w)
-        have hzero : ∀ i : Fin (segChildren c a b root w).length,
-            countWireInSeg c a b root target (.gate (segChildren c a b root w)[i]) = 0 := by
-          intro i
-          exact (hch_ih i).2 fun hi_sub =>
-            hnreach (ReachesInSeg.trans_step_top (List.getElem_mem _) hi_sub)
-        rw [Finset.sum_eq_zero fun i _ => hzero i]
-        simp only [hwt, ↓reduceIte, Nat.add_zero]
-  exact haux (c.size - w.rank) w rfl
+  have ih (i : Fin (segChildren c a b root w).length) :=
+    countWireInSeg_iff c a b root target (.gate (segChildren c a b root w)[i])
+  have hmem (i : Fin (segChildren c a b root w).length) :
+      (segChildren c a b root w)[i] ∈ segChildren c a b root w := List.getElem_mem _
+  rw [countWireInSeg_def]
+  refine ⟨fun hreach => ?_, fun hnreach => ?_⟩
+  · by_cases hwt : w = target
+    · rw [Finset.sum_eq_zero fun i _ => (ih i).2 fun hr =>
+        (segChildren_rank_lt c a b root w i).not_ge (hwt ▸ hr.rank_le)]
+      simp only [hwt, ↓reduceIte, Nat.add_zero]
+    · obtain ⟨g, hg_mem, hg_sub⟩ := hreach.top_inversion.resolve_left (Ne.symm hwt)
+      obtain ⟨idx, hidx_lt, rfl⟩ := List.getElem_of_mem hg_mem
+      rw [Fintype.sum_eq_single ⟨idx, hidx_lt⟩ fun i hne => (ih i).2 fun hi => hne <| Fin.ext <|
+        (segChildren_nodup c a b root w).getElem_inj_iff.mp
+          (ReachesInSeg.child_unique (hmem i) hg_mem hi hg_sub), (ih ⟨idx, hidx_lt⟩).1 hg_sub]
+      simp only [hwt, ↓reduceIte, Nat.zero_add]
+  · rw [Finset.sum_eq_zero fun i _ => (ih i).2 fun hi =>
+      hnreach (ReachesInSeg.trans_step_top (hmem i) hi)]
+    simp only [show w ≠ target from fun h => hnreach (h ▸ .refl w), ↓reduceIte, Nat.add_zero]
+termination_by w => c.size - w.rank
+decreasing_by
+  have hlt := segChildren_rank_lt c a b root w i
+  have hle := Wire.rank_le (Wire.gate (segChildren c a b root w)[i] : Wire N c.size)
+  omega
 
 /-- Any wire reachable from `w` via `ReachesInSeg` has multiplicity `1` in `countWireInSeg`. -/
 theorem countWireInSeg_eq_one_of_reaches {N : ℕ} {c : PrefixCircuit N} {a b : ℕ}
@@ -570,6 +470,20 @@ theorem countWireInSeg_le_one {N : ℕ} (c : PrefixCircuit N) (a b : ℕ)
   · rw [countWireInSeg_eq_one_of_reaches h]
   · rw [countWireInSeg_eq_zero_of_not_reaches h]; omega
 
+/-- One unfolding of `countWireInSeg` inside a weighted sum of target multiplicities. -/
+private theorem sum_countWireInSeg {N : ℕ} {ι : Type*} [Fintype ι] (c : PrefixCircuit N)
+    (a b : ℕ) (root w : Wire N c.size) (P : ι → Prop) [DecidablePred P]
+    (e : ι → Wire N c.size) :
+    (∑ x, if P x then countWireInSeg c a b root (e x) w else 0) =
+      (∑ x, if w = e x ∧ P x then 1 else 0) +
+        ∑ i : Fin (segChildren c a b root w).length, ∑ x,
+          if P x then countWireInSeg c a b root (e x) (.gate (segChildren c a b root w)[i])
+          else 0 := by
+  rw [Finset.sum_comm, ← Finset.sum_add_distrib]
+  refine Finset.sum_congr rfl fun x _ => ?_
+  rw [countWireInSeg_def c a b root (e x) w]
+  by_cases hP : P x <;> simp [hP]
+
 private theorem buildSegTree_counts {N : ℕ} (c : PrefixCircuit N) (a b : ℕ)
     (root w : Wire N c.size) :
     (buildSegTree c a b root w).outCount =
@@ -584,197 +498,68 @@ private theorem buildSegTree_counts {N : ℕ} (c : PrefixCircuit N) (a b : ℕ)
         if (c.program.lines g).op = .mul ∧ wireState c.program (.gate g) = m ∧ w ≠ .gate g then
           countWireInSeg c a b root (.gate g) w
         else 0) := by
-  have haux : ∀ rem, ∀ w : Wire N c.size, c.size - w.rank = rem →
-      (buildSegTree c a b root w).outCount =
-        (∑ u : Wire N c.size, if segHasOut c a b u then countWireInSeg c a b root u w else 0) ∧
-      (∀ s, (buildSegTree c a b root w).outAt s =
-        ∑ u : Wire N c.size,
-          if segHasOut c a b u ∧ wireState c.program u = s then
-            countWireInSeg c a b root u w
-          else 0) ∧
-      (∀ m, (buildSegTree c a b root w).mulCount m =
-        ∑ g : Fin c.size,
-          if (c.program.lines g).op = .mul ∧ wireState c.program (.gate g) = m ∧ w ≠ .gate g then
-            countWireInSeg c a b root (.gate g) w
-          else 0) := by
-    intro rem
-    induction rem using Nat.strong_induction_on with
-    | _ rem ih =>
-      intro w hrem
-      have hch_ih : ∀ i : Fin (segChildren c a b root w).length,
-          (buildSegTree c a b root (.gate (segChildren c a b root w)[i])).outCount =
-            (∑ u : Wire N c.size,
-              if segHasOut c a b u then
-                countWireInSeg c a b root u (.gate (segChildren c a b root w)[i])
-              else 0) ∧
-          (∀ s, (buildSegTree c a b root (.gate (segChildren c a b root w)[i])).outAt s =
-            ∑ u : Wire N c.size,
-              if segHasOut c a b u ∧ wireState c.program u = s then
-                countWireInSeg c a b root u (.gate (segChildren c a b root w)[i])
-              else 0) ∧
-          (∀ m, (buildSegTree c a b root (.gate (segChildren c a b root w)[i])).mulCount m =
-            ∑ g : Fin c.size,
-              if (c.program.lines g).op = .mul ∧ wireState c.program (.gate g) = m ∧
-                  (Wire.gate (segChildren c a b root w)[i] : Wire N c.size) ≠ .gate g then
-                countWireInSeg c a b root (.gate g) (.gate (segChildren c a b root w)[i])
-              else 0) := by
-        intro i
-        have hlt := segChildren_rank_lt c a b root w i
-        have hle := Wire.rank_le (Wire.gate (segChildren c a b root w)[i] : Wire N c.size)
-        exact ih (c.size - (Wire.gate (segChildren c a b root w)[i] : Wire N c.size).rank)
-          (by omega) (.gate (segChildren c a b root w)[i]) rfl
-      refine ⟨?_, ?_, ?_⟩
-      · rw [buildSegTree_eq]
-        simp only [GenPrefixTree.outCount]
-        rw [Finset.sum_congr rfl fun i _ => (hch_ih i).1, Finset.sum_comm]
-        have hw_split : (if segHasOut c a b w = true then 1 else 0) =
-            ∑ u : Wire N c.size,
-              if segHasOut c a b u = true then (if w = u then 1 else 0) else 0 := by
-          rw [Fintype.sum_eq_single w]
-          · simp only [↓reduceIte]
-          · intro u hne; simp only [Ne.symm hne, ↓reduceIte, ite_self]
-        rw [hw_split, ← Finset.sum_add_distrib]
-        refine Finset.sum_congr rfl fun u _ => ?_
-        rw [countWireInSeg_def]
-        by_cases hu : segHasOut c a b u = true
-        · simp only [hu, ↓reduceIte]
-        · simp only [hu, Bool.false_eq_true, ↓reduceIte, Finset.sum_const_zero, Nat.add_zero]
-      · intro s
-        rw [buildSegTree_eq]
-        simp only [GenPrefixTree.outAt]
-        rw [Finset.sum_congr rfl fun i _ => (hch_ih i).2.1 s, Finset.sum_comm]
-        have hw_split : (if segHasOut c a b w = true ∧ wireState c.program w = s then 1 else 0) =
-            ∑ u : Wire N c.size,
-              if segHasOut c a b u = true ∧ wireState c.program u = s then
-                (if w = u then 1 else 0)
-              else 0 := by
-          rw [Fintype.sum_eq_single w]
-          · simp only [↓reduceIte]
-          · intro u hne; simp only [Ne.symm hne, ↓reduceIte, ite_self]
-        rw [hw_split, ← Finset.sum_add_distrib]
-        refine Finset.sum_congr rfl fun u _ => ?_
-        rw [countWireInSeg_def]
-        by_cases hu : segHasOut c a b u = true ∧ wireState c.program u = s
-        · simp only [hu, and_self, ↓reduceIte]
-        · simp only [hu, ↓reduceIte, Finset.sum_const_zero, Nat.add_zero]
-      · intro m
-        rw [buildSegTree_eq]
-        simp only [GenPrefixTree.mulCount, beq_iff_eq]
-        have hstep : ∀ i : Fin (segChildren c a b root w).length,
-            ((if (c.program.lines (segChildren c a b root w)[i]).op = .mul ∧
-                (buildSegTree c a b root (.gate (segChildren c a b root w)[i])).state = m then 1
-              else 0) +
-              (buildSegTree c a b root (.gate (segChildren c a b root w)[i])).mulCount m) =
-            ∑ g : Fin c.size,
-              if (c.program.lines g).op = .mul ∧ wireState c.program (.gate g) = m ∧
-                  w ≠ .gate g then
-                countWireInSeg c a b root (.gate g) (.gate (segChildren c a b root w)[i])
-              else 0 := by
-          intro i
-          let gi := (segChildren c a b root w)[i]
-          have hmem : gi ∈ segChildren c a b root w := List.getElem_mem _
-          obtain ⟨_, hfi, _⟩ := (mem_segChildren_iff c a b root w gi).mp hmem
-          have hne_w : w ≠ .gate gi := by
-            intro heq
-            have hlt := rank_firstInput_lt c.program gi
-            rw [hfi, heq] at hlt
-            omega
-          have hst_eq : (buildSegTree c a b root (.gate gi)).state =
-              wireState c.program (.gate gi) := by
-            rw [buildSegTree_eq]
-            rfl
-          change ((if (c.program.lines gi).op = .mul ∧
-                (buildSegTree c a b root (.gate gi)).state = m then 1 else 0) +
-              (buildSegTree c a b root (.gate gi)).mulCount m) =
-            ∑ g : Fin c.size,
-              if (c.program.lines g).op = .mul ∧ wireState c.program (.gate g) = m ∧
-                  w ≠ .gate g then
-                countWireInSeg c a b root (.gate g) (.gate gi)
-              else 0
-          rw [hst_eq, (hch_ih i).2.2 m]
-          have hhead : (if (c.program.lines gi).op = .mul ∧
-                wireState c.program (.gate gi) = m then 1 else 0) =
-              ∑ g : Fin c.size,
-                if (c.program.lines g).op = .mul ∧ wireState c.program (.gate g) = m ∧
-                    g = gi then 1 else 0 := by
-            rw [Fintype.sum_eq_single gi]
-            · simp only [and_true]
-            · intro g hne; simp only [hne, and_false, ↓reduceIte]
-          rw [hhead, ← Finset.sum_add_distrib]
-          refine Finset.sum_congr rfl fun g _ => ?_
-          change _ + (if (c.program.lines g).op = .mul ∧ wireState c.program (.gate g) = m ∧
-              (Wire.gate gi : Wire N c.size) ≠ .gate g then
-                countWireInSeg c a b root (.gate g) (.gate gi) else 0) = _
-          by_cases hopm : (c.program.lines g).op = .mul ∧ wireState c.program (.gate g) = m
-          · rcases hopm with ⟨hop, hwm⟩
-            by_cases hgi : g = gi
-            · rw [hgi]
-              have hself : countWireInSeg c a b root (.gate gi) (.gate gi) = 1 :=
-                countWireInSeg_eq_one_of_reaches (ReachesInSeg.refl _)
-              rw [hself]
-              rw [hgi] at hop hwm
-              simp only [hop, hwm, ne_eq, not_true_eq_false, and_false, and_true, ↓reduceIte,
-                hne_w, not_false_eq_true, Nat.add_zero]
-            · have hgate_ne : (Wire.gate gi : Wire N c.size) ≠ .gate g := fun h =>
-                hgi (Wire.gate.inj h).symm
-              by_cases hgw : w = .gate g
-              · have hzero : countWireInSeg c a b root (.gate g) (.gate gi) = 0 := by
-                  apply countWireInSeg_eq_zero_of_not_reaches
-                  intro hr
-                  have hrk := hr.rank_le
-                  have hlt := rank_firstInput_lt c.program gi
-                  rw [hfi, hgw] at hlt
-                  omega
-                rw [hzero]
-                simp only [hgi, hgw, ne_eq, not_true_eq_false, and_false, ↓reduceIte, ite_self]
-              · simp only [hop, hwm, hgi, and_false, hgate_ne, hgw, ne_eq, not_false_eq_true,
-                  and_true, ↓reduceIte, Nat.zero_add]
-          · have hf1 : ¬ ((c.program.lines g).op = .mul ∧
-                wireState c.program (.gate g) = m ∧ g = gi) := fun h => hopm ⟨h.1, h.2.1⟩
-            have hf2 : ¬ ((c.program.lines g).op = .mul ∧
-                wireState c.program (.gate g) = m ∧
-                  (Wire.gate gi : Wire N c.size) ≠ .gate g) := fun h => hopm ⟨h.1, h.2.1⟩
-            have hf3 : ¬ ((c.program.lines g).op = .mul ∧
-                wireState c.program (.gate g) = m ∧ w ≠ .gate g) := fun h => hopm ⟨h.1, h.2.1⟩
-            simp only [hf1, hf2, hf3, ↓reduceIte]
-        rw [Finset.sum_congr rfl fun i _ => hstep i, Finset.sum_comm]
-        refine Finset.sum_congr rfl fun g _ => ?_
-        rw [countWireInSeg_def]
-        by_cases hc : (c.program.lines g).op = .mul ∧ wireState c.program (.gate g) = m ∧
-            w ≠ .gate g
-        · rcases hc with ⟨hc1, hc2, hc3⟩
-          have hwg : ¬ (w = .gate g) := hc3
-          simp only [hc1, hc2, hwg, ne_eq, not_false_eq_true, and_self, ↓reduceIte, Nat.zero_add]
-        · simp only [hc, ↓reduceIte, Finset.sum_const_zero]
-  exact haux (c.size - w.rank) w rfl
+  have ih (i : Fin (segChildren c a b root w).length) :=
+    buildSegTree_counts c a b root (.gate (segChildren c a b root w)[i])
+  have hst (v : Wire N c.size) : (buildSegTree c a b root v).state = wireState c.program v := by
+    rw [buildSegTree_eq]; rfl
+  rw [buildSegTree_eq]
+  refine ⟨?_, fun s => ?_, fun m => ?_⟩
+  · rw [GenPrefixTree.outCount, sum_countWireInSeg]
+    simp only [ite_and, Finset.sum_ite_eq, Finset.mem_univ, ↓reduceIte, fun i => (ih i).1]
+  · rw [GenPrefixTree.outAt, sum_countWireInSeg]
+    simp only [ite_and, Finset.sum_ite_eq, Finset.mem_univ, ↓reduceIte, fun i => (ih i).2.1 s]
+  -- Splitting off the visit of `v` itself relates the `mul`-gate sum to the one excluding `v`.
+  have hsplit (v : Wire N c.size) :
+      (∑ g, if (c.program.lines g).op = .mul ∧ wireState c.program (.gate g) = m then
+          countWireInSeg c a b root (.gate g) v else 0) =
+        (∑ g, if v = .gate g ∧ ((c.program.lines g).op = .mul ∧
+          wireState c.program (.gate g) = m) then 1 else 0) +
+        ∑ g, if (c.program.lines g).op = .mul ∧ wireState c.program (.gate g) = m ∧
+          v ≠ .gate g then countWireInSeg c a b root (.gate g) v else 0 := by
+    rw [← Finset.sum_add_distrib]
+    refine Finset.sum_congr rfl fun g _ => ?_
+    by_cases h : v = .gate g
+    · subst h; simp [countWireInSeg_eq_one_of_reaches (.refl _)]
+    · simp [h]
+  rw [GenPrefixTree.mulCount, (add_right_inj _).mp ((hsplit w).symm.trans
+    (sum_countWireInSeg c a b root w _ Wire.gate))]
+  refine Finset.sum_congr rfl fun i _ => ?_
+  rw [(ih i).2.2 m, hsplit]
+  simp only [hst, beq_iff_eq, Wire.gate.injEq, ite_and, Finset.sum_ite_eq, Finset.mem_univ,
+    ↓reduceIte]
+termination_by c.size - w.rank
+decreasing_by
+  have hlt := segChildren_rank_lt c a b root w i
+  have hle := Wire.rank_le (Wire.gate (segChildren c a b root w)[i] : Wire N c.size)
+  omega
 
 private theorem segHasOut_le_card_outputs {N : ℕ} (c : PrefixCircuit N) (a b : ℕ)
     (w : Wire N c.size) :
     (if segHasOut c a b w then 1 else 0) ≤
       (Finset.univ.filter fun j : Fin N => c.outputs j = w).card := by
   by_cases h : segHasOut c a b w = true
-  · simp only [h, ↓reduceIte]
-    simp only [segHasOut, decide_eq_true_eq] at h
-    obtain ⟨j, _, _, hjw⟩ := h
+  · obtain ⟨j, _, _, hjw⟩ := of_decide_eq_true h
+    simp only [h, ↓reduceIte]
     exact Finset.card_pos.mpr ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ j, hjw⟩⟩
   · simp only [h, Bool.false_eq_true, ↓reduceIte, Nat.zero_le]
+
+/-- Gates reading `w` as their `firstInput` occupy distinct input slots of `w`. -/
+private theorem card_le_outDeg_of_firstInput {N : ℕ} (c : PrefixCircuit N) (w : Wire N c.size)
+    (S : Finset (Fin c.size)) (hS : ∀ g ∈ S, firstInput (c.program.lines g) = w) :
+    S.card ≤ c.outDeg w := by
+  rw [c.outDeg_eq_card_filter]
+  exact Finset.card_le_card_of_injOn (firstSlotOfGate c) (fun g hg => Finset.mem_filter.mpr
+    ⟨Finset.mem_univ _, (slotWire_firstSlotOfGate c g).trans (hS g hg)⟩)
+    fun _ _ _ _ h => firstSlotOfGate_injective c h
 
 /-- Active segment children plus segment output indicator at `w` do not exceed `wireFanout`. -/
 theorem seg_fanout_bound {N : ℕ} (c : PrefixCircuit N) (a b : ℕ)
     (root w : Wire N c.size) :
     (segChildren c a b root w).length + (if segHasOut c a b w then 1 else 0) ≤
       wireFanout c w := by
-  set ch := segChildren c a b root w
-  have hnodup : ch.Nodup := (List.nodup_finRange c.size).filter _
-  have hdeg : ch.length ≤ c.outDeg w := by
-    rw [c.outDeg_eq_card_filter, ← List.toFinset_card_of_nodup hnodup]
-    refine Finset.card_le_card_of_injOn (firstSlotOfGate c) ?_ ?_
-    · intro g hg
-      rw [Finset.mem_coe, List.mem_toFinset, mem_segChildren_iff] at hg
-      rw [Finset.mem_coe, Finset.mem_filter]
-      exact ⟨Finset.mem_univ _, (slotWire_firstSlotOfGate c g).trans hg.2.1⟩
-    · intro g₁ _ g₂ _ h
-      exact firstSlotOfGate_injective c h
+  have hdeg := card_le_outDeg_of_firstInput c w (segChildren c a b root w).toFinset fun g hg =>
+    ((mem_segChildren_iff c a b root w g).mp (List.mem_toFinset.mp hg)).2.1
+  rw [List.toFinset_card_of_nodup (segChildren_nodup c a b root _)] at hdeg
   have hout := segHasOut_le_card_outputs c a b w
   rw [wireFanout]
   omega
@@ -786,24 +571,14 @@ theorem seg_root_fanout_bound {N : ℕ} (c : PrefixCircuit N) (a b : ℕ)
     (hsg_not : sg ∉ segChildren c a b root root) :
     (segChildren c a b root root).length + (if segHasOut c a b root then 1 else 0) + 1 ≤
       wireFanout c root := by
-  set ch := segChildren c a b root root
-  have hnodup : ch.Nodup := (List.nodup_finRange c.size).filter _
-  have hsg_not_fin : sg ∉ ch.toFinset := by rw [List.mem_toFinset]; exact hsg_not
-  have hdeg : ch.length + 1 ≤ c.outDeg root := by
-    rw [c.outDeg_eq_card_filter, ← List.toFinset_card_of_nodup hnodup,
-      ← Finset.card_insert_of_notMem hsg_not_fin]
-    refine Finset.card_le_card_of_injOn (firstSlotOfGate c) ?_ ?_
-    · intro g hg
-      rw [Finset.mem_coe, Finset.mem_insert, List.mem_toFinset, mem_segChildren_iff] at hg
-      rw [Finset.mem_coe, Finset.mem_filter]
-      rcases hg with rfl | hg
-      · exact ⟨Finset.mem_univ _, (slotWire_firstSlotOfGate c g).trans hsg_fi⟩
-      · exact ⟨Finset.mem_univ _, (slotWire_firstSlotOfGate c g).trans hg.2.1⟩
-    · intro g₁ _ g₂ _ h
-      exact firstSlotOfGate_injective c h
+  have hdeg := card_le_outDeg_of_firstInput c root
+    (insert sg (segChildren c a b root root).toFinset) fun g hg => by
+      rcases Finset.mem_insert.mp hg with rfl | hg
+      exacts [hsg_fi, ((mem_segChildren_iff c a b root root g).mp (List.mem_toFinset.mp hg)).2.1]
+  rw [Finset.card_insert_of_notMem (mt List.mem_toFinset.mp hsg_not),
+    List.toFinset_card_of_nodup (segChildren_nodup c a b root _)] at hdeg
   have hout := segHasOut_le_card_outputs c a b root
   rw [wireFanout]
   omega
-
 
 end Cslib.Circuits.Prefix

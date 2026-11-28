@@ -104,11 +104,8 @@ theorem loopIterRPMF_indicator_mono (cond : Cond r) (μ_body : RData r → PMF (
   · simp only [Set.indicator_of_mem hy]
     refine monotone_nat_of_le_succ (f := fun K => loopIterRPMF cond μ_body K x y) (fun K => ?_) hK
     rw [loopIterRPMF_succ_right, PMF.bind_apply]
-    have hself : loopIterRPMF cond μ_body K x y * loopStepRPMF cond μ_body y y =
-        loopIterRPMF cond μ_body K x y := by
-      rw [loopStepRPMF_of_not_holds hy, PMF.pure_apply_self, mul_one]
-    exact hself ▸ le_tsum (f := fun z =>
-      loopIterRPMF cond μ_body K x z * loopStepRPMF cond μ_body z y) y
+    simpa [loopStepRPMF_of_not_holds hy] using
+      le_tsum (f := fun z => loopIterRPMF cond μ_body K x z * loopStepRPMF cond μ_body z y) y
   · simp [Set.indicator_of_notMem hy]
 
 /-- Combined active/exit state invariant for `while` loops on `RData r`. -/
@@ -121,8 +118,7 @@ theorem loopIterRPMF_support_inv {cond : Cond r} {I Q : RData r → Prop}
     (K : ℕ) {x : RData r} (hx : RLoopStateInv cond I Q x) :
     ∀ y ∈ (loopIterRPMF cond μ_body K x).support, RLoopStateInv cond I Q y := by
   induction K generalizing x with
-  | zero => intro y hy; rw [loopIterRPMF_zero, PMF.support_pure, Set.mem_singleton_iff] at hy
-            rwa [hy]
+  | zero => simp [loopIterRPMF_zero, hx]
   | succ K ih =>
     intro y hy
     obtain ⟨z, hz, hyz⟩ := (PMF.mem_support_bind_iff _ _ _).mp hy
@@ -196,17 +192,14 @@ theorem hasSum_loopExitRDensity {cond : Cond r} {I Q : RData r → Prop}
     (tsub_eq_zero_iff_le.mp <| by_contra fun hne => ?_)
   have hN : ∀ N : ℕ, (N : ℝ≥0∞) * (1 - b) ≤ 1 / p_exit := fun N => by
     have hsum : (N : ℝ≥0∞) * (1 - b) ≤ loopActiveRSteps cond μ_body N x := by
-      have hconst : (N : ℝ≥0∞) * (1 - b) = ∑ _ ∈ Finset.range N, (1 - b) := by
-        rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
-      rw [hconst]
+      rw [loopActiveRSteps]
+      conv_lhs => rw [← Finset.card_range N, ← nsmul_eq_mul, ← Finset.sum_const]
       refine Finset.sum_le_sum fun K _ => tsub_le_iff_left.mpr ?_
       have hc := Cslib.Probability.PMF.toOuterMeasure_add_compl_ennreal
         (loopIterRPMF cond μ_body K x) {z : RData r | cond.Holds z.toData}
-      have hK : (loopIterRPMF cond μ_body K x).toOuterMeasure
-          {z : RData r | ¬cond.Holds z.toData} ≤ b :=
-        le_iSup (fun J =>
-          (loopIterRPMF cond μ_body J x).toOuterMeasure {z : RData r | ¬cond.Holds z.toData}) K
-      exact hc.ge.trans (by rw [add_comm]; exact add_le_add hK le_rfl)
+      rw [add_comm]
+      exact hc.ge.trans (add_le_add le_rfl (le_iSup (fun J =>
+        (loopIterRPMF cond μ_body J x).toOuterMeasure {z : RData r | ¬cond.Holds z.toData}) K))
     exact hsum.trans <| (loopActiveRSteps_le hp_pos hp_top hinv hp_exit N hx).trans
       (by split_ifs <;> simp)
   exact ENNReal.div_ne_top ENNReal.one_ne_top hp_pos.ne' <| top_le_iff.mp <| by
@@ -253,20 +246,13 @@ theorem loopExitRPMF_of_holds {cond : Cond r} {I Q : RData r → Prop}
   ext y
   rw [loopExitRPMF_apply_of_hasSum
     (hasSum_loopExitRDensity hp_pos hp_top hinv hp_exit (Or.inl ⟨hcx, hIx⟩)), PMF.bind_apply]
-  have hmono := loopIterRPMF_indicator_mono cond μ_body x y
-  have hshift : (⨆ K : ℕ, Set.indicator {z : RData r | ¬cond.Holds z.toData}
-      (loopIterRPMF cond μ_body K x) y) =
-      ⨆ K : ℕ, Set.indicator {z : RData r | ¬cond.Holds z.toData}
-        (loopIterRPMF cond μ_body (K + 1) x) y :=
-    le_antisymm
-      (iSup_le fun K => le_iSup_of_le K (hmono (Nat.le_succ K)))
-      (iSup_le fun K => le_iSup_of_le (K + 1) le_rfl)
+  rw [← (loopIterRPMF_indicator_mono cond μ_body x y).iSup_nat_add 1]
   have hstep (K : ℕ) : Set.indicator {z : RData r | ¬cond.Holds z.toData}
       (loopIterRPMF cond μ_body (K + 1) x) y = ∑' z, μ_body x z *
       Set.indicator {w' : RData r | ¬cond.Holds w'.toData} (loopIterRPMF cond μ_body K z) y := by
     rw [loopIterRPMF_succ, loopStepRPMF_of_holds hcx]
     by_cases hy : ¬cond.Holds y.toData <;> simp [hy, PMF.bind_apply]
-  rw [hshift]; simp_rw [hstep]
+  simp_rw [hstep]
   rw [← ENNReal.tsum_iSup_of_monotone
     (f := fun K z => μ_body x z *
       Set.indicator {w' : RData r | ¬cond.Holds w'.toData} (loopIterRPMF cond μ_body K z) y)

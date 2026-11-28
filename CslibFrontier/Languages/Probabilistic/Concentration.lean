@@ -119,19 +119,16 @@ theorem replicate_failure_pow {α : Type} (source : ProbComp α) (good : α → 
       ((eval source).toOuterMeasure {value | good value}).toReal := by
     rw [eval_map, ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
     congr 2
-    ext value
+    ext
     simp
   have h := countTrue_average_deviation_pow confidence inverseSuccess hinverse
     ((fun value => decide (good value)) <$> source)
   rw [hgood] at h
   simp only [OracleComp.countTrue, OracleComp.replicate_map, Functor.map_map, eval_map,
     PMF.toOuterMeasure_map_apply] at h
-  refine le_trans ?_ h
-  apply Probability.PMF.toOuterMeasure_toReal_mono
-  intro values hbad
-  have hzero : (values.map (fun value => decide (good value))).count true = 0 := by
-    rw [List.count_eq_zero]
-    simpa only [List.mem_map, decide_eq_true_eq, Set.mem_ofPred_eq] using hbad
+  refine (Probability.PMF.toOuterMeasure_toReal_mono _ fun values hbad => ?_).trans h
+  have hzero : (values.map fun value => decide (good value)).count true = 0 :=
+    List.count_eq_zero.mpr (by simpa using hbad)
   simpa only [Set.mem_preimage, Set.mem_ofPred_eq, hzero, Nat.cast_zero, zero_div, zero_sub,
     abs_neg, abs_of_nonneg ENNReal.toReal_nonneg] using hsuccess
 
@@ -147,8 +144,7 @@ private theorem testProbabilityLT_error_le_deviation (count numerator denominato
   have hc : (0 : ℝ) < count := by exact_mod_cast hcount
   have hd : (0 : ℝ) < denominator := by exact_mod_cast hdenominator
   rw [OracleComp.testProbabilityLT, eval_map, PMF.toOuterMeasure_map_apply]
-  apply Probability.PMF.toOuterMeasure_toReal_mono
-  intro successes hbad
+  refine Probability.PMF.toOuterMeasure_toReal_mono _ fun successes hbad => ?_
   have hcompare : successes * denominator < count * numerator ↔
       (successes : ℝ) / count < (numerator : ℝ) / denominator := by
     rw [div_lt_div_iff₀ hc hd]
@@ -156,13 +152,11 @@ private theorem testProbabilityLT_error_le_deviation (count numerator denominato
     rw [Nat.mul_comm count]
   change ε ≤ |(successes : ℝ) / count - (eval program true).toReal|
   by_cases htest : successes * denominator < count * numerator
-  · have hlt := hcompare.mp htest
-    simp only [Set.mem_preimage, Set.mem_ofPred_eq, htest, decide_true, ite_true, not_le] at hbad
-    exact le_abs.mpr (Or.inr (by linarith))
-  · have hle := le_of_not_gt (hcompare.not.mp htest)
-    simp only [Set.mem_preimage, Set.mem_ofPred_eq, htest, decide_false,
-      Bool.false_eq_true, ite_false, not_le] at hbad
-    exact le_abs.mpr (Or.inl (by linarith))
+  · simp only [Set.mem_preimage, Set.mem_ofPred_eq, htest, decide_true, ite_true, not_le] at hbad
+    exact le_abs.mpr (.inr (by linarith [hcompare.mp htest]))
+  · simp only [Set.mem_preimage, Set.mem_ofPred_eq, htest, decide_false, Bool.false_eq_true,
+      ite_false, not_le] at hbad
+    exact le_abs.mpr (.inl (by linarith [le_of_not_gt (hcompare.not.mp htest)]))
 
 /-- Except with the Hoeffding error, a true test result implies the probability is at most
 the threshold plus tolerance; a false result implies it is at least the threshold minus tolerance.
@@ -203,12 +197,11 @@ theorem testProbabilityLT_error_pow_of_bounds
       numerator denominator program)).toOuterMeasure
         {below | ¬ if below then (eval program true).toReal ≤ upper
           else lower ≤ (eval program true).toReal}).toReal ≤ (1 / 2 : ℝ) ^ confidence := by
-  refine (Probability.PMF.toOuterMeasure_toReal_mono _ ?_).trans
+  refine (Probability.PMF.toOuterMeasure_toReal_mono _ fun below hbad => ?_).trans
       (testProbabilityLT_error_pow confidence inverseTolerance numerator denominator
         htolerance hdenominator program)
-  intro below hbad
   cases below <;> simp_all only [Set.mem_ofPred_eq, Bool.false_eq_true, ite_false, ite_true]
-  · exact fun h => hbad (hlower.trans h)
-  · exact fun h => hbad (h.trans hupper)
+  · exact hbad ∘ hlower.trans
+  · exact hbad ∘ (·.trans hupper)
 
 end Cslib.ProbComp

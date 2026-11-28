@@ -112,10 +112,7 @@ theorem two_pow_blockLength_le (t : ℕ) : 2 ^ blockLength t ≤ 2 * (t + 2) := 
   have h := Nat.pow_pred_clog_lt_self 2 (by omega : 1 < t + 2)
   have hpos := Nat.clog_pos one_lt_two (by omega : 1 < t + 2)
   unfold blockLength
-  obtain ⟨c, hc⟩ : ∃ c, Nat.clog 2 (t + 2) = c + 1 := ⟨_, (Nat.succ_pred_eq_of_pos hpos).symm⟩
-  rw [hc] at h ⊢
-  rw [pow_succ]
-  simp only [Nat.pred_succ] at h
+  rw [← Nat.succ_pred_eq_of_pos hpos, pow_succ]
   omega
 
 /-- **The construction is polynomial-time**, from the input in binary, the clock in unary and the
@@ -127,32 +124,28 @@ theorem computableInPolyTime_blockNetworkOf [Finite State] :
   have ht : ComputableInPolyTime (fun p : List Bool × ℕ × ℕ => p.2.1)
       (encPair encBits (encPair encUnary encNat)) encUnary := (snd _ _).fst'
   have hb : ComputableInPolyTime (fun p : List Bool × ℕ × ℕ => blockLength p.2.1)
-      (encPair encBits (encPair encUnary encNat)) encUnary := by
-    unfold blockLength
-    exact (unary_clog_const 2).comp (unary_add' ht (const 2))
+      (encPair encBits (encPair encUnary encNat)) encUnary :=
+    (unary_clog_const 2).comp (unary_add' ht (const 2))
   have hq : ComputableInPolyTime (fun p : List Bool × ℕ × ℕ => numBlocks p.2.1)
       (encPair encBits (encPair encUnary encNat)) encUnary := by
-    have h := unary_div.comp ((unary_sub' (unary_add' ht hb) (const 1)).prod hb)
-    simpa only [numBlocks, Nat.ceilDiv_eq_add_pred_div, Function.comp_def] using h
-  have hnet := MultiTapePTM.computableInPolyTime_explicitNetworkNum e machine (fst _ _) hb
-    (fun p => Nat.pos_of_neZero (blockLength p.2.1)) hq (snd _ _).snd'
-    (unary_mul' (const 2) (unary_add' ht (const 2))) fun p => two_pow_blockLength_le p.2.1
+    simpa only [numBlocks, Nat.ceilDiv_eq_add_pred_div, Function.comp_def] using
+      unary_div.comp ((unary_sub' (unary_add' ht hb) (const 1)).prod hb)
   have heq : blockNetworkOf machine e = fun p =>
       (numBlocks p.2.1 * (3 * k + 2), MultiTapePTM.explicitNetworkNum e (blockLength p.2.1)
         machine p.1 (numBlocks p.2.1) p.2.2) := by
     funext p
     rw [blockNetworkOf, MultiTapePTM.explicitBlockNetwork_eq_explicitNetworkNum]
   rw [heq]
-  refine (unary_to_binary.comp (unary_mul' hq (const _))).prod ?_
-  exact hnet.of_enc_eq fun _ => rfl
+  exact (unary_to_binary.comp (unary_mul' hq (const _))).prod <|
+    (MultiTapePTM.computableInPolyTime_explicitNetworkNum e machine (fst _ _) hb
+      (fun p => Nat.pos_of_neZero (blockLength p.2.1)) hq (snd _ _).snd'
+      (unary_mul' (const 2) (unary_add' ht (const 2)))
+      fun p => two_pow_blockLength_le p.2.1).of_enc_eq fun _ => rfl
 
 theorem numBlocks_pos {t : ℕ} (ht : 2 ≤ t) : 0 < numBlocks t := by
   have := le_paddedTime t
   unfold paddedTime at this
-  rcases Nat.eq_zero_or_pos (numBlocks t) with h | h
-  · rw [h, Nat.zero_mul] at this
-    omega
-  · exact h
+  exact Nat.pos_of_ne_zero fun h => by simp [h] at this; omega
 
 /-- **The counting identity**: summed over the schedule numbers, the contractions of the networks
 are the accept count at the padded time. -/
@@ -178,19 +171,20 @@ theorem explicitAdmissible_blockNetworkOf (x : List Bool) {t : ℕ} (σ : ℕ) (
     (MultiTapePTM.scheduleOfNat k (numBlocks t) σ) e hb hqb
   have htq := le_paddedTime t
   unfold paddedTime at htq
-  have hb1 := one_le_blockLength t
   refine ⟨h1, h2, h3, ?_, fun v hv => machine.length_table_explicitBlockNetwork x _ _ e hv, ?_⟩
   · change (machine.explicitBlockNetwork x (blockLength t) _ e).vertices.length ≤ _
     rw [MultiTapePTM.length_vertices_explicitBlockNetwork, MultiTapePTM.letterBits]
     dsimp only [blockNetworkOf, netClock]
-    have hq : numBlocks t ≤ 2 * t := le_trans (Nat.le_mul_of_pos_right _ hb1) hqb
+    have hq : numBlocks t ≤ 2 * t := (Nat.le_mul_of_pos_right _ (one_le_blockLength t)).trans hqb
+    have h4 : 3 * k + 2 ≤ (3 * k + 1) * 4 := by omega
+    have h3k : 3 * k + 2 ≤ (3 * k + 1) * (s + k + 4) :=
+      h4.trans (Nat.mul_le_mul_left _ (by omega))
     have e1 : numBlocks t * (3 * k + 2) ≤ 2 * t * (3 * k + 2) := Nat.mul_le_mul_right _ hq
     have e2 : numBlocks t * (3 * k + 1) * ((s + k + 4) * blockLength t) =
         (3 * k + 1) * (s + k + 4) * (numBlocks t * blockLength t) := by ring
     have e3 : (3 * k + 1) * (s + k + 4) * (numBlocks t * blockLength t) ≤
         (3 * k + 1) * (s + k + 4) * (2 * t) := Nat.mul_le_mul_left _ hqb
     have e4 : 2 * t * (3 * k + 2) ≤ 2 * ((3 * k + 1) * (s + k + 4) * t) := by
-      have : 3 * k + 2 ≤ (3 * k + 1) * (s + k + 4) := by nlinarith
       calc 2 * t * (3 * k + 2) = 2 * (t * (3 * k + 2)) := by ring
         _ ≤ 2 * (t * ((3 * k + 1) * (s + k + 4))) := by gcongr
         _ = 2 * ((3 * k + 1) * (s + k + 4) * t) := by ring
@@ -201,9 +195,8 @@ theorem explicitAdmissible_blockNetworkOf (x : List Bool) {t : ℕ} (σ : ℕ) (
   · change t ≤ (machine.explicitBlockNetwork x (blockLength t) _ e).numEdges
     rw [MultiTapePTM.numEdges_explicitBlockNetwork, MultiTapePTM.letterBits]
     dsimp only [blockNetworkOf, netClock]
-    have : numBlocks t * blockLength t * 1 ≤
-        numBlocks t * blockLength t * (2 * (3 * k + 1) * (s + k + 4)) :=
-      Nat.mul_le_mul_left _ (by nlinarith)
+    have hpos : 1 ≤ 2 * (3 * k + 1) * (s + k + 4) := Nat.mul_pos (by omega) (by omega)
+    have := Nat.mul_le_mul_left (numBlocks t * blockLength t) hpos
     have e7 : numBlocks t * blockLength t * (2 * (3 * k + 1) * (s + k + 4)) =
         2 * (numBlocks t * (3 * k + 1) * ((s + k + 4) * blockLength t)) := by ring
     omega

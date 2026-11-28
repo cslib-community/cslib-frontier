@@ -65,9 +65,7 @@ theorem det_eq_prod_diag_of_weight [CommRing R] (M : Matrix κ κ R) (d : κ →
   rw [det_apply, Finset.sum_eq_single 1]
   · simp
   · intro σ _ hσ
-    obtain ⟨i, hi⟩ : ∃ i, σ i ≠ i := by
-      by_contra! h
-      exact hσ (Equiv.ext h)
+    obtain ⟨i, hi⟩ := not_forall.1 (mt Equiv.ext hσ)
     suffices ∃ j, M (σ j) j = 0 by
       obtain ⟨j, hj⟩ := this
       rw [Finset.prod_eq_zero (f := fun i => M (σ i) i) (Finset.mem_univ j) hj, smul_zero]
@@ -100,10 +98,8 @@ theorem det_submatrix_eq_of_sum_eq_zero {R V : Type*} [CommRing R] [Fintype V] [
     have hMN : M.det = N.det := by
       have h := det_updateRow_sum M v' (fun _ => (1 : R))
       simp only [one_smul] at h
-      have hs : (∑ k : {x // x ≠ u}, M k) = fun j : {x // x ≠ u} => - L u j := by
-        ext j
-        exact (Finset.sum_apply j Finset.univ M).trans (hsum_col j)
-      rw [hs] at h
+      rw [show (∑ k : {x // x ≠ u}, M k) = fun j : {x // x ≠ u} => - L u j from
+        funext fun j => (Finset.sum_apply j Finset.univ M).trans (hsum_col j)] at h
       exact h.symm
     set P : Matrix {x // x ≠ u} {x // x ≠ u} R := (Nᵀ.updateRow v' (∑ k : {x // x ≠ u}, Nᵀ k))ᵀ
     have hNP : N.det = P.det := by
@@ -111,12 +107,7 @@ theorem det_submatrix_eq_of_sum_eq_zero {R V : Type*} [CommRing R] [Fintype V] [
       simp only [one_smul] at h
       rw [← det_transpose N, ← h, det_transpose]
     let e : {x // x ≠ u} ≃ {x // x ≠ v} :=
-      { toFun := fun x => ⟨Equiv.swap u v x, fun hx => x.property ((Equiv.swap u v).injective
-          (by simp only [hx, Equiv.swap_apply_left]))⟩
-        invFun := fun y => ⟨Equiv.swap u v y, fun hy => y.property ((Equiv.swap u v).injective
-          (by simp only [hy, Equiv.swap_apply_right]))⟩
-        left_inv := fun x => Subtype.ext (by simp only [Equiv.swap_apply_self])
-        right_inv := fun y => Subtype.ext (by simp only [Equiv.swap_apply_self]) }
+      (Equiv.swap u v).subtypeEquiv fun x => by simp [Equiv.swap_apply_eq_iff]
     let s : {x // x ≠ u} → R := fun x => if x = v' then -1 else 1
     have hcol_sum : ∀ i : {x // x ≠ u},
         (∑ k : {x // x ≠ u}, Nᵀ k) i = if i = v' then L u u else - L i u := fun i => by
@@ -136,23 +127,12 @@ theorem det_submatrix_eq_of_sum_eq_zero {R V : Type*} [CommRing R] [Fintype V] [
         diagonal s := by
       ext i j
       simp only [P, transpose_apply, updateRow_apply, hcol_sum, N, M, submatrix_apply,
-        diagonal_mul, mul_diagonal, e, Equiv.coe_fn_mk, s]
-      by_cases hi : i = v' <;> by_cases hj : j = v'
-      · subst hi hj
-        simp only [↓reduceIte, v', Equiv.swap_apply_right, neg_one_mul, mul_neg, mul_one, neg_neg]
-      · subst hi
-        have hj' : (j : V) ≠ v := fun h => hj (Subtype.ext h)
-        have hj_swap : Equiv.swap u v (j : V) = j := Equiv.swap_apply_of_ne_of_ne j.property hj'
-        simp only [hj, ↓reduceIte, hj_swap, v', Equiv.swap_apply_right, neg_one_mul, mul_one]
-      · subst hj
-        have hi' : (i : V) ≠ v := fun h => hi (Subtype.ext h)
-        have hi_swap : Equiv.swap u v (i : V) = i := Equiv.swap_apply_of_ne_of_ne i.property hi'
-        simp only [hi, ↓reduceIte, hi_swap, v', Equiv.swap_apply_right, one_mul, mul_neg, mul_one]
-      · have hi' : (i : V) ≠ v := fun h => hi (Subtype.ext h)
-        have hj' : (j : V) ≠ v := fun h => hj (Subtype.ext h)
-        have hi_swap : Equiv.swap u v (i : V) = i := Equiv.swap_apply_of_ne_of_ne i.property hi'
-        have hj_swap : Equiv.swap u v (j : V) = j := Equiv.swap_apply_of_ne_of_ne j.property hj'
-        simp only [hi, hj, ↓reduceIte, hi_swap, hj_swap, one_mul, mul_one]
+        diagonal_mul, mul_diagonal, e, Equiv.subtypeEquiv_apply, s]
+      have hswap (k : {x // x ≠ u}) (hk : k ≠ v') : Equiv.swap u v (k : V) = k :=
+        Equiv.swap_apply_of_ne_of_ne k.2 fun h => hk (Subtype.ext h)
+      by_cases hi : i = v' <;> by_cases hj : j = v' <;>
+        simp (disch := assumption) only [hi, hj, ↓reduceIte, hswap, v', Equiv.swap_apply_right,
+          neg_one_mul, one_mul, mul_neg, mul_one, neg_neg]
     have hs_sq : (∏ i : {x // x ≠ u}, s i) * (∏ i : {x // x ≠ u}, s i) = 1 := by
       rw [← Finset.prod_mul_distrib]
       refine Finset.prod_eq_one fun i _ => ?_

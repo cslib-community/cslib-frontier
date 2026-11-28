@@ -77,24 +77,19 @@ private theorem radius_lower (t : ℕ) :
   omega
 
 private theorem radius_upper {t : ℕ} (ht : 0 < t) : moduleLWECBDRadius t ≤ 8 * t ^ 3 := by
-  have ht1 : 1 ≤ t := ht
-  have h2 : t ≤ t ^ 2 := by nlinarith
-  have h3 : t ^ 2 ≤ t ^ 3 := by nlinarith [sq_nonneg (t - 1 : ℤ)]
-  have hd := Nat.div_mul_le_self (8 * t ^ 3 + t ^ 2 + 4 * t + 2) 2
   unfold moduleLWECBDRadius
-  nlinarith
+  nlinarith [Nat.le_self_pow (by decide : 2 ≠ 0) t,
+    Nat.pow_le_pow_right ht (by decide : 2 ≤ 3),
+    Nat.div_mul_le_self (8 * t ^ 3 + t ^ 2 + 4 * t + 2) 2]
 
 /-- The target modulus grows at most cubically as a number, not merely in bit length. -/
 theorem moduleLWECBD_modulus_le {t : ℕ} (ht : 0 < t) :
     2 ^ moduleLWECBDWidth t ≤ 68 * t ^ 3 := by
   have hpos : 0 < moduleLWECBDWidth t := Nat.size_pos.mpr (by omega)
   have hpow : 2 ^ (moduleLWECBDWidth t - 1) ≤ 4 * moduleLWECBDRadius t + 2 :=
-    Nat.lt_size.mp (by change moduleLWECBDWidth t - 1 < moduleLWECBDWidth t; omega)
-  have heq : moduleLWECBDWidth t = (moduleLWECBDWidth t - 1) + 1 := by omega
-  rw [heq, pow_succ]
-  have hr := radius_upper ht
-  have hcube : 1 ≤ t ^ 3 := Nat.one_le_pow _ _ ht
-  nlinarith
+    Nat.lt_size.mp (Nat.sub_lt hpos Nat.one_pos)
+  rw [← Nat.sub_add_cancel hpos, pow_succ]
+  nlinarith [radius_upper ht, Nat.one_le_pow 3 t ht]
 
 /-- The source modulus has the same polynomial number-size bound. -/
 theorem moduleLWECBD_sourceModulus_le {t : ℕ} (ht : 0 < t) :
@@ -105,10 +100,8 @@ theorem moduleLWECBD_sourceModulus_le {t : ℕ} (ht : 0 < t) :
 /-- Even the full CBD(8t) support lies strictly inside the centered source interval. -/
 theorem moduleLWECBD_noWrap (t : ℕ) :
     2 * (8 * t) < 2 ^ (moduleLWECBDWidth t + 1) := by
-  have hm := moduleLWECBD_margin t
-  have hr := radius_lower t
   rw [pow_succ]
-  nlinarith [Nat.zero_le (t ^ 3), Nat.zero_le (t ^ 2)]
+  nlinarith [moduleLWECBD_margin t, radius_lower t, Nat.zero_le (t ^ 3), Nat.zero_le (t ^ 2)]
 
 private theorem family_budget (t : ℕ) :
     ((2 ^ moduleLWECBDWidth t : ℕ) : ℚ) / 2 ^ (moduleLWECBDWidth t + 1) *
@@ -118,17 +111,17 @@ private theorem family_budget (t : ℕ) :
         (2 ^ (moduleLWECBDWidth t + 1) / 2 : ℕ) -
         (2 ^ moduleLWECBDWidth t / 2 : ℕ)| ≤ moduleLWECBDRadius t := by
   have hw : 0 < moduleLWECBDWidth t := Nat.size_pos.mpr (by omega)
-  have hp : (2 : ℕ) ∣ 2 ^ moduleLWECBDWidth t := dvd_pow_self _ (by omega)
-  have hq : (2 : ℕ) ∣ 2 ^ (moduleLWECBDWidth t + 1) := dvd_pow_self _ (by omega)
-  have hhalf : ((2 ^ moduleLWECBDWidth t : ℕ) : ℚ) /
-      2 ^ (moduleLWECBDWidth t + 1) = 1 / 2 := by
+  have hhalf : ((2 ^ moduleLWECBDWidth t : ℕ) : ℚ) / 2 ^ (moduleLWECBDWidth t + 1) = 1 / 2 := by
     push_cast
     rw [pow_succ]
     field_simp
-  rw [hhalf, Nat.cast_div_charZero hq, Nat.cast_div_charZero hp]
+  rw [hhalf, Nat.cast_div_charZero (dvd_pow_self 2 (by omega : moduleLWECBDWidth t + 1 ≠ 0)),
+    Nat.cast_div_charZero (dvd_pow_self 2 hw.ne')]
   push_cast
   have hexact : (1 / 2 : ℚ) * (2 ^ (moduleLWECBDWidth t + 1) / 2) -
-      2 ^ moduleLWECBDWidth t / 2 = 0 := by rw [pow_succ]; ring
+      2 ^ moduleLWECBDWidth t / 2 = 0 := by
+    rw [pow_succ]
+    ring
   rw [hexact, abs_zero, add_zero]
   have hr : (8 : ℚ) * t ^ 3 + t ^ 2 + 4 * t + 1 ≤ 2 * moduleLWECBDRadius t := by
     exact_mod_cast radius_lower t
@@ -158,16 +151,15 @@ theorem toOuterMeasure_moduleLWECBD_switch_failure_le (l : ℕ) (m : Fin (l + 1)
   let secrets := PMF.pi (fun _ : Fin t =>
     PMF.pi (fun _ : Fin t => LWE.noiseLaw (w + 1) 1))
   have hwrap := moduleLWECBD_noWrap t
-  have hs : ∀ s ∈ secrets.support, ModuleSIS.inInfNormBound 1 s := by
-    intro s hs
-    exact moduleLWECenteredBinomial_inInfNormBound (by dsimp only [w]; omega) hs
+  have hs : ∀ s ∈ secrets.support, ModuleSIS.inInfNormBound 1 s := fun _ =>
+    moduleLWECenteredBinomial_inInfNormBound (by dsimp only [w]; omega)
   have h := toOuterMeasure_moduleLWEModulusSwitch_failure_le
     (k := t) (n := t) (q := 2 ^ (w + 1)) (p := 2 ^ w)
     (Bs := 1) (Br := 1) (Be := 4 * t) (Bp := moduleLWECBDRadius t)
     (moduleLWECBD_margin t) noise m secrets secrets hs hs
     (by simpa only [Nat.cast_pow, Nat.cast_ofNat, Nat.cast_one, w] using family_budget t)
   have hn := toOuterMeasure_moduleLWECBD_noise_tail_le (n := t) (B := 4 * t)
-    (by dsimp only [t]; positivity : 0 < 8 * t) hwrap
+    (Nat.mul_pos (by decide) (Nat.succ_pos l)) hwrap
   have he : -((4 * t : ℕ) : ℝ) ^ 2 / (2 * (8 * t : ℕ)) = -(t : ℝ) := by
     dsimp only [t]
     push_cast
@@ -211,24 +203,16 @@ theorem negligible_moduleLWECBD_switch_failure (m : (l : ℕ) → Fin (l + 1) �
             (fun j i => (SIS.liftCentered (s j) i : ZMod (2 ^ w)))
             (moduleLWEModulusSwitch (2 ^ w) ct) ≠ m l}).toNNReal) := by
   let ratio : ℝ≥0 := ⟨Real.exp (-1), (Real.exp_pos _).le⟩
-  have hratio : ratio < 1 := by
-    change Real.exp (-1) < 1
-    exact Real.exp_lt_one_iff.mpr (by norm_num)
-  have hpoly : PolynomiallyBounded (fun l : ℕ => 4 * (2 * (l + 1) + 1) * (l + 1)) := by
-    fun_prop
-  have hneg := ((negligible_geometric hratio).shift 1).polynomiallyBounded_mul hpoly
-  apply negligible_of_le hneg
-  intro l
-  apply NNReal.coe_le_coe.mp
+  have hratio : ratio < 1 := Real.exp_lt_one_iff.mpr (by norm_num)
+  have hpoly : PolynomiallyBounded (fun l : ℕ => 4 * (2 * (l + 1) + 1) * (l + 1)) := by fun_prop
+  refine negligible_of_le (((negligible_geometric hratio).shift 1).polynomiallyBounded_mul hpoly)
+    fun l => NNReal.coe_le_coe.mp ?_
   change _ ≤ ((4 * (2 * (l + 1) + 1) * (l + 1) : ℕ) : ℝ) * Real.exp (-1) ^ (l + 1)
-  have h := toOuterMeasure_moduleLWECBD_switch_failure_le l (m l)
-  have hr := (ENNReal.le_ofReal_iff_toReal_le (PMF.toOuterMeasure_ne_top _ _)
-    (by positivity)).mp h
-  refine hr.trans_eq ?_
+  refine ((ENNReal.le_ofReal_iff_toReal_le (PMF.toOuterMeasure_ne_top _ _) (by positivity)).mp
+    (toOuterMeasure_moduleLWECBD_switch_failure_le l (m l))).trans_eq ?_
   push_cast
-  rw [← Real.exp_natCast_mul]
-  congr 1
-  congr 1
+  rw [← Real.exp_nat_mul]
+  refine congrArg₂ (· * ·) (by ring) (congrArg Real.exp ?_)
   push_cast
   ring
 

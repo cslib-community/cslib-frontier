@@ -102,20 +102,12 @@ theorem equivJetTableR1_mk (r : ℕ) (p : R[X]) :
 @[simp]
 theorem coeff_equivJetTableR1_symm {r : ℕ} (i : ℕ) (A : JetTable r 1 R) :
     coeff i ((equivJetTableR1 R r).symm A) = if h : i < r then A ⟨i, h⟩ 0 else 0 := by
-  have hmem := (equivJetTableR1 R r).apply_symm_apply A
-  have heq : coeff i ((equivJetTableR1 R r).symm A) =
-      if h : i < r then (JetTable.ofPolyZ r 1 (toPoly ((equivJetTableR1 R r).symm A))) ⟨i, h⟩ 0
-      else 0 := by
-    split_ifs with hi
-    · rw [JetTable.ofPolyZ_apply]
-      simp only [Fin.coe_ofNat_eq_mod, Nat.zero_mod, ↓reduceIte, coeff_toPoly]
-    · exact coeff_eq_zero_of_le (not_lt.mp hi) _
-  rw [heq]
   split_ifs with hi
   · have h2 : JetTable.ofPolyZ r 1 (toPoly ((equivJetTableR1 R r).symm A)) = A := by
-      rw [← equivJetTableR1_mk, mk_toPoly, hmem]
-    rw [h2]
-  · rfl
+      rw [← equivJetTableR1_mk, mk_toPoly, (equivJetTableR1 R r).apply_symm_apply]
+    conv_rhs => rw [← h2, JetTable.ofPolyZ_apply]
+    simp only [Fin.coe_ofNat_eq_mod, Nat.zero_mod, ↓reduceIte, coeff_toPoly]
+  · exact coeff_eq_zero_of_le (not_lt.mp hi) _
 
 private def transposeEquiv (J ℓ : ℕ) (R : Type*) [CommRing R] :
     JetTable ℓ J R ≃+* JetTable J ℓ R where
@@ -145,10 +137,8 @@ theorem equivJetTable1R_mk (r : ℕ) (p : R[X]) :
 theorem coeff_equivJetTable1R_symm {r : ℕ} (i : ℕ) (A : JetTable 1 r R) :
     coeff i ((equivJetTable1R R r).symm A) =
       if h : i < r then A 0 ⟨i, h⟩ else 0 := by
-  have heq : (equivJetTable1R R r).symm A = (equivJetTableR1 R r).symm A.transpose := by
-    rw [equivJetTable1R]
-    rfl
-  rw [heq, coeff_equivJetTableR1_symm]
+  change coeff i ((equivJetTableR1 R r).symm A.transpose) = _
+  rw [coeff_equivJetTableR1_symm]
   split_ifs <;> rfl
 
 end

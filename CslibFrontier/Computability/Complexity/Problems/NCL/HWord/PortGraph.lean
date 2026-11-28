@@ -140,9 +140,8 @@ theorem wellFormed : (network H n).graph.WellFormed := (network H n).wellFormed
 
 /-- Selectors join rows to characters, and unit edges join characters to relations. -/
 theorem loopFree : (network H n).graph.LoopFree := by
-  apply (network H n).endpoints.loopFree _
-  · exact (network H n).edges_nodup
-  · rintro (c | e) <;> simp [SelectorNetwork.endpoints]
+  refine (network H n).endpoints.loopFree _ (network H n).edges_nodup ?_
+  rintro (c | e) <;> simp [SelectorNetwork.endpoints]
 
 /-- The source row of a row, character, or relation vertex. -/
 @[expose] def vertexRow : SelectorNetwork.Vert (Fin n) (Fin n × Fin q) (RelationSite q n) → Fin n
@@ -240,8 +239,7 @@ theorem sourceList_eq : List.ofFn (bandwidthCertificate (n := n) H).order.symm =
   have hi (i : Fin n) (j : Fin (1 + (q + q * q)))
       (h : i.val * (1 + (q + q * q)) + j.val < n * (1 + (q + q * q))) :
       (⟨i.val * (1 + (q + q * q)) + j.val, h⟩ : Fin (n * (1 + (q + q * q)))) =
-        finProdFinEquiv (i, j) := by
-    apply Fin.ext
+        finProdFinEquiv (i, j) := Fin.ext <| by
     change i.val * (1 + (q + q * q)) + j.val = j.val + (1 + (q + q * q)) * i.val
     ac_rfl
   simp only [Equiv.symm_trans_apply, hi, Equiv.symm_apply_apply]
@@ -276,12 +274,8 @@ theorem card_row_le (r : ℕ) : Fintype.card
   apply (Fintype.card_le_of_injective (fun v => (rowEquiv v.val).2) ?_).trans_eq
     (Fintype.card_fin _)
   intro u v h
-  apply Subtype.ext
-  apply rowEquiv.injective
-  apply Prod.ext
-  · apply Fin.ext
-    simpa only [rowEquiv_fst] using u.property.trans v.property.symm
-  · exact h
+  refine Subtype.ext (rowEquiv.injective (Prod.ext (Fin.ext ?_) h))
+  simpa only [rowEquiv_fst] using u.property.trans v.property.symm
 
 /-- Every port row is its owning edge row or the following row. -/
 theorem endpoint_row_bounds
@@ -303,24 +297,16 @@ private def branchCode (c : Fin n × Fin q) (e : RelationSite q n × Bool) : Fin
 private theorem next_fiber {i j k : Fin n} (hi : next i = k) (hj : next j = k)
     (htag : (if i = k then (1 : Fin 3) else 2).val =
       (if j = k then (1 : Fin 3) else 2).val) : i = j := by
-  by_cases hik : i = k
-  · by_cases hjk : j = k
-    · exact hik.trans hjk.symm
-    · simp [hik, hjk] at htag
-  · by_cases hjk : j = k
-    · simp [hik, hjk] at htag
-    · have his : i.val + 1 = k.val := by
-        unfold next at hi
-        split_ifs at hi
-        · exact congrArg Fin.val hi
-        · exact (hik hi).elim
-      have hjs : j.val + 1 = k.val := by
-        unfold next at hj
-        split_ifs at hj
-        · exact congrArg Fin.val hj
-        · exact (hjk hj).elim
-      apply Fin.ext
-      omega
+  have step {x : Fin n} (hx : next x = k) (hxk : x ≠ k) : x.val + 1 = k.val := by
+    unfold next at hx
+    split_ifs at hx
+    · exact congrArg Fin.val hx
+    · exact (hxk hx).elim
+  by_cases hik : i = k <;> by_cases hjk : j = k
+  · exact hik.trans hjk.symm
+  · simp [hik, hjk] at htag
+  · simp [hik, hjk] at htag
+  · exact Fin.ext (Nat.succ.inj ((step hi hik).trans (step hj hjk).symm))
 
 private theorem branchCode_injective (c : Fin n × Fin q)
     {e f : RelationSite q n × Bool}
@@ -333,39 +319,31 @@ private theorem branchCode_injective (c : Fin n × Fin q)
   have hsymbol := congrArg Prod.snd hcode
   cases eb <;> cases fb
   · simp only [network, Bool.coe_false, ite_false] at he hf
-    apply Prod.ext
-    · apply RelationSite.ext
-      · exact (congrArg Prod.fst he).trans (congrArg Prod.fst hf).symm
-      · exact (congrArg Prod.snd he).trans (congrArg Prod.snd hf).symm
-      · exact hsymbol
-    · rfl
+    exact Prod.ext (RelationSite.ext
+      ((congrArg Prod.fst he).trans (congrArg Prod.fst hf).symm)
+      ((congrArg Prod.snd he).trans (congrArg Prod.snd hf).symm) hsymbol) rfl
   · simp only [branchCode, Bool.coe_false, ite_false, ite_true] at htag
     split_ifs at htag <;> simp at htag
   · simp only [branchCode, Bool.coe_false, ite_false, ite_true] at htag
     split_ifs at htag <;> simp at htag
   · simp only [network, ite_true] at he hf
-    have hpos : e.position = f.position :=
-      next_fiber (congrArg Prod.fst he) (congrArg Prod.fst hf) htag
-    apply Prod.ext
-    · exact RelationSite.ext hpos hsymbol
-        ((congrArg Prod.snd he).trans (congrArg Prod.snd hf).symm)
-    · rfl
+    exact Prod.ext (RelationSite.ext
+      (next_fiber (congrArg Prod.fst he) (congrArg Prod.fst hf) htag) hsymbol
+      ((congrArg Prod.snd he).trans (congrArg Prod.snd hf).symm)) rfl
 
 /-- Every character meets at most three rows of `q` unit edges, including the last-row fallback. -/
 theorem selectorWeight_le (c : Fin n × Fin q) : (network H n).selectorWeight c ≤ 3 * q + 1 := by
   let es := ((network H n).incident c).toFinset
-  have hinj : Set.InjOn (branchCode c) es := by
-    intro e he f hf heq
-    have he' := List.mem_filter.mp (List.mem_toFinset.mp he)
-    have hf' := List.mem_filter.mp (List.mem_toFinset.mp hf)
-    exact branchCode_injective H c (of_decide_eq_true he'.2) (of_decide_eq_true hf'.2) heq
+  have hinj : Set.InjOn (branchCode c) es := fun e he f hf heq =>
+    branchCode_injective H c
+      (of_decide_eq_true (List.mem_filter.mp (List.mem_toFinset.mp he)).2)
+      (of_decide_eq_true (List.mem_filter.mp (List.mem_toFinset.mp hf)).2) heq
+  refine Nat.add_le_add_right ?_ 1
   have hn : ((network H n).incident c).Nodup := (network H n).branches_nodup.filter _
-  have hc : ((network H n).incident c).length ≤ 3 * q := by
-    rw [← List.toFinset_card_of_nodup hn]
-    change es.card ≤ _
-    rw [← Finset.card_image_of_injOn hinj]
-    exact (Finset.card_le_univ _).trans_eq (by simp)
-  exact Nat.add_le_add_right hc 1
+  rw [← List.toFinset_card_of_nodup hn]
+  change es.card ≤ 3 * q
+  rw [← Finset.card_image_of_injOn hinj]
+  exact (Finset.card_le_univ _).trans_eq (by simp)
 
 end PortGraph
 end Cslib.Complexity.NCL.HWord

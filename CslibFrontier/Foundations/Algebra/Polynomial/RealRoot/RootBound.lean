@@ -81,13 +81,9 @@ theorem hadamard_det_sq_le {n : ℕ} (A : Matrix (Fin n) (Fin n) ℂ) :
     norm_cast at hgs
     exact Complex.ofReal_inj.mp hgs
   rw [hreal]
-  refine Finset.prod_le_prod₀ (fun i _ => sq_nonneg _) fun i _ => ?_
-  have hle := InnerProductSpace.norm_gramSchmidt_le ℂ v i
-  have hsq : ‖InnerProductSpace.gramSchmidt ℂ v i‖ ^ 2 ≤ ‖v i‖ ^ 2 :=
-    sq_le_sq' (by linarith [norm_nonneg (InnerProductSpace.gramSchmidt ℂ v i), norm_nonneg (v i)])
-      hle
-  rw [EuclideanSpace.norm_sq_eq (v i)] at hsq
-  exact hsq
+  refine Finset.prod_le_prod₀ (fun i _ => sq_nonneg _) fun i _ =>
+    (pow_le_pow_left₀ (norm_nonneg _) (InnerProductSpace.norm_gramSchmidt_le ℂ v i) 2).trans_eq
+      (EuclideanSpace.norm_sq_eq (v i))
 
 end Matrix
 
@@ -235,12 +231,8 @@ private theorem prod_sub_erase_eq_vandermonde_sq {K : Type*} [CommRing K] (d : �
       (fun i j => r i - r j)
   rw [hprod_lhs, hS, Finset.prod_union hdisj, Finset.prod_image hswap_inj]
   have hU_neg : (∏ x ∈ U, (r x.1 - r x.2)) = (-1 : K) ^ U.card * ∏ x ∈ U, (r x.2 - r x.1) := by
-    calc (∏ x ∈ U, (r x.1 - r x.2))
-        = ∏ x ∈ U, ((-1 : K) * (r x.2 - r x.1)) := by
-            refine Finset.prod_congr rfl fun x _ => ?_
-            ring
-      _ = (∏ _x ∈ U, (-1 : K)) * ∏ x ∈ U, (r x.2 - r x.1) := Finset.prod_mul_distrib
-      _ = (-1 : K) ^ U.card * ∏ x ∈ U, (r x.2 - r x.1) := by rw [Finset.prod_const]
+    rw [← Finset.prod_const, ← Finset.prod_mul_distrib]
+    exact Finset.prod_congr rfl fun x _ => by ring
   have hU_swap : (∏ x ∈ U, (r (swapSig x).1 - r (swapSig x).2)) = ∏ x ∈ U, (r x.2 - r x.1) :=
     rfl
   rw [hU_neg, hU_swap, hU_card, hdet]
@@ -293,26 +285,18 @@ theorem discr_eq_leadingCoeff_pow_mul_det_vandermonde_sq {K : Type*} [Field K]
     rw [Finset.prod_mul_distrib, Finset.prod_const, Finset.card_univ, Fintype.card_fin,
       prod_sub_erase_eq_vandermonde_sq]
   rw [hroots_prod] at hres_deriv
-  have hpow : p.natDegree - 1 + p.natDegree = 1 + (2 * p.natDegree - 2) := by omega
+  have hpow : p.leadingCoeff ^ (p.natDegree - 1) * p.leadingCoeff ^ p.natDegree =
+      p.leadingCoeff * p.leadingCoeff ^ (2 * p.natDegree - 2) := by
+    rw [← pow_add, ← pow_succ']
+    congr 1
+    omega
   have hcomb : p.leadingCoeff ^ (p.natDegree - 1) *
       (p.leadingCoeff ^ p.natDegree *
         ((-1 : K) ^ (p.natDegree * (p.natDegree - 1) / 2) * (Matrix.vandermonde r).det ^ 2)) =
       ((-1 : K) ^ (p.natDegree * (p.natDegree - 1) / 2) * p.leadingCoeff) *
         (p.leadingCoeff ^ (2 * p.natDegree - 2) * (Matrix.vandermonde r).det ^ 2) := by
-    calc p.leadingCoeff ^ (p.natDegree - 1) *
-          (p.leadingCoeff ^ p.natDegree *
-            ((-1 : K) ^ (p.natDegree * (p.natDegree - 1) / 2) * (Matrix.vandermonde r).det ^ 2))
-      _ = (p.leadingCoeff ^ (p.natDegree - 1) * p.leadingCoeff ^ p.natDegree) *
-            ((-1 : K) ^ (p.natDegree * (p.natDegree - 1) / 2) *
-              (Matrix.vandermonde r).det ^ 2) := by
-            ring
-      _ = (p.leadingCoeff ^ (1 + (2 * p.natDegree - 2))) *
-            ((-1 : K) ^ (p.natDegree * (p.natDegree - 1) / 2) *
-              (Matrix.vandermonde r).det ^ 2) := by
-            rw [← pow_add, hpow]
-      _ = ((-1 : K) ^ (p.natDegree * (p.natDegree - 1) / 2) * p.leadingCoeff) *
-            (p.leadingCoeff ^ (2 * p.natDegree - 2) * (Matrix.vandermonde r).det ^ 2) := by
-            rw [pow_add, pow_one]; ring
+    linear_combination
+      ((-1 : K) ^ (p.natDegree * (p.natDegree - 1) / 2) * (Matrix.vandermonde r).det ^ 2) * hpow
   rw [hcomb] at hres_deriv
   have hunit : (-1 : K) ^ (p.natDegree * (p.natDegree - 1) / 2) * p.leadingCoeff ≠ 0 :=
     mul_ne_zero (pow_ne_zero _ (neg_ne_zero.mpr one_ne_zero)) hlead0
@@ -376,17 +360,10 @@ private theorem norm_det_vandermonde_sq_le {d : ℕ} (hd : 2 ≤ d) (r : Fin d �
       intro k
       have hWi : W i k = r i ^ (k : ℕ) := by
         simp only [W, Matrix.updateRow_ne hij, V, Matrix.vandermonde_apply]
-      have h1M : 1 ≤ max 1 ‖r i‖ := le_max_left 1 ‖r i‖
-      have hrM : ‖r i‖ ≤ max 1 ‖r i‖ := le_max_right 1 ‖r i‖
-      rw [hWi, norm_pow]
-      calc (‖r i‖ ^ (k : ℕ)) ^ 2
-          ≤ ((max 1 ‖r i‖) ^ (k : ℕ)) ^ 2 := by gcongr
-        _ = (max 1 ‖r i‖) ^ ((k : ℕ) * 2) := by rw [← pow_mul]
-        _ = (max 1 ‖r i‖) ^ (2 * (k : ℕ)) := by rw [mul_comm]
-        _ ≤ (max 1 ‖r i‖) ^ (2 * (d - 1)) := by
-            refine pow_le_pow_right₀ h1M ?_
-            have hk : (k : ℕ) < d := k.isLt
-            omega
+      rw [hWi, norm_pow, ← pow_mul, mul_comm]
+      calc ‖r i‖ ^ (2 * (k : ℕ)) ≤ (max 1 ‖r i‖) ^ (2 * (k : ℕ)) := by
+            gcongr; exact le_max_right 1 ‖r i‖
+        _ ≤ (max 1 ‖r i‖) ^ (2 * (d - 1)) := pow_le_pow_right₀ (le_max_left 1 ‖r i‖) (by omega)
     calc ∑ k : Fin d, ‖W i k‖ ^ 2
         ≤ ∑ _k : Fin d, (max 1 ‖r i‖) ^ (2 * (d - 1)) := Finset.sum_le_sum fun k _ => hentry k
       _ = (d : ℝ) * (max 1 ‖r i‖) ^ (2 * (d - 1)) := by
@@ -402,21 +379,13 @@ private theorem norm_det_vandermonde_sq_le {d : ℕ} (hd : 2 ≤ d) (r : Fin d �
         simp only [W, Matrix.updateRow_self, Pi.add_apply, Pi.smul_apply, smul_eq_mul, neg_mul,
           one_mul, ← sub_eq_add_neg, V, Matrix.vandermonde_apply]
       rw [hWj]
-      have hdiff := norm_pow_sub_pow_le hnorm k.isLt hd
+      have hdiff := norm_pow_sub_pow_le hnorm k.2 hd
       rw [norm_sub_rev (r j₀) (r i₀)] at hdiff
-      have hsq : ‖r j₀ ^ (k : ℕ) - r i₀ ^ (k : ℕ)‖ ^ 2 ≤
-          (‖r i₀ - r j₀‖ * (k : ℝ) * (max 1 ‖r j₀‖) ^ (d - 2)) ^ 2 := by
-        refine sq_le_sq' ?_ hdiff
-        have hpos : 0 ≤ ‖r i₀ - r j₀‖ * (k : ℝ) * (max 1 ‖r j₀‖) ^ (d - 2) :=
-          mul_nonneg (mul_nonneg (norm_nonneg _) (Nat.cast_nonneg _))
-            (pow_nonneg (le_trans zero_le_one (le_max_left 1 _)) _)
-        linarith [norm_nonneg (r j₀ ^ (k : ℕ) - r i₀ ^ (k : ℕ))]
-      refine hsq.trans_eq ?_
+      refine (pow_le_pow_left₀ (norm_nonneg _) hdiff 2).trans_eq ?_
       rw [mul_pow, mul_pow, ← pow_mul, mul_comm (d - 2) 2]
     have hsum_sq : (∑ k : Fin d, (k : ℝ) ^ 2) ≤ (d : ℝ) ^ 3 / 3 := by
-      have h6 := six_mul_sum_range_sq_le d
       have h6R : (6 : ℝ) * ∑ k ∈ Finset.range d, (k : ℝ) ^ 2 ≤ 2 * (d : ℝ) ^ 3 := by
-        exact_mod_cast h6
+        exact_mod_cast six_mul_sum_range_sq_le d
       rw [← Fin.sum_univ_eq_sum_range] at h6R
       linarith
     have hpowM : (max 1 ‖r j₀‖) ^ (2 * (d - 2)) ≤ (max 1 ‖r j₀‖) ^ (2 * (d - 1)) :=
@@ -442,30 +411,11 @@ private theorem norm_det_vandermonde_sq_le {d : ℕ} (hd : 2 ≤ d) (r : Fin d �
   have hprod_coeff :
       (∏ i : Fin d, if i = j₀ then ‖r i₀ - r j₀‖ ^ 2 * ((d : ℝ) ^ 3 / 3) else (d : ℝ)) =
         ‖r i₀ - r j₀‖ ^ 2 * ((d : ℝ) ^ (d + 2) / 3) := by
-    rw [← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ j₀)]
-    simp only [↓reduceIte]
-    have herase : (∏ i ∈ Finset.univ.erase j₀,
-        if i = j₀ then ‖r i₀ - r j₀‖ ^ 2 * ((d : ℝ) ^ 3 / 3) else (d : ℝ)) =
-        (d : ℝ) ^ (d - 1) := by
-      have hconst : (∏ i ∈ Finset.univ.erase j₀,
-          if i = j₀ then ‖r i₀ - r j₀‖ ^ 2 * ((d : ℝ) ^ 3 / 3) else (d : ℝ)) =
-          ∏ _i ∈ Finset.univ.erase j₀, (d : ℝ) := by
-        refine Finset.prod_congr rfl fun i hi => ?_
-        simp only [(Finset.mem_erase.mp hi).1, ↓reduceIte]
-      rw [hconst, Finset.prod_const, Finset.card_erase_of_mem (Finset.mem_univ j₀),
-        Finset.card_univ, Fintype.card_fin]
-    rw [herase]
-    have hd_pow : (d : ℝ) ^ 3 * (d : ℝ) ^ (d - 1) = (d : ℝ) ^ (d + 2) := by
-      rw [← pow_add]
-      congr 1
-      omega
-    calc ‖r i₀ - r j₀‖ ^ 2 * ((d : ℝ) ^ 3 / 3) * (d : ℝ) ^ (d - 1)
-        = ‖r i₀ - r j₀‖ ^ 2 * (((d : ℝ) ^ 3 * (d : ℝ) ^ (d - 1)) / 3) := by ring
-      _ = ‖r i₀ - r j₀‖ ^ 2 * ((d : ℝ) ^ (d + 2) / 3) := by rw [hd_pow]
-  have hprod_M : (∏ i : Fin d, (max 1 ‖r i‖) ^ (2 * (d - 1))) =
-      (∏ i : Fin d, max 1 ‖r i‖) ^ (2 * (d - 1)) := by
-    rw [Finset.prod_pow]
-  rw [hprod_coeff, hprod_M] at hprod_bound
+    rw [Finset.prod_ite, Finset.filter_eq', ite_eq_left (Finset.mem_univ _), Finset.prod_singleton,
+      Finset.prod_const, Finset.filter_ne', Finset.card_erase_of_mem (Finset.mem_univ _),
+      Finset.card_univ, Fintype.card_fin, show d + 2 = 3 + (d - 1) by omega, pow_add]
+    ring
+  rw [hprod_coeff, Finset.prod_pow] at hprod_bound
   exact hhad.trans hprod_bound
 
 /-- Mignotte-type root-separation lower bound in terms of the Mahler measure of `p : ℤ[X]`:
@@ -483,38 +433,29 @@ theorem mignotte_sep_mahler_complex {p : ℤ[X]} (hd : 2 ≤ p.natDegree)
   let pC : ℂ[X] := p.map (algebraMap ℤ ℂ)
   have hinjC : Function.Injective (algebraMap ℤ ℂ) := Int.cast_injective
   have hp0 : p ≠ 0 := fun h0 => by simp only [h0, natDegree_zero] at hd; omega
-  have hleadZ : p.leadingCoeff ≠ 0 := leadingCoeff_ne_zero.mpr hp0
   have hleadC : (algebraMap ℤ ℂ) p.leadingCoeff ≠ 0 := by
-    simp only [eq_intCast, Int.cast_ne_zero, ne_eq]
-    exact hleadZ
+    simpa only [eq_intCast, Int.cast_ne_zero] using leadingCoeff_ne_zero.mpr hp0
   have hdegC : pC.natDegree = d := natDegree_map_eq_of_injective hinjC p
   have hpC0 : pC ≠ 0 := (Polynomial.map_ne_zero_iff hinjC).mpr hp0
   have hpC_sep : pC.Separable := by
-    have hmap : pC = (p.map (algebraMap ℤ ℚ)).map (algebraMap ℚ ℂ) := by
+    rw [show pC = (p.map (algebraMap ℤ ℚ)).map (algebraMap ℚ ℂ) by
       rw [Polynomial.map_map, Subsingleton.elim ((algebraMap ℚ ℂ).comp (algebraMap ℤ ℚ))
-        (algebraMap ℤ ℂ)]
-    rw [hmap]
+        (algebraMap ℤ ℂ)]]
     exact hsep.map
   have hsplits : pC.Splits := IsAlgClosed.splits pC
   have hlen : pC.roots.toList.length = pC.natDegree := by
     rw [Multiset.length_toList, ← hsplits.natDegree_eq_card_roots]
   let L := pC.roots.toList
-  let r : Fin pC.natDegree → ℂ := fun i => L[i.val]'(i.isLt.trans_eq hlen.symm)
-  have hList_eq : List.ofFn r = L := by
-    refine List.ext_get ?_ fun n hn1 hn2 => ?_
-    · rw [List.length_ofFn]
-      exact hlen.symm
-    · simp only [List.get_eq_getElem, List.getElem_ofFn, r]
+  let r : Fin pC.natDegree → ℂ := fun i => L[i.1]'(i.2.trans_eq hlen.symm)
+  have hList_eq : List.ofFn r = L := List.ext_get (by rw [List.length_ofFn, hlen]) fun n _ _ => by
+    simp only [List.get_eq_getElem, List.getElem_ofFn, r]
   have hr_roots : Finset.univ.val.map r = pC.roots := by
     change Multiset.ofList (List.map r (List.finRange pC.natDegree)) = pC.roots
     rw [← List.ofFn_eq_map, hList_eq, Multiset.coe_toList]
   have hr_inj : Function.Injective r := by
     have hnodup_L : L.Nodup := Multiset.coe_nodup.mp (by
-      rw [Multiset.coe_toList]
-      exact nodup_roots hpC_sep)
-    intro i j hij
-    have heq := (List.Nodup.getElem_inj_iff hnodup_L).mp hij
-    exact Fin.ext heq
+      rw [Multiset.coe_toList]; exact nodup_roots hpC_sep)
+    exact fun i j hij => Fin.ext ((List.Nodup.getElem_inj_iff hnodup_L).mp hij)
   have hα_mem : α ∈ L := Multiset.mem_toList.mpr ((mem_roots hpC0).mpr hα.eq_zero)
   have hβ_mem : β ∈ L := Multiset.mem_toList.mpr ((mem_roots hpC0).mpr hβ.eq_zero)
   obtain ⟨i₀', hi₀', hri₀⟩ := List.mem_iff_getElem.mp hα_mem
@@ -523,10 +464,7 @@ theorem mignotte_sep_mahler_complex {p : ℤ[X]} (hd : 2 ≤ p.natDegree)
   let j₀ : Fin pC.natDegree := ⟨j₀', hj₀'.trans_eq hlen⟩
   have hr_i₀ : r i₀ = α := hri₀
   have hr_j₀ : r j₀ = β := hrj₀
-  have hij_ne : i₀ ≠ j₀ := by
-    intro heq
-    apply hne
-    rw [← hr_i₀, ← hr_j₀, heq]
+  have hij_ne : i₀ ≠ j₀ := fun heq => hne (by rw [← hr_i₀, ← hr_j₀, heq])
   have hd_pos : 0 < pC.natDegree := by rw [hdegC]; omega
   have hdiscr_vand := discr_eq_leadingCoeff_pow_mul_det_vandermonde_sq hsplits hd_pos r hr_roots
   have hdiscr_map : pC.discr = ((p.discr : ℤ) : ℂ) := by
@@ -537,10 +475,7 @@ theorem mignotte_sep_mahler_complex {p : ℤ[X]} (hd : 2 ≤ p.natDegree)
   have hpC_discr_ne0 : pC.discr ≠ 0 := by
     rw [hdiscr_vand]
     exact mul_ne_zero (pow_ne_zero _ (leadingCoeff_ne_zero.mpr hpC0)) (pow_ne_zero _ hvand_ne0)
-  have hp_discr_ne0 : p.discr ≠ 0 := by
-    intro hz
-    apply hpC_discr_ne0
-    rw [hdiscr_map, hz, Int.cast_zero]
+  have hp_discr_ne0 : p.discr ≠ 0 := fun hz => hpC_discr_ne0 (by rw [hdiscr_map, hz, Int.cast_zero])
   have hdiscr_norm_ge1 : (1 : ℝ) ≤ ‖pC.discr‖ := by
     rw [hdiscr_map, Complex.norm_intCast]
     exact_mod_cast Int.one_le_abs hp_discr_ne0
@@ -556,17 +491,8 @@ theorem mignotte_sep_mahler_complex {p : ℤ[X]} (hd : 2 ≤ p.natDegree)
     rfl
   have hcomb : ‖pC.leadingCoeff‖ ^ (2 * (pC.natDegree - 1)) * ‖(Matrix.vandermonde r).det‖ ^ 2 ≤
       ‖α - β‖ ^ 2 * ((d : ℝ) ^ (d + 2) / 3) * pC.mahlerMeasure ^ (2 * (d - 1)) := by
-    calc ‖pC.leadingCoeff‖ ^ (2 * (pC.natDegree - 1)) * ‖(Matrix.vandermonde r).det‖ ^ 2
-        ≤ ‖pC.leadingCoeff‖ ^ (2 * (pC.natDegree - 1)) *
-            (‖α - β‖ ^ 2 * ((pC.natDegree : ℝ) ^ (pC.natDegree + 2) / 3) *
-              (∏ i : Fin pC.natDegree, max 1 ‖r i‖) ^ (2 * (pC.natDegree - 1))) := by gcongr
-      _ = ‖α - β‖ ^ 2 * ((pC.natDegree : ℝ) ^ (pC.natDegree + 2) / 3) *
-            (‖pC.leadingCoeff‖ * ∏ i : Fin pC.natDegree, max 1 ‖r i‖) ^
-              (2 * (pC.natDegree - 1)) := by rw [mul_pow]; ring
-      _ = ‖α - β‖ ^ 2 * ((pC.natDegree : ℝ) ^ (pC.natDegree + 2) / 3) *
-            pC.mahlerMeasure ^ (2 * (pC.natDegree - 1)) := by rw [hmahler]
-      _ = ‖α - β‖ ^ 2 * ((d : ℝ) ^ (d + 2) / 3) * pC.mahlerMeasure ^ (2 * (d - 1)) := by
-          rw [hdegC]
+    rw [hmahler, mul_pow, ← hdegC]
+    exact (mul_le_mul_of_nonneg_left hvand_bound (by positivity)).trans_eq (by ring)
   have hle : (1 : ℝ) ≤ ‖α - β‖ ^ 2 * ((d : ℝ) ^ (d + 2) / 3) * pC.mahlerMeasure ^ (2 * (d - 1)) :=
     hdiscr_norm_ge1.trans (hdiscr_norm_eq.symm ▸ hcomb)
   linarith
@@ -586,14 +512,8 @@ theorem mignotte_sep_sqNorm_complex {p : ℤ[X]} (hd : 2 ≤ p.natDegree)
     have h1 := Polynomial.mahlerMeasure_le_sqrt_sum_sq_norm_coeff pC
     have hsum_nonneg : 0 ≤ ∑ i ∈ pC.support, ‖pC.coeff i‖ ^ 2 :=
       Finset.sum_nonneg fun _ _ => sq_nonneg _
-    have hsq : pC.mahlerMeasure ^ 2 ≤ ∑ i ∈ pC.support, ‖pC.coeff i‖ ^ 2 := by
-      calc pC.mahlerMeasure ^ 2
-          ≤ (√(∑ i ∈ pC.support, ‖pC.coeff i‖ ^ 2)) ^ 2 :=
-            sq_le_sq' (by
-              linarith [mahlerMeasure_nonneg pC,
-                Real.sqrt_nonneg (∑ i ∈ pC.support, ‖pC.coeff i‖ ^ 2)]) h1
-        _ = ∑ i ∈ pC.support, ‖pC.coeff i‖ ^ 2 := Real.sq_sqrt hsum_nonneg
-    refine hsq.trans_eq ?_
+    refine ((pow_le_pow_left₀ (mahlerMeasure_nonneg pC) h1 2).trans_eq
+      (Real.sq_sqrt hsum_nonneg)).trans_eq ?_
     rw [coeffSqNorm_cast_real, Polynomial.support_map_of_injective p hinjC]
     refine Finset.sum_congr rfl fun i _ => ?_
     rw [Polynomial.coeff_map, eq_intCast, Complex.norm_intCast, sq_abs]

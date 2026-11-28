@@ -118,48 +118,33 @@ private theorem length_le_prefixUnionMaxLen {L : List (List Bool)} {w : List Boo
     (hw : w ∈ L) : w.length ≤ prefixUnionMaxLen L :=
   List.mem_le_foldl_max (List.mem_map_of_mem hw)
 
-private theorem primrec_prefixUnionMaxLen : Primrec prefixUnionMaxLen := by
-  have hmap : Primrec fun L : List (List Bool) => L.map List.length :=
-    Primrec.list_map Primrec.id (Primrec.list_length.comp Primrec.snd).to₂
-  have hmax : Primrec₂ fun (_ : List (List Bool)) (mn : ℕ × ℕ) => max mn.1 mn.2 :=
-    Primrec₂.mk <|
-      Primrec.nat_max.comp (Primrec.fst.comp Primrec.snd) (Primrec.snd.comp Primrec.snd)
-  exact (Primrec.list_foldl hmap (Primrec.const 0) hmax).of_eq fun _ => rfl
+private theorem primrec_prefixUnionMaxLen : Primrec prefixUnionMaxLen :=
+  (Primrec.list_foldl (Primrec.list_map Primrec.id (Primrec.list_length.comp Primrec.snd).to₂)
+    (Primrec.const 0)
+    (Primrec₂.mk (f := fun (_ : List (List Bool)) (mn : ℕ × ℕ) => max mn.1 mn.2) <|
+      Primrec.nat_max.comp
+        (Primrec.fst.comp Primrec.snd) (Primrec.snd.comp Primrec.snd))).of_eq fun _ => rfl
 
 private theorem primrec_prefixUnionCount : Primrec prefixUnionCount := by
-  have hany : PrimrecRel fun (L : List (List Bool)) (v : List Bool) => ∃ w ∈ L, w <+: v :=
-    PrimrecRel.exists_mem_list Primrec.list_isPrefix
+  have hpred : PrimrecPred fun arg : List (List Bool) × (List Bool × ℕ) =>
+      ∃ w ∈ arg.1, w <+: arg.2.1 :=
+    (PrimrecRel.exists_mem_list Primrec.list_isPrefix).comp
+      Primrec.fst (Primrec.fst.comp Primrec.snd)
   have hh : Primrec₂ fun (L : List (List Bool)) (vn : List Bool × ℕ) =>
       if L.any (fun w => decide (w <+: vn.1)) then vn.2 + 1 else vn.2 := by
-    have hpred : PrimrecPred fun arg : List (List Bool) × (List Bool × ℕ) =>
-        ∃ w ∈ arg.1, w <+: arg.2.1 :=
-      hany.comp Primrec.fst (Primrec.fst.comp Primrec.snd)
     refine Primrec₂.mk <| (Primrec.ite hpred
       (Primrec.succ.comp (Primrec.snd.comp Primrec.snd))
       (Primrec.snd.comp Primrec.snd)).of_eq fun ⟨L, v, n⟩ => ?_
-    have hiff : (L.any fun w => decide (w <+: v)) = true ↔ ∃ w ∈ L, w <+: v := by
-      simp [List.any_eq_true]
-    by_cases h : ∃ w ∈ L, w <+: v
-    · simp [h, hiff.mpr h]
-    · have hf : (L.any fun w => decide (w <+: v)) = false :=
-        Bool.eq_false_iff.mpr (mt hiff.mp h)
-      simp [h, hf]
-  have hfold : Primrec fun L : List (List Bool) =>
-      (Cslib.BitString.enumList (prefixUnionMaxLen L)).foldr
-        (fun v acc => if L.any fun w => decide (w <+: v) then acc + 1 else acc) 0 :=
-    (Primrec.list_foldr (Cslib.BitString.primrec_enumList.comp primrec_prefixUnionMaxLen)
-      (Primrec.const 0) hh).of_eq fun _ => rfl
-  refine hfold.of_eq fun L => ?_
-  have hgen : ∀ E : List (List Bool),
-      E.foldr (fun v acc => if L.any fun w => decide (w <+: v) then acc + 1 else acc) 0 =
-        E.countP (fun v => L.any fun w => decide (w <+: v)) := by
-    intro E
-    induction E with
-    | nil => rfl
-    | cons a t ih =>
-      simp only [List.foldr_cons, List.countP_cons, ih]
-      cases L.any fun w => decide (w <+: a) <;> simp
-  exact hgen _
+    simp [List.any_eq_true]
+  refine (Primrec.list_foldr
+    (Cslib.BitString.primrec_enumList.comp primrec_prefixUnionMaxLen)
+    (Primrec.const 0) hh).of_eq fun L => ?_
+  dsimp only [prefixUnionCount]
+  induction Cslib.BitString.enumList (prefixUnionMaxLen L) with
+  | nil => rfl
+  | cons a t ih =>
+    simp only [List.foldr_cons, List.countP_cons, ih]
+    cases L.any fun w => decide (w <+: a) <;> simp
 
 private theorem biUnion_prefixCylinderList_eq_filter (L : List (List Bool)) :
     (⋃ w ∈ L, prefixCylinderList w) =
@@ -168,50 +153,40 @@ private theorem biUnion_prefixCylinderList_eq_filter (L : List (List Bool)) :
   ext x
   simp only [Set.mem_iUnion, List.mem_toFinset, List.mem_filter, Cslib.BitString.mem_enumList,
     List.any_eq_true, decide_eq_true_eq, exists_prop]
-  constructor
-  · rintro ⟨w, hw, hx⟩
-    let M := prefixUnionMaxLen L
-    let v : List Bool := List.ofFn fun i : Fin M => x i
-    refine ⟨v, ⟨by simp [v, M], w, hw, ?_⟩, mem_prefixCylinderList.mpr fun i => by simp [v]⟩
-    have hwM : w.length ≤ M := length_le_prefixUnionMaxLen hw
-    rw [List.prefix_iff_eq_take]
-    refine List.ext_getElem (by simp [v, hwM]) fun i hi1 hi2 => ?_
-    have hiw : i < w.length := by simpa [v, hwM] using hi1
-    simp only [List.getElem_take, v, List.getElem_ofFn]
-    exact ((mem_prefixCylinderList.mp hx) ⟨i, hiw⟩).symm
-  · rintro ⟨v, ⟨_, w, hw, hwv⟩, hxv⟩
-    exact ⟨w, hw, prefixCylinderList_subset_of_isPrefix hwv hxv⟩
+  refine ⟨fun ⟨w, hw, hx⟩ => ?_, fun ⟨_, ⟨_, w, hw, hwv⟩, hxv⟩ =>
+    ⟨w, hw, prefixCylinderList_subset_of_isPrefix hwv hxv⟩⟩
+  refine ⟨List.ofFn fun i : Fin (prefixUnionMaxLen L) => x i,
+    ⟨by simp, w, hw, ?_⟩, mem_prefixCylinderList.mpr fun _ => by simp⟩
+  have hwM : w.length ≤ prefixUnionMaxLen L := length_le_prefixUnionMaxLen hw
+  rw [List.prefix_iff_eq_take]
+  refine List.ext_getElem (by simp [hwM]) fun i hi1 _ => ?_
+  have hiw : i < w.length := by simpa [hwM] using hi1
+  simp only [List.getElem_take, List.getElem_ofFn]
+  exact ((mem_prefixCylinderList.mp hx) ⟨i, hiw⟩).symm
 
 private theorem coinFlips_biUnion_list (L : List (List Bool)) :
     Cslib.BitString.coinFlips (⋃ w ∈ L, prefixCylinderList w) =
       (prefixUnionCount L : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹ ^ prefixUnionMaxLen L := by
   let M := prefixUnionMaxLen L
   let F := (Cslib.BitString.enumList M).filter fun v => L.any fun w => decide (w <+: v)
-  have hnd : F.Nodup :=
-    ((Cslib.BitString.nodup_enum M).map List.ofFn_injective).filter _
-  have hdisj : (F.toFinset : Set (List Bool)).PairwiseDisjoint prefixCylinderList := by
-    intro v₁ hv₁ v₂ hv₂ hne
-    have hl₁ :=
-      Cslib.BitString.length_of_mem_enumList (List.mem_filter.mp (List.mem_toFinset.mp hv₁)).1
-    have hl₂ :=
-      Cslib.BitString.length_of_mem_enumList (List.mem_filter.mp (List.mem_toFinset.mp hv₂)).1
-    refine disjoint_prefixCylinderList_of_prefixDisjoint ⟨fun hp => ?_, fun hp => ?_⟩
-    · exact hne (hp.eq_of_length (hl₁.trans hl₂.symm))
-    · exact hne (hp.eq_of_length (hl₂.trans hl₁.symm)).symm
-  rw [biUnion_prefixCylinderList_eq_filter]
-  rw [measure_biUnion_finset hdisj fun v _ => measurableSet_prefixCylinderList v]
-  have hlen : F.toFinset.card = prefixUnionCount L := by
-    rw [List.toFinset_card_of_nodup hnd, ← List.countP_eq_length_filter]
-    rfl
+  have hlen_mem : ∀ v ∈ F.toFinset, v.length = M := fun v hv =>
+    Cslib.BitString.length_of_mem_enumList (List.mem_filter.mp (List.mem_toFinset.mp hv)).1
+  have hdisj : (F.toFinset : Set (List Bool)).PairwiseDisjoint prefixCylinderList :=
+    fun v₁ hv₁ v₂ hv₂ hne => disjoint_prefixCylinderList_of_prefixDisjoint
+      ⟨fun hp => hne (hp.eq_of_length ((hlen_mem v₁ hv₁).trans (hlen_mem v₂ hv₂).symm)),
+       fun hp => hne (hp.eq_of_length ((hlen_mem v₂ hv₂).trans (hlen_mem v₁ hv₁).symm)).symm⟩
+  have hnd : F.Nodup := ((Cslib.BitString.nodup_enum M).map List.ofFn_injective).filter _
+  rw [biUnion_prefixCylinderList_eq_filter,
+    measure_biUnion_finset hdisj fun v _ => measurableSet_prefixCylinderList v]
   calc ∑ v ∈ F.toFinset, Cslib.BitString.coinFlips (prefixCylinderList v)
-    _ = ∑ _ ∈ F.toFinset, (2 : ℝ≥0∞)⁻¹ ^ M := by
-        refine Finset.sum_congr rfl fun v hv => ?_
-        have hvl :=
-          Cslib.BitString.length_of_mem_enumList (List.mem_filter.mp (List.mem_toFinset.mp hv)).1
-        rw [coinFlips_prefixCylinderList, ENNReal.inv_pow, hvl]
+    _ = ∑ _ ∈ F.toFinset, (2 : ℝ≥0∞)⁻¹ ^ M :=
+        Finset.sum_congr rfl fun v hv => by
+          rw [coinFlips_prefixCylinderList, ENNReal.inv_pow, hlen_mem v hv]
     _ = (F.toFinset.card : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹ ^ M := by
         rw [Finset.sum_const, nsmul_eq_mul]
-    _ = (prefixUnionCount L : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹ ^ prefixUnionMaxLen L := by rw [hlen]
+    _ = (prefixUnionCount L : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹ ^ prefixUnionMaxLen L := by
+        rw [List.toFinset_card_of_nodup hnd, ← List.countP_eq_length_filter]
+        rfl
 
 /-- The real value of `finitePrefixMass L` equals the `coinFlips`-measure of the finite cylinder
 union `⋃ w ∈ L, prefixCylinderList w`. -/
@@ -262,25 +237,22 @@ theorem mem_reWords_iff_exists_evaln {e : Code} {t : ℕ} {w : List Bool} :
         wf.1 = w ∧ (Code.evaln wf.2 e (encode wf.1)).isSome := by
   simp only [reWords, Nat.mem_distinctValues, reCand, Option.bind_eq_some_iff,
     Option.map_eq_some_iff, Option.isSome_iff_exists]
-  constructor
-  · rintro ⟨j, hj, wf, hdec, ⟨y, hy, rfl⟩⟩
-    exact ⟨j, hj, wf, hdec, rfl, ⟨y, hy⟩⟩
-  · rintro ⟨j, hj, wf, hdec, rfl, ⟨y, hy⟩⟩
-    exact ⟨j, hj, wf, hdec, ⟨y, hy, rfl⟩⟩
+  exact ⟨fun ⟨j, hj, wf, hdec, y, hy, h⟩ => ⟨j, hj, wf, hdec, h, y, hy⟩,
+    fun ⟨j, hj, wf, hdec, h, y, hy⟩ => ⟨j, hj, wf, hdec, y, hy, h⟩⟩
 
 theorem exists_mem_reWords_iff_dom {e : Code} {w : List Bool} :
     (∃ t : ℕ, w ∈ reWords e t) ↔ (e.eval (encode w)).Dom := by
   constructor
-  · rintro ⟨t, ht⟩
-    obtain ⟨_, _, ⟨w', f⟩, _, rfl, hy⟩ := mem_reWords_iff_exists_evaln.mp ht
-    obtain ⟨y, hy'⟩ := Option.isSome_iff_exists.mp hy
-    exact Part.dom_iff_mem.mpr ⟨y, Code.evaln_sound hy'⟩
+  · rintro ⟨_, ht⟩
+    obtain ⟨_, _, _, _, rfl, y, hy⟩ := by
+      simpa only [Option.isSome_iff_exists] using mem_reWords_iff_exists_evaln.mp ht
+    exact Part.dom_iff_mem.mpr ⟨y, Code.evaln_sound hy⟩
   · intro hdom
     obtain ⟨y, hy⟩ := Part.dom_iff_mem.mp hdom
     obtain ⟨f, hf⟩ := Code.evaln_complete.mp hy
-    refine ⟨encode (w, f) + 1, mem_reWords_iff_exists_evaln.mpr ?_⟩
-    exact ⟨encode (w, f), Nat.lt_succ_self _, (w, f), encodek _, rfl,
-      Option.isSome_iff_exists.mpr ⟨y, hf⟩⟩
+    exact ⟨encode (w, f) + 1, mem_reWords_iff_exists_evaln.mpr
+      ⟨encode (w, f), Nat.lt_succ_self _, (w, f), encodek _, rfl,
+        Option.isSome_iff_exists.mpr ⟨y, hf⟩⟩⟩
 
 /-- Uniformly computable monotone rational lower approximant to the `coinFlips`-measure of the
 effectively open union `⋃ w ∈ {w | (e.eval (encode w)).Dom}, prefixCylinderList w`.
@@ -294,13 +266,14 @@ def reCoverMass (e : Code) (t : ℕ) : ℚ :=
 theorem reCoverMass_nonneg (e : Code) (t : ℕ) : 0 ≤ reCoverMass e t :=
   finitePrefixMass_nonneg (reWords e t)
 
-theorem monotone_reCoverMass (e : Code) : Monotone (reCoverMass e) := by
-  intro m n hmn
-  have hsub : (⋃ w ∈ reWords e m, prefixCylinderList w) ⊆
-      ⋃ w ∈ reWords e n, prefixCylinderList w :=
-    Set.iUnion₂_mono' fun w hw => ⟨w, (Nat.distinctValues_prefix (reCand e) hmn).subset hw,
-      Set.Subset.rfl⟩
-  have hm := ENNReal.toReal_mono (measure_ne_top Cslib.BitString.coinFlips _) (measure_mono hsub)
+private theorem monotone_biUnion_reWords (e : Code) :
+    Monotone fun t => ⋃ w ∈ reWords e t, prefixCylinderList w := fun _ _ hmn =>
+  Set.iUnion₂_mono' fun w hw =>
+    ⟨w, (Nat.distinctValues_prefix (reCand e) hmn).subset hw, Set.Subset.rfl⟩
+
+theorem monotone_reCoverMass (e : Code) : Monotone (reCoverMass e) := fun _ _ hmn => by
+  have hm := ENNReal.toReal_mono (measure_ne_top Cslib.BitString.coinFlips _)
+    (measure_mono (monotone_biUnion_reWords e hmn))
   rw [toReal_coinFlips_biUnion_list, toReal_coinFlips_biUnion_list] at hm
   exact_mod_cast hm
 
@@ -311,21 +284,13 @@ private theorem tendsto_coinFlips_reWords (e : Code) :
     Tendsto (fun t => Cslib.BitString.coinFlips (⋃ w ∈ reWords e t, prefixCylinderList w)) atTop
       (𝓝 (Cslib.BitString.coinFlips
         (⋃ w ∈ {w | (e.eval (encode w)).Dom}, prefixCylinderList w))) := by
-  have hmono : Monotone fun t => ⋃ w ∈ reWords e t, prefixCylinderList w := fun m n hmn =>
-    Set.iUnion₂_mono' fun w hw => ⟨w, (Nat.distinctValues_prefix (reCand e) hmn).subset hw,
-      Set.Subset.rfl⟩
   have hunion : (⋃ t : ℕ, ⋃ w ∈ reWords e t, prefixCylinderList w) =
       ⋃ w ∈ {w | (e.eval (encode w)).Dom}, prefixCylinderList w := by
     ext x
-    simp only [Set.mem_iUnion, Set.mem_ofPred_eq, exists_prop]
-    constructor
-    · rintro ⟨t, w, hw, hx⟩
-      exact ⟨w, exists_mem_reWords_iff_dom.mp ⟨t, hw⟩, hx⟩
-    · rintro ⟨w, hdom, hx⟩
-      obtain ⟨t, hw⟩ := exists_mem_reWords_iff_dom.mpr hdom
-      exact ⟨t, w, hw, hx⟩
+    simp only [Set.mem_iUnion, Set.mem_ofPred_eq, exists_prop, ← exists_mem_reWords_iff_dom]
+    exact ⟨fun ⟨t, w, hw, hx⟩ => ⟨w, ⟨t, hw⟩, hx⟩, fun ⟨w, ⟨t, hw⟩, hx⟩ => ⟨t, w, hw, hx⟩⟩
   rw [← hunion]
-  exact MeasureTheory.tendsto_measure_iUnion_atTop hmono
+  exact MeasureTheory.tendsto_measure_iUnion_atTop (monotone_biUnion_reWords e)
 
 /-- **Left-c.e. measure of effectively open cylinder sets**: uniformly in a code `e`, the rational
 approximants `reCoverMass e t` converge from below to the `coinFlips`-measure of
@@ -333,13 +298,9 @@ approximants `reCoverMass e t` converge from below to the `coinFlips`-measure of
 theorem tendsto_reCoverMass (e : Code) :
     Tendsto (fun t => (reCoverMass e t : ℝ)) atTop
       (𝓝 (Cslib.BitString.coinFlips
-        (⋃ w ∈ {w | (e.eval (encode w)).Dom}, prefixCylinderList w)).toReal) := by
-  have ht := (ENNReal.continuousAt_toReal (measure_ne_top Cslib.BitString.coinFlips _)).tendsto.comp
-    (tendsto_coinFlips_reWords e)
-  refine ht.congr fun t => ?_
-  dsimp only [Function.comp_def]
-  rw [toReal_coinFlips_biUnion_list]
-  rfl
+        (⋃ w ∈ {w | (e.eval (encode w)).Dom}, prefixCylinderList w)).toReal) :=
+  ((ENNReal.continuousAt_toReal (measure_ne_top Cslib.BitString.coinFlips _)).tendsto.comp
+    (tendsto_coinFlips_reWords e)).congr fun t => toReal_coinFlips_biUnion_list (reWords e t)
 
 /-- Every approximant `reCoverMass e t` bounds
 `(Cslib.BitString.coinFlips (⋃ w ∈ {w | (e.eval (encode w)).Dom}, prefixCylinderList w)).toReal`
@@ -359,27 +320,18 @@ theorem exists_computable_approx_coinFlips_of_rePred {S : Set (List Bool)} (hS :
       Tendsto (fun t => (num t : ℝ) / (den t : ℝ)) atTop
         (𝓝 (Cslib.BitString.coinFlips (⋃ w ∈ S, prefixCylinderList w)).toReal) := by
   obtain ⟨e, he⟩ := rePred_iff_exists_code.mp hS
-  let num : ℕ → ℕ := fun t => prefixUnionCount (reWords e t)
-  let den : ℕ → ℕ := fun t => 2 ^ prefixUnionMaxLen (reWords e t)
-  have htwo : Primrec fun n : ℕ => 2 ^ n := primrec_two_pow
-  have hnum : Computable num :=
-    (primrec_prefixUnionCount.comp (primrec₂_reWords.comp (Primrec.const e) Primrec.id)).to_comp
-  have hden : Computable den :=
-    (htwo.comp (primrec_prefixUnionMaxLen.comp
-      (primrec₂_reWords.comp (Primrec.const e) Primrec.id))).to_comp
-  have hratio : ∀ t : ℕ, (num t : ℝ) / (den t : ℝ) = (reCoverMass e t : ℝ) := by
-    intro t
-    simp only [num, den, reCoverMass, finitePrefixMass, Rat.cast_mul, Rat.cast_natCast,
-      Rat.cast_pow, Rat.cast_inv, Rat.cast_ofNat, inv_pow, div_eq_mul_inv, Nat.cast_pow,
-      Nat.cast_ofNat]
-  have hset : S = {w | (e.eval (encode w)).Dom} := Set.ext he
-  refine ⟨num, den, hnum, hden, fun _ => by positivity, ?_, ?_⟩
-  · intro a b hab
-    dsimp only
-    rw [hratio a, hratio b]
-    exact_mod_cast monotone_reCoverMass e hab
-  · rw [hset]
-    exact (tendsto_reCoverMass e).congr fun t => (hratio t).symm
+  have hre : Primrec (reWords e) := primrec₂_reWords.comp (Primrec.const e) Primrec.id
+  have hratio : ∀ t : ℕ, (prefixUnionCount (reWords e t) : ℝ) /
+      ((2 ^ prefixUnionMaxLen (reWords e t) : ℕ) : ℝ) = (reCoverMass e t : ℝ) := fun t => by
+    simp [reCoverMass, finitePrefixMass, inv_pow, div_eq_mul_inv]
+  refine ⟨_, _, (primrec_prefixUnionCount.comp hre).to_comp,
+    (primrec_two_pow.comp (primrec_prefixUnionMaxLen.comp hre)).to_comp, fun _ => by positivity,
+    fun a b hab => by
+      dsimp only
+      rw [hratio a, hratio b]
+      exact_mod_cast monotone_reCoverMass e hab, ?_⟩
+  rw [show S = {w | (e.eval (encode w)).Dom} from Set.ext he]
+  exact (tendsto_reCoverMass e).congr fun t => (hratio t).symm
 
 /-! ### Capped effective tests and a universal Martin-Löf test -/
 
@@ -437,19 +389,43 @@ private theorem primrec_mlCappedStep :
   simp only [mlCappedStep]
   cases mlCand _ _ <;> rfl
 
+private theorem nat_mul_two_pow_le_iff_ennreal (c k M : ℕ) :
+    c * 2 ^ k ≤ 2 ^ M ↔ (c : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹ ^ M ≤ (2 : ℝ≥0∞)⁻¹ ^ k := by
+  have hM : (2 : ℝ≥0∞) ^ M ≠ 0 ∧ (2 : ℝ≥0∞) ^ M ≠ ⊤ := ⟨by positivity, by simp⟩
+  have hk : (2 : ℝ≥0∞) ^ k ≠ 0 ∧ (2 : ℝ≥0∞) ^ k ≠ ⊤ := ⟨by positivity, by simp⟩
+  rw [← ENNReal.inv_pow, ← ENNReal.inv_pow,
+    ← ENNReal.mul_le_mul_iff_right hM.1 hM.2, ← ENNReal.mul_le_mul_iff_right hk.1 hk.2,
+    mul_left_comm (2 ^ M : ℝ≥0∞) (c : ℝ≥0∞), ENNReal.mul_inv_cancel hM.1 hM.2, mul_one,
+    mul_left_comm (2 ^ k : ℝ≥0∞) (2 ^ M), ENNReal.mul_inv_cancel hk.1 hk.2, mul_one,
+    mul_comm (2 ^ k : ℝ≥0∞)]
+  exact_mod_cast Iff.rfl
+
+private theorem dom_of_mlCand_eq_some {ek : Code × ℕ} {j : ℕ} {w : List Bool}
+    (hc : mlCand ek j = some w) : (ek.1.eval (encode (ek.2, w))).Dom := by
+  simp only [mlCand, Option.bind_eq_some_iff, Option.map_eq_some_iff] at hc
+  obtain ⟨⟨_, _⟩, _, y, hy, rfl⟩ := hc
+  exact Part.dom_iff_mem.mpr ⟨y, Code.evaln_sound hy⟩
+
+private theorem exists_mlCand_eq_some_of_dom {ek : Code × ℕ} {w : List Bool}
+    (hw : (ek.1.eval (encode (ek.2, w))).Dom) : ∃ j : ℕ, mlCand ek j = some w := by
+  obtain ⟨y, hy⟩ := Part.dom_iff_mem.mp hw
+  obtain ⟨f, hf⟩ := Code.evaln_complete.mp hy
+  refine ⟨encode (w, f), ?_⟩
+  rw [Option.mem_def] at hf
+  dsimp only [mlCand]
+  rw [encodek, Option.bind_some]
+  change (Code.evaln f ek.1 (encode (ek.2, w))).map (fun _ => w) = some w
+  rw [hf]; rfl
+
 private def mlCappedList (ek : Code × ℕ) : ℕ → List (List Bool)
   | 0 => []
   | n + 1 => mlCappedStep ek n (mlCappedList ek n)
 
 private theorem primrec₂_mlCappedList : Primrec₂ mlCappedList := by
   refine (Primrec.nat_rec (Primrec.const []) primrec_mlCappedStep.to₂).of_eq fun ek n => ?_
-  have hrec : ∀ m : ℕ, Nat.rec []
-      (fun j acc => mlCappedStep ek j acc) m = mlCappedList ek m := by
-    intro m
-    induction m with
-    | zero => rfl
-    | succ m ih => rw [mlCappedList, ← ih]
-  exact hrec n
+  induction n with
+  | zero => rfl
+  | succ m ih => rw [mlCappedList, ← ih]
 
 private theorem mlCappedList_subset_mono (ek : Code × ℕ) {m n : ℕ} (hmn : m ≤ n) :
     mlCappedList ek m ⊆ mlCappedList ek n := by
@@ -460,7 +436,7 @@ private theorem mlCappedList_subset_mono (ek : Code × ℕ) {m n : ℕ} (hmn : m
     simp only [mlCappedList, mlCappedStep]
     cases mlCand ek _ with
     | none => exact ih hw
-    | some w' =>
+    | some _ =>
       dsimp only
       split_ifs
       · exact List.mem_cons_of_mem _ (ih hw)
@@ -471,9 +447,7 @@ private theorem mlCappedList_spec (ek : Code × ℕ) (n : ℕ) :
         2 ^ prefixUnionMaxLen (mlCappedList ek n) ∧
       ∀ w ∈ mlCappedList ek n, (ek.1.eval (encode (ek.2, w))).Dom := by
   induction n with
-  | zero =>
-    refine ⟨?_, fun _ hw => by simp [mlCappedList] at hw⟩
-    simp [mlCappedList, prefixUnionCount, prefixUnionMaxLen]
+  | zero => simp [mlCappedList, prefixUnionCount, prefixUnionMaxLen]
   | succ n ih =>
     obtain ⟨hmeas, hdom⟩ := ih
     simp only [mlCappedList, mlCappedStep]
@@ -481,14 +455,10 @@ private theorem mlCappedList_spec (ek : Code × ℕ) (n : ℕ) :
     | none => exact ⟨hmeas, hdom⟩
     | some w =>
       dsimp only
-      have hw_dom : (ek.1.eval (encode (ek.2, w))).Dom := by
-        simp only [mlCand, Option.bind_eq_some_iff, Option.map_eq_some_iff] at hcand
-        obtain ⟨⟨w', f⟩, _, ⟨y, hy, rfl⟩⟩ := hcand
-        exact Part.dom_iff_mem.mpr ⟨y, Code.evaln_sound hy⟩
       split_ifs with hcap
       · refine ⟨hcap, fun u hu => ?_⟩
         rcases List.mem_cons.mp hu with rfl | hu'
-        · exact hw_dom
+        · exact dom_of_mlCand_eq_some hcand
         · exact hdom u hu'
       · exact ⟨hmeas, hdom⟩
 
@@ -496,29 +466,7 @@ private theorem coinFlips_mlCappedList_le (ek : Code × ℕ) (n : ℕ) :
     Cslib.BitString.coinFlips (⋃ w ∈ mlCappedList ek n, prefixCylinderList w) ≤
       (2 : ℝ≥0∞)⁻¹ ^ ek.2 := by
   rw [coinFlips_biUnion_list]
-  have hbound := (mlCappedList_spec ek n).1
-  set c := prefixUnionCount (mlCappedList ek n)
-  set M := prefixUnionMaxLen (mlCappedList ek n)
-  have hreal : (c : ℝ) * (2 : ℝ)⁻¹ ^ M ≤ (2 : ℝ)⁻¹ ^ ek.2 := by
-    have hpowM : (0 : ℝ) < (2 : ℝ) ^ M := by positivity
-    have hpowk : (0 : ℝ) < (2 : ℝ) ^ ek.2 := by positivity
-    have hnat : (c : ℝ) * (2 : ℝ) ^ ek.2 ≤ (2 : ℝ) ^ M := by exact_mod_cast hbound
-    rw [inv_pow, inv_pow]
-    calc (c : ℝ) * ((2 : ℝ) ^ M)⁻¹
-      _ = ((c : ℝ) * (2 : ℝ) ^ ek.2) * ((2 : ℝ) ^ M)⁻¹ * ((2 : ℝ) ^ ek.2)⁻¹ := by field_simp
-      _ ≤ (2 : ℝ) ^ M * ((2 : ℝ) ^ M)⁻¹ * ((2 : ℝ) ^ ek.2)⁻¹ := by gcongr
-      _ = ((2 : ℝ) ^ ek.2)⁻¹ := by rw [mul_inv_cancel₀ hpowM.ne', one_mul]
-  have hof : (c : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹ ^ M =
-      ENNReal.ofReal ((c : ℝ) * (2 : ℝ)⁻¹ ^ M) := by
-    rw [ENNReal.ofReal_mul (Nat.cast_nonneg _), ENNReal.ofReal_natCast,
-      ENNReal.ofReal_pow (by positivity), ENNReal.ofReal_inv_of_pos (by positivity)]
-    norm_num
-  rw [hof]
-  calc ENNReal.ofReal ((c : ℝ) * (2 : ℝ)⁻¹ ^ M)
-    _ ≤ ENNReal.ofReal ((2 : ℝ)⁻¹ ^ ek.2) := ENNReal.ofReal_le_ofReal hreal
-    _ = (2 : ℝ≥0∞)⁻¹ ^ ek.2 := by
-        rw [ENNReal.ofReal_pow (by positivity), ENNReal.ofReal_inv_of_pos (by positivity)]
-        norm_num
+  exact (nat_mul_two_pow_le_iff_ennreal _ _ _).mp (mlCappedList_spec ek n).1
 
 private theorem coinFlips_iUnion_mlCapped_le (ek : Code × ℕ) :
     Cslib.BitString.coinFlips
@@ -530,7 +478,7 @@ private theorem coinFlips_iUnion_mlCapped_le (ek : Code × ℕ) :
     simp only [Set.mem_iUnion, Set.mem_ofPred_eq, exists_prop]
     exact ⟨fun ⟨w, ⟨n, hn⟩, hx⟩ => ⟨n, w, hn, hx⟩, fun ⟨n, w, hn, hx⟩ => ⟨w, ⟨n, hn⟩, hx⟩⟩
   rw [heq]
-  have hmono : Monotone fun n => ⋃ w ∈ mlCappedList ek n, prefixCylinderList w := fun m n hmn =>
+  have hmono : Monotone fun n => ⋃ w ∈ mlCappedList ek n, prefixCylinderList w := fun _ _ hmn =>
     Set.iUnion₂_mono' fun w hw => ⟨w, mlCappedList_subset_mono ek hmn hw, Set.Subset.rfl⟩
   exact le_of_tendsto (MeasureTheory.tendsto_measure_iUnion_atTop hmono)
     (Eventually.of_forall fun n => coinFlips_mlCappedList_le ek n)
@@ -540,42 +488,25 @@ private theorem mlCapped_eq_all_of_measure_le (e : Code) (k : ℕ)
       (⋃ w ∈ {w | (e.eval (encode (k, w))).Dom}, prefixCylinderList w) ≤ (2 : ℝ≥0∞)⁻¹ ^ k)
     {w : List Bool} (hw : (e.eval (encode (k, w))).Dom) :
     ∃ n : ℕ, w ∈ mlCappedList (e, k) n := by
-  obtain ⟨y, hy⟩ := Part.dom_iff_mem.mp hw
-  obtain ⟨f, hf⟩ := Code.evaln_complete.mp hy
-  let j := encode (w, f)
-  have hcand : mlCand (e, k) j = some w := by
-    rw [Option.mem_def] at hf
-    dsimp only [mlCand, j]
-    rw [encodek, Option.bind_some]
-    change (Code.evaln f e (encode (k, w))).map (fun _ => w) = some w
-    rw [hf]
-    rfl
+  obtain ⟨j, hcand⟩ := exists_mlCand_eq_some_of_dom (ek := (e, k)) hw
   refine ⟨j + 1, ?_⟩
   simp only [mlCappedList, mlCappedStep, hcand]
   have hsub : (⋃ u ∈ (w :: mlCappedList (e, k) j), prefixCylinderList u) ⊆
       ⋃ u ∈ {u | (e.eval (encode (k, u))).Dom}, prefixCylinderList u := by
-    refine Set.iUnion₂_mono' fun u hu => ⟨u, ?_, Set.Subset.rfl⟩
+    refine Set.iUnion₂_subset fun u hu => Set.subset_iUnion₂_of_subset u ?_ Set.Subset.rfl
     rcases List.mem_cons.mp hu with rfl | hu'
     · exact hw
     · exact (mlCappedList_spec (e, k) j).2 u hu'
-  have hm := (measure_mono hsub).trans hle
-  rw [coinFlips_biUnion_list] at hm
-  set c := prefixUnionCount (w :: mlCappedList (e, k) j)
-  set M := prefixUnionMaxLen (w :: mlCappedList (e, k) j)
-  have htoReal : ((c : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹ ^ M).toReal ≤ ((2 : ℝ≥0∞)⁻¹ ^ k).toReal :=
-    ENNReal.toReal_mono (by simp) hm
-  rw [ENNReal.toReal_mul, ENNReal.toReal_natCast, ENNReal.toReal_pow, ENNReal.toReal_pow] at htoReal
-  simp only [ENNReal.toReal_inv, ENNReal.toReal_ofNat] at htoReal
-  have hreal : (c : ℝ) * (2 : ℝ) ^ k ≤ (2 : ℝ) ^ M := by
-    have hpowM : (0 : ℝ) < (2 : ℝ) ^ M := by positivity
-    have hpowk : (0 : ℝ) < (2 : ℝ) ^ k := by positivity
-    rw [inv_pow, inv_pow] at htoReal
-    calc (c : ℝ) * (2 : ℝ) ^ k
-      _ = ((c : ℝ) * ((2 : ℝ) ^ M)⁻¹) * (2 : ℝ) ^ M * (2 : ℝ) ^ k := by field_simp
-      _ ≤ (((2 : ℝ) ^ k)⁻¹) * (2 : ℝ) ^ M * (2 : ℝ) ^ k := by gcongr
-      _ = (2 : ℝ) ^ M := by field_simp
-  have hnat : c * 2 ^ k ≤ 2 ^ M := by exact_mod_cast hreal
-  simp [hnat]
+  have hm : (prefixUnionCount (w :: mlCappedList (e, k) j) : ℝ≥0∞) *
+      (2 : ℝ≥0∞)⁻¹ ^ prefixUnionMaxLen (w :: mlCappedList (e, k) j) ≤ (2 : ℝ≥0∞)⁻¹ ^ k :=
+    calc _ = Cslib.BitString.coinFlips
+          (⋃ u ∈ w :: mlCappedList (e, k) j, prefixCylinderList u) :=
+          (coinFlips_biUnion_list _).symm
+      _ ≤ Cslib.BitString.coinFlips
+          (⋃ u ∈ {u | (e.eval (encode (k, u))).Dom}, prefixCylinderList u) :=
+          measure_mono hsub
+      _ ≤ (2 : ℝ≥0∞)⁻¹ ^ k := hle
+  simp [(nat_mul_two_pow_le_iff_ennreal _ _ _).mpr hm]
 
 private theorem computablePred_mem_mlCappedList :
     ComputablePred fun arg : (ℕ × List Bool) × (ℕ × ℕ) =>
@@ -595,18 +526,14 @@ private theorem computablePred_mem_mlCappedList :
 
 private theorem tsum_two_inv_pow_shift (m : ℕ) :
     (∑' i : ℕ, (2 : ℝ≥0∞)⁻¹ ^ (m + i + 1)) = (2 : ℝ≥0∞)⁻¹ ^ m := by
-  have hterm : ∀ i : ℕ,
-      (2 : ℝ≥0∞)⁻¹ ^ (m + i + 1) =
-        ((2 : ℝ≥0∞)⁻¹ ^ m * (2 : ℝ≥0∞)⁻¹) * (2 : ℝ≥0∞)⁻¹ ^ i := fun i => by
+  have hterm (i : ℕ) : (2 : ℝ≥0∞)⁻¹ ^ (m + i + 1) =
+      ((2 : ℝ≥0∞)⁻¹ ^ m * (2 : ℝ≥0∞)⁻¹) * (2 : ℝ≥0∞)⁻¹ ^ i := by
     rw [show m + i + 1 = (m + 1) + i by omega, pow_add, pow_succ]
   simp_rw [hterm, ENNReal.tsum_mul_left, ENNReal.tsum_geometric]
   have hsub : (1 : ℝ≥0∞) - (2 : ℝ≥0∞)⁻¹ = (2 : ℝ≥0∞)⁻¹ := by
     conv_lhs => rw [← ENNReal.inv_two_add_inv_two]
     exact ENNReal.add_sub_cancel_right (by norm_num)
-  rw [hsub]
-  have hmul : (2 : ℝ≥0∞)⁻¹ * ((2 : ℝ≥0∞)⁻¹)⁻¹ = 1 :=
-    ENNReal.mul_inv_cancel (by norm_num) (by norm_num)
-  rw [mul_assoc, hmul, mul_one]
+  rw [hsub, mul_assoc, ENNReal.mul_inv_cancel (by norm_num) (by norm_num), mul_one]
 
 /-- A **universal Martin-Löf randomness test**, combining every effective randomness test `i : ℕ`
 with shifted tolerance `(m + i + 1)` so its level-`m` union has measure at most `2⁻¹ ^ m`. -/
@@ -640,48 +567,40 @@ theorem exists_subset_universalMartinLofTest (T : MartinLofTest) :
     ∃ d : ℕ, ∀ m : ℕ, T.cover (m + d) ⊆ universalMartinLofTest.cover m := by
   obtain ⟨e, he⟩ := rePred_iff_exists_code.mp T.re
   refine ⟨encode e + 1, fun m w hw => ?_⟩
-  have hshift : m + (encode e + 1) = m + encode e + 1 := by omega
-  rw [hshift] at hw
-  have hdom : (e.eval (encode (m + encode e + 1, w))).Dom := (he (m + encode e + 1, w)).mp hw
-  have hset : {u | (e.eval (encode (m + encode e + 1, u))).Dom} = T.cover (m + encode e + 1) := by
-    ext u
-    exact (he (m + encode e + 1, u)).symm
+  have hw' : w ∈ T.cover (m + encode e + 1) := by rwa [← add_assoc] at hw
+  have hset : {u | (e.eval (encode (m + encode e + 1, u))).Dom} = T.cover (m + encode e + 1) :=
+    Set.ext fun u => (he (m + encode e + 1, u)).symm
   have hle : Cslib.BitString.coinFlips
       (⋃ u ∈ {u | (e.eval (encode (m + encode e + 1, u))).Dom}, prefixCylinderList u) ≤
       (2 : ℝ≥0∞)⁻¹ ^ (m + encode e + 1) := by
     rw [hset]
     exact T.measure_le (m + encode e + 1)
-  obtain ⟨n, hn⟩ := mlCapped_eq_all_of_measure_le e (m + encode e + 1) hle hdom
-  refine Set.mem_ofPred_eq.mpr ⟨(encode e, n), ?_⟩
-  simpa [ofNat_encode] using hn
+  obtain ⟨n, hn⟩ :=
+    mlCapped_eq_all_of_measure_le e (m + encode e + 1) hle ((he (m + encode e + 1, w)).mp hw')
+  exact Set.mem_ofPred_eq.mpr ⟨(encode e, n), by simpa [ofNat_encode] using hn⟩
 
 /-- An infinite sequence `x` is Martin-Löf random if and only if it passes
 `universalMartinLofTest`. -/
 theorem isMartinLofRandom_iff_passes_universalMartinLofTest (x : ℕ → Bool) :
     IsMartinLofRandom x ↔
-      ∃ m : ℕ, x ∉ ⋃ w ∈ universalMartinLofTest.cover m, prefixCylinderList w := by
-  constructor
-  · intro hx
-    exact hx universalMartinLofTest
-  · intro ⟨m, hm⟩ T
-    obtain ⟨d, hd⟩ := exists_subset_universalMartinLofTest T
-    refine ⟨m + d, fun hx => hm ?_⟩
-    exact Set.iUnion₂_mono' (fun w hw => ⟨w, hd m hw, Set.Subset.rfl⟩) hx
+      ∃ m : ℕ, x ∉ ⋃ w ∈ universalMartinLofTest.cover m, prefixCylinderList w :=
+  ⟨fun hx => hx universalMartinLofTest, fun ⟨m, hm⟩ T =>
+    let ⟨d, hd⟩ := exists_subset_universalMartinLofTest T
+    ⟨m + d, fun hx => hm (Set.iUnion₂_mono' (fun w hw => ⟨w, hd m hw, Set.Subset.rfl⟩) hx)⟩⟩
 
 /-- **Full measure of Martin-Löf randomness**: `coinFlips`-almost every infinite binary sequence
 is Martin-Löf random. -/
 theorem ae_isMartinLofRandom : ∀ᵐ x ∂Cslib.BitString.coinFlips, IsMartinLofRandom x := by
-  let N : Set (ℕ → Bool) := ⋂ m : ℕ, ⋃ w ∈ universalMartinLofTest.cover m, prefixCylinderList w
-  have hN_le : ∀ m : ℕ, Cslib.BitString.coinFlips N ≤ (2 : ℝ≥0∞)⁻¹ ^ m := fun m =>
-    (measure_mono (Set.iInter_subset _ m)).trans (universalMartinLofTest.measure_le m)
-  have hten : Tendsto (fun m : ℕ => (2 : ℝ≥0∞)⁻¹ ^ m) atTop (𝓝 0) :=
-    ENNReal.tendsto_pow_atTop_nhds_zero_of_lt_one (by norm_num)
-  have hN_zero : Cslib.BitString.coinFlips N = 0 :=
-    le_antisymm (le_of_tendsto_of_tendsto' tendsto_const_nhds hten hN_le) bot_le
+  have hN_zero : Cslib.BitString.coinFlips
+      (⋂ m : ℕ, ⋃ w ∈ universalMartinLofTest.cover m, prefixCylinderList w) = 0 :=
+    le_antisymm (le_of_tendsto_of_tendsto' tendsto_const_nhds
+      (ENNReal.tendsto_pow_atTop_nhds_zero_of_lt_one (by norm_num))
+      fun m => (measure_mono (Set.iInter_subset _ m)).trans (universalMartinLofTest.measure_le m))
+      bot_le
   rw [ae_iff]
   convert hN_zero using 2
   ext x
-  simp [N, isMartinLofRandom_iff_passes_universalMartinLofTest]
+  simp [isMartinLofRandom_iff_passes_universalMartinLofTest]
 
 /-! ### The Levin–Schnorr theorem -/
 
@@ -719,16 +638,11 @@ private theorem primrec_compressCand : Primrec compressCand := by
 private theorem tsum_universalPrefixBits_ennreal_le_one :
     (∑' q : DescriptionMethod.universalPrefixBits.haltingSet,
       (2 : ℝ≥0∞)⁻¹ ^ (q : List Bool).length) ≤ 1 := by
-  have hof : (∑' q : DescriptionMethod.universalPrefixBits.haltingSet,
-      (2 : ℝ≥0∞)⁻¹ ^ (q : List Bool).length) =
-      ENNReal.ofReal (∑' q : DescriptionMethod.universalPrefixBits.haltingSet,
-        (2 : ℝ)⁻¹ ^ (q : List Bool).length) := by
-    rw [ENNReal.ofReal_tsum_of_nonneg (fun _ => by positivity)
-      DescriptionMethod.isPrefixFree_universalPrefixBits.summable_two_inv_pow_length]
-    congr 1; funext q
-    rw [ENNReal.ofReal_pow (by positivity), ENNReal.ofReal_inv_of_pos (by positivity)]
-    norm_num
-  rw [hof]
+  have hpow (n : ℕ) : (2 : ℝ≥0∞)⁻¹ ^ n = ENNReal.ofReal ((2 : ℝ)⁻¹ ^ n) := by
+    rw [ENNReal.ofReal_pow (by positivity), ENNReal.ofReal_inv_of_pos (by positivity)]; norm_num
+  simp_rw [hpow]
+  rw [← ENNReal.ofReal_tsum_of_nonneg (fun _ => by positivity)
+    DescriptionMethod.isPrefixFree_universalPrefixBits.summable_two_inv_pow_length]
   exact ENNReal.ofReal_le_one.mpr
     DescriptionMethod.isPrefixFree_universalPrefixBits.tsum_two_inv_pow_length_le_one
 
@@ -763,8 +677,8 @@ private def compressTest : MartinLofTest where
     let H := {q : List Bool | ∃ w : List Bool,
       DescriptionMethod.universalPrefixBits.Produces q w ∧ q.length + m ≤ w.length}
     have hout : ∀ q : H, ∃ w : List Bool,
-        DescriptionMethod.universalPrefixBits.Produces q.val w ∧ q.val.length + m ≤ w.length :=
-      fun q => q.property
+        DescriptionMethod.universalPrefixBits.Produces q.1 w ∧ q.1.length + m ≤ w.length :=
+      fun q => q.2
     choose out hout_prod hout_len using hout
     let S : Set (ℕ → Bool) := ⋃ w ∈ {w | ∃ q : List Bool,
       DescriptionMethod.universalPrefixBits.Produces q w ∧ q.length + m ≤ w.length},
@@ -779,7 +693,7 @@ private def compressTest : MartinLofTest where
       have hsubH : H ⊆ DescriptionMethod.universalPrefixBits.haltingSet :=
         fun q ⟨w, hqw, _⟩ => ⟨w, hqw⟩
       let emb : H ↪ DescriptionMethod.universalPrefixBits.haltingSet :=
-        ⟨fun q => ⟨q.val, hsubH q.property⟩, fun _ _ h => Subtype.ext
+        ⟨fun q => ⟨q.1, hsubH q.2⟩, fun _ _ h => Subtype.ext
           (congrArg (fun z : DescriptionMethod.universalPrefixBits.haltingSet =>
             (z : List Bool)) h)⟩
       have hcomp :
@@ -795,9 +709,9 @@ private def compressTest : MartinLofTest where
       _ = ∑' q : H, (2 : ℝ≥0∞)⁻¹ ^ (out q).length := by
           congr 1; funext q
           rw [coinFlips_prefixCylinderList, ENNReal.inv_pow]
-      _ ≤ ∑' q : H, (2 : ℝ≥0∞)⁻¹ ^ (q.val.length + m) :=
+      _ ≤ ∑' q : H, (2 : ℝ≥0∞)⁻¹ ^ (q.1.length + m) :=
           tsum_le_tsum fun q => pow_le_pow_right_of_le_one' (by norm_num) (hout_len q)
-      _ = (2 : ℝ≥0∞)⁻¹ ^ m * ∑' q : H, (2 : ℝ≥0∞)⁻¹ ^ q.val.length := by
+      _ = (2 : ℝ≥0∞)⁻¹ ^ m * ∑' q : H, (2 : ℝ≥0∞)⁻¹ ^ q.1.length := by
           simp_rw [pow_add, mul_comm _ ((2 : ℝ≥0∞)⁻¹ ^ m), ENNReal.tsum_mul_left]
       _ ≤ (2 : ℝ≥0∞)⁻¹ ^ m * 1 := by gcongr
       _ = (2 : ℝ≥0∞)⁻¹ ^ m := mul_one _
@@ -817,13 +731,9 @@ theorem le_complexity_of_isMartinLofRandom {x : ℕ → Bool} (hx : IsMartinLofR
     (DescriptionMethod.ecomplexity_universalPrefixBits_ne_top w)
   rw [← DescriptionMethod.natCast_complexity_universalPrefixBits, Nat.cast_inj] at hqlen
   dsimp only [w] at hqlen
-  have hcomp : q.length + m ≤ w.length := by
-    change q.length + m ≤ (List.ofFn fun i : Fin n => x i).length
-    rw [List.length_ofFn, hqlen]
-    omega
-  apply hm
-  refine Set.mem_iUnion₂.mpr ⟨w, ⟨q, hq, hcomp⟩, mem_prefixCylinderList.mpr fun i => ?_⟩
-  simp [w]
+  have hcomp : q.length + m ≤ w.length := by rw [List.length_ofFn, hqlen]; omega
+  exact hm (Set.mem_iUnion₂.mpr
+    ⟨w, ⟨q, hq, hcomp⟩, mem_prefixCylinderList.mpr fun _ => by simp [w]⟩)
 
 /-- **Levin–Schnorr theorem**: an infinite bit sequence `x` is Martin-Löf random if and only if
 every initial segment `x ↾ n` has prefix-free complexity at least `n - c` for some constant
@@ -851,16 +761,11 @@ theorem DescriptionMethod.isPartrec_universalPrefixBits :
     ∃ eval : List Bool →. List Bool, Partrec eval ∧
       ∀ p w, DescriptionMethod.universalPrefixBits.Produces p w ↔ w ∈ eval p := by
   obtain ⟨f, hf, hfU⟩ := DescriptionMethod.isPartrec_universalPrefix
-  let evalBits : List Bool →. List Bool :=
-    fun p => (f p).map fun n => (decode (α := List Bool) n).getD []
-  refine ⟨evalBits,
+  refine ⟨fun p => (f p).map fun n => (decode (α := List Bool) n).getD [],
     hf.map ((Primrec.option_getD.comp Primrec.decode (Primrec.const [])).to_comp.comp
-      Computable.snd), ?_⟩
-  intro p w
-  simp only [evalBits, DescriptionMethod.universalPrefixBits, DescriptionMethod.map_produces_iff,
-    Part.mem_map_iff]
-  exact ⟨fun ⟨n, hn, hn_eq⟩ => ⟨n, (hfU p n).mp hn, hn_eq⟩,
-    fun ⟨n, hn, hn_eq⟩ => ⟨n, (hfU p n).mpr hn, hn_eq⟩⟩
+      Computable.snd), fun p w => ?_⟩
+  simp only [DescriptionMethod.universalPrefixBits, DescriptionMethod.map_produces_iff,
+    Part.mem_map_iff, hfU]
 
 private theorem exists_ecomplexity_le_universalPrefixBits
     {U : DescriptionMethod (List Bool)} (hU_min : U.MinorizesPrefixPartrec) :
@@ -883,29 +788,25 @@ theorem isMartinLofRandom_iff_exists_le_ecomplexity_of_optimal
   obtain ⟨c₁, hc₁⟩ :=
     DescriptionMethod.exists_ecomplexity_universalPrefixBits_le_of_partrec_eval hU_pf heval hprod
   obtain ⟨c₂, hc₂⟩ := exists_ecomplexity_le_universalPrefixBits hU_min
+  let prefixOf (n : ℕ) := List.ofFn fun i : Fin n => x i
   rw [isMartinLofRandom_iff_exists_le_ecomplexity]
   constructor
-  · rintro ⟨c, hc⟩
-    refine ⟨c + c₁, fun n => ?_⟩
-    have h₁ := hc n
-    have h₂ := hc₁ (List.ofFn fun i : Fin n => x i)
-    calc (n : ℕ∞)
-      _ ≤ DescriptionMethod.universalPrefixBits.ecomplexity (List.ofFn fun i : Fin n => x i) + c :=
-          h₁
-      _ ≤ (U.ecomplexity (List.ofFn fun i : Fin n => x i) + c₁) + c := by gcongr
-      _ = U.ecomplexity (List.ofFn fun i : Fin n => x i) + ((c + c₁ : ℕ) : ℕ∞) := by
-          push_cast; ac_rfl
-  · rintro ⟨c, hc⟩
-    refine ⟨c + c₂, fun n => ?_⟩
-    have h₁ := hc n
-    have h₂ := hc₂ (List.ofFn fun i : Fin n => x i)
-    calc (n : ℕ∞)
-      _ ≤ U.ecomplexity (List.ofFn fun i : Fin n => x i) + c := h₁
-      _ ≤ (DescriptionMethod.universalPrefixBits.ecomplexity (List.ofFn fun i : Fin n => x i) +
-            c₂) + c := by gcongr
-      _ = DescriptionMethod.universalPrefixBits.ecomplexity (List.ofFn fun i : Fin n => x i) +
-            ((c + c₂ : ℕ) : ℕ∞) := by
-          push_cast; ac_rfl
+  · exact fun ⟨c, hc⟩ => ⟨c + c₁, fun n =>
+      calc (n : ℕ∞)
+        _ ≤ DescriptionMethod.universalPrefixBits.ecomplexity (prefixOf n) + c := hc n
+        _ ≤ (U.ecomplexity (prefixOf n) + c₁) + c := add_le_add_left (hc₁ _) _
+        _ = U.ecomplexity (prefixOf n) + ((c + c₁ : ℕ) : ℕ∞) := by
+            push_cast
+            ac_rfl⟩
+  · exact fun ⟨c, hc⟩ => ⟨c + c₂, fun n =>
+      calc (n : ℕ∞)
+        _ ≤ U.ecomplexity (prefixOf n) + c := hc n
+        _ ≤ (DescriptionMethod.universalPrefixBits.ecomplexity (prefixOf n) + c₂) + c :=
+            add_le_add_left (hc₂ _) _
+        _ = DescriptionMethod.universalPrefixBits.ecomplexity (prefixOf n) +
+              ((c + c₂ : ℕ) : ℕ∞) := by
+            push_cast
+            ac_rfl⟩
 
 /-- Natural-number form of the **machine-invariant Levin–Schnorr theorem**. -/
 theorem isMartinLofRandom_iff_exists_le_complexity_of_optimal
@@ -971,21 +872,16 @@ private theorem prefixCoverCount_eq_card_filter {L : List (List Bool)} {v : List
     (hx : x ∈ prefixCylinderList v) [DecidablePred fun w => x ∈ prefixCylinderList w] :
     prefixCoverCount L v =
       (L.toFinset.filter fun w => x ∈ prefixCylinderList w).card := by
-  rw [prefixCoverCount_eq_countP]
-  have heq : L.countP (fun w => decide (w <+: v)) =
-      L.countP (fun w => decide (x ∈ prefixCylinderList w)) := by
-    refine List.countP_congr fun w hw => ?_
-    simp only [decide_eq_true_eq]
-    refine ⟨fun h => prefixCylinderList_subset_of_isPrefix h hx, fun hxw => ?_⟩
-    rw [mem_prefixCylinderList] at hx hxw
-    rw [List.prefix_iff_eq_take]
-    refine List.ext_getElem (by simp [hle w hw]) fun i hi1 hi2 => ?_
-    have hiw : i < w.length := by simpa using hi1
-    have hiv : i < v.length := hiw.trans_le (hle w hw)
-    simp only [List.getElem_take]
-    exact (hxw ⟨i, hiw⟩).symm.trans (hx ⟨i, hiv⟩)
-  rw [heq]
-  exact hnd.card_eq_countP.symm
+  rw [prefixCoverCount_eq_countP, hnd.card_eq_countP]
+  refine List.countP_congr fun w hw => ?_
+  simp only [decide_eq_true_eq]
+  refine ⟨fun h => prefixCylinderList_subset_of_isPrefix h hx, fun hxw => ?_⟩
+  rw [mem_prefixCylinderList] at hx hxw
+  rw [List.prefix_iff_eq_take]
+  refine List.ext_getElem (by simp [hle w hw]) fun i hi1 _ => ?_
+  have hiw : i < w.length := by simpa using hi1
+  simp only [List.getElem_take]
+  exact (hxw ⟨i, hiw⟩).symm.trans (hx ⟨i, hiw.trans_le (hle w hw)⟩)
 
 private theorem nodup_reWords (e : Code) (n : ℕ) : (reWords e n).Nodup :=
   Nat.nodup_distinctValues (reCand e) n
@@ -998,18 +894,13 @@ private theorem primrec_solovayMLCand (e : Code) (K : ℕ) :
     Primrec (solovayMLCand e K) := by
   have hL : Primrec fun arg : (ℕ × List Bool) × ℕ => reWords e arg.2 :=
     primrec₂_reWords.comp (Primrec.const e) Primrec.snd
-  have hlen : Primrec fun arg : (ℕ × List Bool) × ℕ =>
-      decide (arg.1.2.length = prefixUnionMaxLen (reWords e arg.2)) :=
-    Primrec.eq.decide.comp
-      (Primrec.list_length.comp (Primrec.snd.comp Primrec.fst))
-      (primrec_prefixUnionMaxLen.comp hL)
-  have hcnt : Primrec fun arg : (ℕ × List Bool) × ℕ =>
-      decide (K * 2 ^ arg.1.1 ≤ prefixCoverCount (reWords e arg.2) arg.1.2) :=
-    Primrec.nat_le.decide.comp
+  exact (Primrec.and.comp
+    (Primrec.eq.decide.comp (Primrec.list_length.comp (Primrec.snd.comp Primrec.fst))
+      (primrec_prefixUnionMaxLen.comp hL))
+    (Primrec.nat_le.decide.comp
       (Primrec.nat_mul.comp (Primrec.const K)
         (primrec_two_pow.comp (Primrec.fst.comp Primrec.fst)))
-      (primrec₂_prefixCoverCount.comp hL (Primrec.snd.comp Primrec.fst))
-  exact (Primrec.and.comp hlen hcnt).of_eq fun _ => rfl
+      (primrec₂_prefixCoverCount.comp hL (Primrec.snd.comp Primrec.fst)))).of_eq fun _ => rfl
 
 private def solovayToMLTest (S : SolovayTest) (e : Code)
     (he : ∀ w, w ∈ S.cover ↔ (e.eval (encode w)).Dom) (K : ℕ) (hK_pos : 1 ≤ K)
@@ -1095,7 +986,7 @@ private def solovayToMLTest (S : SolovayTest) (e : Code)
       have hsub_cov : (Lfin : Set (List Bool)) ⊆ S.cover := fun w hw =>
         (he w).mpr (exists_mem_reWords_iff_dom.mp ⟨n, List.mem_toFinset.mp hw⟩)
       let emb : Lfin ↪ S.cover :=
-        ⟨fun w => ⟨w.val, hsub_cov w.property⟩, fun _ _ h => Subtype.ext
+        ⟨fun w => ⟨w.1, hsub_cov w.2⟩, fun _ _ h => Subtype.ext
           (congrArg (fun z : S.cover => (z : List Bool)) h)⟩
       have hint_g : ∫⁻ x, g x ∂Cslib.BitString.coinFlips ≤ (K : ℝ≥0∞) := by
         calc ∫⁻ x, g x ∂Cslib.BitString.coinFlips
@@ -1148,28 +1039,21 @@ theorem passesSolovayTest_of_isMartinLofRandom (S : SolovayTest) {x : ℕ → Bo
   by_contra hinf
   rw [PassesSolovayTest, Set.not_finite] at hinf
   obtain ⟨F, hF_sub, hF_card⟩ := hinf.exists_subset_card_eq (K * 2 ^ m)
-  have hex_n : ∀ w : List Bool, w ∈ F → ∃ n : ℕ, w ∈ reWords e n := fun w hw =>
-    exists_mem_reWords_iff_dom.mpr ((he w).mp (hF_sub hw).1)
-  choose fn hfn using fun w : F => hex_n w.val w.property
-  let N : ℕ := F.attach.sup fun w => fn w
-  have hF_re : ∀ w ∈ F, w ∈ reWords e N := fun w hw =>
-    (Nat.distinctValues_prefix (reCand e)
-      (Finset.le_sup (f := fun w : F => fn w) (Finset.mem_attach F ⟨w, hw⟩))).subset
-      (hfn ⟨w, hw⟩)
-  let M : ℕ := prefixUnionMaxLen (reWords e N)
-  let v : List Bool := List.ofFn fun i : Fin M => x i
-  have hv_enum : v ∈ Cslib.BitString.enumList M := Cslib.BitString.mem_enumList.mpr (by simp [v, M])
-  have hxv : x ∈ prefixCylinderList v := mem_prefixCylinderList.mpr fun i => by simp [v]
+  choose fn hfn using fun w : F =>
+    exists_mem_reWords_iff_dom.mpr ((he w.1).mp (hF_sub w.2).1)
+  let N : ℕ := F.attach.sup fn
+  let v : List Bool := List.ofFn fun i : Fin (prefixUnionMaxLen (reWords e N)) => x i
+  have hxv : x ∈ prefixCylinderList v := mem_prefixCylinderList.mpr fun _ => by simp [v]
   have hle : ∀ w ∈ reWords e N, w.length ≤ v.length := fun w hw => by
-    simp only [v, List.length_ofFn, M]
-    exact length_le_prefixUnionMaxLen hw
-  have hsub_filter : F ⊆ (reWords e N).toFinset.filter fun w => x ∈ prefixCylinderList w := by
-    intro w hw
-    exact Finset.mem_filter.mpr ⟨List.mem_toFinset.mpr (hF_re w hw), (hF_sub hw).2⟩
-  have hcnt : K * 2 ^ m ≤ prefixCoverCount (reWords e N) v := by
-    rw [prefixCoverCount_eq_card_filter (nodup_reWords e N) hle hxv]
-    exact hF_card.symm.trans_le (Finset.card_le_card hsub_filter)
-  exact hm (Set.mem_iUnion₂.mpr ⟨v, ⟨N, hv_enum, hcnt⟩, hxv⟩)
+    simpa [v] using length_le_prefixUnionMaxLen hw
+  have hsub_filter : F ⊆ (reWords e N).toFinset.filter fun w => x ∈ prefixCylinderList w :=
+    fun w hw => Finset.mem_filter.mpr ⟨List.mem_toFinset.mpr <|
+      (Nat.distinctValues_prefix (reCand e)
+        (Finset.le_sup (f := fn) (Finset.mem_attach F ⟨w, hw⟩))).subset (hfn ⟨w, hw⟩),
+      (hF_sub hw).2⟩
+  refine hm (Set.mem_iUnion₂.mpr ⟨v, ⟨N, Cslib.BitString.mem_enumList.mpr (by simp [v]), ?_⟩, hxv⟩)
+  rw [prefixCoverCount_eq_card_filter (nodup_reWords e N) hle hxv]
+  exact hF_card.symm.trans_le (Finset.card_le_card hsub_filter)
 
 private def carveTail : List Bool → List (List Bool)
   | [] => []
@@ -1219,8 +1103,15 @@ private theorem primrec₂_carveOut : Primrec₂ carveOut := by
 
 private theorem prefixDisjoint_cons_cons {a : Bool} {s t : List Bool}
     (h : PrefixDisjoint s t) : PrefixDisjoint (a :: s) (a :: t) :=
-  ⟨fun hp => h.1 ((List.cons_prefix_cons.mp hp).2),
-    fun hp => h.2 ((List.cons_prefix_cons.mp hp).2)⟩
+  ⟨fun hp => h.1 (List.cons_prefix_cons.mp hp).2, fun hp => h.2 (List.cons_prefix_cons.mp hp).2⟩
+
+private theorem prefixDisjoint_not_cons (b : Bool) (s t : List Bool) :
+    PrefixDisjoint (b :: s) ((!b) :: t) := by
+  refine ⟨fun hp => ?_, fun hp => ?_⟩
+  · have h := (List.cons_prefix_cons.mp hp).1
+    cases b <;> cases h
+  · have h := (List.cons_prefix_cons.mp hp).1
+    cases b <;> cases h
 
 private theorem carveTail_spec (s : List Bool) :
     (∀ t ∈ carveTail s, PrefixDisjoint s t) ∧ (carveTail s).Pairwise PrefixDisjoint := by
@@ -1228,53 +1119,31 @@ private theorem carveTail_spec (s : List Bool) :
   | nil => simp [carveTail]
   | cons b rest ih =>
     rcases ih with ⟨hdisj, hpair⟩
-    have hdisj' : ∀ t ∈ carveTail (b :: rest), PrefixDisjoint (b :: rest) t := by
-      intro t ht
-      simp only [carveTail, List.mem_cons, List.mem_map] at ht
+    refine ⟨fun t ht => ?_, ?_⟩
+    · simp only [carveTail, List.mem_cons, List.mem_map] at ht
       rcases ht with rfl | ⟨t', ht', rfl⟩
-      · refine ⟨fun hp => ?_, fun hp => ?_⟩
-        · have hb := (List.cons_prefix_cons.mp hp).1
-          cases b <;> cases hb
-        · have hb := (List.cons_prefix_cons.mp hp).1
-          cases b <;> cases hb
+      · exact prefixDisjoint_not_cons b rest []
       · exact prefixDisjoint_cons_cons (hdisj t' ht')
-    have hpair' : (carveTail (b :: rest)).Pairwise PrefixDisjoint := by
-      simp only [carveTail, List.pairwise_cons]
-      refine ⟨fun t ht => ?_, ?_⟩
-      · obtain ⟨t', _, rfl⟩ := List.mem_map.mp ht
-        refine ⟨fun hp => ?_, fun hp => ?_⟩
-        · have hb := (List.cons_prefix_cons.mp hp).1
-          cases b <;> cases hb
-        · have hb := (List.cons_prefix_cons.mp hp).1
-          cases b <;> cases hb
-      · exact hpair.map _ fun _ _ h => prefixDisjoint_cons_cons h
-    exact ⟨hdisj', hpair'⟩
+    · simp only [carveTail, List.pairwise_cons]
+      refine ⟨fun t ht => ?_, hpair.map _ fun _ _ h => prefixDisjoint_cons_cons h⟩
+      obtain ⟨t', _, rfl⟩ := List.mem_map.mp ht
+      exact (prefixDisjoint_not_cons b t' []).symm
 
 private theorem mem_prefixCylinderList_append_singleton {y : ℕ → Bool} {w : List Bool} {b : Bool} :
     y ∈ prefixCylinderList (w ++ [b]) ↔ y ∈ prefixCylinderList w ∧ y w.length = b := by
   constructor
   · intro hy
-    have hyw := prefixCylinderList_subset_of_isPrefix (List.prefix_append _ _) hy
-    have hyb := mem_prefixCylinderList.mp hy ⟨w.length, by simp⟩
-    have hget : (w ++ [b])[w.length]'(by simp) = b := by
-      rw [List.getElem_append_right (le_refl w.length)]
-      simp
-    exact ⟨hyw, hyb.trans hget⟩
+    refine ⟨prefixCylinderList_subset_of_isPrefix (List.prefix_append _ _) hy, ?_⟩
+    simpa [List.getElem_append_right] using mem_prefixCylinderList.mp hy ⟨w.length, by simp⟩
   · rintro ⟨hyw, hyb⟩
     rw [mem_prefixCylinderList] at hyw ⊢
-    intro i
-    change y i.val = (w ++ [b])[i.val]'i.isLt
-    by_cases hi : (i : ℕ) < w.length
-    · rw [List.getElem_append_left hi]
-      exact hyw ⟨i.val, hi⟩
-    · have heq : (i : ℕ) = w.length := by
-        have hlt : (i : ℕ) < (w ++ [b]).length := i.isLt
-        simp only [List.length_append, List.length_singleton] at hlt
-        omega
-      have hget : (w ++ [b])[i.val]'i.isLt = b := by
-        rw [List.getElem_append_right (by omega)]
-        simp [heq]
-      rw [hget, heq, hyb]
+    intro ⟨i, hi⟩
+    by_cases hlt : i < w.length
+    · simpa [List.getElem_append_left hlt] using hyw ⟨i, hlt⟩
+    · have heq : i = w.length := by
+        simp only [List.length_append, List.length_singleton] at hi; omega
+      subst heq
+      simpa [List.getElem_append_right] using hyb
 
 private theorem mem_carveTail_cylinder_iff (s w : List Bool) (y : ℕ → Bool) :
     (∃ t ∈ carveTail s, y ∈ prefixCylinderList (w ++ t)) ↔
@@ -1295,24 +1164,15 @@ private theorem mem_carveTail_cylinder_iff (s w : List Bool) (y : ℕ → Bool) 
           (prefixCylinderList_subset_of_isPrefix (List.prefix_append _ _) hyu)).2
         rw [hyt.2] at hywb
         cases b <;> cases hywb
-      · have hyt' : y ∈ prefixCylinderList ((w ++ [b]) ++ t') := by
-          rw [List.append_assoc]
-          exact hyt
-        obtain ⟨hywb, hnot⟩ := (ih (w ++ [b])).mp ⟨t', ht', hyt'⟩
-        refine ⟨prefixCylinderList_subset_of_isPrefix (List.prefix_append _ _) hywb, ?_⟩
-        rw [hrw]
-        exact hnot
+      · rw [show w ++ b :: t' = (w ++ [b]) ++ t' from (List.append_assoc w [b] t').symm] at hyt
+        obtain ⟨hywb, hnot⟩ := (ih (w ++ [b])).mp ⟨t', ht', hyt⟩
+        exact ⟨prefixCylinderList_subset_of_isPrefix (List.prefix_append _ _) hywb, by rwa [hrw]⟩
     · rintro ⟨hyw, hynot⟩
       by_cases hyb : y w.length = b
-      · have hywb : y ∈ prefixCylinderList (w ++ [b]) :=
-          mem_prefixCylinderList_append_singleton.mpr ⟨hyw, hyb⟩
-        have hynot' : y ∉ prefixCylinderList ((w ++ [b]) ++ rest) := by
-          rw [← hrw]
-          exact hynot
-        obtain ⟨t', ht', hyt'⟩ := (ih (w ++ [b])).mpr ⟨hywb, hynot'⟩
+      · obtain ⟨t', ht', hyt'⟩ := (ih (w ++ [b])).mpr
+          ⟨mem_prefixCylinderList_append_singleton.mpr ⟨hyw, hyb⟩, by rwa [← hrw]⟩
         refine ⟨b :: t', List.mem_cons_of_mem _ (List.mem_map.mpr ⟨t', ht', rfl⟩), ?_⟩
-        rw [show w ++ b :: t' = (w ++ [b]) ++ t' from (List.append_assoc w [b] t').symm]
-        exact hyt'
+        rwa [show w ++ b :: t' = (w ++ [b]) ++ t' from (List.append_assoc w [b] t').symm]
       · refine ⟨[!b], List.mem_cons_self, mem_prefixCylinderList_append_singleton.mpr ⟨hyw, ?_⟩⟩
         cases b <;> cases h : y w.length <;> simp_all
 
@@ -1327,40 +1187,31 @@ private theorem carveOut_spec (u w : List Bool) :
       ⋃ v ∈ carveOut u w, prefixCylinderList v =
         prefixCylinderList w \ prefixCylinderList u := by
   by_cases huw : u <+: w
-  · refine ⟨?_, ?_, ?_⟩
-    · intro v hv
-      simp [carveOut, huw] at hv
-    · simp [carveOut, huw]
-    · simp only [carveOut, huw, ↓reduceIte, List.not_mem_nil, Set.iUnion_false, Set.iUnion_empty]
-      exact (Set.sdiff_eq_empty.mpr (prefixCylinderList_subset_of_isPrefix huw)).symm
+  · refine ⟨fun v hv => by simp [carveOut, huw] at hv,
+      by simp [carveOut, huw], ?_⟩
+    simp only [carveOut, huw, ↓reduceIte, List.not_mem_nil, Set.iUnion_false, Set.iUnion_empty]
+    exact (Set.sdiff_eq_empty.mpr (prefixCylinderList_subset_of_isPrefix huw)).symm
   · by_cases hwu : w <+: u
     · simp only [carveOut, huw, ↓reduceIte, hwu]
       have hus : w ++ u.drop w.length = u := by
         conv_rhs => rw [← List.take_append_drop w.length u, ← List.prefix_iff_eq_take.mp hwu]
       obtain ⟨hdisj, hpair⟩ := carveTail_spec (u.drop w.length)
-      refine ⟨fun v hv => ?_, ?_, ?_⟩
+      refine ⟨fun v hv => ?_, hpair.map _ fun _ _ h => prefixDisjoint_append_left h, ?_⟩
       · obtain ⟨t, ht, rfl⟩ := List.mem_map.mp hv
-        refine ⟨List.prefix_append _ _, ?_⟩
-        rw [← hus]
-        exact prefixDisjoint_append_left (hdisj t ht)
-      · exact hpair.map _ fun _ _ h => prefixDisjoint_append_left h
+        exact ⟨List.prefix_append _ _, hus ▸ prefixDisjoint_append_left (hdisj t ht)⟩
       · ext y
         simp only [Set.mem_iUnion, List.mem_map, exists_prop, Set.mem_sdiff]
-        constructor
-        · rintro ⟨v, ⟨t, ht, rfl⟩, hy⟩
-          have hm := (mem_carveTail_cylinder_iff (u.drop w.length) w y).mp ⟨t, ht, hy⟩
-          simpa [hus] using hm
-        · intro hy
-          rw [← hus] at hy
-          obtain ⟨t, ht, hyt⟩ := (mem_carveTail_cylinder_iff (u.drop w.length) w y).mpr hy
-          exact ⟨w ++ t, ⟨t, ht, rfl⟩, hyt⟩
+        conv_rhs => rw [← hus]
+        rw [← mem_carveTail_cylinder_iff]
+        exact ⟨fun ⟨_, ⟨t, ht, rfl⟩, hy⟩ => ⟨t, ht, hy⟩,
+          fun ⟨t, ht, hy⟩ => ⟨w ++ t, ⟨t, ht, rfl⟩, hy⟩⟩
     · simp only [carveOut, huw, ↓reduceIte, hwu, List.mem_singleton, List.pairwise_singleton,
         Set.iUnion_iUnion_eq_left]
       have hduw : PrefixDisjoint u w := ⟨huw, hwu⟩
-      refine ⟨fun v hv => ?_, trivial, ?_⟩
-      · rw [hv]
-        exact ⟨List.prefix_refl w, hduw⟩
-      · exact (disjoint_prefixCylinderList_of_prefixDisjoint hduw.symm).sdiff_eq_left.symm
+      refine ⟨fun v hv => ?_, trivial,
+        (disjoint_prefixCylinderList_of_prefixDisjoint hduw.symm).sdiff_eq_left.symm⟩
+      rw [hv]
+      exact ⟨List.prefix_refl w, hduw⟩
 
 private def carveOutSeen (w : List Bool) : List (List Bool) → List (List Bool)
   | [] => [w]
@@ -1377,20 +1228,12 @@ private theorem primrec₂_carveOutSeen : Primrec₂ carveOutSeen := by
       (Primrec₂.mk <| primrec₂_carveOut.comp
         (Primrec.fst.comp (Primrec.snd.comp Primrec.fst)) Primrec.snd)
   refine Primrec₂.mk <| (Primrec.list_rec Primrec.snd
-    (Primrec.list_cons.comp Primrec.fst (Primrec.const [])) hh).of_eq fun p => ?_
-  rcases p with ⟨w, seen⟩
-  have hrec : ∀ seen' : List (List Bool),
-      @List.recOn (List Bool) (fun _ => List (List Bool)) seen' [w] step =
-        carveOutSeen w seen' := by
-    intro seen'
-    induction seen' with
-    | nil => rfl
-    | cons u rest ih =>
-      change step u rest (@List.recOn (List Bool) (fun _ => List (List Bool)) rest [w] step) =
-        carveOutSeen w (u :: rest)
-      rw [ih]
-      rfl
-  exact hrec seen
+    (Primrec.list_cons.comp Primrec.fst (Primrec.const [])) hh).of_eq fun ⟨w, seen⟩ => ?_
+  induction seen with
+  | nil => rfl
+  | cons u rest ih =>
+    change step u rest (@List.recOn (List Bool) (fun _ => List (List Bool)) rest [w] step) = _
+    rw [ih]; rfl
 
 private theorem prefixDisjoint_of_prefix_right {u v t : List Bool} (huv : PrefixDisjoint u v)
     (hvt : v <+: t) : PrefixDisjoint u t :=
@@ -1416,25 +1259,17 @@ private theorem carveOutSeen_spec (w : List Bool) (seen : List (List Bool)) :
       · exact huv
       · exact prefixDisjoint_of_prefix_right (hrest r hr') htv
     · rw [List.pairwise_flatMap]
-      refine ⟨fun t _ => (carveOut_spec u t).2.1, ?_⟩
-      refine hpair.imp fun {t₁ t₂} hdisj v₁ hv₁ v₂ hv₂ => ?_
-      have hv₁' := ((carveOut_spec u t₁).1 v₁ hv₁).1
-      have hv₂' := ((carveOut_spec u t₂).1 v₂ hv₂).1
-      exact prefixDisjoint_of_prefix_right (hdisj.of_prefix_left hv₁') hv₂'
-    · have hexp : (⋃ v ∈ (carveOutSeen w rest).flatMap (carveOut u), prefixCylinderList v) =
-          ⋃ t ∈ carveOutSeen w rest, ⋃ v ∈ carveOut u t, prefixCylinderList v := by
-        ext y
-        simp only [Set.mem_iUnion, List.mem_flatMap, exists_prop]
-        exact ⟨fun ⟨v, ⟨t, ht, hv⟩, hy⟩ => ⟨t, ht, v, hv, hy⟩,
-          fun ⟨t, ht, v, hv, hy⟩ => ⟨v, ⟨t, ht, hv⟩, hy⟩⟩
-      rw [hexp]
-      have hdiff_t : ∀ t ∈ carveOutSeen w rest,
-          (⋃ v ∈ carveOut u t, prefixCylinderList v) =
-            prefixCylinderList t \ prefixCylinderList u :=
-        fun t _ => (carveOut_spec u t).2.2
-      calc ⋃ t ∈ carveOutSeen w rest, ⋃ v ∈ carveOut u t, prefixCylinderList v
+      refine ⟨fun t _ => (carveOut_spec u t).2.1, hpair.imp fun {t₁ t₂} hdisj v₁ hv₁ v₂ hv₂ =>
+        prefixDisjoint_of_prefix_right (hdisj.of_prefix_left ((carveOut_spec u t₁).1 v₁ hv₁).1)
+          ((carveOut_spec u t₂).1 v₂ hv₂).1⟩
+    · calc (⋃ v ∈ (carveOutSeen w rest).flatMap (carveOut u), prefixCylinderList v)
+        _ = ⋃ t ∈ carveOutSeen w rest, ⋃ v ∈ carveOut u t, prefixCylinderList v := by
+            ext y
+            simp only [Set.mem_iUnion, List.mem_flatMap, exists_prop]
+            exact ⟨fun ⟨v, ⟨t, ht, hv⟩, hy⟩ => ⟨t, ht, v, hv, hy⟩,
+              fun ⟨t, ht, v, hv, hy⟩ => ⟨v, ⟨t, ht, hv⟩, hy⟩⟩
         _ = ⋃ t ∈ carveOutSeen w rest, prefixCylinderList t \ prefixCylinderList u :=
-            Set.iUnion₂_congr hdiff_t
+            Set.iUnion₂_congr fun t _ => (carveOut_spec u t).2.2
         _ = (⋃ t ∈ carveOutSeen w rest, prefixCylinderList t) \ prefixCylinderList u := by
             ext y
             simp only [Set.mem_sdiff, Set.mem_iUnion, exists_prop]
@@ -1452,17 +1287,9 @@ private def levelCandWord (e : Code) (m j : ℕ) : Option (List Bool) :=
   (decode (α := List Bool × ℕ) j).bind fun wf =>
     (Code.evaln wf.2 e (encode (m, wf.1))).map fun _ => wf.1
 
-private theorem primrec₂_levelCandWord (e : Code) : Primrec₂ (levelCandWord e) := by
-  have hev : Primrec fun arg : ℕ × (List Bool × ℕ) =>
-      Code.evaln arg.2.2 e (encode (arg.1, arg.2.1)) :=
-    Code.primrec_evaln.comp <| Primrec.pair
-      (Primrec.pair (Primrec.snd.comp Primrec.snd) (Primrec.const e))
-      (Primrec.encode.comp <| Primrec.pair Primrec.fst (Primrec.fst.comp Primrec.snd))
-  have hmap : Primrec₂ fun (m : ℕ) (wf : List Bool × ℕ) =>
-      (Code.evaln wf.2 e (encode (m, wf.1))).map fun _ => wf.1 :=
-    Primrec₂.mk <| Primrec.option_map hev (Primrec.fst.comp (Primrec.snd.comp Primrec.fst)).to₂
-  exact Primrec₂.mk <| (Primrec.option_bind (Primrec.decode.comp Primrec.snd)
-    (hmap.comp (Primrec.fst.comp Primrec.fst) Primrec.snd).to₂).of_eq fun _ => rfl
+private theorem primrec₂_levelCandWord (e : Code) : Primrec₂ (levelCandWord e) :=
+  Primrec₂.mk <| (primrec₂_mlCand.comp
+    (Primrec.pair (Primrec.const e) Primrec.fst) Primrec.snd).of_eq fun _ => rfl
 
 private def mlDisjStep (e : Code) (k j : ℕ) (acc : List (List Bool)) : List (List Bool) :=
   match levelCandWord e (k + 1) j with
@@ -1495,8 +1322,7 @@ private theorem primrec₂_mlDisjList (e : Code) : Primrec₂ (mlDisjList e) := 
   | zero => rfl
   | succ j ih =>
     change mlDisjStep e k j (Nat.rec [] (fun j acc => mlDisjStep e k j acc) j) = _
-    rw [ih]
-    rfl
+    rw [ih]; rfl
 
 private theorem mlDisjList_mono (e : Code) (k : ℕ) {m n : ℕ} (hmn : m ≤ n) :
     mlDisjList e k m ⊆ mlDisjList e k n := by
@@ -1507,7 +1333,7 @@ private theorem mlDisjList_mono (e : Code) (k : ℕ) {m n : ℕ} (hmn : m ≤ n)
     simp only [mlDisjList, mlDisjStep]
     cases levelCandWord e (k + 1) _ with
     | none => exact ih hv
-    | some w => exact List.mem_append_left _ (ih hv)
+    | some _ => exact List.mem_append_left _ (ih hv)
 
 private theorem mlDisjList_spec (e : Code) (k j : ℕ) :
     (mlDisjList e k j).Pairwise PrefixDisjoint ∧
@@ -1521,39 +1347,26 @@ private theorem mlDisjList_spec (e : Code) (k j : ℕ) :
     cases hc : levelCandWord e (k + 1) j with
     | none => exact ⟨hpair, hdom⟩
     | some w =>
-      have hw_dom : (e.eval (encode (k + 1, w))).Dom := by
-        simp only [levelCandWord, Option.bind_eq_some_iff, Option.map_eq_some_iff] at hc
-        obtain ⟨⟨w', f⟩, _, ⟨y, hy, rfl⟩⟩ := hc
-        exact Part.dom_iff_mem.mpr ⟨y, Code.evaln_sound hy⟩
       obtain ⟨hprop, hnew_pair, _⟩ := carveOutSeen_spec w (mlDisjList e k j)
-      refine ⟨List.pairwise_append.mpr ⟨hpair, hnew_pair, ?_⟩, fun v hv => ?_⟩
-      · intro u hu v hv
-        exact (hprop v hv).2 u hu
-      · rcases List.mem_append.mp hv with h | h
-        · exact hdom v h
-        · exact ⟨w, hw_dom, (hprop v h).1⟩
+      refine ⟨List.pairwise_append.mpr ⟨hpair, hnew_pair, fun u hu v hv => (hprop v hv).2 u hu⟩,
+        fun v hv => ?_⟩
+      rcases List.mem_append.mp hv with h | h
+      · exact hdom v h
+      · exact ⟨w, dom_of_mlCand_eq_some (ek := (e, k + 1)) hc, (hprop v h).1⟩
 
 private theorem mlDisjList_covers (e : Code) (k : ℕ) {w : List Bool}
     (hw : (e.eval (encode (k + 1, w))).Dom) :
     ∃ j : ℕ, prefixCylinderList w ⊆ ⋃ v ∈ mlDisjList e k j, prefixCylinderList v := by
-  obtain ⟨y, hy⟩ := Part.dom_iff_mem.mp hw
-  obtain ⟨f, hf⟩ := Code.evaln_complete.mp hy
-  let j := encode (w, f)
-  have hcand : levelCandWord e (k + 1) j = some w := by
-    rw [Option.mem_def] at hf
-    dsimp only [levelCandWord, j]
-    rw [encodek, Option.bind_some]
-    change (Code.evaln f e (encode (k + 1, w))).map (fun _ => w) = some w
-    rw [hf]
-    rfl
+  obtain ⟨j, hcand⟩ := exists_mlCand_eq_some_of_dom (ek := (e, k + 1)) hw
+  change levelCandWord e (k + 1) j = some w at hcand
   refine ⟨j + 1, fun x hx => ?_⟩
   simp only [mlDisjList, mlDisjStep, hcand, Set.mem_iUnion, List.mem_append, exists_prop]
   by_cases hseen : x ∈ ⋃ u ∈ mlDisjList e k j, prefixCylinderList u
   · obtain ⟨u, hu, hxu⟩ := Set.mem_iUnion₂.mp hseen
     exact ⟨u, Or.inl hu, hxu⟩
-  · have hdiff : x ∈ prefixCylinderList w \ ⋃ u ∈ mlDisjList e k j, prefixCylinderList u :=
-      ⟨hx, hseen⟩
-    rw [← (carveOutSeen_spec w (mlDisjList e k j)).2.2] at hdiff
+  · have hdiff : x ∈ ⋃ v ∈ carveOutSeen w (mlDisjList e k j), prefixCylinderList v := by
+      rw [(carveOutSeen_spec w (mlDisjList e k j)).2.2]
+      exact ⟨hx, hseen⟩
     obtain ⟨v, hv, hxv⟩ := Set.mem_iUnion₂.mp hdiff
     exact ⟨v, Or.inr hv, hxv⟩
 
@@ -1592,30 +1405,30 @@ private def martinLofToSolovayTest (T : MartinLofTest) (e : Code)
         (2 : ℝ≥0∞)⁻¹ ^ (k + 1) := by
       intro k
       refine hasSum_le_of_sum_le CompleteLattice.summable.hasSum fun F => ?_
-      have hex_j : ∀ v : D k, ∃ j : ℕ, v.val ∈ mlDisjList e k j := fun v => v.property
+      have hex_j : ∀ v : D k, ∃ j : ℕ, v.1 ∈ mlDisjList e k j := fun v => v.2
       choose fj hfj using hex_j
       let J := F.sup fj
       have hF_in : ∀ v ∈ F, (v : List Bool) ∈ mlDisjList e k J := fun v hv =>
         mlDisjList_mono e k (Finset.le_sup hv) (hfj v)
-      have hdisj : (F : Set (D k)).PairwiseDisjoint fun v => prefixCylinderList v.val := by
+      have hdisj : (F : Set (D k)).PairwiseDisjoint fun v => prefixCylinderList v.1 := by
         intro a ha b hb hne
         have hpa := (mlDisjList_spec e k J).1
-        have ha' : a.val ∈ mlDisjList e k J := hF_in a ha
-        have hb' : b.val ∈ mlDisjList e k J := hF_in b hb
-        have hne' : a.val ≠ b.val := fun h => hne (Subtype.ext h)
+        have ha' : a.1 ∈ mlDisjList e k J := hF_in a ha
+        have hb' : b.1 ∈ mlDisjList e k J := hF_in b hb
+        have hne' : a.1 ≠ b.1 := fun h => hne (Subtype.ext h)
         exact disjoint_prefixCylinderList_of_prefixDisjoint (hdisj_rel hpa ha' hb' hne')
-      have hsub : (⋃ v ∈ F, prefixCylinderList v.val) ⊆
+      have hsub : (⋃ v ∈ F, prefixCylinderList v.1) ⊆
           ⋃ w ∈ T.cover (k + 1), prefixCylinderList w := by
         refine Set.iUnion₂_subset fun v hv => ?_
-        obtain ⟨w, hw_dom, hwv⟩ := (mlDisjList_spec e k J).2 v.val (hF_in v hv)
+        obtain ⟨w, hw_dom, hwv⟩ := (mlDisjList_spec e k J).2 v.1 (hF_in v hv)
         exact (prefixCylinderList_subset_of_isPrefix hwv).trans fun _ hx =>
           Set.mem_iUnion₂.mpr ⟨w, (he (k + 1, w)).mpr hw_dom, hx⟩
       calc ∑ v ∈ F, (2 : ℝ≥0∞)⁻¹ ^ (v : List Bool).length
-        _ = ∑ v ∈ F, Cslib.BitString.coinFlips (prefixCylinderList v.val) := by
+        _ = ∑ v ∈ F, Cslib.BitString.coinFlips (prefixCylinderList v.1) := by
             refine Finset.sum_congr rfl fun v _ => ?_
             rw [coinFlips_prefixCylinderList, ENNReal.inv_pow]
-        _ = Cslib.BitString.coinFlips (⋃ v ∈ F, prefixCylinderList v.val) :=
-            (measure_biUnion_finset hdisj fun v _ => measurableSet_prefixCylinderList v.val).symm
+        _ = Cslib.BitString.coinFlips (⋃ v ∈ F, prefixCylinderList v.1) :=
+            (measure_biUnion_finset hdisj fun v _ => measurableSet_prefixCylinderList v.1).symm
         _ ≤ Cslib.BitString.coinFlips (⋃ w ∈ T.cover (k + 1), prefixCylinderList w) :=
             measure_mono hsub
         _ ≤ (2 : ℝ≥0∞)⁻¹ ^ (k + 1) := T.measure_le (k + 1)
@@ -1624,7 +1437,7 @@ private def martinLofToSolovayTest (T : MartinLofTest) (e : Code)
           (2 : ℝ≥0∞)⁻¹ ^ (v : List Bool).length) ≤ 1 := by
       have hex_k : ∀ v : {v | ∃ kj : ℕ × ℕ, v ∈ mlDisjList e kj.1 kj.2},
           ∃ k : ℕ, (v : List Bool) ∈ D k := fun v => by
-        obtain ⟨⟨k, j⟩, hj⟩ := v.property
+        obtain ⟨⟨k, j⟩, hj⟩ := v.2
         exact ⟨k, j, hj⟩
       choose fk hfk using hex_k
       refine hasSum_le_of_sum_le CompleteLattice.summable.hasSum fun F => ?_
@@ -1637,7 +1450,7 @@ private def martinLofToSolovayTest (T : MartinLofTest) (e : Code)
         intro k _
         let Fk := F.filter (fun v => fk v = k)
         let emb : Fk ↪ D k :=
-          ⟨fun v => ⟨v.val.val, v.property |> Finset.mem_filter.mp |>.2 ▸ hfk v.val⟩,
+          ⟨fun v => ⟨v.1.1, v.2 |> Finset.mem_filter.mp |>.2 ▸ hfk v.1⟩,
             fun a b h => Subtype.ext (Subtype.ext (congrArg (fun z : D k => (z : List Bool)) h))⟩
         calc ∑ v ∈ Fk, (2 : ℝ≥0∞)⁻¹ ^ (v : List Bool).length
           _ = ∑ v ∈ (Finset.univ.map emb : Finset (D k)),
@@ -1664,41 +1477,26 @@ theorem isMartinLofRandom_of_forall_passesSolovayTest {x : ℕ → Bool}
   let S := martinLofToSolovayTest T e he
   have hfin := hx S
   by_contra! hfail
-  have hmem : ∀ k : ℕ, ∃ v : List Bool,
-      (v ∈ S.cover ∧ x ∈ prefixCylinderList v) ∧ k + 1 ≤ v.length := by
-    intro k
-    obtain ⟨w, hw, hxw⟩ := Set.mem_iUnion₂.mp (hfail (k + 1))
-    obtain ⟨j, hj⟩ := mlDisjList_covers e k ((he (k + 1, w)).mp hw)
-    obtain ⟨v, hv, hxv⟩ := Set.mem_iUnion₂.mp (hj hxw)
-    have hcov : v ∈ S.cover := ⟨(k, j), hv⟩
-    have hlen : k + 1 ≤ v.length := by
-      obtain ⟨w', hw'_dom, hw'v⟩ := (mlDisjList_spec e k j).2 v hv
-      have hsub : prefixCylinderList v ⊆ ⋃ u ∈ T.cover (k + 1), prefixCylinderList u :=
-        (prefixCylinderList_subset_of_isPrefix hw'v).trans fun _ hy =>
-          Set.mem_iUnion₂.mpr ⟨w', (he (k + 1, w')).mpr hw'_dom, hy⟩
-      have hmeas : (2 : ℝ≥0∞)⁻¹ ^ v.length ≤ (2 : ℝ≥0∞)⁻¹ ^ (k + 1) := by
-        calc (2 : ℝ≥0∞)⁻¹ ^ v.length
-          _ = Cslib.BitString.coinFlips (prefixCylinderList v) := by
-              rw [coinFlips_prefixCylinderList, ENNReal.inv_pow]
-          _ ≤ Cslib.BitString.coinFlips (⋃ u ∈ T.cover (k + 1), prefixCylinderList u) :=
-              measure_mono hsub
-          _ ≤ (2 : ℝ≥0∞)⁻¹ ^ (k + 1) := T.measure_le (k + 1)
-      have hr : (2 : ℝ)⁻¹ ^ v.length ≤ (2 : ℝ)⁻¹ ^ (k + 1) := by
-        have hm := ENNReal.toReal_mono (by simp) hmeas
-        simpa [ENNReal.toReal_pow] using hm
-      have hpow : (2 : ℝ) ^ (k + 1) ≤ (2 : ℝ) ^ v.length := by
-        rw [inv_pow, inv_pow] at hr
-        have h1 : (0 : ℝ) < (2 : ℝ) ^ v.length := by positivity
-        have h2 : (0 : ℝ) < (2 : ℝ) ^ (k + 1) := by positivity
-        exact (inv_le_inv₀ h1 h2).mp hr
-      have hnat : 2 ^ (k + 1) ≤ 2 ^ v.length := by exact_mod_cast hpow
-      exact (Nat.pow_le_pow_iff_right (by norm_num : 1 < 2)).mp hnat
-    exact ⟨v, ⟨hcov, hxv⟩, hlen⟩
-  let hit := hfin.toFinset
-  let M : ℕ := hit.sup List.length
-  obtain ⟨v, ⟨hv_cov, hvx⟩, hvlen⟩ := hmem M
-  have hv_mem : v ∈ hit := hfin.mem_toFinset.mpr ⟨hv_cov, hvx⟩
-  have hv_le : v.length ≤ M := Finset.le_sup hv_mem
+  let M : ℕ := hfin.toFinset.sup List.length
+  obtain ⟨w, hw, hxw⟩ := Set.mem_iUnion₂.mp (hfail (M + 1))
+  obtain ⟨j, hj⟩ := mlDisjList_covers e M ((he (M + 1, w)).mp hw)
+  obtain ⟨v, hv, hxv⟩ := Set.mem_iUnion₂.mp (hj hxw)
+  obtain ⟨w', hw'_dom, hw'v⟩ := (mlDisjList_spec e M j).2 v hv
+  have hsub : prefixCylinderList v ⊆ ⋃ u ∈ T.cover (M + 1), prefixCylinderList u :=
+    (prefixCylinderList_subset_of_isPrefix hw'v).trans fun _ hy =>
+      Set.mem_iUnion₂.mpr ⟨w', (he (M + 1, w')).mpr hw'_dom, hy⟩
+  have hmeas : ((1 : ℕ) : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹ ^ v.length ≤ (2 : ℝ≥0∞)⁻¹ ^ (M + 1) :=
+    calc ((1 : ℕ) : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹ ^ v.length
+      _ = Cslib.BitString.coinFlips (prefixCylinderList v) := by
+          rw [Nat.cast_one, one_mul, coinFlips_prefixCylinderList, ENNReal.inv_pow]
+      _ ≤ Cslib.BitString.coinFlips (⋃ u ∈ T.cover (M + 1), prefixCylinderList u) :=
+          measure_mono hsub
+      _ ≤ (2 : ℝ≥0∞)⁻¹ ^ (M + 1) := T.measure_le (M + 1)
+  have hpow : 2 ^ (M + 1) ≤ 2 ^ v.length := by
+    simpa only [one_mul] using (nat_mul_two_pow_le_iff_ennreal 1 (M + 1) v.length).mpr hmeas
+  have hvlen : M + 1 ≤ v.length := (Nat.pow_le_pow_iff_right (by norm_num : 1 < 2)).mp hpow
+  have hv_le : v.length ≤ M :=
+    Finset.le_sup (hfin.mem_toFinset.mpr ⟨⟨(M, j), hv⟩, hxv⟩)
   omega
 
 /-- **Characterization by Solovay tests** [LiVitanyi2019, ShenUspenskyVereshchagin2017]: an
@@ -1718,17 +1516,9 @@ private theorem count_ofFn_eq_trueCount {n : ℕ} (y : Fin n → Bool) :
   induction n with
   | zero => simp [trueCount]
   | succ n ih =>
-    rw [List.ofFn_succ, List.count_cons]
-    change (List.ofFn (Fin.tail y)).count true +
-        (if y 0 == true then 1 else 0) = trueCount y
-    rw [ih (Fin.tail y)]
-    have hcard : trueCount y =
-        trueCount (Fin.tail y) + if y 0 = true then 1 else 0 := by
-      simp only [trueCount]
-      rw [Finset.card_filter, Finset.card_filter, Fin.sum_univ_succ, Nat.add_comm]
-      rfl
-    rw [hcard]
-    cases y 0 <;> simp
+    rw [List.ofFn_succ, List.count_cons, ih (fun i => y i.succ)]
+    simp only [trueCount, Finset.card_filter, Fin.sum_univ_succ]
+    cases y 0 <;> simp [Nat.add_comm]
 
 private theorem sum_signVal_eq {n : ℕ} (y : Fin n → Bool) :
     (∑ i : Fin n, Cslib.BitString.signVal (y i)) = (n : ℝ) - 2 * (trueCount y : ℝ) := by
@@ -1739,9 +1529,7 @@ private theorem sum_signVal_eq {n : ℕ} (y : Fin n → Bool) :
     _ = (∑ _ : Fin n, (1 : ℝ)) - 2 * ∑ i : Fin n, Cslib.BitString.bitVal ℝ (y i) := by
         rw [Finset.sum_sub_distrib, ← Finset.mul_sum]
     _ = (n : ℝ) - 2 * (trueCount y : ℝ) := by
-        have hbit : ∑ i : Fin n, Cslib.BitString.bitVal ℝ (y i) = (trueCount y : ℝ) := by
-          simp [trueCount, Cslib.BitString.bitVal, Finset.sum_boole]
-        simp [hbit]
+        simp [trueCount, Cslib.BitString.bitVal, Finset.sum_boole]
 
 private theorem card_filter_sum_signVal_ge (n : ℕ) {δ : ℝ} (hδ : 0 ≤ δ) :
     ((Finset.univ.filter fun y : Fin n → Bool =>
@@ -1751,43 +1539,31 @@ private theorem card_filter_sum_signVal_ge (n : ℕ) {δ : ℝ} (hδ : 0 ≤ δ)
   let t : ℝ := 2 * δ * n
   let A := Finset.univ.filter fun y : Fin n → Bool =>
     t ≤ ∑ i : Fin n, Cslib.BitString.signVal (y i)
-  have hs0 : 0 ≤ s := by positivity
   have hsum_le : (A.card : ℝ) * Real.exp (s * t) ≤
-      ∑ y : Fin n → Bool, Real.exp (s * ∑ i : Fin n, (1 : ℝ) * Cslib.BitString.signVal (y i)) := by
+      ∑ y : Fin n → Bool, Real.exp (s * ∑ i : Fin n, (1 : ℝ) * Cslib.BitString.signVal (y i)) :=
     calc (A.card : ℝ) * Real.exp (s * t)
       _ = ∑ _ ∈ A, Real.exp (s * t) := by rw [Finset.sum_const, nsmul_eq_mul]
-      _ ≤ ∑ y ∈ A, Real.exp (s * ∑ i : Fin n, (1 : ℝ) * Cslib.BitString.signVal (y i)) := by
-          refine Finset.sum_le_sum fun y hy => Real.exp_le_exp.mpr ?_
-          simp only [one_mul]
-          exact mul_le_mul_of_nonneg_left (Finset.mem_filter.mp hy).2 hs0
+      _ ≤ ∑ y ∈ A, Real.exp (s * ∑ i : Fin n, (1 : ℝ) * Cslib.BitString.signVal (y i)) :=
+          Finset.sum_le_sum fun y hy => Real.exp_le_exp.mpr <| by
+            simpa only [one_mul] using mul_le_mul_of_nonneg_left (Finset.mem_filter.mp hy).2
+              (by positivity : 0 ≤ s)
       _ ≤ ∑ y : Fin n → Bool,
             Real.exp (s * ∑ i : Fin n, (1 : ℝ) * Cslib.BitString.signVal (y i)) :=
           Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ A) fun _ _ _ =>
             (Real.exp_pos _).le
-  have hexp := Cslib.BitString.expect_exp_mul_sum_mul_signVal_le
-    (fun _ : Fin n => (1 : ℝ)) s
-  rw [Fintype.expect_eq_sum_div_card] at hexp
-  have hcard_univ : (Fintype.card (Fin n → Bool) : ℝ) = (2 ^ n : ℝ) := by
-    simp
-  rw [hcard_univ] at hexp
-  have hpow_pos : (0 : ℝ) < (2 ^ n : ℝ) := by positivity
-  have hmgf : ∑ y : Fin n → Bool,
-      Real.exp (s * ∑ i : Fin n, (1 : ℝ) * Cslib.BitString.signVal (y i)) ≤
-      (2 ^ n : ℝ) * Real.exp (s ^ 2 * n / 2) := by
-    have h1 := (div_le_iff₀ hpow_pos).mp hexp
-    simpa [mul_comm (Real.exp _) (2 ^ n : ℝ)] using h1
+  have hexp := Cslib.BitString.expect_exp_mul_sum_mul_signVal_le (fun _ : Fin n => (1 : ℝ)) s
+  rw [Fintype.expect_eq_sum_div_card, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin,
+    Nat.cast_pow, Nat.cast_ofNat, div_le_iff₀ (by positivity)] at hexp
   have hmul : (A.card : ℝ) * Real.exp (s * t) ≤ (2 ^ n : ℝ) * Real.exp (s ^ 2 * n / 2) :=
-    hsum_le.trans hmgf
-  have hexp_pos : (0 : ℝ) < Real.exp (s * t) := Real.exp_pos _
+    hsum_le.trans (by simpa [mul_comm (Real.exp _) (2 ^ n : ℝ)] using hexp)
   calc (A.card : ℝ)
     _ ≤ ((2 ^ n : ℝ) * Real.exp (s ^ 2 * n / 2)) / Real.exp (s * t) :=
-        (le_div_iff₀ hexp_pos).mpr hmul
-    _ = (2 ^ n : ℝ) * (Real.exp (s ^ 2 * n / 2) / Real.exp (s * t)) := mul_div_assoc _ _ _
-    _ = (2 ^ n : ℝ) * Real.exp (s ^ 2 * n / 2 - s * t) := by rw [← Real.exp_sub]
+        (le_div_iff₀ (Real.exp_pos _)).mpr hmul
+    _ = (2 ^ n : ℝ) * Real.exp (s ^ 2 * n / 2 - s * t) := by rw [mul_div_assoc, Real.exp_sub]
     _ = (2 ^ n : ℝ) * Real.exp (-2 * δ ^ 2 * n) := by
-        congr 2
-        dsimp only [s, t]
-        ring
+      congr 2
+      dsimp only [s, t]
+      ring
 
 private theorem card_filter_trueCount_le (n : ℕ) {δ : ℝ} (hδ : 0 ≤ δ) :
     ((Finset.univ.filter fun y : Fin n → Bool =>
@@ -1796,23 +1572,16 @@ private theorem card_filter_trueCount_le (n : ℕ) {δ : ℝ} (hδ : 0 ≤ δ) :
   let S : (Fin n → Bool) → ℝ := fun y => ∑ i : Fin n, Cslib.BitString.signVal (y i)
   let A := Finset.univ.filter fun y : Fin n → Bool => 2 * δ * n ≤ S y
   let B := Finset.univ.filter fun y : Fin n → Bool => 2 * δ * n ≤ -S y
-  let negFun : (Fin n → Bool) → (Fin n → Bool) := fun y i => !y i
-  have hinv : Function.Involutive negFun := fun y => by ext i; simp [negFun]
-  have hS_neg : ∀ y, S (negFun y) = -S y := fun y => by
-    simp only [S, negFun, Cslib.BitString.signVal_not, Finset.sum_neg_distrib]
-  have hB_eq : B.card = A.card := by
-    refine Finset.card_bij (fun y _ => negFun y) ?_ ?_ ?_
-    · intro y hy
-      simp only [B, A, Finset.mem_filter, Finset.mem_univ, true_and] at hy ⊢
-      rw [hS_neg]
-      exact hy
-    · intro y₁ _ y₂ _ h
-      exact hinv.injective h
-    · intro y hy
-      refine ⟨negFun y, ?_, hinv y⟩
-      simp only [B, A, Finset.mem_filter, Finset.mem_univ, true_and] at hy ⊢
-      rw [hS_neg, neg_neg]
-      exact hy
+  have hS_neg (y : Fin n → Bool) : S (fun i => !y i) = -S y := by
+    simp only [S, Cslib.BitString.signVal_not, Finset.sum_neg_distrib]
+  have hB_eq : B.card = A.card := Finset.card_bij (fun y _ i => !y i)
+    (fun y hy => by
+      simp only [A, B, Finset.mem_filter, Finset.mem_univ, true_and] at hy ⊢
+      rwa [hS_neg])
+    (fun _ _ _ _ h => funext fun i => by simpa using congrArg (!·) (congrFun h i))
+    (fun y hy => ⟨fun i => !y i, by
+        simp only [A, B, Finset.mem_filter, Finset.mem_univ, true_and] at hy ⊢
+        rwa [hS_neg, neg_neg], funext fun i => Bool.not_not _⟩)
   have hsub : (Finset.univ.filter fun y : Fin n → Bool =>
       δ * n ≤ |(trueCount y : ℝ) - (n : ℝ) / 2|) ⊆ A ∪ B := by
     intro y hy
@@ -1823,21 +1592,12 @@ private theorem card_filter_trueCount_le (n : ℕ) {δ : ℝ} (hδ : 0 ≤ δ) :
         rw [sum_signVal_eq]
         ring
       rw [hS_eq, abs_mul, show |(-2 : ℝ)| = 2 by norm_num]
-    have hle : 2 * δ * n ≤ |S y| := by linarith
-    rcases le_abs.mp hle with h | h
-    · exact Or.inl h
-    · exact Or.inr h
-  have hcard_union :
-      ((Finset.univ.filter fun y : Fin n → Bool =>
-          δ * n ≤ |(trueCount y : ℝ) - (n : ℝ) / 2|).card : ℝ) ≤
-        (A.card : ℝ) + (B.card : ℝ) := by
+    exact le_abs.mp (by linarith)
+  have hcard_union : ((Finset.univ.filter fun y : Fin n → Bool =>
+      δ * n ≤ |(trueCount y : ℝ) - (n : ℝ) / 2|).card : ℝ) ≤ (A.card : ℝ) + (B.card : ℝ) := by
     exact_mod_cast (Finset.card_le_card hsub).trans (Finset.card_union_le A B)
-  have hA := card_filter_sum_signVal_ge n hδ
   rw [hB_eq] at hcard_union
-  change ((Finset.univ.filter fun y : Fin n → Bool =>
-      δ * n ≤ |(trueCount y : ℝ) - (n : ℝ) / 2|).card : ℝ) ≤
-    (A.card : ℝ) + (A.card : ℝ) at hcard_union
-  linarith
+  linarith [card_filter_sum_signVal_ge n hδ]
 
 private def devCount (w : List Bool) : ℕ :=
   w.foldr (fun b c => bif b then c + 1 else c) 0
@@ -1868,73 +1628,69 @@ private def devTestBool (k : ℕ) (w : List Bool) : Bool :=
     (decide (w.length ≤ k * (2 * devCount w - w.length)) ||
       decide (w.length ≤ k * (w.length - 2 * devCount w)))
 
-private theorem primrec_devTestBool (k : ℕ) : Primrec (devTestBool k) := by
-  have h1 : Primrec fun w : List Bool => decide (0 < w.length) :=
-    Primrec.nat_lt.decide.comp (Primrec.const 0) Primrec.list_length
-  have h2 : Primrec fun w : List Bool => decide (w.length ≤ k * (2 * devCount w - w.length)) :=
-    Primrec.nat_le.decide.comp Primrec.list_length
-      (Primrec.nat_mul.comp (Primrec.const k)
-        (Primrec.nat_sub.comp (Primrec.nat_double.comp primrec_devCount) Primrec.list_length))
-  have h3 : Primrec fun w : List Bool => decide (w.length ≤ k * (w.length - 2 * devCount w)) :=
-    Primrec.nat_le.decide.comp Primrec.list_length
-      (Primrec.nat_mul.comp (Primrec.const k)
-        (Primrec.nat_sub.comp Primrec.list_length (Primrec.nat_double.comp primrec_devCount)))
-  exact (Primrec.and.comp h1 (Primrec.or.comp h2 h3)).of_eq fun _ => rfl
+private theorem primrec_devTestBool (k : ℕ) : Primrec (devTestBool k) :=
+  (Primrec.and.comp
+    (Primrec.nat_lt.decide.comp (Primrec.const 0) Primrec.list_length)
+    (Primrec.or.comp
+      (Primrec.nat_le.decide.comp Primrec.list_length
+        (Primrec.nat_mul.comp (Primrec.const k)
+          (Primrec.nat_sub.comp (Primrec.nat_double.comp primrec_devCount) Primrec.list_length)))
+      (Primrec.nat_le.decide.comp Primrec.list_length
+        (Primrec.nat_mul.comp (Primrec.const k)
+          (Primrec.nat_sub.comp Primrec.list_length
+            (Primrec.nat_double.comp primrec_devCount)))))).of_eq fun _ => rfl
+
+private theorem real_le_mul_sub_of_nat {n k a b : ℕ} (hn : 0 < n) (h : n ≤ k * (a - b)) :
+    (n : ℝ) ≤ (k : ℝ) * ((a : ℝ) - b) := by
+  have hba : b ≤ a := by
+    by_contra! hlt
+    rw [Nat.sub_eq_zero_of_le hlt.le, mul_zero] at h; omega
+  have h1 : (n : ℝ) ≤ (k : ℝ) * ((a - b : ℕ) : ℝ) := by exact_mod_cast h
+  rwa [Nat.cast_sub hba] at h1
+
+private theorem real_sub_mul_lt_of_nat {n k a b : ℕ} (hn : 0 < n) (hk : 0 < k)
+    (h : k * (a - b) < n) : ((a : ℝ) - b) * (k : ℝ) < n := by
+  by_cases hba : b ≤ a
+  · have h1 : (k : ℝ) * ((a - b : ℕ) : ℝ) < n := by exact_mod_cast h
+    rw [Nat.cast_sub hba] at h1; linarith
+  · have : (a : ℝ) < b := by exact_mod_cast Nat.lt_of_not_ge hba
+    have : (0 : ℝ) < k := by exact_mod_cast hk
+    have : (0 : ℝ) < n := by exact_mod_cast hn
+    nlinarith
 
 private theorem mem_deviation_filter {k n : ℕ} (hk : 0 < k) {w : List Bool}
     (hw : w.length = n) (hmem : devTestMem k w) :
     (1 / (2 * (k : ℝ))) * n ≤
-      |(trueCount (fun i : Fin n => w[i.val]'(Nat.lt_of_lt_of_eq i.isLt hw.symm)) : ℝ) -
+      |(trueCount (fun i : Fin n => w[i.1]'(Nat.lt_of_lt_of_eq i.2 hw.symm)) : ℝ) -
         (n : ℝ) / 2| := by
-  let y : Fin n → Bool := fun i => w[i.val]'(Nat.lt_of_lt_of_eq i.isLt hw.symm)
-  have hof : List.ofFn y = w := List.ext_getElem (by simp [hw]) fun i _ _ => by simp [y]
+  let y : Fin n → Bool := fun i => w[i.1]'(Nat.lt_of_lt_of_eq i.2 hw.symm)
   have hcnt : trueCount y = devCount w := by
-    rw [← count_ofFn_eq_trueCount, hof, devCount_eq_count]
+    rw [← count_ofFn_eq_trueCount,
+      show List.ofFn y = w from List.ext_getElem (by simp [hw]) fun i _ _ => by simp [y],
+      devCount_eq_count]
   rw [hcnt]
-  rcases hmem with ⟨_, hcond⟩
+  rcases hmem with ⟨hw_pos, hcond⟩
+  subst hw
   have hk_pos : (0 : ℝ) < k := by exact_mod_cast hk
-  have htwo_abs : (n : ℝ) ≤ (k : ℝ) * |2 * (devCount w : ℝ) - (n : ℝ)| := by
+  have htwo_abs : (w.length : ℝ) ≤
+      (k : ℝ) * (2 * |(devCount w : ℝ) - (w.length : ℝ) / 2|) := by
+    have hhalf : |2 * (devCount w : ℝ) - w.length| =
+        2 * |(devCount w : ℝ) - (w.length : ℝ) / 2| := by
+      rw [show 2 * (devCount w : ℝ) - w.length =
+        2 * ((devCount w : ℝ) - (w.length : ℝ) / 2) by ring, abs_mul]
+      norm_num
+    rw [← hhalf]
     rcases hcond with hge | hle
-    · have hsub_nat : w.length ≤ 2 * devCount w := by
-        by_contra! hlt
-        have hz : 2 * devCount w - w.length = 0 := by omega
-        rw [hz, mul_zero] at hge
-        omega
-      have h1_nat : w.length + k * w.length ≤ k * (2 * devCount w) := by
-        have hk1 : k * w.length ≤ k * (2 * devCount w) := Nat.mul_le_mul_left k hsub_nat
-        calc w.length + k * w.length
-          _ ≤ k * (2 * devCount w - w.length) + k * w.length := Nat.add_le_add_right hge _
-          _ = k * ((2 * devCount w - w.length) + w.length) := (Nat.mul_add _ _ _).symm
-          _ = k * (2 * devCount w) := by rw [Nat.sub_add_cancel hsub_nat]
-      have h1 : (n : ℝ) ≤ (k : ℝ) * (2 * (devCount w : ℝ) - n) := by
-        have hr : (n : ℝ) + (k : ℝ) * n ≤ (k : ℝ) * (2 * devCount w) := by
-          exact_mod_cast hw ▸ h1_nat
-        linarith
-      exact h1.trans (mul_le_mul_of_nonneg_left (le_abs_self _) hk_pos.le)
-    · have hsub_nat : 2 * devCount w ≤ w.length := by
-        by_contra! hlt
-        have hz : w.length - 2 * devCount w = 0 := by omega
-        rw [hz, mul_zero] at hle
-        omega
-      have h1_nat : w.length + k * (2 * devCount w) ≤ k * w.length := by
-        calc w.length + k * (2 * devCount w)
-          _ ≤ k * (w.length - 2 * devCount w) + k * (2 * devCount w) := Nat.add_le_add_right hle _
-          _ = k * ((w.length - 2 * devCount w) + 2 * devCount w) := (Nat.mul_add _ _ _).symm
-          _ = k * w.length := by rw [Nat.sub_add_cancel hsub_nat]
-      have h1 : (n : ℝ) ≤ (k : ℝ) * (n - 2 * (devCount w : ℝ)) := by
-        have hr : (n : ℝ) + (k : ℝ) * (2 * devCount w) ≤ (k : ℝ) * n := by
-          exact_mod_cast hw ▸ h1_nat
-        linarith
-      have h2 : (n : ℝ) - 2 * (devCount w : ℝ) ≤ |2 * (devCount w : ℝ) - (n : ℝ)| := by
-        rw [show (n : ℝ) - 2 * (devCount w : ℝ) = -(2 * (devCount w : ℝ) - (n : ℝ)) by ring]
-        exact neg_le_abs _
-      exact h1.trans (mul_le_mul_of_nonneg_left h2 hk_pos.le)
-  have hhalf : |2 * (devCount w : ℝ) - (n : ℝ)| =
-      2 * |(devCount w : ℝ) - (n : ℝ) / 2| := by
-    rw [show 2 * (devCount w : ℝ) - (n : ℝ) =
-        2 * ((devCount w : ℝ) - (n : ℝ) / 2) by ring, abs_mul]
-    norm_num
-  rw [hhalf] at htwo_abs
+    · calc (w.length : ℝ)
+        _ ≤ (k : ℝ) * (2 * (devCount w : ℝ) - w.length) := by
+            simpa using real_le_mul_sub_of_nat hw_pos hge
+        _ ≤ (k : ℝ) * |2 * (devCount w : ℝ) - w.length| :=
+            mul_le_mul_of_nonneg_left (le_abs_self _) hk_pos.le
+    · calc (w.length : ℝ)
+        _ ≤ (k : ℝ) * ((w.length : ℝ) - 2 * (devCount w : ℝ)) := by
+            simpa using real_le_mul_sub_of_nat hw_pos hle
+        _ ≤ (k : ℝ) * |2 * (devCount w : ℝ) - w.length| :=
+            mul_le_mul_of_nonneg_left (neg_sub (2 * (devCount w : ℝ)) _ ▸ neg_le_abs _) hk_pos.le
   rw [one_div, mul_comm (2 * (k : ℝ))⁻¹ _, ← div_eq_mul_inv]
   exact (div_le_iff₀ (by positivity)).mpr (by linarith)
 
@@ -1953,41 +1709,40 @@ private def deviationSolovayTest (k : ℕ) (hk : 0 < k) : SolovayTest where
     have hr0 : 0 ≤ r := (Real.exp_pos _).le
     have hr1 : r < 1 := Real.exp_lt_one_iff.mpr (by nlinarith)
     have hbound_real : ∀ F : Finset {w : List Bool // devTestMem k w},
-        ∑ w ∈ F, (2 : ℝ)⁻¹ ^ w.val.length ≤ 2 / (1 - r) := by
+        ∑ w ∈ F, (2 : ℝ)⁻¹ ^ w.1.length ≤ 2 / (1 - r) := by
       intro F
-      let N : ℕ := F.sup (fun w => w.val.length) + 1
-      have hmap : ∀ w ∈ F, w.val.length ∈ Finset.range N := fun w hw =>
-        Finset.mem_range.mpr (Nat.lt_succ_of_le (Finset.le_sup (f := fun w : _ => w.val.length) hw))
+      let N : ℕ := F.sup (fun w => w.1.length) + 1
+      have hmap : ∀ w ∈ F, w.1.length ∈ Finset.range N := fun w hw =>
+        Finset.mem_range.mpr (Nat.lt_succ_of_le (Finset.le_sup (f := fun w : _ => w.1.length) hw))
       have hfib : ∀ n ∈ Finset.range N,
-          ∑ w ∈ F.filter (fun w => w.val.length = n), (2 : ℝ)⁻¹ ^ w.val.length ≤
+          ∑ w ∈ F.filter (fun w => w.1.length = n), (2 : ℝ)⁻¹ ^ w.1.length ≤
             2 * r ^ n := by
         intro n _
-        let Fn := F.filter (fun w => w.val.length = n)
+        let Fn := F.filter (fun w => w.1.length = n)
         let Gn := Finset.univ.filter fun y : Fin n → Bool =>
           δ * n ≤ |(trueCount y : ℝ) - (n : ℝ) / 2|
         let f : Fn → Gn := fun w =>
-          ⟨fun i => w.val.val[i.val]'(Nat.lt_of_lt_of_eq i.isLt
-              (Finset.mem_filter.mp w.property).2.symm),
+          ⟨fun i => w.1.1[i.1]'(Nat.lt_of_lt_of_eq i.2 (Finset.mem_filter.mp w.2).2.symm),
             Finset.mem_filter.mpr ⟨Finset.mem_univ _,
-              mem_deviation_filter hk (Finset.mem_filter.mp w.property).2 w.val.property⟩⟩
+              mem_deviation_filter hk (Finset.mem_filter.mp w.2).2 w.1.2⟩⟩
         have hf_inj : Function.Injective f := by
           intro a b hab
-          have ha_len : a.val.val.length = n := (Finset.mem_filter.mp a.property).2
-          have hb_len : b.val.val.length = n := (Finset.mem_filter.mp b.property).2
-          have hsub := congrArg (fun z : Gn => z.val) hab
+          have ha_len : a.1.1.length = n := (Finset.mem_filter.mp a.2).2
+          have hb_len : b.1.1.length = n := (Finset.mem_filter.mp b.2).2
+          have hsub := congrArg (fun z : Gn => z.1) hab
           refine Subtype.ext (Subtype.ext (List.ext_getElem (ha_len.trans hb_len.symm)
             fun i hi1 _ => congrFun hsub ⟨i, Nat.lt_of_lt_of_eq hi1 ha_len⟩))
         have hcard_le : Fn.card ≤ Gn.card := by
           simpa only [Fintype.card_coe] using Fintype.card_le_of_injective f hf_inj
-        have hsum_fn : ∑ w ∈ Fn, (2 : ℝ)⁻¹ ^ w.val.length = (Fn.card : ℝ) * (2 : ℝ)⁻¹ ^ n := by
-          calc ∑ w ∈ Fn, (2 : ℝ)⁻¹ ^ w.val.length
+        have hsum_fn : ∑ w ∈ Fn, (2 : ℝ)⁻¹ ^ w.1.length = (Fn.card : ℝ) * (2 : ℝ)⁻¹ ^ n := by
+          calc ∑ w ∈ Fn, (2 : ℝ)⁻¹ ^ w.1.length
             _ = ∑ _ ∈ Fn, (2 : ℝ)⁻¹ ^ n :=
                 Finset.sum_congr rfl fun w hw => by rw [(Finset.mem_filter.mp hw).2]
             _ = (Fn.card : ℝ) * (2 : ℝ)⁻¹ ^ n := by rw [Finset.sum_const, nsmul_eq_mul]
         rw [hsum_fn]
         have hr_pow : r ^ n = Real.exp (-2 * δ ^ 2 * n) := by
           dsimp only [r]
-          rw [← Real.exp_natCast_mul]
+          rw [← Real.exp_nat_mul]
           congr 1
           ring
         calc (Fn.card : ℝ) * (2 : ℝ)⁻¹ ^ n
@@ -1999,9 +1754,9 @@ private def deviationSolovayTest (k : ℕ) (hk : 0 < k) : SolovayTest where
               have hpow : (2 ^ n : ℝ) ≠ 0 := by positivity
               field_simp
           _ = 2 * r ^ n := by rw [hr_pow]
-      calc ∑ w ∈ F, (2 : ℝ)⁻¹ ^ w.val.length
+      calc ∑ w ∈ F, (2 : ℝ)⁻¹ ^ w.1.length
         _ = ∑ n ∈ Finset.range N,
-              ∑ w ∈ F.filter (fun w => w.val.length = n), (2 : ℝ)⁻¹ ^ w.val.length :=
+              ∑ w ∈ F.filter (fun w => w.1.length = n), (2 : ℝ)⁻¹ ^ w.1.length :=
             (Finset.sum_fiberwise_of_maps_to hmap _).symm
         _ ≤ ∑ n ∈ Finset.range N, 2 * r ^ n := Finset.sum_le_sum hfib
         _ = 2 * ∑ n ∈ Finset.range N, r ^ n := (Finset.mul_sum _ _ _).symm
@@ -2034,68 +1789,36 @@ theorem tendsto_freq_true_of_isMartinLofRandom {x : ℕ → Bool} (hx : IsMartin
   rw [Metric.tendsto_atTop]
   intro ε hε
   obtain ⟨k, hk⟩ := exists_nat_one_div_lt (by linarith : (0 : ℝ) < 2 * ε)
-  have hk_pos : 0 < k + 1 := Nat.succ_pos k
-  have hfin := passesSolovayTest_of_isMartinLofRandom (deviationSolovayTest (k + 1) hk_pos) hx
-  let N : ℕ := hfin.toFinset.sup List.length + 1
-  refine ⟨N, fun n hn => ?_⟩
+  have hfin :=
+    passesSolovayTest_of_isMartinLofRandom (deviationSolovayTest (k + 1) (Nat.succ_pos k)) hx
+  refine ⟨hfin.toFinset.sup List.length + 1, fun n hn => ?_⟩
   have hn_pos : 0 < n := lt_of_lt_of_le (Nat.succ_pos _) hn
   let w : List Bool := List.ofFn fun i : Fin n => x i
   have hw_len : w.length = n := by simp [w]
-  have hnot : ¬ devTestMem (k + 1) w := by
-    intro hmem
-    have hwin : w ∈ hfin.toFinset :=
-      hfin.mem_toFinset.mpr ⟨hmem, mem_prefixCylinderList.mpr fun i => by simp [w]⟩
-    have hle : w.length ≤ hfin.toFinset.sup List.length := Finset.le_sup hwin
-    omega
   have hnot_dev :
-      ¬ (w.length ≤ (k + 1) * (2 * devCount w - w.length) ∨
-        w.length ≤ (k + 1) * (w.length - 2 * devCount w)) :=
-    fun h => hnot ⟨by omega, h⟩
-  rw [not_or, not_le, not_le, hw_len] at hnot_dev
-  have hupper : ((2 * devCount w : ℝ) - n) * ((k : ℝ) + 1) < n := by
-    by_cases h : n ≤ 2 * devCount w
-    · have hsub_nat : (2 * devCount w - n) + n = 2 * devCount w := Nat.sub_add_cancel h
-      have hnat : ((k + 1 : ℕ) : ℝ) * ((2 * devCount w - n : ℕ) : ℝ) < n := by
-        exact_mod_cast hnot_dev.1
-      have hsub_real : ((2 * devCount w - n : ℕ) : ℝ) + n = 2 * (devCount w : ℝ) := by
-        exact_mod_cast hsub_nat
-      have hk1 : ((k + 1 : ℕ) : ℝ) = (k : ℝ) + 1 := by push_cast; ring
-      rw [hk1, show ((2 * devCount w - n : ℕ) : ℝ) = 2 * (devCount w : ℝ) - n by linarith] at hnat
-      linarith
-    · have hk1 : (0 : ℝ) < (k : ℝ) + 1 := by positivity
-      have hneg : 2 * (devCount w : ℝ) - n < 0 := by
-        have : (2 * devCount w : ℝ) < n := by exact_mod_cast Nat.lt_of_not_ge h
-        linarith
-      nlinarith [show (0 : ℝ) < n from by exact_mod_cast hn_pos]
-  have hlower : (n - (2 * devCount w : ℝ)) * ((k : ℝ) + 1) < n := by
-    by_cases h : 2 * devCount w ≤ n
-    · have hsub_nat : (n - 2 * devCount w) + 2 * devCount w = n := Nat.sub_add_cancel h
-      have hnat : ((k + 1 : ℕ) : ℝ) * ((n - 2 * devCount w : ℕ) : ℝ) < n := by
-        exact_mod_cast hnot_dev.2
-      have hsub_real : ((n - 2 * devCount w : ℕ) : ℝ) + 2 * (devCount w : ℝ) = n := by
-        exact_mod_cast hsub_nat
-      have hk1 : ((k + 1 : ℕ) : ℝ) = (k : ℝ) + 1 := by push_cast; ring
-      rw [hk1, show ((n - 2 * devCount w : ℕ) : ℝ) = n - 2 * (devCount w : ℝ) by linarith] at hnat
-      linarith
-    · have hk1 : (0 : ℝ) < (k : ℝ) + 1 := by positivity
-      have hneg : (n : ℝ) - 2 * (devCount w : ℝ) < 0 := by
-        have : (n : ℝ) < 2 * devCount w := by exact_mod_cast Nat.lt_of_not_ge h
-        linarith
-      nlinarith [show (0 : ℝ) < n from by exact_mod_cast hn_pos]
-  have hn_real : (0 : ℝ) < n := by exact_mod_cast hn_pos
+      (k + 1) * (2 * devCount w - n) < n ∧ (k + 1) * (n - 2 * devCount w) < n := by
+    rw [← not_le, ← not_le, ← not_or, ← hw_len]
+    intro h
+    have hwin : w ∈ hfin.toFinset :=
+      hfin.mem_toFinset.mpr ⟨⟨by omega, h⟩, mem_prefixCylinderList.mpr fun _ => by simp [w]⟩
+    have := Finset.le_sup (f := List.length) hwin
+    omega
+  have hupper : (2 * (devCount w : ℝ) - n) * ((k : ℝ) + 1) < n := by
+    simpa [Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat] using
+      real_sub_mul_lt_of_nat hn_pos (Nat.succ_pos k) hnot_dev.1
+  have hlower : ((n : ℝ) - 2 * devCount w) * ((k : ℝ) + 1) < n := by
+    simpa [Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat] using
+      real_sub_mul_lt_of_nat hn_pos (Nat.succ_pos k) hnot_dev.2
   have hk1 : (0 : ℝ) < (k : ℝ) + 1 := by positivity
-  have habs_num : |2 * (devCount w : ℝ) - n| < n / ((k : ℝ) + 1) := by
-    rw [abs_lt]
-    constructor
-    · rw [neg_lt]
-      exact (lt_div_iff₀ hk1).mpr (by linarith)
-    · exact (lt_div_iff₀ hk1).mpr (by linarith)
-  have hhalf_lt : (1 : ℝ) / (2 * ((k : ℝ) + 1)) < ε := by
-    have hk' : (1 : ℝ) / ((k : ℝ) + 1) < 2 * ε := hk
+  have habs_num : |2 * (devCount w : ℝ) - n| < n / ((k : ℝ) + 1) :=
+    abs_lt.mpr
+      ⟨neg_lt.mpr ((lt_div_iff₀ hk1).mpr (by linarith)), (lt_div_iff₀ hk1).mpr (by linarith)⟩
+  have hhalf_lt : (1 : ℝ) / (2 * ((k : ℝ) + 1)) < ε :=
     calc (1 : ℝ) / (2 * ((k : ℝ) + 1))
       _ = (1 / ((k : ℝ) + 1)) / 2 := by field_simp
       _ < (2 * ε) / 2 := by gcongr
       _ = ε := by ring
+  have hn_real : (0 : ℝ) < n := by exact_mod_cast hn_pos
   rw [Real.dist_eq, ← devCount_eq_count w]
   have hrw : (devCount w : ℝ) / (n : ℝ) - 1 / 2 = (2 * (devCount w : ℝ) - n) / (2 * n) := by
     field_simp

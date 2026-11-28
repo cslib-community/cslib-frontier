@@ -22,8 +22,9 @@ import Mathlib.Tactic.Ring
 
 `Cslib.Circuits.SlpN inp p H`: the functions of `H` are computed by a straight-line program with
 `p` gates over all operations on `Fin D` (`fullSignature 2 (Fin D)`), from the inputs `inp`. Gates
-are added one at a time (`Cslib.Circuits.SlpN.snoc`), and the inputs take one gate each
-(`Cslib.Circuits.SlpN.inputs`).
+are added one at a time (`Cslib.Circuits.SlpN.snoc`), the inputs take one gate each
+(`Cslib.Circuits.SlpN.inputs`), and a program runs unchanged over a larger alphabet
+(`Cslib.Circuits.SlpN.castLE`).
 
 `Cslib.Circuits.Cost D A c h` is the calculus on top: `h` is computed in `c` further gates from the
 functions of `A`, by constants and binary operations whose values stay below `D`. It is turned into
@@ -37,12 +38,13 @@ relations, connectives, bounded quantifiers and choice (`Cslib.Circuits.Cost.ite
 
 ## Main results
 
-* `Cslib.Circuits.SlpN.snoc`, `SlpN.le`, `SlpN.inputs`, `Cost.run`, `SlpN.stage`.
+* `Cslib.Circuits.SlpN.snoc`, `SlpN.le`, `SlpN.castLE`, `SlpN.mapInputs`, `SlpN.inputs`,
+  `SlpN.exists_isSlpStep`, `Cost.run`, `SlpN.stage`.
 
 ## References
 
 * [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
-  module `Nc.SlpCalc`
+  modules `Nc.SlpCalc` and `Paper.HeavyProg` (`slp_cast`)
 -/
 
 public section
@@ -62,9 +64,9 @@ gates over all operations on `Fin D`, from the inputs `inp`. -/
 variable {inp : Fin n → Inp → Fin D}
 
 theorem SlpN.mono {p : ℕ} {H H' : Set (Inp → ℕ)} (h : SlpN inp p H) (hs : H' ⊆ H) :
-    SlpN inp p H' := by
-  obtain ⟨P, hP⟩ := h
-  exact ⟨P, fun f hf => hP f (hs hf)⟩
+    SlpN inp p H' :=
+  let ⟨P, hP⟩ := h
+  ⟨P, fun f hf => hP f (hs hf)⟩
 
 theorem SlpN.empty : SlpN inp 0 ∅ := ⟨.empty, fun _ hf => absurd hf (Set.notMem_empty _)⟩
 
@@ -75,20 +77,17 @@ theorem SlpN.snoc {p : ℕ} {H : Set (Inp → ℕ)} (h : SlpN inp p H) (f : Inp 
       ∀ (x : Inp) (a b : Fin D), (a : ℕ) = h1 x → (b : ℕ) = h2 x → f x = φ a b) :
     SlpN inp (p + 1) (insert (fun x => (f x : ℕ)) H) := by
   obtain ⟨P, hP⟩ := h
-  have step : ∃ line : Line (fullSignature 2 (Fin D)) n p, ∀ x,
+  have ⟨line, hline⟩ : ∃ line : Line (fullSignature 2 (Fin D)) n p, ∀ x,
       line.eval fullInterpretation (fun i => inp i x)
         (P.eval fullInterpretation (fun i => inp i x)) = f x := by
     rcases hf with ⟨i, rfl⟩ | ⟨c, rfl⟩ | ⟨h1, hh1, h2, hh2, φ, hφ⟩
     · exact ⟨⟨.fn fun a => a 0, (![Wire.input i, Wire.input i] : Fin 2 → Wire n p)⟩,
-        fun x => rfl⟩
-    · exact ⟨⟨.con c, Fin.elim0⟩, fun x => by simp [Line.eval, fullInterpretation]⟩
+        fun _ => rfl⟩
+    · exact ⟨⟨.con c, Fin.elim0⟩, fun _ => rfl⟩
     · obtain ⟨k1, hk1⟩ := hP h1 hh1
       obtain ⟨k2, hk2⟩ := hP h2 hh2
-      refine ⟨⟨.fn fun a => φ (a 0) (a 1), (![Wire.gate k1, Wire.gate k2] : Fin 2 → Wire n p)⟩,
-        fun x => ?_⟩
-      simp only [Line.eval, fullInterpretation]
-      exact (hφ x _ _ (hk1 x) (hk2 x)).symm
-  obtain ⟨line, hline⟩ := step
+      exact ⟨⟨.fn fun a => φ (a 0) (a 1), (![Wire.gate k1, Wire.gate k2] : Fin 2 → Wire n p)⟩,
+        fun x => (hφ x _ _ (hk1 x) (hk2 x)).symm⟩
   refine ⟨.gate P line, fun g hg => ?_⟩
   rcases Set.mem_insert_iff.1 hg with rfl | hg
   · exact ⟨Fin.last p, fun x => by rw [Program.eval_gate_last, hline]⟩
@@ -103,6 +102,59 @@ theorem SlpN.le (hD : 0 < D) {p q : ℕ} (hpq : p ≤ q) {H : Set (Inp → ℕ)}
   | succ q _ ih =>
     exact (ih.snoc (fun _ => ⟨0, hD⟩) (Or.inr (Or.inl ⟨_, rfl⟩))).mono (Set.subset_insert _ _)
 
+/-- A larger alphabet: the gates of a program over `Fin D` compute the same numbers over `Fin D'`,
+for `D ≤ D'`, from inputs with the same values. -/
+theorem SlpN.castLE {D' : ℕ} (hD : D ≤ D') {inp' : Fin n → Inp → Fin D'}
+    (hinp : ∀ i x, (inp' i x : ℕ) = inp i x) {p : ℕ} {H : Set (Inp → ℕ)} (h : SlpN inp p H) :
+    SlpN inp' p H := by
+  obtain ⟨P, hP⟩ := h
+  suffices ∃ P' : Program (fullSignature 2 (Fin D')) n p, ∀ k x,
+      ((P'.eval fullInterpretation (fun i => inp' i x) k : Fin D') : ℕ) =
+        P.eval fullInterpretation (fun i => inp i x) k by
+    obtain ⟨P', hP'⟩ := this
+    exact ⟨P', fun f hf => (hP f hf).imp fun k hk x => (hP' k x).trans (hk x)⟩
+  clear hP
+  induction P with
+  | empty => exact ⟨.empty, fun k => k.elim0⟩
+  | @gate g P line ih =>
+    obtain ⟨P', hP'⟩ := ih
+    obtain ⟨op, w⟩ := line
+    have hw (a : Fin _) (x : Inp) :
+        ((Wire.elim (fun i => inp' i x) (P'.eval fullInterpretation fun i => inp' i x) (w a) :
+          Fin D') : ℕ) =
+          Wire.elim (fun i => inp i x) (P.eval fullInterpretation fun i => inp i x) (w a) := by
+      cases w a with
+      | input i => exact hinp i x
+      | gate j => exact hP' j x
+    cases op with
+    | con c =>
+      refine ⟨P'.gate ⟨.con (Fin.castLE hD c), w⟩, fun k x => ?_⟩
+      induction k using Fin.lastCases with
+      | last => simp [Line.eval, fullInterpretation]
+      | cast k => simpa using hP' k x
+    | fn f =>
+      refine ⟨P'.gate ⟨.fn fun a => if h : ∀ i, (a i : ℕ) < D then
+        Fin.castLE hD (f fun i => ⟨a i, h i⟩) else a 0, w⟩, fun k x => ?_⟩
+      induction k using Fin.lastCases with
+      | last =>
+        simp only [Program.eval_gate_last, Line.eval, fullInterpretation]
+        split
+        · rw [Fin.val_castLE]
+          congr 2 with i
+          exact hw i x
+        · exact absurd (fun i => (hw i x).trans_lt (Fin.isLt _)) ‹_›
+      | cast k => simpa using hP' k x
+
+/-- A program whose inputs are among the inputs `inp'` computes the same functions from them. -/
+theorem SlpN.mapInputs {n' : ℕ} {inp' : Fin n' → Inp → Fin D} (f : Fin n → Fin n')
+    (hf : ∀ i x, inp' (f i) x = inp i x) {p : ℕ} {H : Set (Inp → ℕ)} (h : SlpN inp p H) :
+    SlpN inp' p H := by
+  obtain ⟨P, hP⟩ := h
+  refine ⟨P.mapInputs f, fun g hg => (hP g hg).imp fun k hk x => ?_⟩
+  rw [Program.eval_mapInputs, ← hk x]
+  congr 3
+  exact funext fun i => hf i x
+
 /-- The inputs take one gate each. -/
 theorem SlpN.inputs (inp : Fin n → Inp → Fin D) :
     SlpN inp n (Set.range fun i x => (inp i x : ℕ)) := by
@@ -111,9 +163,18 @@ theorem SlpN.inputs (inp : Fin n → Inp → Fin D) :
   · obtain ⟨P, hP⟩ := exists_program_of_isSlpStep (p := n) inp
       (fun k => if h : k < n then inp ⟨k, h⟩ else inp ⟨0, hn⟩) fun k hk =>
         Or.inl ⟨⟨k, hk⟩, by simp [hk]⟩
-    refine ⟨P, ?_⟩
-    rintro _ ⟨i, rfl⟩
-    exact ⟨i, fun x => by rw [hP i x]; simp⟩
+    exact ⟨P, fun _ ⟨i, hf⟩ => ⟨i, fun x => by simp [← hf, hP i x]⟩⟩
+
+/-- A program with `p` gates on `n` inputs gives a list of `n + p` steps, inputs first, in which
+every function that the program computes is a step. -/
+theorem SlpN.exists_isSlpStep [NeZero D] {p : ℕ} {H : Set (Inp → ℕ)} (h : SlpN inp p H) :
+    ∃ fn : ℕ → Inp → Fin D, (∀ k < n + p, IsSlpStep inp fn k) ∧
+      ∀ f ∈ H, ∃ k : Fin (n + p), ∀ x, (fn k x : ℕ) = f x := by
+  obtain ⟨P, hP⟩ := h
+  obtain ⟨fn, hs, -, hg⟩ := exists_isSlpStep_of_program inp P
+  refine ⟨fn, hs, fun f hf => ?_⟩
+  obtain ⟨k, hk⟩ := hP f hf
+  exact ⟨⟨n + k, by omega⟩, fun x => by rw [hg, hk]⟩
 
 /-- `h` is computed in at most `c` steps from functions of `A`. -/
 inductive Cost (D : ℕ) (A : Set (Inp → ℕ)) : ℕ → (Inp → ℕ) → Prop
@@ -133,13 +194,8 @@ variable {A : Set (Inp → ℕ)}
 theorem Cost.run (hD : 0 < D) {c : ℕ} {h : Inp → ℕ} (hc : Cost D A c h) :
     ∀ {p : ℕ} {H : Set (Inp → ℕ)}, A ⊆ H → SlpN inp p H → SlpN inp (p + c) (insert h H) := by
   induction hc with
-  | base hA =>
-    intro p H hs hH
-    rw [Set.insert_eq_of_mem (hs hA)]
-    exact hH
-  | const c hc =>
-    intro p H _ hH
-    exact hH.snoc (fun _ => ⟨c, hc⟩) (Or.inr (Or.inl ⟨_, rfl⟩))
+  | base hA => exact fun hs hH => (Set.insert_eq_of_mem (hs hA)).symm ▸ hH
+  | const c hc => exact fun _ hH => hH.snoc (fun _ => ⟨c, hc⟩) (Or.inr (Or.inl ⟨_, rfl⟩))
   | @op p q h1 h2 φ _ _ hφ ih1 ih2 =>
     intro p' H hs hH
     have a1 := ih1 hs hH
@@ -149,16 +205,10 @@ theorem Cost.run (hD : 0 < D) {c : ℕ} {h : Inp → ℕ} (hc : Cost D A c h) :
       fun a b => if hlt : φ a b < D then ⟨φ a b, hlt⟩ else ⟨0, hD⟩, by
         intro x a b ha hb
         simp only [ha, hb, dite_eq_left (hφ x)]⟩))
-    have e : p' + (p + q + 1) = p' + p + q + 1 := by ring
-    rw [e]
-    refine a3.mono ?_
-    intro f hf
-    rcases Set.mem_insert_iff.mp hf with hf | hf
-    · rw [hf]; exact Set.mem_insert _ _
-    · exact Set.mem_insert_of_mem _ (Set.mem_insert_of_mem _ (Set.mem_insert_of_mem _ hf))
-  | mono _ hpq ih =>
-    intro p' H hs hH
-    exact (ih hs hH).le hD (by omega)
+    rw [← add_assoc, ← add_assoc]
+    exact a3.mono fun f hf => (Set.mem_insert_iff.mp hf).elim (fun hf => hf ▸ Set.mem_insert _ _)
+      fun hf => Set.mem_insert_of_mem _ (Set.mem_insert_of_mem _ (Set.mem_insert_of_mem _ hf))
+  | mono _ _ ih => exact fun hs hH => (ih hs hH).le hD (by omega)
 
 /-- A family of functions. -/
 theorem SlpN.stage (hD : 0 < D)
@@ -166,30 +216,22 @@ theorem SlpN.stage (hD : 0 < D)
     (f : κ → Inp → ℕ) (c : ℕ) (hf : ∀ i, Cost D H c (f i)) :
     SlpN inp (p + Fintype.card κ * c) (H ∪ Set.range f) := by
   classical
-  have : ∀ s : Finset κ, SlpN inp (p + s.card * c) (H ∪ f '' (s : Set κ)) := by
-    intro s
+  have (s : Finset κ) : SlpN inp (p + s.card * c) (H ∪ f '' (s : Set κ)) := by
     induction s using Finset.induction_on with
     | empty => simpa using h
     | insert i s hi ih =>
-      rw [card_insert_of_notMem hi]
-      have e : p + (s.card + 1) * c = p + s.card * c + c := by ring
-      rw [e]
+      rw [card_insert_of_notMem hi, add_mul, one_mul, ← add_assoc]
       refine ((hf i).run hD Set.subset_union_left ih).mono ?_
-      intro g hg
-      rcases hg with hg | ⟨j, hj, rfl⟩
+      rintro g (hg | ⟨j, hj, rfl⟩)
       · exact Set.mem_insert_of_mem _ (Or.inl hg)
-      · rcases mem_insert.mp (mem_coe.mp hj) with h | h
-        · subst h; exact Set.mem_insert _ _
-        · exact Set.mem_insert_of_mem _ (Or.inr ⟨j, mem_coe.mpr h, rfl⟩)
-  have h2 := this univ
-  rw [coe_univ, Set.image_univ, card_univ] at h2
-  exact h2
+      · exact (mem_insert.mp (mem_coe.mp hj)).elim (fun h => h ▸ Set.mem_insert _ _) fun h =>
+          Set.mem_insert_of_mem _ (Or.inr ⟨j, mem_coe.mpr h, rfl⟩)
+  simpa only [coe_univ, Set.image_univ, card_univ] using this univ
 
 namespace Cost
 
-lemma congr {c : ℕ} {h h' : Inp → ℕ} (hc : Cost D A c h) (e : ∀ x, h x = h' x) : Cost D A c h' := by
-  have : h = h' := funext e
-  rwa [← this]
+lemma congr {c : ℕ} {h h' : Inp → ℕ} (hc : Cost D A c h) (e : ∀ x, h x = h' x) : Cost D A c h' :=
+  funext e ▸ hc
 
 lemma weaken {A' : Set (Inp → ℕ)} (hA : A ⊆ A') {c : ℕ} {h : Inp → ℕ} (hc : Cost D A c h) :
     Cost D A' c h := by
@@ -213,18 +255,11 @@ lemma sum (hD : 0 < D) {κ : Type*} (s : Finset κ)
   induction s using Finset.induction_on with
   | empty => simpa using const (A := A) 0 hD
   | insert i s hi ih =>
-    have hb' : ∀ x, ∑ i ∈ s, h i x < D := fun x => by
-      have := hb x
-      rw [sum_insert hi] at this
-      omega
-    have h1 := ih (fun j hj => hc j (mem_insert_of_mem hj)) hb'
-    have h2 := op (fun a b => a + b) (hc i (mem_insert_self _ _)) h1 (fun x => by
-      have := hb x
-      rw [sum_insert hi] at this
-      exact this)
-    refine (h2.congr fun x => by rw [sum_insert hi]).mono ?_
-    rw [card_insert_of_notMem hi]
-    ring_nf
+    have hb' (x : Inp) : h i x + ∑ j ∈ s, h j x < D := by simpa only [sum_insert hi] using hb x
+    have h1 := ih (fun j hj => hc j (mem_insert_of_mem hj)) fun x => le_add_self.trans_lt (hb' x)
+    have h2 := op (· + ·) (hc i (mem_insert_self _ _)) h1 hb'
+    refine (h2.congr fun x => (sum_insert (f := fun j => h j x) hi).symm).mono ?_
+    rw [card_insert_of_notMem hi, add_mul, one_mul]
     omega
 
 end Cost
@@ -233,12 +268,14 @@ end Cost
 def CostP (D : ℕ) (A : Set (Inp → ℕ)) (c : ℕ) (P : Inp → Prop) : Prop :=
   Cost D A c ({x | P x}.indicator 1)
 
+/-- A property is decided in `c` steps when its indicator is computed in `c` steps. -/
+theorem costP_iff {c : ℕ} {P : Inp → Prop} : CostP D A c P ↔ Cost D A c ({x | P x}.indicator 1) :=
+  Iff.rfl
+
 namespace CostP
 
 lemma congr {c : ℕ} {P Q : Inp → Prop} (hc : CostP D A c P) (h : ∀ x, P x ↔ Q x) : CostP D A c Q :=
-    by
-  have : P = Q := funext fun x => propext (h x)
-  rwa [← this]
+  (funext fun x => propext (h x)) ▸ hc
 
 lemma mono {p q : ℕ} {P : Inp → Prop} (hc : CostP D A p P) (h : p ≤ q) : CostP D A q P :=
     Cost.mono hc h
@@ -248,11 +285,9 @@ lemma rel (hD : 1 < D) {p q : ℕ} {h1 h2 : Inp → ℕ} (r : ℕ → ℕ → Pr
     (c2 : Cost D A q h2) :
     CostP D A (p + q + 1) fun x => r (h1 x) (h2 x) := by
   classical
-  have := Cost.op (fun a b => if r a b then 1 else 0) c1 c2 (fun x => by split_ifs <;> omega)
-  refine this.congr fun x => ?_
-  by_cases h : r (h1 x) (h2 x)
-  · rw [Set.indicator_of_mem (s := {x | r (h1 x) (h2 x)}) h, Pi.one_apply, ite_eq_left h]
-  · rw [Set.indicator_of_notMem (s := {x | r (h1 x) (h2 x)}) h, ite_eq_right h]
+  refine (Cost.op (fun a b => if r a b then 1 else 0) c1 c2
+    (fun _ => by split_ifs <;> omega)).congr fun x => ?_
+  by_cases h : r (h1 x) (h2 x) <;> simp [Set.indicator, h]
 
 /-- A property of a value. -/
 lemma rel1 (hD : 1 < D) {p : ℕ} {h : Inp → ℕ} (r : ℕ → Prop) (c1 : Cost D A p h) :
@@ -260,12 +295,10 @@ lemma rel1 (hD : 1 < D) {p : ℕ} {h : Inp → ℕ} (r : ℕ → Prop) (c1 : Cos
   rel hD (fun a _ => r a) c1 (Cost.const 0 (by omega))
 
 lemma true' (hD : 1 < D) : CostP D A 1 fun _ => True := by
-  refine (Cost.const 1 hD).congr fun x => ?_
-  rw [Set.indicator_of_mem (s := {_x : Inp | True}) (a := x) trivial, Pi.one_apply]
+  exact (Cost.const 1 hD).congr fun _ => by simp
 
 lemma false' (hD : 1 < D) : CostP D A 1 fun _ => False := by
-  refine (Cost.const 0 (by omega)).congr fun x => ?_
-  rw [Set.indicator_of_notMem (s := {_x : Inp | False}) (a := x) (fun h => h)]
+  exact (Cost.const 0 (Nat.zero_lt_of_lt hD)).congr fun _ => by simp
 
 /-- A constant property. -/
 lemma const (hD : 1 < D) (P : Prop) : CostP D A 1 fun _ => P := by
@@ -297,8 +330,7 @@ lemma exists_mem (hD : 1 < D) {κ : Type*} (s : Finset κ) {c : ℕ} {P : κ →
   | insert i s hi ih =>
     have h1 := ih fun j hj => hc j (mem_insert_of_mem hj)
     refine ((hc i (mem_insert_self _ _)).or hD h1 |>.congr fun x => by simp).mono ?_
-    rw [card_insert_of_notMem hi]
-    ring_nf
+    rw [card_insert_of_notMem hi, add_mul, one_mul]
     omega
 
 lemma forall_mem (hD : 1 < D) {κ : Type*} (s : Finset κ) {c : ℕ} {P : κ → Inp → Prop}
@@ -310,8 +342,7 @@ lemma forall_mem (hD : 1 < D) {κ : Type*} (s : Finset κ) {c : ℕ} {P : κ →
   | insert i s hi ih =>
     have h1 := ih fun j hj => hc j (mem_insert_of_mem hj)
     refine ((hc i (mem_insert_self _ _)).and hD h1 |>.congr fun x => by simp).mono ?_
-    rw [card_insert_of_notMem hi]
-    ring_nf
+    rw [card_insert_of_notMem hi, add_mul, one_mul]
     omega
 
 end CostP
@@ -321,25 +352,14 @@ lemma Cost.ite {c p q : ℕ} {P : Inp → Prop} [DecidablePred P] {h1 h2 : Inp �
     (c0 : CostP D A c P) (c1 : Cost D A p h1) (c2 : Cost D A q h2) (b1 : ∀ x, h1 x < D)
         (b2 : ∀ x, h2 x < D) :
     Cost D A (2 * c + p + q + 3) fun x => if P x then h1 x else h2 x := by
-  have a1 := Cost.op (fun a b => a * b) c0 c1 (fun x => by
-    have : ({x | P x}.indicator 1 : Inp → ℕ) x ≤ 1 := Set.indicator_le_self _ _ x
-    have := b1 x
-    nlinarith)
-  have a2 := Cost.op (fun a b => (1 - a) * b) c0 c2 (fun x => by
-    have : ({x | P x}.indicator 1 : Inp → ℕ) x ≤ 1 := Set.indicator_le_self _ _ x
-    have := b2 x
-    have : 1 - ({x | P x}.indicator 1 : Inp → ℕ) x ≤ 1 := by omega
-    nlinarith)
-  have a3 := Cost.op (fun a b => a + b) a1 a2 (fun x => by
-    have := b1 x
-    have := b2 x
-    by_cases h : P x
-    · simp only [Set.indicator_of_mem (s := {x | P x}) h, Pi.one_apply]; omega
-    · simp only [Set.indicator_of_notMem (s := {x | P x}) h]; omega)
-  refine (a3.congr fun x => ?_).mono (by ring_nf; omega)
-  by_cases h : P x
-  · simp only [Set.indicator_of_mem (s := {x | P x}) h, Pi.one_apply, ite_eq_left h]; omega
-  · simp only [Set.indicator_of_notMem (s := {x | P x}) h, ite_eq_right h]; omega
+  have a1 := Cost.op (· * ·) c0 c1 fun x => by
+    by_cases h : P x <;> simp [Set.indicator, h, b1 x, Nat.zero_lt_of_lt (b1 x)]
+  have a2 := Cost.op (fun a b => (1 - a) * b) c0 c2 fun x => by
+    by_cases h : P x <;> simp [Set.indicator, h, b2 x, Nat.zero_lt_of_lt (b2 x)]
+  have a3 := Cost.op (· + ·) a1 a2 fun x => by
+    by_cases h : P x <;> simp [Set.indicator, h, b1 x, b2 x]
+  refine (a3.congr fun x => ?_).mono (by omega)
+  by_cases h : P x <;> simp [Set.indicator, h]
 
 
 end Cslib.Circuits

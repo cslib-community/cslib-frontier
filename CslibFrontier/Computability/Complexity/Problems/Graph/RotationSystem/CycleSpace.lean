@@ -97,10 +97,7 @@ theorem vertexEven_iff_dual_faceEven (x : Fin G.edges.length → Bool) :
       simpa only [r.dual_faceParity_eq_vertexParity, Dart.reverse_reverse] using
         h (r.dualDartEquiv d.reverse)
     · classical
-      simp only [vertexParity]
-      apply Finset.sum_eq_zero
-      intro d _
-      exact ite_eq_right (fun hd => hv ⟨d, hd⟩)
+      exact Finset.sum_eq_zero fun d _ => ite_eq_right fun hd => hv ⟨d, hd⟩
 
 /-- A face boundary becomes the ordinary endpoint gradient on the actual indexed dual. -/
 theorem dual_edgeGradient_faceColors (q : r.Face → Bool) :

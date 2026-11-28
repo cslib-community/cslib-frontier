@@ -472,19 +472,9 @@ private theorem balancedSchedule_construct_of_scopes {n' Q r b w : ℕ}
       fun i hi _ => ?_
     simp only [BalancedSchedules.edgesOfFin, List.getElem_ofFn, edge, scopeFactorOf, scopeVarOf,
       finToScopeIncidence, edges]
-  have hinj_edge : Function.Injective edge := by
-    intro i₁ i₂ heq
-    have hbij := (bijective_finToScopeIncidence n' augScopes).1
-    apply hbij
-    have h1 : scopeFactorOf scope (finToScopeIncidence n' augScopes i₁) =
-        scopeFactorOf scope (finToScopeIncidence n' augScopes i₂) := congrArg Prod.fst heq
-    have h2 : scopeVarOf scope (finToScopeIncidence n' augScopes i₁) =
-        scopeVarOf scope (finToScopeIncidence n' augScopes i₂) := congrArg Prod.snd heq
-    rcases he1 : finToScopeIncidence n' augScopes i₁ with ⟨f₁, v₁, hv₁⟩
-    rcases he2 : finToScopeIncidence n' augScopes i₂ with ⟨f₂, v₂, hv₂⟩
-    rw [he1, he2] at h1 h2
-    dsimp only [scopeFactorOf, scopeVarOf] at h1 h2
-    subst h1; subst h2; rfl
+  have hinj_edge : Function.Injective edge := fun i₁ i₂ heq =>
+    (bijective_finToScopeIncidence n' augScopes).1 <|
+      Sigma.subtype_ext (congrArg Prod.fst heq) (congrArg Prod.snd heq)
   have hb_edge : ∀ e : Fin edges.length,
       #{e' : Fin edges.length | (edge e').2 = (edge e).2} ≤ b := fun e =>
     (Finset.card_le_card_of_injOn (fun e' => (edge e').1)
@@ -504,13 +494,9 @@ private theorem balancedSchedule_construct_of_scopes {n' Q r b w : ℕ}
       (fun e₁ he₁ e₂ he₂ hv_eq => by
         rw [mem_coe, mem_filter] at he₁ he₂
         exact hinj_edge (Prod.ext (he₁.2.trans he₂.2.symm) hv_eq))).trans (hw (edge e).1)
+  have hpow : (r ^ Q) ^ 2 = r ^ (2 * Q) := by rw [← pow_mul, mul_comm Q 2]
   have hinc' : 2 * (b + w) * ((r ^ Q) ^ 2) ^ 2 ≤ edges.length := by
-    rw [length_scopeIncidencesList]
-    have hpow : ((r ^ Q) ^ 2) ^ 2 = (r ^ (2 * Q)) ^ 2 := by
-      rw [← pow_mul, ← pow_mul, ← pow_mul]
-      congr 1
-      omega
-    rwa [hpow]
+    rwa [length_scopeIncidencesList, hpow]
   obtain ⟨hempty, hocc_inc, hocc_grp⟩ :=
     BalancedSchedules.constructBalancedSchedules_balanced hr hQ hn edge hb_edge hw_edge hbw
       hinc' hgrp
@@ -555,9 +541,7 @@ private theorem balancedSchedule_construct_of_scopes {n' Q r b w : ℕ}
         simp only [edge, incidenceLabel, finToScopeIncidence_scopeIncidenceEquivFin])
     have hu := hocc_inc u
     rw [hedges_eq] at hu
-    have hpow : (r ^ Q) ^ 2 = r ^ (2 * Q) := by rw [← pow_mul, mul_comm Q 2]
-    rw [hcard_inc, hocc_eq, ← hpow]
-    exact hu
+    rwa [hcard_inc, hocc_eq, ← hpow]
   · rw [ha_eq]
     have hg := hocc_grp t g
     rwa [hedges_eq] at hg
@@ -721,17 +705,12 @@ private theorem groupMeasurementMatrices_spec {n' D_cap Q r A₀ R : ℕ}
       change l < r ^ (2 * Q)
       rw [← hi_eq]
       exact encodeAuxLabel_lt _
-    have haux_sum : ∀ xs : List ℤ, (∀ z ∈ xs, |z| ≤ 1) → (xs.map Int.natAbs).sum ≤ xs.length := by
-      intro xs hxs
-      induction xs with
-      | nil => exact le_rfl
-      | cons z zs ih =>
-        have hz : z.natAbs ≤ 1 := Int.ofNat_le.mp (Int.natCast_natAbs z ▸ hxs z List.mem_cons_self)
-        have hzs := ih fun w hw => hxs w (List.mem_cons_of_mem z hw)
-        simp only [List.map_cons, List.sum_cons, List.length_cons]
-        omega
+    have haux_sum := List.sum_le_length_nsmul (auxRow.map Int.natAbs) 1 fun _ hz => by
+      obtain ⟨y, hy, rfl⟩ := List.mem_map.mp hz
+      exact Int.ofNat_le.mp (Int.natCast_natAbs y ▸ haux_abs y hy)
+    rw [List.length_map, smul_eq_mul, mul_one] at haux_sum
     exact (CopyPlacement.sum_natAbs_pullbackMeasurementRow_le hpls_nodup hpls_lt c).trans
-      ((haux_sum auxRow haux_abs).trans_eq haux_len)
+      (haux_sum.trans_eq haux_len)
 
 end Stage1
 

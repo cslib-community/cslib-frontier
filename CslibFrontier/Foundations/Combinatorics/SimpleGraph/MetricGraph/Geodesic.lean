@@ -94,8 +94,7 @@ variable [Finite V] {x y : MetricGraph W} {γ : ℝ → MetricGraph W}
 
 theorem isometry (h : IsGeodesic x y γ) :
     Isometry (fun t : Set.Icc 0 (dist x y) => γ t) :=
-  Isometry.of_dist_eq fun s t => by
-    rw [Subtype.dist_eq, Real.dist_eq, h.dist_eq s.property t.property]
+  Isometry.of_dist_eq fun s t => by rw [Subtype.dist_eq, Real.dist_eq, h.dist_eq s.2 t.2]
 
 theorem continuousOn (h : IsGeodesic x y γ) : ContinuousOn γ (Set.Icc 0 (dist x y)) :=
   continuousOn_iff_continuous_domRestrict.mpr h.isometry.continuous
@@ -106,9 +105,9 @@ noncomputable def toPath (h : IsGeodesic x y γ) : _root_.Path x y where
   continuous_toFun := by
     have hcont : Continuous (fun t : unitInterval =>
         (⟨(t : ℝ) * dist x y,
-          mul_nonneg t.property.1 dist_nonneg,
-          mul_le_of_le_one_left dist_nonneg t.property.2⟩ : Set.Icc 0 (dist x y))) :=
-      Continuous.subtype_mk (continuous_subtypeVal.mul continuous_const) _
+          mul_nonneg t.2.1 dist_nonneg,
+          mul_le_of_le_one_left dist_nonneg t.2.2⟩ : Set.Icc 0 (dist x y))) :=
+      Continuous.subtype_mk (continuous_subtype_val.mul continuous_const) _
     exact h.isometry.continuous.comp hcont
   source' := by simp [h.map_zero]
   target' := by simp [h.map_dist]
@@ -137,6 +136,18 @@ theorem subsegment (h : IsGeodesic x y γ) {a b : ℝ} (ha : 0 ≤ a) (hab : a �
   congr 1
   ring
 
+private theorem dist_le_sub (h : IsGeodesic x y γ) {L : ℝ} (hL : dist x y = L) :
+    ∀ ⦃s t : ℝ⦄, 0 ≤ s → s ≤ t → t ≤ L → dist (γ s) (γ t) ≤ t - s := fun s t hs hst ht => by
+  rw [h.dist_eq ⟨hs, hst.trans (ht.trans_eq hL.symm)⟩ ⟨hs.trans hst, ht.trans_eq hL.symm⟩,
+    abs_sub_comm, abs_of_nonneg (sub_nonneg.mpr hst)]
+
+private theorem dist_left_and_right (h : IsGeodesic x y γ) {s : ℝ}
+    (hs : s ∈ Set.Icc 0 (dist x y)) : dist x (γ s) = s ∧ dist (γ s) y = dist x y - s := by
+  refine ⟨?_, ?_⟩
+  · rw [← h.map_zero, h.dist_eq ⟨le_rfl, dist_nonneg⟩ hs, zero_sub, abs_neg, abs_of_nonneg hs.1]
+  · conv_lhs => rw [← h.map_dist (x := x)]
+    rw [h.dist_eq hs ⟨dist_nonneg, le_rfl⟩, abs_sub_comm, abs_of_nonneg (sub_nonneg.mpr hs.2)]
+
 end IsGeodesic
 
 /-! ### Construction of geodesics -/
@@ -150,25 +161,24 @@ private theorem dartRay_zero (W : WeightedGraph V) (d : W.graph.Dart) (t₀ : un
     (dir : Bool) : dartRay W d t₀ dir 0 = edgePoint d t₀ := by
   simp only [dartRay, zero_div, add_zero, sub_zero, ite_self, Set.projIcc_val]
 
-private theorem dartRay_lip [Finite V] (W : WeightedGraph V) (d : W.graph.Dart)
-    (t₀ : unitInterval) (dir : Bool) (s₁ s₂ : ℝ) :
-    dist (dartRay W d t₀ dir s₁) (dartRay W d t₀ dir s₂) ≤ |s₁ - s₂| := by
+private theorem dartRay_dist_le [Finite V] (W : WeightedGraph V) (d : W.graph.Dart)
+    (t₀ : unitInterval) (dir : Bool) {s₁ s₂ : ℝ} (hs : s₁ ≤ s₂) :
+    dist (dartRay W d t₀ dir s₁) (dartRay W d t₀ dir s₂) ≤ s₂ - s₁ := by
   refine (dist_edgePoint_self_le d _ _).trans ?_
   have hw := W.dart_weight_pos d
   have hclip := (LipschitzWith.projIcc zero_le_one).dist_le_mul
     (if dir then (t₀ : ℝ) + s₁ / W.weight d.edge else (t₀ : ℝ) - s₁ / W.weight d.edge)
     (if dir then (t₀ : ℝ) + s₂ / W.weight d.edge else (t₀ : ℝ) - s₂ / W.weight d.edge)
   rw [Subtype.dist_eq, Real.dist_eq, NNReal.coe_one, one_mul, Real.dist_eq] at hclip
-  refine (mul_le_mul_of_nonneg_left hclip hw.le).trans ?_
-  cases dir
-  · simp only [Bool.false_eq_true, ↓reduceIte]
-    have heq : ((t₀ : ℝ) - s₁ / W.weight d.edge) - ((t₀ : ℝ) - s₂ / W.weight d.edge) =
-        -(s₁ - s₂) / W.weight d.edge := by ring
-    rw [heq, abs_div, abs_neg, abs_of_pos hw, mul_div_cancel₀ _ hw.ne']
-  · simp only [↓reduceIte]
-    have heq : ((t₀ : ℝ) + s₁ / W.weight d.edge) - ((t₀ : ℝ) + s₂ / W.weight d.edge) =
-        (s₁ - s₂) / W.weight d.edge := by ring
-    rw [heq, abs_div, abs_of_pos hw, mul_div_cancel₀ _ hw.ne']
+  refine (mul_le_mul_of_nonneg_left hclip hw.le).trans_eq ?_
+  have hsub : 0 ≤ s₂ - s₁ := sub_nonneg.mpr hs
+  cases dir <;> simp only [Bool.false_eq_true, ↓reduceIte]
+  · rw [show (t₀ : ℝ) - s₁ / W.weight d.edge - ((t₀ : ℝ) - s₂ / W.weight d.edge) =
+        (s₂ - s₁) / W.weight d.edge by ring, abs_div, abs_of_nonneg hsub, abs_of_pos hw,
+      mul_div_cancel₀ _ hw.ne']
+  · rw [show (t₀ : ℝ) + s₁ / W.weight d.edge - ((t₀ : ℝ) + s₂ / W.weight d.edge) =
+        -((s₂ - s₁) / W.weight d.edge) by ring, abs_neg, abs_div, abs_of_nonneg hsub,
+      abs_of_pos hw, mul_div_cancel₀ _ hw.ne']
 
 private noncomputable def splice (L₁ : ℝ) (γ₁ γ₂ : ℝ → MetricGraph W) (s : ℝ) :
     MetricGraph W :=
@@ -208,6 +218,15 @@ private theorem splice_lip [Finite V] {L₁ L₂ : ℝ} (_hL₁ : 0 ≤ L₁) (_
   · exact absurd (hst.trans htL) hsL
   · simp only [splice, hsL, htL, ↓reduceIte]
     exact (hlip₂ (by linarith) (by linarith) (by linarith)).trans_eq (by ring)
+
+private theorem isGeodesic_splice [Finite V] {x y : MetricGraph W} {L₁ L₂ : ℝ}
+    (hL₁ : 0 ≤ L₁) (hL₂ : 0 ≤ L₂) {γ₁ γ₂ : ℝ → MetricGraph W}
+    (h0 : γ₁ 0 = x) (hjoin : γ₁ L₁ = γ₂ 0) (hend : γ₂ L₂ = y) (hdist : dist x y = L₁ + L₂)
+    (hlip₁ : ∀ ⦃s t : ℝ⦄, 0 ≤ s → s ≤ t → t ≤ L₁ → dist (γ₁ s) (γ₁ t) ≤ t - s)
+    (hlip₂ : ∀ ⦃s t : ℝ⦄, 0 ≤ s → s ≤ t → t ≤ L₂ → dist (γ₂ s) (γ₂ t) ≤ t - s) :
+    IsGeodesic x y (splice L₁ γ₁ γ₂) :=
+  isGeodesic_of_lip (by rw [splice_zero hL₁, h0]) (by rw [hdist, splice_end hL₂ hjoin, hend])
+    fun _ _ hs hst ht => splice_lip hL₁ hL₂ hjoin hlip₁ hlip₂ hs hst (ht.trans_eq hdist)
 
 private noncomputable def walkCurve (W : WeightedGraph V) :
     ∀ {u v : V}, W.graph.Walk u v → ℝ → MetricGraph W
@@ -253,8 +272,7 @@ private theorem walkCurve_lip [Finite V] (W : WeightedGraph V) {u v : V} (p : W.
     rw [walkLength_cons, walkCurve]
     exact splice_lip (W.weight_nonneg h) (walkLength_nonneg W.weight W.weight_nonneg q)
       (walkCurve_cons_join W h q)
-      (fun s t _ hst _ => (dartRay_lip W _ 0 true s t).trans_eq (by
-        rw [abs_sub_comm, abs_of_nonneg (sub_nonneg.mpr hst)]))
+      (fun _ _ _ hst _ => dartRay_dist_le W _ 0 true hst)
       ih
 
 private theorem exists_isGeodesic_vertex_vertex [Finite V] (u v : V) :
@@ -271,9 +289,12 @@ private noncomputable def dartToEndCurve (W : WeightedGraph V) (d : W.graph.Dart
     (t : unitInterval) (b : Bool) (s : ℝ) : MetricGraph W :=
   dartRay W d t b s
 
-private theorem dartToEndCurve_zero (W : WeightedGraph V) (d : W.graph.Dart)
-    (t : unitInterval) (b : Bool) : dartToEndCurve W d t b 0 = edgePoint d t :=
-  dartRay_zero W d t b
+private theorem endOffset_nonneg (W : WeightedGraph V) (d : W.graph.Dart)
+    (t : unitInterval) (b : Bool) :
+    0 ≤ if b then (1 - (t : ℝ)) * W.weight d.edge else (t : ℝ) * W.weight d.edge := by
+  cases b <;> simp only [Bool.false_eq_true, ↓reduceIte]
+  · exact mul_nonneg t.2.1 (W.dart_weight_nonneg d)
+  · exact mul_nonneg (unitInterval.one_sub_nonneg t) (W.dart_weight_nonneg d)
 
 private theorem dartToEndCurve_end (W : WeightedGraph V) (d : W.graph.Dart)
     (t : unitInterval) (b : Bool) :
@@ -316,38 +337,16 @@ private theorem exists_isGeodesic_vertex_edgePoint [Finite V] (u : V) (d : W.gra
     (t : unitInterval) :
     ∃ γ : ℝ → MetricGraph W, IsGeodesic (vertex u : MetricGraph W) (edgePoint d t) γ := by
   have hd := dist_vertex_edgePoint u d t (W := W)
-  have branch : ∀ b : Bool,
-      dist (vertex u : MetricGraph W) (edgePoint d t) =
+  have branch (b : Bool)
+      (hb : dist (vertex u : MetricGraph W) (edgePoint d t) =
         vertexDist W.graph W.weight u (if b then d.snd else d.fst) +
-          (if b then (1 - (t : ℝ)) * W.weight d.edge else (t : ℝ) * W.weight d.edge) →
+          (if b then (1 - (t : ℝ)) * W.weight d.edge else (t : ℝ) * W.weight d.edge)) :
       ∃ γ : ℝ → MetricGraph W, IsGeodesic (vertex u : MetricGraph W) (edgePoint d t) γ := by
-    intro b hb
-    let v := if b then d.snd else d.fst
-    let L₁ := vertexDist W.graph W.weight u v
-    let L₂ := if b then (1 - (t : ℝ)) * W.weight d.edge else (t : ℝ) * W.weight d.edge
-    have hL₁ : 0 ≤ L₁ := vertexDist_nonneg W.weight_nonneg u v
-    have hL₂ : 0 ≤ L₂ := by
-      cases b <;> simp only [L₂, Bool.false_eq_true, ↓reduceIte]
-      · exact mul_nonneg t.property.1 (W.dart_weight_nonneg d)
-      · exact mul_nonneg (unitInterval.one_sub_nonneg t) (W.dart_weight_nonneg d)
-    obtain ⟨γ₁, hγ₁⟩ := exists_isGeodesic_vertex_vertex (W := W) u v
-    have hL₁eq : dist (vertex u : MetricGraph W) (vertex v) = L₁ := dist_vertex u v
-    have hjoin : γ₁ L₁ = endToDartCurve W d b 0 := by
-      rw [← hL₁eq, hγ₁.map_dist, endToDartCurve_zero]
-    refine ⟨splice L₁ γ₁ (endToDartCurve W d b), isGeodesic_of_lip ?_ ?_ ?_⟩
-    · rw [splice_zero hL₁, hγ₁.map_zero]
-    · rw [hb]
-      exact (splice_end hL₂ hjoin).trans (endToDartCurve_end W d t b)
-    · intro x y hx hxy hy
-      rw [hb] at hy
-      exact splice_lip hL₁ hL₂ hjoin
-        (fun s a hs hsa ha => by
-          rw [hγ₁.dist_eq ⟨hs, hsa.trans (ha.trans_eq hL₁eq.symm)⟩
-            ⟨hs.trans hsa, ha.trans_eq hL₁eq.symm⟩,
-            abs_sub_comm, abs_of_nonneg (sub_nonneg.mpr hsa)])
-        (fun s a _ hsa _ => (dartRay_lip W d _ (!b) s a).trans_eq (by
-          rw [abs_sub_comm, abs_of_nonneg (sub_nonneg.mpr hsa)]))
-        hx hxy hy
+    obtain ⟨γ₁, hγ₁⟩ := exists_isGeodesic_vertex_vertex (W := W) u (if b then d.snd else d.fst)
+    exact ⟨_, isGeodesic_splice (vertexDist_nonneg W.weight_nonneg _ _) (endOffset_nonneg W d t b)
+      hγ₁.map_zero (by rw [← dist_vertex, hγ₁.map_dist, endToDartCurve_zero])
+      (endToDartCurve_end W d t b) hb (hγ₁.dist_le_sub (dist_vertex _ _))
+      fun _ _ _ hst _ => dartRay_dist_le W d _ (!b) hst⟩
   rcases min_choice (vertexDist W.graph W.weight u d.fst + (t : ℝ) * W.weight d.edge)
       (vertexDist W.graph W.weight u d.snd + (1 - (t : ℝ)) * W.weight d.edge) with hmin | hmin
   · exact branch false (by simpa only [Bool.false_eq_true, ↓reduceIte] using hd.trans hmin)
@@ -361,75 +360,38 @@ private theorem exists_isGeodesic_via_endpoints [Finite V]
       vertexDist W.graph W.weight (if a then d₁.snd else d₁.fst) (if b then d₂.snd else d₂.fst) +
       (if b then (1 - (t₂ : ℝ)) * W.weight d₂.edge else (t₂ : ℝ) * W.weight d₂.edge)) :
     ∃ γ : ℝ → MetricGraph W, IsGeodesic (edgePoint d₁ t₁ : MetricGraph W) (edgePoint d₂ t₂) γ := by
-  let L₁ : ℝ := if a then (1 - (t₁ : ℝ)) * W.weight d₁.edge else (t₁ : ℝ) * W.weight d₁.edge
   let u₁ : V := if a then d₁.snd else d₁.fst
-  let L₂ : ℝ := vertexDist W.graph W.weight u₁ (if b then d₂.snd else d₂.fst)
-  let L₃ : ℝ := if b then (1 - (t₂ : ℝ)) * W.weight d₂.edge else (t₂ : ℝ) * W.weight d₂.edge
-  have hL₁ : 0 ≤ L₁ := by
-    cases a <;> simp only [L₁, Bool.false_eq_true, ↓reduceIte]
-    · exact mul_nonneg t₁.property.1 (W.dart_weight_nonneg d₁)
-    · exact mul_nonneg (unitInterval.one_sub_nonneg t₁) (W.dart_weight_nonneg d₁)
-  have hL₂ : 0 ≤ L₂ := vertexDist_nonneg W.weight_nonneg _ _
-  have hL₃ : 0 ≤ L₃ := by
-    cases b <;> simp only [L₃, Bool.false_eq_true, ↓reduceIte]
-    · exact mul_nonneg t₂.property.1 (W.dart_weight_nonneg d₂)
-    · exact mul_nonneg (unitInterval.one_sub_nonneg t₂) (W.dart_weight_nonneg d₂)
+  have hL₂ : 0 ≤ vertexDist W.graph W.weight u₁ (if b then d₂.snd else d₂.fst) :=
+    vertexDist_nonneg W.weight_nonneg _ _
+  have hL₃ := endOffset_nonneg W d₂ t₂ b
   obtain ⟨γ₂, hγ₂⟩ := exists_isGeodesic_vertex_vertex (W := W) u₁ (if b then d₂.snd else d₂.fst)
-  have hL₂eq : dist (vertex u₁ : MetricGraph W) (vertex (if b then d₂.snd else d₂.fst)) = L₂ :=
-    dist_vertex _ _
-  have hjoin23 : γ₂ L₂ = endToDartCurve W d₂ b 0 := by
-    rw [← hL₂eq, hγ₂.map_dist, endToDartCurve_zero]
-  let γ₂₃ := splice L₂ γ₂ (endToDartCurve W d₂ b)
-  have hjoin123 : dartToEndCurve W d₁ t₁ a L₁ = γ₂₃ 0 := by
-    dsimp only [γ₂₃]
+  have hjoin23 : γ₂ (vertexDist W.graph W.weight u₁ (if b then d₂.snd else d₂.fst)) =
+      endToDartCurve W d₂ b 0 := by rw [← dist_vertex, hγ₂.map_dist, endToDartCurve_zero]
+  have hjoin12 : dartRay W d₁ t₁ a
+      (if a then (1 - (t₁ : ℝ)) * W.weight d₁.edge else (t₁ : ℝ) * W.weight d₁.edge) =
+      splice (vertexDist W.graph W.weight u₁ (if b then d₂.snd else d₂.fst)) γ₂
+        (endToDartCurve W d₂ b) 0 := by
     rw [splice_zero hL₂, hγ₂.map_zero]
     exact dartToEndCurve_end W d₁ t₁ a
-  refine ⟨splice L₁ (dartToEndCurve W d₁ t₁ a) γ₂₃, isGeodesic_of_lip ?_ ?_ ?_⟩
-  · rw [splice_zero hL₁, dartToEndCurve_zero]
-  · have hsum : dist (edgePoint d₁ t₁ : MetricGraph W) (edgePoint d₂ t₂) = L₁ + (L₂ + L₃) := by
-      linarith [hdist]
-    rw [hsum, splice_end (add_nonneg hL₂ hL₃) hjoin123]
-    exact (splice_end hL₃ hjoin23).trans (endToDartCurve_end W d₂ t₂ b)
-  · have hlip23 : ∀ ⦃s t : ℝ⦄, 0 ≤ s → s ≤ t → t ≤ L₂ + L₃ → dist (γ₂₃ s) (γ₂₃ t) ≤ t - s :=
-      splice_lip hL₂ hL₃ hjoin23
-        (fun s t hs hst ht => by
-          rw [hγ₂.dist_eq ⟨hs, hst.trans (ht.trans_eq hL₂eq.symm)⟩
-            ⟨hs.trans hst, ht.trans_eq hL₂eq.symm⟩,
-            abs_sub_comm, abs_of_nonneg (sub_nonneg.mpr hst)])
-        (fun s t _ hst _ => (dartRay_lip W d₂ _ (!b) s t).trans_eq (by
-          rw [abs_sub_comm, abs_of_nonneg (sub_nonneg.mpr hst)]))
-    intro s t hs hst ht
-    have hsum : L₁ + (L₂ + L₃) = dist (edgePoint d₁ t₁ : MetricGraph W) (edgePoint d₂ t₂) := by
-      linarith [hdist]
-    rw [← hsum] at ht
-    exact splice_lip hL₁ (add_nonneg hL₂ hL₃) hjoin123
-      (fun u v _ huv _ => (dartRay_lip W d₁ t₁ a u v).trans_eq (by
-        rw [abs_sub_comm, abs_of_nonneg (sub_nonneg.mpr huv)]))
-      hlip23 hs hst ht
+  refine ⟨_, isGeodesic_splice (endOffset_nonneg W d₁ t₁ a) (add_nonneg hL₂ hL₃)
+    (dartRay_zero W d₁ t₁ a) hjoin12
+    ((splice_end hL₃ hjoin23).trans (endToDartCurve_end W d₂ t₂ b))
+    (by linarith [hdist]) (fun _ _ _ hst _ => dartRay_dist_le W d₁ t₁ a hst)
+    (splice_lip hL₂ hL₃ hjoin23 (hγ₂.dist_le_sub (dist_vertex _ _))
+      fun _ _ _ hst _ => dartRay_dist_le W d₂ _ (!b) hst)⟩
 
 private theorem exists_isGeodesic_edgePoint_direct [Finite V] (d : W.graph.Dart)
     (t₁ t₂ : unitInterval)
     (hdist : dist (edgePoint d t₁ : MetricGraph W) (edgePoint d t₂) =
       |(t₁ : ℝ) - t₂| * W.weight d.edge) :
     ∃ γ : ℝ → MetricGraph W, IsGeodesic (edgePoint d t₁ : MetricGraph W) (edgePoint d t₂) γ := by
-  have hw := W.dart_weight_pos d
-  by_cases hle : (t₁ : ℝ) ≤ t₂
-  · refine ⟨dartRay W d t₁ true, isGeodesic_of_lip (dartRay_zero W d t₁ true) ?_ ?_⟩
-    · have habs : |(t₁ : ℝ) - t₂| = t₂ - t₁ := by
-        rw [abs_sub_comm, abs_of_nonneg (sub_nonneg.mpr hle)]
-      rw [hdist, habs]
-      simp only [dartRay, ↓reduceIte, mul_div_cancel_right₀ _ hw.ne', add_sub_cancel,
-        Set.projIcc_val]
-    · exact fun s t _ hst _ => (dartRay_lip W d t₁ true s t).trans_eq (by
-        rw [abs_sub_comm, abs_of_nonneg (sub_nonneg.mpr hst)])
-  · have hge : (t₂ : ℝ) ≤ t₁ := le_of_not_ge hle
-    refine ⟨dartRay W d t₁ false, isGeodesic_of_lip (dartRay_zero W d t₁ false) ?_ ?_⟩
-    · have habs : |(t₁ : ℝ) - t₂| = t₁ - t₂ := abs_of_nonneg (sub_nonneg.mpr hge)
-      rw [hdist, habs]
-      simp only [dartRay, Bool.false_eq_true, ↓reduceIte, mul_div_cancel_right₀ _ hw.ne',
-        sub_sub_cancel, Set.projIcc_val]
-    · exact fun s t _ hst _ => (dartRay_lip W d t₁ false s t).trans_eq (by
-        rw [abs_sub_comm, abs_of_nonneg (sub_nonneg.mpr hst)])
+  wlog hle : (t₁ : ℝ) ≤ t₂ generalizing t₁ t₂
+  · obtain ⟨γ, hγ⟩ := this t₂ t₁ (by rw [dist_comm, hdist, abs_sub_comm]) (le_of_not_ge hle)
+    exact ⟨_, hγ.reverse⟩
+  refine ⟨dartRay W d t₁ true, isGeodesic_of_lip (dartRay_zero W d t₁ true) ?_
+    fun _ _ _ hst _ => dartRay_dist_le W d t₁ true hst⟩
+  rw [hdist, abs_sub_comm, abs_of_nonneg (sub_nonneg.mpr hle)]
+  simp [dartRay, mul_div_cancel_right₀ _ (W.dart_weight_pos d).ne']
 
 private theorem exists_isGeodesic_of_min_four [Finite V]
     (d₁ : W.graph.Dart) (t₁ : unitInterval) (d₂ : W.graph.Dart) (t₂ : unitInterval)
@@ -465,21 +427,18 @@ theorem exists_isGeodesic [Finite V] (x y : MetricGraph W) :
       obtain ⟨γ, hγ⟩ := exists_isGeodesic_vertex_edgePoint v d₁ t₁
       exact ⟨_, hγ.reverse⟩
     | edgePoint d₂ t₂ =>
+      have same (d : W.graph.Dart) (s₁ s₂ : unitInterval) :
+          ∃ γ : ℝ → MetricGraph W,
+            IsGeodesic (edgePoint d s₁ : MetricGraph W) (edgePoint d s₂) γ := by
+        have hd := dist_edgePoint_edgePoint_same d s₁ s₂ (W := W)
+        rcases min_choice (|(s₁ : ℝ) - s₂| * W.weight d.edge) (_ : ℝ) with hmin | hmin
+        · exact exists_isGeodesic_edgePoint_direct d s₁ s₂ (hd.trans hmin)
+        · exact exists_isGeodesic_of_min_four d s₁ d s₂ (hd.trans hmin)
       by_cases he : d₁.edge = d₂.edge
-      · rcases (dart_edge_eq_iff d₁ d₂).mp he with rfl | hsym
-        · have hd := dist_edgePoint_edgePoint_same d₁ t₁ t₂ (W := W)
-          rcases min_choice (|(t₁ : ℝ) - t₂| * W.weight d₁.edge) (_ : ℝ) with hmin | hmin
-          · exact exists_isGeodesic_edgePoint_direct d₁ t₁ t₂ (hd.trans hmin)
-          · exact exists_isGeodesic_of_min_four d₁ t₁ d₁ t₂ (hd.trans hmin)
-        · subst hsym
-          rw [← edgePoint_symm d₂ t₂]
-          have hd := dist_edgePoint_edgePoint_same d₂.symm t₁ (unitInterval.symm t₂) (W := W)
-          rcases min_choice (|(t₁ : ℝ) - unitInterval.symm t₂| * W.weight d₂.symm.edge)
-              (_ : ℝ) with hmin | hmin
-          · exact exists_isGeodesic_edgePoint_direct d₂.symm t₁ (unitInterval.symm t₂)
-              (hd.trans hmin)
-          · exact exists_isGeodesic_of_min_four d₂.symm t₁ d₂.symm (unitInterval.symm t₂)
-              (hd.trans hmin)
+      · rcases (dart_edge_eq_iff d₁ d₂).mp he with rfl | rfl
+        · exact same d₁ t₁ t₂
+        · rw [← edgePoint_symm d₂ t₂]
+          exact same d₂.symm t₁ (unitInterval.symm t₂)
       · exact exists_isGeodesic_of_min_four d₁ t₁ d₂ t₂
           (dist_edgePoint_edgePoint_of_edge_ne he t₁ t₂)
 
@@ -524,13 +483,8 @@ theorem interval_eq_singleton_self [Finite V] (x : MetricGraph W) : interval x x
 theorem IsGeodesic.mem_interval [Finite V] {x y : MetricGraph W} {γ : ℝ → MetricGraph W}
     (h : IsGeodesic x y γ) {s : ℝ} (hs : s ∈ Set.Icc 0 (dist x y)) :
     γ s ∈ interval x y := by
+  obtain ⟨h1, h2⟩ := h.dist_left_and_right hs
   rw [mem_interval_iff]
-  have h1 : dist x (γ s) = s := by
-    rw [← h.map_zero, h.dist_eq ⟨le_rfl, dist_nonneg⟩ hs, zero_sub, abs_neg, abs_of_nonneg hs.1]
-  have h2 : dist (γ s) y = dist x y - s := by
-    conv_lhs => rw [← h.map_dist (x := x)]
-    rw [h.dist_eq hs ⟨dist_nonneg, le_rfl⟩, abs_sub_comm,
-      abs_of_nonneg (sub_nonneg.mpr hs.2)]
   linarith
 
 /-- A point `z` lies in the metric interval `interval x y` if and only if some unit-speed geodesic
@@ -538,51 +492,26 @@ from `x` to `y` passes through `z` at some `s ∈ [0, dist x y]`. -/
 theorem mem_interval_iff_exists_isGeodesic [Finite V] {x y z : MetricGraph W} :
     z ∈ interval x y ↔
       ∃ γ : ℝ → MetricGraph W, IsGeodesic x y γ ∧ ∃ s ∈ Set.Icc 0 (dist x y), γ s = z := by
-  constructor
-  · intro hz
-    rw [mem_interval_iff] at hz
-    obtain ⟨γ₁, hγ₁⟩ := exists_isGeodesic x z
-    obtain ⟨γ₂, hγ₂⟩ := exists_isGeodesic z y
-    let γ := splice (dist x z) γ₁ γ₂
-    have hjoin : γ₁ (dist x z) = γ₂ 0 := by rw [hγ₁.map_dist, hγ₂.map_zero]
-    refine ⟨γ, isGeodesic_of_lip ?_ ?_ ?_, dist x z,
-        ⟨dist_nonneg, by linarith [dist_nonneg (x := z) (y := y)]⟩, ?_⟩
-    · dsimp only [γ]
-      rw [splice_zero dist_nonneg, hγ₁.map_zero]
-    · dsimp only [γ]
-      rw [← hz]
-      exact (splice_end dist_nonneg hjoin).trans hγ₂.map_dist
-    · intro s t hs hst ht
-      rw [← hz] at ht
-      exact splice_lip dist_nonneg dist_nonneg hjoin
-        (fun a b ha hab hb => by
-          rw [hγ₁.dist_eq ⟨ha, hab.trans hb⟩ ⟨ha.trans hab, hb⟩,
-            abs_sub_comm, abs_of_nonneg (sub_nonneg.mpr hab)])
-        (fun a b ha hab hb => by
-          rw [hγ₂.dist_eq ⟨ha, hab.trans hb⟩ ⟨ha.trans hab, hb⟩,
-            abs_sub_comm, abs_of_nonneg (sub_nonneg.mpr hab)])
-        hs hst ht
-    · simp only [γ, splice, le_rfl, ↓reduceIte, hγ₁.map_dist]
-  · rintro ⟨γ, hγ, s, hs, rfl⟩
-    exact hγ.mem_interval hs
+  refine ⟨fun hz => ?_, fun ⟨γ, hγ, s, hs, h⟩ => h ▸ hγ.mem_interval hs⟩
+  obtain ⟨γ₁, hγ₁⟩ := exists_isGeodesic x z
+  obtain ⟨γ₂, hγ₂⟩ := exists_isGeodesic z y
+  exact ⟨_, isGeodesic_splice dist_nonneg dist_nonneg hγ₁.map_zero
+    (hγ₁.map_dist.trans hγ₂.map_zero.symm) hγ₂.map_dist hz.symm
+    (hγ₁.dist_le_sub rfl) (hγ₂.dist_le_sub rfl),
+    dist x z, ⟨dist_nonneg, by linarith [mem_interval_iff.mp hz, dist_nonneg (x := z) (y := y)]⟩,
+    by simp [splice, hγ₁.map_dist]⟩
 
 theorem exists_isGeodesic_through_of_mem_interval [Finite V] {x y z : MetricGraph W}
     (hz : z ∈ interval x y) :
     ∃ γ : ℝ → MetricGraph W, IsGeodesic x y γ ∧ γ (dist x z) = z := by
   obtain ⟨γ, hγ, s, hs, rfl⟩ := mem_interval_iff_exists_isGeodesic.mp hz
-  have hds : dist x (γ s) = s := by
-    rw [← hγ.map_zero, hγ.dist_eq ⟨le_rfl, dist_nonneg⟩ hs, zero_sub, abs_neg, abs_of_nonneg hs.1]
-  exact ⟨γ, hγ, by rw [hds]⟩
+  exact ⟨γ, hγ, by rw [(hγ.dist_left_and_right hs).1]⟩
 
 theorem exists_mem_interval_dist_eq [Finite V] (x y : MetricGraph W) {r : ℝ}
     (hr : r ∈ Set.Icc 0 (dist x y)) :
     ∃ z ∈ interval x y, dist x z = r ∧ dist z y = dist x y - r := by
   obtain ⟨γ, hγ⟩ := exists_isGeodesic x y
-  refine ⟨γ r, hγ.mem_interval hr, ?_, ?_⟩
-  · rw [← hγ.map_zero, hγ.dist_eq ⟨le_rfl, dist_nonneg⟩ hr, zero_sub, abs_neg, abs_of_nonneg hr.1]
-  · conv_lhs => rw [← hγ.map_dist (x := x)]
-    rw [hγ.dist_eq hr ⟨dist_nonneg, le_rfl⟩, abs_sub_comm,
-      abs_of_nonneg (sub_nonneg.mpr hr.2)]
+  exact ⟨γ r, hγ.mem_interval hr, hγ.dist_left_and_right hr⟩
 
 theorem mem_interval_trans_left [Finite V] {x y z w : MetricGraph W}
     (hz : z ∈ interval x y) (hw : w ∈ interval x z) : w ∈ interval x y := by
@@ -627,8 +556,7 @@ theorem dist_edgePoint_edgePoint_of_abs_sub_le_half [Finite V] (d : W.graph.Dart
   have hw := W.dart_weight_nonneg d
   have h₁ := vertexDist_nonneg W.weight_nonneg (G := W.graph) d.fst d.snd
   have h₂ := vertexDist_nonneg W.weight_nonneg (G := W.graph) d.snd d.fst
-  have hs0 := s.property.1; have hs1 := s.property.2
-  have ht0 := t.property.1; have ht1 := t.property.2
+  have hs0 := s.2.1; have hs1 := s.2.2; have ht0 := t.2.1; have ht1 := t.2.2
   obtain ⟨hlo, hhi⟩ := abs_le.mp hst
   have key : ∀ k : ℝ, |(s : ℝ) - t| ≤ k →
       |(s : ℝ) - t| * W.weight d.edge ≤ k * W.weight d.edge :=
@@ -667,7 +595,7 @@ theorem edgePoint_mem_interval_of_fst [Finite V] {x : MetricGraph W} {d : W.grap
     gcongr
     rw [← edgePoint_zero d]
     refine (dist_edgePoint_self_le d 0 s).trans_eq ?_
-    rw [Set.Icc.coe_zero, zero_sub, abs_neg, abs_of_nonneg s.property.1, mul_comm]
+    rw [Set.Icc.coe_zero, zero_sub, abs_neg, abs_of_nonneg s.2.1, mul_comm]
   have h2 : dist (edgePoint d s) (edgePoint d t) ≤ ((t : ℝ) - s) * W.weight d.edge := by
     refine (dist_edgePoint_self_le d s t).trans_eq ?_
     rw [abs_sub_comm, abs_of_nonneg (sub_nonneg.mpr hst), mul_comm]
@@ -696,22 +624,17 @@ theorem edgePoint_mem_interval_edgePoint_of_direct [Finite V] {d : W.graph.Dart}
   have h2 := (dist_edgePoint_self_le d t b).trans_eq (mul_comm _ _)
   have htri := dist_triangle (edgePoint d a : MetricGraph W) (edgePoint d t) (edgePoint d b)
   rw [hd] at htri
-  rcases ht with ⟨hat, htb⟩ | ⟨hbt, hta⟩
-  · have hsum : |(a : ℝ) - t| + |(t : ℝ) - b| = |(a : ℝ) - b| := by
-      rw [abs_sub_comm (a : ℝ) t, abs_of_nonneg (sub_nonneg.mpr hat),
-        abs_sub_comm (t : ℝ) b, abs_of_nonneg (sub_nonneg.mpr htb),
-        abs_sub_comm (a : ℝ) b, abs_of_nonneg (sub_nonneg.mpr (hat.trans htb))]
+  have hsum : |(a : ℝ) - t| + |(t : ℝ) - b| = |(a : ℝ) - b| := by
+    rcases ht with ⟨hat, htb⟩ | ⟨hbt, hta⟩
+    · rw [abs_of_nonpos (sub_nonpos.mpr hat), abs_of_nonpos (sub_nonpos.mpr htb),
+        abs_of_nonpos (sub_nonpos.mpr (hat.trans htb))]
       ring
-    have hmul : |(a : ℝ) - t| * W.weight d.edge + |(t : ℝ) - b| * W.weight d.edge =
-        |(a : ℝ) - b| * W.weight d.edge := by rw [← add_mul, hsum]
-    linarith [add_le_add h1 h2]
-  · have hsum : |(a : ℝ) - t| + |(t : ℝ) - b| = |(a : ℝ) - b| := by
-      rw [abs_of_nonneg (sub_nonneg.mpr hta), abs_of_nonneg (sub_nonneg.mpr hbt),
+    · rw [abs_of_nonneg (sub_nonneg.mpr hta), abs_of_nonneg (sub_nonneg.mpr hbt),
         abs_of_nonneg (sub_nonneg.mpr (hbt.trans hta))]
       ring
-    have hmul : |(a : ℝ) - t| * W.weight d.edge + |(t : ℝ) - b| * W.weight d.edge =
-        |(a : ℝ) - b| * W.weight d.edge := by rw [← add_mul, hsum]
-    linarith [add_le_add h1 h2]
+  have hmul : |(a : ℝ) - t| * W.weight d.edge + |(t : ℝ) - b| * W.weight d.edge =
+      |(a : ℝ) - b| * W.weight d.edge := by rw [← add_mul, hsum]
+  linarith [add_le_add h1 h2]
 
 end MetricGraph
 

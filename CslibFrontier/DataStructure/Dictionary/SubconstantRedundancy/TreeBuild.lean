@@ -114,51 +114,25 @@ theorem exists_goodSubtreeSeeds_pair {P : TreeSchedule} (hcr : P.ConcentrationRe
         P.InSubtree ℓ₀ u₀ j v →
           P.IsGoodNodeSeed j (seeds'.seed j hj v) (seeds'.primSetAt S₁ j hj v) ∧
           P.IsGoodNodeSeed j (seeds'.seed j hj v) (seeds'.primSetAt S₂ j hj v)) := by
-  have hstep : ∀ (t : ℕ) (ht : ℓ₀ + t ≤ P.depth),
+  have hstep : ∀ (t : ℕ) (ht : ℓ₀ + t ≤ P.depth + 1),
       ∃ s : P.SeedAssignment,
         (∀ j hj v, ¬ P.InSubtree ℓ₀ u₀ j v → s.seed j hj v = base.seed j hj v) ∧
-        (∀ j hj v, P.InSubtree ℓ₀ u₀ j v → j ≤ ℓ₀ + t →
+        (∀ j hj v, P.InSubtree ℓ₀ u₀ j v → j < ℓ₀ + t →
           P.IsGoodNodeSeed j (s.seed j hj v) (s.primSetAt S₁ j hj v) ∧
           P.IsGoodNodeSeed j (s.seed j hj v) (s.primSetAt S₂ j hj v)) := by
     intro t
     induction t with
-    | zero =>
-      intro ht
-      obtain ⟨hinj₁, hb₁, _⟩ := base.ancestorsGood_invariants hcard₁ ℓ₀ hℓ₀ u₀ hanc₁
-      obtain ⟨hinj₂, hb₂, _⟩ := base.ancestorsGood_invariants hcard₂ ℓ₀ hℓ₀ u₀ hanc₂
-      have hcp₁ : #(base.primSetAt S₁ ℓ₀ hℓ₀ u₀) = #(base.activeAt S₁ ℓ₀ hℓ₀ u₀) :=
-        card_image_of_injOn hinj₁
-      have hcp₂ : #(base.primSetAt S₂ ℓ₀ hℓ₀ u₀) = #(base.activeAt S₂ ℓ₀ hℓ₀ u₀) :=
-        card_image_of_injOn hinj₂
-      have hex₀ := P.exists_isGoodNodeSeed_pair hcr hℓ₀
-        (base.primSetAt S₁ ℓ₀ hℓ₀ u₀) (base.primSetAt S₂ ℓ₀ hℓ₀ u₀)
-        (hcp₁ ▸ hb₁.1) (hcp₁ ▸ hb₁.2) (hcp₂ ▸ hb₂.1) (hcp₂ ▸ hb₂.2)
-      let g₀ := Classical.choose hex₀
-      have hg₀ := Classical.choose_spec hex₀
-      let s₀ := updateSeedsAtLevel base ℓ₀ u₀ ℓ₀ hℓ₀ fun _ _ => g₀
-      refine ⟨s₀, fun j hj v hnot => updateSeedsAtLevel_outside base ℓ₀ u₀ hℓ₀ _ hj v hnot, ?_⟩
-      intro j hj v ⟨h0j, hanc_v⟩ hjle
-      have hj_eq : ℓ₀ = j := by omega
-      subst hj_eq
-      have hv : u₀ = v := by simpa only [P.ancestorAt_refl] using hanc_v.symm
-      subst hv
-      have hp₁ : s₀.primSetAt S₁ ℓ₀ hj u₀ = base.primSetAt S₁ ℓ₀ hℓ₀ u₀ :=
-        SeedAssignment.primSetAt_congr_ancestors S₁ hj u₀ fun i hi =>
-          updateSeedsAtLevel_ne base ℓ₀ u₀ hℓ₀ _ (hi.le.trans hj) _ (by omega)
-      have hp₂ : s₀.primSetAt S₂ ℓ₀ hj u₀ = base.primSetAt S₂ ℓ₀ hℓ₀ u₀ :=
-        SeedAssignment.primSetAt_congr_ancestors S₂ hj u₀ fun i hi =>
-          updateSeedsAtLevel_ne base ℓ₀ u₀ hℓ₀ _ (hi.le.trans hj) _ (by omega)
-      rw [hp₁, hp₂, updateSeedsAtLevel_self base ℓ₀ u₀ hℓ₀ _ u₀ (P.inSubtree_refl u₀)]
-      exact hg₀
+    | zero => exact fun _ => ⟨base, fun _ _ _ _ => rfl, fun _ _ _ ⟨_, _⟩ _ => by omega⟩
     | succ t ih =>
-      intro ht1
+      intro ht
       obtain ⟨s_t, hout_t, hgood_t⟩ := ih (by omega)
-      let L := ℓ₀ + (t + 1)
+      let L := ℓ₀ + t
+      have ht1 : L ≤ P.depth := by omega
       have hanc_of : ∀ {A : Finset (Fin P.paddedUniv)}
           (hancA : ∀ (j : ℕ) (hj : j < ℓ₀),
             P.IsGoodNodeSeed j (base.seed j (hj.le.trans hℓ₀) (P.ancestorAt hj.le u₀))
               (base.primSetAt A j (hj.le.trans hℓ₀) (P.ancestorAt hj.le u₀)))
-          (hgA : ∀ j hj v, P.InSubtree ℓ₀ u₀ j v → j ≤ ℓ₀ + t →
+          (hgA : ∀ j hj v, P.InSubtree ℓ₀ u₀ j v → j < ℓ₀ + t →
             P.IsGoodNodeSeed j (s_t.seed j hj v) (s_t.primSetAt A j hj v))
           (v : Fin (P.numNodes L)), P.InSubtree ℓ₀ u₀ L v → ∀ (j : ℕ) (hj : j < L),
             P.IsGoodNodeSeed j (s_t.seed j (hj.le.trans ht1) (P.ancestorAt hj.le v))
@@ -166,7 +140,7 @@ theorem exists_goodSubtreeSeeds_pair {P : TreeSchedule} (hcr : P.ConcentrationRe
         intro A hancA hgA v ⟨h0L, hanc_v⟩ j hj
         by_cases h0j : ℓ₀ ≤ j
         · exact hgA j (hj.le.trans ht1) (P.ancestorAt hj.le v)
-            ⟨h0j, by rw [P.ancestorAt_trans h0j hj.le v, hanc_v]⟩ (by omega)
+            ⟨h0j, by rw [P.ancestorAt_trans h0j hj.le v, hanc_v]⟩ hj
         · have hjlt0 : j < ℓ₀ := by omega
           have htr : P.ancestorAt hj.le v = P.ancestorAt hjlt0.le u₀ := by
             rw [← hanc_v, P.ancestorAt_trans hjlt0.le h0L v]
@@ -211,7 +185,7 @@ theorem exists_goodSubtreeSeeds_pair {P : TreeSchedule} (hcr : P.ConcentrationRe
         exact Classical.choose_spec (hex_L v hsub)
       · rw [updateSeedsAtLevel_ne s_t ℓ₀ u₀ ht1 f_L hj v hjL]
         exact hgood_t j hj v hsub (by omega)
-  obtain ⟨s, hout, hgood⟩ := hstep (P.depth - ℓ₀) (by omega)
+  obtain ⟨s, hout, hgood⟩ := hstep (P.depth + 1 - ℓ₀) (by omega)
   exact ⟨s, hout, fun j hj v hsub => hgood j hj v hsub (by omega)⟩
 
 /-- **Subtree good-seed existence** on a single set `S` (for `Algorithm 4` subtree reconstruction;
@@ -346,24 +320,18 @@ private noncomputable def canonicalStoreLvlAux {P : TreeSchedule} (seeds : P.See
     have hm1_2 : 2 ≤ m + 1 := by omega
     let rem : Fin (P.numNodes m) → Finset (Fin P.paddedUniv) := fun u =>
       (seeds.activeAt S m hml u).filter fun x => lvl_next x = 0
+    have hchildren : ∀ u : Fin (P.numNodes m), ((seeds.activeAt S m hml u).filter
+        fun x => m + 1 ≤ lvl_next x).card = P.branchFactor m * P.nLow (m + 1) := fun u => by
+      rw [TreeState.activeAt_filter_card_eq_sum_children seeds S hmlt u]
+      simp only [hsub_n hm1_2 hmlt, sum_const, card_univ, Fintype.card_fin, smul_eq_mul,
+        branchFactor]
     have hrem_card : ∀ u : Fin (P.numNodes m),
         (rem u).card + P.branchFactor m * P.nLow (m + 1) = (seeds.activeAt S m hml u).card := by
       intro u
-      have hpart := card_filter_add_card_filter_not (s := seeds.activeAt S m hml u)
-        (p := fun x => lvl_next x = 0)
-      have hnot : ((seeds.activeAt S m hml u).filter fun x => ¬ lvl_next x = 0) =
-          (seeds.activeAt S m hml u).filter fun x => m + 1 ≤ lvl_next x :=
-        filter_congr fun x hx => by
-          rcases hb_n x (SeedAssignment.mem_activeAt_iff.mp hx).1 with h0 | ⟨hge, _⟩ <;> omega
-      rw [hnot, TreeState.activeAt_filter_card_eq_sum_children seeds S hmlt u
-        (fun x => m + 1 ≤ lvl_next x)] at hpart
-      have hc : ∀ b : Fin (2 ^ P.branchBits m),
-          ((seeds.activeAt S (m + 1) hmlt (P.childNodeEquiv m (u, b))).filter
-            fun x => m + 1 ≤ lvl_next x).card = P.nLow (m + 1) :=
-        fun b => hsub_n hm1_2 hmlt _
-      rw [Finset.sum_congr rfl fun b _ => hc b, sum_const, card_univ, Fintype.card_fin,
-        smul_eq_mul] at hpart
-      exact hpart
+      rw [← hchildren u, ← card_filter_add_card_filter_not (s := seeds.activeAt S m hml u)
+        (p := fun x => lvl_next x = 0)]
+      exact congrArg (#(rem u) + ·) (congrArg card (filter_congr fun x hx => by
+        rcases hb_n x (SeedAssignment.mem_activeAt_iff.mp hx).1 with h0 | ⟨hge, _⟩ <;> omega))
     by_cases hm_eq1 : m = 1
     · subst hm_eq1
       let lvl : Fin P.paddedUniv → ℕ := fun x =>
@@ -373,18 +341,14 @@ private noncomputable def canonicalStoreLvlAux {P : TreeSchedule} (seeds : P.See
         by_cases hn0 : lvl_next x ≠ 0
         · rw [ite_eq_left hn0]
         · push Not at hn0; rw [ite_eq_right (by simp [hn0])]; split_ifs <;> omega
-      refine ⟨lvl, fun x hx => ?_, fun x hx => ?_, fun _ x hx => ?_, fun j _ hj2 hlt u => ?_,
-        fun u => ?_, fun h2 => by omega⟩
-      · dsimp only [lvl]; rw [hout_n x hx]; simp [hx]
-      · right
+      have hb1 : ∀ x ∈ S, 1 ≤ lvl x ∧ lvl x ≤ P.depth := fun x hx => by
         dsimp only [lvl]
         rcases hb_n x hx with h0 | ⟨hge, hle⟩
         · simp [h0, hx, hml]
         · rw [ite_eq_left (by omega)]; exact ⟨by omega, hle⟩
-      · dsimp only [lvl]
-        rcases hb_n x hx with h0 | ⟨hge, hle⟩
-        · simp [h0, hx, hml]
-        · rw [ite_eq_left (by omega)]; exact ⟨by omega, hle⟩
+      refine ⟨lvl, fun x hx => ?_, fun x hx => Or.inr (hb1 x hx), fun _ => hb1,
+        fun j _ hj2 hlt u => ?_, fun u => ?_, fun h2 => by omega⟩
+      · dsimp only [lvl]; rw [hout_n x hx]; simp [hx]
       · rw [filter_congr fun x _ => hgt1 x j hj2]
         exact hinner_n j hj2 hj2 hlt u
       · rw [filter_congr fun x _ => hgt1 x P.depth P.two_le_depth]
@@ -471,15 +435,7 @@ private noncomputable def canonicalStoreLvlAux {P : TreeSchedule} (seeds : P.See
           rw [Finset.disjoint_left]; intro x hch hflt
           have h0 := (mem_filter.mp (takeFinset_subset _ _ _ hch)).2
           have := (mem_filter.mp hflt).2; omega
-        have hchildren : ((seeds.activeAt S m hml u).filter
-            fun x => m + 1 ≤ lvl_next x).card = P.branchFactor m * P.nLow (m + 1) := by
-          rw [TreeState.activeAt_filter_card_eq_sum_children seeds S hmlt u]
-          have hc : ∀ b : Fin (2 ^ P.branchBits m),
-              ((seeds.activeAt S (m + 1) hmlt (P.childNodeEquiv m (u, b))).filter
-                fun x => m + 1 ≤ lvl_next x).card = P.nLow (m + 1) :=
-            fun b => hsub_n hm1_2 hmlt _
-          simp only [hc, sum_const, card_univ, Fintype.card_fin, smul_eq_mul, branchFactor]
-        rw [hsplit, card_union_of_disjoint hdisj, card_takeFinset, hchildren,
+        rw [hsplit, card_union_of_disjoint hdisj, card_takeFinset, hchildren u,
           P.tableCap_add_branchFactor_mul_nLow_succ hm2 hmlt]
 
 /-- Canonical bottom-up storage-level function `Fin P.paddedUniv → ℕ` for `(seeds, S, hgood)`. -/

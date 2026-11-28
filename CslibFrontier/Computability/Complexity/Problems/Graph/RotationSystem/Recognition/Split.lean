@@ -23,102 +23,86 @@ public section
 namespace Cslib.Complexity.Graph.RotationRecognition
 
 /-- Exact complete/free entry at every declared dense vertex. -/
-theorem getD_freePrefix (G : Graph) (k v : ℕ) (hd : G.vertices = List.range G.vertices.length)
-    (hv : v < G.vertices.length) :
+theorem getD_freePrefix (G : Graph) (k v : ℕ) (hd : G.1 = List.range G.1.length)
+    (hv : v < G.1.length) :
     (freePrefix G k).orders.getD v none = if v < k then none else some (fiber G v) := by
-  change (G.vertices.map fun u => if u < k then none else some (fiber G u)).getD v none = _
-  rw [List.getD_eq_getElem _ _ (by simpa using hv), List.getElem_map]
-  have hvertex : G.vertices[v] = v := by
-    have hh : G.vertices.getD v 0 = v := by rw [hd]; simp [hv]
-    rwa [List.getD_eq_getElem _ _ hv] at hh
-  rw [hvertex]
+  change (G.1.map fun u => if u < k then none else some (fiber G u)).getD v none = _
+  have hv' : G.1.getD v 0 = v := by
+    rw [hd, List.getD_eq_getElem _ _ (by simp [hv]), List.getElem_range]
+  rw [List.getD_eq_getElem _ _ hv] at hv'
+  rw [List.getD_eq_getElem _ _ (by simpa using hv), List.getElem_map, hv']
 
 /-- Dense closed graphs produce valid complete fixed/free words after any binary free cutoff. -/
 theorem valid_freePrefix (G : Graph) (k : ℕ)
-    (hd : G.vertices = List.range G.vertices.length)
-    (he : ∀ v ∈ G.incidenceVertices, v < G.vertices.length) : Valid (freePrefix G k) := by
-  refine ⟨hd, he, by simp [freePrefix], ?_⟩
-  intro v word hw
-  have hv : v < G.vertices.length := by
-    by_contra hv
-    have hn : (freePrefix G k).orders.length ≤ v := by simp [freePrefix]; omega
-    rw [List.getD_eq_default _ _ hn] at hw
+    (hd : G.1 = List.range G.1.length)
+    (he : ∀ v ∈ G.incidenceVertices, v < G.1.length) : Valid (freePrefix G k) := by
+  refine ⟨hd, he, by simp [freePrefix], fun v word hw => ?_⟩
+  have hv : v < G.1.length := Nat.lt_of_not_ge fun hge => by
+    rw [List.getD_eq_default _ _ (by simp [freePrefix]; omega)] at hw
     contradiction
   rw [getD_freePrefix G k v hd hv] at hw
   split at hw
   · contradiction
-  · have hword := Option.some.inj hw
-    subst word
+  · cases hw
     exact ⟨nodup_fiber G v, fun _ => Iff.rfl⟩
 
 /-- The original CSP incidence entry is valid for arbitrary relation semantics/declared arity,
 including all nullary constraint positions and repeated scope occurrences. -/
 theorem valid_ofCSP {Rel V : Type} [DecidableEq V] (F : Cslib.Logic.PL.CSP Rel V) :
     Valid (ofCSP F) := by
-  apply valid_freePrefix
-  · simp [CSP.incidenceGraph_vertices]
-  · intro v hv
-    have hdecl := CSP.incidenceVertices_declared F v hv
-    rw [CSP.incidenceGraph_vertices, List.mem_range] at hdecl
-    rwa [CSP.length_vertices_incidenceGraph]
+  refine valid_freePrefix _ _ (by simp [CSP.incidenceGraph_vertices]) fun v hv => ?_
+  simpa [CSP.incidenceGraph_vertices, CSP.length_vertices_incidenceGraph] using
+    CSP.incidenceVertices_declared F v hv
 
 /-- Old listed edge positions and end tags are retained exactly by split redirection. -/
 theorem edgeEndpoint_split_old (I : FixedRotationInput) (v : ℕ) (block : List ℕ)
-    (i : ℕ) (hi : i < I.graph.edges.length) (side : Bool) :
+    (i : ℕ) (hi : i < I.graph.2.length) (side : Bool) :
     (split I v block).graph.edgeEndpoint i side =
-      redirectEnd I.graph.vertices.length block (2 * i + side.toNat)
-        (I.graph.edgeEndpoint i side) := by
+      redirectEnd I.graph.1.length block (2 * i + side.toNat) (I.graph.edgeEndpoint i side) := by
   unfold Graph.edgeEndpoint
-  have hi' : i < (split I v block).graph.edges.length := by simp; omega
-  rw [List.getD_eq_getElem _ _ hi', List.getD_eq_getElem _ _ hi]
-  simp only [split]
-  simp only [List.getElem_append, List.length_map, List.length_zipIdx, hi, ↓reduceDIte,
+  rw [List.getD_eq_getElem _ _ (by simp; omega), List.getD_eq_getElem _ _ hi]
+  simp only [split, List.getElem_append, List.length_map, List.length_zipIdx, hi, ↓reduceDIte,
     List.getElem_map, List.getElem_zipIdx]
   cases side <;> simp
 
 /-- The connector's first/false end is the fresh hub and its second/true end is the old vertex. -/
 theorem edgeEndpoint_split_connector (I : FixedRotationInput) (v : ℕ) (block : List ℕ)
     (side : Bool) :
-    (split I v block).graph.edgeEndpoint I.graph.edges.length side =
-      if side then v else I.graph.vertices.length := by
+    (split I v block).graph.edgeEndpoint I.graph.2.length side =
+      if side then v else I.graph.1.length := by
   unfold Graph.edgeEndpoint
-  have hi : I.graph.edges.length < (split I v block).graph.edges.length := by simp
-  rw [List.getD_eq_getElem _ _ hi]
-  simp only [split]
-  simp only [List.getElem_append, List.length_map, List.length_zipIdx, lt_self_iff_false,
+  rw [List.getD_eq_getElem _ _ (by simp)]
+  simp only [split, List.getElem_append, List.length_map, List.length_zipIdx, lt_self_iff_false,
     ↓reduceDIte, Nat.sub_self, List.getElem_cons_zero]
 
 /-- Exact binary endpoint redirection for every original dart index. -/
 theorem endpoint_split_old (I : FixedRotationInput) (v : ℕ) (block : List ℕ)
-    (d : ℕ) (hd : d < 2 * I.graph.edges.length) :
+    (d : ℕ) (hd : d < 2 * I.graph.2.length) :
     (split I v block).graph.incidenceVertices.getD d 0 =
-      redirectEnd I.graph.vertices.length block d (I.graph.incidenceVertices.getD d 0) := by
+      redirectEnd I.graph.1.length block d (I.graph.incidenceVertices.getD d 0) := by
   let old := (Dart.indexEquiv I.graph).symm ⟨d, hd⟩
-  let new : Dart (split I v block).graph :=
-    (⟨old.1.val, by simp⟩, old.2)
-  have hidx : old.index = d := congrArg Fin.val ((Dart.indexEquiv I.graph).apply_symm_apply ⟨d, hd⟩)
-  have hnidx : new.index = d := hidx
-  rw [← hnidx, Dart.vertex_index]
-  change (split I v block).graph.edgeEndpoint old.1.val old.2 = _
+  let new : Dart (split I v block).graph := (⟨old.1.val, by simp⟩, old.2)
+  have hidx : old.index = d :=
+    congrArg Fin.val ((Dart.indexEquiv I.graph).apply_symm_apply ⟨d, hd⟩)
+  rw [show d = new.index from hidx.symm, Dart.vertex_index]
   change (split I v block).graph.edgeEndpoint old.1.val old.2 =
-    redirectEnd I.graph.vertices.length block old.index (I.graph.incidenceVertices.getD old.index 0)
+    redirectEnd I.graph.1.length block old.index (I.graph.incidenceVertices.getD old.index 0)
   rw [edgeEndpoint_split_old I v block _ old.1.isLt old.2, Dart.vertex_index]
   rfl
 
 /-- Exact binary endpoint at either end of the appended connector. -/
 theorem endpoint_split_connector (I : FixedRotationInput) (v : ℕ) (block : List ℕ)
     (side : Bool) :
-    (split I v block).graph.incidenceVertices.getD (2 * I.graph.edges.length + side.toNat) 0 =
-      if side then v else I.graph.vertices.length := by
+    (split I v block).graph.incidenceVertices.getD (2 * I.graph.2.length + side.toNat) 0 =
+      if side then v else I.graph.1.length := by
   let d : Dart (split I v block).graph :=
-    (⟨I.graph.edges.length, by simp⟩, side)
+    (⟨I.graph.2.length, by simp⟩, side)
   change (split I v block).graph.incidenceVertices.getD d.index 0 = _
   rw [Dart.vertex_index]
   exact edgeEndpoint_split_connector I v block side
 
 private theorem endpoint_lt {I : FixedRotationInput} (hI : Valid I) {d : ℕ}
-    (hd : d < 2 * I.graph.edges.length) :
-    I.graph.incidenceVertices.getD d 0 < I.graph.vertices.length := by
+    (hd : d < 2 * I.graph.2.length) : I.graph.incidenceVertices.getD d 0 < I.graph.1.length := by
   have hd' : d < I.graph.incidenceVertices.length := by
     simpa only [incidenceVertices_length] using hd
   rw [List.getD_eq_getElem _ _ hd']
@@ -130,132 +114,127 @@ private theorem redirectEnd_eq (hub : ℕ) (block : List ℕ) (d old : ℕ) :
 
 /-- The hub owns precisely the selected original ends and the connector's false end. -/
 theorem mem_fiber_split_hub {I : FixedRotationInput} (hI : Valid I) {v : ℕ}
-    (hv : v < I.graph.vertices.length) {block : List ℕ}
+    (hv : v < I.graph.1.length) {block : List ℕ}
     (hb : ∀ d ∈ block, d ∈ fiber I.graph v) (d : ℕ) :
-    d ∈ fiber (split I v block).graph I.graph.vertices.length ↔
-      d ∈ block ∨ d = 2 * I.graph.edges.length := by
+    d ∈ fiber (split I v block).graph I.graph.1.length ↔
+      d ∈ block ∨ d = 2 * I.graph.2.length := by
   constructor
   · intro hd
     obtain ⟨hd, he⟩ := mem_fiber.mp hd
-    by_cases ho : d < 2 * I.graph.edges.length
+    by_cases ho : d < 2 * I.graph.2.length
     · rw [endpoint_split_old I v block d ho, redirectEnd_eq] at he
       split at he
-      · exact Or.inl (by assumption)
+      · exact Or.inl ‹_›
       · have := endpoint_lt hI ho
         omega
     · have hlen := length_split_edges I v block
-      have hc : d = 2 * I.graph.edges.length ∨ d = 2 * I.graph.edges.length + 1 := by omega
-      rcases hc with rfl | rfl
+      rcases (by omega : d = 2 * I.graph.2.length ∨ d = 2 * I.graph.2.length + 1) with rfl | rfl
       · exact Or.inr rfl
-      · have hx := endpoint_split_connector I v block true
-        simp only [Bool.toNat_true, ↓reduceIte] at hx
+      · have hx : (split I v block).graph.incidenceVertices.getD (2 * I.graph.2.length + 1) 0 =
+            v := by
+          simpa only [Bool.toNat_true, ↓reduceIte] using endpoint_split_connector I v block true
         rw [hx] at he
         omega
   · rintro (hb' | rfl)
     · have hd := (mem_fiber.mp (hb d hb')).1
-      apply mem_fiber.mpr
-      refine ⟨by simp; omega, ?_⟩
+      refine mem_fiber.mpr ⟨by simp only [length_split_edges]; omega, ?_⟩
       rw [endpoint_split_old I v block d hd, redirectEnd_eq, ite_eq_left hb']
-    · apply mem_fiber.mpr
-      refine ⟨by simp, ?_⟩
-      simpa only [Bool.toNat_false, Nat.add_zero, Bool.false_eq_true, ↓reduceIte] using
-        endpoint_split_connector I v block false
+    · exact mem_fiber.mpr ⟨by simp only [length_split_edges]; omega,
+        by simpa only [Bool.toNat_false, Nat.add_zero, Bool.false_eq_true, ↓reduceIte] using
+          endpoint_split_connector I v block false⟩
 
 /-- A different old vertex retains exactly its original dart fiber. -/
 theorem mem_fiber_split_other {I : FixedRotationInput} {v u : ℕ}
-    (hu : u < I.graph.vertices.length) (huv : u ≠ v) {block : List ℕ}
+    (hu : u < I.graph.1.length) (huv : u ≠ v) {block : List ℕ}
     (hb : ∀ d ∈ block, d ∈ fiber I.graph v) (d : ℕ) :
     d ∈ fiber (split I v block).graph u ↔ d ∈ fiber I.graph u := by
-  have old (hd : d < 2 * I.graph.edges.length) :
+  have old (hd : d < 2 * I.graph.2.length) :
       (split I v block).graph.incidenceVertices.getD d 0 = u ↔
         I.graph.incidenceVertices.getD d 0 = u := by
     rw [endpoint_split_old I v block d hd, redirectEnd_eq]
     by_cases hmem : d ∈ block
-    · have hvertex := (mem_fiber.mp (hb d hmem)).2
-      simp only [hmem, ↓reduceIte, hvertex]
-      omega
+    · simp only [hmem, ↓reduceIte, (mem_fiber.mp (hb d hmem)).2]; omega
     · simp only [hmem, ↓reduceIte]
   constructor
   · intro hd
     obtain ⟨hd, he⟩ := mem_fiber.mp hd
-    by_cases ho : d < 2 * I.graph.edges.length
+    by_cases ho : d < 2 * I.graph.2.length
     · exact mem_fiber.mpr ⟨ho, (old ho).mp he⟩
     · have hlen := length_split_edges I v block
-      have hc : d = 2 * I.graph.edges.length ∨ d = 2 * I.graph.edges.length + 1 := by omega
-      rcases hc with rfl | rfl
-      · have hx := endpoint_split_connector I v block false
-        simp only [Bool.toNat_false, Nat.add_zero, Bool.false_eq_true, ↓reduceIte] at hx
+      rcases (by omega : d = 2 * I.graph.2.length ∨ d = 2 * I.graph.2.length + 1) with rfl | rfl
+      · have hx : (split I v block).graph.incidenceVertices.getD (2 * I.graph.2.length) 0 =
+            I.graph.1.length := by
+          simpa only [Bool.toNat_false, Nat.add_zero, Bool.false_eq_true, ↓reduceIte] using
+            endpoint_split_connector I v block false
         rw [hx] at he
         omega
-      · have hx := endpoint_split_connector I v block true
-        simp only [Bool.toNat_true, ↓reduceIte] at hx
+      · have hx : (split I v block).graph.incidenceVertices.getD (2 * I.graph.2.length + 1) 0 =
+            v := by
+          simpa only [Bool.toNat_true, ↓reduceIte] using endpoint_split_connector I v block true
         rw [hx] at he
-        exact False.elim (huv he.symm)
+        exact (huv he.symm).elim
   · intro hd
     obtain ⟨hd, he⟩ := mem_fiber.mp hd
-    exact mem_fiber.mpr ⟨by simp; omega, (old hd).mpr he⟩
+    exact mem_fiber.mpr ⟨by simp only [length_split_edges]; omega, (old hd).mpr he⟩
 
 /-- Raw split validity requires no numerical or geometric feasibility theorem. Prescribed old
 vertices retain complete orders, and the hub receives exactly the full selected word/connector. -/
 theorem valid_split {I : FixedRotationInput} (hI : Valid I) {v : ℕ}
-    (hv : v < I.graph.vertices.length) (hfree : I.orders.getD v none = none) {block : List ℕ}
+    (hv : v < I.graph.1.length) (hfree : I.orders.getD v none = none) {block : List ℕ}
     (hnd : block.Nodup) (hb : ∀ d ∈ block, d ∈ fiber I.graph v) : Valid (split I v block) := by
-  have hwidth : I.orders.length = I.graph.vertices.length := hI.2.2.1
+  have hwidth : I.orders.length = I.graph.1.length := hI.2.2.1
   refine ⟨by simp [split], ?_, by simp [split, hwidth], ?_⟩
   · intro w hw
     obtain ⟨i, hi⟩ := List.mem_iff_get.mp hw
-    have hd : i.val < 2 * (I.graph.edges.length + 1) := by
+    have hd : i.val < 2 * (I.graph.2.length + 1) := by
       simpa only [incidenceVertices_length, length_split_edges] using i.isLt
     have hread : (split I v block).graph.incidenceVertices.getD i.val 0 = w := by
       rw [List.getD_eq_getElem _ _ i.isLt]
       simpa only [List.get_eq_getElem] using hi
     rw [length_split_vertices]
-    by_cases ho : i.val < 2 * I.graph.edges.length
+    by_cases ho : i.val < 2 * I.graph.2.length
     · rw [endpoint_split_old I v block i.val ho, redirectEnd_eq] at hread
       have hlt := endpoint_lt hI ho
       split at hread <;> omega
-    · have hc : i.val = 2 * I.graph.edges.length ∨ i.val = 2 * I.graph.edges.length + 1 := by omega
-      rcases hc with hc | hc
-      · have hx := endpoint_split_connector I v block false
-        simp only [Bool.toNat_false, Nat.add_zero, Bool.false_eq_true, ↓reduceIte] at hx
+    · rcases (by omega : i.val = 2 * I.graph.2.length ∨ i.val = 2 * I.graph.2.length + 1) with
+        hc | hc
+      · have hx : (split I v block).graph.incidenceVertices.getD (2 * I.graph.2.length) 0 =
+            I.graph.1.length := by
+          simpa only [Bool.toNat_false, Nat.add_zero, Bool.false_eq_true, ↓reduceIte] using
+            endpoint_split_connector I v block false
         rw [hc, hx] at hread
         omega
-      · have hx := endpoint_split_connector I v block true
-        simp only [Bool.toNat_true, ↓reduceIte] at hx
+      · have hx : (split I v block).graph.incidenceVertices.getD (2 * I.graph.2.length + 1) 0 =
+            v := by
+          simpa only [Bool.toNat_true, ↓reduceIte] using endpoint_split_connector I v block true
         rw [hc, hx] at hread
         omega
   · intro u word hw
-    by_cases hu : u < I.graph.vertices.length
+    by_cases hu : u < I.graph.1.length
     · have hul : u < I.orders.length := by omega
-      change (I.orders ++ [some (block ++ [2 * I.graph.edges.length])]).getD u none =
-          some word at hw
-      rw [List.getD_eq_getElem _ _ (by simp; omega)] at hw
+      change (I.orders ++ [some (block ++ [2 * I.graph.2.length])]).getD u none = some word at hw
+      rw [List.getD_eq_getElem _ _
+        (by simp only [List.length_append, List.length_singleton]; omega)] at hw
       simp only [List.getElem_append, hul, ↓reduceDIte] at hw
-      have hread : I.orders.getD u none = some word := by
-        rwa [List.getD_eq_getElem _ _ hul]
-      have huv : u ≠ v := by rintro rfl; rw [hfree] at hread; contradiction
+      have hread : I.orders.getD u none = some word := by rwa [List.getD_eq_getElem _ _ hul]
+      have huv : u ≠ v := by
+        rintro rfl
+        rw [hfree] at hread; contradiction
       obtain ⟨hn, hm⟩ := hI.2.2.2 u word hread
       exact ⟨hn, fun d => (hm d).trans (mem_fiber_split_other hu huv hb d).symm⟩
-    · have hult : u < (split I v block).orders.length := by
-        by_contra h
-        rw [List.getD_eq_default _ _ (by omega)] at hw
-        contradiction
-      have heq : u = I.graph.vertices.length := by
-        simp only [split, List.length_append, List.length_singleton, hwidth] at hult
-        omega
+    · have hult : u < (split I v block).orders.length := Nat.lt_of_not_ge fun hge => by
+        rw [List.getD_eq_default _ _ hge] at hw; contradiction
+      have heq : u = I.graph.1.length := by
+        simp only [split, List.length_append, List.length_singleton, hwidth] at hult; omega
       subst u
-      change (I.orders ++ [some (block ++ [2 * I.graph.edges.length])]).getD
-          I.graph.vertices.length none = some word at hw
-      rw [← hwidth] at hw
-      rw [List.getD_eq_getElem _ _ (by simp)] at hw
+      change (I.orders ++ [some (block ++ [2 * I.graph.2.length])]).getD I.graph.1.length none =
+        some word at hw
+      rw [← hwidth, List.getD_eq_getElem _ _
+        (by simp only [List.length_append, List.length_singleton]; omega)] at hw
       simp only [List.getElem_append, lt_self_iff_false, ↓reduceDIte, Nat.sub_self,
         List.getElem_cons_zero, Option.some.injEq] at hw
       subst word
-      have hnew : 2 * I.graph.edges.length ∉ block := by
-        intro hd
-        have := (mem_fiber.mp (hb _ hd)).1
-        omega
-      exact ⟨by simpa using hnd.concat hnew, fun d => by
-        rw [List.mem_append, List.mem_singleton, mem_fiber_split_hub hI hv hb]⟩
+      exact ⟨by simpa using hnd.concat fun hd => by have := (mem_fiber.mp (hb _ hd)).1; omega,
+        fun d => by rw [List.mem_append, List.mem_singleton, mem_fiber_split_hub hI hv hb]⟩
 
 end Cslib.Complexity.Graph.RotationRecognition

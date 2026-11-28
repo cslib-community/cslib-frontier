@@ -132,16 +132,13 @@ private theorem initFirstFinishCode_exec {U V w base : ℕ} (u : Fin U) (v : ℕ
   obtain ⟨hN₁_pos, _, hN₁_le2, hN₁U⟩ := targetCap_bounds_of_pos (le_rfl : 1 ≤ 1) hhdr_set.pos_U
   set off₁ := offCompItems U w N₁
   set iw₁ := compactedItemWords U V w N₁ 1
-  have hce₁ : compactedEpochWords U V w N₁ 1 = off₁ + iw₁ := by
-    unfold compactedEpochWords; simp [off₁, iw₁]
-  have hfr₁_eq : fr₁ = base + off₁ + iw₁ := by dsimp only [fr₁]; rw [hce₁, Nat.add_assoc]
-  have hfit_off : Fits w (base + off₁) := hfit_peak.of_le (by rw [hce₁]; linarith only)
-  have h225_fit : Fits w 225 := fits_const_of_offCompItems hfit_off le_rfl
-  have hnm_le_fr₁ : base + off₁ ≤ fr₁ := by rw [hfr₁_eq]; exact Nat.le_add_right _ _
+  have hfr₁_eq : fr₁ = base + off₁ + iw₁ := by
+    simp only [fr₁, compactedEpochWords, Nat.one_ne_zero, ↓reduceIte, off₁, iw₁, Nat.add_assoc]
+  have hnm_le_fr₁ : base + off₁ ≤ fr₁ := hfr₁_eq ▸ Nat.le_add_right _ _
+  have hfit_off : Fits w (base + off₁) := hfit_peak.of_le hnm_le_fr₁
   obtain ⟨z₁, z₂, hex_c1, hex_im, hc_im, _, hz₂b, hz₂f_eq, hz₂_fr_reg, hz₂_mem_eq,
       hrep_im, htot_im, hpot_im, ⟨s_fix₀, hinv₀, hcpl₀⟩, hkeep_set_2, hz₂_not_im⟩ :=
-    exec_postResample_initMeta mBase
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)
+    exec_postResample_initMeta mBase (by simp)
       hw hU hN₁_pos hN₁U hhdr_set.fits_U hV hy_set_b hy_set_fr hnm_le_fr₁ hfit_off
       hr_base hr_fr hr_nhp hr_ncp hrs_fr hrs_seed hrs_mem hrs_reg
   have hms₂ : memoryState mFr z₂.toData = ⟨z₂.mem, fr₁⟩ := Memory.State.ext rfl hz₂_fr_reg
@@ -154,38 +151,22 @@ private theorem initFirstFinishCode_exec {U V w base : ℕ} (u : Fin U) (v : ℕ
           (regs_hp_eq fun i => (hkeep_set_2 (mNewHp i) (mNewHp_lt_160 i) ?_).trans (hr_nhp i))
           (regs_cp_eq fun i => (hkeep_set_2 (mNewCp i) (mNewCp_lt_160 i) ?_).trans (hr_ncp i)))
         (regs_pairSrc
-          (regs_reg1_eq mBase ((hkeep_set_2 mBase (mReg_lt_160 _)
-            (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans
-            hr_base))
-          (regs_reg1_eq mItemBase ((hkeep_set_2 mItemBase (mReg_lt_160 _)
-            (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans
+          (regs_reg1_eq mBase ((hkeep_set_2 mBase (mReg_lt_160 _) (by simp)).trans hr_base))
+          (regs_reg1_eq mItemBase ((hkeep_set_2 mItemBase (mReg_lt_160 _) (by simp)).trans
             hr_ib))))
       (regs_pairSrc
-        (regs_reg1_eq mArgU ((hkeep_set_2 mArgU (mReg_lt_160 _)
-          (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans
+        (regs_reg1_eq mArgU ((hkeep_set_2 mArgU (mReg_lt_160 _) (by simp)).trans
           (habi_set.2.2.1.trans hr_u)))
-        (regs_reg1_eq mArgV ((hkeep_set_2 mArgV (mReg_lt_160 _)
-          (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans
+        (regs_reg1_eq mArgV ((hkeep_set_2 mArgV (mReg_lt_160 _) (by simp)).trans
           (habi_set.2.2.2.trans hr_v))))).eq
-    · simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-      exact ⟨mNewHp_ne_mReg i (Or.inl (by decide)), mNewHp_ne_mReg i (Or.inr (by decide)),
-        mNewHp_ne_mReg i (Or.inl (by decide)), mNewHp_ne_mReg i (Or.inl (by decide)),
-        mNewHp_ne_mReg i (Or.inl (by decide)), mNewHp_ne_mReg i (Or.inl (by decide)),
-        mNewHp_ne_mReg i (Or.inl (by decide))⟩
-    · simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-      exact ⟨mNewCp_ne_mReg i (Or.inl (by decide)), mNewCp_ne_mReg i (Or.inr (by decide)),
-        mNewCp_ne_mReg i (Or.inl (by decide)), mNewCp_ne_mReg i (Or.inl (by decide)),
-        mNewCp_ne_mReg i (Or.inl (by decide)), mNewCp_ne_mReg i (Or.inl (by decide)),
-        mNewCp_ne_mReg i (Or.inl (by decide))⟩
+    all_goals clear * -; simp [Fin.ext_iff]; omega
   have henv_si : CompEpochEnv U V w N₁ base (base + off₁) 1 ⟨z₂.mem, fr₁⟩ :=
     ⟨hw, hN₁_pos, hN₁U, hhdr_set.fits_U, hV, le_rfl,
       by change base + off₁ + iw₁ ≤ fr₁; rw [hfr₁_eq]⟩
   obtain ⟨hpre_si, hvp_si, hc_si, hfr_si, hrep_si, ⟨s_fix₁, hinv₁, hcpl₁⟩, hout_si⟩ :=
     streamInsertFreshGenProg_spec (s₀ := ⟨z₂.mem, fr₁⟩) u.isLt henv_si hfit_off
-      hrep_im hinv₀ hcpl₀
-      (by rw [htot_im]; exact hN₁_pos)
-      (by rw [htot_im])
-      hv_lt (by simp [Dictionary.empty])
+      hrep_im hinv₀ hcpl₀ (htot_im.symm ▸ hN₁_pos) (htot_im.symm ▸ le_rfl) hv_lt
+      (by simp [Dictionary.empty])
   have hv_si : (Memory.spec w).ValidHistory (memoryState mFr z₂.toData)
       ((Memory.spec w).clientHistory (memoryState mFr z₂.toData)
         (streamInsertFreshGenProg d_si)) := by
@@ -220,38 +201,20 @@ private theorem initFirstFinishCode_exec {U V w base : ℕ} (u : Fin U) (v : ℕ
     epochParamsStored_congr hpar_set fun a ha => hlow_z a ha.2
   have hcard₁ : (Dictionary.dom (Function.update (Dictionary.empty U) u (some v))).card = 1 := by
     rw [Dictionary.dom_insert, Dictionary.dom_empty]; rfl
-  have hvals₁ : Dictionary.ValuesBounded V (Function.update (Dictionary.empty U) u (some v)) := by
-    intro k val hk
-    by_cases hku : k = u
-    · subst hku; simp only [Function.update_self, Option.some.injEq] at hk; subst hk; exact hv_lt
-    · rw [Function.update_of_ne hku] at hk; cases hk
+  have hvals₁ : Dictionary.ValuesBounded V (Function.update (Dictionary.empty U) u (some v)) :=
+    fun k val hk => by
+      rcases eq_or_ne k u with rfl | hku
+      · rw [Function.update_self, Option.some.injEq] at hk
+        exact hk ▸ hv_lt
+      · simp [Function.update_of_ne hku, Dictionary.empty] at hk
   have hcpl_z : FixedCoupled base (base + off₁) U V w N₁ s_fix₁ ⟨z.mem, z.frontier⟩ :=
     hs_z_eq ▸ hcpl₁
   have htot_z : totalSlots N₁ (compGmAt base U w N₁ z.mem) = 1 :=
     (congrArg (totalSlots N₁) hcpl_z.gm_eq).trans (hinv₁.htot.trans hcard₁)
-  have hsplit_z : CompactedSplitRep base (base + off₁) U V w N₁ 1 1 θ
-      (Function.update (Dictionary.empty U) u (some v)) ⟨z.mem, z.frontier⟩ :=
-    ⟨hhdr_z, hpar_z, hz_mem_eq ▸ hrep_si, hcard₁, hvals₁, s_fix₁, hinv₁, htot_z, hcpl_z⟩
-  have hz_keep2 : ∀ reg, reg ≠ mFr → reg.val < 160 → z.regs reg = z₂.regs reg :=
-    fun reg h1 h160 => hframe_reg_si reg h1 (mkTmp_ne_reg _ h160 (fun a => Fin.elim0 a))
-  have habi_set_z : abiPreserved y_set z :=
-    ⟨(hz_keep2 mBase (mReg_ne (by decide)) (mReg_lt_160 _)).trans
-        (hkeep_set_2 mBase (mReg_lt_160 _)
-          (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)),
-     (hz_keep2 mTag (mReg_ne (by decide)) (mReg_lt_160 _)).trans
-        (hkeep_set_2 mTag (mReg_lt_160 _)
-          (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)),
-     (hz_keep2 mArgU (mReg_ne (by decide)) (mReg_lt_160 _)).trans
-        (hkeep_set_2 mArgU (mReg_lt_160 _)
-          (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)),
-     (hz_keep2 mArgV (mReg_ne (by decide)) (mReg_lt_160 _)).trans
-        (hkeep_set_2 mArgV (mReg_lt_160 _)
-          (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide))⟩
+  have habi_set_z : abiPreserved y_set z := abiPreserved_of_lt_five fun reg h5 hfr =>
+    (hframe_reg_si reg hfr (mkTmp_ne_reg _ (by omega) (fun a => Fin.elim0 a))).trans <|
+      hkeep_set_2 reg (by omega) (by simp [Fin.ext_iff] at hfr ⊢; omega)
   have hf1 := one_le_migFactor
-  have hc_im_mul : migFactor * (memoryCost
-      (initNewEpochMetaProg ((mkHashParams w (qBits U N₁) (hashB N₁) (totalMicroBits N₁) 3,
-        mkCompParams U V w N₁), base)) ⟨y_rs.mem, fr₁⟩ + 1) ≤ migFactor * 988 :=
-    Nat.mul_le_mul_left migFactor (by linarith only [hc_im, hN₁_le2])
   have hpot_le : inEpochPotential U w N₁ base z ≤
       (98 * migFactor) * slotPotential N₁ (compGmAt base U w N₁ z.mem) := by
     unfold inEpochPotential
@@ -263,8 +226,11 @@ private theorem initFirstFinishCode_exec {U V w base : ℕ} (u : Fin U) (v : ℕ
     have hmul := Nat.mul_le_mul_left migFactor (Nat.add_le_add_right hc_si 1)
     rw [← hz_mem_eq] at hmul
     nlinarith only [hmul, hpot_le, hf1]
-  have hex_clean := hex_c1.seq_eq ((hex_im.mono hc_im_mul (fun _ h => h)).seq_eq hex_si)
-  refine ⟨z, _, hex_clean, hzb, hzf_eq, hsplit_z, abiPreserved_trans habi_set habi_set_z,
+  refine ⟨z, _, hex_c1.seq_eq
+      ((hex_im.mono (Nat.mul_le_mul_left migFactor (by linarith only [hc_im, hN₁_le2] : _ ≤ 988))
+        (fun _ h => h)).seq_eq hex_si),
+    hzb, hzf_eq, ⟨hhdr_z, hpar_z, hz_mem_eq ▸ hrep_si, hcard₁, hvals₁, s_fix₁, hinv₁, htot_z,
+      hcpl_z⟩, abiPreserved_trans habi_set habi_set_z,
     fun addr haddr => (hlow_z addr (by linarith only [haddr])).trans (hbelow_set addr haddr),
     by linarith only [hsi_pot]⟩
 
@@ -304,11 +270,8 @@ theorem initFirstEpochCode_execRCodeDist {U V w base : ℕ} (u : Fin U) (v : ℕ
   obtain ⟨y_set, steps_set, hex_set, hc_set, hy_set_b, hy_set_fr, habi_set, hbelow_set,
       hhdr_set, hpar_set, hr_base, hr_fr, hr_ib, hr_hb, hr_nhp, hr_ncp⟩ :=
     initFirstSetupCode_exec hx hfr hhdr hfit_peak hbase
-  have hce₁ : compactedEpochWords U V w N₁ 1 =
-      offCompItems U w N₁ + compactedItemWords U V w N₁ 1 := by
-    unfold compactedEpochWords; simp
   have hnm_le : base + offCompItems U w N₁ ≤ fr₁ := by
-    dsimp only [fr₁]; rw [hce₁]; omega
+    simp only [fr₁, compactedEpochWords, Nat.one_ne_zero, ↓reduceIte]; omega
   obtain ⟨zOf, T_init, hex_full, hpost, hcost⟩ :=
     exec_setup_resample_finish (metaBase := base) (base := base)
       (finBound := 46350 * migFactor + 6)
@@ -329,8 +292,7 @@ theorem initFirstEpochCode_execRCodeDist {U V w base : ℕ} (u : Fin U) (v : ℕ
             hfr_y hseed_y hmem_y hreg_y
         exact ⟨z, stepsClean, hex_cl, ⟨hzb, hzf, hsp, habi.1.trans hbase, hbel⟩, hbd⟩)
   refine ⟨zOf, T_init, hex_full, hpost, hcost.trans ((Nat.cast_le (α := ℝ≥0∞)).mpr ?_)⟩
-  have hf1 := one_le_migFactor
   unfold initFirstCharge
-  linarith only [hc_set, hf1]
+  linarith only [hc_set, one_le_migFactor]
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

@@ -60,29 +60,19 @@ theorem Clause.eval_filter_ne_neg (σ : V → Bool) {c : Clause V} {v : V} {b : 
     Clause.eval σ (c.filter (· ≠ (v, !b))) = c.eval (Function.update σ v b) := by
   rw [Bool.eq_iff_iff, Clause.eval_eq_true_iff, Clause.eval_eq_true_iff]
   constructor
-  · rintro ⟨l, hl, hσ⟩
+  · rintro ⟨⟨u, p⟩, hl, hσ⟩
     obtain ⟨hlc, hne⟩ := List.mem_filter.mp hl
-    have hlv : l.1 ≠ v := by
-      intro heq
-      rcases l with ⟨u, p⟩
-      simp only at heq
-      subst heq
+    have huv : u ≠ v := by
+      rintro rfl
       cases p <;> cases b <;> simp_all
-    refine ⟨l, hlc, ?_⟩
-    simpa [Function.update, hlv] using hσ
-  · rintro ⟨l, hlc, hσ⟩
-    have hlv : l.1 ≠ v := by
-      intro heq
-      rcases l with ⟨u, p⟩
-      simp only at heq
-      subst heq
+    exact ⟨(u, p), hlc, by simpa [Function.update, huv] using hσ⟩
+  · rintro ⟨⟨u, p⟩, hlc, hσ⟩
+    have huv : u ≠ v := by
+      rintro rfl
       simp only [Function.update_self] at hσ
-      subst hσ
-      exact hc hlc
-    refine ⟨l, List.mem_filter.mpr ⟨hlc, ?_⟩, ?_⟩
-    · simp only [decide_eq_true_iff, ne_eq, Prod.ext_iff, not_and]
-      exact fun h => absurd h hlv
-    · simpa [Function.update, hlv] using hσ
+      exact hc (hσ ▸ hlc)
+    exact ⟨(u, p), List.mem_filter.mpr ⟨hlc, decide_eq_true fun h => huv (congrArg Prod.fst h)⟩,
+      by simpa [Function.update, huv] using hσ⟩
 
 namespace CNF
 
@@ -107,20 +97,12 @@ theorem eval_restrict_of_eq {φ : CNF V} {v : V} {b : Bool} {σ : V → Bool} (h
 /-- Restricting on a variable that does not occur in `φ` leaves `φ` unchanged. -/
 theorem restrict_eq_self_of_notMem_vars {φ : CNF V} {v : V} {b : Bool} (hv : v ∉ φ.vars) :
     φ.restrict v b = φ := by
-  have hcl : ∀ c ∈ φ, (v, b) ∉ c ∧ c.filter (· ≠ (v, !b)) = c := by
-    intro c hc
-    refine ⟨fun hmem => hv (mem_vars.mpr ⟨c, hc, b, hmem⟩), ?_⟩
-    exact List.filter_eq_self.mpr fun l hl => by
-      simp only [decide_eq_true_iff, ne_eq]
-      rintro rfl
-      exact hv (mem_vars.mpr ⟨c, hc, !b, hl⟩)
   unfold CNF.restrict
-  have hf : φ.filter (fun c => decide ((v, b) ∉ c)) = φ :=
-    List.filter_eq_self.mpr fun c hc => decide_eq_true (hcl c hc).1
-  rw [hf]
-  have hmap : φ.map (List.filter fun x => decide (x ≠ (v, !b))) = φ.map id :=
-    List.map_congr_left fun c hc => (hcl c hc).2
-  simpa using hmap
+  rw [List.filter_eq_self.mpr fun c hc =>
+    decide_eq_true (show (v, b) ∉ c from fun h => hv (mem_vars.mpr ⟨c, hc, b, h⟩))]
+  exact (List.map_congr_left (g := id) fun c hc => List.filter_eq_self.mpr fun l hl =>
+    decide_eq_true (show l ≠ (v, !b) from fun h =>
+      hv (mem_vars.mpr ⟨c, hc, !b, h ▸ hl⟩))).trans (List.map_id φ)
 
 /-- The restricted variable does not occur in `φ.restrict v b`. -/
 theorem notMem_vars_restrict (φ : CNF V) (v : V) (b : Bool) :
@@ -183,39 +165,25 @@ theorem occurrences_restrict_le (φ : CNF V) (v u : V) (b : Bool) :
   induction φ with
   | nil => simp [CNF.restrict]
   | cons c ψ ih =>
-    unfold CNF.restrict at ih ⊢
+    unfold CNF.restrict CNF.occurrences at ih ⊢
     by_cases hmem : (v, b) ∈ c
-    · have hf : decide ((v, b) ∉ c) = false := decide_eq_false (by simp [hmem])
-      rw [List.filter_cons_of_neg (by simp [hf])]
-      exact ih.trans (by
-        unfold CNF.occurrences
-        rw [List.countP_cons]
-        omega)
-    · have hf : decide ((v, b) ∉ c) = true := decide_eq_true hmem
-      rw [List.filter_cons_of_pos (by simp [hf]), List.map_cons]
-      unfold CNF.occurrences at ih ⊢
-      rw [List.countP_cons, List.countP_cons]
+    · rw [List.filter_cons_of_neg (by simp [hmem]), List.countP_cons]; omega
+    · rw [List.filter_cons_of_pos (by simp [hmem]), List.map_cons, List.countP_cons,
+        List.countP_cons]
       split_ifs with h₁ h₂
       · exact Nat.succ_le_succ ih
-      · exfalso
-        obtain ⟨l, hl, hlu⟩ := decide_eq_true_iff.mp h₁
-        exact (decide_eq_true_iff.not.mp h₂) ⟨l, (List.mem_filter.mp hl).1, hlu⟩
-      · exact ih.trans (Nat.le_succ _)
-      · exact ih
+      · obtain ⟨l, hl, hlu⟩ := decide_eq_true_iff.mp h₁
+        exact absurd (decide_eq_true ⟨l, (List.mem_filter.mp hl).1, hlu⟩) h₂
+      all_goals omega
 
 /-! ### Satisfiability and assignment bijections -/
 
 /-- `φ.restrict v b` is satisfiable iff `φ` has a satisfying assignment mapping `v` to `b`. -/
 theorem satisfiable_restrict_iff (φ : CNF V) (v : V) (b : Bool) :
     (φ.restrict v b).Satisfiable ↔ ∃ σ : V → Bool, σ v = b ∧ φ.eval σ = true := by
-  constructor
-  · rintro ⟨σ, hσ⟩
-    rw [eval_restrict] at hσ
-    exact ⟨Function.update σ v b, Function.update_self v b σ, hσ⟩
-  · rintro ⟨σ, hσv, hσ⟩
-    refine ⟨σ, ?_⟩
-    rw [eval_restrict_of_eq hσv]
-    exact hσ
+  refine ⟨fun ⟨σ, hσ⟩ => ⟨Function.update σ v b, Function.update_self v b σ, by simpa using hσ⟩, ?_⟩
+  rintro ⟨σ, hσv, hσ⟩
+  exact ⟨σ, (eval_restrict_of_eq hσv).trans hσ⟩
 
 /-- Binary branching characterization of CNF satisfiability. -/
 theorem satisfiable_iff_restrict (φ : CNF V) (v : V) :
@@ -244,15 +212,8 @@ private theorem eval_restrict_eq_eval_extendAt (φ : CNF V) (declared : Finset V
   rw [eval_restrict]
   congr 1
   funext u
-  by_cases huv : u = v
-  · subst huv
-    simp [Function.update, extendAt, hv]
-  · simp only [Function.update, huv, ↓reduceDIte]
-    by_cases hu : u ∈ declared
-    · have hue : u ∈ declared.erase v := Finset.mem_erase.mpr ⟨huv, hu⟩
-      simp [hu, hue, extendAt, huv]
-    · have hue : u ∉ declared.erase v := fun h => hu (Finset.mem_of_mem_erase h)
-      simp [hu, hue]
+  by_cases huv : u = v <;> by_cases hu : u ∈ declared <;>
+    simp [Function.update, extendAt, huv, hv, hu, Finset.mem_erase]
 
 /-- Explicit bijection between satisfying assignments of `φ.restrict v b` on `declared.erase v` and
 satisfying assignments of `φ` on `declared` that map `v` to `b`. -/
@@ -460,17 +421,11 @@ theorem modelCountOn_eq_restrict_of_forall {φ : CNF V} {declared : Finset V} {v
   have hzero : (φ.restrict v (!b)).modelCountOn (declared.erase v) = 0 := by
     rw [modelCountOn, Finset.card_eq_zero, Finset.eq_empty_iff_forall_notMem]
     intro σ hσ
-    have heval := (Finset.mem_filter.mp hσ).2
-    rw [eval_restrict] at heval
-    have hbv := hforce _ heval
+    have hbv := hforce _ (eval_restrict φ v (!b) _ ▸ (Finset.mem_filter.mp hσ).2)
     rw [Function.update_self] at hbv
     cases b <;> simp at hbv
   rw [modelCountOn_eq_add_restrict φ declared hv]
-  cases b
-  · rw [Bool.not_false] at hzero
-    simp [hzero]
-  · rw [Bool.not_true] at hzero
-    simp [hzero]
+  cases b <;> simp_all
 
 /-- When `v ∉ declared`, `modelCountOn` fixes `v ↦ false`, so restricting `v ↦ false` leaves
 `modelCountOn` unchanged. -/
@@ -480,12 +435,10 @@ theorem modelCountOn_restrict_of_notMem (φ : CNF V) (declared : Finset V) {v : 
   simp only [modelCountOn]
   congr 1
   ext σ
-  simp only [Finset.mem_filter, Finset.mem_univ, true_and, eval_restrict]
   have hupd : Function.update (fun u => if h : u ∈ declared then σ ⟨u, h⟩ else false) v false =
-      fun u => if h : u ∈ declared then σ ⟨u, h⟩ else false := by
-    apply Function.update_eq_self_iff.mpr
-    simp [hv]
-  rw [hupd]
+      fun u => if h : u ∈ declared then σ ⟨u, h⟩ else false :=
+    Function.update_eq_self_iff.mpr (by simp [hv])
+  simp [eval_restrict, hupd]
 
 /-- Branching additivity for occurring-variable `CNF.modelCount` on an occurring variable `v`,
 explicitly accounting for any other variables eliminated along each branch. -/
@@ -575,17 +528,12 @@ theorem occurrences_restrictList_le (φ : CNF V) (assign : List (Literal V)) (u 
 theorem occurrences_restrictList_eq_zero (φ : CNF V) (assign : List (Literal V)) {u : V}
     (hu : u ∈ assign.map Prod.fst) :
     (φ.restrictList assign).occurrences u = 0 := by
-  have hnot : u ∉ (φ.restrictList assign).vars := by
-    intro hmem
-    have hsub := vars_restrictList_subset φ assign (List.mem_toFinset.mpr hmem)
-    rw [Finset.mem_sdiff] at hsub
-    exact hsub.2 (List.mem_toFinset.mpr hu)
-  unfold CNF.occurrences
-  rw [List.countP_eq_zero]
-  intro c hc
+  have hnot : u ∉ (φ.restrictList assign).vars := fun hmem =>
+    (Finset.mem_sdiff.mp (vars_restrictList_subset φ assign (List.mem_toFinset.mpr hmem))).2
+      (List.mem_toFinset.mpr hu)
+  rw [CNF.occurrences, List.countP_eq_zero]
   simp only [decide_eq_true_eq, not_exists, not_and]
-  intro l hl hlu
-  exact hnot (hlu ▸ mem_vars.mpr ⟨c, hc, l.2, hl⟩)
+  exact fun c hc l hl hlu => hnot (hlu ▸ mem_vars.mpr ⟨c, hc, l.2, hl⟩)
 
 /-- If every assigned literal holds in `assign` (no conflicting assignments to the same variable),
 `applyAssignList` fixes each variable to its assigned Boolean value. -/
@@ -662,19 +610,11 @@ omit [DecidableEq V] in
 theorem satisfiable_restrictBy_iff (φ : CNF V) (ρ : V → Option Bool) :
     (φ.restrictBy ρ).Satisfiable ↔
       ∃ σ : V → Bool, (∀ v b, ρ v = some b → σ v = b) ∧ φ.eval σ = true := by
-  constructor
-  · rintro ⟨σ, hσ⟩
-    let τ : V → Bool := fun v => match ρ v with | some b => b | none => σ v
-    have hτ : ∀ v b, ρ v = some b → τ v = b := fun v b hb => by simp [τ, hb]
-    refine ⟨τ, hτ, ?_⟩
-    rw [← eval_restrictBy (φ := φ) (ρ := ρ) hτ]
-    refine (eval_congr fun v hv => ?_).trans hσ
-    have hnone := (vars_restrictBy_subset φ ρ v hv).2
-    simp [τ, hnone]
-  · rintro ⟨σ, hσρ, hσ⟩
-    refine ⟨σ, ?_⟩
-    rw [eval_restrictBy hσρ]
-    exact hσ
+  refine ⟨fun ⟨σ, hσ⟩ => ?_, fun ⟨σ, hσρ, hσ⟩ => ⟨σ, (eval_restrictBy hσρ).trans hσ⟩⟩
+  let τ : V → Bool := fun v => (ρ v).getD (σ v)
+  have hτ : ∀ v b, ρ v = some b → τ v = b := fun v b hb => by simp [τ, hb]
+  exact ⟨τ, hτ, (eval_restrictBy hτ).symm.trans <|
+    (eval_congr fun v hv => by simp [τ, (vars_restrictBy_subset φ ρ v hv).2]).trans hσ⟩
 
 end CNF
 

@@ -38,7 +38,7 @@ open Cslib.Algorithms.Lean.MaxFlow Cslib.Algorithms.Lean.IterativeCompression
 open Cslib.DataStructure Cslib.WordRAM Cslib.WordRAM.Realization
 open StateTransitionSpec (clientResult_bind clientState_bind clientResult_pure clientState_pure)
 
-attribute [local client_simps] runClient_read runClient_write clientState_map
+attribute [local client_simps] runClient_read runClient_write StateTransitionSpec.clientState_map
 
 /-- Invariant asserting a valid transversal of `prefixGraph G m` of size `≤ k` at `sepBase` and
 proper `2`-colouring off it at `colBase`. -/

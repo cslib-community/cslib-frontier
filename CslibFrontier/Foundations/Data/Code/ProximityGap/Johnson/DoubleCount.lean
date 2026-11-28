@@ -44,11 +44,9 @@ private theorem weighted_double_count_le {ι α : Type*} [Fintype ι]
   classical
   have hswap : ∑ z ∈ T, ∑ i ∈ Finset.univ.filter (agree z), W i =
       ∑ i : ι, #(T.filter fun z => agree z i) * W i := by
-    calc _ = ∑ z ∈ T, ∑ i : ι, if agree z i then W i else 0 :=
-            Finset.sum_congr rfl fun z _ => Finset.sum_filter _ _
-      _ = ∑ i : ι, ∑ z ∈ T, if agree z i then W i else 0 := Finset.sum_comm
-      _ = ∑ i : ι, #(T.filter fun z => agree z i) * W i := Finset.sum_congr rfl fun i _ => by
-            rw [← Finset.sum_filter, Finset.sum_const, smul_eq_mul]
+    simp only [Finset.sum_filter]
+    rw [Finset.sum_comm]
+    exact Finset.sum_congr rfl fun i _ => by rw [← Finset.sum_filter, Finset.sum_const, smul_eq_mul]
   have hlo' : #T * B_W ≤ ∑ i : ι, #(T.filter fun z => agree z i) * W i :=
     (by rw [Finset.sum_const, smul_eq_mul] : ∑ _z ∈ T, B_W = #T * B_W) ▸
       (Finset.sum_le_sum hlo).trans_eq hswap
@@ -66,11 +64,8 @@ private theorem weighted_double_count_le {ι α : Type*} [Fintype ι]
       (∑ i ∈ Finset.univ \ Istar, #(T.filter fun z => agree z i) * W i) +
         ∑ i ∈ Istar, #(T.filter fun z => agree z i) * W i :=
     (Finset.sum_sdiff (subset_univ Istar)).symm
-  have hlt : #T * B_W < #T * ((∑ i ∈ Istar, W i) + 1) := by
-    calc #T * B_W ≤ #T * ∑ i ∈ Istar, W i + W_tot * bad := by omega
-      _ < #T * ∑ i ∈ Istar, W i + #T := Nat.add_lt_add_left hT _
-      _ = #T * ((∑ i ∈ Istar, W i) + 1) := by ring
-  exact Nat.lt_succ_iff.1 (Nat.lt_of_mul_lt_mul_left hlt)
+  exact Nat.lt_add_one_iff.1 <|
+    Nat.lt_of_mul_lt_mul_left (a := #T) (by rw [Nat.mul_add_one]; omega)
 
 /-- Step 7: Weighted double-counting shows `B_W ≤ ∑ i ∈ Istar, W i`, giving `k ≤ #Istar`, and
 Lagrange interpolation on a `k`-element subset `J ⊆ Istar` pulls `Pstar ∈ L[X]` down to `r + 1`
@@ -140,13 +135,9 @@ theorem exists_correlatedAgreement_of_lifted_poly {ι : Type*} [Fintype ι] [Dec
     have hFZ : P_FZ.eval (C (α i)) = curveWord v i := by
       rw [curveWord, Polynomial.ofFn_eq_sum_monomial]
       simp only [P_FZ, eval_finsetSum, eval_mul, eval_C, v]
-      refine Finset.sum_congr rfl fun j _ => ?_
-      have hhom := (Polynomial.hom_eval₂ (Pj j) (RingHom.id F) Polynomial.C (α i)).symm
-      rw [RingHom.comp_id, Polynomial.eval₂_id] at hhom
-      rw [Polynomial.eval_map, hhom, Polynomial.C_mul_X_pow_eq_monomial]
-    have hhom := (Polynomial.hom_eval₂ P_FZ (RingHom.id F[X]) j_L (C (α i))).symm
-    rw [RingHom.comp_id, Polynomial.eval₂_id] at hhom
-    rw [Polynomial.eval_map, hhom, hFZ]
+      exact Finset.sum_congr rfl fun j _ => by
+        rw [Polynomial.eval_map_apply, Polynomial.C_mul_X_pow_eq_monomial]
+    rw [Polynomial.eval_map_apply, hFZ]
   have hP_L_deg_lt : P_L.degree < k := Polynomial.degree_map_le.trans_lt <|
     (degree_sum_le _ _).trans_lt <| (Finset.sup_lt_iff (WithBot.bot_lt_coe _)).2 fun j _ =>
       (degree_mul_le _ _).trans_lt <|

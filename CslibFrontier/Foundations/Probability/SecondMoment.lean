@@ -122,9 +122,8 @@ theorem variance_sum_indicator_le (F : Finset κ) {A : κ → Set Ω}
         refine sum_le_sum fun k hk => sum_le_sum fun l hl => ?_
         rw [covariance_indicator_one (hA k hk) (hA l hl)]
         split_ifs with hkl
-        · have h₁ : P.real (A k ∩ A l) ≤ 1 := measureReal_le_one
-          nlinarith [measureReal_nonneg (μ := P) (s := A k),
-            measureReal_nonneg (μ := P) (s := A l)]
+        · have : P.real (A k ∩ A l) ≤ 1 := measureReal_le_one
+          nlinarith [measureReal_nonneg (μ := P) (s := A k), measureReal_nonneg (μ := P) (s := A l)]
         · rw [measureReal_def, (hG k hk l hl hkl).measure_inter_eq_mul, ENNReal.toReal_mul,
             measureReal_def, measureReal_def, sub_self]
     _ = ∑ k ∈ F, (#{l ∈ F | G k l} : ℝ) := by
@@ -142,15 +141,13 @@ theorem measureReal_le_abs_sum_indicator_sub_le (F : Finset κ) {A : κ → Set 
     (hD : ∀ k ∈ F, #{l ∈ F | G k l} ≤ D) {c : ℝ} (hc : 0 < c) :
     P.real {ω | c ≤ |∑ k ∈ F, (A k).indicator (1 : Ω → ℝ) ω - ∑ k ∈ F, P.real (A k)|} ≤
       #F * D / c ^ 2 := by
-  have hY : MemLp (fun ω => ∑ k ∈ F, (A k).indicator (1 : Ω → ℝ) ω) 2 P :=
-    memLp_finsetSum F fun k hk => memLp_indicator_one (hA k hk)
-  have hmean := integral_sum_indicator_one (P := P) F hA
-  have cheb := meas_ge_le_variance_div_sq hY hc
-  rw [hmean] at cheb
+  have cheb := meas_ge_le_variance_div_sq (μ := P)
+    (memLp_finsetSum F fun k hk => memLp_indicator_one (hA k hk)) hc
+  rw [integral_sum_indicator_one (P := P) F hA] at cheb
   rw [measureReal_def]
-  refine ENNReal.toReal_le_of_le_ofReal (by positivity) (cheb.trans ?_)
-  exact ENNReal.ofReal_le_ofReal
-    (by gcongr; exact variance_sum_indicator_le F hA G hG hD)
+  refine ENNReal.toReal_le_of_le_ofReal (by positivity) (cheb.trans (ENNReal.ofReal_le_ofReal ?_))
+  gcongr
+  exact variance_sum_indicator_le F hA G hG hD
 
 /-- **The second moment method** [Alon and Spencer, Section 4.3][AlonSpencer2016]: under a
 probability measure, a square integrable random variable `X` with `E X > 0` is nonpositive with
@@ -184,13 +181,12 @@ theorem measureReal_forall_notMem_le (F : Finset κ) {A : κ → Set Ω}
       ∑ k ∈ F, ∑ l ∈ F, P.real (A k ∩ A l) - (∑ k ∈ F, P.real (A k)) ^ 2 := by
     rw [hYdef, variance_fun_sum' fun k hk => memLp_indicator_one (hA k hk), sq, sum_mul_sum,
       ← sum_sub_distrib]
-    refine sum_congr rfl fun k hk => ?_
-    rw [← sum_sub_distrib]
-    exact sum_congr rfl fun l hl => covariance_indicator_one (hA k hk) (hA l hl)
+    exact sum_congr rfl fun k hk => by
+      rw [← sum_sub_distrib]
+      exact sum_congr rfl fun l hl => covariance_indicator_one (hA k hk) (hA l hl)
   have hsub : {ω | ∀ k ∈ F, ω ∉ A k} ⊆ {ω | Y ω ≤ 0} := fun ω hω => by
     rw [Set.mem_ofPred_eq] at hω ⊢
-    change ∑ k ∈ F, (A k).indicator (1 : Ω → ℝ) ω ≤ 0
-    rw [sum_eq_zero fun k hk => Set.indicator_of_notMem (hω k hk) _]
+    exact (sum_eq_zero fun k hk => Set.indicator_of_notMem (hω k hk) _).le
   calc P.real {ω | ∀ k ∈ F, ω ∉ A k} ≤ P.real {ω | Y ω ≤ 0} := measureReal_mono hsub
     _ ≤ Var[Y; P] / P[Y] ^ 2 := measureReal_nonpos_le_variance_div_sq hY (hmean ▸ hS)
     _ = _ := by rw [hvar, hmean]
@@ -209,9 +205,8 @@ theorem exists_measurable_comp_restrict {β : Type*} [MeasurableSpace β]
     {f : (Π i, Ω i) → β} (hf : Measurable f) {S : Finset ι} (hfS : DependsOn f (S : Set ι))
     (ω₀ : Π i, Ω i) : ∃ g : (Π i : S, Ω i) → β, Measurable g ∧ f = g ∘ fun ω (i : S) => ω i := by
   classical
-  refine ⟨fun y => f (Function.updateFinset ω₀ S y), hf.comp measurable_updateFinset, ?_⟩
-  funext ω
-  exact (hfS fun i hi => by simp [Function.updateFinset, Finset.mem_coe.1 hi]).symm
+  exact ⟨fun y => f (Function.updateFinset ω₀ S y), hf.comp measurable_updateFinset, funext fun ω =>
+    (hfS fun i hi => by simp [Function.updateFinset, Finset.mem_coe.1 hi]).symm⟩
 
 /-- **Functions of disjoint sets of coordinates are independent** under a product of probability
 measures. -/
@@ -222,51 +217,35 @@ theorem indepFun_pi_of_dependsOn {β γ : Type*} [MeasurableSpace β] [Measurabl
   classical
   obtain ⟨ω₀⟩ := nonempty_of_isProbabilityMeasure (Measure.pi μ)
   let e := MeasurableEquiv.piEquivPiSubtypeProd Ω (· ∈ S)
-  let ν₁ : Measure (Π i : {i // i ∈ S}, Ω i) := Measure.pi fun i => μ i.val
-  let ν₂ : Measure (Π i : {i // i ∉ S}, Ω i) := Measure.pi fun i => μ i.val
-  have he : MeasurePreserving e (Measure.pi μ) (ν₁.prod ν₂) :=
+  have he : MeasurePreserving e (Measure.pi μ)
+      ((Measure.pi fun i : {i // i ∈ S} => μ i.1).prod
+        (Measure.pi fun i : {i // i ∉ S} => μ i.1)) :=
     measurePreserving_piEquivPiSubtypeProd μ (· ∈ S)
-  let y₀ : Π i : {i // i ∉ S}, Ω i := fun i => ω₀ i.val
-  let x₀ : Π i : {i // i ∈ S}, Ω i := fun i => ω₀ i.val
   rw [indepFun_iff_measure_inter_preimage_eq_mul]
   intro A B _ _
-  let C : Set (Π i : {i // i ∈ S}, Ω i) := {x | f (e.symm (x, y₀)) ∈ A}
-  let D : Set (Π i : {i // i ∉ S}, Ω i) := {y | g (e.symm (x₀, y)) ∈ B}
-  have hf_eq : ∀ ω, f ω = f (e.symm ((e ω).1, y₀)) := by
-    intro ω
-    refine hfS fun i hi => ?_
+  let C : Set (Π i : {i // i ∈ S}, Ω i) := {x | f (e.symm (x, fun i => ω₀ i.1)) ∈ A}
+  let D : Set (Π i : {i // i ∉ S}, Ω i) := {y | g (e.symm (fun i => ω₀ i.1, y)) ∈ B}
+  have hf_eq (ω) : f ω = f (e.symm ((e ω).1, fun i => ω₀ i.1)) := hfS fun _ hi => by
     simp [e, MeasurableEquiv.piEquivPiSubtypeProd, Equiv.piEquivPiSubtypeProd_symm_apply, hi]
-  have hg_eq : ∀ ω, g ω = g (e.symm (x₀, (e ω).2)) := by
-    intro ω
-    refine hgT fun i hi => ?_
-    have hiS : i ∉ S := Set.disjoint_right.1 hST hi
-    simp [e, MeasurableEquiv.piEquivPiSubtypeProd, Equiv.piEquivPiSubtypeProd_symm_apply, hiS]
-  have hpreA : f ⁻¹' A = e ⁻¹' (C ×ˢ Set.univ) := by
-    ext ω
-    simp [C, hf_eq ω]
-  have hpreB : g ⁻¹' B = e ⁻¹' (Set.univ ×ˢ D) := by
-    ext ω
-    simp [D, hg_eq ω]
-  have hpreAB : f ⁻¹' A ∩ g ⁻¹' B = e ⁻¹' (C ×ˢ D) := by
-    ext ω
-    simp [C, D, hf_eq ω, hg_eq ω]
-  rw [hpreAB, hpreA, hpreB, he.measure_preimage_equiv, he.measure_preimage_equiv,
-    he.measure_preimage_equiv, Measure.prod_prod, Measure.prod_prod, Measure.prod_prod,
-    measure_univ, measure_univ, mul_one, one_mul]
+  have hg_eq (ω) : g ω = g (e.symm (fun i => ω₀ i.1, (e ω).2)) := hgT fun _ hi => by
+    simp [e, MeasurableEquiv.piEquivPiSubtypeProd, Equiv.piEquivPiSubtypeProd_symm_apply,
+      Set.disjoint_right.1 hST hi]
+  have hAB : f ⁻¹' A ∩ g ⁻¹' B = e ⁻¹' (C ×ˢ D) :=
+    Set.ext fun ω => by simp [C, D, hf_eq ω, hg_eq ω]
+  have hA : f ⁻¹' A = e ⁻¹' (C ×ˢ Set.univ) := Set.ext fun ω => by simp [C, hf_eq ω]
+  have hB : g ⁻¹' B = e ⁻¹' (Set.univ ×ˢ D) := Set.ext fun ω => by simp [D, hg_eq ω]
+  rw [hAB, hA, hB, he.measure_preimage_equiv, he.measure_preimage_equiv, he.measure_preimage_equiv,
+    Measure.prod_prod, Measure.prod_prod, Measure.prod_prod, measure_univ, measure_univ,
+    mul_one, one_mul]
 
 /-- **Events of disjoint sets of coordinates are independent** under a product of probability
 measures. -/
 theorem indepSet_pi_of_dependsOn {A B : Set (Π i, Ω i)} (hA : MeasurableSet A)
     (hB : MeasurableSet B) {S T : Set ι} (hAS : DependsOn (· ∈ A) S) (hBT : DependsOn (· ∈ B) T)
     (hST : Disjoint S T) : IndepSet A B (Measure.pi μ) := by
-  have h := (indepFun_pi_of_dependsOn (μ := μ) hAS
-    hBT hST).measure_inter_preimage_eq_mul {True} {True} (measurableSet_singleton _)
-      (measurableSet_singleton _)
-  have hpre : ∀ C : Set (Π i, Ω i), (· ∈ C) ⁻¹' {True} = C := fun C => by
-    ext
-    simp
-  rw [hpre, hpre] at h
-  exact (indepSet_iff_measure_inter_eq_mul hA hB _).2 h
+  have h := (indepFun_pi_of_dependsOn (μ := μ) hAS hBT hST).measure_inter_preimage_eq_mul
+    {True} {True} (measurableSet_singleton _) (measurableSet_singleton _)
+  exact (indepSet_iff_measure_inter_eq_mul hA hB _).2 <| by simpa using h
 
 /-- **Second-moment concentration for local events.** Under a product of probability measures,
 let each event `A k` depend only on the coordinates in `S k`, where `S k` and `S l` are disjoint

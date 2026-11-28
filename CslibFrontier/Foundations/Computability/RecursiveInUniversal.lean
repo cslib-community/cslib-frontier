@@ -27,6 +27,8 @@ analogue of the proof of `Nat.Partrec.Code.eval_part` in Mathlib, whose search r
 ## Main results
 
 * `Nat.RecursiveIn.Code.exists_universal`: a universal code for all total oracles.
+* `Nat.RecursiveIn.Code.hasUniformCode_prefixOf`: one code computes the encoded prefixes of every
+  total oracle.
 
 ## Implementation notes
 
@@ -75,19 +77,19 @@ private theorem hasUniformCode_computable {g : ℕ → ℕ} (hg : Computable g) 
   HasUniformCode.of_computable hg
 
 /-- One code computes the encoded prefix `k ↦ encode (prefixOf f k)` of every total oracle `f`. -/
-private theorem hasUniformCode_prefixOf :
-    HasUniformCode total fun f k => Part.some (encode (prefixOf f k)) := by
-  have hih : Computable fun q : ℕ => q.unpair.2.unpair.2 :=
-    Computable.snd.comp (Computable.unpair.comp (Computable.snd.comp Computable.unpair))
-  have hy : Computable fun q : ℕ => q.unpair.2.unpair.1 :=
-    Computable.fst.comp (Computable.unpair.comp (Computable.snd.comp Computable.unpair))
+theorem hasUniformCode_prefixOf :
+    HasUniformCode (fun f : ℕ → ℕ => (f : ℕ →. ℕ)) fun f k =>
+      Part.some (encode (prefixOf f k)) := by
   have hstep : HasUniformCode total fun f q =>
       Part.some (encode (ofNat (List ℕ) q.unpair.2.unpair.2 ++ [f q.unpair.2.unpair.1])) :=
-    ((hasUniformCode_computable computable_snoc).comp ((hasUniformCode_computable hih).pair
-      (HasUniformCode.oracle.comp (hasUniformCode_computable hy)))).of_eq fun f q => by
-      have h : ∀ a, (Part.some a >>= (f : ℕ →. ℕ)) = Part.some (f a) :=
-        fun a => Part.bind_some a _
-      simp [Seq.seq, h]
+    ((hasUniformCode_computable computable_snoc).comp
+      ((hasUniformCode_computable (Computable.snd.comp
+          (Computable.unpair.comp (Computable.snd.comp Computable.unpair)))).pair
+        (HasUniformCode.oracle.comp (hasUniformCode_computable (Computable.fst.comp
+          (Computable.unpair.comp (Computable.snd.comp Computable.unpair))))))).of_eq
+      fun f _ => by
+        have hbind (a) : (Part.some a >>= (f : ℕ →. ℕ)) = Part.some (f a) := Part.bind_some a _
+        simp [Seq.seq, hbind]
   refine (((hasUniformCode_computable (Computable.const 0)).prec hstep).comp
     (hasUniformCode_computable (g := Nat.pair 0)
       (Primrec₂.natPair.to_comp.comp (Computable.const 0) Computable.id))).of_eq fun f k => ?_
@@ -112,22 +114,21 @@ theorem exists_universal :
       Part.some (Nat.pair p (encode (prefixOf f p.unpair.2))) :=
     ((hasUniformCode_computable Computable.id).pair (hasUniformCode_prefixOf.comp
       (hasUniformCode_computable (Computable.snd.comp Computable.unpair)))).of_eq
-      fun f p => by simp [Seq.seq]
-  have hunp : ∀ {h : ℕ → ℕ → ℕ}, Computable₂ h →
+      fun _ _ => by simp [Seq.seq]
+  have hunp {h : ℕ → ℕ → ℕ} (hh : Computable₂ h) :
       Computable fun q : ℕ => h q.unpair.1 q.unpair.2 :=
-    fun hh => hh.comp (Computable.fst.comp Computable.unpair)
-      (Computable.snd.comp Computable.unpair)
+    hh.comp (Computable.fst.comp Computable.unpair) (Computable.snd.comp Computable.unpair)
   have htest : HasUniformCode total fun f p =>
       Part.some (bif (run p (encode (prefixOf f p.unpair.2))).isSome then 0 else 1) :=
     ((hasUniformCode_computable (hunp (h := fun p σ => bif (run p σ).isSome then 0 else 1)
       (Computable.cond (_root_.Primrec.option_isSome.to_comp.comp hrun) (Computable.const 0)
-        (Computable.const 1)))).comp hwith).of_eq fun f p => by simp
+        (Computable.const 1)))).comp hwith).of_eq fun _ _ => by simp
   have hval : HasUniformCode total fun f p =>
       Part.some ((run p (encode (prefixOf f p.unpair.2))).getD 0) :=
     ((hasUniformCode_computable (hunp (h := fun p σ => (run p σ).getD 0)
-      (Computable.option_getD hrun (Computable.const 0)))).comp hwith).of_eq fun f p => by simp
+      (Computable.option_getD hrun (Computable.const 0)))).comp hwith).of_eq fun _ _ => by simp
   -- Search for the first stage at which the run converges, and return its value.
-  have hG : HasUniformCode total fun f x =>
+  obtain ⟨u, hu⟩ : HasUniformCode total fun f x =>
       (Nat.rfind fun s => Part.some (run (Nat.pair x s) (encode (prefixOf f s))).isSome).bind
         fun s => Part.some ((run (Nat.pair x s) (encode (prefixOf f s))).getD 0) :=
     (hval.comp ((hasUniformCode_computable Computable.id).pair htest.rfind)).of_eq fun f x => by
@@ -136,14 +137,12 @@ theorem exists_universal :
       congr 2
       funext s
       cases run (Nat.pair x s) (encode (prefixOf f s)) <;> rfl
-  obtain ⟨u, hu⟩ := hG
   refine ⟨u, fun f e n => ?_⟩
   rw [hu f, eval_eq_rfindOpt]
   refine Part.ext fun y => ?_
-  simp only [run, Nat.unpair_pair, ofNat_encode, Nat.rfindOpt, Part.mem_bind_iff,
-    Part.mem_some_iff]
-  refine exists_congr fun s => and_congr_right fun hs => ?_
-  obtain ⟨v, hv⟩ := Option.isSome_iff_exists.1 (by simpa using Nat.rfind_spec hs)
-  simp [hv]
+  simp only [run, Nat.unpair_pair, ofNat_encode, Nat.rfindOpt, Part.mem_bind_iff, Part.mem_some_iff]
+  exact exists_congr fun s => and_congr_right fun hs => by
+    obtain ⟨v, hv⟩ := Option.isSome_iff_exists.1 (by simpa using Nat.rfind_spec hs)
+    simp [hv]
 
 end Nat.RecursiveIn.Code

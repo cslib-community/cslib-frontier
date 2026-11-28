@@ -4,7 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.Complexity.Problems.StatisticalDifference
+import CslibFrontier.Computability.Complexity.Classes.SZK.ArthurMerlin
+import CslibFrontier.Computability.Complexity.Classes.SZK.CoArthurMerlin
+import CslibFrontier.Computability.Complexity.Problems.StatisticalDifference.Overlap
 import CslibFrontier.Probability.StatisticalDistance.ClosedForm
 import CslibFrontier.Probability.StatisticalDistance.Event
 
@@ -21,6 +23,9 @@ namespace CslibFrontierTests.StatisticalDifference
 
 open Cslib Cslib.BitString Cslib.Circuits Cslib.Circuits.Boolean Cslib.Complexity
 open Cslib.Probability.PMF
+
+example {α : Type} (enc : α ↪ List Bool) : SZK enc ⊆ AM enc ∩ coAM enc :=
+  Set.subset_inter SZK_subset_AM SZK_subset_coAM
 
 /-! ### Completion to a parity -/
 
@@ -102,6 +107,10 @@ def far : SDInstance := ⟨0, 1, constCircuit false, constCircuit true⟩
 
 /-- Two equal constant circuits. -/
 def near : SDInstance := ⟨0, 1, constCircuit false, constCircuit false⟩
+
+-- With no inputs, only the zero-width hash level contributes. The two samplers have either
+-- one common output fiber of size one or disjoint output supports.
+example : near.affineOverlapCount = 1 ∧ far.affineOverlapCount = 0 := by decide
 
 theorem far_distance : far.distance = 1 := by
   rw [SDInstance.distance, far, outputDist_constCircuit, outputDist_constCircuit]

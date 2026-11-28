@@ -144,38 +144,38 @@ theorem extendAssign_injective (O : Set ι) (a : O → U) : Function.Injective (
 
 private def liftSliceLeft {O : Set ι} (Y : Set ↥Oᶜ) (u : Y → U) : (Subtype.val '' Y) → U :=
   fun x =>
-    have hxO : x.val ∉ O := by
-      obtain ⟨w, _, heq⟩ := x.property
-      exact heq ▸ w.property
-    have hxY : (⟨x.val, hxO⟩ : ↥Oᶜ) ∈ Y := by
-      obtain ⟨w, hw, heq⟩ := x.property
-      have hw' : w = ⟨x.val, hxO⟩ := Subtype.ext heq
+    have hxO : x.1 ∉ O := by
+      obtain ⟨w, _, heq⟩ := x.2
+      exact heq ▸ w.2
+    have hxY : (⟨x.1, hxO⟩ : ↥Oᶜ) ∈ Y := by
+      obtain ⟨w, hw, heq⟩ := x.2
+      have hw' : w = ⟨x.1, hxO⟩ := Subtype.ext heq
       exact hw' ▸ hw
-    u ⟨⟨x.val, hxO⟩, hxY⟩
+    u ⟨⟨x.1, hxO⟩, hxY⟩
 
 private theorem liftSliceLeft_injective {O : Set ι} (Y : Set ↥Oᶜ) :
     Function.Injective (liftSliceLeft (U := U) Y) := by
   intro u₁ u₂ h
   funext ⟨w, hw⟩
-  have hx := congrFun h ⟨w.val, ⟨w, hw, rfl⟩⟩
+  have hx := congrFun h ⟨w.1, ⟨w, hw, rfl⟩⟩
   simpa only [liftSliceLeft] using hx
 
 private noncomputable def liftSliceRight {O : Set ι} (a : O → U) (Y : Set ↥Oᶜ) (v : ↥Yᶜ → U) :
     ↥(Subtype.val '' Y)ᶜ → U :=
   open Classical in
   fun x =>
-    if hO : x.val ∈ O then a ⟨x.val, hO⟩
-    else v ⟨⟨x.val, hO⟩, fun hy => x.property ⟨⟨x.val, hO⟩, hy, rfl⟩⟩
+    if hO : x.1 ∈ O then a ⟨x.1, hO⟩
+    else v ⟨⟨x.1, hO⟩, fun hy => x.2 ⟨⟨x.1, hO⟩, hy, rfl⟩⟩
 
 private theorem liftSliceRight_notMem {O : Set ι} (a : O → U) (Y : Set ↥Oᶜ) (v : ↥Yᶜ → U)
-    (x : ↥(Subtype.val '' Y)ᶜ) (hO : x.val ∉ O) :
-    liftSliceRight a Y v x = v ⟨⟨x.val, hO⟩, fun hy => x.property ⟨⟨x.val, hO⟩, hy, rfl⟩⟩ := by
+    (x : ↥(Subtype.val '' Y)ᶜ) (hO : x.1 ∉ O) :
+    liftSliceRight a Y v x = v ⟨⟨x.1, hO⟩, fun hy => x.2 ⟨⟨x.1, hO⟩, hy, rfl⟩⟩ := by
   classical
   exact dite_eq_right hO
 
 private theorem liftSliceRight_mem {O : Set ι} (a : O → U) (Y : Set ↥Oᶜ) (v : ↥Yᶜ → U)
-    (x : ↥(Subtype.val '' Y)ᶜ) (hO : x.val ∈ O) :
-    liftSliceRight a Y v x = a ⟨x.val, hO⟩ := by
+    (x : ↥(Subtype.val '' Y)ᶜ) (hO : x.1 ∈ O) :
+    liftSliceRight a Y v x = a ⟨x.1, hO⟩ := by
   classical
   exact dite_eq_left hO
 
@@ -183,11 +183,11 @@ private theorem liftSliceRight_injective {O : Set ι} (a : O → U) (Y : Set ↥
     Function.Injective (liftSliceRight a Y) := by
   intro v₁ v₂ h
   funext ⟨w, hw⟩
-  have hxX : w.val ∉ Subtype.val '' Y := by
+  have hxX : w.1 ∉ Subtype.val '' Y := by
     rintro ⟨w', hw', heq⟩
     exact hw (Subtype.ext heq ▸ hw')
-  have hx := congrFun h ⟨w.val, hxX⟩
-  rw [liftSliceRight_notMem _ _ _ _ w.property, liftSliceRight_notMem _ _ _ _ w.property] at hx
+  have hx := congrFun h ⟨w.1, hxX⟩
+  rw [liftSliceRight_notMem _ _ _ _ w.2, liftSliceRight_notMem _ _ _ _ w.2] at hx
   exact hx
 
 private theorem image_extendAssign_rectangle {O : Set ι} (a : O → U) (Y : Set ↥Oᶜ)
@@ -199,12 +199,12 @@ private theorem image_extendAssign_rectangle {O : Set ι} (a : O → U) (Y : Set
   · rintro ⟨y, ⟨hyA, hyB⟩, rfl⟩
     refine ⟨⟨Y.domRestrict y, hyA, ?_⟩, ⟨Yᶜ.domRestrict y, hyB, ?_⟩⟩
     · funext x
-      obtain ⟨w, _, heq⟩ := x.property
-      have hxO : x.val ∉ O := heq ▸ w.property
+      obtain ⟨w, _, heq⟩ := x.2
+      have hxO : x.1 ∉ O := heq ▸ w.2
       simp only [liftSliceLeft, domRestrict]
       rw [extendAssign_notMem hxO]
     · funext x
-      by_cases hO : x.val ∈ O
+      by_cases hO : x.1 ∈ O
       · rw [liftSliceRight_mem _ _ _ _ hO]
         exact (extendAssign_mem hO).symm
       · rw [liftSliceRight_notMem _ _ _ _ hO]
@@ -213,23 +213,23 @@ private theorem image_extendAssign_rectangle {O : Set ι} (a : O → U) (Y : Set
     refine ⟨Oᶜ.domRestrict z, ⟨?_, ?_⟩, ?_⟩
     · have heq : Y.domRestrict (Oᶜ.domRestrict z) = u := by
         funext ⟨w, hw⟩
-        have hx := congrFun hzu ⟨w.val, ⟨w, hw, rfl⟩⟩
+        have hx := congrFun hzu ⟨w.1, ⟨w, hw, rfl⟩⟩
         simpa only [liftSliceLeft, domRestrict] using hx.symm
       exact heq ▸ huA
     · have heq : Yᶜ.domRestrict (Oᶜ.domRestrict z) = v := by
         funext ⟨w, hw⟩
-        have hxX : w.val ∉ Subtype.val '' Y := by
+        have hxX : w.1 ∉ Subtype.val '' Y := by
           rintro ⟨w', hw', heq'⟩
           exact hw (Subtype.ext heq' ▸ hw')
-        have hx := congrFun hzv ⟨w.val, hxX⟩
-        rw [liftSliceRight_notMem _ _ _ _ w.property] at hx
+        have hx := congrFun hzv ⟨w.1, hxX⟩
+        rw [liftSliceRight_notMem _ _ _ _ w.2] at hx
         exact hx.symm
       exact heq ▸ hvB
     · funext i
       by_cases hO : i ∈ O
       · have hiX : i ∉ Subtype.val '' Y := by
           rintro ⟨w, _, rfl⟩
-          exact w.property hO
+          exact w.2 hO
         have hx := congrFun hzv ⟨i, hiX⟩
         rw [extendAssign_mem hO, ← liftSliceRight_mem a Y v ⟨i, hiX⟩ hO]
         exact hx
@@ -345,6 +345,24 @@ private theorem ncard_pi_univ_le {k : ℕ} {α : Type*} [Finite α] (F : Fin k �
       _ = (F 0).ncard * (Set.univ.pi fun p : Fin k => F p.succ).ncard := ncard_prod
       _ ≤ C * C ^ k := Nat.mul_le_mul (hF 0) (ih (fun p => F p.succ) fun p => hF p.succ)
       _ = C ^ (k + 1) := (pow_succ' C k).symm
+
+/-- Codes `(a, q)` with `q p ∈ fiber p a` for every `p` number at most `|H| · C ^ k` when every
+fiber has at most `C` elements. -/
+private theorem ncard_fiberCodes_le {k : ℕ} {H α : Type*} [Fintype H] [Finite α]
+    (fiber : Fin k → H → Set α) {C : ℕ} (hC : ∀ p a, (fiber p a).ncard ≤ C) :
+    {z : H × (Fin k → α) | z.2 ∈ Set.univ.pi fun p => fiber p z.1}.ncard ≤
+      Fintype.card H * C ^ k := by
+  classical
+  calc _ = ∑ a : H,
+        {z ∈ {z : H × (Fin k → α) | z.2 ∈ Set.univ.pi fun p => fiber p z.1} | z.1 = a}.ncard :=
+        ncard_eq_sum_ncard_fiberwise (f := Prod.fst) (toFinite _) fun _ _ => Finset.mem_univ _
+    _ ≤ ∑ _a : H, C ^ k := Finset.sum_le_sum fun a _ => by
+        refine le_trans (ncard_le_ncard_of_injOn Prod.snd (fun z hz => ?_)
+          (fun z₁ hz₁ z₂ hz₂ h => Prod.ext (hz₁.2.trans hz₂.2.symm) h) (toFinite _))
+          (ncard_pi_univ_le (fun p => fiber p a) fun p => hC p a)
+        rw [← hz.2]
+        exact hz.1
+    _ = Fintype.card H * C ^ k := by simp
 
 /-- **Sweep bound from per-step state-fiber capacity.** If `W : Sweep S M` has `0 < W.length` and
 at most `|U| ^ |W.newly t| · F` transitions at each step `t < W.length`, then for any
@@ -537,66 +555,44 @@ theorem IsAcceptingPath.splice {P : AlternatingPassNBP ι U M} {x y z : ι → U
     P.IsAcceptingPath z fun p s =>
       if p % 2 = 0 then (if s ≤ τ then γ p s else δ p s)
       else (if s ≤ P.length - τ then δ p s else γ p s) := by
-  refine ⟨by simp [hγ.start], ?_, ?_, ?_⟩
-  · by_cases hp : (P.passes - 1) % 2 = 0
-    · have hnot : ¬P.length ≤ τ := by omega
-      simp [hp, hnot, hδ.accept]
-    · have hnot : ¬P.length ≤ P.length - τ := by omega
-      simp [hp, hnot, hγ.accept]
-  · intro p hp1
-    by_cases hp : p % 2 = 0
-    · have hp' : (p + 1) % 2 ≠ 0 := by omega
-      have hnot : ¬P.length ≤ τ := by omega
-      simp [hp, hp', hnot, hδ.turnaround p hp1]
-    · have hp' : (p + 1) % 2 = 0 := by omega
-      have hnot : ¬P.length ≤ P.length - τ := by omega
-      simp [hp, hp', hnot, hγ.turnaround p hp1]
-  · intro p hp s hs
-    by_cases heven : p % 2 = 0
-    · simp only [heven, ↓reduceIte]
-      have hcoord : passCoord P.length p s = s := by simp [passCoord, heven]
-      rcases lt_or_ge s τ with hst | hts
-      · have hs1 : s + 1 ≤ τ := by omega
-        rw [ite_eq_left hst.le, ite_eq_left hs1]
-        have hdom : (P.stepCoords p s).domRestrict z = (P.stepCoords p s).domRestrict x :=
-          funext fun i => hzx (P.newly_subset_revealed (by omega) i.property)
-        rw [hdom]
-        exact hγ.edge p hp s hs
-      · have hs1 : ¬s + 1 ≤ τ := by omega
-        have hsrc : (if s ≤ τ then γ p s else δ p s) = δ p s := by
-          split_ifs with hle
-          · have hst_eq : s = τ := by omega
-            subst s
-            simpa [passBoundary, heven] using hagree p hp
-          · rfl
-        rw [hsrc, ite_eq_right hs1]
-        have hdom : (P.stepCoords p s).domRestrict z = (P.stepCoords p s).domRestrict y :=
-          funext fun i => hzy (P.newly_subset_compl (by omega) i.property)
-        rw [hdom]
-        exact hδ.edge p hp s hs
-    · simp only [heven, ↓reduceIte]
-      have hcoord : passCoord P.length p s = P.length - 1 - s := by simp [passCoord, heven]
-      rcases lt_or_ge s (P.length - τ) with hst | hts
-      · have hs1 : s + 1 ≤ P.length - τ := by omega
-        rw [ite_eq_left hst.le, ite_eq_left hs1]
-        have hge : τ ≤ passCoord P.length p s := by omega
-        have hdom : (P.stepCoords p s).domRestrict z = (P.stepCoords p s).domRestrict y :=
-          funext fun i => hzy (P.newly_subset_compl hge i.property)
-        rw [hdom]
-        exact hδ.edge p hp s hs
-      · have hs1 : ¬s + 1 ≤ P.length - τ := by omega
-        have hsrc : (if s ≤ P.length - τ then δ p s else γ p s) = γ p s := by
-          split_ifs with hle
-          · have hst_eq : s = P.length - τ := by omega
-            subst s
-            simpa [passBoundary, heven] using (hagree p hp).symm
-          · rfl
-        rw [hsrc, ite_eq_right hs1]
-        have hlt : passCoord P.length p s < τ := by omega
-        have hdom : (P.stepCoords p s).domRestrict z = (P.stepCoords p s).domRestrict x :=
-          funext fun i => hzx (P.newly_subset_revealed hlt i.property)
-        rw [hdom]
-        exact hγ.edge p hp s hs
+  have h1 : ¬P.length ≤ τ := by omega
+  have h2 : ¬P.length ≤ P.length - τ := by omega
+  have hdomx {p s : ℕ} (h : passCoord P.length p s < τ) :
+      (P.stepCoords p s).domRestrict z = (P.stepCoords p s).domRestrict x :=
+    funext fun i => hzx (P.newly_subset_revealed h i.2)
+  have hdomy {p s : ℕ} (h : τ ≤ passCoord P.length p s) :
+      (P.stepCoords p s).domRestrict z = (P.stepCoords p s).domRestrict y :=
+    funext fun i => hzy (P.newly_subset_compl h i.2)
+  refine ⟨by simp [hγ.start], ?_, fun p hp1 => ?_, fun p hp s hs => ?_⟩
+  · by_cases hp : (P.passes - 1) % 2 = 0 <;> simp [hp, h1, h2, hγ.accept, hδ.accept]
+  · by_cases hp : p % 2 = 0
+    · simp [hp, show (p + 1) % 2 ≠ 0 by omega, h1, hδ.turnaround p hp1]
+    · simp [hp, show (p + 1) % 2 = 0 by omega, h2, hγ.turnaround p hp1]
+  by_cases heven : p % 2 = 0
+  · simp only [heven, ↓reduceIte]
+    have hcoord : passCoord P.length p s = s := by simp [passCoord, heven]
+    rcases lt_or_ge s τ with hst | hts
+    · rw [ite_eq_left hst.le, ite_eq_left (by omega : s + 1 ≤ τ), hdomx (by omega)]
+      exact hγ.edge p hp s hs
+    · have hsrc : (if s ≤ τ then γ p s else δ p s) = δ p s := by
+        split_ifs with hle
+        · obtain rfl : s = τ := by omega
+          simpa [passBoundary, heven] using hagree p hp
+        · rfl
+      rw [hsrc, ite_eq_right (by omega : ¬s + 1 ≤ τ), hdomy (by omega)]
+      exact hδ.edge p hp s hs
+  · simp only [heven, ↓reduceIte]
+    have hcoord : passCoord P.length p s = P.length - 1 - s := by simp [passCoord, heven]
+    rcases lt_or_ge s (P.length - τ) with hst | hts
+    · rw [ite_eq_left hst.le, ite_eq_left (by omega : s + 1 ≤ P.length - τ), hdomy (by omega)]
+      exact hδ.edge p hp s hs
+    · have hsrc : (if s ≤ P.length - τ then δ p s else γ p s) = γ p s := by
+        split_ifs with hle
+        · obtain rfl : s = P.length - τ := by omega
+          simpa [passBoundary, heven] using (hagree p hp).symm
+        · rfl
+      rw [hsrc, ite_eq_right (by omega : ¬s + 1 ≤ P.length - τ), hdomx (by omega)]
+      exact hγ.edge p hp s hs
 
 open Classical in
 /-- Chosen accepting trajectory for each accepted input. -/
@@ -648,7 +644,7 @@ theorem ncard_transition_sweep_le [Finite ι] [Finite U] [Finite M] {C : ℕ}
   let _ : Fintype (P.newly t → U) := Fintype.ofFinite _
   let castLabel (p : Fin P.passes) (a : P.newly t → U) :
       P.stepCoords p.val (passStep P.length p.val t) → U :=
-    fun i => a ⟨i.val, by simpa only [stepCoords, passCoord_passStep p.val ht] using i.property⟩
+    fun i => a ⟨i.1, by simpa only [stepCoords, passCoord_passStep p.val ht] using i.2⟩
   let fiber (p : Fin P.passes) (a : P.newly t → U) : Set (M × M) :=
     {q | P.Edge p.val (passStep P.length p.val t) q.1 (castLabel p a) q.2}
   let code (x : ι → U) : (P.newly t → U) × (Fin P.passes → M × M) :=
@@ -658,76 +654,31 @@ theorem ncard_transition_sweep_le [Finite ι] [Finite U] [Finite M] {C : ℕ}
   have hfactors : (P.sweep.transition t '' P.accepted).ncard ≤ (code '' P.accepted).ncard := by
     refine ncard_image_le_ncard_image_of_factorsThrough (toFinite _) fun x _ y _ hxy => ?_
     obtain ⟨hnew, hpairs⟩ := Prod.mk.injEq .. |>.mp hxy
-    have hp (p : Fin P.passes) := congrFun hpairs p
-    refine Prod.ext ?_ (Prod.ext ?_ hnew)
-    · dsimp only [Sweep.transition, sweep]
-      split_ifs with h1
-      · congr 1
-        funext p
-        by_cases he : p.val % 2 = 0
-        · have hb : passBoundary P.length p.val t = passStep P.length p.val t := by
-            simp [passBoundary, passStep, he]
-          rw [hb]
-          exact (Prod.mk.injEq .. |>.mp (hp p)).1
-        · have hb : passBoundary P.length p.val t = passStep P.length p.val t + 1 := by
-            simp [passBoundary, passStep, he]
-            omega
-          rw [hb]
-          exact (Prod.mk.injEq .. |>.mp (hp p)).2
-      · rfl
-    · dsimp only [Sweep.transition, sweep]
-      split_ifs with h2
-      · congr 1
-        funext p
-        by_cases he : p.val % 2 = 0
-        · have hb : passBoundary P.length p.val (t + 1) = passStep P.length p.val t + 1 := by
-            simp [passBoundary, passStep, he]
-          rw [hb]
-          exact (Prod.mk.injEq .. |>.mp (hp p)).2
-        · have hb : passBoundary P.length p.val (t + 1) = passStep P.length p.val t := by
-            simp [passBoundary, passStep, he]
-            omega
-          rw [hb]
-          exact (Prod.mk.injEq .. |>.mp (hp p)).1
-      · rfl
+    have hb (p : Fin P.passes) (u : ℕ)
+        (hu : u = passStep P.length p.val t ∨ u = passStep P.length p.val t + 1) :
+        P.path x p.val u = P.path y p.val u := by
+      have hp := Prod.mk.injEq .. |>.mp (congrFun hpairs p)
+      rcases hu with rfl | rfl
+      exacts [hp.1, hp.2]
+    refine Prod.ext ?_ (Prod.ext ?_ hnew) <;> dsimp only [Sweep.transition, sweep] <;> split_ifs
+    all_goals first
+      | exact congrArg some <| funext fun p =>
+          hb p _ (by unfold passBoundary passStep; split_ifs <;> omega)
+      | rfl
+  have hstep (p : Fin P.passes) : passStep P.length p.val t < P.length := by
+    unfold passStep; split_ifs <;> omega
   let validCodes : Set ((P.newly t → U) × (Fin P.passes → M × M)) :=
     {z | z.2 ∈ Set.univ.pi fun p => fiber p z.1}
   have hsub : code '' P.accepted ⊆ validCodes := by
     rintro _ ⟨x, hx, rfl⟩ p -
-    have hs : passStep P.length p.val t < P.length := by
-      unfold passStep
-      split_ifs <;> omega
-    have hedge := (P.isAcceptingPath_path hx).edge p.val p.isLt (passStep P.length p.val t) hs
-    have hlbl : castLabel p ((P.newly t).domRestrict x) =
-        (P.stepCoords p.val (passStep P.length p.val t)).domRestrict x := by
-      funext i
-      rfl
-    change P.Edge p.val (passStep P.length p.val t)
-      (P.path x p.val (passStep P.length p.val t))
-      (castLabel p ((P.newly t).domRestrict x))
-      (P.path x p.val (passStep P.length p.val t + 1))
-    rw [hlbl]
-    exact hedge
-  have hfib_le (a : P.newly t → U) : {z ∈ validCodes | z.1 = a}.ncard ≤ C ^ P.passes := by
-    calc {z ∈ validCodes | z.1 = a}.ncard
-        ≤ (Set.univ.pi fun p => fiber p a).ncard := by
-          refine ncard_le_ncard_of_injOn Prod.snd (fun z ⟨hz, hza⟩ => ?_)
-            (fun z₁ ⟨_, hz₁⟩ z₂ ⟨_, hz₂⟩ h => Prod.ext (hz₁.trans hz₂.symm) h) (toFinite _)
-          rwa [← hza]
-      _ ≤ C ^ P.passes :=
-          ncard_pi_univ_le (fun p => fiber p a) fun p =>
-            hC p.val p.isLt (passStep P.length p.val t)
-              (by unfold passStep; split_ifs <;> omega) (castLabel p a)
+    exact (P.isAcceptingPath_path hx).edge p.val p.isLt _ (hstep p)
   have hcardU : Fintype.card (P.newly t → U) = Nat.card U ^ (P.newly t).ncard := by
     rw [← Nat.card_eq_fintype_card, Nat.card_fun, Nat.card_coe_set_eq]
   calc (P.sweep.transition t '' P.accepted).ncard
       ≤ (code '' P.accepted).ncard := hfactors
     _ ≤ validCodes.ncard := ncard_le_ncard hsub (toFinite _)
-    _ = ∑ a : P.newly t → U, {z ∈ validCodes | z.1 = a}.ncard :=
-        ncard_eq_sum_ncard_fiberwise (f := Prod.fst) (toFinite _) fun _ _ => Finset.mem_univ _
-    _ ≤ ∑ _a : P.newly t → U, C ^ P.passes := Finset.sum_le_sum fun a _ => hfib_le a
-    _ = Nat.card U ^ (P.newly t).ncard * C ^ P.passes := by
-        rw [Finset.sum_const, Finset.card_univ, smul_eq_mul, hcardU]
+    _ ≤ _ := ncard_fiberCodes_le fiber fun p a => hC p.val p.isLt _ (hstep p) (castLabel p a)
+    _ = Nat.card U ^ (P.newly t).ncard * C ^ P.passes := by rw [hcardU]
 
 /-- **Alternating `k`-pass rectangle bound.** If `P.accepted` is `K`-rectangle-free and `P` has
 per-label fiber bound `C`, then
@@ -861,23 +812,15 @@ theorem IsAcceptingPath.splice {P : SameOrderPassNBP ι U M} {x y z : ι → U} 
     simp [hnotT, hγ.turnaround p hp1, hturn p hp1]
   · intro p hp s hs
     rcases lt_or_ge s τ with hst | hts
-    · have hs1 : s + 1 ≤ τ := by omega
-      rw [ite_eq_left hst.le, ite_eq_left hs1]
-      have hdom : (P.newly s).domRestrict z = (P.newly s).domRestrict x :=
-        funext fun i => hzx (P.newly_subset_revealed hst i.property)
-      rw [hdom]
+    · rw [ite_eq_left hst.le, ite_eq_left (by omega : s + 1 ≤ τ),
+        show (P.newly s).domRestrict z = (P.newly s).domRestrict x from
+          funext fun i => hzx (P.newly_subset_revealed hst i.2)]
       exact hγ.edge p hp s hs
-    · have hs1 : ¬s + 1 ≤ τ := by omega
-      have hsrc : (if s ≤ τ then γ p s else δ p s) = δ p s := by
-        split_ifs with hle
-        · have hst_eq : s = τ := by omega
-          subst s
-          exact hmove p hp
-        · rfl
-      rw [hsrc, ite_eq_right hs1]
-      have hdom : (P.newly s).domRestrict z = (P.newly s).domRestrict y :=
-        funext fun i => hzy (P.newly_subset_compl hts i.property)
-      rw [hdom]
+    · have hsrc : (if s ≤ τ then γ p s else δ p s) = δ p s :=
+        ite_eq_right_iff.2 fun hle => (le_antisymm hle hts) ▸ hmove p hp
+      rw [hsrc, ite_eq_right (by omega : ¬s + 1 ≤ τ),
+        show (P.newly s).domRestrict z = (P.newly s).domRestrict y from
+          funext fun i => hzy (P.newly_subset_compl hts i.2)]
       exact hδ.edge p hp s hs
 
 open Classical in
@@ -932,8 +875,8 @@ theorem ncard_transition_sweep_le [Finite ι] [Finite U] [Finite M] {C : ℕ}
   classical
   let _ : Fintype (P.newly t → U) := Fintype.ofFinite _
   let _ : Fintype (Fin (P.passes - 1) → M) := Fintype.ofFinite _
-  let fiber (p : Fin P.passes) (a : P.newly t → U) : Set (M × M) :=
-    {q | P.Edge p.val t q.1 a q.2}
+  let fiber (p : Fin P.passes) (a : (P.newly t → U) × (Fin (P.passes - 1) → M)) : Set (M × M) :=
+    {q | P.Edge p.val t q.1 a.1 q.2}
   let code (x : ι → U) :
       ((P.newly t → U) × (Fin (P.passes - 1) → M)) × (Fin P.passes → M × M) :=
     (((P.newly t).domRestrict x, fun p => P.path x p.val P.length),
@@ -956,19 +899,10 @@ theorem ncard_transition_sweep_le [Finite ι] [Finite U] [Finite M] {C : ℕ}
       · rfl
   let validCodes :
       Set (((P.newly t → U) × (Fin (P.passes - 1) → M)) × (Fin P.passes → M × M)) :=
-    {z | z.2 ∈ Set.univ.pi fun p => fiber p z.1.1}
+    {z | z.2 ∈ Set.univ.pi fun p => fiber p z.1}
   have hsub : code '' P.accepted ⊆ validCodes := by
     rintro _ ⟨x, hx, rfl⟩ p -
     exact (P.isAcceptingPath_path hx).edge p.val p.isLt t ht
-  have hfib_le (aturn : (P.newly t → U) × (Fin (P.passes - 1) → M)) :
-      {z ∈ validCodes | z.1 = aturn}.ncard ≤ C ^ P.passes := by
-    calc {z ∈ validCodes | z.1 = aturn}.ncard
-        ≤ (Set.univ.pi fun p => fiber p aturn.1).ncard := by
-          refine ncard_le_ncard_of_injOn Prod.snd (fun z ⟨hz, hza⟩ => ?_)
-            (fun z₁ ⟨_, hz₁⟩ z₂ ⟨_, hz₂⟩ h => Prod.ext (hz₁.trans hz₂.symm) h) (toFinite _)
-          rwa [← hza]
-      _ ≤ C ^ P.passes :=
-          ncard_pi_univ_le (fun p => fiber p aturn.1) fun p => hC p.val p.isLt t ht aturn.1
   have hcardHead :
       Fintype.card ((P.newly t → U) × (Fin (P.passes - 1) → M)) =
         Nat.card U ^ (P.newly t).ncard * Nat.card M ^ (P.passes - 1) := by
@@ -978,13 +912,9 @@ theorem ncard_transition_sweep_le [Finite ι] [Finite U] [Finite M] {C : ℕ}
   calc (P.sweep.transition t '' P.accepted).ncard
       ≤ (code '' P.accepted).ncard := hfactors
     _ ≤ validCodes.ncard := ncard_le_ncard hsub (toFinite _)
-    _ = ∑ aturn : (P.newly t → U) × (Fin (P.passes - 1) → M),
-          {z ∈ validCodes | z.1 = aturn}.ncard :=
-        ncard_eq_sum_ncard_fiberwise (f := Prod.fst) (toFinite _) fun _ _ => Finset.mem_univ _
-    _ ≤ ∑ _aturn : (P.newly t → U) × (Fin (P.passes - 1) → M), C ^ P.passes :=
-        Finset.sum_le_sum fun aturn _ => hfib_le aturn
+    _ ≤ _ := ncard_fiberCodes_le fiber fun p a => hC p.val p.isLt t ht a.1
     _ = Nat.card U ^ (P.newly t).ncard * Nat.card M ^ (P.passes - 1) * C ^ P.passes := by
-        rw [Finset.sum_const, Finset.card_univ, smul_eq_mul, hcardHead]
+        rw [hcardHead]
 
 /-- **Same-order `k`-pass rectangle bound.** If `P.accepted` is `K`-rectangle-free and `P` has
 per-label fiber bound `C`, then
@@ -1063,7 +993,7 @@ set. -/
   accept := P.accept
   Edge p s m a m' :=
     if hp : p = 0 then
-      P.Edge s m (fun i => a ⟨i.val, by subst hp; exact i.property⟩) m'
+      P.Edge s m (fun i => a ⟨i.1, by subst hp; exact i.2⟩) m'
     else False
 
 @[simp]

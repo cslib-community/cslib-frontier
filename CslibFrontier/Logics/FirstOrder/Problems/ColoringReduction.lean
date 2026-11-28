@@ -306,15 +306,9 @@ private theorem exists_litColor_eq_zero {A : M → Prop} (hA : Satisfies A) {ps 
     litColor A (ps 0) (d 1) = 0 ∨ litColor A (ps 1) (d 2) = 0 ∨ litColor A (ps 2) (d 3) = 0 := by
   obtain ⟨l, hl, hA⟩ := (satisfies_iff A).1 hA (d 0)
   obtain ⟨i, rfl⟩ := hd.2 l hl
-  have h : litColor A (ps i) (d i.succ) = 0 := by
-    unfold litColor
-    split_ifs with h
-    · rfl
-    · exact absurd hA h
+  have h : litColor A (ps i) (d i.succ) = 0 := ite_eq_left hA
   fin_cases i
-  · exact .inl h
-  · exact .inr (.inl h)
-  · exact .inr (.inr h)
+  exacts [.inl h, .inr (.inl h), .inr (.inr h)]
 
 private theorem gadgetDomain_of_realize {g : Fin 6} {ps : Fin 3 → Bool} {d : Fin 4 → M}
     (hd : (coloringInterpretation.domain (.gadget g ps)).Realize d) : GadgetDomain ps d :=
@@ -398,23 +392,18 @@ private theorem exists_triple_of_encard_le_three {α : Type*} {S : Set α} (hne 
   have hfin : S.Finite := Set.finite_of_encard_le_coe h3
   have hn : S.encard = S.ncard := hfin.cast_ncard_eq.symm
   have h0 : S.ncard ≠ 0 := (Set.ncard_pos hfin).2 hne |>.ne'
-  have h3' : S.ncard ≤ 3 := by
-    have := hn ▸ h3
-    exact_mod_cast this
+  have h3' : S.ncard ≤ 3 := by exact_mod_cast hn ▸ h3
   obtain h | h | h : S.ncard = 1 ∨ S.ncard = 2 ∨ S.ncard = 3 := by omega
   · obtain ⟨a, rfl⟩ := Set.encard_eq_one.1 (by rw [hn, h]; rfl)
     exact ⟨![a, a, a], fun i => by fin_cases i <;> rfl, fun m hm => ⟨0, by simpa using hm.symm⟩⟩
   · obtain ⟨a, b, -, rfl⟩ := Set.encard_eq_two.1 (by rw [hn, h]; rfl)
     refine ⟨![a, b, b], fun i => by fin_cases i <;> simp, fun m hm => ?_⟩
     rcases hm with rfl | rfl
-    · exact ⟨0, rfl⟩
-    · exact ⟨1, rfl⟩
+    exacts [⟨0, rfl⟩, ⟨1, rfl⟩]
   · obtain ⟨a, b, e, -, -, -, rfl⟩ := Set.encard_eq_three.1 (by rw [hn, h]; rfl)
     refine ⟨![a, b, e], fun i => by fin_cases i <;> simp, fun m hm => ?_⟩
     rcases hm with rfl | rfl | rfl
-    · exact ⟨0, rfl⟩
-    · exact ⟨1, rfl⟩
-    · exact ⟨2, rfl⟩
+    exacts [⟨0, rfl⟩, ⟨1, rfl⟩, ⟨2, rfl⟩]
 
 /-- **A three-coloring gives a satisfying assignment**: the clauses of the structure are those of
 a satisfiable 3-CNF structure. -/
@@ -482,18 +471,13 @@ private theorem satisfies_of_colorable {f : coloringInterpretation.Model M → F
     cases Option.some.inj hj <;> rfl
   obtain ⟨i, hi⟩ : ∃ i : Fin 3, f (litVertex (ps i) (d i.succ)) = f trueVertex := by
     rcases gadget_forces (hlit _ _) (hlit _ _) (hlit _ _) hP with h | h | h
-    · exact ⟨0, h⟩
-    · exact ⟨1, h⟩
-    · exact ⟨2, h⟩
+    exacts [⟨0, h⟩, ⟨1, h⟩, ⟨2, h⟩]
   have hli : l i = (ps i, d i.succ) := by fin_cases i <;> rfl
   refine ⟨l i, hl i, ?_⟩
   rw [hli]
   change f (litVertex true (d i.succ)) = f trueVertex ↔ ps i = true
-  cases hp : ps i
-  · rw [hp] at hi
-    exact iff_of_false (fun h => hneg _ (h.trans hi.symm)) Bool.false_ne_true
-  · rw [hp] at hi
-    exact iff_of_true hi rfl
+  cases hp : ps i <;> rw [hp] at hi
+  exacts [iff_of_false (fun h => hneg _ (h.trans hi.symm)) Bool.false_ne_true, iff_of_true hi rfl]
 
 /-- **The graph of a CNF structure is three-colorable exactly when the structure is a satisfiable
 3-CNF structure.** -/

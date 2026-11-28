@@ -846,12 +846,15 @@ private lemma abdGood_step {v₀ : V} {t : ℕ}
       opTag i = some τ →
       (hist'[i]'(lt_of_lt_of_le hi hlen)).kind = s.history[i].kind ∧ opTag' i = some τ :=
     fun i hi τ hτ => ⟨(hmeta i hi).2.1, htag_pres i τ hτ⟩
-  have htag_of_not_pending : ∀ (i : ℕ) (hi : i < s.history.length) τ,
-      s.history[i].status ≠ .pending → opTag' i = some τ → opTag i = some τ := by
-    intro i hi τ hnp hτ'
+  have htag_cases : ∀ i τ, opTag' i = some τ → opTag i = none ∨ opTag i = some τ := by
+    intro i τ hτ
     cases ho : opTag i with
-    | none => exact False.elim (hnp (htag_new_pending i hi τ ho hτ'))
-    | some τ₀ => exact congrArg some (Option.some.inj ((htag_pres i τ₀ ho).symm.trans hτ'))
+    | none => exact Or.inl rfl
+    | some τ₀ => exact Or.inr (by rw [← htag_pres i τ₀ ho, hτ])
+  have htag_of_not_pending : ∀ (i : ℕ) (hi : i < s.history.length) τ,
+      s.history[i].status ≠ .pending → opTag' i = some τ → opTag i = some τ :=
+    fun i hi τ hnp hτ' => (htag_cases i τ hτ').resolve_left fun ho =>
+      hnp (htag_new_pending i hi τ ho hτ')
   refine
     { tag_out := htag_out
       hist_wf := fun i hi => by
@@ -872,27 +875,12 @@ private lemma abdGood_step {v₀ : V} {t : ℕ}
           · obtain ⟨hsome_i, resp, hm⟩ := hstatus_complete i hi0 hget
             obtain ⟨h1, _⟩ := hg.hist_wf i hi0
             obtain ⟨_, hk_i, hinv_i⟩ := hmeta i hi0
-            cases hki : s.history[i].kind with
-            | read =>
-              rcases resp with _ | (rv | _)
-              · simp [hki, matchCompletion] at hm
-              · simp only [hki, matchCompletion, Option.some.injEq] at hm
-                rw [← hm, hinv_i, hk_i, hki]
-                refine ⟨Nat.lt_succ_of_lt h1, ?_, fun _ _ _ => ⟨rfl, hsome_i⟩,
-                  by rintro _ ⟨⟩, by rintro ⟨⟩⟩
-                intro r hr; injection hr with hr_eq; subst hr_eq
-                exact ⟨Nat.le_of_lt h1, Nat.lt_succ_self _⟩
-              · simp [hki, matchCompletion] at hm
-            | write vw =>
-              rcases resp with _ | (_ | _)
-              · simp [hki, matchCompletion] at hm
-              · simp [hki, matchCompletion] at hm
-              · simp only [hki, matchCompletion, Option.some.injEq] at hm
-                rw [← hm, hinv_i, hk_i, hki]
-                refine ⟨Nat.lt_succ_of_lt h1, ?_, by rintro _ _ ⟨⟩,
-                  fun _ _ => ⟨⟨vw, rfl⟩, hsome_i⟩, by rintro ⟨⟩⟩
-                intro r hr; injection hr with hr_eq; subst hr_eq
-                exact ⟨Nat.le_of_lt h1, Nat.lt_succ_self _⟩
+            rw [hinv_i, hk_i]
+            cases hki : s.history[i].kind <;> rcases resp with _ | (_ | _) <;>
+              simp only [hki, matchCompletion, Option.some.injEq, reduceCtorEq] at hm <;>
+              rw [← hm] <;>
+              exact ⟨Nat.lt_succ_of_lt h1, by simp [OpStatus.respStep?, h1.le], by simp [hsome_i],
+                by simp [hsome_i], by simp⟩
         · obtain ⟨hrec, hnp⟩ := hnew_entry i hi (Nat.le_of_not_lt hi0)
           have hcaller : hist'[i].caller = actor := congrArg OpRecord.caller hrec
           have hinv : hist'[i].invStep = s.step := congrArg OpRecord.invStep hrec
@@ -969,39 +957,25 @@ private lemma abdGood_step {v₀ : V} {t : ℕ}
       write_unique :=
         ⟨fun i hi v τ hk hτ => by
           dsimp only at hi hk ⊢
-          cases ho : opTag i with
-          | none => exact (hnew_write_tag i hi v τ ho hτ hk).1
-          | some τ₀ =>
-            have heq := Option.some.inj ((htag_pres i τ₀ ho).symm.trans hτ)
-            subst heq
-            have hi0 := hg.lt_length_of_opTag_some ho
+          rcases htag_cases i τ hτ with ho | ho
+          · exact (hnew_write_tag i hi v τ ho hτ hk).1
+          · have hi0 := hg.lt_length_of_opTag_some ho
             rw [(hmeta i hi0).2.1] at hk; rw [(hmeta i hi0).1]
-            exact hg.write_unique.1 i hi0 v τ₀ hk ho,
+            exact hg.write_unique.1 i hi0 v τ hk ho,
          fun i j hi hj v₁ v₂ τ hk₁ hk₂ hτ₁ hτ₂ => by
           dsimp only at hi hj hk₁ hk₂
-          cases ho₁ : opTag i with
-          | none =>
-            cases ho₂ : opTag j with
-            | none => exact ((hnew_write_tag i hi v₁ τ ho₁ hτ₁ hk₁).2.2 j hj τ ho₂ hτ₂).symm
-            | some τ₂ =>
-              have heq₂ := Option.some.inj ((htag_pres j τ₂ ho₂).symm.trans hτ₂)
-              have hj0 := hg.lt_length_of_opTag_some ho₂
-              rw [(hmeta j hj0).2.1] at hk₂
-              exact False.elim
-                ((hnew_write_tag i hi v₁ τ ho₁ hτ₁ hk₁).2.1 j hj0 v₂ hk₂ (heq₂ ▸ ho₂))
-          | some τ₁ =>
-            have heq₁ := Option.some.inj ((htag_pres i τ₁ ho₁).symm.trans hτ₁)
-            have hi0 := hg.lt_length_of_opTag_some ho₁
-            rw [(hmeta i hi0).2.1] at hk₁
-            cases ho₂ : opTag j with
-            | none =>
-              exact False.elim
-                ((hnew_write_tag j hj v₂ τ ho₂ hτ₂ hk₂).2.1 i hi0 v₁ hk₁ (heq₁ ▸ ho₁))
-            | some τ₂ =>
-              have heq₂ := Option.some.inj ((htag_pres j τ₂ ho₂).symm.trans hτ₂)
-              have hj0 := hg.lt_length_of_opTag_some ho₂
-              rw [(hmeta j hj0).2.1] at hk₂
-              exact hg.write_unique.2 i j hi0 hj0 v₁ v₂ τ hk₁ hk₂ (heq₁ ▸ ho₁) (heq₂ ▸ ho₂)⟩
+          have hold : ∀ k (hk : k < hist'.length) v, hist'[k].kind = .write v → opTag k = some τ →
+              ∃ hk0 : k < s.history.length, s.history[k].kind = .write v := fun k _ v hkk ho =>
+            have hk0 := hg.lt_length_of_opTag_some ho; ⟨hk0, (hmeta k hk0).2.1 ▸ hkk⟩
+          rcases htag_cases i τ hτ₁ with ho₁ | ho₁ <;> rcases htag_cases j τ hτ₂ with ho₂ | ho₂
+          · exact ((hnew_write_tag i hi v₁ τ ho₁ hτ₁ hk₁).2.2 j hj τ ho₂ hτ₂).symm
+          · obtain ⟨hj0, hk₂⟩ := hold j hj v₂ hk₂ ho₂
+            exact absurd ho₂ ((hnew_write_tag i hi v₁ τ ho₁ hτ₁ hk₁).2.1 j hj0 v₂ hk₂)
+          · obtain ⟨hi0, hk₁⟩ := hold i hi v₁ hk₁ ho₁
+            exact absurd ho₁ ((hnew_write_tag j hj v₂ τ ho₂ hτ₂ hk₂).2.1 i hi0 v₁ hk₁)
+          · obtain ⟨hi0, hk₁⟩ := hold i hi v₁ hk₁ ho₁
+            obtain ⟨hj0, hk₂⟩ := hold j hj v₂ hk₂ ho₂
+            exact hg.write_unique.2 i j hi0 hj0 v₁ v₂ τ hk₁ hk₂ ho₁ ho₂⟩
       val_valid :=
         ⟨fun q => by
           by_cases hqa : q = actor
@@ -1057,11 +1031,9 @@ private lemma abdGood_step {v₀ : V} {t : ℕ}
         have hτ_a0 := htag_of_not_pending a ha0 τ_a
           (by intro hpend; simp [hpend, OpStatus.respStep?] at hrs) hτ_a
         rw [(hmeta b hb0).2.1]
-        cases ho_b : opTag b with
-        | none => exact hnew_prec_tag a b hb0 τ_a τ_b hpr0 hτ_a0 ho_b hτ_b
-        | some τ_b0 =>
-          have heq := Option.some.inj ((htag_pres b τ_b0 ho_b).symm.trans hτ_b)
-          exact heq ▸ hg.prec_tag a b hb0 τ_a τ_b0 hpr0 hτ_a0 ho_b }
+        rcases htag_cases b τ_b hτ_b with ho_b | ho_b
+        · exact hnew_prec_tag a b hb0 τ_a τ_b hpr0 hτ_a0 ho_b hτ_b
+        · exact hg.prec_tag a b hb0 τ_a τ_b hpr0 hτ_a0 ho_b }
 
 /-- Specialization of `abdGood_step` to `resp = none` deliveries keeping `history` and `opTag`. -/
 private lemma abdGood_deliver_same_opTag {v₀ : V} {t : ℕ}
@@ -1212,9 +1184,7 @@ private lemma pending_of_phase_ne_idle {v₀ : V} {t : ℕ}
   | none =>
     rw [hp] at hps
     cases hph : (s.proc p).state.phase <;> rw [hph] at hps hne
-    · exact False.elim (hne rfl)
-    · exact False.elim hps
-    · exact False.elim hps
+    exacts [absurd rfl hne, hps.elim, hps.elim]
   | some pend => exact ⟨pend, rfl⟩
 
 /-- Phase-2 `(chosenTag, chosenVal)` selected by `dest` upon completing Phase 1 with `(bt, bv)`. -/
@@ -2083,10 +2053,8 @@ private lemma abd_phase1_eventually_phase2 {t : ℕ} (h2t : 2 * t < Fintype.card
       · simp [p1Set, heq, Protocol.doDeliver, abdProtocol, abdOnRecv, hph, hq_card]
   let d₂ := Nat.find hex_gt
   have hd₂_not : ¬ IsP1 (k₁ + d₂) := Nat.find_spec hex_gt
-  have hd₂_pos : 0 < d₂ := by
-    by_contra h0
-    have hd0 : d₂ = 0 := by omega
-    exact hd₂_not (hd0 ▸ ⟨∅, initTag P, v₀, hinit_ph⟩)
+  have hd₂_pos : 0 < d₂ :=
+    Nat.pos_of_ne_zero fun hd0 => hd₂_not (hd0 ▸ ⟨∅, initTag P, v₀, hinit_ph⟩)
   have hd₂_prev : IsP1 (k₁ + (d₂ - 1)) := by
     by_contra hnot; exact Nat.find_min hex_gt (by omega) hnot
   have hk₂_eq : k₁ + (d₂ - 1) + 1 = k₁ + d₂ := by omega
@@ -2184,8 +2152,7 @@ theorem abd_terminates {t : ℕ} (h2t : 2 * t < Fintype.card P) (v₀ : V)
       ∃ hlt : pend.opId < (ss k).history.length,
         (ss k).history[pend.opId].status = .pending := by
     intro k p pend hp
-    obtain ⟨_, hg⟩ := hgood k
-    obtain ⟨hlt, _, _, hst⟩ := hg.pending_info hp
+    obtain ⟨hlt, _, _, hst⟩ := (hgood k).choose_spec.pending_info hp
     exact ⟨hlt, hst⟩
   by_cases hdone₀ : (ss k₀).history[i].status.isCompleted = true
   · exact ⟨k₀, hi₀, le_rfl, hdone₀⟩
@@ -2215,9 +2182,7 @@ theorem abd_terminates {t : ℕ} (h2t : 2 * t < Fintype.card P) (v₀ : V)
   have hex_lt : ∃ k, i < (ss k).history.length := ⟨k₀, hi₀⟩
   let k₁ := Nat.find hex_lt
   have hk₁_lt : i < (ss k₁).history.length := Nat.find_spec hex_lt
-  have hk₁_pos : 0 < k₁ := by
-    by_contra h0
-    have hk0 : k₁ = 0 := by omega
+  have hk₁_pos : 0 < k₁ := Nat.pos_of_ne_zero fun hk0 => by
     rw [hk0, hstart] at hk₁_lt; simp [Protocol.start] at hk₁_lt
   let k_inv := k₁ - 1
   have hk_succ : k_inv + 1 = k₁ := by omega

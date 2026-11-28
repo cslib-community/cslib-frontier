@@ -151,16 +151,11 @@ theorem bipartitePerfectMatchingCount_eq_zeroOnePermanent (A : List (List Bool))
           obtain ⟨w, -, hw⟩ := hM (.inl i)
           exact Sum.inr_injective ((hw _ (hf i)).trans (hw _ h).symm),
          fun h => h ▸ hf i⟩
-      apply propext
-      cases u with
-      | inl i =>
-        cases v with
-        | inl k => exact ⟨False.elim, fun h => (M.adj_sub h).elim⟩
-        | inr j => exact (key i j).symm
-      | inr j =>
-        cases v with
-        | inl i => exact (key i j).symm.trans ⟨fun h => M.symm.symm _ _ h,
-            fun h => M.symm.symm _ _ h⟩
-        | inr k => exact ⟨False.elim, fun h => (M.adj_sub h).elim⟩
+      cases u <;> cases v
+      · exact propext ⟨False.elim, fun h => (M.adj_sub h).elim⟩
+      · exact propext (key _ _).symm
+      · exact propext ((key _ _).symm.trans ⟨fun h => M.symm.symm _ _ h,
+          fun h => M.symm.symm _ _ h⟩)
+      · exact propext ⟨False.elim, fun h => (M.adj_sub h).elim⟩
 
 end Cslib.Complexity

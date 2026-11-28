@@ -106,10 +106,7 @@ private theorem conjDiag_eq_sum (f : ι → ℝ) :
     ext i j
     by_cases hij : i = j
     · subst hij
-      simp only [diagonal_apply_eq, Matrix.sum_apply, Matrix.smul_apply, Pi.single_apply,
-        smul_eq_mul]
-      rw [sum_eq_single i (fun b _ hb => by simp [Ne.symm hb]) (by simp)]
-      simp
+      simp [Matrix.sum_apply, Pi.single_apply, apply_ite]
     · simp [Matrix.sum_apply, hij]
   simp only [conjDiag, this, Matrix.mul_sum, Matrix.sum_mul, Matrix.mul_smul, Matrix.smul_mul]
 
@@ -204,27 +201,23 @@ theorem exists_isProjective_sum_norm_sub_sq_le (φ : AlgState (Matrix ι ι ℂ)
     rw [e1, e2]
     exact hSw
   -- The square matrix `y` with rows `√λ_{a,k} e_{a,k}ᴴ` over the selection.
-  let y : Matrix S ι ℂ :=
-      Matrix.of fun s j => (√(lam s.val.1 s.val.2) : ℂ) * star (U s.val.1 j s.val.2)
-  have hyT : ∀ t : α → ℝ, yᴴ * diagonal (fun s : S => (t s.val.1 : ℂ)) * y =
+  let y : Matrix S ι ℂ := Matrix.of fun s j => (√(lam s.1.1 s.1.2) : ℂ) * star (U s.1.1 j s.1.2)
+  have hyT : ∀ t : α → ℝ, yᴴ * diagonal (fun s : S => (t s.1.1 : ℂ)) * y =
       ∑ a, (t a : ℂ) • (q a * M.effect a) := fun t => by
     ext j j'
     simp only [Matrix.mul_apply, conjTranspose_apply, diagonal_apply, y, Matrix.of_apply,
       Matrix.sum_apply, Matrix.smul_apply, hqM, conjDiag_apply, smul_eq_mul, mul_sum]
-    have hsq : ∀ s : S, star ((√(lam s.val.1 s.val.2) : ℂ) * star (U s.val.1 j s.val.2)) *
-        (√(lam s.val.1 s.val.2) : ℂ) =
-            (lam s.val.1 s.val.2 : ℂ) * U s.val.1 j s.val.2 := fun s => by
-      have e : (√(lam s.val.1 s.val.2) : ℂ) * (√(lam s.val.1 s.val.2) : ℂ) =
-          lam s.val.1 s.val.2 := by
+    have hsq : ∀ s : S, star ((√(lam s.1.1 s.1.2) : ℂ) * star (U s.1.1 j s.1.2)) *
+        (√(lam s.1.1 s.1.2) : ℂ) = (lam s.1.1 s.1.2 : ℂ) * U s.1.1 j s.1.2 := fun s => by
+      have e : (√(lam s.1.1 s.1.2) : ℂ) * (√(lam s.1.1 s.1.2) : ℂ) = lam s.1.1 s.1.2 := by
         rw [← Complex.ofReal_mul, Real.mul_self_sqrt (hl0 _ _)]
       rw [star_mul', star_star, Complex.star_def, Complex.conj_ofReal]
-      linear_combination (U s.val.1 j s.val.2) * e
+      linear_combination (U s.1.1 j s.1.2) * e
     simp only [mul_ite, mul_zero, sum_ite_eq', mem_univ, ite_true]
     let F : α × ι → ℂ := fun p =>
       (t p.1 : ℂ) * ((lam p.1 p.2 : ℂ) * U p.1 j p.2) * star (U p.1 j' p.2)
-    have hl : ∀ x : S, star ((√(lam x.val.1 x.val.2) : ℂ) * star (U x.val.1 j x.val.2)) *
-        (t x.val.1 : ℂ) *
-        ((√(lam x.val.1 x.val.2) : ℂ) * star (U x.val.1 j' x.val.2)) = F x.val := fun x => by
+    have hl : ∀ x : S, star ((√(lam x.1.1 x.1.2) : ℂ) * star (U x.1.1 j x.1.2)) * (t x.1.1 : ℂ) *
+        ((√(lam x.1.1 x.1.2) : ℂ) * star (U x.1.1 j' x.1.2)) = F x.1 := fun x => by
       simp only [F]
       rw [← hsq x]
       ring
@@ -234,16 +227,12 @@ theorem exists_isProjective_sum_norm_sub_sq_le (φ : AlgState (Matrix ι ι ℂ)
     simp only [F, sel, Pi.mul_apply]
     split_ifs <;> push_cast <;> ring
   have hyy : yᴴ * y = ∑ a, q a * M.effect a := by
-    have := hyT 1
-    simp only [Pi.one_apply, Complex.ofReal_one, one_smul] at this
-    rw [← this, show diagonal (fun _ : S => (1 : ℂ)) = 1 from rfl, Matrix.mul_one]
+    simpa [show diagonal (fun _ : S => (1 : ℂ)) = 1 from rfl] using hyT 1
   -- Indicator of the outcome `a` on the selection.
   let T : α → Matrix S S ℂ := fun a =>
-    diagonal fun s : S => (((fun a' : α => if a' = a then (1 : ℝ) else 0) s.val.1 : ℝ) : ℂ)
+    diagonal fun s : S => (((fun a' : α => if a' = a then (1 : ℝ) else 0) s.1.1 : ℝ) : ℂ)
   have hyTa : ∀ a, yᴴ * T a * y = q a * M.effect a := fun a => by
-    refine (hyT (fun a' => if a' = a then (1 : ℝ) else 0)).trans ?_
-    rw [sum_eq_single a (fun b _ hb => by simp [hb]) (by simp)]
-    simp
+    simpa using hyT (fun a' => if a' = a then (1 : ℝ) else 0)
   have hTT : ∀ a, T a * T a = T a := fun a => by
     simp only [T, diagonal_mul_diagonal]
     congr 1
@@ -251,13 +240,10 @@ theorem exists_isProjective_sum_norm_sub_sq_le (φ : AlgState (Matrix ι ι ℂ)
     split_ifs <;> simp
   have hTsum : ∑ a, T a = 1 := by
     ext s s'
-    rw [Matrix.sum_apply]
     by_cases hss : s = s'
     · subst hss
-      simp only [T, diagonal_apply_eq, one_apply_eq]
-      rw [sum_eq_single s.val.1 (fun b _ hb => by simp [Ne.symm hb]) (by simp)]
-      simp
-    · simp only [T, diagonal_apply_ne _ hss, one_apply_ne hss, sum_const_zero]
+      simp [T, Matrix.sum_apply, apply_ite]
+    · simp [T, Matrix.sum_apply, hss]
   -- Polar decomposition `y = R h`.
   have hcard : Fintype.card S = Fintype.card ι := by rw [Fintype.card_coe, hS]
   obtain ⟨R, h, hR1, hR2, hh0, hhh, hyR, hle⟩ := Matrix.exists_polar y hcard

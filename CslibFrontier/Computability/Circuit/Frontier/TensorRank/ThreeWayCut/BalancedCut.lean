@@ -102,9 +102,7 @@ private theorem exists_threeWay_params {ξ : ℝ} (hξ : 0 < ξ) :
     dsimp [M]; push_cast; linarith [Nat.le_ceil (128 / ξ)]
   have h16M : 16 / (M : ℝ) ≤ ξ / 8 := by
     rw [div_le_iff₀ hM_pos]
-    have hmul := mul_le_mul_of_nonneg_left hM_ge hξ.le
-    rw [mul_div_cancel₀ _ hξ.ne'] at hmul
-    linarith only [hmul]
+    linarith only [(div_le_iff₀ hξ).1 hM_ge]
   exact ⟨q, R, ρ₀, η, M, hq, hρ₀_nonneg, hρ₀_lt_one, hρ, hη, hM2, hcap_le,
     by dsimp [η]; linarith only [h16M]⟩
 
@@ -134,45 +132,18 @@ theorem exists_balanced_threeWayCut {ξ : ℝ} (hξ : 0 < ξ) :
   have := Fintype.ofFinite E
   by_cases hsmall : Nat.card V ≤ C₀
   · -- Small-graph regime `|V| ≤ C₀`: the constant coloring `fun _ => 0` has `0` cut edges!
-    refine ⟨fun _ => 0, fun c => ?_, fun c => ?_⟩
-    · have hA_le : (A.ncard : ℝ) ≤ (C₀ : ℝ) :=
-        Nat.cast_le.mpr ((ncard_le_card A).trans hsmall)
-      have hA_nonneg : (0 : ℝ) ≤ A.ncard := Nat.cast_nonneg _
-      have hv_nonneg : (0 : ℝ) ≤ ξ * Nat.card V := by positivity
-      rcases c with ⟨_ | _ | _ | _, hlt⟩
-      · change |((A ∩ {v : V | (0 : Fin 3) = 0}).ncard : ℝ) - 1 / 3 * (A.ncard : ℝ)| ≤ _
-        have heq : A ∩ {v : V | (0 : Fin 3) = 0} = A := by simp
-        rw [heq]
-        have habs : |(A.ncard : ℝ) - 1 / 3 * (A.ncard : ℝ)| = 2 / 3 * (A.ncard : ℝ) := by
-          rw [show (A.ncard : ℝ) - 1 / 3 * (A.ncard : ℝ) = 2 / 3 * (A.ncard : ℝ) by ring,
-            abs_of_nonneg (by positivity)]
-        rw [habs]
-        linarith only [hA_le, hA_nonneg, hv_nonneg]
-      · change |((A ∩ {v : V | (0 : Fin 3) = 1}).ncard : ℝ) - 1 / 3 * (A.ncard : ℝ)| ≤ _
-        have heq : A ∩ {v : V | (0 : Fin 3) = 1} = ∅ := by ext; simp
-        rw [heq, ncard_empty, Nat.cast_zero, zero_sub, abs_neg, abs_of_nonneg (by positivity)]
-        linarith only [hA_le, hA_nonneg, hv_nonneg]
-      · change |((A ∩ {v : V | (0 : Fin 3) = 2}).ncard : ℝ) - 1 / 3 * (A.ncard : ℝ)| ≤ _
-        have heq : A ∩ {v : V | (0 : Fin 3) = 2} = ∅ := by ext; simp
-        rw [heq, ncard_empty, Nat.cast_zero, zero_sub, abs_neg, abs_of_nonneg (by positivity)]
-        linarith only [hA_le, hA_nonneg, hv_nonneg]
-      · omega
-    · have hempty : G.edgeCut {v : V | (0 : Fin 3) = c} ∩
-          G.edgeCut {v : V | (0 : Fin 3) = c + 1} = ∅ := by
-        rcases c with ⟨_ | _ | _ | _, hlt⟩
-        · ext e
-          change e ∈ G.edgeCut {v | (0 : Fin 3) = 0} ∩ G.edgeCut {v | (0 : Fin 3) = 1} ↔ _
-          simp
-        · ext e
-          change e ∈ G.edgeCut {v | (0 : Fin 3) = 1} ∩ G.edgeCut {v | (0 : Fin 3) = 2} ↔ _
-          simp
-        · ext e
-          change e ∈ G.edgeCut {v | (0 : Fin 3) = 2} ∩ G.edgeCut {v | (0 : Fin 3) = 0} ↔ _
-          simp
-        · omega
-      rw [hempty, ncard_empty, Nat.cast_zero]
-      have hpos_cap := threeWayCapCoefficient_pos
-      positivity
+    have hA : (A.ncard : ℝ) ≤ C₀ := Nat.cast_le.mpr ((ncard_le_card A).trans hsmall)
+    have hv : (0 : ℝ) ≤ ξ * Nat.card V := by positivity
+    have hsub (s : Set V) (hs : s ⊆ A) :
+        |(s.ncard : ℝ) - 1 / 3 * A.ncard| ≤ ξ * Nat.card V + C₀ := by
+      have : (s.ncard : ℝ) ≤ A.ncard := Nat.cast_le.mpr (ncard_le_ncard hs)
+      rw [abs_sub_le_iff]; constructor <;> linarith [Nat.cast_nonneg (α := ℝ) s.ncard]
+    refine ⟨fun _ => 0, fun c => hsub _ inter_subset_left, fun c => ?_⟩
+    have hempty (c : Fin 3) : G.edgeCut {v : V | (0 : Fin 3) = c} = ∅ := by
+      ext e; simp [Multigraph.mem_edgeCut]
+    simp only [hempty, inter_self, ncard_empty, Nat.cast_zero]
+    have hpos_cap := threeWayCapCoefficient_pos
+    positivity
   · -- Large-graph regime `C₀ < |V|`: compress with unit vertex weight and run `Z₃` Gaussian cut.
     push Not at hsmall
     have hM_lt_V : M < Nat.card V := (le_max_left _ _).trans_lt hsmall
@@ -185,36 +156,23 @@ theorem exists_balanced_threeWayCut {ξ : ℝ} (hξ : 0 < ξ) :
     have htwo : 1 < Nat.card cmp.blocks := by
       by_contra! hle1
       have hsum := cmp.sum_blockWeight_univ
+      have hleM := Finset.sum_le_card_nsmul Finset.univ _ M fun B _ => cmp.blockWeight_le B
       simp only [Finset.sum_const, Finset.card_univ, smul_eq_mul, mul_one,
-        ← Nat.card_eq_fintype_card] at hsum
-      have hleM : ∑ B : cmp.blocks, cmp.blockWeight B ≤ Nat.card cmp.blocks * M := by
-        calc ∑ B : cmp.blocks, cmp.blockWeight B ≤ ∑ _B : cmp.blocks, M :=
-              Finset.sum_le_sum fun B _ => cmp.blockWeight_le B
-          _ = Nat.card cmp.blocks * M := by
-              simp [Nat.card_eq_fintype_card]
-      have hV_le : Nat.card V ≤ M := by
-        rw [← hsum]
-        exact hleM.trans (by nlinarith only [hle1])
-      omega
+        ← Nat.card_eq_fintype_card] at hsum hleM
+      nlinarith only [hsum, hleM, hle1, hM_lt_V]
     -- Block counts: `#cmp.blocks ≤ |V|`, `#cmp.external ≤ 2 |V|`, `#Q_{1,2} ≤ 8 |V| / M`,
     -- `#Q₃ ≤ 2 β₁ + #Q₁`.
     have hblocks_le_V : cmp.blocks.card ≤ Nat.card V := cmp.card_blocks_le
     have hext_le : 2 * Nat.card cmp.external ≤ 3 * Nat.card V := by
-      have hhand := Q.sum_ncard_incidenceSet hQ_loop
-      have hdeg_sum : ∑ B : cmp.blocks, (Q.incidenceSet B).ncard ≤ 3 * cmp.blocks.card := by
-        calc ∑ B : cmp.blocks, (Q.incidenceSet B).ncard ≤ ∑ _B : cmp.blocks, 3 :=
-              Finset.sum_le_sum fun B _ => hQ_deg B
-          _ = 3 * cmp.blocks.card := by simp [Nat.mul_comm]
-      omega
-    have hG_edges_le : 2 * Nat.card E ≤ 3 * Nat.card V := by
-      have hhand := G.sum_ncard_incidenceSet hloop
-      have hdeg_sum : ∑ v : V, (G.incidenceSet v).ncard ≤ 3 * Nat.card V := by
-        calc ∑ v : V, (G.incidenceSet v).ncard ≤ ∑ _v : V, 3 :=
-              Finset.sum_le_sum fun v _ => hdeg v
-          _ = 3 * Nat.card V := by simp [Nat.mul_comm, Nat.card_eq_fintype_card]
+      have := Finset.sum_le_card_nsmul Finset.univ _ 3 fun B _ => hQ_deg B
+      rw [Finset.card_univ, Fintype.card_coe, smul_eq_mul] at this
+      have := Q.sum_ncard_incidenceSet hQ_loop
       omega
     have hbeta_le_V : G.cycleRank ≤ Nat.card V := by
       have hconnE := G.card_le_card_add_one_of_connected hconn
+      have := Finset.sum_le_card_nsmul Finset.univ _ 3 fun v _ => hdeg v
+      rw [Finset.card_univ, ← Nat.card_eq_fintype_card, smul_eq_mul] at this
+      have := G.sum_ncard_incidenceSet hloop
       unfold Multigraph.cycleRank
       omega
     set Q12 := Finset.univ.filter fun B : cmp.blocks =>
@@ -261,15 +219,8 @@ theorem exists_balanced_threeWayCut {ξ : ℝ} (hξ : 0 < ξ) :
           (fun ω => ∑ B : cmp.blocks, (badCount Q q R ω B : ℝ)) := by
         filter_upwards [compl_mem_ae_iff.mpr hNullAllRay_null] with ω hω
         simp only [NullAllRay, mem_compl_iff, mem_iUnion, mem_ofPred_eq, not_exists] at hω
-        have hnat := sum_cutAny_le_sum_badCount hQ_loop q R hω
-        have hlhs_nat : (∑ e : cmp.external, indCut e ω) =
-            ((Finset.univ.filter fun e : cmp.external => ω ∈ cutAnyEvent Q q R e).card : ℝ) := by
-          rw [Finset.card_filter, Nat.cast_sum]
-          refine Finset.sum_congr rfl fun e _ => ?_
-          dsimp [indCut]
-          by_cases h : ω ∈ cutAnyEvent Q q R e <;> simp [h]
-        rw [hlhs_nat, ← Nat.cast_sum]
-        exact_mod_cast hnat
+        simp only [indCut, indicator_apply, Pi.one_apply, Finset.sum_boole]
+        exact_mod_cast sum_cutAny_le_sum_badCount hQ_loop q R hω
       have hsum_bad : (∑ e : cmp.external, P.real (cutAnyEvent Q q R e)) ≤
           ∑ B : cmp.blocks, ∫ ω, (badCount Q q R ω B : ℝ) ∂P := by
         rw [hlhs_eq, ← integral_finsetSum _ fun B _ => hbad_int B]
@@ -285,30 +236,18 @@ theorem exists_balanced_threeWayCut {ξ : ℝ} (hξ : 0 < ξ) :
           unfold badCount
           rw [toFinset_eq_of_fintype (Q.incidenceSet B) _]
           exact (Finset.card_filter_le _ _).trans_eq (Set.ncard_eq_toFinset_card' _).symm
-        interval_cases hdegB : (Q.incidenceSet B).ncard
-        · have h0 (ω) : badCount Q q R ω B = 0 := Nat.eq_zero_of_le_zero (hbad_le_deg ω)
-          have hn3 : B ∉ Q3 := by simp [Q3, hdegB]
-          have hn12 : B ∉ Q12 := by simp [Q12, hdegB]
-          simp [h0, hn3, hn12]
-        · have hn3 : B ∉ Q3 := by simp [Q3, hdegB]
-          have hm12 : B ∈ Q12 := by simp [Q12, hdegB]
-          simp only [hn3, hm12, ↓reduceIte, zero_add]
-          calc ∫ ω, (badCount Q q R ω B : ℝ) ∂P ≤ ∫ _, (2 : ℝ) ∂P :=
-                integral_mono (hbad_int B) (integrable_const 2) fun ω => by
-                  have h1 := hbad_le_deg ω
-                  exact_mod_cast (by omega : badCount Q q R ω B ≤ 2)
+        by_cases h3 : (Q.incidenceSet B).ncard = 3
+        · have hn12 : B ∉ Q12 := by simp [Q12, h3]
+          rw [ite_eq_left (by simp [Q3, h3]), ite_eq_right hn12, add_zero]
+          exact integral_badCount_le_capAt hQ_loop hQ_deg hq hρ₀ hρ_lt hρ h3
+        rw [ite_eq_right (by simp [Q3, h3]), zero_add]
+        split_ifs with h12 <;> simp only [Q12, Finset.mem_filter, Finset.mem_univ, true_and] at h12
+        · calc ∫ ω, (badCount Q q R ω B : ℝ) ∂P ≤ ∫ _, (2 : ℝ) ∂P :=
+                integral_mono (hbad_int B) (integrable_const 2) fun ω =>
+                  by exact_mod_cast (by have := hbad_le_deg ω; omega : badCount Q q R ω B ≤ 2)
             _ = 2 := by simp
-        · have hn3 : B ∉ Q3 := by simp [Q3, hdegB]
-          have hm12 : B ∈ Q12 := by simp [Q12, hdegB]
-          simp only [hn3, hm12, ↓reduceIte, zero_add]
-          calc ∫ ω, (badCount Q q R ω B : ℝ) ∂P ≤ ∫ _, (2 : ℝ) ∂P :=
-                integral_mono (hbad_int B) (integrable_const 2) fun ω => by
-                  exact_mod_cast hbad_le_deg ω
-            _ = 2 := by simp
-        · have hm3 : B ∈ Q3 := by simp [Q3, hdegB]
-          have hn12 : B ∉ Q12 := by simp [Q12, hdegB]
-          simp only [hm3, hn12, ↓reduceIte, add_zero]
-          exact integral_badCount_le_capAt hQ_loop hQ_deg hq hρ₀ hρ_lt hρ hdegB
+        · have h0 (ω) : badCount Q q R ω B = 0 := by have := hbad_le_deg ω; omega
+          simp [h0]
       calc (∑ e : cmp.external, P.real (cutAnyEvent Q q R e))
           ≤ ∑ B : cmp.blocks, ∫ ω, (badCount Q q R ω B : ℝ) ∂P := hsum_bad
         _ ≤ ∑ B : cmp.blocks, ((if B ∈ Q3 then capAt ρ₀ else 0) + (if B ∈ Q12 then 2 else 0)) :=
@@ -325,12 +264,8 @@ theorem exists_balanced_threeWayCut {ξ : ℝ} (hξ : 0 < ξ) :
             (ξ / 2 + 16 / (M : ℝ)) * (Nat.card V : ℝ) := by
       have hthird : (∑ e : cmp.external, (1 : ℝ) * P.real (cutPairEvent Q q R c e)) =
           1 / 3 * ∑ e : cmp.external, P.real (cutAnyEvent Q q R e) := by
-        have h3e (e : cmp.external) : P.real (cutPairEvent Q q R c e) =
-            1 / 3 * P.real (cutAnyEvent Q q R e) :=
-          measureReal_cutPairEvent_eq_third Q q R c e
-        simp_rw [one_mul, h3e]
-        rw [← Finset.mul_sum]
-      have hcap3 : capAt ρ₀ ≤ 3 := capAt_le_three ρ₀
+        simp only [one_mul, Finset.mul_sum]
+        exact Finset.sum_congr rfl fun e _ => measureReal_cutPairEvent_eq_third Q q R c e
       have hcap_nonneg : 0 ≤ capAt ρ₀ := by
         have hstrad_pos : 0 ≤ straddleBound ρ₀ := by
           unfold straddleBound
@@ -341,44 +276,27 @@ theorem exists_balanced_threeWayCut {ξ : ℝ} (hξ : 0 < ξ) :
         linarith only [hstrad_pos, hsqrt_le1]
       have hQ3_real : (Q3.card : ℝ) ≤ 2 * (G.cycleRank : ℝ) + (Q12.card : ℝ) := by
         exact_mod_cast hQ3_le.trans (Nat.add_le_add_left hQ1_le_Q12 _)
-      have h1 : capAt ρ₀ * (Q3.card : ℝ) + 2 * (Q12.card : ℝ) ≤
-          2 * capAt ρ₀ * (G.cycleRank : ℝ) + 5 * (Q12.card : ℝ) := by
-        have hm1 := mul_le_mul_of_nonneg_left hQ3_real hcap_nonneg
-        have hm2 : capAt ρ₀ * (Q12.card : ℝ) ≤ 3 * (Q12.card : ℝ) := by gcongr
-        linarith only [hm1, hm2]
-      have h2 : 2 * capAt ρ₀ * (G.cycleRank : ℝ) ≤
-          2 * threeWayCapCoefficient * (G.cycleRank : ℝ) +
-            ξ / 2 * (Nat.card V : ℝ) := by
-        have hβ_real : (G.cycleRank : ℝ) ≤ (Nat.card V : ℝ) := Nat.cast_le.mpr hbeta_le_V
-        have hm1 : 2 * capAt ρ₀ * (G.cycleRank : ℝ) ≤
-            2 * (threeWayCapCoefficient + ξ / 4) * (G.cycleRank : ℝ) :=
-          mul_le_mul_of_nonneg_right (by linarith only [hcap_le]) (Nat.cast_nonneg _)
-        have hm2 : ξ / 2 * (G.cycleRank : ℝ) ≤ ξ / 2 * (Nat.card V : ℝ) := by gcongr
-        linarith only [hm1, hm2]
-      have h3 : 5 / 3 * (Q12.card : ℝ) ≤ 16 / (M : ℝ) * (Nat.card V : ℝ) := by
-        calc 5 / 3 * (Q12.card : ℝ) ≤ 2 * (Q12.card : ℝ) := by
-              have : (0 : ℝ) ≤ Q12.card := Nat.cast_nonneg _
-              linarith only [this]
-          _ ≤ 2 * (8 * (Nat.card V : ℝ) / (M : ℝ)) := by gcongr
-          _ = 16 / (M : ℝ) * (Nat.card V : ℝ) := by ring
-      have hξV : 0 ≤ ξ * (Nat.card V : ℝ) := by positivity
+      have hβ : (G.cycleRank : ℝ) ≤ Nat.card V := Nat.cast_le.mpr hbeta_le_V
+      have hQ12 : (0 : ℝ) ≤ Q12.card := Nat.cast_nonneg _
+      have h16 : 16 / (M : ℝ) * Nat.card V = 2 * (8 * Nat.card V / M) := by ring
       rw [hthird, add_mul]
-      linarith only [hexp_cutAny, h1, h2, h3, hξV]
+      linarith only [hexp_cutAny, mul_le_mul_of_nonneg_left hQ3_real hcap_nonneg,
+        mul_le_mul_of_nonneg_right (capAt_le_three ρ₀) hQ12,
+        mul_le_mul_of_nonneg_right hcap_le (Nat.cast_nonneg (α := ℝ) G.cycleRank),
+        mul_le_mul_of_nonneg_left hβ hξ.le, hQ12_real, h16, hQ12,
+        (by positivity : 0 ≤ ξ * (Nat.card V : ℝ))]
     -- Apply `WeightedSecondMoment` to the `6` local block/edge sums!
     set h : ℝ := (Nat.card V : ℝ)
     have hh_pos : 0 < h := by
       dsimp [h]; exact_mod_cast (Nat.zero_lt_of_lt hM_lt_V)
     set thr : ℝ := η * h
     have hthr_pos : 0 < thr := by positivity
-    let aWt (B : cmp.blocks) : ℝ := ((A ∩ {v : V | v ∈ B.val}).ncard : ℝ)
+    let aWt (B : cmp.blocks) : ℝ := ((A ∩ {v : V | v ∈ B.1}).ncard : ℝ)
     have haWt_bounds (B : cmp.blocks) : 0 ≤ aWt B ∧ aWt B ≤ M := by
-      refine ⟨Nat.cast_nonneg _, ?_⟩
-      have hsub : A ∩ {v : V | v ∈ B.val} ⊆ {v : V | v ∈ B.val} := inter_subset_right
-      have hle_len : (A ∩ {v : V | v ∈ B.val}).ncard ≤ cmp.blockWeight B := by
-        refine (ncard_le_ncard hsub (toFinite _)).trans ?_
-        rw [cmp.ncard_block_eq_length B, CappedCompression.blockWeight]
-        simp
-      exact Nat.cast_le.mpr (hle_len.trans (cmp.blockWeight_le B))
+      refine ⟨Nat.cast_nonneg _, Nat.cast_le.mpr <|
+        ((ncard_le_ncard inter_subset_right).trans ?_).trans (cmp.blockWeight_le B)⟩
+      rw [cmp.ncard_block_eq_length B, CappedCompression.blockWeight]
+      simp
     have haWt_eq (B : cmp.blocks) :
         aWt B = (((Finset.univ.filter (· ∈ A)).filter fun v => cmp.blockOf v = B).card : ℝ) := by
       dsimp only [aWt]
@@ -430,6 +348,10 @@ theorem exists_balanced_threeWayCut {ξ : ℝ} (hξ : 0 < ξ) :
           _ < 1 := mul_div_mul_sq_lt_one hη.ne' hh_pos ha)
     have hgoodA (c : Fin 3) : ω ∉ devA c := hω (.inl c) (Finset.mem_univ _)
     have hgoodC (c : Fin 3) : ω ∉ devCut c := hω (.inr c) (Finset.mem_univ _)
+    have hslack_h : (ξ / 2 + 16 / (M : ℝ)) * h + η * h ≤ ξ * h + (C₀ : ℝ) := by
+      have := mul_le_mul_of_nonneg_right
+        (by linarith only [hslack, hξ] : ξ / 2 + 16 / (M : ℝ) + η ≤ ξ) hh_pos.le
+      linarith only [this, Nat.cast_nonneg (α := ℝ) C₀]
     -- Lift `blockColor Q q R ω` to `col : V → Fin 3` along `cmp.blockOf`.
     refine ⟨fun v => blockColor Q q R ω (cmp.blockOf v), fun c => ?_, fun c => ?_⟩
     · -- Balance of `A ∩ {v | col v = c}`:
@@ -448,19 +370,12 @@ theorem exists_balanced_threeWayCut {ξ : ℝ} (hξ : 0 < ξ) :
         by_cases hB : blockColor Q q R ω B = c <;> simp [colEvent, hB]
       have hmean : (∑ B : cmp.blocks, aWt B * P.real (colEvent c B)) =
           1 / 3 * (A.ncard : ℝ) := by
-        have h3b (B : cmp.blocks) : P.real (colEvent c B) = 1 / 3 :=
-          measureReal_blockColor_eq_one_third Q q R B c
-        simp_rw [h3b]
-        rw [← Finset.sum_mul, haWt_sum_univ]
+        simp_rw [show ∀ B, P.real (colEvent c B) = 1 / 3 from
+          fun B => measureReal_blockColor_eq_one_third Q q R B c, ← Finset.sum_mul, haWt_sum_univ]
         ring
       rw [hval, ← hmean]
-      have hη_le : η * h ≤ ξ * h + (C₀ : ℝ) := by
-        have hη_lt_ξ : η ≤ ξ := by
-          linarith only [hξ, hη, hslack, show 0 ≤ 16 / (M : ℝ) by positivity]
-        have hm := mul_le_mul_of_nonneg_right hη_lt_ξ hh_pos.le
-        have hc0 : (0 : ℝ) ≤ C₀ := Nat.cast_nonneg _
-        linarith only [hm, hc0]
-      exact hgood.le.trans hη_le
+      have : 0 ≤ (ξ / 2 + 16 / (M : ℝ)) * h := by positivity
+      exact hgood.le.trans (by linarith only [hslack_h, this] : η * h ≤ ξ * h + C₀)
     · -- Pairwise edge-cut bound `E(V_c, V_{c + 1})`:
       have hgood :=
         not_le.mp (by simpa only [devCut, weightedDeviation, mem_ofPred_eq] using hgoodC c)
@@ -482,20 +397,11 @@ theorem exists_balanced_threeWayCut {ξ : ℝ} (hξ : 0 < ξ) :
           generalize blockColor Q q R ω (Q.src e) = a
           generalize blockColor Q q R ω (Q.tgt e) = b
           fin_cases c <;> fin_cases a <;> fin_cases b <;> decide
-        rw [hset_eq, show {e : cmp.external | ω ∈ cutPairEvent Q q R c e}.ncard =
-            (Finset.univ.filter fun e : cmp.external => ω ∈ cutPairEvent Q q R c e).card by
-          rw [← ncard_coe_finset]; congr 1; ext e; simp]
-        rw [Finset.card_filter, Nat.cast_sum]
-        refine Finset.sum_congr rfl fun e _ => ?_
-        by_cases he : ω ∈ cutPairEvent Q q R c e <;> simp [he]
+        rw [hset_eq, ncard_eq_toFinset_card', toFinset_ofPred]
+        simp only [one_mul, indicator_apply, Pi.one_apply, Finset.sum_boole]
       rw [hpre_eq, hQ_cut_sum]
       have habs := le_of_abs_le hgood.le
       have hexp := hexp_cutPair c
-      have hslack_h : (ξ / 2 + 16 / (M : ℝ)) * h + η * h ≤ ξ * h + (C₀ : ℝ) := by
-        have hsum_coef : (ξ / 2 + 16 / (M : ℝ)) + η ≤ ξ := by linarith only [hslack, hξ]
-        have hm := mul_le_mul_of_nonneg_right hsum_coef hh_pos.le
-        have hc0 : (0 : ℝ) ≤ C₀ := Nat.cast_nonneg _
-        linarith only [hm, hc0]
       dsimp [thr] at habs
       dsimp [h] at hslack_h ⊢
       linarith only [habs, hexp, hslack_h]

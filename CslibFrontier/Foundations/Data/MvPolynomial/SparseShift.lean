@@ -93,18 +93,15 @@ of `p` by the variables of the derivative gives a polynomial in the span of the 
 theorem prod_X_mul_iteratedPDeriv_mem_restrictSupport {k : ℕ} (α : Fin k → σ)
     (p : MvPolynomial σ R) :
     (∏ i, X (α i)) * iteratedPDeriv α p ∈ restrictSupport R (p.support : Set (σ →₀ ℕ)) := by
-  rw [restrictSupport_eq_span]
   have hp : iteratedPDeriv α p =
       ∑ μ ∈ p.support, iteratedPDeriv α (monomial μ (p.coeff μ)) := by
     conv_lhs => rw [p.as_sum, map_sum]
-  rw [hp, Finset.mul_sum]
+  rw [restrictSupport_eq_span, hp, Finset.mul_sum]
   refine Submodule.sum_mem _ fun μ hμ => ?_
-  obtain ⟨ν, c', h, hν⟩ := exists_iteratedPDeriv_monomial α μ (p.coeff μ)
-  rw [h]
-  rcases hν with rfl | hν
-  · rw [monomial_zero, mul_zero]
+  obtain ⟨ν, c', h, rfl | hν⟩ := exists_iteratedPDeriv_monomial α μ (p.coeff μ)
+  · rw [h, monomial_zero, mul_zero]
     exact zero_mem _
-  · rw [hν, ← mul_one c', ← smul_eq_mul, ← smul_monomial]
+  · rw [h, hν, ← mul_one c', ← smul_eq_mul, ← smul_monomial]
     exact Submodule.smul_mem _ _ (Submodule.subset_span ⟨μ, hμ, rfl⟩)
 
 /-- **Lemma 3.1 of the source.** The correlated shifted partials
@@ -146,11 +143,9 @@ theorem finrank_iteratedPDerivSpan_homogeneousComponent_shift_le {p : MvPolynomi
   -- a linearly independent family of derivatives of `h` spanning all of them
   obtain ⟨b, hbsub, hbspan, hbli⟩ := exists_linearIndependent K
     (Set.range fun x : Σ k, Fin k → σ => iteratedPDeriv x.2 h)
-  have hbsub' (x : b) : ∃ y : Σ k, Fin k → σ, iteratedPDeriv y.2 h = x := hbsub x.property
-  choose idx hidx using hbsub'
-  have hk (x : b) : (idx x).1 ≤ m := not_lt.1 fun hlt => hbli.ne_zero x (by
-    rw [← hidx x]
-    exact iteratedPDeriv_homogeneousComponent_eq_zero hlt _ _)
+  choose idx hidx using fun x : b => hbsub x.2
+  have hk (x : b) : (idx x).1 ≤ m := not_lt.1 fun hlt =>
+    hbli.ne_zero x (hidx x ▸ iteratedPDeriv_homogeneousComponent_eq_zero hlt _ _)
   -- the lifts of the derivatives to correlated shifted partials of `g`
   let Fam : b → MvPolynomial σ K := fun x =>
     (∏ i, (X ((idx x).2 i) + C (u ((idx x).2 i)))) * iteratedPDeriv (idx x).2 g
@@ -158,29 +153,24 @@ theorem finrank_iteratedPDerivSpan_homogeneousComponent_shift_le {p : MvPolynomi
       homogeneousComponent j (iteratedPDeriv (idx x).2 g) = 0 := fun j hj => by
     rw [homogeneousComponent_iteratedPDeriv, hm _ (by omega), map_zero]
   let w : b → Kˣ := fun x =>
-    Units.mk0 (∏ i, u ((idx x).2 i)) (Finset.prod_ne_zero_iff.2 fun i _ => hu _)
+    Units.mk0 (∏ i, u ((idx x).2 i)) (Finset.prod_ne_zero_iff.2 fun _ _ => hu _)
   have hlead : (fun x : b => homogeneousComponent (m - (idx x).1) (Fam x)) =
       w • ((↑) : b → MvPolynomial σ K) := funext fun x => by
     have hc : (∏ i, (X ((idx x).2 i) + C (u ((idx x).2 i)) : MvPolynomial σ K)).coeff 0 =
-        ∏ i, u ((idx x).2 i) := by
-      rw [← constantCoeff_eq, map_prod]
-      simp
+        ∏ i, u ((idx x).2 i) := by simp [← constantCoeff_eq]
     rw [homogeneousComponent_mul (hstart x), homogeneousComponent_iteratedPDeriv,
-      Nat.sub_add_cancel (hk x), hidx x, hc]
+      Nat.sub_add_cancel (hk x), ← hh, show iteratedPDeriv (idx x).2 h = x from hidx x, hc]
     rfl
-  have hFam : LinearIndependent K Fam :=
-    linearIndependent_of_homogeneousComponent (e := fun x => m - (idx x).1)
-      (fun x _ hj => homogeneousComponent_mul_eq_zero (hstart x) _ hj)
-      (hlead ▸ hbli.units_smul w)
   have hFam' : LinearIndependent K fun x : b =>
       (⟨Fam x, prod_X_add_C_mul_iteratedPDeriv_shift_mem u _ p⟩ : V) :=
-    LinearIndependent.of_comp V.subtype hFam
+    .of_comp V.subtype <| linearIndependent_of_homogeneousComponent (e := fun x => m - (idx x).1)
+      (fun x _ hj => homogeneousComponent_mul_eq_zero (hstart x) _ hj) (hlead ▸ hbli.units_smul w)
   have : Finite b := hFam'.finite
   have := Fintype.ofFinite b
   rw [iteratedPDerivSpan, ← hbspan]
-  refine ⟨Module.Finite.span_of_finite K (Set.toFinite b), (finrank_span_le_card b).trans ?_⟩
-  rw [Set.toFinset_card]
-  exact hFam'.fintype_card_le_finrank.trans hVrank
+  exact ⟨Module.Finite.span_of_finite K (Set.toFinite b),
+    (finrank_span_le_card b).trans
+      (Set.toFinset_card b ▸ hFam'.fintype_card_le_finrank.trans hVrank)⟩
 
 end Field
 

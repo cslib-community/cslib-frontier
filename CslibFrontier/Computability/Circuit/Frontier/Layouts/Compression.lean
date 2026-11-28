@@ -13,6 +13,7 @@ import Mathlib.Order.Prod.Lex.Basic
 import Mathlib.SetTheory.Cardinal.NatCard
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Compressions of multigraphs
@@ -171,11 +172,9 @@ theorem ncard_internal_add_join_le [DecidableEq V] [Finite E] {B B' : List V}
     · obtain ⟨D, hD, hCD⟩ := hsup C hC
       exact ⟨D, hD, hCD _ hs, hCD _ ht⟩
     · refine ⟨B ++ B', Finset.mem_insert_self _ _, ?_⟩
-      have := hd (G.src e)
-      have := hd (G.tgt e)
       simp only [mem_edgeCut, mem_ofPred_eq] at h₁ h₂
       simp only [List.mem_append]
-      tauto
+      lrat_tauto [hd (G.src e), hd (G.tgt e)]
   have hdisj : Disjoint {e | ∃ D ∈ c.blocks, G.src e ∈ D ∧ G.tgt e ∈ D}
       (G.edgeCut {v | v ∈ B} ∩ G.edgeCut {v | v ∈ B'}) := by
     refine disjoint_left.2 ?_
@@ -186,8 +185,7 @@ theorem ncard_internal_add_join_le [DecidableEq V] [Finite E] {B B' : List V}
       · exact c.eq_of_mem D hD C hC _ hs hs'
       · exact c.eq_of_mem D hD C hC _ ht (by tauto)
     exact hne ((key B hB h₁).symm.trans (key B' hB' h₂))
-  have hle := ncard_le_ncard hsub
-  rwa [ncard_union_eq hdisj] at hle
+  exact (ncard_union_eq hdisj).symm.trans_le (ncard_le_ncard hsub)
 
 /-- **Ordered merge.** Replace two distinct blocks `B` and `B'` joined by an edge (with
 `B'.length ≤ B.length` and at most `d` edges leaving their union) by `B ++ B'`. -/

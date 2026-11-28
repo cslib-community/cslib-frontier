@@ -131,23 +131,14 @@ theorem realize_nextF {I : ℕ → List M → Prop} {v : ℕ → M} :
 /-- The sentences `arithAxioms` express the `ArithModel` structure. -/
 theorem realize_arithAxioms {I : ℕ → List M → Prop} {v : ℕ → M} :
     (∀ φ ∈ arithAxioms, φ.Realize I v) ↔ ArithModel I := by
-  have hirrefl : axIrrefl.Realize I v ↔ ∀ a, ¬I 0 [a, a] := by simp [axIrrefl]
-  have htrans : axTrans.Realize I v ↔ ∀ a b c, I 0 [a, b] → I 0 [b, c] → I 0 [a, c] := by
-    simp [axTrans]
-  have htotal : axTotal.Realize I v ↔ ∀ a b, I 0 [a, b] ∨ a = b ∨ I 0 [b, a] := by
-    simp [axTotal]
-  have hzero : axZero.Realize I v ↔ ∀ a, I 1 [a] ↔ ∀ b, ¬I 0 [b, a] := by
-    simp [axZero]
-  have hsucc : axSucc.Realize I v ↔
-      ∀ a b, I 2 [a, b] ↔ I 0 [a, b] ∧ ∀ c, I 0 [a, c] → ¬I 0 [c, b] := by
-    simp [axSucc, not_and]
-  have hpair : axPair.Realize I v ↔
-      ∀ a b p, I 3 [a, b, p] ↔ (I 1 [p] ∧ I 1 [a] ∧ I 1 [b]) ∨
-        ∃ a' b' p', I 2 [p', p] ∧ I 3 [a', b', p'] ∧ NextSem I a' b' a b := by
-    simp [axPair, realize_nextF]
-  simp only [arithAxioms, List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp,
-    forall_eq, hirrefl, htrans, htotal, hzero, hsucc, hpair]
-  constructor <;> rintro ⟨h1, h2, h3, h4, h5, h6⟩ <;> exact ⟨h1, h2, h3, h4, h5, h6⟩
+  suffices (∀ a, ¬I 0 [a, a]) ∧ (∀ a b c, I 0 [a, b] → I 0 [b, c] → I 0 [a, c]) ∧
+      (∀ a b, I 0 [a, b] ∨ a = b ∨ I 0 [b, a]) ∧ (∀ a, I 1 [a] ↔ ∀ b, ¬I 0 [b, a]) ∧
+      (∀ a b, I 2 [a, b] ↔ I 0 [a, b] ∧ ∀ c, I 0 [a, c] → ¬I 0 [c, b]) ∧
+      (∀ a b p, I 3 [a, b, p] ↔ (I 1 [p] ∧ I 1 [a] ∧ I 1 [b]) ∨
+        ∃ a' b' p', I 2 [p', p] ∧ I 3 [a', b', p'] ∧ NextSem I a' b' a b) ↔ ArithModel I by
+    simpa [arithAxioms, axIrrefl, axTrans, axTotal, axZero, axSucc, axPair, realize_nextF, not_and]
+  exact ⟨fun ⟨h1, h2, h3, h4, h5, h6⟩ => ⟨h1, h2, h3, h4, h5, h6⟩,
+    fun ⟨h1, h2, h3, h4, h5, h6⟩ => ⟨h1, h2, h3, h4, h5, h6⟩⟩
 
 /-! ### Faithfulness: finite models are standard initial segments -/
 
@@ -165,43 +156,36 @@ private theorem pair_of_nextNat {a' b' a b : ℕ} (h : NextNat a' b' a b) :
 
 private theorem pair_eq_succ_iff {a b q : ℕ} :
     Nat.pair a b = q + 1 ↔ ∃ a' b', Nat.pair a' b' = q ∧ NextNat a' b' a b := by
-  constructor
-  · intro h
-    refine ⟨q.unpair.1, q.unpair.2, Nat.pair_unpair q, ?_⟩
-    obtain ⟨a0, b0, h0⟩ : ∃ a0 b0, NextNat q.unpair.1 q.unpair.2 a0 b0 := by
-      rcases lt_trichotomy (q.unpair.1 + 1) q.unpair.2 with h1 | h1 | h1
-      · exact ⟨_, _, Or.inl ⟨rfl, h1, rfl⟩⟩
-      · exact ⟨_, _, Or.inr (Or.inl ⟨h1.symm, rfl, rfl⟩)⟩
-      · rcases lt_or_eq_of_le (Nat.le_of_lt_succ h1) with h2 | h2
-        · exact ⟨_, _, Or.inr (Or.inr (Or.inl ⟨h2, rfl, rfl⟩))⟩
-        · exact ⟨_, _, Or.inr (Or.inr (Or.inr ⟨h2.symm, rfl, rfl⟩))⟩
-    have h1 := pair_of_nextNat h0
-    rw [Nat.pair_unpair, ← h, Nat.pair_eq_pair] at h1
-    obtain ⟨rfl, rfl⟩ := h1
-    exact h0
-  · rintro ⟨a', b', rfl, h⟩
-    exact pair_of_nextNat h
+  refine ⟨fun h => ⟨q.unpair.1, q.unpair.2, Nat.pair_unpair q, ?_⟩,
+    fun ⟨_, _, h1, h2⟩ => h1 ▸ pair_of_nextNat h2⟩
+  obtain ⟨a0, b0, h0⟩ : ∃ a0 b0, NextNat q.unpair.1 q.unpair.2 a0 b0 :=
+    if h1 : q.unpair.1 + 1 < q.unpair.2 then ⟨_, _, Or.inl ⟨rfl, h1, rfl⟩⟩
+    else if h2 : q.unpair.2 = q.unpair.1 + 1 then ⟨_, _, Or.inr <| Or.inl ⟨h2, rfl, rfl⟩⟩
+    else if h3 : q.unpair.2 < q.unpair.1 then ⟨_, _, Or.inr <| Or.inr <| Or.inl ⟨h3, rfl, rfl⟩⟩
+    else ⟨_, _, Or.inr <| Or.inr <| Or.inr ⟨by omega, rfl, rfl⟩⟩
+  have h1 := pair_of_nextNat h0
+  rw [Nat.pair_unpair, ← h, Nat.pair_eq_pair] at h1
+  exact h1.1 ▸ h1.2 ▸ h0
 
 /-- The defining recursion of `axPair`, on numbers below `N`. -/
 private theorem pair_eq_iff {N a b p : ℕ} (hp : p < N) :
     Nat.pair a b = p ↔ (p = 0 ∧ a = 0 ∧ b = 0) ∨
       ∃ a' < N, ∃ b' < N, ∃ p' < N, p = p' + 1 ∧ Nat.pair a' b' = p' ∧ NextNat a' b' a b := by
   rcases p with _ | q
-  · constructor
-    · intro h
-      have := Nat.left_le_pair a b
-      have := Nat.right_le_pair a b
-      left; omega
-    · rintro (⟨-, rfl, rfl⟩ | ⟨_, _, _, _, p', _, h, -⟩)
-      · rfl
-      · omega
+  · exact ⟨fun h => Or.inl ⟨rfl, by
+        have := Nat.left_le_pair a b
+        have := Nat.right_le_pair a b
+        omega⟩,
+      fun h => by
+        rcases h with ⟨-, rfl, rfl⟩ | ⟨_, _, _, _, _, _, h, -⟩
+        · rfl
+        · omega⟩
   · rw [pair_eq_succ_iff]
-    constructor
-    · rintro ⟨a', b', h1, h2⟩
-      right
-      have := Nat.left_le_pair a' b'
-      have := Nat.right_le_pair a' b'
-      exact ⟨a', by omega, b', by omega, q, by omega, rfl, h1, h2⟩
+    refine ⟨fun ⟨a', b', h1, h2⟩ => Or.inr ⟨a', ?_, b', ?_, q, by omega, rfl, h1, h2⟩, ?_⟩
+    · have := Nat.left_le_pair a' b'
+      omega
+    · have := Nat.right_le_pair a' b'
+      omega
     · rintro (⟨h, -⟩ | ⟨a', -, b', -, p', -, h, h1, h2⟩)
       · omega
       · exact ⟨a', b', by omega, h2⟩
@@ -212,7 +196,19 @@ variable {I : ℕ → List M → Prop}
 
 private theorem forall_fin_val {N : ℕ} (e : M ≃ Fin N) {P : ℕ → Prop} :
     (∀ c, P (e c)) ↔ ∀ i < N, P i :=
-  ⟨fun h i hi => by simpa using h (e.symm ⟨i, hi⟩), fun h c => h _ (e c).isLt⟩
+  ⟨fun h i hi => by simpa using h (e.symm ⟨i, hi⟩), fun h c => h _ (e c).2⟩
+
+private lemma zero_iff_forall_not_lt {N : ℕ} (e : M ≃ Fin N) (a : M) :
+    (∀ b, ¬(e b : ℕ) < e a) ↔ (e a : ℕ) = 0 := by
+  rw [forall_fin_val e (P := fun i => ¬i < (e a : ℕ))]
+  exact ⟨fun H => by_contra fun hne => H 0 (by omega) (by omega), fun H i _ => by omega⟩
+
+private lemma succ_iff_lt_forall {N : ℕ} (e : M ≃ Fin N) (a b : M) :
+    ((e a : ℕ) < e b ∧ ∀ c, (e a : ℕ) < e c → ¬(e c : ℕ) < e b) ↔ (e b : ℕ) = e a + 1 := by
+  rw [forall_fin_val e (P := fun i => (e a : ℕ) < i → ¬i < e b)]
+  exact ⟨fun ⟨hab, H⟩ => by_contra fun hne =>
+    H (e a + 1) ((Nat.succ_le_of_lt hab).trans_lt (e b).2) (Nat.lt_succ_self _) (by omega),
+    fun H => ⟨by omega, fun i _ _ => by omega⟩⟩
 
 private theorem nextSem_iff {N : ℕ} (e : M ≃ Fin N) (hlt : ∀ a b, I 0 [a, b] ↔ (e a : ℕ) < e b)
     (hz : ∀ a, I 1 [a] ↔ (e a : ℕ) = 0) (hs : ∀ a b, I 2 [a, b] ↔ (e b : ℕ) = e a + 1)
@@ -227,24 +223,19 @@ theorem pair_faithful (h : ArithModel I) {N : ℕ} (e : M ≃ Fin N)
     (hlt : ∀ a b, I 0 [a, b] ↔ (e a : ℕ) < e b) (hz : ∀ a, I 1 [a] ↔ (e a : ℕ) = 0)
     (hs : ∀ a b, I 2 [a, b] ↔ (e b : ℕ) = e a + 1) :
     ∀ a b p, I 3 [a, b, p] ↔ Nat.pair (e a) (e b) = e p := by
-  suffices H : ∀ q : ℕ, ∀ a b p : M, (e p : ℕ) = q → (I 3 [a, b, p] ↔ Nat.pair (e a) (e b) = q)
+  suffices H : ∀ q a b p, (e p : ℕ) = q → (I 3 [a, b, p] ↔ Nat.pair (e a) (e b) = q)
     from fun a b p => H _ a b p rfl
   intro q
   induction q using Nat.strong_induction_on with
   | _ q ih =>
   intro a b p hp
-  rw [h.pair, pair_eq_iff (hp ▸ (e p).isLt)]
+  rw [h.pair, pair_eq_iff (hp ▸ (e p).2)]
   simp only [hz, hs, nextSem_iff e hlt hz hs, hp]
-  constructor
-  · rintro (h0 | ⟨a', b', p', h1, h2, h3⟩)
-    · exact Or.inl h0
-    · refine Or.inr ⟨e a', (e a').isLt, e b', (e b').isLt, e p', (e p').isLt, h1, ?_, h3⟩
-      exact (ih (e p') (by omega) a' b' p' rfl).1 h2
-  · rintro (h0 | ⟨a', ha', b', hb', p', hp', h1, h2, h3⟩)
-    · exact Or.inl h0
-    · refine Or.inr ⟨e.symm ⟨a', ha'⟩, e.symm ⟨b', hb'⟩, e.symm ⟨p', hp'⟩, by simpa using h1,
-        ?_, by simpa using h3⟩
-      exact (ih p' (by omega) _ _ _ (by simp)).2 (by simpa using h2)
+  exact ⟨Or.imp_right fun ⟨a', b', p', h1, h2, h3⟩ =>
+      ⟨e a', (e a').2, e b', (e b').2, e p', (e p').2, h1, (ih _ (by omega) a' b' p' rfl).1 h2, h3⟩,
+    Or.imp_right fun ⟨a', ha', b', hb', p', hp', h1, h2, h3⟩ =>
+      ⟨e.symm ⟨a', ha'⟩, e.symm ⟨b', hb'⟩, e.symm ⟨p', hp'⟩, by simpa using h1,
+        (ih p' (by omega) _ _ _ (by simp)).2 (by simpa using h2), by simpa using h3⟩⟩
 
 variable [Finite M]
 
@@ -261,19 +252,13 @@ private theorem rank_lt_card (h : ArithModel I) (a : M) : rank I a < Nat.card M 
   exact Set.ncard_lt_ncard ⟨Set.subset_univ _, fun hsub => h.irrefl a (hsub (Set.mem_univ a))⟩
     (Set.toFinite _)
 
-private theorem lt_iff_rank_lt (h : ArithModel I) {a b : M} : I 0 [a, b] ↔ rank I a < rank I b := by
-  refine ⟨rank_lt_rank h, fun hr => ?_⟩
-  rcases h.total a b with hab | rfl | hba
-  · exact hab
-  · exact absurd hr (lt_irrefl _)
-  · exact absurd (rank_lt_rank h hba) (by omega)
+private theorem lt_iff_rank_lt (h : ArithModel I) {a b : M} : I 0 [a, b] ↔ rank I a < rank I b :=
+  ⟨rank_lt_rank h, fun hr => (h.total a b).elim id fun h' => h'.elim
+    (fun e => absurd (e ▸ hr) (lt_irrefl _)) (fun hba => absurd (rank_lt_rank h hba) (by omega))⟩
 
-private theorem rank_injective (h : ArithModel I) : Function.Injective (rank I) := by
-  intro a b hab
-  rcases h.total a b with h1 | h1 | h1
-  · exact absurd (rank_lt_rank h h1) (by omega)
-  · exact h1
-  · exact absurd (rank_lt_rank h h1) (by omega)
+private theorem rank_injective (h : ArithModel I) : Function.Injective (rank I) := fun a b hab =>
+  (h.total a b).elim (fun h1 => absurd (rank_lt_rank h h1) (by omega))
+    (fun h' => h'.elim id fun h1 => absurd (rank_lt_rank h h1) (by omega))
 
 /-- The rank bijection onto an initial segment. -/
 private noncomputable def rankEquiv (h : ArithModel I) : M ≃ Fin (Nat.card M) :=
@@ -292,28 +277,10 @@ theorem arithModel_faithful (h : ArithModel I) : ∃ (N : ℕ) (e : M ≃ Fin N)
         ∀ a b p, I 3 [a, b, p] ↔ Nat.pair (e a) (e b) = e p := by
   let e := rankEquiv h
   have hlt : ∀ a b, I 0 [a, b] ↔ (e a : ℕ) < e b := fun a b => lt_iff_rank_lt h
-  have hz : ∀ a, I 1 [a] ↔ (e a : ℕ) = 0 := by
-    intro a
-    rw [h.zero]
-    simp only [hlt]
-    rw [forall_fin_val e (P := fun i => ¬i < (e a : ℕ))]
-    constructor
-    · intro H
-      by_contra hne
-      exact H 0 (lt_of_le_of_lt (Nat.zero_le _) (e a).isLt) (by omega)
-    · intro H i _
-      omega
-  have hs : ∀ a b, I 2 [a, b] ↔ (e b : ℕ) = e a + 1 := by
-    intro a b
-    rw [h.succ]
-    simp only [hlt]
-    rw [forall_fin_val e (P := fun i => (e a : ℕ) < i → ¬i < e b)]
-    constructor
-    · rintro ⟨hab, H⟩
-      by_contra hne
-      exact H (e a + 1) (by have := (e b).isLt; omega) (by omega) (by omega)
-    · intro H
-      exact ⟨by omega, fun i _ _ => by omega⟩
+  have hz : ∀ a, I 1 [a] ↔ (e a : ℕ) = 0 := fun a => by
+    simpa only [h.zero, hlt] using zero_iff_forall_not_lt e a
+  have hs : ∀ a b, I 2 [a, b] ↔ (e b : ℕ) = e a + 1 := fun a b => by
+    simpa only [h.succ, hlt] using succ_iff_lt_forall e a b
   exact ⟨_, e, hlt, hz, hs, pair_faithful h e hlt hz hs⟩
 
 end Faithful
@@ -332,34 +299,19 @@ theorem arithModel_of_std {N : ℕ} {I : ℕ → List (Fin N) → Prop}
     (h0 : ∀ a b : Fin N, I 0 [a, b] ↔ (a : ℕ) < b) (h1 : ∀ a : Fin N, I 1 [a] ↔ (a : ℕ) = 0)
     (h2 : ∀ a b : Fin N, I 2 [a, b] ↔ (b : ℕ) = a + 1)
     (h3 : ∀ a b p : Fin N, I 3 [a, b, p] ↔ Nat.pair a b = p) : ArithModel I := by
-  have hnext : ∀ a' b' a b : Fin N, NextSem I a' b' a b ↔ NextNat a' b' a b :=
-    fun a' b' a b => nextSem_iff (Equiv.refl _) h0 h1 h2
   refine ⟨fun a => by simp [h0], fun a b c => by simp only [h0]; omega,
-    fun a b => by fin_index [h0], fun a => ?_, fun a b => ?_, fun a b p => ?_⟩
-  · rw [h1]
-    simp only [h0]
-    constructor
-    · intro ha b; omega
-    · intro H
-      by_contra hne
-      exact H ⟨0, by omega⟩ (by simp; omega)
-  · rw [h2]
-    simp only [h0]
-    constructor
-    · intro hb
-      exact ⟨by omega, fun c h1 h2 => by omega⟩
-    · rintro ⟨hab, H⟩
-      by_contra hne
-      exact H ⟨a + 1, by omega⟩ (by simp) (by simp; omega)
-  · rw [h3, pair_eq_iff p.isLt]
-    simp only [h1, h2, hnext]
-    constructor
-    · rintro (h | ⟨a', ha', b', hb', p', hp', h4, h5, h6⟩)
-      · exact Or.inl ⟨h.1, h.2.1, h.2.2⟩
-      · exact Or.inr ⟨⟨a', ha'⟩, ⟨b', hb'⟩, ⟨p', hp'⟩, h4, (h3 _ _ _).2 h5, h6⟩
-    · rintro (h | ⟨a', b', p', h4, h5, h6⟩)
-      · exact Or.inl ⟨h.1, h.2.1, h.2.2⟩
-      · exact Or.inr ⟨a', a'.isLt, b', b'.isLt, p', p'.isLt, h4, (h3 _ _ _).1 h5, h6⟩
+    fun a b => by fin_index [h0],
+    fun a => by simpa only [h1, h0, Equiv.refl_apply] using
+      (zero_iff_forall_not_lt (Equiv.refl _) a).symm,
+    fun a b => by simpa only [h2, h0, Equiv.refl_apply] using
+      (succ_iff_lt_forall (Equiv.refl _) a b).symm,
+    fun a b p => ?_⟩
+  rw [h3, pair_eq_iff p.2]
+  simp only [h1, h2, nextSem_iff (Equiv.refl _) h0 h1 h2]
+  exact ⟨Or.imp_right fun ⟨a', ha', b', hb', p', hp', h4, h5, h6⟩ =>
+      ⟨⟨a', ha'⟩, ⟨b', hb'⟩, ⟨p', hp'⟩, h4, (h3 _ _ _).2 h5, h6⟩,
+    Or.imp_right fun ⟨a', b', p', h4, h5, h6⟩ =>
+      ⟨a', a'.2, b', b'.2, p', p'.2, h4, (h3 _ _ _).1 h5, h6⟩⟩
 
 /-- The standard arithmetic relations `StdArith N` form an `ArithModel`. -/
 theorem arithModel_stdArith (N : ℕ) : ArithModel (StdArith N) :=

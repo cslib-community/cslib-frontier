@@ -161,12 +161,10 @@ private theorem prod_correction_le (hp : p.Good) :
   let F (t : ℕ) : ℝ := if 1 ≤ t ∧ p.isVNat t ∧ wordExt τ (t - 1) ∧
     wordExt τ t = false ∧ wordExt τ (t + 1) then 2 * p.layerWeight t else 1
   have hF (t : ℕ) : 1 ≤ F t := by
-    simp only [F]
-    split_ifs with h
+    simp only [F]; split_ifs with h
     · rw [layerWeight, ite_eq_left h.2.1]; linarith
     · exact le_rfl
-  have hlast : F (p.n - 1) = 1 := by
-    simp [F, wordExt, Nat.sub_add_cancel hn]
+  have hlast : F (p.n - 1) = 1 := by simp [F, wordExt, Nat.sub_add_cancel hn]
   have hrange := Finset.prod_range_succ F (p.n - 1)
   rw [Nat.sub_add_cancel hn, hlast, mul_one] at hrange
   have hpt (t : Fin p.n) : (if p.isV t ∧ τ t = false
@@ -188,9 +186,7 @@ private theorem prod_correction_le (hp : p.Good) :
         have hV : p.isVNat t := by simpa [isV] using hNV.1
         have ht : wordExt τ t = false := by rw [wordExt_val]; exact hNV.2
         have htn : (t : ℕ) + 1 < p.n := by
-          by_contra h
-          have := p.not_isV_last t (by omega)
-          simp [this] at hNV
+          by_contra h; simp [p.not_isV_last t (by omega)] at hNV
         by_cases hiso : wordExt τ (t - 1) = true ∧ wordExt τ (t + 1) = true
         · have : F t = 2 * p.α⁻¹ := by
             simp only [F]
@@ -268,8 +264,7 @@ theorem sum_wordWeight_le (hp : p.Good) :
           pow_le_pow_left₀ (by positivity) (by linarith [Real.add_one_le_exp (2 * y / p.n)]) _
       _ = Real.exp (2 * y) := by rw [← Real.exp_natCast_mul]; congr 1; field_simp
   have h₄ : (2 * y) ^ 2 * 2 ≤ Real.exp (4 * y) := by
-    have := Real.quadratic_le_exp_of_nonneg (x := 4 * y) (by positivity)
-    nlinarith
+    nlinarith [Real.quadratic_le_exp_of_nonneg (x := 4 * y) (by positivity)]
   calc ∑ τ : Fin p.n → Bool, p.wordWeight τ
       ≤ ∑ τ : Fin p.n → Bool, (1 + y) * (1 + y⁻¹) ^ p.n * (2 * y) ^ 2 *
           (2 * y / p.n) ^ p.switches τ := Finset.sum_le_sum fun τ _ => wordWeight_le hp τ
@@ -278,7 +273,6 @@ theorem sum_wordWeight_le (hp : p.Good) :
         exact mul_le_mul_of_nonneg_left (sum_pow_switches_le (by positivity)) (by positivity)
     _ = (1 + y) * (1 + y⁻¹) ^ p.n * ((2 * y) ^ 2 * 2) * (1 + 2 * y / p.n) ^ p.n := by ring
     _ ≤ Real.exp y * Real.exp y * Real.exp (4 * y) * Real.exp (2 * y) := by gcongr
-    _ = Real.exp (8 * y) := by
-        rw [← Real.exp_add, ← Real.exp_add, ← Real.exp_add]; ring_nf
+    _ = Real.exp (8 * y) := by rw [← Real.exp_add, ← Real.exp_add, ← Real.exp_add]; ring_nf
 
 end Cslib.Circuits.DepthFive.Params

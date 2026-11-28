@@ -428,10 +428,9 @@ private theorem evalWith_oneSidedSteps (n : ℕ) (c : Params G) (x : (i : Fin 2)
     (oneSidedProtocol G n c).steps.evalWith (batchOTWorld c.evaluatorLen (List Bool))
         (fun i => (x i, coinTuple coins i)) =
       PMF.pure (oneSidedReceived G n c x coins) := by
-  refine (Steps.evalWith_message _ _ _ _).trans ?_
-  refine (congrArg (PMF.map _) (Steps.evalWith_oracle _ _ _ _)).trans ?_
-  simp only [pmf_norm, Steps.evalWith_done, batchOTWorld]
-  rfl
+  refine (Steps.evalWith_message _ _ _ _).trans
+    ((congrArg (PMF.map _) (Steps.evalWith_oracle _ _ _ _)).trans ?_)
+  simp only [pmf_norm, Steps.evalWith_done, batchOTWorld]; rfl
 
 /-- Once the coins are fixed, `protocol`'s steps are deterministic. -/
 private theorem evalWith_steps (n : ℕ) (c : Params G) (x : (i : Fin 2) → Input c i)
@@ -439,10 +438,9 @@ private theorem evalWith_steps (n : ℕ) (c : Params G) (x : (i : Fin 2) → Inp
     (protocol G n c).steps.evalWith (batchOTWorld c.evaluatorLen (List Bool))
         (fun i => (x i, coinTuple coins i)) =
       PMF.pure (received G n c x coins) := by
-  refine (Steps.evalWith_message _ _ _ _).trans ?_
-  refine (congrArg (PMF.map _) (Steps.evalWith_oracle _ _ _ _)).trans ?_
-  simp only [pmf_norm, Steps.evalWith_message, Steps.evalWith_done, batchOTWorld]
-  rfl
+  refine (Steps.evalWith_message _ _ _ _).trans
+    ((congrArg (PMF.map _) (Steps.evalWith_oracle _ _ _ _)).trans ?_)
+  simp only [pmf_norm, Steps.evalWith_message, Steps.evalWith_done, batchOTWorld]; rfl
 
 /-- Independent coin sampling draws the garbler's coin string. -/
 private theorem eval_pi_sampleCoins (n : ℕ) (c : Params G) :
@@ -455,9 +453,8 @@ private theorem eval_pi_sampleCoins (n : ℕ) (c : Params G) :
   erw [PMF.pure_bind]
   simp only [PMF.pure_map]
   rw [← PMF.bind_pure_comp]
-  refine congrArg₂ PMF.bind (BitString.eval_sampleList _)
-    (funext fun coins => congrArg PMF.pure (funext fun i => ?_))
-  fin_cases i <;> rfl
+  exact congrArg₂ PMF.bind (BitString.eval_sampleList _)
+    (funext fun _ => congrArg PMF.pure (funext fun i => by fin_cases i <;> rfl))
 
 /-- The views and outputs of a run of `oneSidedProtocol`, from the garbler's coins. -/
 private theorem evalWith_oneSidedProtocol (n : ℕ) (c : Params G) (x : (i : Fin 2) → Input c i) :
@@ -468,8 +465,7 @@ private theorem evalWith_oneSidedProtocol (n : ℕ) (c : Params G) (x : (i : Fin
   rw [Protocol.evalWith_eq, eval_pi_sampleCoins, PMF.bind_map, ← PMF.bind_pure_comp]
   refine congrArg _ (funext fun coins => ?_)
   simp only [Function.comp_apply, evalWith_oneSidedSteps, PMF.pure_map]
-  refine congrArg PMF.pure (Prod.ext rfl (funext fun i => ?_))
-  fin_cases i <;> rfl
+  exact congrArg PMF.pure (Prod.ext rfl (funext fun i => by fin_cases i <;> rfl))
 
 /-- The views and outputs of a run of `protocol`, from the garbler's coins. -/
 private theorem evalWith_protocol (n : ℕ) (c : Params G) (x : (i : Fin 2) → Input c i) :
@@ -482,8 +478,7 @@ private theorem evalWith_protocol (n : ℕ) (c : Params G) (x : (i : Fin 2) → 
     ← PMF.bind_pure_comp]
   refine congrArg _ (funext fun coins => ?_)
   simp only [Function.comp_apply, evalWith_steps, PMF.pure_map]
-  refine congrArg PMF.pure (Prod.ext rfl (funext fun i => ?_))
-  fin_cases i <;> rfl
+  exact congrArg PMF.pure (Prod.ext rfl (funext fun i => by fin_cases i <;> rfl))
 
 /-- The garbler's view in a run of `oneSidedProtocol`. -/
 private theorem oneSidedReceived_zero (n : ℕ) (c : Params G) (x : (i : Fin 2) → Input c i)
@@ -491,12 +486,11 @@ private theorem oneSidedReceived_zero (n : ℕ) (c : Params G) (x : (i : Fin 2) 
     (⟨x 0, coinTuple coins 0, oneSidedReceived G n c x coins 0⟩ :
         PartyView (Input c) Coins (oneSidedSchedule c) 0) =
       oneSidedGarblerView c (x 0) coins := by
-  refine PartyView.ext rfl rfl (Prod.ext ?_ (Prod.ext ?_ rfl))
-  · exact Round.received_message_eq_of_ne (by decide) _ _
-  · refine Round.received_oracle_ext fun s hs => ?_
-    fin_cases s
-    · rfl
-    · simp at hs
+  refine PartyView.ext rfl rfl (Prod.ext (Round.received_message_eq_of_ne (by decide) _ _)
+    (Prod.ext (Round.received_oracle_ext fun s hs => ?_) rfl))
+  fin_cases s
+  · rfl
+  · simp at hs
 
 /-- The evaluator's view in a run of `oneSidedProtocol`. -/
 private theorem oneSidedReceived_one (n : ℕ) (c : Params G) (x : (i : Fin 2) → Input c i)
@@ -505,8 +499,8 @@ private theorem oneSidedReceived_one (n : ℕ) (c : Params G) (x : (i : Fin 2) �
         PartyView (Input c) Coins (oneSidedSchedule c) 1) =
       oneSidedEvaluatorView c (x 1) (garblerMessage G n c (x 0) coins)
         (fun j => garblerOffer G n c coins j (x 1 j)) := by
-  refine PartyView.ext rfl rfl (Prod.ext rfl (Prod.ext ?_ rfl))
-  refine Round.received_oracle_ext fun s hs => ?_
+  refine PartyView.ext rfl rfl (Prod.ext rfl
+    (Prod.ext (Round.received_oracle_ext fun s hs => ?_) rfl))
   fin_cases s
   · simp at hs
   · rfl
@@ -557,14 +551,10 @@ theorem realJoint_oneSided (I : Finset (Fin 2)) (n : ℕ) (c : Params G)
         (I.restrict (oneSidedViews G n c x coins),
           oneSidedOutputs (runOutput G n c x coins)) := by
   rw [Protocol.realJoint, evalWith_oneSidedProtocol, PMF.map_comp]
-  refine congrArg (PMF.map · _) (funext fun coins => ?_)
-  have hv : (fun i => (⟨x i, coinTuple coins i, oneSidedReceived G n c x coins i⟩ :
-      PartyView (Input c) Coins (oneSidedSchedule c) i)) = oneSidedViews G n c x coins := by
-    funext i
-    fin_cases i
-    · exact oneSidedReceived_zero G n c x coins
-    · exact oneSidedReceived_one G n c x coins
-  simp only [Function.comp_apply, Prod.map, id, hv]
+  refine congrArg (PMF.map · _) (funext fun coins => Prod.ext (funext fun ⟨i, _⟩ => ?_) rfl)
+  fin_cases i
+  · exact oneSidedReceived_zero G n c x coins
+  · exact oneSidedReceived_one G n c x coins
 
 /-- The real joint distribution for a corrupted garbler in `oneSidedProtocol`: fresh coins and
 nothing received, paired with `[]` for the garbler and the evaluator's decoding for the
@@ -574,8 +564,7 @@ theorem realJoint_oneSided_garbler (n : ℕ) (c : Params G) (x : (i : Fin 2) →
       (BitString.uniformList (G.coins n c.fn)).map fun coins =>
         (singletonView (oneSidedGarblerView c (x 0) coins),
           oneSidedOutputs (runOutput G n c x coins)) := by
-  simp only [realJoint_oneSided, restrict_singleton]
-  rfl
+  simp only [realJoint_oneSided, restrict_singleton]; rfl
 
 /-- The real joint distribution for a corrupted evaluator in `oneSidedProtocol`: its view holds the
 garbler's message and the tokens of its own bits, paired with `[]` for the garbler and its decoding
@@ -586,8 +575,7 @@ theorem realJoint_oneSided_evaluator (n : ℕ) (c : Params G) (x : (i : Fin 2) �
         (singletonView (oneSidedEvaluatorView c (x 1) (garblerMessage G n c (x 0) coins)
             (fun j => garblerOffer G n c coins j (x 1 j))),
           oneSidedOutputs (runOutput G n c x coins)) := by
-  simp only [realJoint_oneSided, restrict_singleton, oneSidedViews]
-  rfl
+  simp only [realJoint_oneSided, restrict_singleton, oneSidedViews]; rfl
 
 /-- The real joint distribution for a corrupted garbler in `protocol`: fresh coins, and the
 evaluator's decoding as the message of the last round and as both outputs. -/
@@ -598,8 +586,7 @@ theorem realJoint_garbler (n : ℕ) (c : Params G) (x : (i : Fin 2) → Input c 
           fun _ => runOutput G n c x coins) := by
   rw [Protocol.realJoint, evalWith_protocol, PMF.map_comp]
   refine congrArg (PMF.map · _) (funext fun coins => ?_)
-  simp only [Function.comp_apply, Prod.map, id, restrict_singleton]
-  rw [received_zero]
+  simp only [Function.comp_apply, Prod.map, id, restrict_singleton, received_zero]
 
 /-- The real joint distribution for a corrupted evaluator in `protocol`: its view holds the
 garbler's message and the tokens of its own bits, and both outputs are its decoding. -/
@@ -611,8 +598,7 @@ theorem realJoint_evaluator (n : ℕ) (c : Params G) (x : (i : Fin 2) → Input 
           fun _ => runOutput G n c x coins) := by
   rw [Protocol.realJoint, evalWith_protocol, PMF.map_comp]
   refine congrArg (PMF.map · _) (funext fun coins => ?_)
-  simp only [Function.comp_apply, Prod.map, id, restrict_singleton]
-  rw [received_one]
+  simp only [Function.comp_apply, Prod.map, id, restrict_singleton, received_one]
 
 /-! ### Correctness -/
 
@@ -644,8 +630,7 @@ theorem ofFn_projectiveToken_append (e : List Bool) (c : Params G)
   · rw [List.getElem_append_right (by simpa using hi), List.getElem_append_right (by omega),
       List.getElem_ofFn (f := x 1), List.getElem_ofFn]
     congr 1
-    · simp only [List.length_ofFn]
-      omega
+    · simp only [List.length_ofFn]; omega
     · simp only [List.length_ofFn, h₀]
 
 /-- In a run at a parameter `n ≥ 1` with coins of the right length, the evaluator decodes the
@@ -657,14 +642,10 @@ theorem runOutput_eq (hproj : G.encode = projectiveEncode) (hcorrect : G.Correct
   have hX : ((garblerMessage G n c (x 0) coins).labels ++
       List.ofFn fun j => garblerOffer G n c coins j (x 1 j)).flatten =
         G.encode (G.gb n c.fn coins).encInfo (circuitInput x) := by
-    rw [hproj, projectiveEncode_eq_flatten_ofFn, ← ofFn_projectiveToken_append]
-    rfl
-  have hmem : G.gb n c.fn coins ∈ (ProbComp.eval (G.garble n c.fn)).support :=
-    G.mem_support_eval_garble_iff.mpr ⟨coins, hcoins, rfl⟩
-  have h := hcorrect n hn c.fn (circuitInput x) (length_circuitInput x) _ hmem
-  simp only [runOutput, evaluatorOutput]
-  rw [hX]
-  exact congrArg (·.getD []) h
+    rw [hproj, projectiveEncode_eq_flatten_ofFn, ← ofFn_projectiveToken_append]; rfl
+  simp only [runOutput, evaluatorOutput, hX]
+  exact congrArg (·.getD []) (hcorrect n hn c.fn (circuitInput x) (length_circuitInput x) _
+    (G.mem_support_eval_garble_iff.mpr ⟨coins, hcoins, rfl⟩))
 
 /-- **Correctness of `oneSidedProtocol`**: in every run of `Yao.oneSidedProtocol G n c` at a
 parameter `n ≥ 1`, the garbler outputs `[]` and the evaluator outputs `G.ev c.fn` on the garbler's
@@ -780,24 +761,22 @@ theorem oneSidedGarblerViewWords_injective (c : Params G) :
     Function.Injective (oneSidedGarblerViewWords (c := c)) := by
   rintro ⟨x, coins, ⟨m, o, ⟨⟩⟩⟩ ⟨x', coins', ⟨m', o', ⟨⟩⟩⟩ h
   injection h with hx hcoins
-  refine PartyView.ext (List.ofFn_injective hx) hcoins (Prod.ext ?_ (Prod.ext ?_ rfl))
-  · exact Round.received_message_eq_of_ne (by decide) _ _
-  · refine Round.received_oracle_ext fun s hs => ?_
-    fin_cases s
-    · rfl
-    · simp at hs
+  exact PartyView.ext (List.ofFn_injective hx) hcoins
+    (Prod.ext (Round.received_message_eq_of_ne (by decide) _ _)
+      (Prod.ext (Round.received_oracle_ext fun s hs => by fin_cases s <;> first | rfl | simp at hs)
+        rfl))
 
 /-- The words determine an evaluator's view in `oneSidedProtocol`. -/
 theorem oneSidedEvaluatorViewWords_injective (c : Params G) :
     Function.Injective (oneSidedEvaluatorViewWords (c := c)) := by
   rintro ⟨x, ⟨⟩, ⟨m, o, ⟨⟩⟩⟩ ⟨x', ⟨⟩, ⟨m', o', ⟨⟩⟩⟩ h
   injection h with hx hfn hlabels hdec hot
-  refine PartyView.ext (List.ofFn_injective hx) rfl (Prod.ext ?_ (Prod.ext ?_ rfl))
-  · exact Round.received_message_ext fun _ => Message.ext hfn hlabels hdec
-  · refine Round.received_oracle_ext fun s hs => ?_
-    fin_cases s
-    · simp at hs
-    · exact List.ofFn_injective hot
+  refine PartyView.ext (List.ofFn_injective hx) rfl
+    (Prod.ext (Round.received_message_ext fun _ => Message.ext hfn hlabels hdec)
+      (Prod.ext (Round.received_oracle_ext fun s hs => ?_) rfl))
+  fin_cases s
+  · simp at hs
+  · exact List.ofFn_injective hot
 
 /-- The words determine a garbler's view in `protocol`. -/
 theorem garblerViewWords_injective (c : Params G) :
@@ -1005,10 +984,7 @@ theorem isPPT_oneSidedGarblerSim {encFn : Fn ↪ List Bool}
     exact encOneSidedGarblerViewWords_mk_polyTime (hx₀.comp (.fst _ _)) (.snd _ _)
   · simp only [oneSidedGarblerSim, ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure,
       ← PMF.bind_pure_comp, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
-    congr 1
-    funext coins
-    congr 1
-    funext ⟨j, hj⟩
+    refine congrArg (PMF.bind _) (funext fun _ => congrArg PMF.pure (funext fun ⟨_, hj⟩ => ?_))
     obtain rfl := Finset.mem_singleton.mp hj
     rfl
 
@@ -1033,10 +1009,7 @@ theorem isPPT_garblerSim {encFn : Fn ↪ List Bool}
     exact encGarblerViewWords_mk_polyTime (hx₀.comp (.fst _ _)) (.snd _ _) (hy.comp (.fst _ _))
   · simp only [garblerSim, ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure,
       ← PMF.bind_pure_comp, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
-    congr 1
-    funext coins
-    congr 1
-    funext ⟨j, hj⟩
+    refine congrArg (PMF.bind _) (funext fun _ => congrArg PMF.pure (funext fun ⟨_, hj⟩ => ?_))
     obtain rfl := Finset.mem_singleton.mp hj
     rfl
 
@@ -1047,13 +1020,13 @@ private theorem semiHonestSecure_of_pos_perfect {P : ProtocolFamily 2} {setup : 
     (h : ∀ {n : ℕ}, 0 < n → ∀ d x,
       ProbComp.eval (idealJoint (P.functionality n d) I (S n d) x) =
         (P.protocol n d).realJoint (P.world n d) I x) :
-    P.SemiHonestSecure setup I E := by
-  refine ⟨S, hS, fun Z _ => ?_⟩
-  refine negligible_of_eventually_le negligible_zero ?_
-  filter_upwards [Filter.eventually_gt_atTop 0] with n hn
-  have heq : P.realGame setup I Z n = P.idealGame setup I S Z n := by
-    simp only [ProtocolFamily.realGame, ProtocolFamily.idealGame, h hn]
-  rw [heq, Game.advantage_self]
+    P.SemiHonestSecure setup I E :=
+  ⟨S, hS, fun Z _ => negligible_of_eventually_le negligible_zero <|
+    (Filter.eventually_gt_atTop 0).mono fun n hn => by
+      have heq : P.realGame setup I Z n = P.idealGame setup I S Z n := by
+        simp only [ProtocolFamily.realGame, ProtocolFamily.idealGame, h hn]
+      dsimp only
+      rw [heq, Game.advantage_self]⟩
 
 /-- Step in the ideal `batchOTWorld` oblivious-transfer hybrid model (#6045), with no computational
 assumption: semi-honest security of `Yao.oneSidedFamily G` against a corrupted garbler, towards

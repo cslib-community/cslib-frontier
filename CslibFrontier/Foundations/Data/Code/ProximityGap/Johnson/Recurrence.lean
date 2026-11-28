@@ -108,14 +108,9 @@ private theorem shiftedCoeff_weighted_le {S : F[X][X][X]} {x₀ : F} {w D : ℕ}
     a + w * b ≤ D := by
   rw [coeff_shiftedCoeff] at hab
   have ha_le : a ≤ (S.coeff b).natDegree := by
-    have h1 := le_natDegree_of_ne_zero hab
-    rwa [natDegree_taylor] at h1
-  have hSb_ne : S.coeff b ≠ 0 := by
-    intro h0
-    rw [h0, map_zero, coeff_zero] at hab
-    exact hab rfl
-  have hlc : (S.coeff b).coeff (S.coeff b).natDegree ≠ 0 := leadingCoeff_ne_zero.2 hSb_ne
-  have hle := hS_wd (S.coeff b).natDegree b hlc
+    simpa only [natDegree_taylor] using le_natDegree_of_ne_zero hab
+  have hSb_ne : S.coeff b ≠ 0 := fun h0 => hab (by rw [h0, map_zero, coeff_zero])
+  have hle := hS_wd (S.coeff b).natDegree b (leadingCoeff_ne_zero.2 hSb_ne)
   omega
 
 private theorem shiftedCoeff_eq_zero_of_gt {S : F[X][X][X]} {x₀ : F} {w D : ℕ}
@@ -297,13 +292,11 @@ private theorem deg_recPoly_le (db : DegBound F[X][X])
         · subst hj0
           by_cases han : a = m + 1
           · subst han
-            have hcoeff : ((recU S x₀ s m) ^ 0).coeff 0 = 1 := by simp
-            rw [Nat.sub_self, hcoeff, mul_one]
+            rw [Nat.sub_self, pow_zero, coeff_one, ite_eq_left rfl, mul_one]
             refine (db.mul_le _ _).trans <|
               (Nat.add_le_add (hS (m + 1) 0) ((db.pow_le _ _).trans
                 (Nat.mul_le_mul_left _ hγ))).trans_eq ?_
-            have : B + (2 * (m + 1) + 0 - 2) * B = (1 + (2 * (m + 1) + 0 - 2)) * B := by ring
-            rw [this]; congr 1; omega
+            rw [← one_add_mul]; congr 1; omega
           · rw [pow_zero, coeff_one, ite_eq_right (by omega), mul_zero, db.zero]
             exact Nat.zero_le _
         · by_cases hU0 : ((recU S x₀ s m) ^ j).coeff (m + 1 - a) = 0
@@ -314,9 +307,7 @@ private theorem deg_recPoly_le (db : DegBound F[X][X])
             have h2 := (db.pow_le _ (2 * a + j - 2)).trans (Nat.mul_le_mul_left _ hγ)
             have hle := Nat.add_le_add (Nat.add_le_add h1 h2) hUdeg.2
             refine hle.trans_eq ?_
-            calc B + (2 * a + j - 2) * B + (2 * (m + 1 - a) - j) * B
-                = (1 + (2 * a + j - 2) + (2 * (m + 1 - a) - j)) * B := by ring
-              _ = (2 * (m + 1) - 1) * B := by congr 1; have := hUdeg.1; omega
+            rw [← one_add_mul, ← add_mul]; congr 1; have := hUdeg.1; omega
 
 theorem degZ₂_recPoly_le {S : F[X][X][X]} {x₀ : F} {s B_Z : ℕ}
     (hS_degZ : degZ S ≤ B_Z) :
@@ -332,10 +323,8 @@ theorem natDegree_recPoly_le {S : F[X][X][X]} {x₀ : F} {s : ℕ}
   refine deg_recPoly_le (DegBound.natDegree F[X]) (fun a j => ?_) ?_
   · exact (Polynomial.natDegree_hasseDeriv_le _ j).trans
       ((Nat.sub_le _ _).trans ((natDegree_shiftedCoeff_le S x₀ a).trans hS_deg))
-  · refine (Polynomial.natDegree_derivative_le _).trans ?_
-    have h1 : (S.map (Polynomial.evalRingHom (C x₀))).natDegree ≤ s :=
-      Polynomial.natDegree_map_le.trans hS_deg
-    omega
+  · exact (Polynomial.natDegree_derivative_le _).trans
+      ((Nat.sub_le _ _).trans (Polynomial.natDegree_map_le.trans hS_deg))
 
 private theorem eval₂_shifted_comp_mul_X_coeff {A : Type*} [CommRing A]
     (S : F[X][X][X]) (x₀ : F) {s : ℕ} (hS_deg : S.natDegree ≤ s)

@@ -880,23 +880,11 @@ theorem expect_snapshotProbeBound_standardParams_le {ι α : Type*} [Fintype ι]
           (pow_le_pow_right₀ (by norm_num) hsub_L)
         _ = 84 * ((1 : ℝ) / 2) ^ (D - i.val) := by rw [div_eq_mul_inv, ← inv_pow, one_div]
     have hgeom (n : ℕ) : ∑ j ∈ Finset.range n, ((1 : ℝ) / 2) ^ (n - j) ≤ 1 := by
-      cases n with
-      | zero => simp
-      | succ n =>
-        have hpow (j : ℕ) (hj : j ∈ Finset.range (n + 1)) :
-            ((1 : ℝ) / 2) ^ (n + 1 - j) = (1 / (2 : ℝ)) ^ (n - j + 1) := by
-          congr 1; rw [Finset.mem_range] at hj; omega
-        have hr : (∑ j ∈ Finset.range (n + 1), (1 / (2 : ℝ)) ^ (n - j + 1)) =
-            ∑ j ∈ Finset.range (n + 1), (1 / (2 : ℝ)) ^ (j + 1) :=
-          Finset.sum_range_reflect (fun k => (1 / (2 : ℝ)) ^ (k + 1)) (n + 1)
-        calc ∑ j ∈ Finset.range (n + 1), ((1 : ℝ) / 2) ^ (n + 1 - j)
-            = ∑ j ∈ Finset.range (n + 1), (1 / (2 : ℝ)) ^ (n - j + 1) := Finset.sum_congr rfl hpow
-          _ = ∑ j ∈ Finset.range (n + 1), (1 / (2 : ℝ)) ^ (j + 1) := hr
-          _ = (1 / 2 : ℝ) * ∑ j ∈ Finset.range (n + 1), (1 / (2 : ℝ)) ^ j := by
-            simp_rw [pow_succ' (1 / (2 : ℝ)), ← Finset.mul_sum]
-          _ ≤ (1 / 2 : ℝ) * 2 :=
-            mul_le_mul_of_nonneg_left (sum_geometric_two_le (n + 1)) (by norm_num)
-          _ = 1 := by ring
+      rw [Finset.sum_congr rfl fun j hj => show ((1 : ℝ) / 2) ^ (n - j) =
+          ((1 : ℝ) / 2) ^ (n - 1 - j + 1) by congr 1; have := Finset.mem_range.mp hj; omega,
+        Finset.sum_range_reflect (fun k => ((1 : ℝ) / 2) ^ (k + 1)) n]
+      simp_rw [pow_succ, ← Finset.sum_mul]
+      linarith [sum_geometric_two_le n]
     have hsum_le : (𝔼 θ, ∑ i : Fin P.depth, err i θ) ≤ 84 := by
       rw [Finset.expect_sum_comm]; refine (Finset.sum_le_sum fun i _ => hterm_le i).trans ?_
       rw [← Finset.mul_sum, Fin.sum_univ_eq_sum_range (fun j => ((1 : ℝ) / 2) ^ (D - j)) P.depth]

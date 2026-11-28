@@ -45,7 +45,7 @@ open scoped BigOperators
 private theorem expect_eq_expect_fiber {Seed X Y : Type*} [Fintype Seed] [Fintype Y]
     [DecidableEq Y] [Nonempty Y] {h : Seed → X → Y} {k : ℕ}
     (hh : IsKWiseIndependentHash (k + 1) h) (x : X) (f : Seed → ℝ) :
-    (𝔼 s, f s) = 𝔼 a : Y, 𝔼 s : {s // h s x = a}, f s.val := by
+    (𝔼 s, f s) = 𝔼 a : Y, 𝔼 s : {s // h s x = a}, f s.1 := by
   classical
   have := hh.nonempty
   simp only [Fintype.expect_eq_sum_div_card]
@@ -66,10 +66,7 @@ private theorem dens_no_smaller {Seed I : Type*} [Fintype Seed] [Fintype I] {q :
   have hpos : 0 < μ := lt_of_lt_of_le zero_lt_one hμ
   have hmean : (𝔼 y, g y) = (a.val : ℝ) / q := by
     change (𝔼 y : Fin q, if y < a then (1 : ℝ) else 0) = _
-    rw [Fintype.expect_boole, nnratCast_dens, Fintype.card_fin]
-    congr 2
-    have he : ({y : Fin q | y < a} : Finset (Fin q)) = Iio a := by ext; simp
-    exact (congrArg card he).trans (Fin.card_Iio a)
+    rw [Fintype.expect_boole, nnratCast_dens, Fintype.card_fin, filter_gt_eq_Iio, Fin.card_Iio]
   have htail := hh.dens_filter_le_abs_sum_sub_expect_of_Icc (m := 2) (by decide)
     univ (fun _ y => g y) (fun _ _ y => by dsimp [g]; split <;> norm_num) hpos
   have hsub : ({s | ∀ i, a ≤ h s i} : Finset Seed) ⊆
@@ -100,11 +97,7 @@ private theorem le_minimum_potential {p δ u : ℝ} (hδ : 0 < δ) (hδ₁ : δ 
   by_cases hu₁ : 1 ≤ u
   · have hu' : 0 < u := by linarith
     have h := (le_div_iff₀ (sq_pos_of_pos hu')).mp (htail hu₁)
-    have hfactor : (1 + u) * (1 + u + δ) ≤ 6 * u ^ 2 := by
-      calc
-        _ ≤ (2 * u) * (3 * u) := by
-          apply mul_le_mul <;> linarith
-        _ = _ := by ring
+    have hfactor : (1 + u) * (1 + u + δ) ≤ (2 * u) * (3 * u) := by gcongr <;> linarith
     nlinarith [mul_le_mul_of_nonneg_left hfactor hp₀]
   · calc
       p * ((1 + u) * (1 + u + δ)) ≤ 1 * ((1 + u) * (1 + u + δ)) :=
@@ -125,16 +118,15 @@ theorem dens_le_all {Seed X : Type*} [Fintype Seed] {q : ℕ} {h : Seed → X �
   have hδ₁ : δ ≤ 1 := (div_le_one (by exact_mod_cast hS.trans_le hSq)).mpr (by exact_mod_cast hSq)
   let φ (k : ℕ) : ℝ := (1 + δ * k)⁻¹
   have hfib (a : Fin q) :
-      (dens {s : {s // h s x = a} | ∀ y ∈ S, h s.val x ≤ h s.val y} : ℝ) ≤
+      (dens {s : {s // h s x = a} | ∀ y ∈ S, h s.1 x ≤ h s.1 y} : ℝ) ≤
         256 / δ * (φ a.val - φ (a.val + 1)) := by
     obtain ⟨_, hf⟩ := hh.fiber x a
-    let e (y : S) : {z : X // z ≠ x} := ⟨y, fun he => hx (he ▸ y.property)⟩
+    let e (y : S) : {z : X // z ≠ x} := ⟨y, fun he => hx (he ▸ y.2)⟩
     have he : Function.Injective e := fun _ _ eq =>
-      Subtype.ext (congrArg (fun z : {z : X // z ≠ x} => z.val) eq)
-    let B : Finset {s // h s x = a} := {s : {s // h s x = a} | ∀ y : S, a ≤ h s.val y}
-    have hB : ({s : {s // h s x = a} | ∀ y ∈ S, h s.val x ≤ h s.val y} : Finset _) = B := by
-      ext s
-      simp [B, s.property]
+      Subtype.ext (congrArg (fun z : {z : X // z ≠ x} => z.1) eq)
+    let B : Finset {s // h s x = a} := {s : {s // h s x = a} | ∀ y : S, a ≤ h s.1 y}
+    have hB : ({s : {s // h s x = a} | ∀ y ∈ S, h s.1 x ≤ h s.1 y} : Finset _) = B := by
+      ext s; simp [B, s.2]
     rw [hB]
     have hm : (Fintype.card S : ℝ) * ((a.val : ℝ) / q) = δ * a.val := by
       simp [δ]; ring
@@ -151,13 +143,12 @@ theorem dens_le_all {Seed X : Type*} [Fintype Seed] {q : ℕ} {h : Seed → X �
     _ = (256 / δ) * (φ 0 - φ q) / q := by
       rw [Fintype.expect_eq_sum_div_card, Fintype.card_fin, ← mul_sum,
         Fin.sum_univ_eq_sum_range (fun k => φ k - φ (k + 1)), sum_range_sub']
-    _ ≤ 256 / #S := by
+    _ ≤ (256 / δ) * 1 / q := by
       have hφ : 0 ≤ φ q := inv_nonneg.mpr (by positivity)
       have h0 : φ 0 = 1 := by simp [φ]
-      rw [h0]
-      calc
-        _ ≤ (256 / δ) * 1 / q := by gcongr; linarith
-        _ = _ := by dsimp [δ]; field_simp [NeZero.ne q]
+      gcongr
+      linarith
+    _ = 256 / #S := by dsimp [δ]; field_simp [NeZero.ne q]
 
 open scoped Classical in
 /-- One seed makes an endpoint a weak minimum on at most `512 * card A / L` of the
@@ -180,8 +171,7 @@ theorem exists_card_endpoint_min_le {Seed A X : Type*} [Fintype Seed] [Fintype A
         have hd := (hh.comp hw).dens_le_all S (x := i) (by simp [S])
           (by simpa only [hc] using hL) (by simpa only [hc] using hLq)
         rw [hc] at hd
-        refine (NNRat.cast_le.mpr (dens_le_dens (α := Seed) ?_)).trans hd
-        intro s hs
+        refine (NNRat.cast_le.mpr (dens_le_dens fun s hs => ?_)).trans hd
         simp only [mem_filter, mem_univ, true_and] at hs ⊢
         exact fun j _ => hs j
       have he : ({s | C s a} : Finset Seed) =

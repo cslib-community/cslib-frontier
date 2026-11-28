@@ -140,9 +140,7 @@ private theorem interpret_oracleSteps {m : Type → Type*} [Monad m] [LawfulMona
         (oracleSteps H tw n x A) = pure (runSteps H tw f n x A) := by
   induction n with
   | zero => simp only [oracleSteps, OracleComp.interpret_pure, runSteps]
-  | succ n ih =>
-    simp only [oracleSteps, interp_norm, ih, pure_bind]
-    rfl
+  | succ n ih => simp [oracleSteps, interp_norm, ih, runSteps]
 
 /-- The reduction's evaluation makes one oracle query per doubling step. -/
 private theorem isQueryBounded_oracleSteps (H : L → T → L)
@@ -170,28 +168,24 @@ private theorem isCostBounded_oracleSteps_tweak [DecidableEq T] (H : L → T →
   induction n with
   | zero => exact OracleComp.IsCostBounded.pure _ _
   | succ n ih =>
-    have htw' : ∀ t t' j j', t < n → t' < n → tw t j = tw t' j' → t = t' :=
-      fun t t' j j' ht ht' => htw t t' j j' (by omega) (by omega)
     refine OracleComp.IsCostBounded.mono
       (n := (if ∃ s < n, ∃ j, tw s j = τ then 1 else 0) +
         ((if tw n (Fin.init x) = τ then 1 else 0) + 0)) ?_ ?_
-    · exact (ih htw' (Fin.init x) (Fin.init A)).bind fun prev =>
+    · exact (ih (fun t t' j j' ht ht' => htw t t' j j' (by omega) (by omega))
+        (Fin.init x) (Fin.init A)).bind fun prev =>
         (ProbOracleComp.isCostBounded_query (spec := fun _ : CCR.Query L T => L)
           (fun q : CCR.Query L T => if q.tweak = τ then 1 else 0)
           ⟨prev.2 (Fin.init x), tw n (Fin.init x), x (Fin.last (n + 1))⟩).bind fun _ =>
         OracleComp.IsCostBounded.pure _ 0
     · by_cases h1 : ∃ s < n, ∃ j, tw s j = τ
-      · obtain ⟨s, hs, j, hst⟩ := h1
-        have h1' : ∃ s < n, ∃ j, tw s j = τ := ⟨s, hs, j, hst⟩
-        have h2 : ¬ tw n (Fin.init x) = τ := fun h2 => by
-          have := htw s n j (Fin.init x) (by omega) (by omega) (hst.trans h2.symm)
-          omega
-        have h3 : ∃ s < n + 1, ∃ j, tw s j = τ := ⟨s, by omega, j, hst⟩
-        simp only [h1', h2, h3, ↓reduceIte, Nat.add_zero, le_refl]
+      · have ⟨s, hs, j, hst⟩ := h1
+        have h2 : tw n (Fin.init x) ≠ τ := fun h2 =>
+          absurd (htw s n j _ (by omega) (by omega) (hst.trans h2.symm)) (by omega)
+        rw [ite_eq_left h1, ite_eq_right h2, ite_eq_left ⟨s, by omega, j, hst⟩]
       · by_cases h2 : tw n (Fin.init x) = τ
-        · have h3 : ∃ s < n + 1, ∃ j, tw s j = τ := ⟨n, by omega, Fin.init x, h2⟩
-          simp only [h1, h2, h3, ↓reduceIte, Nat.add_zero, zero_add, le_refl]
-        · simp only [h1, h2, ↓reduceIte, Nat.add_zero, Nat.zero_le]
+        · rw [ite_eq_right h1, ite_eq_left h2, ite_eq_left ⟨n, by omega, _, h2⟩]
+        · rw [ite_eq_right h1, ite_eq_right h2]
+          omega
 
 /-- Against the keyed oracle with offset `Δ`, on the labels of the bits of `x` with zero-labels
 `X`, the reduction's evaluation gives the garbled ciphertexts and the one-hot labels. -/
@@ -202,40 +196,33 @@ private theorem runSteps_oracle [Module (ZMod 2) L] (H : L → T → L)
       ((garble H tw Δ n X).2, fun j => (garble H tw Δ n X).1 j + bitOffset Δ (oneHot x j)) := by
   induction n with
   | zero =>
-    refine Prod.ext (funext fun i => i.elim0) ?_
-    have h := evaluate_garble H tw Δ 0 X x
-    simp only [evaluate] at h
-    exact h
+    exact Prod.ext (funext fun i => i.elim0)
+      (by simpa only [evaluate, runSteps] using evaluate_garble H tw Δ 0 X x)
   | succ n ih =>
     have hA : (Fin.init fun t => X t + bitOffset Δ (x t)) =
         fun t => Fin.init X t + bitOffset Δ (Fin.init x t) := rfl
-    have hct : ∀ G : (Fin (n + 1) → Bool) → L,
-        X (Fin.last (n + 1)) + bitOffset Δ (x (Fin.last (n + 1))) +
-          CCR.oracle H Δ Δ ⟨G (Fin.init x) + bitOffset Δ (oneHot (Fin.init x) (Fin.init x)),
-            tw n (Fin.init x), x (Fin.last (n + 1))⟩ +
-          ∑ j ∈ Finset.univ.erase (Fin.init x),
-            H (G j + bitOffset Δ (oneHot (Fin.init x) j)) (tw n j) =
-        (garbleStep (hashAt H tw n) (X (Fin.last (n + 1))) G).2 := by
-      intro G
-      have hrest : ∑ j ∈ Finset.univ.erase (Fin.init x),
+    simp only [runSteps]
+    rw [hA, ih (Fin.init x) (Fin.init X)]
+    set G := (garble H tw Δ n (Fin.init X)).1
+    have hrest : ∑ j ∈ Finset.univ.erase (Fin.init x),
+        H (G j + bitOffset Δ (oneHot (Fin.init x) j)) (tw n j) =
+        ∑ j ∈ Finset.univ.erase (Fin.init x), H (G j) (tw n j) :=
+      Finset.sum_congr rfl fun j hj => by
+        rw [oneHot_of_ne (Finset.ne_of_mem_erase hj), bitOffset_false, add_zero]
+    have hct : X (Fin.last (n + 1)) + bitOffset Δ (x (Fin.last (n + 1))) +
+        CCR.oracle H Δ Δ ⟨G (Fin.init x) + bitOffset Δ (oneHot (Fin.init x) (Fin.init x)),
+          tw n (Fin.init x), x (Fin.last (n + 1))⟩ +
+        ∑ j ∈ Finset.univ.erase (Fin.init x),
           H (G j + bitOffset Δ (oneHot (Fin.init x) j)) (tw n j) =
-          ∑ j ∈ Finset.univ.erase (Fin.init x), H (G j) (tw n j) :=
-        Finset.sum_congr rfl fun j hj => by
-          rw [oneHot_of_ne (Finset.ne_of_mem_erase hj), bitOffset_false, add_zero]
+        (garbleStep (hashAt H tw n) (X (Fin.last (n + 1))) G).2 := by
       simp only [CCR.oracle_apply, oneHot_self, bitOffset_true, garbleStep, hashAt, hrest]
       rw [← Finset.add_sum_erase _ _ (Finset.mem_univ (Fin.init x)), add_assoc (G _),
         ZModModule.add_self, add_zero]
-      rw [show X (Fin.last (n + 1)) + bitOffset Δ (x (Fin.last (n + 1))) +
-          (H (G (Fin.init x)) (tw n (Fin.init x)) + bitOffset Δ (x (Fin.last (n + 1)))) +
-          ∑ j ∈ Finset.univ.erase (Fin.init x), H (G j) (tw n j) =
-          X (Fin.last (n + 1)) + (H (G (Fin.init x)) (tw n (Fin.init x)) +
-            ∑ j ∈ Finset.univ.erase (Fin.init x), H (G j) (tw n j)) +
-          (bitOffset Δ (x (Fin.last (n + 1))) + bitOffset Δ (x (Fin.last (n + 1)))) by abel,
-        ZModModule.add_self, add_zero]
-    simp only [runSteps]
-    rw [hA, ih (Fin.init x) (Fin.init X), hct]
+      exact sub_eq_zero.mp ((by abel : _ = bitOffset Δ (x (Fin.last (n + 1))) +
+        bitOffset Δ (x (Fin.last (n + 1)))).trans (ZModModule.add_self _))
+    rw [hct]
     refine Prod.ext rfl ?_
-    simp only
+    dsimp only
     rw [evalStep_garbleStep, Fin.snoc_init_self]
     rfl
 
@@ -276,11 +263,11 @@ noncomputable def reduction (H : L → T → L) (tw : (t : ℕ) → (Fin (t + 1)
 theorem isQueryBounded_reduction (H : L → T → L) (tw : (t : ℕ) → (Fin (t + 1) → Bool) → T)
     (n : ℕ) (x : Fin (n + 1) → Bool) (D : OneHotView L n → ProbComp Bool) :
     (reduction H tw n x D).IsQueryBounded n := by
-  have h := (ProbOracleComp.IsQueryBounded.sample (spec := fun _ : CCR.Query L T => L)
-    (ProbComp.uniform (Fin (n + 1) → L))).bind fun A =>
-    (isQueryBounded_oracleSteps H tw n x A).bind fun steps =>
-    ProbOracleComp.IsQueryBounded.sample (spec := fun _ : CCR.Query L T => L) (D (A, steps.1))
-  simpa only [reduction, Nat.zero_add, Nat.add_zero] using h
+  simpa only [reduction, Nat.zero_add, Nat.add_zero] using
+    (ProbOracleComp.IsQueryBounded.sample (spec := fun _ : CCR.Query L T => L)
+      (ProbComp.uniform (Fin (n + 1) → L))).bind fun A =>
+      (isQueryBounded_oracleSteps H tw n x A).bind fun steps =>
+      ProbOracleComp.IsQueryBounded.sample (spec := fun _ : CCR.Query L T => L) (D (A, steps.1))
 
 /-- When different steps use different tweaks, the reduction makes at most one query with each
 tweak. -/
@@ -332,11 +319,9 @@ private theorem eval_run_oracleSteps_bind_fst {β : Type} (H : L → T → L)
       (PMF.uniformOfFintype (Fin n → L)).bind g := by
   induction n generalizing β with
   | zero =>
-    have hu : ∀ c : Fin 0 → L, g c = g Fin.elim0 := fun c => congrArg g (funext fun i => i.elim0)
     simp only [oracleSteps, ProbOracleComp.run_pure, ProbComp.eval_pure, PMF.pure_bind]
-    rw [show (PMF.uniformOfFintype (Fin 0 → L)).bind g =
-        (PMF.uniformOfFintype (Fin 0 → L)).bind fun _ => g Fin.elim0 from congrArg _ (funext hu),
-      PMF.bind_const]
+    exact ((congrArg _ (funext fun c => congrArg g (Subsingleton.elim c Fin.elim0))).trans
+      (PMF.bind_const _ _)).symm
   | succ n ih =>
     simp only [oracleSteps, ProbOracleComp.run_bind, ProbOracleComp.run_query,
       ProbOracleComp.run_pure, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,

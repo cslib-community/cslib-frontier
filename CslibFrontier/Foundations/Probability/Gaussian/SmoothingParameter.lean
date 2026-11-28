@@ -337,91 +337,40 @@ private theorem nonempty_smoothingSet {ε : ℝ} (hε : 0 < ε) :
 private theorem exists_pos_lt_dualMass [Nontrivial E] (ε : ℝ) :
     ∃ δ : ℝ, 0 < δ ∧ ∀ s : ℝ, 0 < s → s ≤ δ →
       ε < gaussianMass (LinearMap.BilinForm.dualSubmodule (innerₗ E) L) (1 / s) 0 - 1 := by
-  classical
   let D := LinearMap.BilinForm.dualSubmodule (innerₗ E) L
   have : DiscreteTopology D := discreteTopology_dualSubmodule L
   obtain ⟨w₀, hw₀⟩ := exists_dual_ne_zero L
   have hnorm₀ : 0 < ‖(w₀ : E)‖ := norm_pos_iff.mpr fun h0 ↦ hw₀ (Subtype.ext h0)
-  let N : ℕ := Nat.floor (2 * ε) + 1
-  have hN_gt : 2 * ε < (N : ℝ) := by
-    simpa only [N, Nat.cast_add, Nat.cast_one] using Nat.lt_floor_add_one (2 * ε)
-  let M : ℝ := Real.sqrt (2 * Real.pi) * (N : ℝ) * ‖(w₀ : E)‖ + 1
-  have hM : 0 < M := by positivity
-  let δ : ℝ := 1 / M
-  refine ⟨δ, one_div_pos.mpr hM, fun s hs hsδ ↦ ?_⟩
-  rw [gaussianMass_zero_sub_one_eq_tsum D (1 / s) (one_div_pos.mpr hs)]
-  let emb : Fin N → ↥{w : D | w ≠ 0} := fun k ↦
-    ⟨(k.val + 1) • w₀, by
-      intro h0
-      have h0' : ((k.val + 1 : ℕ) : ℝ) • (w₀ : E) = 0 := by
-        have hcoe : (((k.val + 1) • w₀ : D) : E) = (k.val + 1) • (w₀ : E) :=
-          AddSubmonoidClass.coe_nsmul w₀ (k.val + 1)
-        rw [Nat.cast_smul_eq_nsmul ℝ, ← hcoe, h0, Submodule.coe_zero]
-      rcases smul_eq_zero.mp h0' with hc | hw
-      · exact (Nat.cast_pos.mpr (Nat.succ_pos k.val)).ne' hc
-      · exact hw₀ (Subtype.ext hw)⟩
-  have hemb_inj : Function.Injective emb := by
-    intro k₁ k₂ hk
-    have hval := congrArg (fun u : ↥{w : D | w ≠ 0} ↦ (u.val : E)) hk
-    have hval' : ((k₁.val + 1 : ℕ) : ℝ) • (w₀ : E) = ((k₂.val + 1 : ℕ) : ℝ) • (w₀ : E) := by
-      have h1 : (((k₁.val + 1) • w₀ : D) : E) = ((k₁.val + 1 : ℕ) : ℝ) • (w₀ : E) := by
-        rw [AddSubmonoidClass.coe_nsmul, ← Nat.cast_smul_eq_nsmul ℝ]
-      have h2 : (((k₂.val + 1) • w₀ : D) : E) = ((k₂.val + 1 : ℕ) : ℝ) • (w₀ : E) := by
-        rw [AddSubmonoidClass.coe_nsmul, ← Nat.cast_smul_eq_nsmul ℝ]
-      simpa only [emb, h1, h2] using hval
-    have heq : ((k₁.val + 1 : ℕ) : ℝ) = ((k₂.val + 1 : ℕ) : ℝ) :=
-      smul_left_injective ℝ (fun h0 ↦ hw₀ (Subtype.ext h0)) hval'
-    have hnat : k₁.val + 1 = k₂.val + 1 := by exact_mod_cast heq
-    exact Fin.ext (Nat.succ.inj hnat)
-  have hterm : ∀ k : Fin N, (1 / 2 : ℝ) ≤ gaussianWeight (1 / s) ((emb k).val : E) := by
-    intro k
-    rw [gaussianWeight_one_div]
-    have hkn : ((k.val + 1 : ℕ) : ℝ) ≤ (N : ℝ) := by exact_mod_cast k.isLt
-    have hnormk : ‖((emb k).val : E)‖ = ((k.val + 1 : ℕ) : ℝ) * ‖(w₀ : E)‖ := by
-      change ‖(((k.val + 1) • w₀ : D) : E)‖ = _
-      rw [AddSubmonoidClass.coe_nsmul, ← Nat.cast_smul_eq_nsmul ℝ, norm_smul,
-        Real.norm_of_nonneg (Nat.cast_nonneg _)]
-    have hsM : s * (Real.sqrt (2 * Real.pi) * (N : ℝ) * ‖(w₀ : E)‖) ≤ 1 := by
-      have h1 : s * M ≤ 1 := by
-        calc
-          s * M ≤ δ * M := mul_le_mul_of_nonneg_right hsδ hM.le
-          _ = 1 := one_div_mul_cancel hM.ne'
-      nlinarith
-    have hsq : Real.pi * ‖((emb k).val : E)‖ ^ 2 * s ^ 2 ≤ 1 / 2 := by
-      have hle1 : (s * (Real.sqrt (2 * Real.pi) * (N : ℝ) * ‖(w₀ : E)‖)) ^ 2 ≤ 1 := by
-        nlinarith [mul_nonneg hs.le
-          (show 0 ≤ Real.sqrt (2 * Real.pi) * (N : ℝ) * ‖(w₀ : E)‖ by positivity)]
-      have hsq2 : (Real.sqrt (2 * Real.pi)) ^ 2 = 2 * Real.pi :=
-        Real.sq_sqrt (by positivity)
-      have hle2 : 2 * Real.pi * ((N : ℝ) * ‖(w₀ : E)‖) ^ 2 * s ^ 2 ≤ 1 := by
-        have heq : (s * (Real.sqrt (2 * Real.pi) * (N : ℝ) * ‖(w₀ : E)‖)) ^ 2 =
-            2 * Real.pi * ((N : ℝ) * ‖(w₀ : E)‖) ^ 2 * s ^ 2 := by
-          calc
-            (s * (Real.sqrt (2 * Real.pi) * (N : ℝ) * ‖(w₀ : E)‖)) ^ 2
-                = s ^ 2 * ((Real.sqrt (2 * Real.pi)) ^ 2 * ((N : ℝ) * ‖(w₀ : E)‖) ^ 2) := by ring
-            _ = 2 * Real.pi * ((N : ℝ) * ‖(w₀ : E)‖) ^ 2 * s ^ 2 := by rw [hsq2]; ring
-        linarith
-      have hkn2 : ‖((emb k).val : E)‖ ^ 2 ≤ ((N : ℝ) * ‖(w₀ : E)‖) ^ 2 := by
-        rw [hnormk]
-        gcongr
-      have h3 : Real.pi * ‖((emb k).val : E)‖ ^ 2 * s ^ 2 ≤
-          Real.pi * ((N : ℝ) * ‖(w₀ : E)‖) ^ 2 * s ^ 2 := by
-        gcongr
-      linarith
-    have hexp := Real.add_one_le_exp (-Real.pi * ‖((emb k).val : E)‖ ^ 2 * s ^ 2)
+  -- The multiples `k • w₀`, `k < N`, each have weight at least `1 / 2` at width `1 / δ`.
+  let N : ℕ := ⌊2 * ε⌋₊ + 3
+  have hN : 2 * ε + 2 < N := by
+    have := Nat.lt_floor_add_one (2 * ε)
+    push_cast [N]
     linarith
-  have hfin_le : ∑ u ∈ Finset.univ.image emb, gaussianWeight (1 / s) (u.val : E) ≤
-      ∑' w : ↥{w : D | w ≠ 0}, gaussianWeight (1 / s) (w.val : E) :=
-    (summable_dual_nonzero L hs).sum_le_tsum (Finset.univ.image emb)
-      fun w _ ↦ (gaussianWeight_pos _ _).le
-  rw [Finset.sum_image (fun a _ b _ h ↦ hemb_inj h)] at hfin_le
-  have hsum_half : (N : ℝ) / 2 ≤ ∑ k : Fin N, gaussianWeight (1 / s) ((emb k).val : E) := by
-    calc
-      (N : ℝ) / 2 = ∑ _k : Fin N, (1 / 2 : ℝ) := by
-        simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
-        ring
-      _ ≤ ∑ k : Fin N, gaussianWeight (1 / s) ((emb k).val : E) :=
-        Finset.sum_le_sum fun k _ ↦ hterm k
+  let δ := 1 / (3 * N * ‖(w₀ : E)‖)
+  have hδ : 0 < δ := by positivity
+  have hδN : δ * (3 * N * ‖(w₀ : E)‖) = 1 := one_div_mul_cancel (by positivity)
+  refine ⟨δ, hδ, fun s hs hsδ ↦ lt_of_lt_of_le ?_ (dualMass_antitone L hs hsδ)⟩
+  have hnorm (k : ℕ) : ‖((k • w₀ : D) : E)‖ = k * ‖(w₀ : E)‖ := by
+    rw [AddSubmonoidClass.coe_nsmul, RCLike.norm_nsmul ℝ, nsmul_eq_mul]
+  have hinj : Function.Injective fun k : Fin N ↦ (k : ℕ) • w₀ := fun a b h ↦ by
+    have := congrArg (fun z : D ↦ ‖(z : E)‖) h
+    simp only [hnorm] at this
+    exact Fin.ext (by exact_mod_cast mul_right_cancel₀ hnorm₀.ne' this)
+  have hterm (k : Fin N) : 1 / 2 ≤ gaussianWeight (1 / δ) ((((k : ℕ) • w₀ : D) : E) - 0) := by
+    rw [sub_zero, gaussianWeight_one_div, hnorm]
+    have hk : (k : ℝ) * ‖(w₀ : E)‖ * δ ≤ 1 / 3 := by
+      have : (k : ℝ) ≤ N := by exact_mod_cast k.isLt.le
+      nlinarith [mul_le_mul_of_nonneg_right this (by positivity : 0 ≤ ‖(w₀ : E)‖ * δ)]
+    nlinarith [Real.add_one_le_exp (-Real.pi * ((k : ℝ) * ‖(w₀ : E)‖) ^ 2 * δ ^ 2),
+      Real.pi_lt_four, pow_le_pow_left₀ (by positivity) hk 2, Real.pi_pos]
+  have := Summable.tsum_le_tsum_of_inj (f := fun _ : Fin N ↦ (1 / 2 : ℝ))
+    (g := fun z : D ↦ gaussianWeight (1 / δ) ((z : E) - 0)) _ hinj
+    (fun _ _ ↦ (gaussianWeight_pos _ _).le) hterm Summable.of_finite
+    (summable_gaussianWeight D _ (by positivity) 0)
+  simp only [tsum_fintype, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
+    nsmul_eq_mul] at this
+  unfold gaussianMass
   linarith
 
 /-- For a full-rank discrete lattice in positive dimension, the smoothing parameter is strictly
@@ -446,47 +395,16 @@ theorem gaussianMass_dual_smoothingParameter [Nontrivial E] {ε : ℝ} (hε : 0 
   let s₀ := smoothingParameter L ε
   have hs₀ : 0 < s₀ := smoothingParameter_pos L hε
   have hne : S.Nonempty := nonempty_smoothingSet L hε
-  have hcont := continuousAt_dualMass L hs₀
+  have hlim := (continuousAt_dualMass L hs₀).tendsto
   apply le_antisymm
-  · by_contra hgt
-    push Not at hgt
-    obtain ⟨r, hr, hball⟩ := Metric.continuousAt_iff.mp hcont (gaussianMass D (1 / s₀) 0 - 1 - ε)
-      (sub_pos.mpr hgt)
-    obtain ⟨s, hsS, hslt⟩ := Real.lt_sInf_add_pos hne hr
-    change s < s₀ + r at hslt
-    have hle : s₀ ≤ s := csInf_le ⟨0, fun _ h ↦ h.1.le⟩ hsS
-    have hdist : dist s s₀ < r := by
-      rw [Real.dist_eq, abs_of_nonneg (sub_nonneg.mpr hle)]
-      linarith
-    have hfd := hball hdist
-    rw [Real.dist_eq] at hfd
-    have h1 := (abs_lt.mp hfd).1
-    linarith [hsS.2]
-  · by_contra hlt
-    push Not at hlt
-    obtain ⟨r, hr, hball⟩ := Metric.continuousAt_iff.mp hcont (ε - (gaussianMass D (1 / s₀) 0 - 1))
-      (sub_pos.mpr hlt)
-    let δ := min r s₀ / 2
-    have hδ : 0 < δ := half_pos (lt_min hr hs₀)
-    have hδr : δ < r := by
-      calc
-        δ < min r s₀ := half_lt_self (lt_min hr hs₀)
-        _ ≤ r := min_le_left _ _
-    have hδs : δ < s₀ := by
-      calc
-        δ < min r s₀ := half_lt_self (lt_min hr hs₀)
-        _ ≤ s₀ := min_le_right _ _
-    let s' := s₀ - δ
-    have hs'_pos : 0 < s' := sub_pos.mpr hδs
-    have hdist : dist s' s₀ < r := by
-      rw [Real.dist_eq, show s' - s₀ = -δ by ring, abs_neg, abs_of_pos hδ]
-      exact hδr
-    have hfd := hball hdist
-    rw [Real.dist_eq] at hfd
-    have h2 := (abs_lt.mp hfd).2
-    have hs'S : s' ∈ S := ⟨hs'_pos, by linarith⟩
-    have hle : s₀ ≤ s' := csInf_le ⟨0, fun _ h ↦ h.1.le⟩ hs'S
-    linarith
+  · refine le_of_tendsto (hlim.mono_left nhdsWithin_le_nhds)
+      (eventually_nhdsWithin_of_forall fun s (hs : s ∈ Set.Ioi s₀) ↦ ?_)
+    obtain ⟨s', hs'S, hs's⟩ := exists_lt_of_csInf_lt hne (show sInf S < s from hs)
+    exact (dualMass_antitone L hs'S.1 hs's.le).trans hs'S.2
+  · refine ge_of_tendsto (hlim.mono_left nhdsWithin_le_nhds)
+      (Filter.eventually_of_mem (Ioo_mem_nhdsLT hs₀) fun s hs ↦ ?_)
+    by_contra! h
+    exact (csInf_le (⟨0, fun _ h ↦ h.1.le⟩ : BddBelow S) ⟨hs.1, h.le⟩).not_gt hs.2
 
 /-- Exact upper-bound characterization of `η_ε(L)` in terms of the nonzero dual Gaussian mass,
 valid in all dimensions (including dimension zero) for all `s > 0` and `ε > 0`. -/
@@ -541,46 +459,24 @@ theorem smoothingParameter_strictAnti [Nontrivial E] {ε₁ ε₂ : ℝ}
 private theorem two_pow_mul_exp_le_half_pow_div (n : ℕ) (hn : 0 < n) :
     (2 : ℝ) ^ n * Real.exp (-3 * Real.pi * n / 4) ≤
       (1 / 2 : ℝ) ^ n / (1 + (1 / 2 : ℝ) ^ n) := by
-  have hexp8 : (8 : ℝ) < Real.exp (3 * Real.pi / 4) := by
-    have he1 : (2.7 : ℝ) < Real.exp 1 := by linarith [Real.exp_one_gt_d9]
-    have heq : (5 / 4 : ℝ) ≤ Real.exp (1 / 4) := by
-      linarith [Real.add_one_le_exp (1 / 4 : ℝ)]
-    have hpi : (9 / 4 : ℝ) < 3 * Real.pi / 4 := by linarith [Real.pi_gt_three]
-    calc
-      (8 : ℝ) < 2.7 ^ 2 * (5 / 4) := by norm_num
-      _ < Real.exp 1 ^ 2 * Real.exp (1 / 4) := by nlinarith [Real.exp_pos (1 / 4)]
-      _ = Real.exp (9 / 4) := by
-        rw [sq, ← Real.exp_add, ← Real.exp_add]
-        norm_num
-      _ < Real.exp (3 * Real.pi / 4) := Real.exp_lt_exp.mpr hpi
   have hstep : (2 : ℝ) * Real.exp (-3 * Real.pi / 4) ≤ 1 / 4 := by
-    have hinv : Real.exp (-3 * Real.pi / 4) < 1 / 8 := by
-      rw [show -3 * Real.pi / 4 = -(3 * Real.pi / 4) by ring, Real.exp_neg, inv_eq_one_div]
-      exact one_div_lt_one_div_of_lt (by norm_num) hexp8
+    have h8 : 8 < Real.exp (3 * Real.pi / 4) := by
+      rw [← Real.log_lt_iff_lt_exp (by norm_num), show (8 : ℝ) = 2 ^ 3 by norm_num,
+        Real.log_pow]
+      push_cast
+      linarith [Real.log_two_lt_d9, Real.pi_gt_three]
+    rw [show -3 * Real.pi / 4 = -(3 * Real.pi / 4) by ring, Real.exp_neg,
+      mul_inv_le_iff₀ (Real.exp_pos _)]
     linarith
   have hpow : (2 : ℝ) ^ n * Real.exp (-3 * Real.pi * n / 4) ≤ (1 / 4 : ℝ) ^ n := by
     have hp := pow_le_pow_left₀ (by positivity) hstep n
-    rw [mul_pow, ← Real.exp_natCast_mul] at hp
-    convert hp using 1
-    congr 2
+    rw [mul_pow, ← Real.exp_nat_mul] at hp
+    convert hp using 3
     ring
-  have h2pow : (2 : ℝ) ≤ (2 : ℝ) ^ n := by
-    calc
-      (2 : ℝ) = (2 : ℝ) ^ 1 := (pow_one 2).symm
-      _ ≤ (2 : ℝ) ^ n := pow_le_pow_right₀ (by norm_num) hn
-  have h4ge : (2 : ℝ) ^ n + 1 ≤ (4 : ℝ) ^ n := by
-    have h4 : (4 : ℝ) ^ n = (2 : ℝ) ^ n * (2 : ℝ) ^ n := by
-      rw [← mul_pow]
-      norm_num
-    nlinarith
-  have hrhs : (1 / 2 : ℝ) ^ n / (1 + (1 / 2 : ℝ) ^ n) = 1 / ((2 : ℝ) ^ n + 1) := by
-    have hpos : (0 : ℝ) < (2 : ℝ) ^ n := by positivity
-    rw [one_div_pow]
-    field_simp
-  have hq : (1 / 4 : ℝ) ^ n ≤ 1 / ((2 : ℝ) ^ n + 1) := by
-    rw [one_div_pow]
-    exact one_div_le_one_div_of_le (by positivity) h4ge
-  linarith
+  have hx : (1 / 2 : ℝ) ^ n ≤ 1 / 2 := pow_le_of_le_one (by norm_num) (by norm_num) hn.ne'
+  have h4 : (1 / 4 : ℝ) ^ n = (1 / 2) ^ n * (1 / 2) ^ n := by rw [← mul_pow]; norm_num
+  rw [le_div_iff₀ (by positivity)]
+  nlinarith [pow_pos (by norm_num : (0 : ℝ) < 1 / 2) n]
 
 /-- Micciancio–Regev ([MicciancioRegev2007], Lemma 3.2, pp. 10–11 of the author's copy):
 for every full-rank discrete lattice `L` in a finite-dimensional real inner product space of

@@ -73,22 +73,18 @@ private theorem exists_cover_of_coveredBy_push (ι : I → I') {A : PartyTensor 
     ∃ c : κ → PartyTensor K I, A.CoveredBy c ∧
       ∀ k, ∀ π : I' → I, (∀ i, π (ι i) = i) → c k ≤ push π (b k) := by
   obtain ⟨v, hv, hr⟩ := coveredBy_iff.1 h
-  let emb : (∀ i, A.Index i) → ∀ q, (push ι A).Index q := fun x q j => x j.val
+  let emb : (∀ i, A.Index i) → ∀ q, (push ι A).Index q := fun x _ j => x j.1
   refine ⟨fun k => A.withEntry fun x => v k (emb x), CoveredBy.withEntry A _ fun x => hv (emb x),
     fun k π hπ => ?_⟩
-  have h1 : push ι (A.withEntry fun x => v k (emb x)) ≤ (push ι A).withEntry (v k) := by
-    refine le_of_entry_eq (fun q x => x) fun x => ?_
-    rw [push_entry]
-    change v k _ = v k _
-    congr 1
-    funext q j
-    obtain ⟨j, rfl⟩ := j
-    rfl
-  have h2 := push_le_push π (h1.trans (hr k))
-  have h3 : π ∘ ι = id := funext hπ
+  have h1 : push ι (A.withEntry fun x => v k (emb x)) ≤ (push ι A).withEntry (v k) :=
+    le_of_entry_eq (fun _ x => x) fun x => by
+      rw [push_entry]
+      refine congrArg (v k) (funext fun _ => funext fun ⟨_, heq⟩ => ?_)
+      subst heq
+      rfl
   have h4 := antisymmRel_push_push π ι (A.withEntry fun x => v k (emb x))
-  rw [h3] at h4
-  exact (h4.trans (antisymmRel_push_id _)).ge.trans h2
+  rw [show π ∘ ι = id from funext hπ] at h4
+  exact (h4.trans (antisymmRel_push_id _)).ge.trans (push_le_push π (h1.trans (hr k)))
 
 /-- `φ(A) ≤ ∑ φ(a_j) ≤ ∑ f(b_j)` for every cover `(b_j)` of `ιA`. -/
 private theorem le_sum_extendProduct (ι : I → I') (π : L → I' → I) (hπ : ∀ l i, π l (ι i) = i)
@@ -111,8 +107,7 @@ private theorem le_sum_extendProduct (ι : I → I') (π : L → I' → I) (hπ 
 private theorem extendProduct_push (ι : I → I') (π : L → I' → I) (hπ : ∀ l i, π l (ι i) = i)
     (θ : L → ℝ) (hθ1 : ∑ l, θ l = 1) (F : SpectralPoint K I) (A : PartyTensor K I) :
     extendProduct π θ F (push ι A) = F A := by
-  have retr : ∀ l, AntisymmRel (· ≤ ·) (push (π l) (push ι A)) A := by
-    intro l
+  have retr (l : L) : AntisymmRel (· ≤ ·) (push (π l) (push ι A)) A := by
     have h := antisymmRel_push_push (π l) ι A
     rw [show π l ∘ ι = id from funext (hπ l)] at h
     exact h.trans (antisymmRel_push_id _)
@@ -121,8 +116,7 @@ private theorem extendProduct_push (ι : I → I') (π : L → I' → I) (hπ : 
   rw [h1]
   rcases (F.nonneg A).eq_or_lt with h0 | h0
   · obtain ⟨l, hl⟩ : ∃ l, θ l ≠ 0 := by
-      by_contra hne
-      push Not at hne
+      by_contra! hne
       simp [hne] at hθ1
     rw [← h0]
     exact Finset.prod_eq_zero (Finset.mem_univ l) (Real.zero_rpow hl)
@@ -137,53 +131,45 @@ private theorem exists_upperFunctional_extend (ι : I → I') (π : L → I' →
       ∀ A : PartyTensor K I, p (push ι A) = F A := by
   classical
   obtain ⟨f0, f1, fmul, fmono⟩ := extendProduct_spec π θ hθ F
-  set f : PartyTensor K I' → ℝ := extendProduct π θ F with hf
-  have hcongr : ∀ {s t : PartyTensor K I'}, AntisymmRel (· ≤ ·) s t → f s = f t := fun h =>
+  set f : PartyTensor K I' → ℝ := extendProduct π θ F
+  have hcongr {s t : PartyTensor K I'} (h : AntisymmRel (· ≤ ·) s t) : f s = f t :=
     le_antisymm (fmono h.1) (fmono h.2)
   -- the sums `∑ f (b k)` over the covers of a class of tensors
   set S : Antisymmetrization (PartyTensor K I') (· ≤ ·) → Set ℝ := fun m =>
     {W | ∃ (κ : Type) (_ : Fintype κ) (b : κ → Antisymmetrization (PartyTensor K I') (· ≤ ·)),
       (tensorCovering K I').CoveredBy m b ∧ ∑ k, f (ofAntisymmetrization (· ≤ ·) (b k)) = W}
-    with hS
-  have hne : ∀ t, (S t).Nonempty := fun t =>
+  have hne (t) : (S t).Nonempty :=
     ⟨_, Unit, inferInstance, fun _ => t, (tensorCovering K I').refl t, rfl⟩
-  have h0 : ∀ t, ∀ w ∈ S t, 0 ≤ w := by
-    rintro t w ⟨κ, _, b, -, rfl⟩
-    exact Finset.sum_nonneg fun k _ => f0 _
-  have hlow : ∀ A : PartyTensor K I, ∀ w ∈ S (toAntisymmetrization (· ≤ ·) (push ι A)),
-      F A ≤ w := by
-    rintro A w ⟨κ, _, b, hb, rfl⟩
-    have hb' : (tensorCovering K I').CoveredBy (toAntisymmetrization (· ≤ ·) (push ι A))
-        fun k => toAntisymmetrization (· ≤ ·) (ofAntisymmetrization (· ≤ ·) (b k)) := by
-      simpa only [toAntisymmetrization_ofAntisymmetrization] using hb
-    exact le_sum_extendProduct ι π hπ θ hθ hθ1 F A _ (tensorCovering_coveredBy.1 hb')
-  have hup : ∀ t : PartyTensor K I', f t ∈ S (toAntisymmetrization (· ≤ ·) t) := fun t =>
-    ⟨Unit, inferInstance, fun _ => toAntisymmetrization (· ≤ ·) t,
-      (tensorCovering K I').refl _, by
-        simpa using hcongr (antisymmRel_ofAntisymmetrization_toAntisymmetrization t)⟩
+  have h0 (t w) : w ∈ S t → 0 ≤ w := by
+    rintro ⟨_, _, _, -, rfl⟩
+    exact Finset.sum_nonneg fun _ _ => f0 _
+  have hlow (A : PartyTensor K I) (w) :
+      w ∈ S (toAntisymmetrization (· ≤ ·) (push ι A)) → F A ≤ w := by
+    rintro ⟨κ, _, b, hb, rfl⟩
+    refine le_sum_extendProduct ι π hπ θ hθ hθ1 F A _ (tensorCovering_coveredBy.1 ?_)
+    simpa only [toAntisymmetrization_ofAntisymmetrization] using hb
+  have hup (t : PartyTensor K I') : f t ∈ S (toAntisymmetrization (· ≤ ·) t) :=
+    ⟨Unit, inferInstance, fun _ => toAntisymmetrization (· ≤ ·) t, (tensorCovering K I').refl _,
+      by simpa using hcongr (antisymmRel_ofAntisymmetrization_toAntisymmetrization t)⟩
   have hpre : IsUpperFunctional (tensorCovering K I') (fun t => sInf (S t)) := by
-    refine isUpperFunctional_sInf hne h0 ?_ ?_ ?_ ?_
-    · have h := hup 1
-      rwa [f1, toAntisymmetrization_one] at h
-    · intro w hw
-      rw [← toAntisymmetrization_one,
+    refine isUpperFunctional_sInf hne h0 (by simpa only [f1, toAntisymmetrization_one] using hup 1)
+      (fun w hw => ?_) ?_ ?_
+    · rw [← toAntisymmetrization_one,
         ← (toAntisymmetrization_eq _ _ _).2 (antisymmRel_push_one (K := K) ι)] at hw
-      have h := hlow 1 w hw
-      rwa [F.map_one] at h
-    · rintro s t a ⟨κ, _, b, hb, rfl⟩ a' ⟨κ', _, b', hb', rfl⟩
+      simpa only [F.map_one] using hlow 1 w hw
+    · rintro s t _ ⟨κ, _, b, hb, rfl⟩ _ ⟨κ', _, b', hb', rfl⟩
       refine ⟨Σ _ : κ, κ', inferInstance, _, (tensorCovering K I').mul_mul hb hb', ?_⟩
       rw [Fintype.sum_sigma, Finset.sum_mul_sum]
-      refine Finset.sum_congr rfl fun k _ => Finset.sum_congr rfl fun k' _ => ?_
-      rw [← fmul]
-      exact hcongr (antisymmRel_ofAntisymmetrization_mul _ _)
+      exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ =>
+        (hcongr (antisymmRel_ofAntisymmetrization_mul _ _)).trans (fmul _ _)
     · intro κ _ t b hb w hw
-      choose μ i c hc hw using hw
+      choose μ _ c hc hw using hw
       refine ⟨_, ⟨Σ k, μ k, inferInstance, _, (tensorCovering K I').bind hb hc, rfl⟩, ?_⟩
       rw [Fintype.sum_sigma]
       exact (Finset.sum_congr rfl fun k _ => hw k).le
-  have Pf : ∀ t, UpperFunctional.ofIsUpperFunctional hpre t ≤ f t := fun t => by
+  have Pf (t) : UpperFunctional.ofIsUpperFunctional hpre t ≤ f t := by
     rw [UpperFunctional.ofIsUpperFunctional_apply]
-    exact csInf_le ⟨0, fun _ hw => h0 _ _ hw⟩ (hup t)
+    exact csInf_le ⟨0, h0 _⟩ (hup t)
   refine ⟨UpperFunctional.ofIsUpperFunctional hpre, Pf, fun A => le_antisymm
     ((Pf _).trans (extendProduct_push ι π hπ θ hθ1 F A).le) ?_⟩
   rw [UpperFunctional.ofIsUpperFunctional_apply]
@@ -199,14 +185,12 @@ private theorem exists_localize (p : UpperFunctional K I) (f : PartyTensor K I) 
     (f := toAntisymmetrization (· ≤ ·) f) (by simpa using hf)
     (fun n => by rw [← toAntisymmetrization_pow, UpperFunctional.lift_toAntisymmetrization,
       UpperFunctional.lift_toAntisymmetrization, hpow])
-  refine ⟨UpperFunctional.ofIsUpperFunctional hq, fun t => by
-    rw [UpperFunctional.ofIsUpperFunctional_apply]
-    exact (hle _).trans (UpperFunctional.lift_toAntisymmetrization p t).le, fun t => ?_⟩
-  have := hk (toAntisymmetrization (· ≤ ·) t)
-  rw [UpperFunctional.lift_toAntisymmetrization] at this
-  rw [UpperFunctional.ofIsUpperFunctional_apply, UpperFunctional.ofIsUpperFunctional_apply,
-    toAntisymmetrization_mul, toAntisymmetrization_mul]
-  exact this
+  refine ⟨UpperFunctional.ofIsUpperFunctional hq, fun t => ?_, fun t => ?_⟩
+  · rw [UpperFunctional.ofIsUpperFunctional_apply]
+    exact (hle _).trans (UpperFunctional.lift_toAntisymmetrization p t).le
+  · simpa only [UpperFunctional.ofIsUpperFunctional_apply, toAntisymmetrization_mul,
+      toAntisymmetrization_one, UpperFunctional.lift_toAntisymmetrization] using
+      hk (toAntisymmetrization (· ≤ ·) t)
 
 /-- **Paper: Proposition A.7 (prop:extend).** Let `ι : I → I'` and `π l : I' → I` be maps with
 `π l ∘ ι = id`, let `θ l ≥ 0` add up to `1`, let `F` be a spectral point on `I` and `C` a tensor on

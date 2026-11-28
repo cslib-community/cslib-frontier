@@ -43,22 +43,19 @@ private noncomputable def replaceRows {s : Level} {a b : ℕ}
 private theorem short_read {s : Level} {a b : ℕ} (t : Table a b) (g : KeyCell s a b → Byte)
     (base : ExtendableOutput) (x : List Bool) (hx : x.length ≤ 528) (n : ℕ) :
     (install base (replaceRows t g)).read x n = (install base t).read x n := by
-  apply List.ext_getElem
-  · simp only [length_read]
-  · intro i hi _
-    have hin : i < n := by simpa only [length_read] using hi
-    rw [getElem_read _ _ hin, getElem_read _ _ hin]
-    simp only [byteAt_install]
-    split
-    · next h =>
-        apply Function.extend_apply'
-        rintro ⟨p, hp⟩
-        have len := p.property
-        rw [hp] at len
-        change x.length = keyBits s at len
-        have large : 528 < keyBits s := by cases s <;> decide
-        lia
-    · rfl
+  refine List.ext_getElem (by simp only [length_read]) fun i hi _ => ?_
+  have hin : i < n := by simpa only [length_read] using hi
+  rw [getElem_read _ _ hin, getElem_read _ _ hin]
+  simp only [byteAt_install]
+  split
+  · apply Function.extend_apply'
+    rintro ⟨p, hp⟩
+    have len := p.2
+    rw [hp] at len
+    change x.length = keyBits s at len
+    have : 528 < keyBits s := by cases s <;> decide
+    lia
+  · rfl
 
 private abbrev pub (H : Xofs) (s : Level) (seed : FixedBytes 32) :=
   (H.keyGen s seed).map KeyPair.publicKey
@@ -72,12 +69,11 @@ private theorem pub_replaceRows {s : Level} {a b : ℕ} (H : Xofs) (t : Table a 
   change pub R s seed = pub G s seed
   have exp : R.expandKeySeed s seed = G.expandKeySeed s seed := by
     apply short_read
-    rw [length_keySeedInput]
-    decide
+    rw [length_keySeedInput]; decide
   let rho := ((G.expandKeySeed s seed).drop 32).take 64
   have secret (i : ℕ) : R.secretPoly s rho i = G.secretPoly s rho i := by
     have eq := short_read t g H.h256 (Keccak.bytesToBitsLE (nonceInput rho i)) (by
-      have len := List.length_take_le 64 ((G.expandKeySeed s seed).drop 32)
+      have := List.length_take_le 64 ((G.expandKeySeed s seed).drop 32)
       simp only [nonceInput, Keccak.length_bytesToBitsLE, List.length_append, List.length_cons,
         List.length_nil]
       dsimp only [rho]
@@ -112,14 +108,12 @@ private theorem read_at_key {s : Level} {a b : ℕ} (t : Table a b) (g : KeyCell
     (base : ExtendableOutput) {x : List Bool} (hx : x.length = keyBits s)
     (ha : keyBits s ≤ a) (hb : 64 ≤ b) :
     (install base (replaceRows t g)).read x 64 = FixedBytes.toList (g ∘ rowPos hx ha hb) := by
-  apply List.ext_getElem
-  · simp only [length_read, FixedBytes.length_toList]
-  · intro i hi _
-    have hin : i < 64 := by simpa only [length_read] using hi
-    rw [getElem_read _ _ hin, byteAt_install, dite_eq_left ⟨hx.le.trans ha, hin.trans_le hb⟩]
-    change Function.extend Subtype.val g t ((rowPos hx ha hb ⟨i, hin⟩).val) = _
-    rw [Subtype.val_injective.extend_apply]
-    simp only [FixedBytes.toList, List.getElem_ofFn, Function.comp_apply]
+  refine List.ext_getElem (by simp only [length_read, FixedBytes.length_toList]) fun i hi _ => ?_
+  have hin : i < 64 := by simpa only [length_read] using hi
+  rw [getElem_read _ _ hin, byteAt_install, dite_eq_left ⟨hx.le.trans ha, hin.trans_le hb⟩]
+  change Function.extend Subtype.val g t ((rowPos hx ha hb ⟨i, hin⟩).val) = _
+  rw [Subtype.val_injective.extend_apply]
+  simp only [FixedBytes.toList, List.getElem_ofFn, Function.comp_apply]
 
 private theorem table_publicKeyHash (H : Xofs) (s : Level) (seed : FixedBytes 32)
     {a b : ℕ} (ha : keyBits s ≤ a) (hb : 64 ≤ b) :
@@ -148,8 +142,8 @@ private theorem table_publicKeyHash (H : Xofs) (s : Level) (seed : FixedBytes 32
   cases hp : pub (stream t) s seed with
   | none => simp only [Option.map_none, PMF.map, Function.comp_def, PMF.bind_const]
   | some pk =>
-    let x := Keccak.bytesToBitsLE pk
-    have hx : x.length = keyBits s := by rw [Keccak.length_bytesToBitsLE, pub_length hp]
+    have hx : (Keccak.bytesToBitsLE pk).length = keyBits s := by
+      rw [Keccak.length_bytesToBitsLE, pub_length hp]
     have uniform := PMF.uniformOfFintype_pi_map_comp_embedding (α := Byte) (rowPos hx ha hb)
     have eq := congrArg (PMF.map (fun v : FixedBytes 64 => some (pk, v.toList))) uniform
     rw [PMF.map_comp] at eq
@@ -221,7 +215,7 @@ theorem uniformPrefixes_publicKeyPrefix_le (base : Xofs) (s : Level) {a b : ℕ}
        | none => PMF.pure false
        | some k => PMF.pure (decide (H.h256.readBytes k.publicKey 64 = k.publicKey.take 64))) := by
     cases H.keyGen s seed <;> rfl
-  have game := congrArg (fun k => (base.uniformPrefixes a b).bind k) (funext realize)
+  have game := congrArg (base.uniformPrefixes a b).bind (funext realize)
   apply le_of_eq_of_le (congrArg (fun d : Game => d true) game.symm)
   change ((base.uniformPrefixes a b).map fun H => test ((H.keyGen s seed).map fun k =>
     (k.publicKey, H.h256.readBytes k.publicKey 64))) true ≤ _

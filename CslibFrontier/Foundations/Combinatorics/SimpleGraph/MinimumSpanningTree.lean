@@ -226,14 +226,6 @@ theorem existsUnique_isMOE_of_injOn {V W : Type*} [Fintype V] [LinearOrder W] {G
 
 /-! ### Fundamental cycle-exchange lemma on spanning trees -/
 
-private theorem edge_le_of_adj {V : Type*} {G : SimpleGraph V} {u v : V} (h : G.Adj u v) :
-    SimpleGraph.edge u v ≤ G := by
-  intro x y hxy
-  rw [edge_adj] at hxy
-  rcases hxy.1 with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-  · exact h
-  · exact h.symm
-
 /-- Adding an edge `s(u, v) ∉ T.edgeSet` (`u ≠ v`) to a finite tree `T` and deleting an edge
 `e' ∈ p.edges` along the unique `u`–`v` path `p` in `T` yields another tree on `V`, with edge-weight
 sum satisfying `edgeWeightSum T' w + w e' = edgeWeightSum T w + w s(u, v)`. -/
@@ -259,32 +251,17 @@ private theorem isTree_sup_edge_deleteEdges_of_mem_path {V W : Type*} [Finite V]
     exact fun hm => hnotMem (p.edges_subset_edgeSet hm)
   have hcyc : (Walk.cons hadj_vu p_sup).IsCycle := Path.cons_isCycle ⟨p_sup, hp_sup⟩ hadj_vu hnot_p
   have he'_cyc : e' ∈ (Walk.cons hadj_vu p_sup).edges := by
-    rw [Walk.edges_cons, List.mem_cons]
-    right
-    simpa [p_sup] using he'
+    rw [Walk.edges_cons]; exact List.mem_cons_of_mem _ (by simpa [p_sup] using he')
   have hnot_bridge : ¬ (T ⊔ SimpleGraph.edge u v).IsBridge e' := fun hb =>
     hb.notMem_edges_of_isCycle hcyc he'_cyc
   have hconn_sup : (T ⊔ SimpleGraph.edge u v).Connected := hT.connected.mono le_sup_left
   have hconn' : T'.Connected :=
     hconn_sup.preconnected.connected_deleteEdges_of_not_isBridge hnot_bridge
-  have hnot_diag : s(u, v) ∉ Sym2.diagSet := by
-    rw [Sym2.mem_diagSet, Sym2.mk_isDiag_iff]
-    exact huv
-  have hedge_set : T'.edgeSet = insert s(u, v) T.edgeSet \ {e'} := by
-    ext z
-    simp only [T', edgeSet_deleteEdges, edgeSet_sup, edgeSet_edge, Set.mem_sdiff,
-      Set.mem_union, Set.mem_singleton_iff, Set.mem_insert_iff]
-    constructor
-    · rintro ⟨hz | ⟨rfl, _⟩, hne⟩
-      · exact ⟨.inr hz, hne⟩
-      · exact ⟨.inl rfl, hne⟩
-    · rintro ⟨rfl | hz, hne⟩
-      · exact ⟨.inr ⟨rfl, hnot_diag⟩, hne⟩
-      · exact ⟨.inl hz, hne⟩
   have hedge_fin : T'.edgeFinset = (insert s(u, v) T.edgeFinset).erase e' := by
     ext z
-    simp only [mem_edgeFinset, hedge_set, Finset.mem_erase, Finset.mem_insert, Set.mem_sdiff,
-      Set.mem_insert_iff, Set.mem_singleton_iff]
+    have : z = s(u, v) → z ∉ Sym2.diagSet := by rintro rfl; simpa using huv
+    simp only [T', mem_edgeFinset, edgeSet_deleteEdges, edgeSet_sup, edgeSet_edge, Set.mem_sdiff,
+      Set.mem_union, Set.mem_singleton_iff, Finset.mem_erase, Finset.mem_insert]
     tauto
   have he'_ins : e' ∈ insert s(u, v) T.edgeFinset :=
     Finset.mem_insert_of_mem (mem_edgeFinset.mpr he'T)
@@ -324,7 +301,7 @@ theorem IsSpanningTree.swap_edge {V W : Type*} [Finite V] [AddCommMonoid W]
   have hout : IsOutgoingEdge T S d.edge :=
     ⟨he'T, d.fst, Finset.mem_coe.mp hdfst, d.snd, Finset.mem_coe.not.mp hdsnd, rfl⟩
   have hle' : (T ⊔ SimpleGraph.edge u v).deleteEdges {d.edge} ≤ G :=
-    (deleteEdges_le _).trans (sup_le hTG (edge_le_of_adj hadj))
+    (deleteEdges_le _).trans (sup_le hTG ((edge_le_iff _).2 (.inr hadj)))
   exact ⟨d.edge, hout, hne_e, ⟨hle', htree'⟩, hsum⟩
 
 /-! ### Cut optimality (GHS Property 1) and distinct-weight blue rule -/
@@ -340,7 +317,7 @@ theorem IsMST.exists_sup_edge_of_isMOE {V W : Type*} [Finite V]
     {u v : V} (hmoe : IsMOE G w S s(u, v)) :
     ∃ T', IsMST G w T' ∧ H ⊔ SimpleGraph.edge u v ≤ T' := by
   by_cases hmem : s(u, v) ∈ T.edgeSet
-  · exact ⟨T, hMST, sup_le hHT (edge_le_of_adj (T.mem_edgeSet.mp hmem))⟩
+  · exact ⟨T, hMST, sup_le hHT ((edge_le_iff _).2 (.inr (T.mem_edgeSet.mp hmem)))⟩
   · obtain ⟨hadj, hcut⟩ := isOutgoingEdge_mk.mp hmoe.1
     have swap_case : ∀ a b : V, a ∈ S → b ∉ S → G.Adj a b → s(a, b) = s(u, v) →
         ∃ T', IsMST G w T' ∧ H ⊔ SimpleGraph.edge u v ≤ T' := by
@@ -352,11 +329,8 @@ theorem IsMST.exists_sup_edge_of_isMOE {V W : Type*} [Finite V]
         rw [heq_ab]
         exact hmoe.2 e' (houtT.mono hMST.1.1)
       let T' := (T ⊔ SimpleGraph.edge a b).deleteEdges {e'}
-      have hT'_le_T : edgeWeightSum T' w ≤ edgeWeightSum T w := by
-        have h1 : edgeWeightSum T' w + w e' ≤ edgeWeightSum T w + w e' := by
-          rw [hsum]
-          exact add_le_add_right hw_le (edgeWeightSum T w)
-        exact le_of_add_le_add_right h1
+      have hT'_le_T : edgeWeightSum T' w ≤ edgeWeightSum T w :=
+        le_of_add_le_add_right (hsum.trans_le (add_le_add_right hw_le _))
       have hMST' : IsMST G w T' :=
         ⟨hST', fun T'' hT'' => hT'_le_T.trans (hMST.2 T'' hT'')⟩
       have he'_not_H : e' ∉ H.edgeSet := by
@@ -369,14 +343,10 @@ theorem IsMST.exists_sup_edge_of_isMOE {V W : Type*} [Finite V]
         exact ⟨(le_sup_left : T ≤ T ⊔ SimpleGraph.edge a b) (hHT hxy),
           fun heq => he'_not_H (heq ▸ H.mem_edgeSet.mpr hxy)⟩
       have hadj_T' : T'.Adj u v := by
-        have hadj_ab_T' : T'.Adj a b := by
-          rw [deleteEdges_adj]
-          exact ⟨(sup_adj T (SimpleGraph.edge a b) a b).mpr
-            (.inr ((edge_adj a b a b).mpr ⟨.inl ⟨rfl, rfl⟩, hadj_ab.ne⟩)), hne_e.symm⟩
-        rcases Sym2.eq_iff.mp heq_ab with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-        · exact hadj_ab_T'
-        · exact hadj_ab_T'.symm
-      exact ⟨T', hMST', sup_le hH_le (edge_le_of_adj hadj_T')⟩
+        rw [← T'.mem_edgeSet, ← heq_ab, T'.mem_edgeSet, deleteEdges_adj]
+        exact ⟨(sup_adj T (SimpleGraph.edge a b) a b).mpr
+          (.inr ((edge_adj a b a b).mpr ⟨.inl ⟨rfl, rfl⟩, hadj_ab.ne⟩)), hne_e.symm⟩
+      exact ⟨T', hMST', sup_le hH_le ((edge_le_iff _).2 (.inr hadj_T'))⟩
     rcases hcut with ⟨hu, hv⟩ | ⟨hu, hv⟩
     · exact swap_case u v hu hv hadj rfl
     · exact swap_case v u hv hu hadj.symm Sym2.eq_swap
@@ -396,13 +366,8 @@ theorem IsMOE.mem_edgeSet_of_isMST_of_injOn {V W : Type*} [Finite V]
   have houtG : IsOutgoingEdge G S e' := houtT.mono hMST.1.1
   have hw_le : w s(u, v) ≤ w e' := hmoe.2 e' houtG
   have hw_ne : w s(u, v) ≠ w e' := fun heq => hne_e.symm (hinj hmoe.1.1 houtG.1 heq)
-  have hw_lt : w s(u, v) < w e' := lt_of_le_of_ne hw_le hw_ne
-  let T' := (T ⊔ SimpleGraph.edge u v).deleteEdges {e'}
-  have hlt_sum : edgeWeightSum T' w + w e' < edgeWeightSum T w + w e' := by
-    rw [hsum]
-    exact add_lt_add_right hw_lt (edgeWeightSum T w)
-  have hlt : edgeWeightSum T' w < edgeWeightSum T w := lt_of_add_lt_add_right hlt_sum
-  exact not_le_of_gt hlt (hMST.2 T' hST')
+  exact not_le_of_gt (lt_of_add_lt_add_right (hsum.trans_lt (add_lt_add_right
+    (lt_of_le_of_ne hw_le hw_ne) _))) (hMST.2 _ hST')
 
 /-! ### Existence and distinct-weight uniqueness of the MST (GHS Property 2) -/
 
@@ -428,16 +393,8 @@ theorem IsMST.eq_of_injOn {V W : Type*} [Finite V]
   have := Fintype.ofFinite V
   classical
   by_contra hne
-  have hdiff_ne : (symmDiff T₁.edgeFinset T₂.edgeFinset).Nonempty := by
-    rw [← Finset.ne_empty_iff_nonempty]
-    intro heq
-    apply hne
-    have hfin_eq : T₁.edgeFinset = T₂.edgeFinset := by
-      ext z
-      have hz : z ∉ symmDiff T₁.edgeFinset T₂.edgeFinset := by simp [heq]
-      rw [Finset.mem_symmDiff] at hz
-      tauto
-    rw [← SimpleGraph.edgeSet_inj, ← T₁.coe_edgeFinset, ← T₂.coe_edgeFinset, hfin_eq]
+  have hdiff_ne : (symmDiff T₁.edgeFinset T₂.edgeFinset).Nonempty :=
+    Finset.symmDiff_nonempty.2 (mt edgeFinset_inj.1 hne)
   obtain ⟨e, he_mem, he_min⟩ := Finset.exists_min_image _ w hdiff_ne
   have symm_step : ∀ A B : SimpleGraph V, IsMST G w A → IsMST G w B →
       (∀ z ∈ symmDiff A.edgeFinset B.edgeFinset, w e ≤ w z) →
@@ -460,26 +417,19 @@ theorem IsMST.eq_of_injOn {V W : Type*} [Finite V]
       obtain ⟨htreeB', _, hne_e', hsum⟩ :=
         isTree_sup_edge_deleteEdges_of_mem_path hB.1.2 hadjA.ne heB hp he'_edges w
       have hleB' : (B ⊔ SimpleGraph.edge u v).deleteEdges {e'} ≤ G :=
-        (deleteEdges_le _).trans (sup_le hB.1.1 (edge_le_of_adj (hA.1.1 hadjA)))
+        (deleteEdges_le _).trans (sup_le hB.1.1 ((edge_le_iff _).2 (.inr (hA.1.1 hadjA))))
       have he'_diff : e' ∈ symmDiff A.edgeFinset B.edgeFinset := by
         rw [Finset.mem_symmDiff, mem_edgeFinset, mem_edgeFinset]
         exact .inr ⟨he'B, he'_notA⟩
       have hw_le : w s(u, v) ≤ w e' := hmin_AB e' he'_diff
       have hw_ne : w s(u, v) ≠ w e' := fun heq =>
         hne_e'.symm (hinj (edgeSet_mono hA.1.1 heA) (edgeSet_mono hB.1.1 he'B) heq)
-      have hw_lt : w s(u, v) < w e' := lt_of_le_of_ne hw_le hw_ne
-      let B' := (B ⊔ SimpleGraph.edge u v).deleteEdges {e'}
-      have hlt_sum : edgeWeightSum B' w + w e' < edgeWeightSum B w + w e' := by
-        rw [hsum]
-        exact add_lt_add_right hw_lt (edgeWeightSum B w)
-      exact not_le_of_gt (lt_of_add_lt_add_right hlt_sum) (hB.2 B' ⟨hleB', htreeB'⟩)
+      exact not_le_of_gt (lt_of_add_lt_add_right (hsum.trans_lt (add_lt_add_right
+        (lt_of_le_of_ne hw_le hw_ne) _))) (hB.2 _ ⟨hleB', htreeB'⟩)
   rw [Finset.mem_symmDiff, mem_edgeFinset, mem_edgeFinset] at he_mem
   rcases he_mem with ⟨he₁, he₂⟩ | ⟨he₂, he₁⟩
   · exact symm_step T₁ T₂ h₁ h₂ he_min he₁ he₂
-  · refine symm_step T₂ T₁ h₂ h₁ ?_ he₂ he₁
-    intro z hz
-    rw [symmDiff_comm] at hz
-    exact he_min z hz
+  · exact symm_step T₂ T₁ h₂ h₁ (by simpa only [symmDiff_comm] using he_min) he₂ he₁
 
 /-- On a finite connected graph with edge weights injective on `G.edgeSet`, there exists a unique
 minimum-weight spanning tree. -/

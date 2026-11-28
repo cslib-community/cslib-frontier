@@ -76,19 +76,16 @@ private def atomEmbed {n k : ℕ} (x : Fin k → Fin n)
 
 private theorem atomEmbed_injective {n k : ℕ} {x : Fin k → Fin n} (hx : Function.Injective x) :
     Function.Injective (atomEmbed (L := L) x) := by
-  rintro ⟨⟨z, hz⟩, ⟨⟨R, t⟩, ht⟩⟩ ⟨⟨z', hz'⟩, ⟨⟨R', t'⟩, ht'⟩⟩ h
+  rintro ⟨⟨z, hz⟩, ⟨⟨R, t⟩, ⟨j, hj⟩⟩⟩ ⟨⟨z', hz'⟩, ⟨⟨R', t'⟩, _⟩⟩ h
   obtain ⟨rfl, h⟩ := Sigma.mk.inj_iff.1 h
   have h := eq_of_heq h
-  obtain ⟨j, hj⟩ := ht
-  change t j = 0 at hj
   obtain rfl : z = z' := by
-    have := congrFun h j
-    simp only [Function.comp_apply] at this
-    rw [hj, Fin.cons_zero] at this
-    rcases Fin.eq_zero_or_eq_succ (t' j) with h0 | ⟨i, hi⟩
-    · rwa [h0, Fin.cons_zero] at this
-    · rw [hi, Fin.cons_succ] at this
-      exact absurd ⟨i, this.symm⟩ hz
+    have h0 := congrFun h j
+    simp only [Function.comp_apply, show t j = 0 from hj, Fin.cons_zero] at h0
+    rcases Fin.eq_zero_or_eq_succ (t' j) with h' | ⟨i, hi⟩
+    · rwa [h', Fin.cons_zero] at h0
+    · rw [hi, Fin.cons_succ] at h0
+      exact absurd ⟨i, h0.symm⟩ hz
   obtain rfl : t = t' := funext fun j => (Fin.cons_injective_iff.2 ⟨hz, hx⟩) (congrFun h j)
   rfl
 
@@ -97,12 +94,9 @@ variable [L.IsRelational]
 private theorem isExtensionWitness_atomStructure_iff {n k : ℕ} (y : Atom L n → Bool)
     (x : Fin k → Fin n) (s : NewAtom L k → Bool) (z : Fin n) :
     @IsExtensionWitness L (Fin n) (atomStructure y) k x s z ↔
-      ∃ hz : z ∉ Set.range x, ∀ a, y (atomEmbed x (⟨z, hz⟩, a)) = s a := by
-  constructor
-  · rintro ⟨hne, h⟩
-    exact ⟨fun ⟨i, hi⟩ => hne i hi.symm, fun a => Bool.eq_iff_iff.2 (h a)⟩
-  · rintro ⟨hz, h⟩
-    exact ⟨fun i hi => hz ⟨i, hi.symm⟩, fun a => Bool.eq_iff_iff.1 (h a)⟩
+      ∃ hz : z ∉ Set.range x, ∀ a, y (atomEmbed x (⟨z, hz⟩, a)) = s a :=
+  ⟨fun ⟨hne, h⟩ => ⟨fun ⟨i, hi⟩ => hne i hi.symm, fun a => Bool.eq_iff_iff.2 (h a)⟩,
+    fun ⟨hz, h⟩ => ⟨fun i hi => hz ⟨i, hi.symm⟩, fun a => Bool.eq_iff_iff.1 (h a)⟩⟩
 
 variable [Finite (Σ l, L.Relations l)]
 
@@ -123,8 +117,7 @@ theorem structProb_bernoulliStructure_forall_not_isExtensionWitness
   let g : (Atom L n → Bool) → O → NewAtom L k → Bool := fun y => Function.curry fun q => y (e q)
   have hev : atomStructure ⁻¹' {S : L.Structure (Fin n) |
       ∀ z, ¬@IsExtensionWitness L (Fin n) S k x s z} =
-      g ⁻¹' {u | ∀ z, u z ∈ ({s}ᶜ : Set (NewAtom L k → Bool))} := by
-    ext y
+      g ⁻¹' {u | ∀ z, u z ∈ ({s}ᶜ : Set (NewAtom L k → Bool))} := Set.ext fun y => by
     simp only [Set.mem_preimage, Set.mem_ofPred_eq, isExtensionWitness_atomStructure_iff,
       not_exists, Set.mem_compl_iff, Set.mem_singleton_iff, g, e]
     exact ⟨fun h z hz => h z z.property fun a => congrFun hz a,
@@ -132,11 +125,9 @@ theorem structProb_bernoulliStructure_forall_not_isExtensionWitness
   -- These families are independent, one for each fresh element.
   have hg : (PMF.pi fun a : Atom L n => PMF.coin (p a.1)).map g =
       PMF.pi fun _ : O => PMF.pi fun a : NewAtom L k => PMF.coin (p a.symbol) := by
-    have h1 := PMF.pi_map_comp_injective (fun a : Atom L n => PMF.coin (p a.1))
-      (atomEmbed_injective (L := L) hx)
     have h2 := PMF.pi_map_curry (fun q : O × NewAtom L k => PMF.coin (p (e q).1))
-    rw [← h1, PMF.map_comp] at h2
-    exact h2
+    rwa [← PMF.pi_map_comp_injective (fun a : Atom L n => PMF.coin (p a.1))
+      (atomEmbed_injective (L := L) hx), PMF.map_comp] at h2
   have hO : Fintype.card O = n - k := by
     rw [Fintype.card_subtype_compl, Fintype.card_fin, Set.card_range_of_injective hx,
       Fintype.card_fin]
@@ -194,15 +185,11 @@ theorem tendsto_sentenceProb_bernoulliStructure_extensionAxiom {p : (Σ l, L.Rel
   have hc1 : ∏ᶠ a : NewAtom L k, (PMF.coin (p a.symbol) (s a)).toReal ≤ 1 := by
     rw [finprod_eq_prod_of_fintype]
     exact Finset.prod_le_one₀ (fun a _ => (hw a).1.le) fun a _ => (hw a).2
-  have h0 : Tendsto
-      (fun n => structProb (bernoulliStructure p n) (fun S => ¬@HasExtension L (Fin n) S k s))
-      atTop (nhds 0) :=
-    squeeze_zero (fun n => structProb_nonneg _ _)
-      (fun n => structProb_bernoulliStructure_not_hasExtension_le p n k s)
-      (tendsto_descFactorial_mul_pow_sub k (by linarith) (by linarith))
-  have := h0.const_sub 1
-  simp only [sub_zero, structProb_not, sub_sub_cancel] at this
-  refine this.congr fun n => ?_
+  have h1 := (squeeze_zero (fun n => structProb_nonneg _ _)
+    (fun n => structProb_bernoulliStructure_not_hasExtension_le p n k s)
+    (tendsto_descFactorial_mul_pow_sub k (by linarith) (by linarith))).const_sub 1
+  simp only [sub_zero, structProb_not, sub_sub_cancel] at h1
+  refine h1.congr fun n => ?_
   rw [sentenceProb_def]
   congr 1 with S : 1
   exact propext (@realize_extensionAxiom L (Fin n) S _ k s).symm
@@ -212,9 +199,9 @@ theorem tendsto_sentenceProb_bernoulliStructure_extensionAxiom {p : (Σ l, L.Rel
 theorem tendsto_sentenceProb_bernoulliStructure_of_mem_extensionTheory
     {p : (Σ l, L.Relations l) → I} (hp : ∀ R, 0 < (p R : ℝ) ∧ (p R : ℝ) < 1) {φ : L.Sentence}
     (hφ : φ ∈ extensionTheory L) :
-    Tendsto (fun n => sentenceProb (bernoulliStructure p n) φ) atTop (nhds 1) := by
-  obtain ⟨k, s, rfl⟩ := mem_extensionTheory.1 hφ
-  exact tendsto_sentenceProb_bernoulliStructure_extensionAxiom hp k s
+    Tendsto (fun n => sentenceProb (bernoulliStructure p n) φ) atTop (nhds 1) :=
+  let ⟨k, s, h⟩ := mem_extensionTheory.1 hφ
+  h ▸ tendsto_sentenceProb_bernoulliStructure_extensionAxiom hp k s
 
 /-! ### The uniform random structure -/
 

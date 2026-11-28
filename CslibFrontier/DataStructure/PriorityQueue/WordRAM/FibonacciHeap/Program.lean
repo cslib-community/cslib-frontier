@@ -706,10 +706,8 @@ def charge (n : ℕ) (s : IndexedMinPQ.State n) : IndexedMinPQ.Op n → ℕ
 theorem charge_extractMin_le_tExt (n : ℕ) (s : IndexedMinPQ.State n) :
     charge n s .extractMin ≤ tExt n := by
   simp only [charge, tExt]
-  have hcard : (IndexedMinPQ.dom s).card ≤ n := by
-    simpa using (IndexedMinPQ.dom s).card_le_univ
-  have hlog : Nat.log 2 (IndexedMinPQ.dom s).card ≤ Nat.log 2 n :=
-    Nat.log_mono_right hcard
+  have hlog := Nat.log_mono_right (b := 2)
+    (by simpa using (IndexedMinPQ.dom s).card_le_univ : (IndexedMinPQ.dom s).card ≤ n)
   omega
 
 /-! ## Footprint framing and `RawState.ofData` update lemmas -/
@@ -765,26 +763,22 @@ theorem ofData_set_scratch {n base : ℕ} (x : Data rFib) {d : Fin rFib} (hd : 1
 theorem ofData_set_minRoot {n base : ℕ} (x : Data rFib) (v : ℕ) :
     RawState.ofData n base (x.set minRootReg v) =
       { RawState.ofData n base x with minRoot := v } := by
-  simp only [RawState.ofData, Data.set_mem, Data.set_regs, Function.update_self]
-  rfl
+  simp [RawState.ofData, Data.set_mem, Data.set_regs]
 
 theorem ofData_set_numRoots {n base : ℕ} (x : Data rFib) (v : ℕ) :
     RawState.ofData n base (x.set numRootsReg v) =
       { RawState.ofData n base x with numRoots := v } := by
-  simp only [RawState.ofData, Data.set_mem, Data.set_regs, Function.update_self]
-  rfl
+  simp [RawState.ofData, Data.set_mem, Data.set_regs]
 
 theorem ofData_set_numMarked {n base : ℕ} (x : Data rFib) (v : ℕ) :
     RawState.ofData n base (x.set numMarkedReg v) =
       { RawState.ofData n base x with numMarked := v } := by
-  simp only [RawState.ofData, Data.set_mem, Data.set_regs, Function.update_self]
-  rfl
+  simp [RawState.ofData, Data.set_mem, Data.set_regs]
 
 theorem ofData_set_sz {n base : ℕ} (x : Data rFib) (v : ℕ) :
     RawState.ofData n base (x.set szReg v) =
       { RawState.ofData n base x with sz := v } := by
-  simp only [RawState.ofData, Data.set_mem, Data.set_regs, Function.update_self]
-  rfl
+  simp [RawState.ofData, Data.set_mem, Data.set_regs]
 
 /-! The `ofData_write_*` lemmas: a write into one of the nine arrays updates that field of
 `RawState.ofData` and leaves the other eight arrays alone, because the arrays occupy disjoint

@@ -81,24 +81,17 @@ theorem mul_le_dens_filter_prod {α β : Type*} [Fintype α] [Fintype β] (good 
     have h0 : (dens {a | good a} : ℝ) = 0 := by simp [hex]
     nlinarith
   obtain ⟨a₀, ha₀⟩ := hex
-  rcases hρ₂.eq_or_lt with rfl | hρ₂'
-  · simpa using hpair
   have : Nonempty α := ⟨a₀⟩
-  have : Nonempty β := by
-    by_contra hβ
-    rw [not_nonempty_iff] at hβ
-    have := h₂ a₀ ha₀
-    simp only [univ_eq_empty, filter_empty, dens_empty, NNRat.cast_zero] at this
-    linarith
+  rcases isEmpty_or_nonempty β with _ | _
+  · have := h₂ a₀ ha₀
+    simp only [univ_eq_empty, filter_empty, dens_empty, NNRat.cast_zero] at this ⊢
+    simp [le_antisymm this hρ₂]
   simp only [nnratCast_dens, Fintype.card_prod, Nat.cast_mul] at h₁ h₂ ⊢
-  have hα : (0 : ℝ) < Fintype.card α := by exact_mod_cast Fintype.card_pos
-  have hβ : (0 : ℝ) < Fintype.card β := by exact_mod_cast Fintype.card_pos
-  rw [le_div_iff₀ hα] at h₁
-  have := mul_le_card_filter_product univ univ good q (by positivity) h₁
-    fun a _ ha => (le_div_iff₀ hβ).1 (h₂ a ha)
-  rw [univ_product_univ] at this
-  rw [le_div_iff₀ (by positivity)]
-  linarith
+  have hα : (0 : ℝ) < Fintype.card α := mod_cast Fintype.card_pos
+  have hβ : (0 : ℝ) < Fintype.card β := mod_cast Fintype.card_pos
+  rw [le_div_iff₀ (mul_pos hα hβ), mul_mul_mul_comm]
+  simpa only [univ_product_univ] using mul_le_card_filter_product univ univ good q (by positivity)
+    ((le_div_iff₀ hα).mp h₁) fun a _ ha => (le_div_iff₀ hβ).mp (h₂ a ha)
 
 /-- **Two-stage union-tail bound.** Over a product space `α × β` (`[Nonempty α]`), when the first
 coordinate violates `good` with density at most `δ` and every `a` satisfying `good a` has

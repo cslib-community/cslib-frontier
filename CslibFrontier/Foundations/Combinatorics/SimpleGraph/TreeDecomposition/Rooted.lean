@@ -101,8 +101,8 @@ theorem isTop_iff_mem {v : V} {i : Fin (n + 1)} :
   Iff.rfl
 
 theorem parent_le (i : Fin (n + 1)) : R.parent i ≤ i := by
-  by_cases hi : i = 0
-  · rw [hi, R.parent_zero]
+  rcases eq_or_ne i 0 with rfl | hi
+  · rw [R.parent_zero]
   · exact (R.parent_lt i hi).le
 
 theorem parent_iterate_le (a : ℕ) (i : Fin (n + 1)) : R.parent^[a] i ≤ i := by
@@ -171,12 +171,11 @@ theorem mem_bag_parent_iterate {v : V} {s : Fin (n + 1)} (hs : v ∈ R.bag s) {a
   rw [R.isTop_iff] at ha'
   rcases le_or_gt b a' with hba' | hba'
   · exact hle b hba'
-  · have h1 : R.parent^[b] s ≤ R.parent^[a'] s := R.parent_iterate_antitone s hba'.le
-    have h2 : R.parent^[a] s ≤ R.parent^[b] s := R.parent_iterate_antitone s hb
+  · have h1 := R.parent_iterate_antitone s hba'.le
+    have h2 := R.parent_iterate_antitone s hb
     rw [ha'] at h1
     rw [ha] at h2
-    rw [le_antisymm h1 h2]
-    exact R.mem_bag_top v
+    exact le_antisymm h1 h2 ▸ R.mem_bag_top v
 
 /-- If `u` and `w` are adjacent and the topmost node for `w` is numbered no later than the topmost
 node for `u`, then the bag at the topmost node for `u` contains `w`. -/
@@ -186,8 +185,7 @@ theorem mem_bag_top_of_adj {u w : V} (huw : G.Adj u w) (h : R.top w ≤ R.top u)
   obtain ⟨a, ha⟩ := R.exists_iterate_eq_top hus
   obtain ⟨b, hb⟩ := R.exists_iterate_eq_top hws
   rcases le_or_gt a b with hab | hab
-  · rw [← ha]
-    exact R.mem_bag_parent_iterate hws hb hab
+  · exact ha ▸ R.mem_bag_parent_iterate hws hb hab
   · have h1 : R.top u ≤ R.top w := by
       rw [← ha, ← hb]
       exact R.parent_iterate_antitone s hab.le
@@ -202,31 +200,25 @@ theorem exists_subset_bag_of_isClique {K : Finset V} (hK : G.IsClique (K : Set V
   · exact ⟨0, Finset.empty_subset _⟩
   obtain ⟨u, huK, hu⟩ := K.exists_max_image R.top hne
   refine ⟨R.top u, fun w hwK => ?_⟩
-  by_cases hwu : w = u
-  · subst hwu
-    exact R.mem_bag_top w
-  exact R.mem_bag_top_of_adj (hK huK hwK (Ne.symm hwu)) (hu w hwK)
+  rcases eq_or_ne w u with rfl | hwu
+  · exact R.mem_bag_top w
+  · exact R.mem_bag_top_of_adj (hK huK hwK hwu.symm) (hu w hwK)
 
 /-- The index tree of a rooted tree decomposition. -/
 def tree : SimpleGraph (Fin (n + 1)) := parentTree R.parent
 
-theorem tree_eq : R.tree = parentTree R.parent := by
-  unfold tree
-  rfl
+theorem tree_eq : R.tree = parentTree R.parent := by rw [tree]
 
 theorem reachable_top {v : V} {i : Fin (n + 1)} (hi : v ∈ R.bag i) :
     (R.tree.induce {j | v ∈ R.bag j}).Reachable ⟨i, hi⟩ ⟨R.top v, R.mem_bag_top v⟩ := by
   induction i using WellFoundedLT.induction with
   | ind i ih =>
     by_cases htop : i = 0 ∨ v ∉ R.bag (R.parent i)
-    · have : i = R.top v := R.isTop_iff.1 ⟨hi, htop⟩
-      subst this
+    · obtain rfl : i = R.top v := R.isTop_iff.1 ⟨hi, htop⟩
       rfl
     · push Not at htop
-      have hadj : (R.tree.induce {j | v ∈ R.bag j}).Adj ⟨i, hi⟩ ⟨R.parent i, htop.2⟩ := by
-        change R.tree.Adj i (R.parent i)
-        rw [tree_eq]
-        exact parentTree_adj_self R.parent_lt htop.1
+      have hadj : (R.tree.induce {j | v ∈ R.bag j}).Adj ⟨i, hi⟩ ⟨R.parent i, htop.2⟩ :=
+        R.tree_eq ▸ parentTree_adj_self R.parent_lt htop.1
       exact hadj.reachable.trans (ih _ (R.parent_lt i htop.1) htop.2)
 
 /-- The nodes whose bags contain a given vertex induce a connected subtree. -/
@@ -244,11 +236,10 @@ def toTreeDecomposition : G.TreeDecomposition (Fin (n + 1)) where
   preconnected_bag := R.preconnected_bag
 
 @[simp] theorem toTreeDecomposition_bag : R.toTreeDecomposition.bag = R.bag := by
-  unfold toTreeDecomposition
-  rfl
+  dsimp [toTreeDecomposition]
 
 @[simp] theorem toTreeDecomposition_tree : R.toTreeDecomposition.tree = parentTree R.parent := by
-  unfold toTreeDecomposition
+  dsimp [toTreeDecomposition]
   exact R.tree_eq
 
 /-- Build a rooted tree decomposition from the connectivity condition of tree decompositions in
@@ -272,8 +263,7 @@ def ofPreconnected (parent : Fin (n + 1) → Fin (n + 1)) (parent_zero : parent 
 def width : ℕ := R.toTreeDecomposition.width
 
 @[simp] theorem width_toTreeDecomposition : R.toTreeDecomposition.width = R.width := by
-  unfold width
-  rfl
+  rw [width]
 
 theorem width_le_iff {k : ℕ} : R.width ≤ k ↔ ∀ i, (R.bag i).card ≤ k + 1 := by
   rw [← width_toTreeDecomposition, TreeDecomposition.width_le_iff, toTreeDecomposition_bag]
@@ -315,28 +305,21 @@ private theorem IsTree.exists_equiv_parentTree [Finite ι] {T : SimpleGraph ι} 
   let par := hT.parent r
   let depth : ι → ℕ := fun t => (hT.pathTo r t).length
   let key : ι → ℕ ×ₗ Fin (Fintype.card ι) := fun t => toLex (depth t, Fintype.equivFin ι t)
-  have hkey : Function.Injective key := fun a b h => by
-    have := congrArg (fun x => (ofLex x).2) h
-    exact (Fintype.equivFin ι).injective this
+  have hkey : Function.Injective key := fun a b h =>
+    (Fintype.equivFin ι).injective (congrArg (fun x => (ofLex x).2) h)
   let _ : LinearOrder ι := LinearOrder.lift' key hkey
   have hlt_iff : ∀ a b : ι, a < b ↔ key a < key b := fun _ _ => Iff.rfl
-  have hpar : ∀ t, t ≠ r → par t < t := by
-    intro t ht
+  have hpar : ∀ t, t ≠ r → par t < t := fun t ht => by
     rw [hlt_iff, Prod.Lex.toLex_lt_toLex]
-    left
+    refine Or.inl ?_
     have := hT.length_pathTo_parent r ht
-    simp only [depth, par]
-    omega
-  have hr_le : ∀ t, r ≤ t := by
-    intro t
-    by_cases ht : t = r
-    · rw [ht]
-    · refine le_of_lt ?_
-      rw [hlt_iff, Prod.Lex.toLex_lt_toLex]
-      left
-      have h1 := hT.length_pathTo_parent r ht
-      have h2 : depth r = 0 := by simp only [depth, hT.pathTo_self, Walk.length_nil]
-      simp only [depth] at h2 ⊢
+    simp only [depth, par]; omega
+  have hr_le : ∀ t, r ≤ t := fun t => by
+    rcases eq_or_ne t r with rfl | ht
+    · exact le_rfl
+    · refine le_of_lt ((hlt_iff r t).2 (Prod.Lex.toLex_lt_toLex.2 (Or.inl ?_)))
+      have := hT.length_pathTo_parent r ht
+      simp only [depth, hT.pathTo_self, Walk.length_nil]
       omega
   -- Number the nodes in this order; the root gets `0`.
   have hcard : Fintype.card ι = Fintype.card ι - 1 + 1 := by
@@ -348,18 +331,13 @@ private theorem IsTree.exists_equiv_parentTree [Finite ι] {T : SimpleGraph ι} 
     have h1 : e.symm r ≤ 0 := by
       rw [← e.le_iff_le, e.apply_symm_apply]
       exact hr_le _
-    have h2 : e.symm r = 0 := le_antisymm h1 (Fin.zero_le _)
-    rw [← h2, e.apply_symm_apply]
+    simpa using congrArg e (le_antisymm h1 (Fin.zero_le _)).symm
   have he_iff : ∀ i, i = 0 ↔ e i = r := fun i =>
     ⟨fun h => h ▸ he0, fun h => e.injective (h.trans he0.symm)⟩
   let parent : Fin (n + 1) → Fin (n + 1) := fun i => e.symm (par (e i))
-  have parent_lt : ∀ i, i ≠ 0 → parent i < i := by
-    intro i hi
-    have := hpar (e i) (fun h => hi ((he_iff i).2 h))
-    rw [← e.lt_iff_lt, e.apply_symm_apply]
-    exact this
-  have hadj : ∀ i j, (parentTree parent).Adj i j ↔ T.Adj (e i) (e j) := by
-    intro i j
+  have parent_lt : ∀ i, i ≠ 0 → parent i < i := fun i hi => by
+    simpa [parent] using e.symm.strictMono (hpar (e i) (mt (he_iff i).2 hi))
+  have hadj : ∀ i j, (parentTree parent).Adj i j ↔ T.Adj (e i) (e j) := fun i j => by
     rw [parentTree_adj parent_lt, hT.adj_iff_parent r, Ne, Ne, Ne, Ne, he_iff i, he_iff j]
     simp only [parent, par, OrderIso.symm_apply_eq]
   refine ⟨n, e.toEquiv, parent, ?_, parent_lt, hadj⟩
@@ -380,8 +358,8 @@ theorem exists_rooted [Finite ι] (D : G.TreeDecomposition ι) :
   -- Renumber the index tree as a parent-array tree and carry the bags along.
   obtain ⟨n, e, parent, parent_zero, parent_lt, hadj⟩ := D.isTree.exists_equiv_parentTree
   refine ⟨n, RootedTreeDecomposition.ofPreconnected parent parent_zero parent_lt
-    (fun i => D.bag (e i)) (fun v => ?_) (fun u v huv => ?_) (fun v => ?_), e,
-    fun i => by unfold RootedTreeDecomposition.ofPreconnected; rfl, fun i j => ?_⟩
+    (fun i => D.bag (e i)) (fun v => ?_) (fun u v huv => ?_) (fun v => ?_),
+    e, fun _ => rfl, fun i j => hadj i j⟩
   · obtain ⟨t, ht⟩ := D.exists_mem_bag v
     exact ⟨e.symm t, by simpa using ht⟩
   · obtain ⟨t, ht⟩ := D.exists_adj_mem_bag huv
@@ -390,28 +368,20 @@ theorem exists_rooted [Finite ι] (D : G.TreeDecomposition ι) :
     let f : D.tree.induce {t | v ∈ D.bag t} →g
         (parentTree parent).induce {i | v ∈ D.bag (e i)} :=
       { toFun := fun t => ⟨e.symm t, by
-          change v ∈ D.bag (e (e.symm t))
-          rw [e.apply_symm_apply]
-          exact t.property⟩
-        map_rel' := fun {a b} h => by
-          change (parentTree parent).Adj (e.symm a) (e.symm b)
-          rw [hadj, e.apply_symm_apply, e.apply_symm_apply]
-          exact h }
-    refine (D.preconnected_bag v).map f ?_
-    rintro ⟨i, hi⟩
-    exact ⟨⟨e i, hi⟩, Subtype.ext (e.symm_apply_apply i)⟩
-  · rw [RootedTreeDecomposition.tree_eq]
-    exact hadj i j
+          rw [Set.mem_ofPred_eq, e.apply_symm_apply]
+          exact t.2⟩
+        map_rel' := fun h => by
+          change (parentTree parent).Adj (e.symm _) (e.symm _)
+          simpa [hadj] using h }
+    exact (D.preconnected_bag v).map f fun ⟨i, hi⟩ =>
+      ⟨⟨e i, hi⟩, Subtype.ext (e.symm_apply_apply i)⟩
 
 /-- Every tree decomposition with finitely many nodes has a rooted one of the same width. -/
 theorem exists_rooted_width_eq [Fintype ι] (D : G.TreeDecomposition ι) :
     ∃ n, ∃ R : G.RootedTreeDecomposition n, R.width = D.width := by
   obtain ⟨n, R, e, he, -⟩ := D.exists_rooted
-  refine ⟨n, R, le_antisymm (R.width_le_iff.2 fun i => ?_) (D.width_le_iff.2 fun t => ?_)⟩
-  · rw [he]
-    exact D.card_bag_le _
-  · have := R.card_bag_le (e.symm t)
-    rwa [he, e.apply_symm_apply] at this
+  exact ⟨n, R, le_antisymm (R.width_le_iff.2 fun i => he i ▸ D.card_bag_le _)
+    (D.width_le_iff.2 fun t => by simpa [he] using R.card_bag_le (e.symm t))⟩
 
 /-- Every finite clique lies in a single bag of a tree decomposition with finitely many nodes. -/
 theorem exists_subset_bag_of_isClique [Finite ι] (D : G.TreeDecomposition ι) {K : Finset V}

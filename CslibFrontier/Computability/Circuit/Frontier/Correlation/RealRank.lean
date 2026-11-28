@@ -299,19 +299,14 @@ theorem nonnegRank_communicationMatrix_andXorSet :
         andXorRightEquiv := by
     ext p q
     simp [Communication.communicationMatrix, cutFun_andXorSet]
-  have hle1 := Matrix.nonnegRank_submatrix_le
-    (Communication.communicationMatrix ℝ Basis.andXorMatrix) andXorLeftEquiv andXorRightEquiv
   have hinv : Communication.communicationMatrix ℝ Basis.andXorMatrix =
       (Communication.communicationMatrix ℝ (cutFun andXorSet andXorCut)).submatrix
         andXorLeftEquiv.symm andXorRightEquiv.symm := by
     rw [heq, submatrix_submatrix, Equiv.self_comp_symm, Equiv.self_comp_symm, submatrix_id_id]
-  have hle2 := Matrix.nonnegRank_submatrix_le
-    (Communication.communicationMatrix ℝ (cutFun andXorSet andXorCut))
-    andXorLeftEquiv.symm andXorRightEquiv.symm
-  rw [← heq] at hle1
-  rw [← hinv] at hle2
-  exact le_antisymm (hle1.trans_eq Basis.nonnegRank_andXorMatrix_real)
-    (Basis.nonnegRank_andXorMatrix_real ▸ hle2)
+  rw [← Basis.nonnegRank_andXorMatrix_real]
+  refine le_antisymm ?_ ?_
+  · rw [heq]; exact Matrix.nonnegRank_submatrix_le _ _ _
+  · rw [hinv]; exact Matrix.nonnegRank_submatrix_le _ _ _
 
 /-! ### Unconditional `2.8006 n` `U₂` quadratic-form correlation bounds -/
 

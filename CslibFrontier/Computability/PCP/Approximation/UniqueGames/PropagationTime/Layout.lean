@@ -219,11 +219,9 @@ theorem not_in_tabRow {L u w a : ℕ} {g : Graph (Fin L → Fin L)}
     ¬ (tabBase g + w * L ≤ tabBase g + u * L + a ∧
         tabBase g + u * L + a < tabBase g + w * L + L) := by
   rcases Nat.lt_or_gt_of_ne huw with h | h
-  · have : u * L + L ≤ w * L := by
-      simpa only [Nat.succ_mul] using Nat.mul_le_mul_right L h
-    omega
-  · have : w * L + L ≤ u * L := by
-      simpa only [Nat.succ_mul] using Nat.mul_le_mul_right L h
+  all_goals
+    have := Nat.mul_le_mul_right L h
+    rw [Nat.succ_mul] at this
     omega
 
 /-- Every valid slot row `w < slots g` ends at or below `candBase g`. -/
@@ -257,39 +255,23 @@ structure InputAt {L : ℕ} (g : Graph (Fin L → Fin L)) (mem : ℕ → ℕ) : 
 /-- `InputAt g` depends only on addresses below `headBase g`. -/
 theorem InputAt.frame {L : ℕ} {g : Graph (Fin L → Fin L)} {mem mem' : ℕ → ℕ}
     (h : InputAt g mem) (heq : ∀ a < headBase g, mem' a = mem a) : InputAt g mem' where
-  mem0 := by rw [heq 0 (by simp only [headBase]; omega)]; exact h.mem0
-  mem1 := by rw [heq 1 (by simp only [headBase]; omega)]; exact h.mem1
-  mem2 := by rw [heq 2 (by simp only [headBase]; omega)]; exact h.mem2
-  mem3 := by rw [heq 3 (by simp only [headBase]; omega)]; exact h.mem3
-  edge_src j hj := by
-    have := edge_end_le_headBase hj
-    rw [heq _ (by omega)]; exact h.edge_src j hj
-  edge_dst j hj := by
-    have := edge_end_le_headBase hj
-    rw [heq _ (by omega)]; exact h.edge_dst j hj
-  edge_val j hj a ha := by
-    have := edge_end_le_headBase hj
-    rw [heq _ (by omega)]; exact h.edge_val j hj a ha
+  mem0 := (heq 0 (by simp only [headBase]; omega)).trans h.mem0
+  mem1 := (heq 1 (by simp only [headBase]; omega)).trans h.mem1
+  mem2 := (heq 2 (by simp only [headBase]; omega)).trans h.mem2
+  mem3 := (heq 3 (by simp only [headBase]; omega)).trans h.mem3
+  edge_src j hj := (heq _ (by have := edge_end_le_headBase hj; omega)).trans (h.edge_src j hj)
+  edge_dst j hj := (heq _ (by have := edge_end_le_headBase hj; omega)).trans (h.edge_dst j hj)
+  edge_val j hj a ha :=
+    (heq _ (by have := edge_end_le_headBase hj; omega)).trans (h.edge_val j hj a ha)
 
 /-- Initial Word-RAM state `Data.init (encode g)` satisfies `InputAt g` and is `0` at
 `≥ headBase g`. -/
 theorem inputAt_init {L : ℕ} (g : Graph (Fin L → Fin L)) :
     InputAt g (Data.init (encode g) : Data 34).mem ∧
       ∀ a, headBase g ≤ a → (Data.init (encode g) : Data 34).mem a = 0 := by
-  have hm0 : (Data.init (encode g) : Data 34).mem 0 = 3 + g.edges.length * (L + 2) := by
-    rw [Data.init_mem_zero, length_encode]
-  have hm1 : (Data.init (encode g) : Data 34).mem 1 = L := by
-    rw [Data.init_mem_succ]; simp only [encode, List.getD_cons_zero]
-  have hm2 : (Data.init (encode g) : Data 34).mem 2 = g.vertices := by
-    rw [show (2 : ℕ) = 1 + 1 from rfl, Data.init_mem_succ]
-    simp only [encode, List.getD_cons_succ, List.getD_cons_zero]
-  have hm3 : (Data.init (encode g) : Data 34).mem 3 = g.edges.length := by
-    rw [show (3 : ℕ) = 2 + 1 from rfl, Data.init_mem_succ]
-    simp only [encode, List.getD_cons_succ, List.getD_cons_zero]
-  have hedge : ∀ j (hj : j < g.edges.length) r (hr : r < L + 2),
+  have hedge (j) (hj : j < g.edges.length) (r) (hr : r < L + 2) :
       (Data.init (encode g) : Data 34).mem (4 + j * (L + 2) + r) =
         (encodeEdge g.edges[j])[r]'(by simp only [length_encodeEdge]; exact hr) := by
-    intro j hj r hr
     rw [show 4 + j * (L + 2) + r = (3 + (j * (L + 2) + r)) + 1 by omega, Data.init_mem_succ]
     simp only [encode, List.getD_eq_getElem?_getD]
     change ([L, g.vertices, g.edges.length] ++ g.edges.flatMap encodeEdge)[
@@ -300,20 +282,24 @@ theorem inputAt_init {L : ℕ} (g : Graph (Fin L → Fin L)) :
       (fun _ _ => length_encodeEdge _) hj hr,
       List.getElem?_eq_getElem (by simp only [length_encodeEdge]; exact hr)]
     rfl
-  refine ⟨⟨hm0, hm1, hm2, hm3, ?_, ?_, ?_⟩, ?_⟩
-  · intro j hj
-    simpa only [encodeEdge, List.getElem_cons_zero, Nat.add_zero] using hedge j hj 0 (by omega)
-  · intro j hj
-    simpa only [encodeEdge, List.getElem_cons_succ, List.getElem_cons_zero] using
-      hedge j hj 1 (by omega)
-  · intro j hj a ha
-    have h := hedge j hj (a + 2) (by omega)
+  refine ⟨⟨by rw [Data.init_mem_zero, length_encode],
+    by rw [Data.init_mem_succ]
+       simp only [encode, List.getD_cons_zero],
+    by rw [show (2 : ℕ) = 1 + 1 from rfl, Data.init_mem_succ]
+       simp only [encode, List.getD_cons_succ, List.getD_cons_zero],
+    by rw [show (3 : ℕ) = 2 + 1 from rfl, Data.init_mem_succ]
+       simp only [encode, List.getD_cons_succ, List.getD_cons_zero],
+    fun j hj => by
+      simpa only [encodeEdge, List.getElem_cons_zero, Nat.add_zero] using hedge j hj 0 (by omega),
+    fun j hj => by
+      simpa only [encodeEdge, List.getElem_cons_succ, List.getElem_cons_zero] using
+        hedge j hj 1 (by omega),
+    fun j hj a ha => ?_⟩, fun a ha => ?_⟩
+  · have h := hedge j hj (a + 2) (by omega)
     rw [show 4 + j * (L + 2) + (a + 2) = 4 + j * (L + 2) + 2 + a by omega] at h
     simpa only [encodeEdge, List.getElem_cons_succ, List.getElem_map, List.getElem_finRange,
       Fin.cast_mk] using h
-  · intro a ha
-    have ha1 : a = (a - 1) + 1 := by simp only [headBase] at ha; omega
-    rw [ha1, Data.init_mem_succ]
+  · rw [show a = (a - 1) + 1 by simp only [headBase] at ha; omega, Data.init_mem_succ]
     exact List.getD_eq_default _ _ (by rw [length_encode]; simp only [headBase] at ha; omega)
 
 /-- Fixed layout registers `0 .. 16` established after `layoutSetupCode`. -/
@@ -586,27 +572,36 @@ theorem StateAt.push_slot {L : ℕ} {g : Graph (Fin L → Fin L)} {S : State (Fi
     StateAt g (push S u f) y := by
   have hcb := tabRow_hi_le_candBase (g := g) hu
   have hstk_le : S.stack.length < slots g := by
-    have hmem : u ∈ S.unvisited := mem_unvisited (hS.len_table ▸ hu) hnone
-    have hpos : 0 < S.unvisited.card := Finset.card_pos.mpr ⟨u, hmem⟩
+    have hpos : 0 < S.unvisited.card :=
+      Finset.card_pos.mpr ⟨u, mem_unvisited (hS.len_table ▸ hu) hnone⟩
     have hpot : S.potential ≤ slots g := hS.pot_le
     unfold State.potential at hpot
     omega
   have hfr_low : ∀ a < visBase g, y.mem a = x.mem a := fun a ha =>
     hframe a (by wram_omega) (by omega) (by wram_omega)
-  have hpot_push : statePotential (push S u f) ≤ slots g :=
-    (step_push (hS.len_table ▸ hu) hnone f).potential_le.trans hS.pot_le
   refine ⟨⟨hc, hS.inp.frame (fun a ha => hfr_low a (by wram_omega)),
       hS.bkt.frame hfr_low, length_push S u f ▸ hS.len_table, fun v hv hvn => ?_,
       fun v hv fn hvf => ?_⟩,
-    hpot_push,
-    fun a ha => ?_, ?_, fun v hv => ?_, ?_, hcmp_len, hS.comp_le, hS.comp_lt, ?_⟩
+    (step_push (hS.len_table ▸ hu) hnone f).potential_le.trans hS.pot_le,
+    fun a ha => ?_, by simpa only [push, List.length_cons] using hstk_len,
+    fun v hv => (List.mem_cons.mp hv).elim (fun h => h ▸ hu) (hS.stack_lt v),
+    by simpa only [push, List.reverse_cons] using hstk_mem, hcmp_len, hS.comp_le, hS.comp_lt,
+    hS.comp_mem.frame fun a _ ha2 => by
+      have hcl := hS.comp_le
+      rw [List.length_reverse] at ha2
+      exact hframe a
+        (by wram_omega)
+        (by wram_omega)
+        (by wram_omega)⟩
   · have hne : u ≠ v := by
       rintro rfl
       rw [get_push_self (hS.len_table ▸ hu)] at hvn
       nomatch hvn
     rw [get_push_ne S hne] at hvn
-    rw [hframe _ (by wram_omega) (by omega) (by wram_omega)]
-    exact hS.vis_none v hv hvn
+    exact (hframe _
+      (by wram_omega)
+      (by omega)
+      (by wram_omega)).trans (hS.vis_none v hv hvn)
   · by_cases huv : u = v
     · subst huv
       rw [get_push_self (hS.len_table ▸ hu)] at hvf
@@ -614,24 +609,17 @@ theorem StateAt.push_slot {L : ℕ} {g : Graph (Fin L → Fin L)} {S : State (Fi
       exact ⟨hvis, hrow⟩
     · rw [get_push_ne S huv] at hvf
       obtain ⟨hv1, hvtab⟩ := hS.vis_some v hv fn hvf
-      refine ⟨?_, fun a ha => ?_⟩
-      · rw [hframe _ (by wram_omega) (by omega) (by wram_omega)]
-        exact hv1
-      · rw [hframe _ (not_in_tabRow (Ne.symm huv) ha) (by wram_omega)
-          (by have := tabRow_hi_le_candBase (g := g) hv; wram_omega)]
-        exact hvtab a ha
-  · rw [show (push S u f).cand = S.cand from rfl,
-      hframe _ (by omega) (by wram_omega) (by wram_omega)]
-    exact hS.cand_mem a ha
-  · simpa only [push, List.length_cons] using hstk_len
-  · rcases List.mem_cons.mp hv with rfl | hv
-    · exact hu
-    · exact hS.stack_lt v hv
-  · simpa only [push, List.reverse_cons] using hstk_mem
-  · exact hS.comp_mem.frame fun a _ ha2 => by
-      have hcl := hS.comp_le
-      rw [List.length_reverse] at ha2
-      exact hframe a (by wram_omega) (by wram_omega) (by wram_omega)
+      refine ⟨(hframe _
+          (by wram_omega)
+          (by omega)
+          (by wram_omega)).trans hv1, fun a ha => ?_⟩
+      have := tabRow_hi_le_candBase (g := g) hv
+      exact (hframe _ (not_in_tabRow (Ne.symm huv) ha)
+        (by wram_omega)
+        (by wram_omega)).trans (hvtab a ha)
+  · exact (hframe _ (by omega)
+      (by wram_omega)
+      (by wram_omega)).trans (hS.cand_mem a ha)
 
 /-- Load visited flags `vis[rSrc]` and `vis[rDst]` into `rTmp1` and `rTmp2`. -/
 def edgeVisLoad : Code .standard 34 := ram[

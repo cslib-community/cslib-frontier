@@ -66,9 +66,7 @@ private theorem sum_eq_card_filter (s : Finset α) (f : α → ℝ)
     ∑ a ∈ s, f a = (s.filter fun a => f a = 1).card := by
   rw [card_filter, Nat.cast_sum]
   refine sum_congr rfl fun a ha => ?_
-  rcases h a ha with h0 | h1
-  · simp [h0]
-  · simp [h1]
+  rcases h a ha with h | h <;> simp [h]
 
 /-- Weights in `[0, 1]` outside the fractional set are `0` or `1`. -/
 private theorem eq_zero_or_eq_one [Fintype α] {f : α → ℝ} (hf : ∀ a, 0 ≤ f a ∧ f a ≤ 1)
@@ -108,15 +106,10 @@ private theorem transfer_spec [Fintype α] [DecidableEq α] {f : α → ℝ}
   have hpos : 0 < min (1 - f x) (f y) := lt_min (by linarith) hy.1
   refine ⟨fun a => ?_, ?_, ?_⟩
   · by_cases hax : a = x
-    · subst hax
-      rw [transfer_apply_left f hxy]
-      constructor <;> linarith [hf a]
+    · subst hax; rw [transfer_apply_left f hxy]; constructor <;> linarith [hf a]
     by_cases hay : a = y
-    · subst hay
-      rw [transfer_apply_right f hxy]
-      constructor <;> linarith [hf a]
-    rw [transfer_apply_of_ne f hax hay]
-    exact hf a
+    · subst hay; rw [transfer_apply_right f hxy]; constructor <;> linarith [hf a]
+    rw [transfer_apply_of_ne f hax hay]; exact hf a
   · simp only [transfer, sum_add_distrib, ← mul_sum, sum_sub_distrib, sum_ite_eq', mem_univ,
       ite_true, sub_self, mul_zero, add_zero]
   · have hsubset : fractional (transfer f x y) ⊆ fractional f := by
@@ -141,7 +134,7 @@ private theorem exists_weights [Fintype α] [DecidableEq α] (K n : ℕ) (f : α
     (hn : (fractional f).card = n)
     (hf : ∀ a, 0 ≤ f a ∧ f a ≤ 1) (hsum : ∑ a, f a = K) :
     ∃ w : {S : Finset α // S.card = K} → ℝ, (∀ S, 0 ≤ w S) ∧ ∑ S, w S = 1 ∧
-      ∀ a, ∑ S ∈ univ.filter (fun S => a ∈ S.val), w S = f a := by
+      ∀ a, ∑ S ∈ univ.filter (fun S => a ∈ S.1), w S = f a := by
   induction n using Nat.strong_induction_on generalizing f with
   | _ n ih =>
   by_cases hempty : fractional f = ∅
@@ -149,29 +142,23 @@ private theorem exists_weights [Fintype α] [DecidableEq α] (K n : ℕ) (f : α
     have hint (a : α) : f a = 0 ∨ f a = 1 :=
       eq_zero_or_eq_one hf (by simp [hempty])
     have hcard : (univ.filter fun a => f a = 1).card = K := by
-      have h := sum_eq_card_filter univ f fun a _ => hint a
-      rw [hsum] at h
-      exact_mod_cast h.symm
+      exact_mod_cast (sum_eq_card_filter univ f fun a _ => hint a).symm.trans hsum
     refine ⟨fun S => if S = ⟨_, hcard⟩ then 1 else 0,
       fun S => by dsimp only; split_ifs <;> norm_num,
       by simp, fun a => ?_⟩
     rw [sum_ite_eq']
     rcases hint a with h | h <;> simp [h]
   · -- Split `f` along two distinct fractional coordinates.
-    obtain ⟨x, hx⟩ := ne_empty_iff_nonempty.mp hempty
+    obtain ⟨x, hx⟩ := nonempty_iff_ne_empty.mpr hempty
     obtain ⟨y, hy, hyx⟩ : ∃ y ∈ fractional f, y ≠ x := by
       by_contra! hsingle
-      have hrest : ∑ a ∈ univ.erase x, f a = ((univ.erase x).filter fun a => f a = 1).card :=
-        sum_eq_card_filter _ f fun a ha =>
-          eq_zero_or_eq_one hf fun hmem => (mem_erase.mp ha).1 (hsingle a hmem)
       have htotal := add_sum_erase univ f (mem_univ x)
-      rw [hsum, hrest] at htotal
+      rw [hsum, sum_eq_card_filter (univ.erase x) f fun a ha =>
+        eq_zero_or_eq_one hf fun hmem => (mem_erase.mp ha).1 (hsingle a hmem)] at htotal
+      generalize ((univ.erase x).filter fun a => f a = 1).card = m at htotal
       have hfx := mem_fractional.mp hx
-      have hlt : ((univ.erase x).filter fun a => f a = 1).card < K := by
-        exact_mod_cast (show (((univ.erase x).filter fun a => f a = 1).card : ℝ) < K by linarith)
-      have hgt : K < ((univ.erase x).filter fun a => f a = 1).card + 1 := by
-        exact_mod_cast (show (K : ℝ) < ((univ.erase x).filter fun a => f a = 1).card + 1 by
-          linarith)
+      have : m < K := by exact_mod_cast (by linarith : (m : ℝ) < K)
+      have : K < m + 1 := by exact_mod_cast (by linarith : (K : ℝ) < m + 1)
       omega
     obtain ⟨hf₁, hsum₁, hsub₁⟩ := transfer_spec hf hyx.symm hx hy
     obtain ⟨hf₂, hsum₂, hsub₂⟩ := transfer_spec hf hyx hy hx
@@ -187,9 +174,8 @@ private theorem exists_weights [Fintype α] [DecidableEq α] (K n : ℕ) (f : α
     have hd₂ : 0 < d₂ := lt_min (by linarith) hx'.1
     refine ⟨fun S => (d₂ * w₁ S + d₁ * w₂ S) / (d₁ + d₂),
       fun S => by have := hw₁ S; have := hw₂ S; positivity, ?_, fun a => ?_⟩
-    · rw [← sum_div, sum_add_distrib, ← mul_sum, ← mul_sum, hone₁, hone₂]
-      field_simp
-      ring
+    · rw [← sum_div, sum_add_distrib, ← mul_sum, ← mul_sum, hone₁, hone₂, mul_one, mul_one,
+        add_comm, div_self (add_pos hd₁ hd₂).ne']
     · rw [← sum_div, sum_add_distrib, ← mul_sum, ← mul_sum, hmass₁, hmass₂]
       field_simp
       simp only [transfer, d₁, d₂]
@@ -202,14 +188,13 @@ at most `1 / K` is a mixture of uniform distributions on sets of exactly `K` out
 theorem exists_eq_bind_uniformOfFinset [Finite α] (p : PMF α) {K : ℕ} (hK : K ≠ 0)
     (hp : ∀ a, (p a).toReal ≤ (K : ℝ)⁻¹) :
     ∃ mix : PMF {S : Finset α // S.card = K},
-      p = mix.bind fun S => uniformOfFinset S.val (card_ne_zero.mp (S.property.trans_ne hK)) := by
+      p = mix.bind fun S => uniformOfFinset S.1 (card_ne_zero.mp (S.2.trans_ne hK)) := by
   classical
   let := Fintype.ofFinite α
   have hKpos : (0 : ℝ) < K := by exact_mod_cast Nat.pos_of_ne_zero hK
   obtain ⟨w, hw, hone, hmass⟩ := exists_weights K _ (fun a => K * (p a).toReal) rfl
-    (fun a => ⟨by positivity, by
-      calc (K : ℝ) * (p a).toReal ≤ K * (K : ℝ)⁻¹ := by gcongr; exact hp a
-        _ = 1 := mul_inv_cancel₀ hKpos.ne'⟩)
+    (fun a => ⟨by positivity, (mul_le_mul_of_nonneg_left (hp a) hKpos.le).trans_eq
+      (mul_inv_cancel₀ hKpos.ne')⟩)
     (by rw [← mul_sum, sum_toReal, mul_one])
   let mix : PMF {S : Finset α // S.card = K} := PMF.ofFintype (fun S => ENNReal.ofReal (w S))
     (by rw [← ENNReal.ofReal_sum_of_nonneg fun S _ => hw S, hone, ENNReal.ofReal_one])
@@ -217,12 +202,10 @@ theorem exists_eq_bind_uniformOfFinset [Finite α] (p : PMF α) {K : ℕ} (hK : 
   rw [← ENNReal.toReal_eq_toReal_iff' (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _),
     bind_apply_toReal]
   have hterm (S : {S : Finset α // S.card = K}) :
-      (mix S).toReal * (uniformOfFinset S.val (card_ne_zero.mp (S.property.trans_ne hK)) a).toReal =
-        if a ∈ S.val then w S * (K : ℝ)⁻¹ else 0 := by
+      (mix S).toReal * (uniformOfFinset S.1 (card_ne_zero.mp (S.2.trans_ne hK)) a).toReal =
+        if a ∈ S.1 then w S * (K : ℝ)⁻¹ else 0 := by
     rw [PMF.ofFintype_apply, ENNReal.toReal_ofReal (hw S), uniformOfFinset_apply]
-    split_ifs
-    · rw [ENNReal.toReal_inv, ENNReal.toReal_natCast, S.property]
-    · rw [ENNReal.toReal_zero, mul_zero]
+    split_ifs <;> simp [S.2]
   simp only [hterm]
   rw [← sum_filter, ← sum_mul, hmass a, mul_comm, ← mul_assoc, inv_mul_cancel₀ hKpos.ne',
     one_mul]
@@ -233,7 +216,7 @@ theorem exists_eq_bind_uniformOfFinset_of_le_minEntropy [Finite α] (p : PMF α)
     (hk : (k : ℝ) ≤ minEntropy p) :
     ∃ mix : PMF {S : Finset α // S.card = 2 ^ k},
       p = mix.bind fun S =>
-        uniformOfFinset S.val (card_ne_zero.mp (S.property.trans_ne (pow_ne_zero k two_ne_zero))) :=
+        uniformOfFinset S.1 (card_ne_zero.mp (S.2.trans_ne (pow_ne_zero k two_ne_zero))) :=
   exists_eq_bind_uniformOfFinset p (pow_ne_zero k two_ne_zero) fun a => by
     have h := (le_minEntropy_iff p).mp hk a
     rwa [Real.rpow_neg (by norm_num), Real.rpow_natCast, ← Nat.cast_ofNat, ← Nat.cast_pow] at h
@@ -244,11 +227,10 @@ outcomes. -/
 theorem le_minEntropy_iff_exists_eq_bind_uniformOfFinset [Finite α] (p : PMF α) (k : ℕ) :
     (k : ℝ) ≤ minEntropy p ↔ ∃ mix : PMF {S : Finset α // S.card = 2 ^ k},
       p = mix.bind fun S =>
-        uniformOfFinset S.val
-          (card_ne_zero.mp (S.property.trans_ne (pow_ne_zero k two_ne_zero))) := by
+        uniformOfFinset S.1 (card_ne_zero.mp (S.2.trans_ne (pow_ne_zero k two_ne_zero))) := by
   refine ⟨exists_eq_bind_uniformOfFinset_of_le_minEntropy p, ?_⟩
   rintro ⟨mix, rfl⟩
   refine le_minEntropy_bind _ _ fun S _ => ?_
-  rw [minEntropy_uniformOfFinset, S.property, Nat.cast_pow, Nat.cast_ofNat, Real.logb_two_pow]
+  rw [minEntropy_uniformOfFinset, S.2, Nat.cast_pow, Nat.cast_ofNat, Real.logb_two_pow]
 
 end Cslib.Probability.PMF

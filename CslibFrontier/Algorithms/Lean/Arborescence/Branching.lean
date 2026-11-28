@@ -233,8 +233,7 @@ theorem optimumBranching_spec {V : Type*} [FinEnum V]
     Digraph.superRootExtend_le_superRootDigraph hBG'
   have hcmp := hoptT B.superRootExtend hB'_arb hB'_le
   have hext : (optimumBranching G w).superRootExtend = Digraph.parentDigraph none p := by
-    rw [hB_eq]
-    exact hBext
+    rw [hB_eq]; exact hBext
   refine neg_le_neg_iff.mp ?_
   calc -arcCost (optimumBranching G w) w
       = arcCost (optimumBranching G w).superRootExtend (superRootCost w) :=
@@ -326,21 +325,13 @@ theorem arcCost_sub_arcCost_le {V : Type*} [Fintype V]
     arcCost B₁ w - arcCost B₂ w ≤
       ∑ e ∈ Finset.univ.filter (fun e : V × V => G.Adj e.1 e.2),
         max (w e.1 e.2) (-w e.1 e.2) := by
-  have hmax_nonneg : ∀ x : β, 0 ≤ max x (-x) := fun x => by
-    rcases le_total (0 : β) x with hx | hx
-    · exact hx.trans (le_max_left _ _)
-    · exact (neg_nonneg.mpr hx).trans (le_max_right _ _)
+  have hmax_nonneg : ∀ x : β, 0 ≤ max x (-x) := fun x =>
+    le_max_iff.2 ((le_total 0 x).imp id neg_nonneg.2)
   rw [arcCost_eq_sum_arcs_of_le h1, arcCost_eq_sum_arcs_of_le h2, ← Finset.sum_sub_distrib]
   refine Finset.sum_le_sum fun e _ => ?_
-  by_cases hB1 : B₁.Adj e.1 e.2 <;> by_cases hB2 : B₂.Adj e.1 e.2
-  · simp only [hB1, hB2, ite_true, sub_self]
-    exact hmax_nonneg _
-  · simp only [hB1, hB2, ite_true, ite_false, sub_zero]
-    exact le_max_left _ _
-  · simp only [hB1, hB2, ite_false, ite_true, zero_sub]
-    exact le_max_right _ _
-  · simp only [hB1, hB2, ite_false, sub_zero]
-    exact hmax_nonneg _
+  by_cases hB1 : B₁.Adj e.1 e.2 <;> by_cases hB2 : B₂.Adj e.1 e.2 <;>
+    simp only [hB1, hB2, ite_true, ite_false, sub_self, sub_zero, zero_sub, hmax_nonneg,
+      le_max_left, le_max_right]
 
 /-- **Edmonds (1967, Section 2) weight-shift reduction:** Adding `h > ∑_{e ∈ G} |w_e|` to every
 arc weight makes an optimum branching maximize the number of arcs across all branchings `B ≤ G`,
@@ -371,11 +362,8 @@ theorem edmonds_shift_weight_branching {V : Type*} [FinEnum V]
   have hBstar := optimumBranching_isBranching G (fun u v => w u v + h)
   have hBstar_le := optimumBranching_le G (fun u v => w u v + h)
   have hsum_nonneg : 0 ≤ ∑ e ∈ Finset.univ.filter (fun e : V × V => G.Adj e.1 e.2),
-      max (w e.1 e.2) (-w e.1 e.2) := by
-    refine Finset.sum_nonneg fun e _ => ?_
-    rcases le_total (0 : β) (w e.1 e.2) with hx | hx
-    · exact hx.trans (le_max_left _ _)
-    · exact (neg_nonneg.mpr hx).trans (le_max_right _ _)
+      max (w e.1 e.2) (-w e.1 e.2) :=
+    Finset.sum_nonneg fun e _ => le_max_iff.2 ((le_total 0 _).imp id neg_nonneg.2)
   have hh_pos : 0 < h := lt_of_le_of_lt hsum_nonneg hh
   have hmax : ∀ (B : Digraph V) [DecidableRel B.Adj], B.IsBranching → B ≤ G →
       (Finset.univ.filter fun e : V × V => B.Adj e.1 e.2).card ≤
@@ -391,47 +379,26 @@ theorem edmonds_shift_weight_branching {V : Type*} [FinEnum V]
     change arcCost B w + kB • h ≤ arcCost Bstar w + kS • h at hopt
     have hk_le : kB ≤ kS := by
       by_contra hlt
-      have hk_gt : 1 + kS ≤ kB := by omega
-      have hmul : h + kS • h ≤ kB • h := by
-        calc h + kS • h = (1 : ℕ) • h + kS • h := by rw [one_nsmul]
-          _ = (1 + kS) • h := (add_nsmul h 1 kS).symm
-          _ ≤ kB • h := nsmul_le_nsmul_left hh_pos.le hk_gt
-      have hcmp : h + arcCost B w + kS • h ≤ arcCost Bstar w + kS • h := by
-        calc h + arcCost B w + kS • h
-            = h + (arcCost B w + kS • h) := add_assoc h _ _
-          _ = arcCost B w + (h + kS • h) := add_left_comm h _ _
-          _ ≤ arcCost B w + kB • h := add_le_add_right hmul _
-          _ ≤ arcCost Bstar w + kS • h := hopt
-      have hdiff : h ≤ arcCost Bstar w - arcCost B w := by
-        rw [le_sub_iff_add_le]
-        exact le_of_add_le_add_right hcmp
-      have hbound := arcCost_sub_arcCost_le hBstar_le hBG w
-      exact absurd (lt_of_le_of_lt (hdiff.trans hbound) hh) (lt_irrefl _)
+      have hmul : (1 + kS) • h ≤ kB • h := nsmul_le_nsmul_left hh_pos.le (by omega)
+      rw [add_nsmul, one_nsmul] at hmul
+      have hdiff := (add_le_add_right hmul (arcCost B w)).trans hopt
+      rw [← add_assoc, add_le_add_iff_right, add_comm, ← le_sub_iff_add_le] at hdiff
+      exact (hdiff.trans (arcCost_sub_arcCost_le hBstar_le hBG w)).not_gt hh
     refine ⟨hk_le, fun heq => ?_⟩
     rw [heq] at hopt
     exact le_of_add_le_add_right hopt
   refine ⟨hBstar, hBstar_le, hmax, fun _ ⟨r₀, T₀, hT₀, hT₀G⟩ => ?_⟩
-  let _ := T₀.Adj
-  have hT₀_branch := Digraph.IsBranching.of_isOutArborescence hT₀
-  have hT₀_card : (Finset.univ.filter fun e : V × V => T₀.Adj e.1 e.2).card =
-      Fintype.card V - 1 :=
-    (Digraph.IsBranching.isOutArborescence_iff_card_arcs hT₀_branch).mp ⟨r₀, hT₀⟩
-  have hS_ge : Fintype.card V - 1 ≤
-      (Finset.univ.filter fun e : V × V => Bstar.Adj e.1 e.2).card :=
-    hT₀_card ▸ (hmax T₀ hT₀_branch hT₀G).1
-  have hS_le :
-      (Finset.univ.filter fun e : V × V => Bstar.Adj e.1 e.2).card ≤ Fintype.card V - 1 :=
-    hBstar.card_arcs_le
+  have hcard : ∀ r (T : Digraph V) [DecidableRel T.Adj], T.IsOutArborescence r →
+      (Finset.univ.filter fun e : V × V => T.Adj e.1 e.2).card = Fintype.card V - 1 :=
+    fun r _ _ hT => (Digraph.IsBranching.isOutArborescence_iff_card_arcs
+      (Digraph.IsBranching.of_isOutArborescence hT)).mp ⟨r, hT⟩
   have hS_card :
       (Finset.univ.filter fun e : V × V => Bstar.Adj e.1 e.2).card = Fintype.card V - 1 :=
-    le_antisymm hS_le hS_ge
-  refine ⟨(Digraph.IsBranching.isOutArborescence_iff_card_arcs hBstar).mpr hS_card, ?_⟩
-  intro r T _ hT hTG
-  have hT_branch := Digraph.IsBranching.of_isOutArborescence hT
-  have hT_card : (Finset.univ.filter fun e : V × V => T.Adj e.1 e.2).card =
-      Fintype.card V - 1 :=
-    (Digraph.IsBranching.isOutArborescence_iff_card_arcs hT_branch).mp ⟨r, hT⟩
-  exact (hmax T hT_branch hTG).2 (hT_card.trans hS_card.symm)
+    le_antisymm hBstar.card_arcs_le
+      (hcard r₀ T₀ hT₀ ▸ (hmax T₀ (.of_isOutArborescence hT₀) hT₀G).1)
+  refine ⟨(Digraph.IsBranching.isOutArborescence_iff_card_arcs hBstar).mpr hS_card,
+    fun r T _ hT hTG => ?_⟩
+  exact (hmax T (.of_isOutArborescence hT) hTG).2 ((hcard r T hT).trans hS_card.symm)
 
 /-- Subgraph obtained from `G` by deleting all arcs entering a designated root `r₀`. -/
 @[expose] def rootedDigraph {V : Type*} (G : Digraph V) (r₀ : V) : Digraph V where
@@ -467,20 +434,17 @@ theorem edmonds_rooted_outArborescence_of_shift {V : Type*} [FinEnum V] [Nonempt
   let _ : DecidableRel Bstar.Adj := inferInstanceAs
     (DecidableRel (optimumBranching Gr (fun u v => w u v + h)).Adj)
   obtain ⟨T₀, hT₀, hT₀G⟩ := hexists
-  have hT₀r : T₀ ≤ Gr := fun u v huv =>
-    ⟨fun hvr => (Digraph.isOutArborescence_iff.mp hT₀).1 u (hvr ▸ huv), hT₀G huv⟩
+  have hle : ∀ T : Digraph V, T.IsOutArborescence r₀ → T ≤ G → T ≤ Gr := fun T hT hTG u v huv =>
+    ⟨fun hvr => (Digraph.isOutArborescence_iff.mp hT).1 u (hvr ▸ huv), hTG huv⟩
   have hres := edmonds_shift_weight_branching Gr w h hh
   have hBr : Bstar ≤ Gr := hres.2.1
-  obtain ⟨⟨r, hBstar⟩, hopt⟩ := hres.2.2.2 ‹Nonempty V› ⟨r₀, T₀, hT₀, hT₀r⟩
+  obtain ⟨⟨r, hBstar⟩, hopt⟩ := hres.2.2.2 ‹Nonempty V› ⟨r₀, T₀, hT₀, hle T₀ hT₀ hT₀G⟩
   have hr_eq : r = r₀ := by
     by_contra hne
     obtain ⟨u, hu, -⟩ := (Digraph.isOutArborescence_iff.mp hBstar).2.1 r₀ (Ne.symm hne)
     exact (hBr hu).1 rfl
   rw [hr_eq] at hBstar
-  refine ⟨hBstar, hBr.trans (rootedDigraph_le G r₀), fun T _ hT hTG => ?_⟩
-  have hTr : T ≤ Gr := fun u v huv =>
-    ⟨fun hvr => (Digraph.isOutArborescence_iff.mp hT).1 u (hvr ▸ huv), hTG huv⟩
-  exact hopt r₀ T hT hTr
+  exact ⟨hBstar, hBr.trans (rootedDigraph_le G r₀), fun T _ hT hTG => hopt r₀ T hT (hle T hT hTG)⟩
 
 end EdmondsSection2
 

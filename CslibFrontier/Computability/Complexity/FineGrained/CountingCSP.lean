@@ -94,9 +94,8 @@ theorem computableInPolyTime_numVars [DecidableEq V] (encRel : Rel ↪ List Bool
     (encV : V ↪ List Bool) :
     ComputableInPolyTime (CSP.numVars (Rel := Rel) (V := V))
       (encCSP encRel encV) encUnary := by
-  have heq : (CSP.numVars (Rel := Rel) (V := V)) = fun F => F.varCNF.numVars := by
-    funext F
-    exact (numVars_varCNF F).symm
+  have heq : (CSP.numVars (Rel := Rel) (V := V)) = fun F => F.varCNF.numVars :=
+    funext fun F => (numVars_varCNF F).symm
   rw [heq]
   exact (CNF.computableInPolyTime_numVars encV).comp
     (computableInPolyTime_varCNF encRel encV)
@@ -131,10 +130,8 @@ theorem computableInPolyTime_validDeclaredCSP (encRel : Rel ↪ List Bool) (k : 
 
 /-- Every variable occurring in `F.denseRelabel` is strictly less than `F.numVars`. -/
 theorem mem_vars_denseRelabel_lt_numVars [DecidableEq V] (F : CSP Rel V)
-    {v : ℕ} (hv : v ∈ F.denseRelabel.vars) : v < F.numVars := by
-  have hv' : v ∈ F.denseRelabel.vars.toFinset := List.mem_toFinset.mpr hv
-  rw [vars_denseRelabel_toFinset] at hv'
-  exact Finset.mem_range.mp hv'
+    {v : ℕ} (hv : v ∈ F.denseRelabel.vars) : v < F.numVars :=
+  Finset.mem_range.mp (vars_denseRelabel_toFinset F ▸ List.mem_toFinset.mpr hv)
 
 /-- When every constraint scope of `F` has length at most `k`, `(F.numVars, F.denseRelabel)`
 satisfies `validDeclaredCSP k`. -/
@@ -251,12 +248,11 @@ theorem exists_modelCounter_of_forall [DecidableEq V] (encRel : Rel ↪ List Boo
       (fun F : CSP Rel V => { numVars := F.numVars, formula := F.denseRelabel : DeclaredCSP Rel })
       (encCSP encRel encV) (encDeclaredCSP encRel) :=
     encDeclaredCSP_mk_polyTime encRel (by fun_prop) (by fun_prop)
-  have hvalid : ComputableInPolyTime
-      (fun F : CSP Rel V => F.all fun c => decide (c.scope.length ≤ k))
-      (encCSP encRel encV) encBool := by fun_prop
   obtain ⟨count, T, S, A, c, e, a, b, hcount, hspec, hT, hS⟩ :=
-    exists_counter_of_polyTime_toDeclaredCSP encRel k sem hsem hf hvalid fun F hF =>
-      validDeclaredCSP_denseRelabel (by simpa only [List.all_eq_true, decide_eq_true_eq] using hF)
+    exists_counter_of_polyTime_toDeclaredCSP encRel k sem hsem hf
+      (valid := fun F : CSP Rel V => F.all fun c => decide (c.scope.length ≤ k)) (by fun_prop)
+      fun F hF => validDeclaredCSP_denseRelabel
+        (by simpa only [List.all_eq_true, decide_eq_true_eq] using hF)
   refine ⟨count, T, S, A, c, e, a, b, hcount, fun F hF => ?_, hT, hS⟩
   have hv : (F.all fun c => decide (c.scope.length ≤ k)) = true := by
     simpa only [List.all_eq_true, decide_eq_true_eq] using hF
@@ -314,8 +310,8 @@ theorem decidableInSubexpTime_KCSP_of_reduction {D β : Type} [DecidableEq V]
       {F : CSP Rel V | (F.all fun cl => decide (cl.scope.length ≤ k)) = true} ∩
       {F : CSP Rel V | f F ∈ L} := by
     ext F
-    simp only [KCSP, Set.mem_inter_iff, Set.mem_ofPred_eq, List.all_eq_true, decide_eq_true_eq]
-    exact and_congr_right (hiff F)
+    simpa only [KCSP, Set.mem_inter_iff, Set.mem_ofPred_eq, List.all_eq_true, decide_eq_true_eq]
+      using and_congr_right (hiff F)
   rw [hKCSP_eq]
   exact (hB δ hδ).inter hwidth hδ.le
 
@@ -330,11 +326,8 @@ theorem decidableInSubexpTime_KCSP_of_forall [DecidableEq V] (encRel : Rel ↪ L
     (CNF.computableInPolyTime_denseRelabel encV).comp
       (computableInPolyTime_toCNFBounded_of_forall encRel encV k sem hsem)
   refine decidableInSubexpTime_KCSP_of_reduction encRel encV k sem hf
-    (CountingNativeEndpoint.decidableInSubexpTime_KSAT k) (c := 1) (fun F => ?_) (fun F hF => ?_)
-  · have hsub : (F.toCNFBounded k sem).vars.toFinset ⊆ F.vars.toFinset := fun v hv =>
-      List.mem_toFinset.mpr (mem_vars_toCNFBounded (List.mem_toFinset.mp hv))
-    have hle : (F.toCNFBounded k sem).numVars ≤ F.numVars := Finset.card_le_card hsub
-    simpa only [f, CNF.numVars_denseRelabel, one_mul] using hle
+    (CountingNativeEndpoint.decidableInSubexpTime_KSAT k) (c := 1) (fun F => ?_) fun F hF => ?_
+  · simpa only [f, CNF.numVars_denseRelabel, one_mul] using numVars_toCNFBounded_le k sem F
   · simp only [f, KSAT, Set.mem_ofPred_eq, CNF.all_length_le_denseRelabel,
       CNF.satisfiable_denseRelabel, toCNFBounded_eq_toCNF hF, satisfiable_toCNF]
     exact ⟨fun hsat => ⟨fun cl hcl => length_clause_mem_toCNF hF hcl, hsat⟩, And.right⟩

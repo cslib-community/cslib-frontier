@@ -66,18 +66,18 @@ private theorem answerGap_mem {α : Type} {enc : α ↪ List Bool}
     (hr : ComputableInPolyTime r enc encUnary)
     (hd : ComputableInPolyTime d (encPair enc encBits) encBool) :
     answerGap g f r d ∈ GapP enc := by
-  let q : (α × List Bool) × ℕ → α × ℕ := fun x => (x.1.1, x.2)
-  have hq : ComputableInPolyTime q
-      (encPair (encPair enc encBits) encUnary) (encPair enc encUnary) := by dsimp [q]; fun_prop
+  have hq : ComputableInPolyTime (fun x : (α × List Bool) × ℕ => (x.1.1, x.2))
+      (encPair (encPair enc encBits) encUnary) (encPair enc encUnary) := by fun_prop
   have hs : (fun x : (α × List Bool) × ℕ =>
       if x.1.2.getD x.2 false then g (x.1.1, x.2) else
         f (x.1.1, x.2) - g (x.1.1, x.2)) ∈
       GapP (encPair (encPair enc encBits) encUnary) :=
     GapP.ite_mem (by fun_prop) (GapP.comp_mem hg hq) (GapP.comp_mem (GapP.sub_mem' hf hg) hq)
-  have hp := GapP.prod_range_mem hs (hr.comp (.fst enc encBits))
   have hw : ComputableInPolyTime
       (fun x => if d x then (1 : ℤ) else 0) (encPair enc encBits) encIntBin := by fun_prop
-  exact GapP.sum_bits_mem (GapP.mul_mem (mem_GapP_of_polyTime hw) hp) hr
+  exact GapP.sum_bits_mem
+    (GapP.mul_mem (mem_GapP_of_polyTime hw) (GapP.prod_range_mem hs (hr.comp (.fst enc encBits))))
+    hr
 
 private theorem answerGap_eq {α : Type} {A : Set (α × ℕ)} {g f : α × ℕ → ℤ}
     {r : α → ℕ} {d : α × List Bool → Bool}
@@ -93,26 +93,20 @@ private theorem answerGap_eq {α : Type} {A : Set (α × ℕ)} {g f : α × ℕ 
         f (a, i) - g (a, i)) = if w = v then ∏ i ∈ range (r a), f (a, i) else 0 := by
     rw [← Fin.prod_univ_eq_prod_range, ← Fin.prod_univ_eq_prod_range]
     simp only [List.getD_ofFn]
-    by_cases hw : w = v
+    split_ifs with hw
     · subst w
-      rw [ite_eq_left rfl]
-      apply prod_congr rfl
-      intro i _
+      refine prod_congr rfl fun i _ => ?_
       rw [hg]
       cases v i <;> simp
-    · rw [ite_eq_right hw]
-      obtain ⟨i, hi⟩ : ∃ i, w i ≠ v i := Function.ne_iff.mp hw
-      apply prod_eq_zero (mem_univ i)
+    · obtain ⟨i, hi⟩ := Function.ne_iff.mp hw
+      refine prod_eq_zero (mem_univ i) ?_
       rw [hg]
-      cases hw : w i <;> cases hv : v i <;> simp_all
+      cases hw' : w i <;> cases hv' : v i <;> simp_all
   unfold answerGap
   simp_rw [hp]
-  rw [sum_eq_single v]
-  · simp only [ite_true, v, truthTableAnswers]
-    split_ifs <;> simp_all
-  · intro w _ hw
-    simp [hw]
-  · simp
+  rw [sum_eq_single v (fun _ _ hw => by simp [hw]) (by simp)]
+  simp only [ite_true, v, truthTableAnswers]
+  split_ifs <;> simp_all
 
 variable {α : Type} {enc : α ↪ List Bool} {A : Set (α × ℕ)}
   {r : α → ℕ} {d : α × List Bool → Bool}
@@ -127,14 +121,12 @@ theorem truthTable_mem_WPP (hA : A ∈ WPP (encPair enc encUnary))
   have hF (a) : (∏ i ∈ range (r a), f (a, i)) ≠ 0 :=
     prod_ne_zero_iff.mpr fun i _ => hn (a, i)
   refine ⟨answerGap g f r d, answerGap_mem hg (mem_GapP_of_polyTime hf) hr hd,
-    _, ComputableInPolyTime.intBin_prod_range hf hr, hF, ?_, ?_⟩
-  · intro a
-    rw [answerGap_eq hR hA]
+    _, ComputableInPolyTime.intBin_prod_range hf hr, hF, fun a => ?_, fun a => ?_⟩
+  · rw [answerGap_eq hR hA]
     split_ifs <;> simp
-  · intro a
-    change d (a, truthTableAnswers A r a) = true ↔ _
+  · change d (a, truthTableAnswers A r a) = true ↔ _
     rw [answerGap_eq hR hA]
-    cases hd : d (a, truthTableAnswers A r a) <;> simp [(hF a).symm]
+    cases d (a, truthTableAnswers A r a) <;> simp [(hF a).symm]
 
 /-- A jointly LWPP family supports any polynomial-time Boolean combination of a computed batch.
 Polynomial-family robustness normalizes the prefix target for the input-dependent batch size. -/
@@ -149,22 +141,16 @@ theorem truthTable_mem_LWPP (hA : A ∈ LWPP (encPair enc encUnary))
   have he := answerGap_eq (f := F) (r := r) (d := d) hR hA
   obtain ⟨p, hb⟩ := hr.polyBounded.exists_polynomial
   let T (x : ℕ × ℕ) := ∏ i ∈ range x.2, f (2 * x.1 + 1 + i)
-  have hT : ComputableInPolyTime T (encPair encUnary encUnary) encIntBin := by
-    refine ComputableInPolyTime.intBin_prod_range
-      (f := fun x : (ℕ × ℕ) × ℕ => f (2 * x.1.1 + 1 + x.2)) ?_ ?_ <;> fun_prop
-  have hp : ComputableInPolyTime (fun n => p.eval n + 1) encUnary encUnary := by fun_prop
-  apply mem_LWPP_of_indexed_targets (answerGap_mem hg (mem_GapP_of_polyTime hF) hr hd) hT hp
-  · intro n k _
-    exact prod_ne_zero_iff.mpr fun i _ => hn _
-  · intro a ha
-    change d (a, truthTableAnswers A r a) = true at ha
-    refine ⟨r a, ?_, ?_⟩
-    · exact Nat.lt_succ_of_le (hb a)
-    · rw [he, ite_eq_left ha]
-      simp [F, T]
-  · intro a ha
-    change ¬ d (a, truthTableAnswers A r a) = true at ha
-    rw [he, ite_eq_right ha]
+  have hT : ComputableInPolyTime T (encPair encUnary encUnary) encIntBin :=
+    ComputableInPolyTime.intBin_prod_range
+      (f := fun x : (ℕ × ℕ) × ℕ => f (2 * x.1.1 + 1 + x.2)) (by fun_prop) (by fun_prop)
+  refine mem_LWPP_of_indexed_targets (answerGap_mem hg (mem_GapP_of_polyTime hF) hr hd) hT
+    (by fun_prop : ComputableInPolyTime (fun n => p.eval n + 1) encUnary encUnary)
+    (fun _ _ _ => prod_ne_zero_iff.mpr fun _ _ => hn _) (fun a ha => ?_) fun a ha => ?_
+  · refine ⟨r a, Nat.lt_succ_of_le (hb a), ?_⟩
+    rw [he, ite_eq_left (Set.mem_ofPred.mp ha)]
+    simp [F, T]
+  · exact (he a).trans (ite_eq_right ha)
 
 /-- WPP is closed under polynomial-time truth-table reductions
 [Spakowski, Thakur and Tripathi, Theorem 5.6(a)][SpakowskiThakurTripathi2005]. -/
@@ -172,9 +158,8 @@ theorem PolyTimeTruthTableReducible.mem_WPP {β : Type} {encB : β ↪ List Bool
     {L : Set α} {B : Set β} (h : PolyTimeTruthTableReducible enc encB L B)
     (hB : B ∈ WPP encB) : L ∈ WPP enc := by
   obtain ⟨r, q, d, ⟨hr, hq, hd⟩, hL⟩ := h
-  have hqB : q ⁻¹' B ∈ WPP (encPair enc encUnary) :=
-    PolyTimeReducible.mem_WPP ⟨q, hq, fun _ => Iff.rfl⟩ hB
-  convert truthTable_mem_WPP hqB hr hd using 1
+  convert truthTable_mem_WPP
+    (PolyTimeReducible.mem_WPP (A := q ⁻¹' B) ⟨q, hq, fun _ => Iff.rfl⟩ hB) hr hd using 1
   ext a
   exact hL a
 
@@ -185,9 +170,8 @@ theorem PolyTimeTruthTableReducible.mem_LWPP {β : Type} {encB : β ↪ List Boo
     {L : Set α} {B : Set β} (h : PolyTimeTruthTableReducible enc encB L B)
     (hB : B ∈ LWPP encB) : L ∈ LWPP enc := by
   obtain ⟨r, q, d, ⟨hr, hq, hd⟩, hL⟩ := h
-  have hqB : q ⁻¹' B ∈ LWPP (encPair enc encUnary) :=
-    PolyTimeReducible.mem_LWPP ⟨q, hq, fun _ => Iff.rfl⟩ hB
-  convert truthTable_mem_LWPP hqB hr hd using 1
+  convert truthTable_mem_LWPP
+    (PolyTimeReducible.mem_LWPP (A := q ⁻¹' B) ⟨q, hq, fun _ => Iff.rfl⟩ hB) hr hd using 1
   ext a
   exact hL a
 

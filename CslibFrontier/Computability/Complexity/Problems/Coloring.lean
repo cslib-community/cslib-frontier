@@ -552,18 +552,8 @@ private theorem computableInPolyTime_coloringEdges :
       (fun p : CNF ℕ × Clause ℕ × ℕ => clauseEdges p.1 p.2.2 p.2.1)
       (encPair encCNF (encPair (encList (encPair encNat encBool)) encUnary))
       (encList (encPair encNat encNat)) := by
-    have hclen : ComputableInPolyTime (fun p : CNF ℕ × Clause ℕ × ℕ => p.2.1.length)
-        (encPair encCNF (encPair (encList (encPair encNat encBool)) encUnary)) encUnary :=
-      (length_list (encPair encNat encBool)).comp (by fun_prop)
-    have hzip : ComputableInPolyTime (List.zipIdx (α := Literal ℕ))
-        (encList (encPair encNat encBool))
-        (encList (encPair (encPair encNat encBool) encUnary)) := by fun_prop
-    have hczip : ComputableInPolyTime (fun p : CNF ℕ × Clause ℕ × ℕ => p.2.1.zipIdx)
-        (encPair encCNF (encPair (encList (encPair encNat encBool)) encUnary))
-        (encList (encPair (encPair encNat encBool) encUnary)) :=
-      hzip.comp (by fun_prop)
     unfold clauseEdges
-    exact listAppend' (by fun_prop) (flatMapWithInput hczip hstage)
+    exact listAppend' (by fun_prop) (flatMapWithInput (by fun_prop) hstage)
   have hvars : ComputableInPolyTime (CNF.vars (V := ℕ)) encCNF (encList encNat) := by
     unfold encCNF
     fun_prop
@@ -637,31 +627,22 @@ def toKColoring (m : ℕ) (φ : CNF ℕ) : Graph :=
   ⟨(kColoringEdges m φ).flatMap fun e => [e.1, e.2], kColoringEdges m φ⟩
 
 /-- Gadget vertices are labelled with tags `0`, `1` and `2`. -/
-private theorem unpair_fst_lt_of_mem_coloringEdges {φ : CNF ℕ} {e : ℕ × ℕ}
-    (he : e ∈ coloringEdges φ) : e.1.unpair.1 < 3 ∧ e.2.unpair.1 < 3 := by
+private theorem unpair_fst_lt_of_mem_endpoints {φ : CNF ℕ} {v : ℕ}
+    (hv : v ∈ (coloringEdges φ).flatMap fun e => [e.1, e.2]) : v.unpair.1 < 3 := by
+  obtain ⟨e, he, hv⟩ := List.mem_flatMap.1 hv
   simp only [coloringEdges, clauseEdges, stageEdges, variableEdges, List.mem_append,
-    List.mem_flatMap, List.mem_cons, List.not_mem_nil, or_false] at he
-  rcases he with (he | ⟨x, -, he⟩) | ⟨⟨cl, i⟩, -, he | ⟨⟨l, j⟩, -, he⟩⟩
-  · rcases he with rfl | rfl | rfl <;> simp [paletteVertex]
-  · rcases he with rfl | rfl | rfl <;> simp [paletteVertex, literalVertex]
-  · rcases he with rfl | rfl | rfl | rfl <;> simp [paletteVertex, gadgetVertex]
-  · rcases he with rfl | rfl | rfl | rfl | rfl <;> simp [gadgetVertex, literalVertex]
+    List.mem_flatMap, List.mem_cons, List.not_mem_nil, or_false] at he hv
+  rcases he with (he | ⟨x, -, he⟩) | ⟨⟨cl, i⟩, -, he | ⟨⟨l, j⟩, -, he⟩⟩ <;>
+    obtain rfl | rfl | rfl | rfl | rfl := he <;> obtain rfl | rfl := hv <;>
+    simp [paletteVertex, literalVertex, gadgetVertex]
 
 private theorem mem_kColoringEdges {m : ℕ} {φ : CNF ℕ} {e : ℕ × ℕ} :
     e ∈ kColoringEdges m φ ↔ e ∈ coloringEdges φ ∨
       (∃ r < m, ∃ v ∈ (coloringEdges φ).flatMap (fun e => [e.1, e.2]),
         e = (universalVertex r, v)) ∨
       (∃ r < m, ∃ r' < r, e = (universalVertex r, universalVertex r')) := by
-  simp only [kColoringEdges, List.mem_append, List.mem_flatMap, List.mem_map, List.mem_range]
-  constructor
-  · rintro (h | ⟨r, hr, ⟨v, hv, rfl⟩ | ⟨r', hr', rfl⟩⟩)
-    · exact Or.inl h
-    · exact Or.inr (Or.inl ⟨r, hr, v, hv, rfl⟩)
-    · exact Or.inr (Or.inr ⟨r, hr, r', hr', rfl⟩)
-  · rintro (h | ⟨r, hr, v, hv, rfl⟩ | ⟨r, hr, r', hr', rfl⟩)
-    · exact Or.inl h
-    · exact Or.inr ⟨r, hr, Or.inl ⟨v, hv, rfl⟩⟩
-    · exact Or.inr ⟨r, hr, Or.inr ⟨r', hr', rfl⟩⟩
+  simp only [kColoringEdges, List.mem_append, List.mem_flatMap, List.mem_map, List.mem_range,
+    and_or_left, exists_or, eq_comm (a := e)]
 
 /-- The rank of `x` among the natural numbers outside `S`. -/
 private theorem card_filter_notMem_lt {S : Finset ℕ} {n x : ℕ}
@@ -699,10 +680,7 @@ theorem toKColoring_mem_iff (m : ℕ) (φ : CNF ℕ) :
     exact ⟨hne, Or.inl he⟩
   have hU : ∀ {r v : ℕ}, v ∈ (coloringEdges φ).flatMap (fun e => [e.1, e.2]) →
       universalVertex r ≠ v := fun hv h => by
-    obtain ⟨e, he, hv⟩ := List.mem_flatMap.1 hv
-    have := unpair_fst_lt_of_mem_coloringEdges he
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hv
-    rcases hv with rfl | rfl <;> simp [← h, universalVertex] at this
+    simpa [← h, universalVertex] using unpair_fst_lt_of_mem_endpoints hv
   constructor
   · rintro ⟨c, hlt, hadj⟩
     have hE : ∀ e ∈ kColoringEdges m φ, e.1 ≠ e.2 →
@@ -723,14 +701,10 @@ theorem toKColoring_mem_iff (m : ℕ) (φ : CNF ℕ) :
       rw [Finset.card_image_of_injOn, Finset.card_range]
       intro r hr r' hr' h
       simp only [Finset.coe_range, Set.mem_Iio] at hr hr'
-      by_contra hne
-      rcases Nat.lt_or_gt_of_ne hne with h' | h'
-      · exact hUU r' hr' r h' h.symm
-      · exact hUU r hr r' h' h
-    have hSsub : S ⊆ Finset.range (m + 3) := by
-      intro x hx
-      obtain ⟨r, hr, rfl⟩ := Finset.mem_image.1 hx
-      exact Finset.mem_range.2 (hUlt r (Finset.mem_range.1 hr))
+      exact le_antisymm (not_lt.1 fun h' => hUU r hr r' h' h)
+        (not_lt.1 fun h' => hUU r' hr' r h' h.symm)
+    have hSsub : S ⊆ Finset.range (m + 3) := Finset.image_subset_iff.2 fun r hr =>
+      Finset.mem_range.2 (hUlt r (Finset.mem_range.1 hr))
     -- Gadget vertices avoid the colors of the universal vertices.
     have hnot : ∀ {v}, v ∈ (coloringEdges φ).flatMap (fun e => [e.1, e.2]) → c v ∉ S :=
       fun hv hS => by
@@ -752,12 +726,7 @@ theorem toKColoring_mem_iff (m : ℕ) (φ : CNF ℕ) :
     have hcU : ∀ r, c (universalVertex r) = 3 + r := fun r => by simp [c, universalVertex]
     have hcG : ∀ {v}, v ∈ (coloringEdges φ).flatMap (fun e => [e.1, e.2]) →
         c v = gadgetColoring φ σ v := fun hv => by
-      obtain ⟨e, he, hv⟩ := List.mem_flatMap.1 hv
-      have := unpair_fst_lt_of_mem_coloringEdges he
-      simp only [List.mem_cons, List.not_mem_nil, or_false] at hv
-      rcases hv with rfl | rfl
-      · simp [c, Nat.ne_of_lt this.1]
-      · simp [c, Nat.ne_of_lt this.2]
+      simp [c, (unpair_fst_lt_of_mem_endpoints hv).ne]
     have hEc : ∀ e ∈ kColoringEdges m φ, c e.1 ≠ c e.2 ∧ c e.1 < m + 3 ∧ c e.2 < m + 3 := by
       intro e he
       rcases mem_kColoringEdges.1 he with he | ⟨r, hr, v, hv, rfl⟩ | ⟨r, hr, r', hr', rfl⟩
@@ -775,8 +744,7 @@ theorem toKColoring_mem_iff (m : ℕ) (φ : CNF ℕ) :
     · obtain ⟨e, he, hv⟩ := List.mem_flatMap.1 hv
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hv
       rcases hv with rfl | rfl
-      · exact (hEc e he).2.1
-      · exact (hEc e he).2.2
+      exacts [(hEc e he).2.1, (hEc e he).2.2]
     · simp only [toKColoring, Graph.toSimpleGraph_adj] at huv
       rcases huv.2 with h | h
       · exact (hEc _ h).1
@@ -790,25 +758,11 @@ theorem computableInPolyTime_toKColoring (m : ℕ) :
       (encPair encUnary encUnary) encUnary := by fun_prop
   have hU : ComputableInPolyTime universalVertex encUnary encNat :=
     unary_to_binary.comp (hpair.comp ((const 3).prod id'))
-  have hrange : ComputableInPolyTime (fun _ : CNF ℕ => List.range m) encCNF
-      (encList encUnary) := const _
-  have hends0 : ComputableInPolyTime
-      (fun φ : CNF ℕ => (coloringEdges φ).flatMap fun e => [e.1, e.2])
-      encCNF (encList encNat) :=
-    flatMapWithInput computableInPolyTime_coloringEdges (by fun_prop)
-  have hends : ComputableInPolyTime
-      (fun p : CNF ℕ × ℕ => (coloringEdges p.1).flatMap fun e => [e.1, e.2])
-      (encPair encCNF encUnary) (encList encNat) :=
-    hends0.comp (fst _ _)
-  have hr2 : ComputableInPolyTime (fun p : CNF ℕ × ℕ => List.range p.2)
-      (encPair encCNF encUnary) (encList encUnary) :=
-    range.comp (snd _ _)
-  have hke : ComputableInPolyTime (kColoringEdges m) encCNF (encList (encPair encNat encNat)) :=
-    listAppend' computableInPolyTime_coloringEdges
-      (flatMapWithInput hrange
-        (listAppend' (mapWithInput hends (by fun_prop)) (mapWithInput hr2 (by fun_prop))))
+  have hke : ComputableInPolyTime (kColoringEdges m) encCNF (encList (encPair encNat encNat)) := by
+    unfold kColoringEdges
+    fun_prop
   unfold toKColoring
-  exact encGraph_mk_polyTime (flatMapWithInput hke (by fun_prop)) hke
+  fun_prop
 
 end SAT
 

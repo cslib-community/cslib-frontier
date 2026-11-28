@@ -90,8 +90,7 @@ theorem sum_length_pairInc_row (hJ : 0 < J) (g : ℕ) :
 theorem sum_sum_length_pairInc (hJ : 0 < J) :
     ∑ g ∈ range J, ∑ h ∈ range J, (pairInc J sys g h).length = numInc sys := by
   rw [Finset.sum_congr rfl fun g _ => sum_length_pairInc_row hJ g, List.sum_residueClass hJ, numInc]
-  conv_rhs => rw [← List.map_getD_range sys []]
-  rw [List.map_map]
+  conv_rhs => rw [← List.map_getD_range sys [], List.map_map]
   rfl
 
 /-- **The incidences of a variable group**, test by test. -/
@@ -139,21 +138,16 @@ theorem length_colPorts_le (hJ : 0 < J) {h : ℕ} (hh : h < J) {n D : ℕ}
     (colPorts J sys d h).length ≤ (n / J + 1) * D := by
   rw [length_colPorts h hh]
   -- Per test, the scope variables in group `h` are the variables of group `h` in the scope.
-  have hper : ∀ i < sys.length, ((equationVars (sys.getD i [])).filter (· % J = h)).length =
-      ((List.residueClass J n h).filter fun v => v ∈ equationVars (sys.getD i [])).length := by
-    intro i hi
-    refine List.Perm.length_eq ((List.perm_ext_iff_of_nodup ((nodup_sortDedup _).filter _)
-      (((List.nodup_range).filter _).filter _)).mpr fun v => ?_)
-    have hm : v ∈ equationVars (sys.getD i []) → v < n := fun hv => by
+  have hper (i) (hi : i < sys.length) :
+      ((equationVars (sys.getD i [])).filter (· % J = h)).length =
+        ((List.residueClass J n h).filter (· ∈ equationVars (sys.getD i []))).length :=
+    List.Perm.length_eq <| (List.perm_ext_iff_of_nodup ((nodup_sortDedup _).filter _)
+      ((List.nodup_range.filter _).filter _)).mpr fun v => by
+      simp only [List.mem_filter, List.mem_range, decide_eq_true_eq]
+      refine ⟨fun ⟨hv, hJv⟩ => ⟨⟨?_, hJv⟩, hv⟩, fun ⟨⟨_, hJv⟩, hv⟩ => ⟨hv, hJv⟩⟩
       obtain ⟨m, hm, hvm⟩ := mem_equationVars.mp hv
       rw [List.getD_eq_getElem _ _ hi] at hm
       exact hvars _ (List.getElem_mem hi) m hm v hvm
-    simp only [List.mem_filter, List.mem_range, decide_eq_true_eq]
-    constructor
-    · rintro ⟨hv, hJv⟩
-      exact ⟨⟨hm hv, hJv⟩, hv⟩
-    · rintro ⟨⟨_, hJv⟩, hv⟩
-      exact ⟨hv, hJv⟩
   calc ∑ g ∈ range J, width J sys d g h ≤ ∑ g ∈ range J, (pairInc J sys g h).length :=
         Finset.sum_le_sum fun g _ => width_le g h
     _ = ((List.range sys.length).map fun i =>
@@ -177,16 +171,13 @@ theorem length_colPorts_le (hJ : 0 < J) {h : ℕ} (hh : h < J) {n D : ℕ}
 theorem two_pow_clog_choose_le (N d : ℕ) :
     2 ^ Nat.clog 2 (N.choose d) ≤ 2 * N.choose (if d ≤ N then d else 0) := by
   split_ifs with hd
-  · have hC := Nat.choose_pos hd
-    rcases Nat.lt_or_ge 1 (N.choose d) with h1 | h1
-    · have h2 := Nat.pow_pred_clog_lt_self 2 h1
-      have h3 : 1 ≤ Nat.clog 2 (N.choose d) := Nat.succ_le_of_lt (Nat.clog_pos one_lt_two h1)
-      calc 2 ^ Nat.clog 2 (N.choose d) = 2 * 2 ^ (Nat.clog 2 (N.choose d)).pred := by
-            conv_lhs => rw [← Nat.succ_pred_eq_of_pos h3]
-            rw [pow_succ']
-        _ ≤ 2 * N.choose d := by omega
-    · have : N.choose d = 1 := by omega
-      rw [this]
+  · rcases Nat.lt_or_ge 1 (N.choose d) with h1 | h1
+    · calc 2 ^ Nat.clog 2 (N.choose d)
+          = 2 * 2 ^ (Nat.clog 2 (N.choose d)).pred := by
+            conv_lhs => rw [← Nat.succ_pred_eq_of_pos (Nat.clog_pos one_lt_two h1), pow_succ']
+        _ ≤ 2 * N.choose d :=
+            Nat.mul_le_mul_left 2 (Nat.pow_pred_clog_lt_self one_lt_two h1).le
+    · rw [Nat.le_antisymm h1 (Nat.choose_pos hd)]
       simp
   · rw [Nat.choose_eq_zero_of_lt (by omega)]
     simp
@@ -204,13 +195,11 @@ theorem two_pow_numWires_le (hJ : 0 < J) {K : ℕ} (hlive : live J K d = true) :
     2 ^ numWires J sys d ≤ 2 ^ (J * J) * (numInc sys + K).choose K := by
   set D' : ℕ → ℕ → ℕ := fun g h =>
     if d.getD (g * J + h) 0 ≤ (pairInc J sys g h).length then d.getD (g * J + h) 0 else 0
-  have hD' : ∑ g ∈ range J, ∑ h ∈ range J, D' g h ≤ K := by
-    have hK : ((List.range (J * J)).map (d.getD · 0)).sum ≤ K := by
-      simpa [live] using hlive
-    refine le_trans (Finset.sum_le_sum fun g _ => Finset.sum_le_sum fun h _ => ?_)
-      ((sum_getD_eq J d).le.trans hK)
-    simp only [D']
-    split_ifs <;> omega
+  have hD' : ∑ g ∈ range J, ∑ h ∈ range J, D' g h ≤ K :=
+    (Finset.sum_le_sum fun g _ => Finset.sum_le_sum fun h _ => by
+      simp only [D']
+      split_ifs <;> omega).trans
+      ((sum_getD_eq J d).le.trans (by simpa [live] using hlive))
   calc 2 ^ numWires J sys d
       = ∏ g ∈ range J, ∏ h ∈ range J, 2 ^ width J sys d g h := by
         rw [numWires_eq, ← Finset.prod_pow_eq_pow_sum]
@@ -232,14 +221,10 @@ has at most `J² + K ⌈log₂ (3 R)⌉` index wires. -/
 theorem numWires_le (hJ : 0 < J) {K R : ℕ} (hlive : live J K d = true)
     (hR : numInc sys + K ≤ R * K) :
     numWires J sys d ≤ J * J + K * Nat.clog 2 (3 * R) := by
-  have h1 := two_pow_numWires_le (sys := sys) hJ hlive
-  have h2 : (numInc sys + K).choose K ≤ 2 ^ (K * Nat.clog 2 (3 * R)) :=
-    (Nat.add_choose_le_three_mul_pow hR).trans (by
-      rw [pow_mul']
-      exact Nat.pow_le_pow_left (Nat.le_pow_clog one_lt_two _) _)
-  have h3 : 2 ^ numWires J sys d ≤ 2 ^ (J * J + K * Nat.clog 2 (3 * R)) := by
-    rw [pow_add]
-    exact h1.trans (Nat.mul_le_mul_left _ h2)
-  exact (Nat.pow_le_pow_iff_right (by norm_num)).mp h3
+  refine (Nat.pow_le_pow_iff_right one_lt_two).mp ?_
+  rw [pow_add, pow_mul' 2 K]
+  exact (two_pow_numWires_le (sys := sys) hJ hlive).trans <| Nat.mul_le_mul_left _ <|
+    (Nat.add_choose_le_three_mul_pow hR).trans
+      (Nat.pow_le_pow_left (Nat.le_pow_clog one_lt_two _) _)
 
 end Cslib.Circuits.Frontier.IncidenceNetwork

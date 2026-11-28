@@ -67,31 +67,18 @@ theorem logb_card_le_of_le_minDist [Nontrivial α] {C : Finset (ι → α)} {d :
   have hqd : 0 < q * d := Nat.mul_pos (by omega) hd0
   have hm1 : (q - 1) * m ≤ q * d - 1 := Nat.mul_div_le _ _
   have hm2 : q * d - 1 < (q - 1) * (m + 1) := Nat.lt_mul_div_succ _ hq1
-  have hmn : m ≤ n := by
-    by_contra hlt
-    have : (q - 1) * n < (q - 1) * m := Nat.mul_lt_mul_of_pos_left (by omega) hq1
-    omega
+  have hmn : m ≤ n := Nat.le_of_mul_le_mul_left (by omega) hq1
   have hgap : 1 ≤ q * d - (q - 1) * m := by omega
   have hs := card_mul_sub_le_pow_mul_of_le_minDist hd hmn
   have hC : #C ≤ q ^ (n - m) * (q * d) := (Nat.le_mul_of_pos_right _ hgap).trans hs
   -- `(q - 1) (m + 1) ≥ q d` over the reals
-  have hmR : (q : ℝ) * d ≤ ((q : ℝ) - 1) * (m + 1) := by
-    have : q * d ≤ (q - 1) * (m + 1) := by omega
-    have h' : ((q * d : ℕ) : ℝ) ≤ (((q - 1) * (m + 1) : ℕ) : ℝ) := by exact_mod_cast this
-    push_cast [Nat.cast_sub (by omega : 1 ≤ q)] at h'
-    exact h'
   have hdiv : (q : ℝ) * d / ((q : ℝ) - 1) ≤ m + 1 := by
-    rw [div_le_iff₀ hq1R]
-    linarith
-  rcases Nat.eq_zero_or_pos #C with h0 | h0
-  · rw [h0, Nat.cast_zero, Real.logb_zero]
-    have : (q : ℝ) * d / ((q : ℝ) - 1) ≤ n := by
-      rw [div_le_iff₀ hq1R]
-      have h' : ((q * d : ℕ) : ℝ) ≤ (((q - 1) * n : ℕ) : ℝ) := by exact_mod_cast h
-      push_cast [Nat.cast_sub (by omega : 1 ≤ q)] at h'
-      linarith
-    linarith
+    rw [div_le_iff₀ hq1R, mul_comm _ ((q : ℝ) - 1), ← Nat.cast_pred (show 0 < q by omega)]
+    exact_mod_cast (by omega : q * d ≤ (q - 1) * (m + 1))
   have hlog : Real.logb q (#C : ℝ) ≤ (n - m : ℕ) + (1 + Real.logb q (d : ℝ)) := by
+    rcases Nat.eq_zero_or_pos #C with h0 | h0
+    · rw [h0, Nat.cast_zero, Real.logb_zero]
+      linarith [Nat.cast_nonneg (α := ℝ) (n - m)]
     have hCR : (#C : ℝ) ≤ (q : ℝ) ^ (n - m) * (q * d) := by exact_mod_cast hC
     calc Real.logb q (#C : ℝ) ≤ Real.logb q ((q : ℝ) ^ (n - m) * (q * d)) :=
           Real.logb_le_logb_of_le hqR (by exact_mod_cast h0) hCR
@@ -126,17 +113,11 @@ theorem eventually_logb_card_le_of_le_hammingDist {σ : Type*} {ιs : σ → Typ
     rcases Nat.eq_zero_or_pos #(C s) with h0 | h0
     · rw [h0, Nat.cast_zero, Real.logb_zero]
       positivity
-    have hle : (#(C s) : ℝ) ≤ (q : ℝ) ^ Fintype.card (ιs s) := by
-      have := card_le_univ (C s)
-      rw [Fintype.card_fun] at this
-      exact_mod_cast this
-    calc Real.logb q #(C s) ≤ Real.logb q ((q : ℝ) ^ Fintype.card (ιs s)) :=
-          Real.logb_le_logb_of_le hqR (by exact_mod_cast h0) hle
-      _ = Fintype.card (ιs s) := Real.logb_self_pow (zero_lt_one.trans hqR) hqR.ne' _
+    rw [Real.logb_le_iff_le_rpow hqR (by exact_mod_cast h0), Real.rpow_natCast]
+    exact_mod_cast (card_le_univ (C s)).trans_eq Fintype.card_fun
   rcases hδ0.eq_or_lt with rfl | hδpos
   · refine Filter.Eventually.of_forall fun s => (htriv s).trans ?_
-    have : (0 : ℝ) ≤ Fintype.card (ιs s) := by positivity
-    nlinarith
+    nlinarith [Nat.cast_nonneg (α := ℝ) (Fintype.card (ιs s))]
   -- eventually `δ n ≥ 1`, `4 ≤ ε n / 2` and `log_q n ≤ ε n / 2`
   have h1 : ∀ᶠ s in l, 1 / δ + 8 / ε ≤ (Fintype.card (ιs s) : ℝ) :=
     hnR.eventually_ge_atTop _
@@ -145,43 +126,31 @@ theorem eventually_logb_card_le_of_le_hammingDist {σ : Type*} {ιs : σ → Typ
     have hlogq : 0 < Real.log q := Real.log_pos hqR
     have := (Real.isLittleO_log_id_atTop.bound (c := ε * Real.log q / 2) (by positivity))
     filter_upwards [hnR.eventually this, hnR.eventually_ge_atTop 1] with s hs hs1
-    rw [Real.norm_eq_abs, Real.norm_eq_abs, id, abs_of_nonneg (Real.log_nonneg hs1),
+    rwa [Real.norm_eq_abs, Real.norm_eq_abs, id, abs_of_nonneg (Real.log_nonneg hs1),
       abs_of_nonneg (by linarith)] at hs
-    exact hs
   filter_upwards [h1, h2] with s hs1 hs2
   set n := Fintype.card (ιs s)
   set d := ⌊δ * n⌋₊
   have h8ε : 0 ≤ 8 / ε := by positivity
   have h1δ : 0 < 1 / δ := by positivity
   have hnpos : (0 : ℝ) < n := by linarith
-  have hδn : 1 ≤ δ * n := by
-    have : 1 / δ ≤ n := by linarith
-    rw [div_le_iff₀ hδpos] at this
-    linarith
+  have hδn : 1 ≤ δ * n := (div_le_iff₀' hδpos).1 (by linarith)
   have hd0 : 0 < d := Nat.floor_pos.2 hδn
   have hdle : (d : ℝ) ≤ δ * n := Nat.floor_le (by positivity)
   have hdgt : δ * n < d + 1 := Nat.lt_floor_add_one _
-  have hdmin : (d : ℕ∞) ≤ minDist ((C s : Finset (ιs s → α)) : Set (ιs s → α)) := by
-    rw [le_minDist_iff]
-    intro x hx y hy hxy
-    have := hC s x hx y hy hxy
-    exact_mod_cast Nat.floor_le_of_le (R := ℝ) this
+  have hdmin : (d : ℕ∞) ≤ minDist ((C s : Finset (ιs s → α)) : Set (ιs s → α)) :=
+    le_minDist_iff.2 fun x hx y hy hxy => by
+      exact_mod_cast Nat.floor_le_of_le (R := ℝ) (hC s x hx y hy hxy)
   have hqd : q * d ≤ (q - 1) * n := by
-    have : ((q * d : ℕ) : ℝ) ≤ (((q - 1) * n : ℕ) : ℝ) := by
-      push_cast [Nat.cast_sub (by omega : 1 ≤ q)]
-      calc (q : ℝ) * d ≤ q * (δ * n) := by gcongr
-        _ = (q * δ) * n := by ring
-        _ ≤ ((q : ℝ) - 1) * n := by gcongr
+    have : (q : ℝ) * d ≤ ((q : ℝ) - 1) * n := by
+      nlinarith [mul_le_mul_of_nonneg_left hdle q.cast_nonneg,
+        mul_le_mul_of_nonneg_right hδ hnpos.le]
+    rw [← Nat.cast_pred (show 0 < q by omega)] at this
     exact_mod_cast this
   have hmain := logb_card_le_of_le_minDist hdmin hd0 hqd
   have hlogd : Real.logb q (d : ℝ) ≤ ε / 2 * n := by
-    have hdn : (d : ℝ) ≤ n := by
-      have : δ ≤ 1 := by
-        have : (q : ℝ) * δ ≤ q := by linarith
-        nlinarith
-      nlinarith
     calc Real.logb q (d : ℝ) ≤ Real.logb q (n : ℝ) :=
-          Real.logb_le_logb_of_le hqR (by exact_mod_cast hd0) hdn
+          Real.logb_le_logb_of_le hqR (by exact_mod_cast hd0) (by nlinarith)
       _ = Real.log n / Real.log q := rfl
       _ ≤ ε / 2 * n := by
           rw [div_le_iff₀ (Real.log_pos hqR)]
@@ -191,15 +160,9 @@ theorem eventually_logb_card_le_of_le_hammingDist {σ : Type*} {ιs : σ → Typ
     have h2q : (q : ℝ) / (q - 1) ≤ 2 := by
       rw [div_le_iff₀ hq1R]
       cast_linarith [hq]
-    have : (q : ℝ) / (q - 1) * δ * n - (q : ℝ) * d / (q - 1) =
-        (q : ℝ) / (q - 1) * (δ * n - d) := by
-      ring
-    have hq0 : (0 : ℝ) ≤ (q : ℝ) / (q - 1) := by positivity
-    nlinarith
-  have h8 : 4 ≤ ε / 2 * n := by
-    have : 8 / ε ≤ n := by linarith
-    rw [div_le_iff₀ hε] at this
-    linarith
-  nlinarith
+    rw [mul_div_right_comm]
+    linarith [mul_le_mul_of_nonneg_left hdgt.le (by positivity : (0 : ℝ) ≤ q / (q - 1))]
+  have h8 : 8 ≤ ε * n := (div_le_iff₀' hε).1 (by linarith)
+  linarith
 
 end Cslib.Code

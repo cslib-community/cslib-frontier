@@ -605,15 +605,11 @@ private theorem toOuterMeasure_good_le [NeZero n] {P : SimpleGraph (Fin n) → P
       intro e₁ he₁ e₂ he₂
       obtain ⟨i, hi, hi'⟩ := exists_mem_posCache hlen he₁
       obtain ⟨j, hj, hj'⟩ := exists_mem_posCache hlen he₂
-      have hσi : σ i = e₁.2 := hσc _ hi'
-      have hσj : σ j = e₂.2 := hσc _ hj'
-      have h₁ : (π.trans σ.symm) e₁.1 = i := by
-        rw [Equiv.trans_apply, hπ e₁ he₁, Equiv.symm_apply_eq]
-        exact hσi.symm
-      have h₂ : (π.trans σ.symm) e₂.1 = j := by
-        rw [Equiv.trans_apply, hπ e₂ he₂, Equiv.symm_apply_eq]
-        exact hσj.symm
-      rw [comap_adj, h₁, h₂, hadj i j (by omega) (by omega), hσi, hσj]
+      have hmap {e : Fin n × Fin n} (he : e ∈ c) {i : Fin n} (hi : (i, e.2) ∈ posCache c) :
+          (π.trans σ.symm) e.1 = i := by
+        rw [Equiv.trans_apply, hπ e he, Equiv.symm_apply_eq, hσc _ hi]
+      rw [comap_adj, hmap he₁ hi', hmap he₂ hj', hadj i j (by omega) (by omega), hσc _ hi',
+        hσc _ hj']
   | liftBind q cont m hcont ih =>
     rcases q with k | ⟨u, v⟩
     · simp only [Sum.elim_inl, add_zero, OracleComp.evalWith_bind,
@@ -655,13 +651,8 @@ private theorem toOuterMeasure_good_le [NeZero n] {P : SimpleGraph (Fin n) → P
           hA e₁ (hsub₂ _ (hsub₁ _ he₁)) e₂ (hsub₂ _ (hsub₁ _ he₂))
         have hadj : H.Adj u v ↔ G.Adj p₁.1 p₂.1 := hA _ (hsub₂ _ hu₁) _ hv₂'
         have h0 := hfalse H hH hA'
-        rw [OracleComp.evalWith_bind, OracleComp.evalWith_query] at h0
-        have hq : OracleComp.sumHandler ProbComp.unifOracle (adjOracle H) (Sum.inr (u, v)) =
-            PMF.pure (decide (G.Adj p₁.1 p₂.1)) :=
-          by rw [OracleComp.sumHandler_inr, adjOracle_apply]
-             exact congrArg PMF.pure (decide_eq_decide.mpr hadj)
-        rw [hq, PMF.pure_bind] at h0
-        exact h0
+        rwa [OracleComp.evalWith_bind, OracleComp.evalWith_query, OracleComp.sumHandler_inr,
+          adjOracle_apply, decide_eq_decide.mpr hadj, PMF.pure_bind] at h0
 
 private theorem toOuterMeasure_good_le_one_third [NeZero n] {P : SimpleGraph (Fin n) → Prop}
     (hP : IsInvariant P) {T : Tester n} {ε : ℝ} {q : ℕ} (hT : IsOneSidedTester T P ε q)

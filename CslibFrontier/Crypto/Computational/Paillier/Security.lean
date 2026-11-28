@@ -110,27 +110,25 @@ theorem isPPTOn_dcrDistinguisher {adversary : AdversaryOf ℕ} (hA : adversary.I
       (fun input => dcrDistinguisher adversary bit input.1 input.2) := by
   let EIn := encPair encUnary (encPair encNat encNat)
   let EChoice := encPair (encPair encNat encNat) encBits
-  have hin2 := ComputableInPolyTime.snd encUnary (encPair encNat encNat)
-  have hN_in := (ComputableInPolyTime.fst encNat encNat).comp hin2
+  have hN_in := (ComputableInPolyTime.fst encNat encNat).comp
+    (ComputableInPolyTime.snd encUnary (encPair encNat encNat))
   have hp1 := ComputableInPolyTime.fst EIn EChoice
   have hp2 := ComputableInPolyTime.snd EIn EChoice
   have hn := (ComputableInPolyTime.fst encUnary (encPair encNat encNat)).comp hp1
   have hN := hN_in.comp hp1
-  have hy := ((ComputableInPolyTime.snd encNat encNat).comp hin2).comp hp1
+  have hy := ((ComputableInPolyTime.snd encNat encNat).comp
+    (ComputableInPolyTime.snd encUnary (encPair encNat encNat))).comp hp1
   have hmsgs := (ComputableInPolyTime.fst (encPair encNat encNat) encBits).comp hp2
-  have hst := (ComputableInPolyTime.snd (encPair encNat encNat) encBits).comp hp2
   have hm0 := (ComputableInPolyTime.fst encNat encNat).comp hmsgs
   have hm1 := (ComputableInPolyTime.snd encNat encNat).comp hmsgs
   have hm : ComputableInPolyTime
       (fun p : (ℕ × ℕ × ℕ) × (ℕ × ℕ) × List Bool => if bit then p.2.1.2 else p.2.1.1)
-      (encPair EIn EChoice) encNat := by
-    cases bit
-    · exact hm0
-    · exact hm1
+      (encPair EIn EChoice) encNat := by cases bit <;> assumption
   have hN2 := computableInPolyTime_sq hN
-  have hpow := computableInPolyTime_powMod hN2
-    (ComputableInPolyTime.binary_add' (ComputableInPolyTime.const 1) hN) hm
-  have hct := ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_mul' hpow hy) hN2
+  have hct := ComputableInPolyTime.binary_mod'
+    (ComputableInPolyTime.binary_mul'
+      (computableInPolyTime_powMod hN2
+        (ComputableInPolyTime.binary_add' (ComputableInPolyTime.const 1) hN) hm) hy) hN2
   have hvalidStep : ComputableInPolyTime
       (fun p : (ℕ × ℕ × ℕ) × (ℕ × ℕ) × List Bool =>
         validMessages p.1.1 (encNat p.1.2.1) p.2.1.1 p.2.1.2) (encPair EIn EChoice) encBool := by
@@ -138,17 +136,17 @@ theorem isPPTOn_dcrDistinguisher {adversary : AdversaryOf ℕ} (hA : adversary.I
       ComputableInPolyTime.decide_and
         (ComputableInPolyTime.binary_lt' hm0 hN)
         (ComputableInPolyTime.binary_lt' hm1 hN)
-  have hguessStep := hA.guess.preprocess
-    (prepare := fun p : (ℕ × ℕ × ℕ) × (ℕ × ℕ) × List Bool =>
-      (p.1.1, p.2.2, encNat (powMod (p.1.2.1 ^ 2) (1 + p.1.2.1)
-        (if bit then p.2.1.2 else p.2.1.1) * p.1.2.2 % p.1.2.1 ^ 2)))
-    (hn.prod (hst.prod hct.encoding_comp))
-  unfold dcrDistinguisher
   refine (hA.choose.on.preprocess
     (prepare := fun input : ℕ × ℕ × ℕ => (input.1, encNat input.2.1))
     ((ComputableInPolyTime.fst encUnary (encPair encNat encNat)).prod
-      hN_in.encoding_comp)).bind_with ?_
-  exact IsPPTOn.cond hvalidStep hguessStep (ComputableInPolyTime.const false).isPPTOn
+      hN_in.encoding_comp)).bind_with
+    (IsPPTOn.cond hvalidStep (hA.guess.preprocess
+      (prepare := fun p : (ℕ × ℕ × ℕ) × (ℕ × ℕ) × List Bool =>
+        (p.1.1, p.2.2, encNat (powMod (p.1.2.1 ^ 2) (1 + p.1.2.1)
+          (if bit then p.2.1.2 else p.2.1.1) * p.1.2.2 % p.1.2.1 ^ 2)))
+      (hn.prod (((ComputableInPolyTime.snd (encPair encNat encNat) encBits).comp hp2).prod
+        hct.encoding_comp)))
+      (ComputableInPolyTime.const false).isPPTOn)
 
 /-! ### Algebra of the reduction -/
 
@@ -156,13 +154,11 @@ theorem isPPTOn_dcrDistinguisher {adversary : AdversaryOf ℕ} (hA : adversary.I
 private theorem powMod_mul_val_eq (N : ℕ) [NeZero N] (m : ℕ) (r : (ZMod (N ^ 2))ˣ) :
     powMod (N ^ 2) (1 + N) m * (r : ZMod (N ^ 2)).val % N ^ 2 =
       ((oneAddUnit N ^ m * r : (ZMod (N ^ 2))ˣ) : ZMod (N ^ 2)).val := by
-  have hN2 : N ^ 2 ≠ 0 := pow_ne_zero 2 (NeZero.ne N)
-  have h : ((powMod (N ^ 2) (1 + N) m * (r : ZMod (N ^ 2)).val % N ^ 2 : ℕ) : ZMod (N ^ 2)) =
-      ((oneAddUnit N ^ m * r : (ZMod (N ^ 2))ˣ) : ZMod (N ^ 2)) := by
-    simp only [powMod_of_ne_zero hN2, ZMod.natCast_mod, Nat.cast_mul, Nat.cast_pow, Nat.cast_add,
-      Nat.cast_one, ZMod.natCast_zmod_val, Units.val_mul, Units.val_pow_eq_pow_val,
-      coe_oneAddUnit]
-  rw [← h, ZMod.val_natCast, Nat.mod_mod]
+  rw [← ZMod.val_natCast]
+  congr 1
+  simp only [powMod_of_ne_zero (pow_ne_zero 2 (NeZero.ne N)), ZMod.natCast_mod, Nat.cast_mul,
+    Nat.cast_pow, Nat.cast_add, Nat.cast_one, ZMod.natCast_zmod_val, Units.val_mul,
+    Units.val_pow_eq_pow_val, coe_oneAddUnit]
 
 /-- With `y = s ^ N`, the distinguisher's challenge is the Paillier ciphertext of `m` with
 randomness `s mod N`. -/
@@ -239,22 +235,14 @@ private theorem advantage_encrypt_dcrReal_le (d : Desc) (n : ℕ)
       5 / 2 ^ n := by
   let K : ℕ → Game := fun x => ProbComp.eval (adversary.guess n state
     (encNat (ciphertext d.modulus m (unitOrOne d.modulus x))))
-  have hreal : ((PMF.uniformOfFintype (ZMod (d.modulus ^ 2))ˣ).bind fun s =>
-        ProbComp.eval (adversary.guess n state
-          (encNat (powMod (d.modulus ^ 2) (1 + d.modulus) m *
-            ((s ^ d.modulus : (ZMod (d.modulus ^ 2))ˣ) : ZMod (d.modulus ^ 2)).val %
-              d.modulus ^ 2)))) =
-      (PMF.uniformOfFintype (ZMod d.modulus)ˣ).bind fun u => K (u : ZMod d.modulus).val := by
-    -- Reduction modulo `N` sends the uniform unit modulo `N ^ 2` to the uniform unit modulo `N`.
-    rw [← Probability.PMF.uniformOfFintype_map_monoidHom
-      (ZMod.unitsMap (dvd_pow_self d.modulus two_ne_zero)) (ZMod.unitsMap_surjective _),
-      PMF.bind_map]
-    refine congrArg _ (funext fun s => ?_)
-    simp only [Function.comp_apply, K]
-    rw [powMod_mul_val_pow_eq_ciphertext]
-  rw [hreal]
-  exact Game.advantage_sampleModNat_units_le d.property.prime_fst d.property.prime_snd
-    d.property.fst_ne_snd hsize.1 hsize.2 K
+  -- Reduction modulo `N` sends the uniform unit modulo `N ^ 2` to the uniform unit modulo `N`.
+  convert Game.advantage_sampleModNat_units_le d.2.prime_fst d.2.prime_snd d.2.fst_ne_snd
+    hsize.1 hsize.2 K using 2
+  rw [← Probability.PMF.uniformOfFintype_map_monoidHom
+    (ZMod.unitsMap (dvd_pow_self d.modulus two_ne_zero)) (ZMod.unitsMap_surjective _),
+    PMF.bind_map]
+  exact congrArg _ (funext fun s => by
+    simp only [Function.comp_apply, K, powMod_mul_val_pow_eq_ciphertext])
 
 /-- Ingredient of the proof of [KatzLindell2020], Theorem 15.13 (the case `y = r ^ N`): the
 IND-CPA experiment for challenge bit `b` is within `5 / 2 ^ n` of the DCR real game of
@@ -301,18 +289,15 @@ theorem DCR.indcpaOn_paillier {gen : ℕ → ProbComp Desc}
   have hD (bit : Bool) := hDCR (dcrDistinguisher adversary bit) (isPPTOn_dcrDistinguisher hA bit)
   have hmid : Negligible fun n => Game.advantage
       (dcrRealGame (fun n => ProbComp.eval (gen n)) (dcrDistinguisher adversary false) n)
-      (dcrRealGame (fun n => ProbComp.eval (gen n)) (dcrDistinguisher adversary true) n) := by
-    refine negligible_of_le ((hD false).add (hD true)) fun n => ?_
-    dsimp only [Pi.add_apply]
-    refine (Game.advantage_triangle _
-      (dcrRandomGame (fun n => ProbComp.eval (gen n)) (dcrDistinguisher adversary false) n)
-      _).trans (add_le_add le_rfl ?_)
-    rw [dcrRandomGame_dcrDistinguisher_false_eq_true]
-    exact (Game.advantage_comm _ _).le
-  have h5 : Negligible fun n => (5 : ℝ≥0) / 2 ^ n := negligible_const_div_two_pow 5
-  refine negligible_of_le ((h5.add hmid).add h5) fun n => ?_
-  dsimp only [Pi.add_apply]
-  exact Game.advantage_four_hop_le (advantage_gameOn_dcrRealGame_le hsize adversary false n)
-    (advantage_gameOn_dcrRealGame_le hsize adversary true n)
+      (dcrRealGame (fun n => ProbComp.eval (gen n)) (dcrDistinguisher adversary true) n) :=
+    negligible_of_le ((hD false).add (hD true)) fun n =>
+      (Game.advantage_triangle _
+        (dcrRandomGame (fun n => ProbComp.eval (gen n)) (dcrDistinguisher adversary false) n)
+        _).trans (add_le_add le_rfl
+          (dcrRandomGame_dcrDistinguisher_false_eq_true _ _ _ ▸ (Game.advantage_comm _ _).le))
+  have h5 := negligible_const_div_two_pow 5
+  exact negligible_of_le ((h5.add hmid).add h5) fun n =>
+    Game.advantage_four_hop_le (advantage_gameOn_dcrRealGame_le hsize adversary false n)
+      (advantage_gameOn_dcrRealGame_le hsize adversary true n)
 
 end Cslib.Crypto.Paillier

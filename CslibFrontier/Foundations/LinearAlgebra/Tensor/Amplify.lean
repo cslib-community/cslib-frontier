@@ -70,9 +70,7 @@ theorem IsSLDegen.amplify [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X'
   classical
   -- the dual packing
   have hF' : IsSLDegen f h (slSum fun i => Tensor.swap23 (F i))
-      (slSum fun _ : Fin n => Tensor.swap23 S) := by
-    have := hF.swap23
-    rwa [swap23_slSum, swap23_slSum] at this
+      (slSum fun _ : Fin n => Tensor.swap23 S) := by simpa [swap23_slSum] using hF.swap23
   -- the `d`-th powers, as shared-left sums over words
   have h₁ := hF.tpow d
   have h₂ := hF'.tpow d
@@ -87,12 +85,9 @@ theorem IsSLDegen.amplify [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X'
   simp only [Equiv.refl_symm, Equiv.coe_refl, Function.comp_id, Function.id_comp] at h₄
   rw [show 2 * d * h = d * h + d * h by ring]
   -- number the sources
-  refine IsSLDegen.slSum_source_comp (G := fun _ : Fin (n ^ (2 * d)) =>
-    Tensor.tprod (Tensor.tpow d S) (Tensor.tpow d (Tensor.swap23 S)))
-    (Fintype.equivFinOfCardEq (by simp [Fintype.card_prod, two_mul, pow_add]) :
-      (Fin d → Fin n) × (Fin d → Fin n) ≃ Fin (n ^ (2 * d)))
-    (Equiv.injective _) ?_
-  exact h₄
+  exact IsSLDegen.slSum_source_comp
+    (Fintype.equivFinOfCardEq (by simp [Fintype.card_prod, two_mul, pow_add]))
+    (Equiv.injective _) h₄
 
 /-- **Counting words by type** ([Pass][Pass2026], Claim 3.3, in the form used here): the words
 `Fin d → Fin m` with exactly `h` letters in `M`, for `h = 0, …, d`, partition all `m ^ d` words,

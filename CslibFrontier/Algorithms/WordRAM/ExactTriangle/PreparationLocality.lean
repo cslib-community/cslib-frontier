@@ -92,6 +92,12 @@ theorem Output.transfer {n D g p : ℕ} (values : ℕ → ℤ) {initial y initia
   exact ⟨hn, hD, hp, ho, hc, hh, hr, hcounts, hqueries, hdesc, hblocks,
     by simpa only [hh] using hframe⟩
 
+/-- The record region starts at or before the producer's final heap pointer. -/
+theorem Output.output_le_heap {n D g p : ℕ} {values : ℕ → ℤ} {initial y : Data 64}
+    (h : Output n D g p values initial y) : y.regs output ≤ y.regs heap := by
+  rw [h.2.2.2.1, h.2.2.2.2.2.1]
+  exact Nat.le_add_right _ _
+
 /-- Original headers and signed matrices precede every prepared record and its workspace. -/
 theorem Output.inputEnd_le_heap {n D g p : ℕ} {values : ℕ → ℤ} {initial y : Data 64}
     (h : Output n D g p values initial y) : 5 + 3 * (n * n) ≤ y.regs heap := by
@@ -111,14 +117,9 @@ theorem Output.heap_le_budget {n D g p : ℕ} (values : ℕ → ℤ) {initial y 
     (one_le_queryCap hD hDn) (fun _ _ => Nat.count_le _) le_rfl
   have hB : 0 < pieceSize D g := by
     have hs : 0 < sOf D := Nat.sqrt_pos.mpr hD
-    have hc := Nat.le_ceilDiv_mul (a := sOf D) (by omega : 0 < g)
-    change sOf D ≤ pieceSize D g * g at hc
-    by_contra hz
-    have : pieceSize D g = 0 := by omega
-    rw [this, Nat.zero_mul] at hc
-    omega
-  have hH : H ≤ n := (Nat.ceilDiv_le_iff hB).mpr
-    (Nat.le_mul_of_pos_right n hB)
+    have hc : sOf D ≤ pieceSize D g * g := Nat.le_ceilDiv_mul (a := sOf D) (by omega)
+    exact Nat.pos_of_ne_zero fun hz => by rw [hz, Nat.zero_mul] at hc; omega
+  have hH : H ≤ n := (Nat.ceilDiv_le_iff hB).mpr (Nat.le_mul_of_pos_right n hB)
   have hKH := Nat.mul_le_mul hK hH
   have hprod := Nat.mul_le_mul_right (6 + 2 * (n * D)) hKH
   obtain ⟨-, -, -, -, -, hh, -⟩ := h

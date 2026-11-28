@@ -113,15 +113,11 @@ theorem verify_of_mem_transcript (C : QuantumSigningForger) {H : Xofs} {s : Leve
   dsimp only [inv] at ih ⊢
   cases q with
   | inl cmd =>
-    obtain ⟨⟨_, dev⟩, _, eq⟩ := (PMF.mem_support_map_iff ..).mp hs
-    have logEq := congrArg (fun r => r.2.2) eq
-    change current.2 = next.2 at logEq
-    exact logEq ▸ ih
+    rcases (PMF.mem_support_map_iff ..).mp hs with ⟨⟨_, _⟩, _, ⟨⟩⟩
+    exact ih
   | inr sign =>
-    obtain ⟨⟨sig, log'⟩, hs', eq⟩ := (PMF.mem_support_map_iff ..).mp hs
-    have logEq := congrArg (fun r => r.2.2) eq
-    change log' = next.2 at logEq
-    exact logEq ▸ signingOracle_preserves_verified hg sign current.2 ih hs'
+    rcases (PMF.mem_support_map_iff ..).mp hs with ⟨⟨_, _⟩, hs', ⟨⟩⟩
+    exact signingOracle_preserves_verified hg sign current.2 ih hs'
 
 /-- Strong forgery against seeded FIPS at a fixed pair of raw XOFs. The seed and all signing
 hedges are random, and a failed setup loses. The parameter `H` may be the concrete FIPS sponges. -/

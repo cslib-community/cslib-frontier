@@ -74,15 +74,11 @@ private theorem semLineOK_reverse_cons {ls₀ : List L} {y : L} {j : ℕ} {x : L
   by_cases hjl : j < ls₀.length
   · rw [List.getElem?_append_left (by simpa using hjl)] at hj
     exact (ih hj).append (by simpa using hjl) _
-  · have hjl' : j = ls₀.length := by
+  · obtain rfl : j = ls₀.length := by
       have := (List.getElem?_eq_some_iff.1 hj).1
       simp only [List.length_append, List.length_reverse, List.length_singleton] at this
       omega
-    subst hjl'
-    rw [List.getElem?_append_right (by simp)] at hj
-    simp only [List.length_reverse, Nat.sub_self, List.getElem?_cons_zero,
-      Option.some.injEq] at hj
-    subst hj
+    obtain rfl : x = y := by simpa [List.getElem?_append_right] using hj.symm
     exact hy
 
 private theorem semLineOK_of_lineProof (h : LineProof R Γ ls)
@@ -140,10 +136,8 @@ theorem toSemanticRefutation (h : LineProof R Γ ls)
     (hsound : ∀ r ∈ R, ∀ w, (∀ p ∈ r.premises, w ∈ models p) → w ∈ models r.concl)
     {bot : L} (hbot : bot ∈ ls) (hunsat : ∀ w, w ∉ models bot) :
     IsSemanticRefutation init fun j : Fin ls.reverse.length => models ls.reverse[j] := by
-  refine ⟨h.toSemanticDerivation hinit harity hsound, ?_⟩
   obtain ⟨j, hj, e⟩ := List.getElem_of_mem (List.mem_reverse.2 hbot)
-  refine ⟨⟨j, hj⟩, Set.eq_empty_of_forall_notMem fun w hw => ?_⟩
-  simp only [Fin.getElem_fin, e] at hw
-  exact hunsat w hw
+  exact ⟨h.toSemanticDerivation hinit harity hsound, ⟨j, hj⟩,
+    Set.eq_empty_of_forall_notMem fun w hw => hunsat w (by simpa [e] using hw)⟩
 
 end Cslib.Logic.PL.LineProof

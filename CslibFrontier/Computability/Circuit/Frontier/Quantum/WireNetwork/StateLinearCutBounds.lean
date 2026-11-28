@@ -48,7 +48,7 @@ private theorem exists_run_glue_cut_factorization {n N : ℕ}
     (hsplit : ∀ y x : Fin N → Bool,
       (C.matrix : Matrix _ _ ℂ) y x =
         (evalAct L : Matrix (↥A → Bool) (↥A → Bool) ℂ) (A.domRestrict y) (A.domRestrict x) *
-          ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.val) (x q.val))
+          ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.1) (x q.1))
     {V_fin E_fin : Type} [Fintype V_fin] [Fintype E_fin] [DecidableEq E_fin]
     (G : Multigraph V_fin E_fin) (inVert outVert : ↥A ↪ V_fin)
     (F : V_fin → (↥A → Bool) → (↥A → Bool) → (E_fin → Bool) → ℂ)
@@ -72,14 +72,13 @@ private theorem exists_run_glue_cut_factorization {n N : ℕ}
   intro X Y Ecut
   obtain ⟨Φ, Ψ, hamp⟩ := amplitude_cut_factorization G inVert outVert F
     hcontract hloc_in hloc_out hloc_edge P
-  let XP : Set ↥A := {q | inVert q ∈ P}
-  let YP : Set ↥A := {q | outVert q ∈ P}
   let glueX := (Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm
   let glueY := (Equiv.piEquivPiSubtypeProd (· ∈ Y) fun _ => Bool).symm
-  let c_inact : ℂ :=
-      ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (x₀ q.val) (x₀ q.val)
-  obtain ⟨liftXP, liftXPc, hdom_XP', hdom_XPc'⟩ := exists_lift_domRestrict_glue e x₀ heA XP
-  obtain ⟨liftYP, liftYPc, hdom_YP', hdom_YPc'⟩ := exists_lift_domRestrict_glue e x₀ heA YP
+  let c_inact : ℂ := ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (x₀ q.1) (x₀ q.1)
+  obtain ⟨liftXP, liftXPc, hdom_XP', hdom_XPc'⟩ :=
+    exists_lift_domRestrict_glue e x₀ heA {q | inVert q ∈ P}
+  obtain ⟨liftYP, liftYPc, hdom_YP', hdom_YPc'⟩ :=
+    exists_lift_domRestrict_glue e x₀ heA {q | outVert q ∈ P}
   have hdom_XP (a : X → Bool) (b : ↥Xᶜ → Bool) :
       {q | inVert q ∈ P}.domRestrict (A.domRestrict (Quantum.glue e (glueX (a, b)) x₀)) =
         liftXP a := hdom_XP' a b
@@ -100,11 +99,11 @@ private theorem exists_run_glue_cut_factorization {n N : ℕ}
   rw [hdom_XP xP xPc, hdom_XPc xP xPc, hdom_YP yP yPc, hdom_YPc yP yPc] at hamp1
   rw [run_ofLp_eq_matrix_apply, hsplit, hamp1]
   have hcin : (∏ q : {q : Fin N // q ∉ A},
-      (inactU q : Matrix Bool Bool ℂ) (Quantum.glue e (glueY (yP, yPc)) x₀ q.val)
-        (Quantum.glue e (glueX (xP, xPc)) x₀ q.val)) = c_inact := by
-    refine Finset.prod_congr rfl fun q _ => ?_
-    rw [Quantum.glue_of_not e _ x₀ (fun i hi => q.property (heA ⟨i, hi⟩)),
-      Quantum.glue_of_not e _ x₀ (fun i hi => q.property (heA ⟨i, hi⟩))]
+      (inactU q : Matrix Bool Bool ℂ) (Quantum.glue e (glueY (yP, yPc)) x₀ q.1)
+        (Quantum.glue e (glueX (xP, xPc)) x₀ q.1)) = c_inact :=
+    Finset.prod_congr rfl fun q _ => by
+      rw [Quantum.glue_of_not e _ x₀ (fun i hi => q.2 (heA ⟨i, hi⟩)),
+        Quantum.glue_of_not e _ x₀ (fun i hi => q.2 (heA ⟨i, hi⟩))]
   rw [hcin, mul_comm _ c_inact, Finset.mul_sum]
   exact Finset.sum_congr rfl fun _ _ => by ring
 
@@ -120,7 +119,7 @@ private theorem sq_fidelity_phaseState_mul_le_of_capped {n N : ℕ}
     (hsplit : ∀ y x : Fin N → Bool,
       (C.matrix : Matrix _ _ ℂ) y x =
         (evalAct L : Matrix (↥A → Bool) (↥A → Bool) ℂ) (A.domRestrict y) (A.domRestrict x) *
-          ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.val) (x q.val))
+          ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.1) (x q.1))
     {V_fin E_fin : Type} [Fintype V_fin] [Fintype E_fin] [DecidableEq E_fin]
     (G : Multigraph V_fin E_fin) (inVert outVert : ↥A ↪ V_fin)
     (F : V_fin → (↥A → Bool) → (↥A → Bool) → (E_fin → Bool) → ℂ)
@@ -168,11 +167,10 @@ private theorem sq_fidelity_phaseState_mul_le_of_capped {n N : ℕ}
       rw [hUV_re, hUV_im, ← Complex.normSq_eq_norm_sq, Complex.normSq_apply]
       ring
     simp_rw [h1]
-    rw [← Fintype.sum_prod_type']
     have hbij : (∑ p : (Y → Bool) × (↥Yᶜ → Bool), ‖amp (glueY (p.1, p.2))‖ ^ 2) =
         ∑ z : Fin n → Bool, ‖(C.run x₀).ofLp (Quantum.glue e z x₀)‖ ^ 2 :=
       Fintype.sum_equiv glueY _ _ fun p => by simp only [Prod.mk.eta, amp]
-    rw [hbij, ← Finset.sum_image (f := fun y => ‖(C.run x₀).ofLp y‖ ^ 2)
+    rw [← Fintype.sum_prod_type', hbij, ← Finset.sum_image (f := fun y => ‖(C.run x₀).ofLp y‖ ^ 2)
       (fun _ _ _ _ h => glue_left_injective e x₀ h)]
     calc ∑ y ∈ Finset.univ.image (fun z => Quantum.glue e z x₀), ‖(C.run x₀).ofLp y‖ ^ 2
         ≤ Quantum.measureProb (C.run x₀) Finset.univ :=
@@ -185,29 +183,20 @@ private theorem sq_fidelity_phaseState_mul_le_of_capped {n N : ℕ}
         (((∑ a, ∑ b, S_mat a b * (U_re * V_re) a b : ℝ) : ℂ) +
           Complex.I * ((∑ a, ∑ b, S_mat a b * (U_im * V_im) a b : ℝ) : ℂ)) := by
     rw [PiLp.inner_apply]
-    have hsum_z : (∑ y : Fin N → Bool, inner ℂ ((phaseState Q e x₀).ofLp y) ((C.run x₀).ofLp y)) =
-        ∑ z : Fin n → Bool,
-          (((1 / √2) ^ n : ℝ) : ℂ) *
-            ((if BitString.quadForm Q z then -1 else 1) * amp z) := by
-      have hite (y : Fin N → Bool) :
-          inner ℂ ((phaseState Q e x₀).ofLp y) ((C.run x₀).ofLp y) =
-            if Quantum.AgreeOff e y x₀ then
-              inner ℂ ((((1 / √2) ^ n : ℝ) : ℂ) * (if BitString.quadForm Q (y ∘ e) then -1 else 1))
-                ((C.run x₀).ofLp y)
-            else 0 := by
-        rw [phaseState, Quantum.embedState_apply]
-        split_ifs <;> simp_all
-      simp_rw [hite]
-      rw [Quantum.sum_agreeOff e x₀]
-      refine Finset.sum_congr rfl fun z _ => ?_
-      rw [Quantum.glue_comp, RCLike.inner_apply, map_mul, Complex.conj_ofReal]
-      have hconj_sign : (starRingEnd ℂ) (if BitString.quadForm Q z then (-1 : ℂ) else 1) =
-          if BitString.quadForm Q z then -1 else 1 := by
-        cases BitString.quadForm Q z <;> simp
-      rw [hconj_sign]
-      dsimp only [amp]
-      ring
-    rw [hsum_z, ← Finset.mul_sum]
+    have hite (y : Fin N → Bool) :
+        inner ℂ ((phaseState Q e x₀).ofLp y) ((C.run x₀).ofLp y) =
+          if Quantum.AgreeOff e y x₀ then
+            inner ℂ ((((1 / √2) ^ n : ℝ) : ℂ) * (if BitString.quadForm Q (y ∘ e) then -1 else 1))
+              ((C.run x₀).ofLp y) else 0 := by
+      rw [phaseState, Quantum.embedState_apply]
+      split_ifs <;> simp_all
+    simp_rw [hite]
+    rw [Quantum.sum_agreeOff e x₀]
+    refine (Finset.sum_congr rfl (g := fun z => (((1 / √2) ^ n : ℝ) : ℂ) *
+        ((if BitString.quadForm Q z then -1 else 1) * amp z)) fun z _ => ?_).trans ?_
+    · rw [Quantum.glue_comp, RCLike.inner_apply, map_mul, Complex.conj_ofReal]
+      cases BitString.quadForm Q z <;> simp [amp] <;> ring
+    rw [← Finset.mul_sum]
     congr 1
     refine (Fintype.sum_equiv (Equiv.piEquivPiSubtypeProd (· ∈ Y) fun _ => Bool) _
       (fun p => (if BitString.quadForm Q (glueY p) then (-1 : ℂ) else 1) * amp (glueY p))
@@ -229,16 +218,12 @@ private theorem sq_fidelity_phaseState_mul_le_of_capped {n N : ℕ}
         ((∑ a, ∑ b, S_mat a b * (U_re * V_re) a b) ^ 2 +
           (∑ a, ∑ b, S_mat a b * (U_im * V_im) a b) ^ 2) := by
     rw [hinner_eq, norm_mul, mul_pow, Complex.norm_real,
-      Real.norm_of_nonneg (by positivity : (0 : ℝ) ≤ (1 / √2) ^ n)]
-    have h12 : ((1 / √2) ^ n) ^ 2 = 1 / (2 : ℝ) ^ n := by
-      rw [sq_one_div_sqrt_two_pow, div_pow, one_pow]
-    have hre_im (x_r y_r : ℝ) : ‖(x_r : ℂ) + Complex.I * (y_r : ℂ)‖ ^ 2 = x_r ^ 2 + y_r ^ 2 := by
-      rw [← Complex.normSq_eq_norm_sq]
-      simp only [Complex.normSq_apply, Complex.add_re, Complex.ofReal_re, Complex.mul_re,
-        Complex.I_re, zero_mul, Complex.I_im, Complex.ofReal_im, mul_zero, sub_zero, add_zero,
-        Complex.add_im, Complex.mul_im, one_mul, zero_add]
-      ring
-    rw [h12, hre_im]
+      Real.norm_of_nonneg (by positivity : (0 : ℝ) ≤ (1 / √2) ^ n),
+      sq_one_div_sqrt_two_pow, div_pow, one_pow, ← Complex.normSq_eq_norm_sq]
+    simp only [Complex.normSq_apply, Complex.add_re, Complex.ofReal_re, Complex.mul_re,
+      Complex.I_re, zero_mul, Complex.I_im, Complex.ofReal_im, mul_zero, sub_zero, add_zero,
+      Complex.add_im, Complex.mul_im, one_mul, zero_add]
+    ring
   have hfrob (U_m : Matrix (Y → Bool) ((Ecut → Bool) × Bool) ℝ)
       (V_m : Matrix ((Ecut → Bool) × Bool) (↥Yᶜ → Bool) ℝ) :
       (∑ a, ∑ b, S_mat a b * (U_m * V_m) a b) ^ 2 * (2 : ℝ) ^ (Q + Qᵀ).cutRank Y ≤
@@ -282,7 +267,7 @@ private theorem cutRank_linBlockMatrix_le_of_capped {n N : ℕ}
     (hsplit : ∀ y x : Fin N → Bool,
       (C.matrix : Matrix _ _ ℂ) y x =
         (evalAct L : Matrix (↥A → Bool) (↥A → Bool) ℂ) (A.domRestrict y) (A.domRestrict x) *
-          ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.val) (x q.val))
+          ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.1) (x q.1))
     {V_fin E_fin : Type} [Fintype V_fin] [Fintype E_fin] [DecidableEq E_fin]
     (G : Multigraph V_fin E_fin) (inVert outVert : ↥A ↪ V_fin)
     (F : V_fin → (↥A → Bool) → (↥A → Bool) → (E_fin → Bool) → ℂ)
@@ -322,8 +307,8 @@ private theorem cutRank_linBlockMatrix_le_of_capped {n N : ℕ}
       (a : U → Bool) (b : ↥Uᶜ → Bool) (i : Fin n) :
       glueU (a, b) (emb i) =
         (Equiv.piEquivPiSubtypeProd (· ∈ S) fun _ => Bool).symm
-          ((fun k => a ⟨emb k.val, (hemb k.val).mpr k.property⟩),
-           (fun k => b ⟨emb k.val, fun h => k.property ((hemb k.val).mp h)⟩)) i := by
+          ((fun k => a ⟨emb k.1, (hemb k.1).mpr k.2⟩),
+           (fun k => b ⟨emb k.1, fun h => k.2 ((hemb k.1).mp h)⟩)) i := by
     simp only [glueU, Equiv.piEquivPiSubtypeProd_symm_apply]
     by_cases hi : i ∈ S
     · simp only [hi, (hemb i).mpr hi, ↓reduceDIte]
@@ -333,14 +318,12 @@ private theorem cutRank_linBlockMatrix_le_of_capped {n N : ℕ}
     change leaf2n (inl2n n i) ∈ P ↔ inVert ⟨e i, heA ⟨i, rfl⟩⟩ ∈ P; rw [hleaf_in]
   have hinr_mem (j : Fin n) : inr2n n j ∈ U ↔ j ∈ Y := by
     change leaf2n (inr2n n j) ∈ P ↔ outVert ⟨e j, heA ⟨j, rfl⟩⟩ ∈ P; rw [hleaf_out]
-  let x_of_a (a : U → Bool) : X → Bool := fun i =>
-    a ⟨inl2n n i.val, (hinl_mem i.val).mpr i.property⟩
-  let y_of_a (a : U → Bool) : Y → Bool := fun j =>
-    a ⟨inr2n n j.val, (hinr_mem j.val).mpr j.property⟩
+  let x_of_a (a : U → Bool) : X → Bool := fun i => a ⟨inl2n n i.1, (hinl_mem i.1).mpr i.2⟩
+  let y_of_a (a : U → Bool) : Y → Bool := fun j => a ⟨inr2n n j.1, (hinr_mem j.1).mpr j.2⟩
   let x_of_b (b : ↥Uᶜ → Bool) : ↥Xᶜ → Bool :=
-    fun i => b ⟨inl2n n i.val, fun h => i.property ((hinl_mem i.val).mp h)⟩
+    fun i => b ⟨inl2n n i.1, fun h => i.2 ((hinl_mem i.1).mp h)⟩
   let y_of_b (b : ↥Uᶜ → Bool) : ↥Yᶜ → Bool :=
-    fun j => b ⟨inr2n n j.val, fun h => j.property ((hinr_mem j.val).mp h)⟩
+    fun j => b ⟨inr2n n j.1, fun h => j.2 ((hinr_mem j.1).mp h)⟩
   have hglue_inl (a : U → Bool) (b : ↥Uᶜ → Bool) :
       (fun i => glueU (a, b) (inl2n n i)) = glueX (x_of_a a, x_of_b b) :=
     funext (hglue_emb (inl2n n) X hinl_mem a b)
@@ -380,9 +363,9 @@ private theorem cutRank_linBlockMatrix_le_of_capped {n N : ℕ}
         (fun j => if glueU (a, b) (inr2n n j) && glueY (wP, wPc) j then (-1 : ℂ) else 1)]
       congr 1
       · refine Finset.prod_congr rfl fun j _ => ?_
-        simp only [hglue_inr, glueY, Equiv.piEquivPiSubtypeProd_symm_apply, j.property, ↓reduceDIte]
+        simp only [hglue_inr, glueY, Equiv.piEquivPiSubtypeProd_symm_apply, j.2, ↓reduceDIte]
       · refine Finset.prod_congr rfl fun j _ => ?_
-        have hnj : j.val ∉ Y := j.property
+        have hnj : j.1 ∉ Y := j.2
         simp only [hglue_inr, glueY, Equiv.piEquivPiSubtypeProd_symm_apply, hnj, ↓reduceDIte]; rfl
     simp_rw [hprod_y, ← Fintype.sum_prod_type']
     refine (Fintype.sum_equiv (Equiv.piEquivPiSubtypeProd (· ∈ Y) fun _ => Bool)
@@ -414,43 +397,37 @@ private theorem cutRank_linBlockMatrix_le_of_capped {n N : ℕ}
   let V_re := realCutRight Ψ_lin
   have hUV (a : U → Bool) (b : ↥Uᶜ → Bool) : (U_re * V_re) a b = S_mat a b := by
     rw [realCutLeft_mul_realCutRight_apply, hsum_τ, Complex.ofReal_re]
-  have hfrob :
-      (∑ a, ∑ b, S_mat a b * (U_re * V_re) a b) ^ 2 *
-        (2 : ℝ) ^ (linBlockMatrix n R + (linBlockMatrix n R)ᵀ).cutRank U ≤
-      (2 * (2 : ℝ) ^ Ecut.ncard) * (2 : ℝ) ^ (2 * n) * ∑ a, ∑ b, (U_re * V_re) a b ^ 2 := by
-    have h :=
-      Communication.sq_sum_mul_signMatrix_quadForm_le_card_of_mul (linBlockMatrix n R) U U_re V_re
-    exact h.trans_eq (by rw [Fintype.card_fin, card_cut_prod_bool Ecut])
+  have hfrob : (∑ a, ∑ b, S_mat a b * (U_re * V_re) a b) ^ 2 *
+      (2 : ℝ) ^ (linBlockMatrix n R + (linBlockMatrix n R)ᵀ).cutRank U ≤
+      2 * (2 : ℝ) ^ Ecut.ncard * (2 : ℝ) ^ (2 * n) * ∑ a, ∑ b, (U_re * V_re) a b ^ 2 :=
+    (Communication.sq_sum_mul_signMatrix_quadForm_le_card_of_mul (linBlockMatrix n R) U U_re
+      V_re).trans_eq (by rw [Fintype.card_fin, card_cut_prod_bool Ecut])
   have hS_sq (a : U → Bool) (b : ↥Uᶜ → Bool) : S_mat a b ^ 2 = 1 := by
     simp only [S_mat, Communication.signMatrix_apply]
     cases BitString.quadForm (linBlockMatrix n R) (glueU (a, b)) <;> norm_num
-  have hcard_ab := sum_prod_subtype_compl_one U
   have hsum1 : (∑ a : U → Bool, ∑ b : ↥Uᶜ → Bool, S_mat a b * (U_re * V_re) a b) =
-      (2 : ℝ) ^ (2 * n) := by simp_rw [hUV, ← sq, hS_sq]; exact hcard_ab
+      (2 : ℝ) ^ (2 * n) := by
+    simp_rw [hUV, ← sq, hS_sq]
+    exact sum_prod_subtype_compl_one U
   have hsum2 : (∑ a : U → Bool, ∑ b : ↥Uᶜ → Bool, (U_re * V_re) a b ^ 2) =
-      (2 : ℝ) ^ (2 * n) := by simp_rw [hUV, hS_sq]; exact hcard_ab
-  have hfrob' :
-      ((2 : ℝ) ^ (2 * n)) ^ 2 * (2 : ℝ) ^ (linBlockMatrix n R + (linBlockMatrix n R)ᵀ).cutRank U ≤
-      (2 * (2 : ℝ) ^ Ecut.ncard) * (2 : ℝ) ^ (2 * n) * (2 : ℝ) ^ (2 * n) :=
-    (congrArg (fun x => x ^ 2 * _) hsum1.symm).trans_le
-      (hfrob.trans_eq (congrArg (2 * (2 : ℝ) ^ Ecut.ncard * (2 : ℝ) ^ (2 * n) * ·) hsum2))
-  have h2pos : (0 : ℝ) < ((2 : ℝ) ^ (2 * n)) ^ 2 := by positivity
+      (2 : ℝ) ^ (2 * n) := by
+    simp_rw [hUV, hS_sq]
+    exact sum_prod_subtype_compl_one U
   have hpow_r : (2 : ℝ) ^ (linBlockMatrix n R + (linBlockMatrix n R)ᵀ).cutRank U ≤
       (2 : ℝ) ^ (Ecut.ncard + 1) := by
-    refine le_of_mul_le_mul_right ?_ h2pos
-    calc (2 : ℝ) ^ (linBlockMatrix n R + (linBlockMatrix n R)ᵀ).cutRank U *
-            ((2 : ℝ) ^ (2 * n)) ^ 2
-        = ((2 : ℝ) ^ (2 * n)) ^ 2 *
-            (2 : ℝ) ^ (linBlockMatrix n R + (linBlockMatrix n R)ᵀ).cutRank U := mul_comm _ _
-      _ ≤ (2 * (2 : ℝ) ^ Ecut.ncard) * (2 : ℝ) ^ (2 * n) * (2 : ℝ) ^ (2 * n) := hfrob'
-      _ = (2 : ℝ) ^ (Ecut.ncard + 1) * ((2 : ℝ) ^ (2 * n)) ^ 2 := by
+    refine le_of_mul_le_mul_left ?_ (by positivity : (0 : ℝ) < ((2 : ℝ) ^ (2 * n)) ^ 2)
+    calc ((2 : ℝ) ^ (2 * n)) ^ 2 *
+            (2 : ℝ) ^ (linBlockMatrix n R + (linBlockMatrix n R)ᵀ).cutRank U
+        = (∑ a, ∑ b, S_mat a b * (U_re * V_re) a b) ^ 2 *
+            (2 : ℝ) ^ (linBlockMatrix n R + (linBlockMatrix n R)ᵀ).cutRank U :=
+          congrArg (fun x => x ^ 2 * _) hsum1.symm
+      _ ≤ 2 * (2 : ℝ) ^ Ecut.ncard * (2 : ℝ) ^ (2 * n) *
+            ∑ a, ∑ b, (U_re * V_re) a b ^ 2 := hfrob
+      _ = 2 * (2 : ℝ) ^ Ecut.ncard * (2 : ℝ) ^ (2 * n) * (2 : ℝ) ^ (2 * n) :=
+          congrArg (2 * (2 : ℝ) ^ Ecut.ncard * (2 : ℝ) ^ (2 * n) * ·) hsum2
+      _ = ((2 : ℝ) ^ (2 * n)) ^ 2 * (2 : ℝ) ^ (Ecut.ncard + 1) := by
           rw [pow_succ' (2 : ℝ) Ecut.ncard]; ring
-  have hpow_nat : 2 ^ (linBlockMatrix n R + (linBlockMatrix n R)ᵀ).cutRank U ≤
-      2 ^ (Ecut.ncard + 1) := by exact_mod_cast hpow_r
-  dsimp only [U, Ecut] at hpow_nat
-  by_contra! hgt
-  have := Nat.pow_lt_pow_right one_lt_two hgt
-  omega
+  exact (Nat.pow_le_pow_iff_right one_lt_two).mp (by exact_mod_cast hpow_r)
 
 
 end Cslib.Circuits.Frontier

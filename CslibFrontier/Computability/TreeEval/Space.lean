@@ -111,24 +111,17 @@ theorem spaceBound_add_length_le_log_mul_log_log {I : Instance}
   set L := (encNat n).length with hL
   set M := (encNat L).length with hM
   have hn2 : 2 ≤ n := two_le_length_encInstance I
-  have hL2 : 2 ≤ L := by
-    rw [hL, length_encNat_eq_size]
-    exact Nat.lt_size.mpr (by omega)
-  have hM2 : 2 ≤ M := by
-    rw [hM, length_encNat_eq_size]
-    exact Nat.lt_size.mpr (by omega)
+  have hL2 : 2 ≤ L := (Nat.lt_size.mpr (by omega)).trans_eq (length_encNat_eq_size n).symm
+  have hM2 : 2 ≤ M := (Nat.lt_size.mpr (by omega)).trans_eq (length_encNat_eq_size L).symm
   have hℓL : I.ell < L := ell_lt_length_encNat_length_encInstance hH
   have hHL : I.height < L := height_lt_length_encNat_length_encInstance hℓ
-  have hℓM : (encNat I.ell).length ≤ M :=
-    length_encNat_mono hℓL.le
-  have hsp : spaceBound I.ell I.height ≤ (2 * L) * (2 * M) := by
-    rw [spaceBound]
-    exact Nat.mul_le_mul (by omega) (by omega)
+  have hℓM : (encNat I.ell).length ≤ M := length_encNat_mono hℓL.le
+  have hsp : spaceBound I.ell I.height ≤ (2 * L) * (2 * M) :=
+    Nat.mul_le_mul (by omega) (by omega)
   have hn1 : (encNat (n + 1)).length ≤ L + 1 := by
-    rw [length_encNat_eq_size, hL, length_encNat_eq_size]
+    simp only [L, length_encNat_eq_size]
     refine Nat.size_le.mpr ?_
     have := Nat.lt_size_self n
-    have : 2 ≤ 2 ^ n.size := by omega
     rw [pow_succ]
     omega
   nlinarith

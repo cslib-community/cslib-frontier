@@ -141,9 +141,7 @@ theorem det_orientedIncMatrix_submatrix_eq_zero {r w : V} (g : {v // v ≠ r} �
       (fromEdgeSet_range_adj g).2 ⟨k, (Sym2.mk_fst_out_snd_out _).symm⟩
     have : H.Reachable w (g k : Sym2 V).out.1 ↔ H.Reachable w (g k : Sym2 V).out.2 :=
       ⟨fun h => h.trans hadj.reachable, fun h => h.trans hadj.symm.reachable⟩
-    by_cases h1 : H.Reachable w (g k : Sym2 V).out.1
-    · simp [h1, this.1 h1]
-    · simp [h1, mt this.2 h1]
+    simp [this]
 
 /-- If the edges of a family `g` indexed by the vertices other than `r` form a connected spanning
 subgraph, then the square of the minor of the oriented incidence matrix on the rows `v ≠ r` and
@@ -161,15 +159,9 @@ theorem det_orientedIncMatrix_submatrix_sq_eq_one {r : V} (g : {v // v ≠ r} �
   choose p hp using hk
   have hpinj : Function.Injective p := by
     intro v w hvw
-    have h := (hp v).symm.trans (hvw ▸ hp w)
-    rw [Sym2.eq_iff] at h
-    rcases h with ⟨h1, -⟩ | ⟨h1, h2⟩
+    rcases Sym2.eq_iff.1 ((hp v).symm.trans (hvw ▸ hp w)) with ⟨h1, -⟩ | ⟨h1, h2⟩
     · exact Subtype.ext h1
-    · have h3 := hpardist v
-      have h4 := hpardist w
-      rw [h2] at h3
-      rw [← h1] at h4
-      omega
+    · grind [hpardist v, hpardist w]
   obtain ⟨π, hπ⟩ : ∃ π : Equiv.Perm {v // v ≠ r}, ⇑π = p :=
     ⟨Equiv.ofBijective p (Finite.injective_iff_bijective.mp hpinj), rfl⟩
   have hdet := det_permute' π (G.orientedIncMatrix.submatrix Subtype.val g)
@@ -192,18 +184,13 @@ theorem det_orientedIncMatrix_submatrix_sq_eq_one {r : V} (g : {v // v ≠ r} �
         have := hpardist v
         omega
     · simp [hπ]
-  have hdiag : ∀ v : {v // v ≠ r}, G.orientedIncMatrix v (g (p v)) ^ 2 = 1 := by
-    intro v
-    rw [sq, orientedIncMatrix_mul_self, ite_eq_left_iff.mpr
-      (fun h => absurd ((hmem v v).2 (Or.inl rfl)) h)]
-  have hsign : ((Equiv.Perm.sign π : ℤˣ) : ℤ) ^ 2 = 1 := by
-    rcases Int.units_eq_one_or (Equiv.Perm.sign π) with h | h <;> simp [h]
   calc (G.orientedIncMatrix.submatrix Subtype.val g).det ^ 2
       = (G.orientedIncMatrix.submatrix Subtype.val (g ∘ π)).det ^ 2 := by
-        rw [hdet, mul_pow, hsign, one_mul]
+        rw [hdet, mul_pow, ← Units.val_pow_eq_pow_val, Int.units_sq, Units.val_one, one_mul]
     _ = 1 := by
         rw [htri, ← Finset.prod_pow]
-        simp [hdiag]
+        refine Finset.prod_eq_one fun v _ => ?_
+        rw [sq, orientedIncMatrix_mul_self, ite_eq_left ((hmem v v).2 (Or.inl rfl))]
 
 /-- The square of the minor of the oriented incidence matrix on the rows `v ≠ r` and the columns
 `g` is `1` if the edges chosen by `g` form a connected spanning subgraph, and `0` otherwise. -/
@@ -261,29 +248,20 @@ private theorem bijective_spanningTree {m : ℕ} (hm : Fintype.card V = m + 1) :
     have h3 := Set.image_injective.mpr Subtype.val_injective h2
     exact Subtype.ext (Subtype.ext (SetLike.coe_injective h3))
   · obtain ⟨T, hle, htree⟩ := T
-    let S : Finset G.edgeSet := Finset.univ.filter fun x => (x : Sym2 V) ∈ T.edgeSet
-    have himage : Subtype.val '' (S : Set G.edgeSet) = T.edgeSet := by
-      ext x
-      simp only [S, Finset.coe_filter, Finset.mem_univ, true_and, Set.mem_image,
-        Set.mem_ofPred_eq]
-      constructor
-      · rintro ⟨y, hy, rfl⟩
-        exact hy
-      · intro hx
-        exact ⟨⟨x, edgeSet_subset_edgeSet.2 hle hx⟩, hx, rfl⟩
+    let S : Finset G.edgeSet := (Subtype.val ⁻¹' T.edgeSet).toFinset
+    have hT : fromEdgeSet (Subtype.val '' (S : Set G.edgeSet)) = T := by
+      rw [← edgeSet_inj, edgeSet_fromEdgeSet_image, Set.coe_toFinset, Subtype.image_preimage_coe,
+        Set.inter_eq_right.2 (edgeSet_subset_edgeSet.2 hle)]
     have hScard : S.card = m := by
       have := (isTree_iff_connected_and_card.1 htree).2
-      rw [Nat.card_coe_set_eq, ← himage, Set.ncard_image_of_injective _ Subtype.val_injective,
-        Set.ncard_coe_finset, Nat.card_eq_fintype_card, hm] at this
+      rw [← hT, edgeSet_fromEdgeSet_image, Nat.card_coe_set_eq,
+        Set.ncard_image_of_injective _ Subtype.val_injective, Set.ncard_coe_finset,
+        Nat.card_eq_fintype_card, hm] at this
       omega
-    have hT : fromEdgeSet (Subtype.val '' (S : Set G.edgeSet)) = T := by
-      rw [← edgeSet_inj, edgeSet_fromEdgeSet_image]
-      exact himage
-    refine ⟨⟨⟨S, hScard⟩, ?_⟩, ?_⟩
-    · change (fromEdgeSet (Subtype.val '' (S : Set G.edgeSet))).Connected
-      rw [hT]
-      exact htree.connected
-    · exact Subtype.ext hT
+    refine ⟨⟨⟨S, hScard⟩, ?_⟩, Subtype.ext hT⟩
+    change (fromEdgeSet (Subtype.val '' (S : Set G.edgeSet))).Connected
+    rw [hT]
+    exact htree.connected
 
 /-- **The weighted matrix-tree theorem** [Kirchhoff1847]. For edge weights `w : Sym2 V → R` in a
 commutative ring and every vertex `r` of a finite simple graph `G`, the determinant of the reduced
@@ -323,21 +301,15 @@ theorem det_laplacian_weightedAdjMatrix_submatrix_eq_finsum_isTree {R : Type*} [
       ext i k
       simp only [submatrix_apply, mul_diagonal, id]
     have hcast : (N.submatrix id g).det =
-        ((G.orientedIncMatrix.submatrix Subtype.val g).det : R) := by
-      rw [show N.submatrix id g = (G.orientedIncMatrix.submatrix Subtype.val g).map
-          (Int.castRingHom R) from rfl, ← RingHom.mapMatrix_apply, ← RingHom.map_det, eq_intCast]
+        ((G.orientedIncMatrix.submatrix Subtype.val g).det : R) :=
+      (Int.cast_det _).symm
     have hinj : Function.Injective fun k => ((g k : G.edgeSet) : Sym2 V) :=
       Subtype.val_injective.comp ((ofFinEmbEquiv.symm s).injective.comp e.injective)
     have hr : Set.range (fun k => ((g k : G.edgeSet) : Sym2 V)) =
         Subtype.val '' (s : Set G.edgeSet) := by
-      ext x
-      simp only [g, Set.mem_range, Function.comp_apply, Set.mem_image]
-      constructor
-      · rintro ⟨k, rfl⟩
-        exact ⟨_, (mem_range_ofFinEmbEquiv_symm_iff_mem s _).1 ⟨e k, rfl⟩, rfl⟩
-      · rintro ⟨y, hy, rfl⟩
-        obtain ⟨j, hj⟩ := (mem_range_ofFinEmbEquiv_symm_iff_mem s y).2 hy
-        exact ⟨e.symm j, by simp [hj]⟩
+      rw [show (fun k => ((g k : G.edgeSet) : Sym2 V)) = Subtype.val ∘ ofFinEmbEquiv.symm s ∘ e
+        from rfl, Set.range_comp, EquivLike.range_comp]
+      exact congrArg _ (Set.ext (mem_range_ofFinEmbEquiv_symm_iff_mem s))
     rw [← transpose_submatrix, det_transpose, hdiag, det_mul, det_diagonal, hcast,
       mul_right_comm, ← sq, ← Int.cast_pow, det_orientedIncMatrix_submatrix_sq]
     simp only [hr]
@@ -398,8 +370,8 @@ theorem natCard_isTree_eq_card_pow [Nonempty V] :
   classical
   obtain ⟨r⟩ := ‹Nonempty V›
   set n := Fintype.card V with hn
-  have hn0 : 0 < n := Fintype.card_pos
-  have hn' : (n : ℚ) ≠ 0 := by exact_mod_cast hn0.ne'
+  have hn0 : 1 ≤ n := Fintype.card_pos
+  have hn' : (n : ℚ) ≠ 0 := by positivity
   have hm : Fintype.card {v // v ≠ r} = n - 1 := by
     rw [Fintype.card_subtype_compl, Fintype.card_subtype_eq]
   have hcard : Nat.card {T : SimpleGraph V // T.IsTree} =
@@ -413,27 +385,17 @@ theorem natCard_isTree_eq_card_pow [Nonempty V] :
       Subtype.val = (n : ℚ) • (1 + replicateCol Unit (-(n : ℚ)⁻¹ • u) * replicateRow Unit u) := by
     rw [← vecMulVec_eq]
     ext i j
-    by_cases hij : i = j
-    · subst hij
-      have hn1 : 1 ≤ n := hn0
-      simp only [ne_eq, lapMatrix, degMatrix, ← completeGraph_eq_top, complete_graph_degree,
-        adjMatrix_top, submatrix_apply, Matrix.sub_apply, diagonal_apply_eq, of_apply,
-        ↓reduceIte, sub_zero, neg_smul, neg_vecMulVec, smul_vecMulVec, Matrix.smul_apply,
-        Matrix.add_apply, one_apply_eq, Matrix.neg_apply, vecMulVec_apply, mul_one, smul_eq_mul,
-        u]
-      rw [← hn, Nat.cast_sub hn1]
-      field_simp
-      ring
-    · have hij' : (i : V) ≠ j := fun h => hij (Subtype.ext h)
-      simp [lapMatrix, degMatrix, u, vecMulVec_apply, hn', hij, hij']
+    rcases eq_or_ne i j with rfl | hij
+    · simp [lapMatrix, degMatrix, ← completeGraph_eq_top, u, vecMulVec_apply, ← hn,
+        Nat.cast_sub hn0, mul_add, hn', sub_eq_add_neg]
+    · simp [lapMatrix, degMatrix, u, vecMulVec_apply, hn', hij, Subtype.coe_ne_coe.2 hij]
   rw [hsub, det_smul, det_one_add_replicateCol_mul_replicateRow, hm]
   simp only [u, dotProduct, Pi.smul_apply, smul_eq_mul, mul_one, Finset.sum_const,
     Finset.card_univ, hm, nsmul_eq_mul]
   rcases Nat.lt_or_ge n 2 with h2 | h2
-  · have h1 : n = 1 := by omega
-    rw [h1]
+  · rw [show n = 1 by omega]
     norm_num
-  · obtain ⟨k, hk⟩ : ∃ k, n = k + 2 := ⟨n - 2, by omega⟩
+  · obtain ⟨k, hk⟩ := Nat.exists_eq_add_of_le' h2
     rw [hk]
     push_cast
     field_simp

@@ -61,12 +61,9 @@ variable {V : Type*} (G : SimpleGraph V)
 
 /-- The two endpoints `(Quot.out e).1` and `(Quot.out e).2` of an edge are distinct. -/
 theorem out_fst_ne_out_snd_of_mem_edgeSet {e : Sym2 V} (he : e ∈ G.edgeSet) :
-    e.out.1 ≠ e.out.2 := by
-  intro h
-  have : e.IsDiag := by
-    rw [← Sym2.mk_fst_out_snd_out e, Sym2.mk_isDiag_iff]
-    exact h
-  exact G.not_isDiag_of_mem_edgeSet he this
+    e.out.1 ≠ e.out.2 :=
+  fun h => G.not_isDiag_of_mem_edgeSet he
+    (Sym2.mk_fst_out_snd_out e ▸ Sym2.mk_isDiag_iff.mpr h)
 
 /-- The **weighted adjacency matrix** of `G` for edge weights `w : Sym2 V → R`: the entry `(u, v)`
 is `w s(u, v)` if `u` and `v` are adjacent and `0` otherwise. Only the values of `w` on the edges
@@ -105,31 +102,25 @@ theorem sum_mul_orientedIncMatrix [Fintype V] (f : V → ℤ) (e : G.edgeSet) :
 and `0` elsewhere. -/
 theorem orientedIncMatrix_mul_self (u : V) (e : G.edgeSet) :
     G.orientedIncMatrix u e * G.orientedIncMatrix u e = if u ∈ (e : Sym2 V) then 1 else 0 := by
-  have hne := G.out_fst_ne_out_snd_of_mem_edgeSet e.property
+  have hne := G.out_fst_ne_out_snd_of_mem_edgeSet e.2
   have hmem : u ∈ (e : Sym2 V) ↔ u = (e : Sym2 V).out.1 ∨ u = (e : Sym2 V).out.2 := by
     conv_lhs => rw [← Sym2.mk_fst_out_snd_out (e : Sym2 V)]
     exact Sym2.mem_iff
-  by_cases h1 : u = (e : Sym2 V).out.1
-  · subst h1
-    simp [orientedIncMatrix_apply, hne, hmem]
-  · by_cases h2 : u = (e : Sym2 V).out.2
-    · subst h2
-      simp [orientedIncMatrix_apply, Ne.symm hne, hmem]
-    · simp [orientedIncMatrix_apply, h1, h2, hmem]
+  simp only [orientedIncMatrix_apply, hmem]
+  rcases eq_or_ne u (e : Sym2 V).out.1 with h1 | h1 <;>
+    rcases eq_or_ne u (e : Sym2 V).out.2 with h2 | h2 <;> simp_all [Ne.symm]
 
 /-- An entry of the oriented incidence matrix vanishes off the endpoints of its edge. -/
 theorem orientedIncMatrix_eq_zero_of_notMem {u : V} {e : G.edgeSet} (hu : u ∉ (e : Sym2 V)) :
-    G.orientedIncMatrix u e = 0 := by
-  have := orientedIncMatrix_mul_self u e
-  rw [ite_eq_right_iff.mpr (fun h => absurd h hu)] at this
-  exact mul_self_eq_zero.mp this
+    G.orientedIncMatrix u e = 0 :=
+  mul_self_eq_zero.mp (by simpa [hu] using orientedIncMatrix_mul_self u e)
 
 /-- For distinct vertices `u` and `w`, the product of their entries in the column of `e` is `-1`
 when `e` joins them and `0` otherwise. -/
 theorem orientedIncMatrix_mul_of_ne {u w : V} (huw : u ≠ w) (e : G.edgeSet) :
     G.orientedIncMatrix u e * G.orientedIncMatrix w e =
       if (e : Sym2 V) = s(u, w) then -1 else 0 := by
-  have hne := G.out_fst_ne_out_snd_of_mem_edgeSet e.property
+  have hne := G.out_fst_ne_out_snd_of_mem_edgeSet e.2
   have he : (e : Sym2 V) = s((e : Sym2 V).out.1, (e : Sym2 V).out.2) :=
     (Sym2.mk_fst_out_snd_out _).symm
   set a := (e : Sym2 V).out.1
@@ -140,37 +131,52 @@ theorem orientedIncMatrix_mul_of_ne {u w : V} (huw : u ≠ w) (e : G.edgeSet) :
 
 variable [Fintype V] [DecidableRel G.Adj]
 
+private theorem weighted_gram {R : Type*} [CommRing R] (w : Sym2 V → R) :
+    G.orientedIncMatrix.map (Int.cast : ℤ → R) * diagonal (fun e : G.edgeSet => w e) *
+      (G.orientedIncMatrix.map (Int.cast : ℤ → R))ᵀ = (G.weightedAdjMatrix w).laplacian := by
+  ext u v
+  rw [laplacian_apply, Matrix.mul_apply]
+  simp only [mul_diagonal, map_apply, transpose_apply, weightedAdjMatrix_apply]
+  by_cases huv : u = v
+  · subst huv
+    have hsq (e : G.edgeSet) : (G.orientedIncMatrix u e : R) * w e *
+        (G.orientedIncMatrix u e : R) = if u ∈ (e : Sym2 V) then w e else 0 := by
+      rw [mul_right_comm, ← Int.cast_mul, orientedIncMatrix_mul_self]
+      split_ifs <;> simp
+    simp only [↓reduceIte, G.loopless.irrefl, sub_zero, hsq, ← Finset.sum_filter]
+    refine Finset.sum_bij (fun e he => Sym2.Mem.other (Finset.mem_filter.1 he).2)
+      (fun _ _ => by simp [← mem_edgeSet])
+      (fun _ he₁ _ he₂ h => Subtype.ext <| by
+        rw [← Sym2.other_spec (Finset.mem_filter.1 he₁).2,
+          ← Sym2.other_spec (Finset.mem_filter.1 he₂).2, h])
+      (fun x hx => ⟨⟨s(u, x), (Finset.mem_filter.1 hx).2⟩, by simp,
+        Sym2.congr_right.1 (Sym2.other_spec _)⟩)
+      fun _ _ => by rw [Sym2.other_spec]
+  · have hoff (e : G.edgeSet) : (G.orientedIncMatrix u e : R) * w e *
+        (G.orientedIncMatrix v e : R) = if (e : Sym2 V) = s(u, v) then -w e else 0 := by
+      rw [mul_right_comm, ← Int.cast_mul, orientedIncMatrix_mul_of_ne huv]
+      split_ifs <;> simp
+    simp only [hoff, huv, ↓reduceIte, zero_sub]
+    by_cases hadj : G.Adj u v
+    · have hsub : ∀ e : G.edgeSet, (e : Sym2 V) = s(u, v) ↔ e = ⟨s(u, v), hadj⟩ :=
+        fun _ => ⟨fun h => Subtype.ext h, fun h => h ▸ rfl⟩
+      simp [hsub, hadj]
+    · have hne : ∀ e : G.edgeSet, (e : Sym2 V) ≠ s(u, v) :=
+        fun e h => hadj (h ▸ e.2 : s(u, v) ∈ G.edgeSet)
+      simp [hadj, hne]
+
 /-- **The Laplacian is the Gram matrix of the oriented incidence matrix**:
 `N * Nᵀ = G.lapMatrix ℤ`, for the orientation of `SimpleGraph.orientedIncMatrix`. -/
 theorem orientedIncMatrix_mul_transpose :
     G.orientedIncMatrix * G.orientedIncMatrixᵀ = G.lapMatrix ℤ := by
-  ext u w
-  rw [Matrix.mul_apply]
-  simp only [transpose_apply]
-  by_cases huw : u = w
-  · subst huw
-    simp only [orientedIncMatrix_mul_self, lapMatrix, degMatrix, Matrix.sub_apply,
-      diagonal_apply_eq, adjMatrix_apply, G.loopless.irrefl, ite_false, sub_zero,
-      Finset.sum_boole]
-    rw [← card_incidenceFinset_eq_degree]
-    norm_cast
-    refine Finset.card_bij (fun e _ => (e : Sym2 V)) (fun e he => ?_)
-      (fun _ _ _ _ h => Subtype.ext h) (fun e he => ?_)
-    · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at he
-      simp [mem_incidenceFinset, incidenceSet, he]
-    · simp only [mem_incidenceFinset, incidenceSet, Set.mem_ofPred_eq] at he
-      exact ⟨⟨e, he.1⟩, by simp [he.2], rfl⟩
-  · simp only [orientedIncMatrix_mul_of_ne huw, lapMatrix, degMatrix, Matrix.sub_apply,
-      diagonal_apply_ne _ huw, adjMatrix_apply, zero_sub]
-    by_cases hadj : G.Adj u w
-    · have : ∀ x : G.edgeSet, ((x : Sym2 V) = s(u, w)) ↔ x = ⟨s(u, w), hadj⟩ :=
-        fun x => ⟨fun h => Subtype.ext h, fun h => h ▸ rfl⟩
-      simp [this, hadj]
-    · rw [Finset.sum_eq_zero fun x _ => ?_]
-      · simp [hadj]
-      · rw [ite_eq_right_iff]
-        intro hx
-        exact absurd (hx ▸ x.property : s(u, w) ∈ G.edgeSet) hadj
+  have h := weighted_gram (G := G) fun _ => (1 : ℤ)
+  have hmap : G.orientedIncMatrix.map (Int.cast : ℤ → ℤ) = G.orientedIncMatrix := by
+    ext
+    simp
+  rw [hmap, diagonal_one, Matrix.mul_one] at h
+  refine h.trans (Matrix.ext fun u v => ?_)
+  simp [laplacian_apply, lapMatrix, degMatrix, weightedAdjMatrix_apply, diagonal_apply,
+    Finset.sum_boole, ← card_neighborFinset_eq_degree, neighborFinset_eq_filter]
 
 omit [Fintype V] [DecidableEq V] in
 /-- The adjacency matrix of `G` is its weighted adjacency matrix with all weights `1`. -/
@@ -199,49 +205,7 @@ where `N` is `SimpleGraph.orientedIncMatrix G` cast to `R`. -/
 theorem orientedIncMatrix_map_mul_diagonal_mul_transpose {R : Type*} [CommRing R]
     (w : Sym2 V → R) :
     G.orientedIncMatrix.map (Int.cast : ℤ → R) * diagonal (fun e : G.edgeSet => w e) *
-      (G.orientedIncMatrix.map (Int.cast : ℤ → R))ᵀ = (G.weightedAdjMatrix w).laplacian := by
-  ext u v
-  rw [laplacian_apply, Matrix.mul_apply]
-  simp only [mul_diagonal, map_apply, transpose_apply, weightedAdjMatrix_apply]
-  by_cases huv : u = v
-  · subst huv
-    simp only [↓reduceIte, G.loopless.irrefl, sub_zero]
-    have hsq : ∀ e : G.edgeSet, (G.orientedIncMatrix u e : R) * w e *
-        (G.orientedIncMatrix u e : R) = if u ∈ (e : Sym2 V) then w e else 0 := by
-      intro e
-      rw [mul_right_comm, ← Int.cast_mul, orientedIncMatrix_mul_self]
-      split_ifs <;> simp
-    simp only [hsq]
-    rw [← Finset.sum_filter, ← Finset.sum_filter]
-    refine Finset.sum_bij (fun e he => Sym2.Mem.other (Finset.mem_filter.1 he).2)
-      (fun e he => ?_) (fun e₁ he₁ e₂ he₂ h => ?_) (fun x hx => ?_) (fun e he => ?_)
-    · have := Sym2.other_spec (Finset.mem_filter.1 he).2
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-      rw [← mem_edgeSet, this]
-      exact e.property
-    · apply Subtype.ext
-      rw [← Sym2.other_spec (Finset.mem_filter.1 he₁).2,
-        ← Sym2.other_spec (Finset.mem_filter.1 he₂).2, h]
-    · have hadj : G.Adj u x := (Finset.mem_filter.1 hx).2
-      refine ⟨⟨s(u, x), hadj⟩, by simp, ?_⟩
-      exact Sym2.congr_right.1 (Sym2.other_spec _)
-    · rw [Sym2.other_spec]
-  · have hoff : ∀ e : G.edgeSet, (G.orientedIncMatrix u e : R) * w e *
-        (G.orientedIncMatrix v e : R) = if (e : Sym2 V) = s(u, v) then -w e else 0 := by
-      intro e
-      rw [mul_right_comm, ← Int.cast_mul, orientedIncMatrix_mul_of_ne huv]
-      split_ifs <;> simp
-    simp only [hoff, huv, ↓reduceIte, zero_sub]
-    by_cases hadj : G.Adj u v
-    · rw [ite_eq_left_iff.mpr fun h => absurd hadj h,
-        Finset.sum_eq_single (⟨s(u, v), hadj⟩ : G.edgeSet)]
-      · simp
-      · intro e _ he
-        exact ite_eq_right_iff.mpr fun h => absurd (Subtype.ext h) he
-      · simp
-    · rw [ite_eq_right_iff.mpr fun h => absurd h hadj, neg_zero]
-      exact Finset.sum_eq_zero fun e _ =>
-        ite_eq_right_iff.mpr fun (h : (e : Sym2 V) = s(u, v)) =>
-          absurd (h ▸ e.property : s(u, v) ∈ G.edgeSet) hadj
+      (G.orientedIncMatrix.map (Int.cast : ℤ → R))ᵀ = (G.weightedAdjMatrix w).laplacian :=
+  weighted_gram w
 
 end SimpleGraph

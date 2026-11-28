@@ -180,10 +180,7 @@ theorem le_mul_optSocialCost [Nonempty G] {x : ι → G} {α c : ℝ} (hα : 0 �
   rcases hα.eq_or_lt with rfl | hpos
   · obtain ⟨y⟩ := ‹Nonempty G›
     simpa only [zero_mul] using h y
-  · rw [mul_comm, ← div_le_iff₀ hpos, le_optSocialCost_iff]
-    intro y
-    rw [div_le_iff₀ hpos, mul_comm]
-    exact h y
+  · simpa only [mul_comm α, ← div_le_iff₀ hpos, le_optSocialCost_iff] using h
 
 /-- The optimal extended social cost is at most the extended social cost at any location `y`. -/
 theorem optSocialECost_le_socialECost (x : ι → G) (y : G) :
@@ -200,16 +197,13 @@ theorem optSocialECost_lt_top [Nonempty G] (x : ι → G) :
 /-- On a nonempty space, `optSocialECost x` equals `ENNReal.ofReal (optSocialCost x)`. -/
 theorem optSocialECost_eq_ofReal_optSocialCost [Nonempty G] (x : ι → G) :
     optSocialECost x = ENNReal.ofReal (optSocialCost x) := by
-  refine le_antisymm ?_ ?_
+  refine le_antisymm ?_ (le_iInf fun y => ?_)
   · rw [← ENNReal.toReal_le_toReal (optSocialECost_lt_top x).ne ENNReal.ofReal_ne_top,
       ENNReal.toReal_ofReal (optSocialCost_nonneg x)]
-    exact le_ciInf fun y => by
-      have hy := optSocialECost_le_socialECost x y
-      rw [socialECost_eq_ofReal_socialCost] at hy
-      exact ENNReal.toReal_le_of_le_ofReal (socialCost_nonneg x y) hy
-  · exact le_iInf fun y => by
-      rw [socialECost_eq_ofReal_socialCost]
-      exact ENNReal.ofReal_le_ofReal (optSocialCost_le_socialCost x y)
+    exact le_ciInf fun y => ENNReal.toReal_le_of_le_ofReal (socialCost_nonneg x y)
+      (socialECost_eq_ofReal_socialCost x y ▸ optSocialECost_le_socialECost x y)
+  · rw [socialECost_eq_ofReal_socialCost]
+    exact ENNReal.ofReal_le_ofReal (optSocialCost_le_socialCost x y)
 
 /-- A location `y` is optimal for `x` iff its social cost equals `optSocialCost x`. -/
 theorem isOptimal_iff_socialCost_eq_optSocialCost [Nonempty G] {x : ι → G} {y : G} :
@@ -338,31 +332,26 @@ private theorem stronglyMeasurable_dist_left (a : G) : StronglyMeasurable fun y 
 theorem hasFiniteCost_of_exists_integrable {μ : ProbabilityMeasure G}
     (h : ∃ b : G, Integrable (fun y => dist b y) (μ : Measure G)) : HasFiniteCost μ := by
   obtain ⟨b, hb⟩ := h
-  intro a
-  have hmeas : AEStronglyMeasurable (fun y => dist a y) (μ : Measure G) :=
-    (stronglyMeasurable_dist_left a).aestronglyMeasurable
-  have hconst : Integrable (fun _ : G => dist a b) (μ : Measure G) := integrable_const _
-  refine (hconst.add hb).mono' hmeas (Filter.Eventually.of_forall fun y => ?_)
+  refine fun a => ((integrable_const (dist a b)).add hb).mono'
+    (stronglyMeasurable_dist_left a).aestronglyMeasurable (Filter.Eventually.of_forall fun y => ?_)
   rw [Real.norm_eq_abs, abs_of_nonneg dist_nonneg]
   exact dist_triangle a b y
 
 /-- On a compact metric space, every probability measure has finite expected distance cost. -/
 theorem hasFiniteCost_of_compactSpace [CompactSpace G] (μ : ProbabilityMeasure G) :
-    HasFiniteCost μ := by
-  intro a
-  exact (continuous_dist_left a).integrable_of_hasCompactSupport
+    HasFiniteCost μ :=
+  fun a => (continuous_dist_left a).integrable_of_hasCompactSupport
     (HasCompactSupport.of_compactSpace _)
 
 /-- `expectedECost μ a < ⊤` holds if and only if `y ↦ dist a y` is integrable under `μ`. -/
 theorem expectedECost_lt_top_iff_integrable (μ : ProbabilityMeasure G) (a : G) :
     expectedECost μ a < ⊤ ↔ Integrable (fun y => dist a y) (μ : Measure G) := by
-  have hmeas : AEStronglyMeasurable (fun y => dist a y) (μ : Measure G) :=
-    (stronglyMeasurable_dist_left a).aestronglyMeasurable
-  have heq : expectedECost μ a = ∫⁻ y, ‖dist a y‖ₑ ∂(μ : Measure G) := by
-    refine lintegral_congr fun y => ?_
-    rw [Real.eNorm_eq_ofReal_abs, abs_of_nonneg dist_nonneg, edist_dist]
+  have heq : expectedECost μ a = ∫⁻ y, ‖dist a y‖ₑ ∂(μ : Measure G) :=
+    lintegral_congr fun y => by
+      rw [Real.eNorm_eq_ofReal_abs, abs_of_nonneg dist_nonneg, edist_dist]
   rw [heq]
-  exact ⟨fun h => ⟨hmeas, h⟩, fun h => h.hasFiniteIntegral⟩
+  exact ⟨fun h => ⟨(stronglyMeasurable_dist_left a).aestronglyMeasurable, h⟩,
+    fun h => h.hasFiniteIntegral⟩
 
 /-- Under `HasFiniteCost μ`, the extended expected cost from any location `a` is finite. -/
 theorem HasFiniteCost.expectedECost_lt_top {μ : ProbabilityMeasure G} (h : HasFiniteCost μ)
@@ -378,12 +367,10 @@ theorem HasFiniteCost.expectedSocialECost_lt_top [Fintype ι] {μ : ProbabilityM
 integral is `⊤`). -/
 theorem expectedCost_eq_toReal_expectedECost (μ : ProbabilityMeasure G) (a : G) :
     expectedCost μ a = (expectedECost μ a).toReal := by
-  have hmeas : AEStronglyMeasurable (fun y => dist a y) (μ : Measure G) :=
-    (stronglyMeasurable_dist_left a).aestronglyMeasurable
   rw [expectedCost, integral_eq_lintegral_of_nonneg_ae
-    (Filter.Eventually.of_forall fun _ => dist_nonneg) hmeas]
-  congr 1
-  exact lintegral_congr fun y => (edist_dist a y).symm
+    (Filter.Eventually.of_forall fun _ => dist_nonneg)
+    (stronglyMeasurable_dist_left a).aestronglyMeasurable]
+  exact congrArg ENNReal.toReal (lintegral_congr fun y => (edist_dist a y).symm)
 
 /-- Linearity of `expectedSocialECost`: the sum of extended expected costs equals
 `∫⁻ y, socialECost x y ∂μ`. -/
@@ -459,17 +446,10 @@ agent `i`. -/
 theorem isStrategyProof_iff [DecidableEq ι] {M : Mechanism ι G} :
     M.IsStrategyProof ↔ ∀ (x y : ι → G) (i : ι), (∀ j, j ≠ i → x j = y j) →
       expectedECost (M x) (x i) ≤ expectedECost (M y) (x i) := by
-  constructor
-  · intro h x y i hxy
-    have hy : y = Function.update x i (y i) := by
-      funext j
-      by_cases hj : j = i
-      · subst hj; rw [Function.update_self]
-      · rw [Function.update_of_ne hj, hxy j hj]
-    rw [hy]
-    exact h x i (y i)
-  · intro h x i z
-    exact h x (Function.update x i z) i fun j hj => (Function.update_of_ne hj _ _).symm
+  refine ⟨fun h x y i hxy => ?_, fun h x i z =>
+    h x (Function.update x i z) i fun j hj => (Function.update_of_ne hj _ _).symm⟩
+  rw [← Function.update_eq_iff.mpr ⟨rfl, hxy⟩]
+  exact h x i (y i)
 
 /-- Weak group strategyproofness stated in negated form: no nonempty coalition `A` can deviate so
 that every member strictly lowers its expected cost. -/
@@ -477,14 +457,7 @@ theorem isWeakGroupStrategyProof_iff_not_forall_lt [DecidableEq ι] {M : Mechani
     M.IsWeakGroupStrategyProof ↔ ∀ (x z : ι → G) (A : Finset ι),
       ¬ (A.Nonempty ∧
         ∀ i ∈ A, expectedECost (M (A.piecewise z x)) (x i) < expectedECost (M x) (x i)) := by
-  constructor
-  · rintro h x z A ⟨hA, hlt⟩
-    obtain ⟨i, hi, hle⟩ := h x z A hA
-    exact (hlt i hi).not_ge hle
-  · intro h x z A hA
-    by_contra hne
-    push Not at hne
-    exact h x z A ⟨hA, hne⟩
+  simp only [IsWeakGroupStrategyProof, not_and, not_forall, exists_prop, not_lt]
 
 /-- Strong group strategyproofness restated as an implication: any coalitional deviation leaving no
 member of `A` strictly worse off must keep every member's expected cost unchanged. -/
@@ -492,20 +465,15 @@ theorem isGroupStrategyProof_iff_forall_eq [DecidableEq ι] {M : Mechanism ι G}
     M.IsGroupStrategyProof ↔ ∀ (x z : ι → G) (A : Finset ι),
       (∀ i ∈ A, expectedECost (M (A.piecewise z x)) (x i) ≤ expectedECost (M x) (x i)) →
       ∀ i ∈ A, expectedECost (M (A.piecewise z x)) (x i) = expectedECost (M x) (x i) := by
-  constructor
-  · intro h x z A hle i hi
-    refine le_antisymm (hle i hi) ?_
-    by_contra hlt
-    exact h x z A ⟨hle, i, hi, lt_of_not_ge hlt⟩
-  · rintro h x z A ⟨hle, i, hi, hlt⟩
-    exact hlt.ne (h x z A hle i hi)
+  refine ⟨fun h x z A hle i hi => le_antisymm (hle i hi)
+      (not_lt.1 fun hlt => h x z A ⟨hle, i, hi, hlt⟩),
+    fun h x z A ⟨hle, i, hi, hlt⟩ => hlt.ne (h x z A hle i hi)⟩
 
 /-- Strong group strategyproofness implies weak group strategyproofness. -/
 theorem IsGroupStrategyProof.isWeakGroupStrategyProof [DecidableEq ι] {M : Mechanism ι G}
     (h : M.IsGroupStrategyProof) : M.IsWeakGroupStrategyProof := by
-  intro x z A ⟨i, hi⟩
-  by_contra hne
-  push Not at hne
+  rintro x z A ⟨i, hi⟩
+  by_contra! hne
   exact h x z A ⟨fun j hj => (hne j hj).le, i, hi, hne i hi⟩
 
 /-- Weak group strategyproofness implies unilateral strategyproofness (via singleton coalitions). -/
@@ -513,14 +481,7 @@ theorem IsWeakGroupStrategyProof.isStrategyProof [DecidableEq ι] {M : Mechanism
     (h : M.IsWeakGroupStrategyProof) : M.IsStrategyProof := by
   intro x i z
   obtain ⟨j, hj, hle⟩ := h x (Function.const ι z) {i} (Finset.singleton_nonempty i)
-  rcases Finset.mem_singleton.1 hj with rfl
-  have hpw : ({j} : Finset ι).piecewise (Function.const ι z) x = Function.update x j z := by
-    funext k
-    by_cases hk : k = j
-    · subst hk; simp [Finset.piecewise]
-    · simp [Finset.piecewise, hk]
-  rw [← hpw]
-  exact hle
+  simpa only [Finset.mem_singleton.1 hj, Finset.piecewise_singleton, Function.const_apply] using hle
 
 /-- Strong group strategyproofness implies unilateral strategyproofness. -/
 theorem IsGroupStrategyProof.isStrategyProof [DecidableEq ι] {M : Mechanism ι G}
@@ -567,17 +528,12 @@ theorem hasApproxRatio_one_iff_eq [Fintype ι] {M : Mechanism ι G} :
 least `1`. -/
 theorem HasApproxRatio.one_le_of_pos [Fintype ι] {M : Mechanism ι G} {α : ℝ}
     (h : M.HasApproxRatio α) {x : ι → G} (hx : 0 < optSocialECost x) : 1 ≤ α := by
-  have h1 := (optSocialECost_le_expectedSocialECost (M x) x).trans (h x)
-  have hlt : optSocialECost x < ⊤ := by
-    have : Nonempty G := (M x).nonempty
-    exact optSocialECost_lt_top x
-  by_contra hlt1
-  have hα : ENNReal.ofReal α < 1 := ENNReal.ofReal_lt_one.2 (lt_of_not_ge hlt1)
-  have hmul : ENNReal.ofReal α * optSocialECost x < 1 * optSocialECost x := by
-    rw [mul_comm _ (optSocialECost x), mul_comm 1 (optSocialECost x)]
-    exact ENNReal.mul_lt_mul_right hx.ne' hlt.ne hα
-  rw [one_mul] at hmul
-  exact (hmul.trans_le h1).false
+  have : Nonempty G := (M x).nonempty
+  by_contra! hlt1
+  have hmul := ENNReal.mul_lt_mul_right hx.ne' (optSocialECost_lt_top x).ne
+    (ENNReal.ofReal_lt_one.2 hlt1)
+  rw [mul_comm, mul_one] at hmul
+  exact (hmul.trans_le ((optSocialECost_le_expectedSocialECost (M x) x).trans (h x))).false
 
 /-- On a nontrivial metric space with at least two agents, any approximation ratio is at least
 `1`. -/
@@ -585,23 +541,16 @@ theorem HasApproxRatio.one_le {G : Type*} [MetricSpace G] [MeasurableSpace G]
     [OpensMeasurableSpace G] [Nontrivial G] [Fintype ι] (hcard : 2 ≤ Fintype.card ι)
     {M : Mechanism ι G} {α : ℝ} (h : M.HasApproxRatio α) : 1 ≤ α := by
   obtain ⟨a, b, hab⟩ := exists_pair_ne G
-  have hlt1 : 1 < Fintype.card ι := hcard
-  have hpair : ∃ i j : ι, i ≠ j := Fintype.one_lt_card_iff.1 hlt1
-  obtain ⟨i, j, hij⟩ := hpair
+  obtain ⟨i, j, hij⟩ := Fintype.one_lt_card_iff.1 (by omega : 1 < Fintype.card ι)
   classical
   let x : ι → G := fun k => if k = i then a else b
-  have hpos : 0 < optSocialECost x := by
-    refine lt_of_lt_of_le (edist_pos.2 hab) (le_iInf fun y => ?_)
-    have hi : edist a y = edist (x i) y := by simp only [x, ite_true]
-    have hj : edist b y = edist (x j) y := by simp only [x, hij.symm, ite_false]
-    calc edist a b ≤ edist a y + edist y b := edist_triangle a y b
-      _ = edist (x i) y + edist (x j) y := by rw [hi, edist_comm y b, hj]
-      _ ≤ ∑ k, edist (x k) y := by
-        rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i),
-          ← Finset.add_sum_erase _ _ (Finset.mem_erase.2 ⟨hij.symm, Finset.mem_univ j⟩),
-          ← add_assoc]
-        exact le_self_add
-  exact h.one_le_of_pos hpos
+  refine h.one_le_of_pos (x := x) (lt_of_lt_of_le (edist_pos.2 hab) (le_iInf fun y => ?_))
+  calc edist a b ≤ edist a y + edist y b := edist_triangle a y b
+    _ = edist (x i) y + edist (x j) y := by simp only [x, hij.symm, ↓reduceIte, edist_comm y b]
+    _ ≤ ∑ k, edist (x k) y := by
+      rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i),
+        ← Finset.add_sum_erase _ _ (Finset.mem_erase.2 ⟨hij.symm, Finset.mem_univ j⟩), ← add_assoc]
+      exact le_self_add
 
 end FiniteMoment
 
@@ -625,9 +574,7 @@ variable {ι G : Type*} [MeasurableSpace G]
 theorem deterministic_eq_ofPMF_pure (f : (ι → G) → G) :
     deterministic f = ofPMF (fun x => PMF.pure (f x)) := by
   funext x
-  apply ProbabilityMeasure.toMeasure_injective
-  change Measure.dirac (f x) = (PMF.pure (f x)).toMeasure
-  exact (PMF.toMeasure_pure (f x)).symm
+  exact ProbabilityMeasure.toMeasure_injective (PMF.toMeasure_pure (f x)).symm
 
 @[simp]
 theorem deterministic_apply_toMeasure (f : (ι → G) → G) (x : ι → G) :
@@ -704,43 +651,38 @@ theorem expectedSocialCost_deterministic [Fintype ι] (f : (ι → G) → G) (x 
 /-- For a deterministic rule `f`, strategyproofness reduces to pointwise `dist` inequalities. -/
 theorem isStrategyProof_deterministic_iff [DecidableEq ι] (f : (ι → G) → G) :
     (deterministic f).IsStrategyProof ↔
-      ∀ (x : ι → G) (i : ι) (z : G), dist (x i) (f x) ≤ dist (x i) (f (Function.update x i z)) := by
-  refine forall₃_congr fun x i z => ?_
-  simp only [deterministic, expectedECost_dirac, edist_dist]
-  exact ENNReal.ofReal_le_ofReal_iff dist_nonneg
+      ∀ (x : ι → G) (i : ι) (z : G), dist (x i) (f x) ≤ dist (x i) (f (Function.update x i z)) :=
+  forall₃_congr fun _ _ _ => by
+    simp [deterministic, edist_dist, ENNReal.ofReal_le_ofReal_iff dist_nonneg]
 
 /-- For a deterministic rule `f`, weak group strategyproofness reduces to `dist` inequalities. -/
 theorem isWeakGroupStrategyProof_deterministic_iff [DecidableEq ι] (f : (ι → G) → G) :
     (deterministic f).IsWeakGroupStrategyProof ↔
       ∀ (x z : ι → G) (A : Finset ι), A.Nonempty →
-        ∃ i ∈ A, dist (x i) (f x) ≤ dist (x i) (f (A.piecewise z x)) := by
-  refine forall₄_congr fun x z A _ => exists_congr fun i => and_congr_right fun _ => ?_
-  simp only [deterministic, expectedECost_dirac, edist_dist]
-  exact ENNReal.ofReal_le_ofReal_iff dist_nonneg
+        ∃ i ∈ A, dist (x i) (f x) ≤ dist (x i) (f (A.piecewise z x)) :=
+  forall₄_congr fun _ _ _ _ => exists_congr fun _ => and_congr_right fun _ => by
+    simp [deterministic, edist_dist, ENNReal.ofReal_le_ofReal_iff dist_nonneg]
 
 /-- For a deterministic rule `f`, strong group strategyproofness reduces to `dist` inequalities. -/
 theorem isGroupStrategyProof_deterministic_iff [DecidableEq ι] (f : (ι → G) → G) :
     (deterministic f).IsGroupStrategyProof ↔
       ∀ (x z : ι → G) (A : Finset ι),
         ¬ ((∀ i ∈ A, dist (x i) (f (A.piecewise z x)) ≤ dist (x i) (f x)) ∧
-          ∃ i ∈ A, dist (x i) (f (A.piecewise z x)) < dist (x i) (f x)) := by
-  refine forall₃_congr fun x z A => not_congr <| and_congr ?_ ?_
-  · refine forall₂_congr fun i _ => ?_
-    simp only [deterministic, expectedECost_dirac, edist_dist]
-    exact ENNReal.ofReal_le_ofReal_iff dist_nonneg
-  · refine exists_congr fun i => and_congr_right fun _ => ?_
-    simp only [deterministic, expectedECost_dirac, edist_dist]
-    rw [← not_le, ENNReal.ofReal_le_ofReal_iff dist_nonneg, not_le]
+          ∃ i ∈ A, dist (x i) (f (A.piecewise z x)) < dist (x i) (f x)) :=
+  forall₃_congr fun _ _ _ => not_congr <| and_congr
+    (forall₂_congr fun _ _ => by
+      simp [deterministic, edist_dist, ENNReal.ofReal_le_ofReal_iff dist_nonneg])
+    (exists_congr fun _ => and_congr_right fun _ => by
+      simp [deterministic, edist_dist, ENNReal.ofReal_lt_ofReal_iff_of_nonneg dist_nonneg])
 
 /-- On a nonempty space, a deterministic rule `f` has approximation ratio `α ≥ 0` iff
 `socialCost x (f x) ≤ α * optSocialCost x` for every profile `x`. -/
 theorem hasApproxRatio_deterministic_iff [Fintype ι] [Nonempty G] (f : (ι → G) → G)
     {α : ℝ} (hα : 0 ≤ α) :
     (deterministic f).HasApproxRatio α ↔ ∀ x : ι → G, socialCost x (f x) ≤ α * optSocialCost x := by
-  rw [hasApproxRatio_iff_expectedSocialCost_le (M := deterministic f) hα
-    fun x => hasFiniteCost_dirac (f x)]
-  refine forall_congr' fun x => ?_
-  simp only [deterministic, expectedSocialCost_dirac]
+  simpa only [deterministic, expectedSocialCost_dirac] using
+    hasApproxRatio_iff_expectedSocialCost_le (M := deterministic f) hα
+      fun x => hasFiniteCost_dirac (f x)
 
 end Mechanism
 
@@ -772,22 +714,15 @@ theorem expectedECost_ofPMF_map_fintype {α : Type*} [Fintype α] (q : PMF α) (
 
 /-- Every finitely supported `PMF` induces a probability measure with finite expected cost. -/
 theorem hasFiniteCost_ofPMF_of_finite_support (p : PMF G) (hp : p.support.Finite) :
-    HasFiniteCost (p.toMeasure.toProbabilityMeasure) := by
-  intro a
-  rw [← expectedECost_lt_top_iff_integrable, expectedECost_ofPMF]
-  have htsum : ∑' y, p y * edist a y = ∑ y ∈ hp.toFinset, p y * edist a y := by
-    refine tsum_eq_sum fun y hy => ?_
-    rw [hp.mem_toFinset] at hy
-    rw [(p.apply_eq_zero_iff y).2 hy, zero_mul]
-  rw [htsum]
+    HasFiniteCost (p.toMeasure.toProbabilityMeasure) := fun a => by
+  rw [← expectedECost_lt_top_iff_integrable,
+    expectedECost_ofPMF_finset p (fun y hy => (p.apply_eq_zero_iff y).2 (hp.mem_toFinset.not.1 hy))]
   exact ENNReal.sum_lt_top.2 fun y _ => ENNReal.mul_lt_top (p.apply_lt_top y) (edist_lt_top a y)
 
 /-- A mapped `PMF` over a `Finite` type has finite expected cost. -/
 theorem hasFiniteCost_ofPMF_map_finite {α : Type*} [Finite α] (q : PMF α) (g : α → G) :
     HasFiniteCost ((q.map g).toMeasure.toProbabilityMeasure) := by
-  refine hasFiniteCost_ofPMF_of_finite_support _ ?_
-  rw [PMF.support_map]
-  exact (Set.toFinite q.support).image g
+  exact hasFiniteCost_ofPMF_of_finite_support _ (PMF.support_map g q ▸ (Set.toFinite _).image g)
 
 /-- Evaluate the real-valued expected distance cost of a `PMF` as a `tsum` when the weighted
 distances are summable. -/

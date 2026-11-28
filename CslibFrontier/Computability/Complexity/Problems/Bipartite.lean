@@ -119,28 +119,20 @@ theorem side_copyVertex (x v : ℕ) (b : Bool) : side (copyVertex n x v b) = b.t
 theorem copyVertex_lt {x v : ℕ} (b : Bool) (hx : x < n) (hv : v < n) :
     copyVertex n x v b < numVertices n := by
   have h := two_mul_add_lt b hv
-  have : 2 * n * x + 2 * n ≤ 2 * n * n := by
-    rw [← Nat.mul_succ]
-    exact Nat.mul_le_mul_left _ hx
-  simp only [copyVertex, numVertices]
+  have : 2 * n * (x + 1) ≤ 2 * n * n := Nat.mul_le_mul_left _ hx
+  simp only [copyVertex, numVertices, Nat.mul_succ] at this ⊢
   omega
 
 /-- **Every vertex numbered at least `2` is a vertex of a copy.** -/
 theorem eq_copyVertex {r : ℕ} (h₂ : 2 ≤ r) (hr : r < numVertices n) :
     copy n r < n ∧ vert n r < n ∧ side r < 2 ∧
       r = copyVertex n (copy n r) (vert n r) (decide (side r = 1)) := by
-  have hn : 0 < n := by
-    rcases Nat.eq_zero_or_pos n with rfl | h
-    · simp [numVertices] at hr
-      omega
-    · exact h
+  have hn : 0 < n := Nat.pos_of_ne_zero fun h0 => by simp [numVertices, h0] at hr; omega
   have hq : r - 2 < 2 * n * n := by simp only [numVertices] at hr; omega
   have hdiv := Nat.div_add_mod (r - 2) (2 * n)
   have hmod := Nat.mod_lt (r - 2) (show 0 < 2 * n by omega)
   have hmod2 := Nat.div_add_mod ((r - 2) % (2 * n)) 2
-  have hside : side r = (r - 2) % (2 * n) % 2 := by
-    simp only [side]
-    rw [Nat.mod_mod_of_dvd _ (Dvd.intro n rfl)]
+  have hside : side r = (r - 2) % (2 * n) % 2 := Nat.mod_mod_of_dvd _ ⟨n, rfl⟩ |>.symm
   have hs : side r < 2 := Nat.mod_lt _ (by omega)
   refine ⟨Nat.div_lt_of_lt_mul (by rwa [Nat.mul_assoc, Nat.mul_comm n, ← Nat.mul_assoc]),
     by simp only [vert]; omega, hs, ?_⟩
@@ -249,13 +241,11 @@ private theorem mem_of_reachable {V : Type*} {H : SimpleGraph V} {S : Set V}
 
 /-- **The source reaches the target exactly when the graph is not bipartite.** -/
 theorem oddCycleInstance_mem_iff : oddCycleInstance G ∈ USTCON ↔ G ∉ Bipartite := by
-  rw [mem_Bipartite, SimpleGraph.isBipartite_iff_forall_walk_even_length]
+  rw [mem_Bipartite]
   constructor
   · -- a 2-colouring `col` is respected by the copies: in the copy `x`, the side of `(v, b)` is
     -- `b` exactly when `v` has the colour of `x`
-    rintro hst hall
-    rw [← SimpleGraph.isBipartite_iff_forall_walk_even_length] at hall
-    obtain ⟨col⟩ := hall
+    rintro hst ⟨col⟩
     let S : Set (Fin (oddCycleInstance G).n) := {a |
       a.val = 0 ∨ ∃ (_ : 2 ≤ a.val) (hx : copy G.n a.val < G.n) (hv : vert G.n a.val < G.n),
         (side a.val = 0 ↔ col ⟨vert G.n a.val, hv⟩ = col ⟨copy G.n a.val, hx⟩)}
@@ -274,29 +264,25 @@ theorem oddCycleInstance_mem_iff : oddCycleInstance G ∈ USTCON ↔ G ∉ Bipar
         rw [UGraphInstance.adjN, dite_eq_left ⟨hva, hvb⟩] at hab
         have hne := col.valid (show G.graph.Adj ⟨vert G.n a, hva⟩ ⟨vert G.n b, hvb⟩ from hab)
         have hx : (⟨copy G.n b, hxb⟩ : Fin G.n) = ⟨copy G.n a, hxa⟩ := Fin.ext hcopy.symm
-        refine .inr ⟨hb2, hxb, hvb, ?_⟩
-        rw [hx]
-        exact fin_two_aux hsa hsb hside hne hiff
+        exact .inr ⟨hb2, hxb, hvb, hx ▸ fin_two_aux hsa hsb hside hne hiff⟩
       · simp only [Bool.or_eq_true, decide_eq_true_eq] at hab
         rcases hab with ⟨ha2, hb2, hvc, hsb⟩ | ⟨ha2, hb2, hvc, hsa⟩
         · -- an edge from the source
           rcases haS with h0 | ⟨h₂, -⟩
           · obtain ⟨hxb, hvb, -, -⟩ := eq_copyVertex hb2 hb
-            refine .inr ⟨hb2, hxb, hvb, ?_⟩
-            have hx : (⟨vert G.n b, hvb⟩ : Fin G.n) = ⟨copy G.n b, hxb⟩ := Fin.ext hvc
-            simp [hx, hsb, h0]
+            exact .inr ⟨hb2, hxb, hvb, by simp [show (⟨vert G.n b, hvb⟩ : Fin G.n) =
+              ⟨copy G.n b, hxb⟩ from Fin.ext hvc, hsb, h0]⟩
           · omega
         · -- an edge to the source or the target
           rcases haS with h0 | ⟨-, hxa, hva, hiff⟩
           · omega
-          have hx : (⟨vert G.n a, hva⟩ : Fin G.n) = ⟨copy G.n a, hxa⟩ := Fin.ext hvc
-          rw [hx] at hiff
+          rw [show (⟨vert G.n a, hva⟩ : Fin G.n) = ⟨copy G.n a, hxa⟩ from Fin.ext hvc] at hiff
           exact .inl (by simpa [← hsa] using hiff)
     have h1 : (oddCycleInstance G).t ∉ S := by
-      simp only [S, Set.mem_ofPred_eq]
       rintro (h | ⟨h, -⟩) <;> simp [oddCycleInstance] at h
-    exact h1 (mem_of_reachable hS hst (by simp only [S, Set.mem_ofPred_eq]; exact .inl rfl))
+    exact h1 (mem_of_reachable hS hst (.inl rfl))
   · -- an odd closed walk at `x` joins `(x, 0)` and `(x, 1)` in the copy `x`
+    rw [SimpleGraph.isBipartite_iff_forall_walk_even_length]
     intro h
     push Not at h
     obtain ⟨x, p, hp⟩ := h

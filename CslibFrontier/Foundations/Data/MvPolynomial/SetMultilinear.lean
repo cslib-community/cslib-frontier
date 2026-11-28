@@ -86,7 +86,7 @@ theorem blockMonomial_apply [DecidableEq σ] (blk : σ → Fin d) (S : Finset (F
   rw [blockMonomial, Finsupp.finsetSum_apply]
   simp only [Finsupp.single_apply]
   have key (i : S) (hiv : (x i : σ) = v) : (i : Fin d) = blk v :=
-    (x i).property.symm.trans (congrArg blk hiv)
+    (x i).2.symm.trans (congrArg blk hiv)
   split_ifs with h hx
   · rw [Finset.sum_eq_single ⟨blk v, h⟩
       (fun i _ hi => ite_eq_right fun hiv => hi (Subtype.ext (key i hiv)))
@@ -94,7 +94,7 @@ theorem blockMonomial_apply [DecidableEq σ] (blk : σ → Fin d) (S : Finset (F
   · refine Finset.sum_eq_zero fun i _ => ite_eq_right fun hiv => hx ?_
     obtain rfl : i = ⟨blk v, h⟩ := Subtype.ext (key i hiv)
     exact hiv
-  · exact Finset.sum_eq_zero fun i _ => ite_eq_right fun hiv => h (key i hiv ▸ i.property)
+  · exact Finset.sum_eq_zero fun i _ => ite_eq_right fun hiv => h (key i hiv ▸ i.2)
 
 /-- A variable outside the blocks of `S` does not occur in the monomial of a choice on `S`. -/
 theorem blockMonomial_apply_of_notMem (blk : σ → Fin d) {S : Finset (Fin d)}
@@ -107,8 +107,7 @@ one chosen in block `i`, and `0` otherwise. -/
 theorem blockMonomial_apply_of_eq [DecidableEq σ] {blk : σ → Fin d} {S : Finset (Fin d)}
     (x : BlockChoice blk S) {i : S} {v : σ} (hv : blk v = i) :
     blockMonomial blk S x v = if (x i : σ) = v then 1 else 0 := by
-  obtain ⟨i, hi⟩ := i
-  simp only at hv
+  rcases i with ⟨_, hi⟩
   subst hv
   rw [blockMonomial_apply, dite_eq_left hi]
 
@@ -119,14 +118,9 @@ theorem blockMonomial_injective (blk : σ → Fin d) (S : Finset (Fin d)) :
     Function.Injective (blockMonomial blk S) := by
   classical
   intro x y hxy
-  funext i
-  apply Subtype.ext
-  have h := DFunLike.congr_fun hxy (x i : σ)
-  rw [blockMonomial_apply_of_eq x (x i).property, blockMonomial_apply_of_eq y (x i).property,
-    ite_eq_left rfl] at h
+  ext i
   by_contra hne
-  rw [ite_eq_right fun h' => hne h'.symm] at h
-  exact one_ne_zero h
+  simpa [blockMonomial_apply_of_eq _ (x i).2, Ne.symm hne] using DFunLike.congr_fun hxy (x i : σ)
 
 /-- Restricting a choice to a subset of the blocks restricts its monomial to those blocks. -/
 theorem blockMonomial_restrict_apply (blk : σ → Fin d) {S T : Finset (Fin d)} (hTS : T ⊆ S)
@@ -138,7 +132,7 @@ theorem blockMonomial_restrict_apply (blk : σ → Fin d) {S T : Finset (Fin d)}
   · rw [ite_eq_left hT, blockMonomial_apply, blockMonomial_apply, dite_eq_left hT,
       dite_eq_left (hTS hT)]
     rfl
-  · rw [ite_eq_right hT, blockMonomial_apply_of_notMem _ _ hT]
+  · simp [hT, blockMonomial_apply_of_notMem]
 
 /-- Restricting a choice on `A` to the blocks of `A ∩ S` restricts its monomial to the blocks
 of `S`. -/
@@ -147,10 +141,7 @@ theorem blockMonomial_inter_apply (blk : σ → Fin d) {A : Finset (Fin d)} (S :
     blockMonomial blk (A ∩ S) (BlockChoice.restrict Finset.inter_subset_left x) v =
       if blk v ∈ S then blockMonomial blk A x v else 0 := by
   rw [blockMonomial_restrict_apply]
-  by_cases hA : blk v ∈ A
-  · simp only [Finset.mem_inter, hA, true_and]
-  · simp only [Finset.mem_inter, hA, false_and, blockMonomial_apply_of_notMem _ _ hA,
-      ite_self]
+  by_cases hA : blk v ∈ A <;> simp [hA, blockMonomial_apply_of_notMem]
 
 /-- There are `∏ i ∈ S, |block i|` choices of one variable per block of `S`. -/
 theorem card_blockChoice [Fintype σ] (blk : σ → Fin d) (S : Finset (Fin d)) :
@@ -194,10 +185,7 @@ theorem zero : IsSetMultilinear blk S (0 : MvPolynomial σ K) := by
 /-- A sum of set-multilinear polynomials on `S` is set-multilinear on `S`. -/
 theorem add (hf : IsSetMultilinear blk S f) (hg : IsSetMultilinear blk S g) :
     IsSetMultilinear blk S (f + g) := by
-  classical
-  intro m hm
-  rcases Finset.mem_union.mp (support_add hm) with hm | hm
-  exacts [hf m hm, hg m hm]
+  classical exact fun m hm => (Finset.mem_union.mp (support_add hm)).elim (hf m) (hg m)
 
 /-- A scalar multiple of a set-multilinear polynomial on `S` is set-multilinear on `S`. -/
 theorem smul (c : K) (hf : IsSetMultilinear blk S f) : IsSetMultilinear blk S (c • f) :=
@@ -213,50 +201,39 @@ theorem mul (hf : IsSetMultilinear blk S f) (hg : IsSetMultilinear blk T g)
   obtain ⟨x, rfl⟩ := hf m₁ hm₁
   obtain ⟨y, rfl⟩ := hg m₂ hm₂
   refine ⟨fun i => if h : (i : Fin d) ∈ S then x ⟨i, h⟩ else
-    y ⟨i, (Finset.mem_union.mp i.property).resolve_left h⟩, ?_⟩
-  ext v
+    y ⟨i, (Finset.mem_union.mp i.2).resolve_left h⟩, Finsupp.ext fun v => ?_⟩
   rw [Finsupp.add_apply, blockMonomial_apply, blockMonomial_apply, blockMonomial_apply]
   by_cases hS : blk v ∈ S
-  · have hT : blk v ∉ T := Finset.disjoint_left.mp hST hS
-    simp [hS, hT]
+  · simp [hS, Finset.disjoint_left.mp hST hS]
   · by_cases hT : blk v ∈ T <;> simp [hS, hT]
 
 end IsSetMultilinear
 
 /-- A constant is set-multilinear on the empty set of blocks. -/
 theorem isSetMultilinear_C (blk : σ → Fin d) (c : K) : IsSetMultilinear blk ∅ (C c) := by
-  intro m hm
-  refine ⟨fun i => absurd i.property (Finset.notMem_empty _), ?_⟩
   classical
+  intro m hm
   rw [mem_support_iff, coeff_C] at hm
-  obtain rfl : m = 0 := by
-    by_contra h
-    exact hm (ite_eq_right fun e => h e.symm)
-  rw [blockMonomial]
-  exact Finset.sum_of_isEmpty _
+  obtain rfl : m = 0 := by_contra fun h => hm (ite_eq_right (Ne.symm h))
+  exact ⟨fun i => absurd i.2 (Finset.notMem_empty _), Finset.sum_of_isEmpty _⟩
 
 /-- A variable is set-multilinear on its own block. -/
 theorem isSetMultilinear_X (blk : σ → Fin d) (v : σ) :
     IsSetMultilinear blk {blk v} (X v : MvPolynomial σ K) := by
   classical
   intro m hm
-  refine ⟨fun i => ⟨v, (Finset.mem_singleton.mp i.property).symm⟩, ?_⟩
   rw [mem_support_iff, coeff_X] at hm
-  obtain rfl : Finsupp.single v 1 = m := by
-    by_contra h
-    exact hm (ite_eq_right h)
-  ext u
-  rw [blockMonomial_apply, Finsupp.single_apply]
+  obtain rfl : Finsupp.single v 1 = m := by_contra fun h => hm (ite_eq_right h)
+  refine ⟨fun i => ⟨v, (Finset.mem_singleton.mp i.2).symm⟩, Finsupp.ext fun u => ?_⟩
   by_cases huv : v = u
   · subst huv
-    simp
-  · simp [huv]
+    simp [blockMonomial_apply]
+  · simp [blockMonomial_apply, huv]
 
 /-- The constant `1` is set-multilinear on the empty set of blocks. -/
 theorem IsSetMultilinear.one (blk : σ → Fin d) :
-    IsSetMultilinear blk ∅ (1 : MvPolynomial σ K) := by
-  rw [← C_1]
-  exact isSetMultilinear_C blk 1
+    IsSetMultilinear blk ∅ (1 : MvPolynomial σ K) :=
+  C_1 (R := K) (σ := σ) ▸ isSetMultilinear_C blk 1
 
 /-- A finite sum of set-multilinear polynomials on `S` is set-multilinear on `S`. -/
 theorem IsSetMultilinear.sum {blk : σ → Fin d} {S : Finset (Fin d)} {ι : Type*} (s : Finset ι)
@@ -264,9 +241,7 @@ theorem IsSetMultilinear.sum {blk : σ → Fin d} {S : Finset (Fin d)} {ι : Typ
     IsSetMultilinear blk S (∑ i ∈ s, f i) := by
   classical
   induction s using Finset.induction_on with
-  | empty =>
-    rw [Finset.sum_empty]
-    exact .zero
+  | empty => simpa using .zero
   | insert a s ha ih =>
     rw [Finset.sum_insert ha]
     exact (hf a (Finset.mem_insert_self a s)).add
@@ -280,19 +255,14 @@ theorem IsSetMultilinear.prod {blk : σ → Fin d} {ι : Type*} (s : Finset ι)
     IsSetMultilinear blk (s.biUnion T) (∏ i ∈ s, f i) := by
   classical
   induction s using Finset.induction_on with
-  | empty =>
-    rw [Finset.biUnion_empty, Finset.prod_empty]
-    exact .one blk
+  | empty => simpa using .one blk
   | insert a s ha ih =>
     rw [Finset.biUnion_insert, Finset.prod_insert ha]
-    refine (hf a (Finset.mem_insert_self a s)).mul
+    exact (hf a (Finset.mem_insert_self a s)).mul
       (ih (hT.subset (Finset.coe_subset.2 (Finset.subset_insert a s)))
-        fun i hi => hf i (Finset.mem_insert_of_mem hi)) ?_
-    refine (Finset.disjoint_biUnion_right _ _ _).2 fun i hi => hT
-      (Finset.mem_coe.2 (Finset.mem_insert_self a s))
-      (Finset.mem_coe.2 (Finset.mem_insert_of_mem hi)) ?_
-    rintro rfl
-    exact ha hi
+        fun i hi => hf i (Finset.mem_insert_of_mem hi))
+      ((Finset.disjoint_biUnion_right _ _ _).2 fun i hi => hT
+        (Finset.mem_insert_self a s) (Finset.mem_insert_of_mem hi) fun h => ha (h ▸ hi))
 
 
 /-- A set-multilinear polynomial is multilinear: it has degree at most one in every variable. -/
@@ -336,32 +306,28 @@ theorem coeff_mul_blockMonomial {blk : σ → Fin d} {A B S T : Finset (Fin d)}
     simp only [mT, m, Finsupp.add_apply, blockMonomial_inter_apply]
     split_ifs <;> simp
   -- `m` lives on the blocks of `S ∪ T`, so it is the sum of its two parts.
-  have hm : mS + mT = m := by
-    ext v
+  have hm : mS + mT = m := Finsupp.ext fun v => by
     rw [Finsupp.add_apply, hmS, hmT]
     by_cases hS : blk v ∈ S
-    · rw [ite_eq_left hS, ite_eq_right (Finset.disjoint_left.mp hST hS), add_zero]
+    · simp [hS, Finset.disjoint_left.mp hST hS]
     · by_cases hT : blk v ∈ T
-      · rw [ite_eq_right hS, ite_eq_left hT, zero_add]
+      · simp [hS, hT]
       · have hv : blk v ∉ S ∪ T := by simp [hS, hT]
-        rw [ite_eq_right hS, ite_eq_right hT, add_zero]
-        simp only [m, Finsupp.add_apply, blockMonomial_apply_of_notMem _ _ (fun h => hv (hA h)),
-          blockMonomial_apply_of_notMem _ _ (fun h => hv (hB h))]
-  rw [coeff_mul, Finset.sum_eq_single (mS, mT)]
-  · rintro ⟨p₁, p₂⟩ hp hne
-    rw [Finset.mem_antidiagonal] at hp
-    by_contra h
-    have h₁ : p₁ ∈ f.support := mem_support_iff.mpr (left_ne_zero_of_mul h)
-    have h₂ : p₂ ∈ g.support := mem_support_iff.mpr (right_ne_zero_of_mul h)
-    refine hne (Prod.ext ?_ ?_) <;> ext v <;> simp only [hmS, hmT, ← hp, Finsupp.add_apply]
-    · by_cases hS : blk v ∈ S
-      · rw [ite_eq_left hS, hg.apply_eq_zero h₂ (Finset.disjoint_left.mp hST hS), add_zero]
-      · rw [ite_eq_right hS, hf.apply_eq_zero h₁ hS]
-    · by_cases hT : blk v ∈ T
-      · rw [ite_eq_left hT, hf.apply_eq_zero h₁ (Finset.disjoint_right.mp hST hT), zero_add]
-      · rw [ite_eq_right hT, hg.apply_eq_zero h₂ hT]
-  · intro h
-    exact absurd (Finset.mem_antidiagonal.mpr hm) h
+        simp [hS, hT, m, blockMonomial_apply_of_notMem _ _ fun h => hv (hA h),
+          blockMonomial_apply_of_notMem _ _ fun h => hv (hB h)]
+  rw [coeff_mul, Finset.sum_eq_single (mS, mT) ?_ (absurd (Finset.mem_antidiagonal.mpr hm))]
+  rintro ⟨p₁, p₂⟩ hp hne
+  rw [Finset.mem_antidiagonal] at hp
+  by_contra h
+  have h₁ : p₁ ∈ f.support := mem_support_iff.mpr (left_ne_zero_of_mul h)
+  have h₂ : p₂ ∈ g.support := mem_support_iff.mpr (right_ne_zero_of_mul h)
+  refine hne (Prod.ext ?_ ?_) <;> ext v <;> simp only [hmS, hmT, ← hp, Finsupp.add_apply]
+  · by_cases hS : blk v ∈ S
+    · simp [hS, hg.apply_eq_zero h₂ (Finset.disjoint_left.mp hST hS)]
+    · simp [hS, hf.apply_eq_zero h₁ hS]
+  · by_cases hT : blk v ∈ T
+    · simp [hT, hf.apply_eq_zero h₁ (Finset.disjoint_right.mp hST hT)]
+    · simp [hT, hg.apply_eq_zero h₂ hT]
 
 
 end MvPolynomial

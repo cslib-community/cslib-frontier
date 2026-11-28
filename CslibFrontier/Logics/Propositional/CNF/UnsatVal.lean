@@ -94,13 +94,11 @@ formula. -/
 theorem CNF.countUnsat_congr {σ τ : V → Bool} {φ : CNF V} (h : ∀ v ∈ φ.vars, σ v = τ v) :
     φ.countUnsat σ = φ.countUnsat τ := by
   refine List.countP_congr fun c hc => ?_
-  have hc' : ∀ v ∈ CNF.vars [c], σ v = τ v := fun v hv => by
-    obtain ⟨c', hc'', b, hb⟩ := CNF.mem_vars.1 hv
-    rw [List.mem_singleton] at hc''
-    subst hc''
-    exact h v (CNF.mem_vars.2 ⟨c', hc, b, hb⟩)
-  have he : CNF.eval σ [c] = CNF.eval τ [c] := CNF.eval_congr hc'
-  simp only [CNF.eval, List.all_cons, List.all_nil, Bool.and_true] at he
+  have he : c.eval σ = c.eval τ := by
+    simpa [CNF.eval] using CNF.eval_congr (σ := σ) (τ := τ) (φ := [c]) fun v hv => by
+      obtain ⟨c', hc', b, hb⟩ := CNF.mem_vars.1 hv
+      rcases List.mem_singleton.1 hc' with rfl
+      exact h v (CNF.mem_vars.2 ⟨c', hc, b, hb⟩)
   rw [he]
 
 /-! ### The value of a formula -/
@@ -133,33 +131,26 @@ theorem le_unsatVal_iff {c : ℝ} : c ≤ φ.unsatVal ↔ ∀ σ : V → Bool, c
 
 /-- The minimum is attained: the proportions take finitely many values. -/
 theorem exists_countUnsat_div_eq_unsatVal :
-    ∃ σ : V → Bool, (φ.countUnsat σ : ℝ) / φ.length = φ.unsatVal := by
-  have hfin : (Set.range fun σ : V → Bool => (φ.countUnsat σ : ℝ) / φ.length).Finite := by
-    refine (Set.finite_range fun j : Fin (φ.length + 1) => (j : ℝ) / φ.length).subset ?_
-    rintro _ ⟨σ, rfl⟩
-    exact ⟨⟨_, Nat.lt_succ_of_le (φ.countUnsat_le_length σ)⟩, rfl⟩
-  exact (Set.range_nonempty _).csInf_mem hfin
+    ∃ σ : V → Bool, (φ.countUnsat σ : ℝ) / φ.length = φ.unsatVal :=
+  (Set.range_nonempty _).csInf_mem <|
+    (Set.finite_range fun j : Fin (φ.length + 1) => (j : ℝ) / φ.length).subset <| by
+      rintro _ ⟨σ, rfl⟩
+      exact ⟨⟨_, Nat.lt_succ_of_le (φ.countUnsat_le_length σ)⟩, rfl⟩
 
 /-- **The value vanishes exactly on satisfiable formulas.** -/
 theorem unsatVal_eq_zero_iff : φ.unsatVal = 0 ↔ φ.Satisfiable := by
-  constructor
-  · intro h
-    obtain ⟨σ, hσ⟩ := φ.exists_countUnsat_div_eq_unsatVal
-    rw [h, div_eq_zero_iff, Nat.cast_eq_zero, Nat.cast_eq_zero] at hσ
-    rcases hσ with hσ | hσ
-    · exact ⟨σ, countUnsat_eq_zero_iff.1 hσ⟩
-    · exact ⟨σ, by rw [List.length_eq_zero_iff.1 hσ]; rfl⟩
-  · rintro ⟨σ, hσ⟩
-    refine le_antisymm ?_ φ.unsatVal_nonneg
-    simpa [countUnsat_eq_zero_iff.2 hσ] using φ.unsatVal_le σ
+  refine ⟨fun h => ?_, fun ⟨σ, hσ⟩ => le_antisymm
+    (by simpa [countUnsat_eq_zero_iff.2 hσ] using φ.unsatVal_le σ) φ.unsatVal_nonneg⟩
+  obtain ⟨σ, hσ⟩ := φ.exists_countUnsat_div_eq_unsatVal
+  rw [h, div_eq_zero_iff, Nat.cast_eq_zero, Nat.cast_eq_zero] at hσ
+  exact hσ.elim (fun hσ => ⟨σ, countUnsat_eq_zero_iff.1 hσ⟩)
+    fun hσ => ⟨σ, by rw [List.length_eq_zero_iff.1 hσ]; rfl⟩
 
 /-- A formula in which every assignment falsifies a positive proportion of the clauses has a
 clause. -/
-theorem length_pos_of_unsatVal_pos {φ : CNF V} (h : 0 < φ.unsatVal) : 0 < φ.length := by
-  refine Nat.pos_of_ne_zero fun h0 => ?_
-  have hsat : φ.Satisfiable := ⟨fun _ => false, by rw [List.length_eq_zero_iff.1 h0]; rfl⟩
-  rw [(unsatVal_eq_zero_iff φ).2 hsat] at h
-  exact lt_irrefl _ h
+theorem length_pos_of_unsatVal_pos {φ : CNF V} (h : 0 < φ.unsatVal) : 0 < φ.length :=
+  Nat.pos_of_ne_zero fun h0 => h.ne' <| (unsatVal_eq_zero_iff φ).2
+    ⟨fun _ => false, by rw [List.length_eq_zero_iff.1 h0]; rfl⟩
 
 end CNF
 
@@ -204,33 +195,29 @@ variable [Fintype ι] [DecidableEq ι]
 
 /-- Over a uniform random assignment `σ : ι → Bool`, a single variable has mean sign `0`. -/
 private theorem expect_signVal_eval (v : ι) : (𝔼 σ : ι → Bool, signVal (σ v)) = 0 := by
-  have h : (fun σ : ι → Bool => signVal (σ v)) = chi ℝ {v} := by
-    funext σ
-    exact (chi_singleton v σ).symm
-  rw [h, expect_chi, ite_eq_right_iff.2 fun h0 => absurd h0 (singleton_nonempty v).ne_empty]
+  have h : (fun σ : ι → Bool => signVal (σ v)) = chi ℝ {v} :=
+    funext fun σ => (chi_singleton v σ).symm
+  rw [h, expect_chi, ite_eq_right_iff.2 fun h0 => absurd h0 (singleton_ne_empty v)]
 
 /-- Over a uniform random assignment `σ : ι → Bool`, two distinct variables have uncorrelated
 signs. -/
 private theorem expect_signVal_mul_of_ne {v₁ v₂ : ι} (h12 : v₁ ≠ v₂) :
     (𝔼 σ : ι → Bool, signVal (σ v₁) * signVal (σ v₂)) = 0 := by
-  have h : (fun σ : ι → Bool => signVal (σ v₁) * signVal (σ v₂)) =
-      fun σ => chi ℝ {v₁} σ * chi ℝ {v₂} σ := by
-    funext σ
-    rw [chi_singleton, chi_singleton]
-  rw [h, expect_chi_mul_chi, ite_eq_right_iff.2 fun h0 => absurd h0 (singleton_injective.ne h12)]
+  have hchi : (fun σ : ι → Bool => signVal (σ v₁) * signVal (σ v₂)) =
+      fun σ => chi ℝ {v₁} σ * chi ℝ {v₂} σ :=
+    funext fun σ => by rw [chi_singleton, chi_singleton]
+  rw [hchi, expect_chi_mul_chi, ite_eq_right_iff.2 fun h0 => absurd h0 (singleton_injective.ne h12)]
 
 /-- Over a uniform random assignment `σ : ι → Bool`, three pairwise distinct variables have zero
 triple sign correlation. -/
 private theorem expect_signVal_mul_three_of_ne {v₁ v₂ v₃ : ι} (h12 : v₁ ≠ v₂) (h13 : v₁ ≠ v₃)
     (h23 : v₂ ≠ v₃) :
     (𝔼 σ : ι → Bool, signVal (σ v₁) * signVal (σ v₂) * signVal (σ v₃)) = 0 := by
-  have h : (fun σ : ι → Bool => signVal (σ v₁) * signVal (σ v₂) * signVal (σ v₃)) =
-      chi ℝ ({v₁, v₂, v₃} : Finset ι) := by
-    funext σ
-    have hnot1 : v₁ ∉ ({v₂, v₃} : Finset ι) := by simp [h12, h13]
-    have hnot2 : v₂ ∉ ({v₃} : Finset ι) := by simp [h23]
-    rw [chi_eq_prod_signVal, prod_insert hnot1, prod_insert hnot2, prod_singleton, mul_assoc]
-  rw [h, expect_chi, ite_eq_right_iff.2 fun h0 => absurd h0 (insert_nonempty _ _).ne_empty]
+  have hchi : (fun σ : ι → Bool => signVal (σ v₁) * signVal (σ v₂) * signVal (σ v₃)) =
+      chi ℝ ({v₁, v₂, v₃} : Finset ι) := funext fun σ => by
+    rw [chi_eq_prod_signVal, prod_insert (by simp [h12, h13]), prod_insert (by simp [h23]),
+      prod_singleton, mul_assoc]
+  rw [hchi, expect_chi, ite_eq_right_iff.2 fun h0 => absurd h0 (insert_ne_empty _ _)]
 
 /-- **A uniform random assignment falsifies any 3-clause on three distinct variables with
 probability `1 / 8`.** -/
@@ -275,11 +262,9 @@ theorem Clause.IsExactThreeDistinct.card_eval_eq_true {c : Clause (Fin 3)}
     (hc : c.IsExactThreeDistinct) :
     #{σ : Fin 3 → Bool | c.eval σ = true} = 7 := by
   have h := hc.expect_eval_eq_true
-  rw [Fintype.expect_eq_sum_div_card, sum_boole] at h
-  have hcard : (Fintype.card (Fin 3 → Bool) : ℝ) = 8 := by norm_num
-  rw [hcard] at h
-  have h7 : ((#{σ : Fin 3 → Bool | c.eval σ = true} : ℕ) : ℝ) = 7 := by linarith
-  exact_mod_cast h7
+  rw [Fintype.expect_eq_sum_div_card, sum_boole,
+    show (Fintype.card (Fin 3 → Bool) : ℝ) = 8 by norm_num] at h
+  exact_mod_cast (by linarith : ((#{σ : Fin 3 → Bool | c.eval σ = true} : ℕ) : ℝ) = 7)
 
 /-- The expected number of falsified clauses in an exact 3-CNF formula with distinct variables per
 clause under a uniform random assignment is `φ.length / 8`. -/
@@ -289,15 +274,12 @@ theorem CNF.IsExactThreeDistinct.expect_countUnsat {φ : CNF ι}
   induction φ with
   | nil => simp [CNF.countUnsat]
   | cons c φ ih =>
-    have hc : c.IsExactThreeDistinct := hφ c List.mem_cons_self
-    have hφ' : CNF.IsExactThreeDistinct φ := fun d hd => hφ d (List.mem_cons_of_mem _ hd)
-    have hcons (σ : ι → Bool) :
-        ((CNF.countUnsat σ (c :: φ) : ℕ) : ℝ) =
-          (if c.eval σ then (0 : ℝ) else 1) + (CNF.countUnsat σ φ : ℝ) := by
+    have hcons (σ : ι → Bool) : ((CNF.countUnsat σ (c :: φ) : ℕ) : ℝ) =
+        (if c.eval σ then (0 : ℝ) else 1) + (CNF.countUnsat σ φ : ℝ) := by
       rw [CNF.countUnsat, List.countP_cons, ← CNF.countUnsat]
       cases c.eval σ <;> simp [add_comm]
-    simp only [hcons, expect_add_distrib, hc.expect_eval_eq_false, ih hφ', List.length_cons,
-      Nat.cast_add, Nat.cast_one]
+    simp only [hcons, expect_add_distrib, (hφ c List.mem_cons_self).expect_eval_eq_false,
+      ih fun d hd => hφ d (List.mem_cons_of_mem _ hd), List.length_cons, Nat.cast_add, Nat.cast_one]
     ring
 
 end FintypeCube
@@ -313,10 +295,7 @@ theorem Clause.IsExactThreeDistinct.relabel_of_injOn {f : V → ι} {c : Clause 
     (hf : ∀ x ∈ c.map Prod.fst, ∀ y ∈ c.map Prod.fst, f x = f y → x = y)
     (hc : c.IsExactThreeDistinct) : (c.relabel f).IsExactThreeDistinct := by
   refine ⟨by rw [Clause.length_relabel, hc.1], ?_⟩
-  have hmap : (c.relabel f).map Prod.fst = (c.map Prod.fst).map f := by
-    simp [Clause.relabel, List.map_map, Function.comp_def]
-  rw [hmap]
-  exact hc.2.map_on hf
+  simpa [Clause.relabel, List.map_map, Function.comp_def] using hc.2.map_on hf
 
 /-- **The `7 / 8` random-assignment bound**: in every exact 3-CNF formula `φ` with three distinct
 variables per clause, some assignment falsifies at most `1 / 8` of the clauses
@@ -326,33 +305,25 @@ theorem CNF.IsExactThreeDistinct.unsatVal_le_one_eighth {φ : CNF V}
   classical
   let S : Finset V := φ.vars.toFinset
   let toVar (v : V) : Option S := if h : v ∈ S then some ⟨v, h⟩ else none
-  have hφ' : (φ.relabel toVar).IsExactThreeDistinct := by
-    intro c' hc'
+  have hφ' : (φ.relabel toVar).IsExactThreeDistinct := fun c' hc' => by
     obtain ⟨c, hc, rfl⟩ := List.mem_map.1 hc'
     refine (hφ c hc).relabel_of_injOn fun x hx y hy hxy => ?_
     obtain ⟨lx, hlx, rfl⟩ := List.mem_map.1 hx
     obtain ⟨ly, hly, rfl⟩ := List.mem_map.1 hy
-    have hxS : lx.1 ∈ S := List.mem_toFinset.2 (CNF.mem_vars.2 ⟨c, hc, lx.2, hlx⟩)
-    have hyS : ly.1 ∈ S := List.mem_toFinset.2 (CNF.mem_vars.2 ⟨c, hc, ly.2, hly⟩)
-    simp only [toVar, hxS, hyS, ↓reduceDIte, Option.some.injEq, Subtype.mk.injEq] at hxy
-    exact hxy
-  have hle : φ.unsatVal ≤ (φ.relabel toVar).unsatVal := by
-    refine le_ciInf fun τ => ?_
-    rw [CNF.countUnsat_relabel, CNF.relabel, List.length_map]
-    exact φ.unsatVal_le (τ ∘ toVar)
-  refine hle.trans ?_
+    simpa [toVar, S, CNF.mem_vars.2 ⟨c, hc, lx.2, hlx⟩,
+      CNF.mem_vars.2 ⟨c, hc, ly.2, hly⟩] using hxy
+  refine le_trans (b := (φ.relabel toVar).unsatVal) (le_ciInf fun τ => by
+      rw [CNF.countUnsat_relabel, CNF.relabel, List.length_map]
+      exact φ.unsatVal_le (τ ∘ toVar)) ?_
   rcases Nat.eq_zero_or_pos (φ.relabel toVar).length with h0 | hpos
-  · have hsat : (φ.relabel toVar).Satisfiable :=
-      ⟨fun _ => false, by rw [List.length_eq_zero_iff.1 h0]; rfl⟩
-    rw [(CNF.unsatVal_eq_zero_iff _).2 hsat]
+  · rw [(CNF.unsatVal_eq_zero_iff _).2 ⟨fun _ => false, by rw [List.length_eq_zero_iff.1 h0]; rfl⟩]
     norm_num
   · have hlen : (0 : ℝ) < (φ.relabel toVar).length := by exact_mod_cast hpos
     have hle' : (φ.relabel toVar).unsatVal ≤
         𝔼 σ : Option S → Bool, ((φ.relabel toVar).countUnsat σ : ℝ) / (φ.relabel toVar).length := by
       simpa only [Fintype.expect_const] using
         expect_le_expect (s := univ) fun σ _ => (φ.relabel toVar).unsatVal_le σ
-    rw [← expect_div, hφ'.expect_countUnsat, div_right_comm, div_self hlen.ne'] at hle'
-    exact hle'
+    rwa [← expect_div, hφ'.expect_countUnsat, div_right_comm, div_self hlen.ne'] at hle'
 
 /-- In every exact 3-CNF formula `φ` with three distinct variables per clause, there exists an
 assignment falsifying at most `φ.length / 8` clauses (equivalently satisfying at least
@@ -363,11 +334,9 @@ theorem CNF.IsExactThreeDistinct.exists_countUnsat_le_div_eight {φ : CNF V}
   obtain ⟨σ, hσ⟩ := φ.exists_countUnsat_div_eq_unsatVal
   refine ⟨σ, ?_⟩
   rcases Nat.eq_zero_or_pos φ.length with h0 | hpos
-  · have hc0 : φ.countUnsat σ = 0 := Nat.le_zero.1 ((φ.countUnsat_le_length σ).trans_eq h0)
-    simp [hc0, h0]
-  · have hlen : (0 : ℝ) < φ.length := by exact_mod_cast hpos
-    have hle := hφ.unsatVal_le_one_eighth
-    rw [← hσ, div_le_iff₀ hlen] at hle
+  · simp [Nat.le_zero.1 ((φ.countUnsat_le_length σ).trans_eq h0), h0]
+  · have hle := hφ.unsatVal_le_one_eighth
+    rw [← hσ, div_le_iff₀ (by exact_mod_cast hpos : (0 : ℝ) < φ.length)] at hle
     linarith
 
 end Cslib.Logic.PL

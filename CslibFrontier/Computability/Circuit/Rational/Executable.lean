@@ -100,22 +100,18 @@ def atPoint (n N e : ℕ) (x : Fin 3 → ℕ) : Option (Tuple n (Generator.matri
 private lemma U_det_eq_zero (n N e : ℕ) (x : Fin 3 → ℕ) :
     (Generator.integralLift n N e x 0).det = 0 ↔ (Generator.rationalLift n N e x 0).det = 0 := by
   have he := congrArg Matrix.det (Generator.U_cast n N e x 0)
-  rw [Matrix.det_smul] at he
-  simp only [Fintype.card_fin] at he
+  rw [Matrix.det_smul, Fintype.card_fin] at he
   change ((Generator.integralLift n N e x 0).map (fun z : ℤ => (z : ℚ))).det =
-    (CyclotomicRing.dimension e : ℚ) ^ (Generator.matrixDimension e) *
+    (CyclotomicRing.dimension e : ℚ) ^ Generator.matrixDimension e *
       (Generator.rationalLift n N e x 0).det at he
-  have hc : (CyclotomicRing.dimension e : ℚ) ^ (Generator.matrixDimension e) ≠ 0 :=
+  have hc : (CyclotomicRing.dimension e : ℚ) ^ Generator.matrixDimension e ≠ 0 :=
     pow_ne_zero _ (by exact_mod_cast (CyclotomicRing.dimension_pos e).ne')
-  constructor
-  · intro h
-    have hv : (((Generator.integralLift n N e x 0).det : ℤ) : ℚ) = 0 := by simp [h]
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · have hv : (((Generator.integralLift n N e x 0).det : ℤ) : ℚ) = 0 := by simp [h]
     rw [Int.cast_det, he] at hv
     exact (mul_eq_zero.mp hv).resolve_left hc
-  · intro h
-    have hv : (((Generator.integralLift n N e x 0).det : ℤ) : ℚ) = 0 := by
-      rw [Int.cast_det, he, h, mul_zero]
-    exact_mod_cast hv
+  · exact_mod_cast (show (((Generator.integralLift n N e x 0).det : ℤ) : ℚ) = 0 by
+      rw [Int.cast_det, he, h, mul_zero])
 
 /-- Exact pointwise equality, including points rejected by the original determinant test. -/
 theorem atPoint_spec (n N e : ℕ) (x : Fin 3 → ℕ) :
@@ -125,12 +121,11 @@ theorem atPoint_spec (n N e : ℕ) (x : Fin 3 → ℕ) :
   · simp [hz, (U_det_eq_zero n N e x).mpr hz]
   · have hu := mt (U_det_eq_zero n N e x).mp hz
     simp only [hz, hu, ite_false, Option.some.injEq]
-    funext a i j
-    rw [tuple_normalized]
+    ext a i j
     have hh := normalizedEntry_spec ((inputTables n N e x).get 0)
       ((inputTables n N e x).get a.succ) (by simpa using hu) i j
     simp only [inputTables_denote, determinant_eq] at hh
-    rw [hh, Generator.tupleAt_integer n N e x hz a]
+    rw [tuple_normalized, hh, Generator.tupleAt_integer n N e x hz a]
 
 /-- A computable generator preserving the list and its order. -/
 def output (n N e H : ℕ) : Output n where
@@ -159,9 +154,8 @@ theorem encoded_spec (n s : ℕ) : encoded n s = encodeOutput (Generator.list n 
 theorem exact_output (n s : ℕ) (hs : 1 ≤ s) :
     (list n s).dimension ≤ 256 * (n + s + 1) ^ 10 ∧
     (encodeOutput (list n s)).length ≤ PolynomialBounds.outputConstant * (n + s + 1) ^ 104 ∧
-    Hits s (list n s) := by
-  rw [list_spec]
-  exact ⟨Generator.list_dimension_bound n s, Generator.list_output_bound n s,
+    Hits s (list n s) :=
+  list_spec n s ▸ ⟨Generator.list_dimension_bound n s, Generator.list_output_bound n s,
     Generator.list_hits n s hs⟩
 
 end Rational.ExecutableGenerator

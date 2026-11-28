@@ -107,9 +107,9 @@ theorem sumElimSnd {f : π × α → ε} {g : π × β → ε} {Tf Sf : π × α
     · enc_len [enc]
   -- the two branches, on their cases
   let L : {p : π × (α ⊕ β) // p.2.isLeft = true} → π × α :=
-    fun p => (p.val.1, p.val.2.getLeft (by simpa using p.property))
+    fun p => (p.1.1, p.1.2.getLeft (by simpa using p.2))
   let R : {p : π × (α ⊕ β) // p.2.isLeft = false} → π × β :=
-    fun p => (p.val.1, p.val.2.getRight (by simpa using p.property))
+    fun p => (p.1.1, p.1.2.getRight (by simpa using p.2))
   have hL := keepFrame_drop (encP := encP) (encA := encA)
     (encS := (Function.Embedding.subtype _).trans enc) (h := L) 1
     fun ⟨⟨x, s⟩, hs⟩ => by
@@ -125,44 +125,22 @@ theorem sumElimSnd {f : π × α → ε} {g : π × β → ε} {Tf Sf : π × α
   obtain ⟨c₀, ⟨k₀, Q₀, _, tm₀, h₀⟩, -⟩ := Internal.NormalForm.inO htest
   obtain ⟨c₁, ⟨k₁, Q₁, _, tm₁, h₁⟩, l₁⟩ := Internal.NormalForm.inO (hf.comp hL)
   obtain ⟨c₂, ⟨k₂, Q₂, _, tm₂, h₂⟩, l₂⟩ := Internal.NormalForm.inO (hg.comp hR)
-  have hF₁ : ∀ q : {p : π × (α ⊕ β) // p.2.isLeft = true}, F q.val = f (L q) := by
-    rintro ⟨⟨x, s⟩, hs⟩
-    cases s with
-    | inl a => rfl
-    | inr b => simp at hs
-  have hF₂ : ∀ q : {p : π × (α ⊕ β) // p.2.isLeft = false}, F q.val = g (R q) := by
-    rintro ⟨⟨x, s⟩, hs⟩
-    cases s with
-    | inl a => simp at hs
-    | inr b => rfl
   let Tl : π × (α ⊕ β) → ℕ := fun p => p.2.elim (fun a => Tf (p.1, a)) (fun _ => 0)
   let Sl : π × (α ⊕ β) → ℕ := fun p => p.2.elim (fun a => Sf (p.1, a)) (fun _ => 0)
   let Tr : π × (α ⊕ β) → ℕ := fun p => p.2.elim (fun _ => 0) (fun b => Tg (p.1, b))
   let Sr : π × (α ⊕ β) → ℕ := fun p => p.2.elim (fun _ => 0) (fun b => Sg (p.1, b))
-  have hlenL : ∀ q : {p : π × (α ⊕ β) // p.2.isLeft = true},
-      ((Function.Embedding.subtype _).trans enc q).length = (enc q.val).length := fun _ => rfl
-  have hlenR : ∀ q : {p : π × (α ⊕ β) // p.2.isLeft = false},
-      ((Function.Embedding.subtype _).trans enc q).length = (enc q.val).length := fun _ => rfl
   obtain ⟨k, K, Q, _, tm, h⟩ := Internal.conditional h₀ (f := F) (g := F)
     (tf := fun p => c₁ * ((enc p).length + Tl p + 1))
     (sf := fun p => c₁ * ((enc p).length + Sl p + 1))
     (tg := fun p => c₂ * ((enc p).length + Tr p + 1))
     (sg := fun p => c₂ * ((enc p).length + Sr p + 1))
-    (fun q => by
-      have hq := h₁ q
-      dsimp only [Function.comp_apply] at hq
-      rw [← hF₁ q] at hq
-      rcases q with ⟨⟨x, s⟩, hs⟩
+    (fun ⟨⟨x, s⟩, hs⟩ => by
       cases s with
-      | inl a => exact hq.mono le_rfl le_rfl
+      | inl a => exact (h₁ ⟨(x, .inl a), hs⟩).mono le_rfl le_rfl
       | inr b => simp at hs)
-    (fun q => by
-      have hq := h₂ q
-      dsimp only [Function.comp_apply] at hq
-      rw [← hF₂ q] at hq
-      rcases q with ⟨⟨x, s⟩, hs⟩
+    (fun ⟨⟨x, s⟩, hs⟩ => by
       cases s with
-      | inr b => exact hq.mono le_rfl le_rfl
+      | inr b => exact (h₂ ⟨(x, .inr b), hs⟩).mono le_rfl le_rfl
       | inl a => simp at hs)
   simp only [ite_self] at h
   refine of_bounds ⟨K, Q, inferInstance, tm, fun p => (h p).computesInTimeAndSpace⟩
@@ -173,18 +151,15 @@ theorem sumElimSnd {f : π × α → ε} {g : π × β → ε} {Tf Sf : π × α
   · obtain ⟨x, s⟩ := p
     cases s <;> simp only [Sl, Sr, Sum.isLeft_inl, Sum.isLeft_inr, Sum.elim_inl, Sum.elim_inr,
       ite_true, ite_false, Bool.false_eq_true] <;> nlinarith
-  · obtain ⟨x, s⟩ := p
-    cases s with
-    | inl a =>
-      have := l₁ ⟨(x, .inl a), rfl⟩
-      simp only [Function.comp_apply, L, Sum.getLeft_inl] at this
-      simp only [F, Sum.elim_inl]
-      nlinarith [hlenL ⟨(x, .inl a), rfl⟩]
-    | inr b =>
-      have := l₂ ⟨(x, .inr b), rfl⟩
-      simp only [Function.comp_apply, R, Sum.getRight_inr] at this
-      simp only [F, Sum.elim_inr]
-      nlinarith [hlenR ⟨(x, .inr b), rfl⟩]
+  · obtain ⟨x, a | b⟩ := p
+    · have h := l₁ ⟨(x, .inl a), rfl⟩
+      simp only [Function.comp_apply, L, Sum.getLeft_inl, Function.Embedding.trans_apply,
+        Function.Embedding.coe_subtype, F, Sum.elim_inl] at h ⊢
+      nlinarith
+    · have h := l₂ ⟨(x, .inr b), rfl⟩
+      simp only [Function.comp_apply, R, Sum.getRight_inr, Function.Embedding.trans_apply,
+        Function.Embedding.coe_subtype, F, Sum.elim_inr] at h ⊢
+      nlinarith
 
 /-- **Case analysis on an option component.** If `f` is computable on the first component in the
 `none` case and `g` on the pair in the `some` case, so is the case analysis, within the bounds of
@@ -219,9 +194,9 @@ theorem optionElimSnd {f : π → ε} {g : π × α → ε} {Tf Sf : π → ℕ}
     · obtain ⟨x, _ | a⟩ := p <;> rfl
     all_goals simp only [encBool_apply, List.length_singleton]; omega
   -- the two branches, on their cases
-  let N : {p : π × Option α // p.2.isSome = false} → π := fun p => p.val.1
+  let N : {p : π × Option α // p.2.isSome = false} → π := fun p => p.1.1
   let S : {p : π × Option α // p.2.isSome = true} → π × α :=
-    fun p => (p.val.1, p.val.2.get p.property)
+    fun p => (p.1.1, p.1.2.get p.2)
   have hN : ComputableInO N ((Function.Embedding.subtype _).trans enc) encP
       (fun s => ((Function.Embedding.subtype _).trans enc s).length)
       (fun s => ((Function.Embedding.subtype _).trans enc s).length) :=
@@ -235,44 +210,22 @@ theorem optionElimSnd {f : π → ε} {g : π × α → ε} {Tf Sf : π → ℕ}
   obtain ⟨c₀, ⟨k₀, Q₀, _, tm₀, h₀⟩, -⟩ := Internal.NormalForm.inO htest
   obtain ⟨c₁, ⟨k₁, Q₁, _, tm₁, h₁⟩, l₁⟩ := Internal.NormalForm.inO (hg.comp hS)
   obtain ⟨c₂, ⟨k₂, Q₂, _, tm₂, h₂⟩, l₂⟩ := Internal.NormalForm.inO (hf.comp hN)
-  have hF₁ : ∀ q : {p : π × Option α // p.2.isSome = true}, F q.val = g (S q) := by
-    rintro ⟨⟨x, o⟩, ho⟩
-    cases o with
-    | none => simp at ho
-    | some a => rfl
-  have hF₂ : ∀ q : {p : π × Option α // p.2.isSome = false}, F q.val = f (N q) := by
-    rintro ⟨⟨x, o⟩, ho⟩
-    cases o with
-    | none => rfl
-    | some a => simp at ho
   let Ts : π × Option α → ℕ := fun p => p.2.elim 0 (fun a => Tg (p.1, a))
   let Ss : π × Option α → ℕ := fun p => p.2.elim 0 (fun a => Sg (p.1, a))
   let Tn : π × Option α → ℕ := fun p => p.2.elim (Tf p.1) (fun _ => 0)
   let Sn : π × Option α → ℕ := fun p => p.2.elim (Sf p.1) (fun _ => 0)
-  have hlenS : ∀ q : {p : π × Option α // p.2.isSome = true},
-      ((Function.Embedding.subtype _).trans enc q).length = (enc q.val).length := fun _ => rfl
-  have hlenN : ∀ q : {p : π × Option α // p.2.isSome = false},
-      ((Function.Embedding.subtype _).trans enc q).length = (enc q.val).length := fun _ => rfl
   obtain ⟨k, K, Q, _, tm, h⟩ := Internal.conditional h₀ (f := F) (g := F)
     (tf := fun p => c₁ * ((enc p).length + Ts p + 1))
     (sf := fun p => c₁ * ((enc p).length + Ss p + 1))
     (tg := fun p => c₂ * ((enc p).length + Tn p + 1))
     (sg := fun p => c₂ * ((enc p).length + Sn p + 1))
-    (fun q => by
-      have hq := h₁ q
-      dsimp only [Function.comp_apply] at hq
-      rw [← hF₁ q] at hq
-      rcases q with ⟨⟨x, o⟩, ho⟩
+    (fun ⟨⟨x, o⟩, ho⟩ => by
       cases o with
-      | some a => exact hq.mono le_rfl le_rfl
+      | some a => exact (h₁ ⟨(x, some a), ho⟩).mono le_rfl le_rfl
       | none => simp at ho)
-    (fun q => by
-      have hq := h₂ q
-      dsimp only [Function.comp_apply] at hq
-      rw [← hF₂ q] at hq
-      rcases q with ⟨⟨x, o⟩, ho⟩
+    (fun ⟨⟨x, o⟩, ho⟩ => by
       cases o with
-      | none => exact hq.mono le_rfl le_rfl
+      | none => exact (h₂ ⟨(x, none), ho⟩).mono le_rfl le_rfl
       | some a => simp at ho)
   simp only [ite_self] at h
   refine of_bounds ⟨K, Q, inferInstance, tm, fun p => (h p).computesInTimeAndSpace⟩
@@ -283,17 +236,14 @@ theorem optionElimSnd {f : π → ε} {g : π × α → ε} {Tf Sf : π → ℕ}
   · obtain ⟨x, o⟩ := p
     cases o <;> simp only [Ss, Sn, Option.isSome_none, Option.isSome_some, Option.elim_none,
       Option.elim_some, ite_true, ite_false, Bool.false_eq_true] <;> nlinarith
-  · obtain ⟨x, o⟩ := p
-    cases o with
-    | none =>
-      have := l₂ ⟨(x, none), rfl⟩
-      simp only [Function.comp_apply, N] at this
-      simp only [F, Option.elim_none]
-      nlinarith [hlenN ⟨(x, none), rfl⟩]
-    | some a =>
-      have := l₁ ⟨(x, some a), rfl⟩
-      simp only [Function.comp_apply, S, Option.get_some] at this
-      simp only [F, Option.elim_some]
-      nlinarith [hlenS ⟨(x, some a), rfl⟩]
+  · obtain ⟨x, _ | a⟩ := p
+    · have h := l₂ ⟨(x, none), rfl⟩
+      simp only [Function.comp_apply, N, Function.Embedding.trans_apply,
+        Function.Embedding.coe_subtype, F, Option.elim_none] at h ⊢
+      nlinarith
+    · have h := l₁ ⟨(x, some a), rfl⟩
+      simp only [Function.comp_apply, S, Option.get_some, Function.Embedding.trans_apply,
+        Function.Embedding.coe_subtype, F, Option.elim_some] at h ⊢
+      nlinarith
 
 end Turing.MultiTapeTM.ComputableInO

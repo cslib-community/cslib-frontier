@@ -49,11 +49,6 @@ theorem getElem_completeHistoryAt_ne {P Data : Type*}
     (hne : k ≠ opId) (hk : k < (completeHistoryAt hist opId newSt).length) :
     (completeHistoryAt hist opId newSt)[k]'hk =
       hist[k]'((length_completeHistoryAt hist opId newSt) ▸ hk) := by
-  have hk₀ : k < hist.length := (length_completeHistoryAt hist opId newSt) ▸ hk
-  suffices ∀ ys, completeHistoryAt hist opId newSt = ys →
-      ∀ (hy : k < ys.length), ys[k]'hy = hist[k]'hk₀ from this _ rfl hk
-  intro ys hys hy
-  subst hys
   by_cases hop : opId < hist.length
   · simp only [completeHistoryAt, List.getElem?_eq_getElem hop, List.getElem_set_ne (Ne.symm hne)]
   · simp only [completeHistoryAt, List.getElem?_eq_none (Nat.le_of_not_lt hop)]
@@ -133,10 +128,10 @@ theorem stepSnapshot_effect {P Data : Type*} [Fintype P] [DecidableEq P]
     | embedded val =>
       exact ⟨⟨.readyToWrite st.opId val snap, rfl⟩, rfl, Or.inl rfl⟩
   rcases ev with j | ⟨j, val⟩ | j
-  · obtain ⟨-, rfl⟩ := stepSnapshot_invokeScan_eq h
-    exact ⟨⟨_, rfl⟩, Or.inr ⟨(by rintro ⟨_, _, _, _, h1, _⟩; cases h1), rfl,
-      Or.inr (Or.inl ⟨_, rfl, rfl⟩)⟩⟩
-  · obtain ⟨-, rfl⟩ := stepSnapshot_invokeUpdate_eq h
+  iterate 2
+    first
+    | obtain ⟨-, rfl⟩ := stepSnapshot_invokeScan_eq h
+    | obtain ⟨-, rfl⟩ := stepSnapshot_invokeUpdate_eq h
     exact ⟨⟨_, rfl⟩, Or.inr ⟨(by rintro ⟨_, _, _, _, h1, _⟩; cases h1), rfl,
       Or.inr (Or.inl ⟨_, rfl, rfl⟩)⟩⟩
   · unfold stepSnapshot at h
@@ -153,18 +148,15 @@ theorem stepSnapshot_effect {P Data : Type*} [Fintype P] [DecidableEq P]
             s.proc j' = .readyToWrite opId val snap := by
         rintro ⟨_, _, _, _, h1, h2⟩; cases h1; rw [hpj] at h2; cases h2
       cases hph : st.phase <;> cases hrem : st.rem <;> simp only [hph, hrem] at h
-      · injection h with hs'; subst hs'; exact ⟨⟨_, rfl⟩, Or.inr ⟨hnw, rfl, Or.inl rfl⟩⟩
-      · injection h with hs'; subst hs'; exact ⟨⟨_, rfl⟩, Or.inr ⟨hnw, rfl, Or.inl rfl⟩⟩
-      · split_ifs at h with hclean
-        · injection h with hs'
-          obtain ⟨hp, hr, hh⟩ := finishScan_eff _ hpj hs'
-          exact ⟨hp, Or.inr ⟨hnw, hr, hh⟩⟩
-        · cases hfind : (ord.elems.find? fun k =>
-              decide ((st.collectAVal k).seq ≠ (st.collectBVal k).seq ∧ k ∈ st.moved)) <;>
-            simp only [hfind, Option.some.injEq] at h
-          · subst h; exact ⟨⟨_, rfl⟩, Or.inr ⟨hnw, rfl, Or.inl rfl⟩⟩
-          · obtain ⟨hp, hr, hh⟩ := finishScan_eff _ hpj h
-            exact ⟨hp, Or.inr ⟨hnw, hr, hh⟩⟩
-      · injection h with hs'; subst hs'; exact ⟨⟨_, rfl⟩, Or.inr ⟨hnw, rfl, Or.inl rfl⟩⟩
+      all_goals try
+        (injection h with hs'; subst hs'; exact ⟨⟨_, rfl⟩, Or.inr ⟨hnw, rfl, Or.inl rfl⟩⟩)
+      split_ifs at h with hclean
+      · injection h with hs'
+        exact (finishScan_eff _ hpj hs').imp_right fun ⟨hr, hh⟩ => .inr ⟨hnw, hr, hh⟩
+      · cases hfind : (ord.elems.find? fun k =>
+            decide ((st.collectAVal k).seq ≠ (st.collectBVal k).seq ∧ k ∈ st.moved)) <;>
+          simp only [hfind, Option.some.injEq] at h
+        · subst h; exact ⟨⟨_, rfl⟩, Or.inr ⟨hnw, rfl, Or.inl rfl⟩⟩
+        · exact (finishScan_eff _ hpj h).imp_right fun ⟨hr, hh⟩ => .inr ⟨hnw, hr, hh⟩
 
 end Cslib.Distributed.SetAgreement

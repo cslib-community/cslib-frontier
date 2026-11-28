@@ -82,12 +82,12 @@ public section
   simp [List.map_const', List.sum_replicate]
 
 theorem getD_flattenBoolMatrix (n : ℕ) (a : Fin n → Fin n → Bool) (u v : Fin n) :
-    (flattenBoolMatrix n a).getD (u.val * n + v.val) 0 = if a u v then 1 else 0 := by
+    (flattenBoolMatrix n a).getD (u.1 * n + v.1) 0 = if a u v then 1 else 0 := by
   simpa only [flattenBoolMatrix, ← List.ofFn_eq_map] using
     List.getD_flatMap_ofFn (fun x y => if a x y then 1 else 0) 0 u v
 
 theorem getD_flattenSignedMatrix (n : ℕ) (c : Fin n → Fin n → ℤ) (u v : Fin n) :
-    (flattenSignedMatrix n c).getD (u.val * n + v.val) 0 = Signed.encode (c u v) := by
+    (flattenSignedMatrix n c).getD (u.1 * n + v.1) 0 = Signed.encode (c u v) := by
   simpa only [flattenSignedMatrix, ← List.ofFn_eq_map] using
     List.getD_flatMap_ofFn (fun x y => Signed.encode (c x y)) 0 u v
 
@@ -126,13 +126,13 @@ theorem ArborescenceInput.natAbs_cost_le_maxAbsCost (I : ArborescenceInput) (u v
 
 /-- Flat Word-RAM input word list `[n, root] ++ flattenBoolMatrix ++ flattenSignedMatrix`. -/
 @[expose] def ArborescenceInput.encode (I : ArborescenceInput) : List ℕ :=
-  I.n :: I.root.val :: (flattenBoolMatrix I.n I.adj ++ flattenSignedMatrix I.n I.cost)
+  I.n :: I.root.1 :: (flattenBoolMatrix I.n I.adj ++ flattenSignedMatrix I.n I.cost)
 
 /-- Expected list output for minimum-cost spanning in-arborescence (`[]` when infeasible, or the
 length-`n` parent list `[p(0), …, p(n - 1)]` when `edmonds I.digraph I.cost I.root = some p`). -/
 @[expose] def ArborescenceInput.expectedParentList (I : ArborescenceInput) : List ℕ :=
   match edmonds I.digraph I.cost I.root with
-  | some p => (List.finRange I.n).map fun v => (p v).val
+  | some p => (List.finRange I.n).map fun v => (p v).1
   | none => []
 
 /-- `I.expectedParentList` is empty iff `I.digraph` has no spanning in-arborescence rooted at
@@ -145,20 +145,15 @@ theorem ArborescenceInput.expectedParentList_eq_nil_iff (I : ArborescenceInput) 
     simp only [true_iff]
     exact edmonds_eq_none_iff.mp h
   | some p =>
-    have hne : ((List.finRange I.n).map fun v => (p v).val) ≠ [] := by
-      intro hnil
-      have hlen := congrArg List.length hnil
-      simp only [List.length_map, List.length_finRange, List.length_nil] at hlen
-      exact Nat.ne_of_gt I.root.pos hlen
-    refine ⟨fun hnil => absurd hnil hne, fun hall => ?_⟩
-    exact absurd (edmonds_spec.1 p h).1 (hall p)
+    exact ⟨fun hnil => (Nat.ne_of_gt I.root.pos (by simpa using congrArg List.length hnil)).elim,
+      fun hall => absurd (edmonds_spec.1 p h).1 (hall p)⟩
 
 /-- Whenever `I.expectedParentList` is nonempty, it encodes the parent map of a minimum-cost
 spanning in-arborescence of `I.digraph` rooted at `I.root`. -/
 theorem ArborescenceInput.expectedParentList_spec (I : ArborescenceInput)
     (hne : I.expectedParentList ≠ []) :
     ∃ p : Fin I.n → Fin I.n,
-      I.expectedParentList = (List.finRange I.n).map (fun v => (p v).val) ∧
+      I.expectedParentList = (List.finRange I.n).map (fun v => (p v).1) ∧
       (Digraph.parentDigraph I.root p).IsInArborescence I.root ∧
       Digraph.parentDigraph I.root p ≤ I.digraph ∧
       ∀ (T : Digraph (Fin I.n)) [DecidableRel T.Adj],
@@ -176,7 +171,7 @@ theorem ArborescenceInput.expectedParentList_spec (I : ArborescenceInput)
 length-`n` parent list `[p(0), …, p(n - 1)]` when `edmondsOut I.digraph I.cost I.root = some p`). -/
 @[expose] def ArborescenceInput.expectedOutParentList (I : ArborescenceInput) : List ℕ :=
   match edmondsOut I.digraph I.cost I.root with
-  | some p => (List.finRange I.n).map fun v => (p v).val
+  | some p => (List.finRange I.n).map fun v => (p v).1
   | none => []
 
 /-- `I.expectedOutParentList` is empty iff `I.digraph` has no spanning out-arborescence rooted at
@@ -190,20 +185,15 @@ theorem ArborescenceInput.expectedOutParentList_eq_nil_iff (I : ArborescenceInpu
     simp only [true_iff]
     exact edmondsOut_spec.2 h
   | some p =>
-    have hne : ((List.finRange I.n).map fun v => (p v).val) ≠ [] := by
-      intro hnil
-      have hlen := congrArg List.length hnil
-      simp only [List.length_map, List.length_finRange, List.length_nil] at hlen
-      exact Nat.ne_of_gt I.root.pos hlen
-    refine ⟨fun hnil => absurd hnil hne, fun hall => ?_⟩
-    exact absurd (edmondsOut_spec.1 p h).1 (hall p)
+    exact ⟨fun hnil => (Nat.ne_of_gt I.root.pos (by simpa using congrArg List.length hnil)).elim,
+      fun hall => absurd (edmondsOut_spec.1 p h).1 (hall p)⟩
 
 /-- Whenever `I.expectedOutParentList` is nonempty, it encodes the parent map of a minimum-cost
 spanning out-arborescence of `I.digraph` rooted at `I.root`. -/
 theorem ArborescenceInput.expectedOutParentList_spec (I : ArborescenceInput)
     (hne : I.expectedOutParentList ≠ []) :
     ∃ p : Fin I.n → Fin I.n,
-      I.expectedOutParentList = (List.finRange I.n).map (fun v => (p v).val) ∧
+      I.expectedOutParentList = (List.finRange I.n).map (fun v => (p v).1) ∧
       IsInArborescenceParent (fun u w => I.digraph.Adj w u) I.root p ∧
       ∀ t, IsInArborescenceParent (fun u w => I.digraph.Adj w u) I.root t →
         parentCost (fun u w => I.cost w u) I.root p ≤
@@ -253,13 +243,13 @@ theorem BranchingInput.natAbs_weight_le_maxAbsWeight (I : BranchingInput) (u v :
 
 /-- Expected length-`n` parent list `[p(0), …, p(n - 1)]` of `optimumBranchingParent`. -/
 @[expose] def BranchingInput.expectedParentList (I : BranchingInput) : List ℕ :=
-  (List.finRange I.n).map fun v => (optimumBranchingParent I.digraph I.weight v).val
+  (List.finRange I.n).map fun v => (optimumBranchingParent I.digraph I.weight v).1
 
 /-- `I.expectedParentList` encodes `optimumBranchingParent I.digraph I.weight`, whose branching
 digraph `optimumBranching I.digraph I.weight` is a maximum-weight branching of `I.digraph`. -/
 theorem BranchingInput.expectedParentList_spec (I : BranchingInput) :
     I.expectedParentList =
-      (List.finRange I.n).map (fun v => (optimumBranchingParent I.digraph I.weight v).val) ∧
+      (List.finRange I.n).map (fun v => (optimumBranchingParent I.digraph I.weight v).1) ∧
     (optimumBranching I.digraph I.weight).IsBranching ∧
     optimumBranching I.digraph I.weight ≤ I.digraph ∧
     ∀ (B : Digraph (Fin I.n)) [DecidableRel B.Adj],

@@ -262,20 +262,11 @@ theorem exists_deterministic_loss_eq_and_minCumLoss_eq [Nonempty ι] {D : (ℕ �
   have hcap_of_trigger : ∀ i, ∀ t₀ < T, (∑ s ∈ range t₀, nℓ s i) + (T - t₀) ≤ k →
       ∑ s ∈ range T, nℓ s i ≤ k := by
     intro i t₀ ht₀ htrig
-    have hsplit : range T = range t₀ ∪ Ico t₀ T := by
-      ext s
-      simp only [mem_range, mem_union, mem_Ico]
-      omega
-    have hdisj : Disjoint (range t₀) (Ico t₀ T) := by
-      rw [disjoint_left]
-      intro s hs1 hs2
-      simp only [mem_range, mem_Ico] at hs1 hs2
-      omega
     have htail : ∑ s ∈ Ico t₀ T, nℓ s i ≤ T - t₀ := by
       calc ∑ s ∈ Ico t₀ T, nℓ s i ≤ ∑ _s ∈ Ico t₀ T, 1 :=
             sum_le_sum fun s _ => hnℓ_le_one s i
         _ = T - t₀ := by simp only [sum_const, Nat.card_Ico, smul_eq_mul, mul_one]
-    rw [hsplit, sum_union hdisj]
+    rw [← sum_range_add_sum_Ico _ ht₀.le]
     omega
   have hex_le_k : ∃ i, ∑ s ∈ range T, nℓ s i ≤ k := by
     by_contra! hgt
@@ -409,24 +400,8 @@ private theorem expect_coinLoss_eq {κ : Type*} {T : ℕ} (block : Fin T → κ)
         · simp only [hex, ↓reduceDIte]
           norm_num
       rw [Fintype.expect_bool, hcongr false, hcongr true, ← sum_add_distrib]
-      have h1 : ∑ i, (H (coinLoss block emb w) t i *
-            coinLoss block emb (Function.update w t₀ false) t i +
-          H (coinLoss block emb w) t i *
-            coinLoss block emb (Function.update w t₀ true) t i) = 1 := by
-        calc ∑ i, (H (coinLoss block emb w) t i *
-              coinLoss block emb (Function.update w t₀ false) t i +
-            H (coinLoss block emb w) t i *
-              coinLoss block emb (Function.update w t₀ true) t i)
-            = ∑ i, H (coinLoss block emb w) t i *
-                (coinLoss block emb (Function.update w t₀ false) t i +
-                  coinLoss block emb (Function.update w t₀ true) t i) :=
-              sum_congr rfl fun i _ => (mul_add _ _ _).symm
-          _ = ∑ i, H (coinLoss block emb w) t i * 1 :=
-              sum_congr rfl fun i _ => by rw [hsum_loss i]
-          _ = 1 := by
-              simp only [mul_one]
-              exact hH.sum_eq_one fun s _ i => coinLoss_mem_Icc block emb w s i
-      rw [h1]
+      simp_rw [← mul_add, hsum_loss, mul_one]
+      rw [hH.sum_eq_one fun s _ i => coinLoss_mem_Icc block emb w s i]
     simp only [hinner, Fintype.expect_const]
   rw [sum_congr rfl hround, sum_const, card_range, nsmul_eq_mul]
   ring

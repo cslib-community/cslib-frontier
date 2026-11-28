@@ -169,16 +169,14 @@ theorem first_trace_ge (hp : p.Good)
     (hcard : (Finset.univ.filter fun t => p.isV t).card = p.k) :
     p.D * (p.n : ℝ) ^ (p.n - 1) * p.μ * Real.exp (-(3 / 2) / √(p.n : ℝ)) ≤
       ((pathMatrix p)ᵀ * pathMatrix p).trace := by
+  have hkm := p.hkm
   have hm : (Finset.univ.filter fun t => ¬ p.isV t).card = p.m := by
     have h := Finset.card_filter_add_card_filter_not (s := (Finset.univ : Finset (Fin p.n)))
       (fun t => p.isV t)
-    have := p.hkm
     rw [hcard, Finset.card_univ, Fintype.card_fin] at h
     omega
   have hSV : p.varV.Nonempty := Finset.card_pos.1 (card_varV hcard ▸ hp.v_pos)
   have hSU : p.varU.Nonempty := Finset.card_pos.1 (card_varU hcard ▸ hp.u_pos)
-  have hkn : p.k ≤ p.n := by have := p.hkm; omega
-  have hmn : p.m ≤ p.n := by have := p.hkm; omega
   refine le_trans ?_ (sum_coeff_le_trace hcard)
   have hP (P : Path p.n) :
       Real.exp (-((p.k : ℝ) ^ 2 / p.a) - (p.k : ℝ) ^ 2 / (2 * p.v)) *
@@ -206,11 +204,8 @@ theorem first_trace_ge (hp : p.Good)
   have hloss : Real.exp (-(3 / 2) / √(p.n : ℝ)) ≤
       Real.exp (-((p.k : ℝ) ^ 2 / p.a) - (p.k : ℝ) ^ 2 / (2 * p.v)) *
         Real.exp (-((p.m : ℝ) ^ 2 / p.b) - (p.m : ℝ) ^ 2 / (2 * p.u)) := by
-    rw [← Real.exp_add]
-    refine Real.exp_le_exp.2 ?_
-    have := hp.loss_le
-    rw [neg_div]
-    linarith
+    rw [← Real.exp_add, Real.exp_le_exp, neg_div]
+    linarith [hp.loss_le]
   calc p.D * (p.n : ℝ) ^ (p.n - 1) * p.μ * Real.exp (-(3 / 2) / √(p.n : ℝ))
       ≤ p.D * (p.n : ℝ) ^ (p.n - 1) * p.μ *
           (Real.exp (-((p.k : ℝ) ^ 2 / p.a) - (p.k : ℝ) ^ 2 / (2 * p.v)) *

@@ -90,9 +90,7 @@ theorem eq_of_covering {r : ℕ} (k : Fin r → ℕ) (hk : StrictAnti k) (hk0 : 
   choose sec hsec using hcov
   -- weight `1 / k i` on every slot of block `i`
   let w : Fin r → ℚ := fun i => 1 / (k i : ℚ)
-  have hw_pos : ∀ i, 0 < w i := fun i => by
-    have := hk0 i
-    positivity
+  have hw_pos : ∀ i, 0 < w i := fun i => by have := hk0 i; positivity
   have hsumI : ∑ v : (Σ i : I, Fin (k i)), w v.1 = I.card := sum_sigma_one_div_eq_card hk0 I
   have hsumJ : ∑ p : (Σ j : J, Fin (k j)), w p.1 = J.card := sum_sigma_one_div_eq_card hk0 J
   have hsec_inj : Function.Injective sec := fun v v' h =>
@@ -120,9 +118,7 @@ theorem eq_of_covering {r : ℕ} (k : Fin r → ℕ) (hk : StrictAnti k) (hk0 : 
       rw [himage]
       refine Finset.sum_lt_sum_of_subset (Finset.subset_univ _) (Finset.mem_univ p) ?_ (hw_pos _)
         fun _ _ _ => (hw_pos _).le
-      rw [Finset.mem_image]
-      rintro ⟨v, -, hv⟩
-      exact hp v hv
+      simpa only [Finset.mem_image, Finset.mem_univ, true_and, not_exists, ne_eq] using hp
     linarith
   -- and lies in the same block
   have hblock : ∀ v, ((sec v).1 : Fin r) = v.1 := by

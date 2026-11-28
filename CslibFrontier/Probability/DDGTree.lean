@@ -102,9 +102,7 @@ theorem output_append {T : DDGTree α} {w : List Bool} {a : α} (h : T.output w 
     (v : List Bool) : T.output (w ++ v) = some a := by
   induction v using List.reverseRecOn with
   | nil => simpa using h
-  | append_singleton v b ih =>
-    rw [← List.append_assoc]
-    exact T.output_append_singleton _ a b ih
+  | append_singleton v b ih => exact List.append_assoc w v [b] ▸ T.output_append_singleton _ a b ih
 
 /-- If the root is a leaf, every bit string reaches it. -/
 theorem output_eq_of_output_nil {T : DDGTree α} {a : α} (h : T.output [] = some a)
@@ -143,12 +141,9 @@ theorem run_le_run_succ (T : DDGTree α) (n : ℕ) (a : α) :
   refine tsum_le_tsum fun w => ?_
   split_ifs with hw
   · rw [PMF.map_comp, PMF.map_apply]
-    have h : ∀ b : Bool, some a = T.output (w ++ [b]) := fun b =>
-      (T.output_append_singleton w a b hw.symm).symm
     simp only [Function.comp_apply, tsum_fintype, PMF.uniformOfFintype_apply,
-      Fintype.card_bool, Fintype.sum_bool]
-    rw [ite_eq_left (h true), ite_eq_left (h false), Nat.cast_ofNat, ENNReal.inv_two_add_inv_two,
-      mul_one]
+      Fintype.card_bool, Fintype.sum_bool, T.output_append_singleton w a _ hw.symm, ↓reduceIte,
+      Nat.cast_ofNat, ENNReal.inv_two_add_inv_two, mul_one, le_rfl]
   · exact bot_le
 
 theorem monotone_run (T : DDGTree α) (a : α) : Monotone fun n => T.run n (some a) :=
@@ -177,19 +172,11 @@ theorem run_succ_none_le (T : DDGTree α) (n : ℕ) : T.run (n + 1) none ≤ T.r
   rw [run, run, BitString.uniformList_snoc, PMF.map_bind, PMF.map_apply, PMF.bind_apply]
   refine tsum_le_tsum fun w => ?_
   split_ifs with hw
-  · refine mul_le_of_le_one_right' ?_
-    rw [PMF.map_comp, PMF.map_apply]
-    exact (tsum_le_tsum (g := fun b => PMF.uniformOfFintype Bool b) fun b => by
-      split_ifs <;> simp).trans (PMF.tsum_coe (PMF.uniformOfFintype Bool)).le
   · rw [PMF.map_comp, PMF.map_apply]
-    have h : ∀ b : Bool, ¬ none = (T.output ∘ fun bit => w ++ [bit]) b := by
-      intro b hb
-      cases hw' : T.output w with
-      | none => exact hw hw'.symm
-      | some a =>
-        rw [Function.comp_apply, T.output_append_singleton w a b hw'] at hb
-        simp at hb
-    simp only [h, ite_false, tsum_zero, mul_zero, le_refl]
+    exact mul_le_of_le_one_right' <| (tsum_le_tsum (g := fun b => PMF.uniformOfFintype Bool b)
+      fun b => by split_ifs <;> simp).trans (PMF.tsum_coe _).le
+  · obtain ⟨a, ha⟩ := Option.ne_none_iff_exists'.mp (Ne.symm hw)
+    simp [PMF.map_comp, PMF.map_apply, T.output_append_singleton w a _ ha]
 
 theorem antitone_run_none (T : DDGTree α) : Antitone fun n => T.run n none :=
   antitone_nat_of_succ_le T.run_succ_none_le
@@ -201,35 +188,28 @@ theorem tendsto_run_none_of_generates {T : DDGTree α} {p : PMF α}
   rw [ENNReal.tendsto_atTop_zero]
   intro ε hε
   let δ := min ε 1
-  have hδpos : 0 < δ := lt_min hε zero_lt_one
-  have hδle1 : δ ≤ 1 := min_le_right ε 1
-  have hδleε : δ ≤ ε := min_le_left ε 1
-  have hlt1 : 1 - δ < 1 := ENNReal.sub_lt_self ENNReal.one_ne_top one_ne_zero hδpos.ne'
-  have hsup : (1 : ℝ≥0∞) = ⨆ s : Finset α, ∑ a ∈ s, p a := by
+  have hlt : 1 - δ < ⨆ s : Finset α, ∑ a ∈ s, p a := by
     rw [← tsum_eq_iSup_sum, p.tsum_coe]
-  nth_rw 2 [hsup] at hlt1
-  obtain ⟨s, hs⟩ := lt_iSup_iff.mp hlt1
-  have htend : Tendsto (fun n => ∑ a ∈ s, T.run n (some a)) atTop (𝓝 (∑ a ∈ s, p a)) := by
-    refine tendsto_finsetSum s fun a _ => ?_
-    simpa only [hT a] using T.tendsto_run_outputProb a
+    exact ENNReal.sub_lt_self ENNReal.one_ne_top one_ne_zero (lt_min hε zero_lt_one).ne'
+  obtain ⟨s, hs⟩ := lt_iSup_iff.mp hlt
+  have htend : Tendsto (fun n => ∑ a ∈ s, T.run n (some a)) atTop (𝓝 (∑ a ∈ s, p a)) :=
+    tendsto_finsetSum s fun a _ => hT a ▸ T.tendsto_run_outputProb a
   obtain ⟨N, hN⟩ := Filter.eventually_atTop.mp (htend.eventually (lt_mem_nhds hs))
   refine ⟨N, fun n hn => ?_⟩
-  have hnm := hN n hn
   let sm : Finset (Option α) := s.map ⟨Option.some, Option.some_injective α⟩
-  have hdisj : (none : Option α) ∉ sm := by simp [sm]
   have hle1 : T.run n none + ∑ a ∈ s, T.run n (some a) ≤ 1 := by
     have hsum : ∑ o ∈ insert none sm, T.run n o =
         T.run n none + ∑ a ∈ s, T.run n (some a) := by
-      rw [Finset.sum_insert hdisj, Finset.sum_map]
+      rw [Finset.sum_insert (by simp [sm]), Finset.sum_map]
       rfl
     rw [← hsum, ← (T.run n).tsum_coe]
     exact sum_le_tsum _
   by_contra! hgt
-  have hgt' : δ < T.run n none := hδleε.trans_lt hgt
-  have hcontr : (1 : ℝ≥0∞) < T.run n none + ∑ a ∈ s, T.run n (some a) := by
-    calc (1 : ℝ≥0∞) = δ + (1 - δ) := (add_tsub_cancel_of_le hδle1).symm
-      _ < T.run n none + ∑ a ∈ s, T.run n (some a) := ENNReal.add_lt_add hgt' hnm
-  exact absurd hcontr hle1.not_gt
+  refine hle1.not_gt ?_
+  calc (1 : ℝ≥0∞)
+      = δ + (1 - δ) := (add_tsub_cancel_of_le (min_le_right ε 1)).symm
+    _ < T.run n none + ∑ a ∈ s, T.run n (some a) :=
+        ENNReal.add_lt_add ((min_le_left ε 1).trans_lt hgt) (hN n hn)
 
 /-! ## The tail-sum formula -/
 
@@ -239,38 +219,32 @@ variable {f : ℕ → ℝ≥0∞}
 
 private theorem tsum_tsub_succ (hf : Antitone f) (h0 : Tendsto f atTop (𝓝 0)) (n : ℕ) :
     ∑' k, (f (n + k) - f (n + k + 1)) = f n := by
-  have hsum : ∀ m, ∑ k ∈ Finset.range m, (f (n + k) - f (n + k + 1)) = f n - f (n + m) := by
-    intro m
+  have hsum (m : ℕ) : ∑ k ∈ Finset.range m, (f (n + k) - f (n + k + 1)) = f n - f (n + m) := by
     induction m with
     | zero => simp
     | succ m ih =>
       rw [Finset.sum_range_succ, ih, ← add_assoc n m 1,
-        tsub_add_tsub_cancel (hf (show n ≤ n + m by omega)) (hf (show n + m ≤ n + m + 1 by omega))]
-  have hlim : Tendsto (fun m => f n - f (n + m)) atTop (𝓝 (f n - 0)) :=
-    ENNReal.Tendsto.sub tendsto_const_nhds ((h0.comp (tendsto_add_atTop_nat n)).congr fun m => by
-      rw [Function.comp_apply, add_comm]) (Or.inr ENNReal.zero_ne_top)
-  rw [tsub_zero] at hlim
-  refine tendsto_nhds_unique ?_ hlim
-  simp only [← hsum]
-  exact ENNReal.tendsto_nat_tsum _
+        tsub_add_tsub_cancel (hf (Nat.le_add_right _ _)) (hf (Nat.le_succ _))]
+  have hlim : Tendsto (fun m => f n - f (n + m)) atTop (𝓝 (f n)) := by
+    simpa using ENNReal.Tendsto.sub tendsto_const_nhds
+      ((h0.comp (tendsto_add_atTop_nat n)).congr fun m => by simp [add_comm])
+      (Or.inr ENNReal.zero_ne_top)
+  exact tendsto_nhds_unique (by simpa only [← hsum] using ENNReal.tendsto_nat_tsum _) hlim
 
 private theorem tsum_eq_tsum_mul_tsub (hf : Antitone f) (h0 : Tendsto f atTop (𝓝 0)) :
     ∑' n, f n = ∑' k : ℕ, ((k : ℝ≥0∞) + 1) * (f k - f (k + 1)) := by
-  set d := fun k => f k - f (k + 1) with hd
-  calc ∑' n, f n = ∑' n, ∑' k, d (n + k) := by
-        refine tsum_congr fun n => (tsum_tsub_succ hf h0 n).symm
+  let d := fun k => f k - f (k + 1)
+  calc ∑' n, f n = ∑' n, ∑' k, d (n + k) := tsum_congr fun n => (tsum_tsub_succ hf h0 n).symm
     _ = ∑' p : ℕ × ℕ, d (p.1 + p.2) := tsum_prod.symm
-    _ = ∑' x : Σ j : ℕ, Finset.antidiagonal j, d (x.2.val.1 + x.2.val.2) :=
+    _ = ∑' x : Σ j : ℕ, Finset.antidiagonal j, d (x.2.1.1 + x.2.1.2) :=
         (Finset.HasAntidiagonal.sigmaAntidiagonalEquivProd.tsum_eq
           (fun p : ℕ × ℕ => d (p.1 + p.2))).symm
-    _ = ∑' j, ∑' y : Finset.antidiagonal j, d (y.val.1 + y.val.2) := tsum_sigma' _
-    _ = ∑' j : ℕ, ((j : ℝ≥0∞) + 1) * d j := by
-        refine tsum_congr fun j => ?_
+    _ = ∑' j, ∑' y : Finset.antidiagonal j, d (y.1.1 + y.1.2) := tsum_sigma' _
+    _ = ∑' j : ℕ, ((j : ℝ≥0∞) + 1) * d j := tsum_congr fun j => by
         rw [Finset.tsum_subtype (Finset.antidiagonal j) (fun y : ℕ × ℕ => d (y.1 + y.2)),
           Finset.sum_congr rfl fun y hy => by rw [Finset.mem_antidiagonal.mp hy],
           Finset.sum_const, Finset.Nat.card_antidiagonal, nsmul_eq_mul]
-        push_cast
-        ring
+        push_cast; ring
 
 end TailSum
 
@@ -301,11 +275,11 @@ private theorem pick_lt {d : α → ℕ} {l : List α} {i : ℕ} {a : α} (h : p
   induction l generalizing i with
   | nil => simp [pick] at h
   | cons b l ih =>
-    simp only [pick] at h
-    simp only [List.map_cons, List.sum_cons]
+    simp only [pick, List.map_cons, List.sum_cons] at h ⊢
     split_ifs at h with hi
     · omega
-    · have := ih h; omega
+    · have := ih h
+      omega
 
 private theorem sum_pick [DecidableEq α] (d : α → ℕ) {l : List α} (hl : l.Nodup) (a : α) {N : ℕ}
     (hN : (l.map d).sum ≤ N) :
@@ -316,7 +290,6 @@ private theorem sum_pick [DecidableEq α] (d : α → ℕ) {l : List α} (hl : l
     simp only [List.map_cons, List.sum_cons] at hN
     rw [List.nodup_cons] at hl
     obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le (show d b ≤ N by omega)
-    rw [Finset.sum_range_add]
     have h1 : ∑ i ∈ Finset.range (d b), (if pick d (b :: l) i = some a then 1 else 0) =
         if b = a then d b else 0 := by
       split_ifs with hba
@@ -324,18 +297,14 @@ private theorem sum_pick [DecidableEq α] (d : α → ℕ) {l : List α} (hl : l
         rw [Finset.sum_congr rfl (g := fun _ => 1) fun i hi => by
           simp [pick, Finset.mem_range.mp hi]]
         simp
-      · rw [Finset.sum_eq_zero]
-        intro i hi
-        simp [pick, Finset.mem_range.mp hi, hba]
+      · exact Finset.sum_eq_zero fun i hi => by simp [pick, Finset.mem_range.mp hi, hba]
     have h2 : ∑ i ∈ Finset.range k, (if pick d (b :: l) (d b + i) = some a then 1 else 0) =
         if a ∈ l then d a else 0 := by
-      rw [← ih hl.2 (N := k) (by omega)]
-      refine Finset.sum_congr rfl fun i _ => ?_
-      simp [pick]
-    rw [h1, h2]
-    by_cases hba : b = a
-    · subst hba; simp [hl.1]
-    · simp [hba, Ne.symm hba]
+      simpa [pick] using ih hl.2 (N := k) (by omega)
+    rw [Finset.sum_range_add, h1, h2]
+    rcases eq_or_ne b a with rfl | hba
+    · simp [hl.1]
+    · simp [hba, hba.symm]
 
 /-- Number of labelled depth-`k` positions, i.e. those at or below a leaf. -/
 private def total [Fintype α] (t : ℕ → α → ℕ) (k : ℕ) : ℕ := ∑ a, t k a
@@ -363,9 +332,7 @@ private theorem total_succ (hmono : ∀ k a, 2 * t k a ≤ t (k + 1) a) (k : ℕ
 private theorem label_lt (hmono : ∀ k a, 2 * t k a ≤ t (k + 1) a) {k y : ℕ} {a : α}
     (h : label t k y = some a) : y < total t k := by
   induction k generalizing y with
-  | zero =>
-    have := pick_lt h
-    rwa [Finset.sum_map_toList] at this
+  | zero => simpa [total, Finset.sum_map_toList] using pick_lt h
   | succ k ih =>
     simp only [label] at h
     rw [total_succ hmono]
@@ -381,10 +348,7 @@ private theorem sum_range_two_mul_div (f : ℕ → ℕ) (M : ℕ) :
   | zero => simp
   | succ M ih =>
     rw [show 2 * (M + 1) = 2 * M + 1 + 1 by ring, Finset.sum_range_succ, Finset.sum_range_succ,
-      ih, Finset.sum_range_succ]
-    have h1 : (2 * M + 1) / 2 = M := by omega
-    have h2 : 2 * M / 2 = M := by omega
-    rw [h1, h2]
+      ih, Finset.sum_range_succ, show (2 * M + 1) / 2 = M by omega, Nat.mul_div_right _ zero_lt_two]
     ring
 
 private theorem label_succ_add (k i : ℕ) :
@@ -406,32 +370,23 @@ private theorem sum_label [DecidableEq α] (hmono : ∀ k a, 2 * t k a ≤ t (k 
     rw [sum_pick _ (Finset.nodup_toList _) a (by rw [Finset.sum_map_toList]; exact le_rfl)]
     simp
   | succ k ih =>
-    rw [total_succ hmono, Finset.sum_range_add]
     have h1 : ∑ y ∈ Finset.range (2 * total t k), (if label t (k + 1) y = some a then 1 else 0) =
         2 * t k a := by
       rw [← ih, ← sum_range_two_mul_div]
-      refine Finset.sum_congr rfl fun y hy => ?_
-      rw [label_succ_of_lt (Finset.mem_range.mp hy)]
-    have h2 : ∑ i ∈ Finset.range (∑ a, (t (k + 1) a - 2 * t k a)),
-        (if label t (k + 1) (2 * total t k + i) = some a then 1 else 0) =
-        t (k + 1) a - 2 * t k a := by
-      simp only [label_succ_add]
-      rw [sum_pick (fun a => t (k + 1) a - 2 * t k a) (Finset.nodup_toList _) a
-        (by rw [Finset.sum_map_toList])]
-      simp
-    rw [h1, h2]
+      exact Finset.sum_congr rfl fun y hy => by rw [label_succ_of_lt (Finset.mem_range.mp hy)]
+    rw [total_succ hmono, Finset.sum_range_add, h1]
+    simp only [label_succ_add]
+    rw [sum_pick (fun a => t (k + 1) a - 2 * t k a) (Finset.nodup_toList _) a
+      (by rw [Finset.sum_map_toList])]
+    simp only [Finset.mem_toList, Finset.mem_univ, ↓reduceIte]
     have := hmono k a
     omega
 
 private theorem label_succ_of_eq_some (hmono : ∀ k a, 2 * t k a ≤ t (k + 1) a) {k x : ℕ} {a : α}
     (h : label t k x = some a) (b : Bool) : label t (k + 1) (2 * x + b.toNat) = some a := by
   have hx := label_lt hmono h
-  have hlt : 2 * x + b.toNat < 2 * total t k := by
-    cases b <;> simp only [Bool.toNat_false, Bool.toNat_true] <;> omega
-  rw [label_succ_of_lt hlt]
-  have : (2 * x + b.toNat) / 2 = x := by
-    cases b <;> simp only [Bool.toNat_false, Bool.toNat_true] <;> omega
-  rwa [this]
+  cases b <;> simp only [Bool.toNat_false, Bool.toNat_true, add_zero] <;>
+    rwa [label_succ_of_lt (by omega), show _ / 2 = x by omega]
 
 /-- Walk from position `x` at depth `k`, reading bits. -/
 private noncomputable def walk (t : ℕ → α → ℕ) : ℕ → ℕ → List Bool → Option α
@@ -475,8 +430,7 @@ private theorem walk_cons (hmono : ∀ k a, 2 * t k a ≤ t (k + 1) a) (k x : �
 private theorem child_node (hmono : ∀ k a, 2 * t k a ≤ t (k + 1) a) (k x : ℕ) (b : Bool) :
     (node t k x).child b = node t (k + 1) (2 * x + b.toNat) := by
   ext1
-  funext w
-  exact walk_cons hmono k x b w
+  exact funext (walk_cons hmono k x b)
 
 private theorem run_node [DecidableEq α] (hmono : ∀ k a, 2 * t k a ≤ t (k + 1) a) (n k x : ℕ)
     (a : α) :
@@ -485,10 +439,8 @@ private theorem run_node [DecidableEq α] (hmono : ∀ k a, 2 * t k a ≤ t (k +
         (if label t (k + n) (x * 2 ^ n + i) = some a then 1 else 0) : ℕ) * 2⁻¹ ^ n := by
   induction n generalizing k x with
   | zero =>
-    simp only [run_zero, PMF.pure_apply, pow_zero, mul_one, Finset.range_one,
+    simp only [run_zero, node, walk, PMF.pure_apply, pow_zero, mul_one, Finset.range_one,
       Finset.sum_singleton, add_zero]
-    have hout : (node t k x).output [] = label t k x := rfl
-    rw [hout]
     by_cases h : label t k x = some a
     · simp [h]
     · simp [h, Ne.symm h]
@@ -496,13 +448,10 @@ private theorem run_node [DecidableEq α] (hmono : ∀ k a, 2 * t k a ≤ t (k +
     rw [run_succ, PMF.bind_apply, tsum_fintype (L := SummationFilter.unconditional _),
       Fintype.sum_bool, child_node hmono, child_node hmono, ih, ih]
     simp only [PMF.uniformOfFintype_apply, Fintype.card_bool, Bool.toNat_true,
-      Bool.toNat_false, add_zero]
-    rw [show 2 ^ (n + 1) = 2 ^ n + 2 ^ n by ring, Finset.sum_range_add, Nat.cast_add]
-    have e1 : k + 1 + n = k + (n + 1) := by ring
-    have e2 : ∀ i, (2 * x + 1) * 2 ^ n + i = x * (2 ^ n + 2 ^ n) + (2 ^ n + i) := fun i => by
-      ring
-    have e3 : ∀ i, 2 * x * 2 ^ n + i = x * (2 ^ n + 2 ^ n) + i := fun i => by ring
-    simp only [e1, e2, e3, Nat.cast_ofNat]
+      Bool.toNat_false, add_zero, show 2 ^ (n + 1) = 2 ^ n + 2 ^ n by ring,
+      Finset.sum_range_add, Nat.cast_add, show k + 1 + n = k + (n + 1) by ring,
+      show ∀ i, (2 * x + 1) * 2 ^ n + i = x * (2 ^ n + 2 ^ n) + (2 ^ n + i) from fun _ => by ring,
+      show ∀ i, 2 * x * 2 ^ n + i = x * (2 ^ n + 2 ^ n) + i from fun _ => by ring, Nat.cast_ofNat]
     ring
 
 /-- A tree in which `t k a` of the `2 ^ k` depth-`k` positions lie at or below a leaf labelled `a`,
@@ -524,13 +473,12 @@ theorem run_ofCounts (hmono : ∀ k a, 2 * t k a ≤ t (k + 1) a)
   obtain ⟨r, hr⟩ := Nat.exists_eq_add_of_le (show total t n ≤ 2 ^ n from hkraft n)
   rw [ofCounts, run_node hmono, hr, Finset.sum_range_add]
   simp only [zero_add, zero_mul]
-  rw [sum_label hmono, Finset.sum_eq_zero, add_zero, ENNReal.div_eq_inv_mul, ← ENNReal.inv_pow,
-    mul_comm]
-  · intro i _
-    rw [ite_eq_right]
-    intro h
-    have := label_lt hmono h
-    omega
+  have hzero : ∑ i ∈ Finset.range r,
+      (if label t n (total t n + i) = some a then 1 else 0) = 0 :=
+    Finset.sum_eq_zero fun i _ => ite_eq_right fun h => by
+      have := label_lt hmono h
+      omega
+  rw [sum_label hmono, hzero, add_zero, ENNReal.div_eq_inv_mul, ← ENNReal.inv_pow, mul_comm]
 
 end Profile
 
