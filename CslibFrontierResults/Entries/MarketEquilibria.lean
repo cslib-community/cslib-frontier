@@ -82,5 +82,5 @@ register_result "eisenberg-gale-linear-fisher-equilibria" where
     prices, plus the proportional-endowment embedding toLinearExchangeMarket \
     (CodenottiVaradarajan2007, §6.1.7, p. 140). Polynomial-bit rationality of rational instances \
     (Theorem 5.1 part 4) is formalized in BalancedFlow.lean \
-    (entry fisher-rational-equilibria-polynomial-bit); the full DPSV algorithm (Theorem 5.22) \
-    remains open under #7789."
+    (entry fisher-rational-equilibria-polynomial-bit), and the full DPSV primal-dual algorithm \
+    (Theorem 5.22) is formalized in DPSVAlgorithm.lean (entry fisher-dpsv-main-algorithm)."

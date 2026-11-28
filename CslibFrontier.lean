@@ -2606,6 +2606,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pr
 public import CslibFrontier.Computability.Communication.SignRank
 public import CslibFrontier.Computability.GenericRAM.Native.BooleanFold
 public import CslibFrontier.Crypto.Computational.Homomorphic.GSW.Serialized.PolyTime
+public import CslibFrontier.GameTheory.Market.DPSVAlgorithm
 public import CslibFrontier.Computability.Automata.MPDA.OneHole
 public import CslibFrontier.Logics.Propositional.CNF.Tautology
 public import CslibFrontier.Computability.Automata.MPDA.ScopeHoles

@@ -7,9 +7,10 @@ Authors: Samuel Schlesinger
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
 import CslibFrontier.GameTheory.Market.BalancedFlow
+import CslibFrontier.GameTheory.Market.DPSVAlgorithm
 
 /-!
-# Collected results: Equality networks, tight sets, balanced flows, and rational Fisher equilibria
+# Collected results: Equality networks, tight sets, balanced flows, and the DPSV algorithm
 -/
 
 register_result "fisher-equality-network-and-tight-sets" where
@@ -66,7 +67,7 @@ register_result "fisher-balanced-flows-and-divide-and-conquer" where
     disjoint subnetworks with isolated buyers pruned from N₁), proving Lemmas 5.6–5.7 and \
     Theorem 5.8 (outputs a balanced max-flow in at most Fintype.card G max-flow oracle calls; \
     uniform shift X is chosen noncomputably via IVT, while max-flow queries are counted \
-    explicitly). The full DPSV phase loop and Theorem 5.22 remain open under #7789."
+    explicitly)."
 
 register_result "fisher-finding-tight-sets" where
   title := "Finding the minimum tight-set price scale and maximal tight set via max-flow"
@@ -114,5 +115,44 @@ register_result "fisher-rational-equilibria-polynomial-bit" where
     allocation denominators by E * U ^ n) and general rational inputs \
     (exists_rational_equilibrium_of_rat, clearing denominators per buyer and globally to obtain \
     explicit polynomial-bit bounds in m, n, B_num, and B_den). Together with \
-    EisenbergGale.lean, this completes all four parts of Vazirani Theorem 5.1; the full DPSV \
-    phase loop and Theorem 5.22 remain open under #7789."
+    EisenbergGale.lean, this completes all four parts of Vazirani Theorem 5.1."
+
+register_result "fisher-dpsv-main-algorithm" where
+  title := "DPSV primal-dual algorithm, potential drop analysis, and polynomial max-flow bound"
+  topic := "game theory"
+  sources := [
+    { paper := Vazirani2007,
+      theorem := "Section 5.8 initialization, Lemmas 5.13–5.21, and Theorem 5.22",
+      locator := "Section 5.8, pp. 115–117; Section 5.10, Lemmas 5.13–5.21 and Theorem 5.22, \
+        pp. 119–121" }
+  ]
+  theorems := [
+    Cslib.GameTheory.Market.LinearFisherMarket.dpsvInitPrice_spec,
+    Cslib.GameTheory.Market.LinearFisherMarket.price_sub_ge_inv_sq_of_isTightSet,
+    Cslib.GameTheory.Market.LinearFisherMarket.sum_sq_drop_of_transfer,
+    Cslib.GameTheory.Market.LinearFisherMarket.surplusSqNorm_le_sub_sq_of_isBalancedFlow,
+    Cslib.GameTheory.Market.LinearFisherMarket.isEqualityFlow_scaleActivePrices,
+    Cslib.GameTheory.Market.LinearFisherMarket.surplusSqNorm_scaleActivePrices_le,
+    Cslib.GameTheory.Market.LinearFisherMarket.exists_surplus_drop_of_residual_expand,
+    Cslib.GameTheory.Market.LinearFisherMarket.surplusSqNorm_drop_of_minSurplus_lt,
+    Cslib.GameTheory.Market.LinearFisherMarket.dpsvPhaseProgram_spec,
+    Cslib.GameTheory.Market.LinearFisherMarket.dpsvProgram_spec
+  ]
+  scope := "Finite buyer type [Fintype I] (cardinality m) and finite good type [Fintype G] \
+    (cardinality n) in LinearFisherMarket. Formalizes the Section 5.8 price initialization \
+    dpsvInitPrice (p. 115, lowering goods with no equality edge at 1/n to max_i u_ij/α_i and \
+    establishing the Invariant), Lemma 5.13 (tight-set price gap ≥ 1/Δ² for Δ = n U^n; noting \
+    the printed typo r ≤ Δ for s ≤ Δ on p. 119), Lemmas 5.15–5.16 (surplus potential drop via \
+    convexity), Lemmas 5.17–5.20 (per-iteration feasibility, monotone norm decrease, and \
+    minimum-surplus drop), and Lemmas 5.14 and 5.21 (dpsvPhaseProgram executes 1 ≤ iters ≤ n \
+    iterations in ≤ 2 n * iters max-flow queries and drops surplusSqNorm by factor \
+    1 - 1 / (m * n), specializing to 1 - 1 / n² when m ≤ n). Proves Theorem 5.22 \
+    (dpsvProgram_spec): for every non-degenerate unit-supply linear Fisher market with integer \
+    utilities u i g ≤ U and integer budgets e i (M_tot = ∑ i, e i), dpsvProgram in Cslib.FreeM \
+    over MaxFlowQuery terminates at an exact market equilibrium in at most \
+    m * n * (Nat.log 2 (m * Δ^4 * M_tot^2) + 1) + n phases and at most n + 2 * n^2 * phases \
+    max-flow oracle calls (O(m n^3 (log m + log n + n log U + log M_tot)), matching \
+    O(n^4 (log n + n log U + log M)) when m ≤ n). Halts when all surpluses vanish (fixing p. 116 \
+    where Case 1 of Section 5.7.1 was written) and handles zero-spending buyers outside H with \
+    all equality edges in J (fixing p. 116's claim that B \\ H immediately drops J). States the \
+    max-flow oracle query count in Cslib.FreeM rather than a machine-level bit-complexity runtime."
