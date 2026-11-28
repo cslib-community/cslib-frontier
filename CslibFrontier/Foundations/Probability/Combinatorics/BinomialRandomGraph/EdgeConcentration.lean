@@ -290,7 +290,7 @@ private theorem ncard_bipartitePairs_inter_edgeSet [DecidableEq V] {A B : Finset
   rw [ncard_inter_edgeSet_eq_card_filter, h2, Finset.card_image_of_injOn hinj]
   exact card_filter_adj_product A B G
 
-private theorem binomialRandom_real_bipartiteEdgeCount_eq [Finite V] [DecidableEq V]
+private theorem binomialRandom_real_bipartiteEdgeCount_eq [DecidableEq V]
     (p : I) {A B : Finset V} (hAB : Disjoint A B) (P : ℝ → Prop) :
     G(V, p).real {G | P (∑ u ∈ A, (((B : Set V) ∩ G.neighborSet u).ncard : ℝ))} =
       G(V, p).real {G | P (((bipartitePairs A B : Set (Sym2 V)) ∩ G.edgeSet).ncard : ℝ)} := by
