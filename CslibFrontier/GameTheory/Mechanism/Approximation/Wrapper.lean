@@ -118,8 +118,7 @@ remain open under issue #7789.
   + 1` iteration bound for any proper procedure.
 * `WrapperProc.optWelfare_rBar_le`: **Claim 12.44** ([Lavi2007], p. 324) — `2 · J · c` bound on
   `OPT(R̄)` for any `c`-local-approximation.
-* `ksmDominantStrategy_isDominant`, `ksmDominantStrategy_retire_iff`: **Proposition 12.41**
-  ([Lavi2007], p. 323).
+* `ksmDominantStrategy_isDominant`: **Proposition 12.41** ([Lavi2007], p. 323).
 * `ksmProc_isLocalApproxOn`: **Claim 12.43** ([Lavi2007], p. 324).
 * `ksmProc_isDominantStrategyImpl`: **Theorem 12.45** ([Lavi2007], p. 324) — dominant-strategy
   `O(log(v_max) · c)`-approximation for KSM players.
@@ -826,6 +825,192 @@ theorem WrapperProc.isFeasibleAlloc_of_isProperOn {P : WrapperProc N M Strat} {�
   · exact Finset.disjoint_empty_left _
   · exact Finset.disjoint_empty_left _
 
+/-- If player `i`'s doubling rule never doubles strictly above `v` (`1 ≤ v`), then player `i`'s
+wrapper bid stays at most `v` at every iteration. -/
+private theorem val_le_of_not_double_above {P : WrapperProc N M Strat} {σ : N → Strat}
+    {i : N} {v : ℝ} (hv : 1 ≤ v)
+    (hno : ∀ past st W' s',
+      v < 2 * (st.val i : ℝ) → P.chooseDouble (σ i) past st W' s' = false) (j : ℕ) :
+    ((wrapperState P σ j).val i : ℝ) ≤ v := by
+  induction j with
+  | zero =>
+    simpa only [wrapperState_zero, initState, Nat.cast_one] using hv
+  | succ j ih =>
+    by_cases ht : TerminatedAt P σ j
+    · rwa [wrapperState_succ_of_terminatedAt ht]
+    · set cur := wrapperRunHist P σ j
+      set res := P.proc σ cur.2 cur.1
+      rw [wrapperState_succ_val ht i]
+      split_ifs with h1 h2
+      · exact ih
+      · by_contra hgt
+        push Not at hgt
+        have hgt' : v < 2 * (cur.1.val i : ℝ) := by
+          have : ((2 * cur.1.val i : ℕ) : ℝ) = 2 * (cur.1.val i : ℝ) := by
+            rw [Nat.cast_mul, Nat.cast_ofNat]
+          linarith
+        exact Bool.false_ne_true ((hno cur.2 cur.1 res.1 res.2 hgt').symm.trans h2)
+      · simp only [Nat.cast_zero]
+        linarith
+
+/-- If player `i` always keeps a desired bundle and never bids above `p.value`, her wrapper
+utility is nonnegative. -/
+private theorem utility_nonneg_of_desired_of_val_le {P : WrapperProc N M Strat} {σ : N → Strat}
+    (p : SingleValuePlayer M) {i : N}
+    (hdes : ∀ j, (wrapperState P σ j).bundle i ∈ p.desired)
+    (hval : ∀ j, ((wrapperState P σ j).val i : ℝ) ≤ p.value) :
+    0 ≤ P.utility σ p i := by
+  classical
+  simp only [WrapperProc.utility, WrapperProc.alloc, WrapperProc.payment]
+  split_ifs with hT hW
+  · rw [p.eval_of_mem (hdes (termRound P σ))]
+    linarith [hval (termRound P σ)]
+  · simp only [SingleValuePlayer.eval_empty, sub_zero, le_refl]
+  · simp only [SingleValuePlayer.eval_empty, sub_zero, le_refl]
+
+/-- Two strategy profiles producing identical wrapper histories yield identical utility for every
+player. -/
+private theorem utility_eq_of_wrapperRunHist_eq {P : WrapperProc N M Strat} {σ₁ σ₂ : N → Strat}
+    (p : SingleValuePlayer M) (i : N) (heq : ∀ j, wrapperRunHist P σ₁ j = wrapperRunHist P σ₂ j) :
+    P.utility σ₁ p i = P.utility σ₂ p i := by
+  have hstEq : ∀ j, wrapperState P σ₁ j = wrapperState P σ₂ j := fun j =>
+    congrArg Prod.fst (heq j)
+  have hTeq : Terminates P σ₁ ↔ Terminates P σ₂ := by
+    simp only [Terminates, TerminatedAt, hstEq]
+  have hreq : termRound P σ₁ = termRound P σ₂ := by
+    classical
+    simp only [termRound, hTeq]
+    split_ifs with hT₂
+    · refine le_antisymm ?_ ?_
+      · exact Nat.find_min' (hTeq.2 hT₂)
+          (by simpa only [TerminatedAt, hstEq] using Nat.find_spec hT₂)
+      · exact Nat.find_min' hT₂
+          (by simpa only [TerminatedAt, ← hstEq] using Nat.find_spec (hTeq.2 hT₂))
+    · rfl
+  have haeq : P.alloc σ₁ i = P.alloc σ₂ i := by
+    classical simp only [WrapperProc.alloc, hTeq, hreq, hstEq]
+  have hpeq : P.payment σ₁ i = P.payment σ₂ i := by
+    classical simp only [WrapperProc.payment, hTeq, hreq, hstEq]
+  simp only [WrapperProc.utility, haeq, hpeq]
+
+/-- If two strategy profiles have different wrapper histories, there is a first iteration `j` where
+they agree at `j` (not yet terminated) and diverge at `j + 1`. -/
+private theorem exists_first_wrapperRunHist_ne {P : WrapperProc N M Strat} {σ₁ σ₂ : N → Strat}
+    (hne : ¬ ∀ j, wrapperRunHist P σ₁ j = wrapperRunHist P σ₂ j) :
+    ∃ j, wrapperRunHist P σ₁ j = wrapperRunHist P σ₂ j ∧
+      wrapperRunHist P σ₁ (j + 1) ≠ wrapperRunHist P σ₂ (j + 1) ∧
+      ¬ TerminatedAt P σ₁ j ∧ ¬ TerminatedAt P σ₂ j := by
+  classical
+  push Not at hne
+  set m := Nat.find hne
+  have hm_ne : wrapperRunHist P σ₁ m ≠ wrapperRunHist P σ₂ m := Nat.find_spec hne
+  have hm_pos : 0 < m := by
+    by_contra h0
+    have hm0 : m = 0 := Nat.eq_zero_of_not_pos h0
+    exact hm_ne (by simp only [hm0, wrapperRunHist])
+  obtain ⟨j, hj⟩ := Nat.exists_eq_succ_of_ne_zero hm_pos.ne'
+  rw [hj] at hm_ne
+  have hj_eq : wrapperRunHist P σ₁ j = wrapperRunHist P σ₂ j := by
+    by_contra hne_j
+    exact Nat.find_min hne (by omega : j < m) hne_j
+  have hnotT₁ : ¬ TerminatedAt P σ₁ j := by
+    intro ht
+    have ht₂ : TerminatedAt P σ₂ j := by
+      simpa only [TerminatedAt, wrapperState, hj_eq] using ht
+    apply hm_ne
+    simp only [wrapperRunHist, wrapperNext, TerminatedAt, wrapperState] at ht ht₂ ⊢
+    simp only [hj_eq, ht₂, ↓reduceIte]
+  have hnotT₂ : ¬ TerminatedAt P σ₂ j := by
+    simpa only [TerminatedAt, wrapperState, hj_eq] using hnotT₁
+  exact ⟨j, hj_eq, hm_ne, hnotT₁, hnotT₂⟩
+
+/-- If two profiles differing only at player `i` agree at iteration `j`, produce the same `P.proc`
+output at `j`, and diverge at `j + 1`, then `i` is an active nonwinner at `j` and `st₁`, `st₂`
+disagree on `chooseDouble`. -/
+private theorem step_divergence_of_proc_eq {P : WrapperProc N M Strat} {σ : N → Strat}
+    {i : N} {st₁ st₂ : Strat} {j : ℕ}
+    (hj_eq : wrapperRunHist P (Function.update σ i st₁) j =
+      wrapperRunHist P (Function.update σ i st₂) j)
+    (hm_ne : wrapperRunHist P (Function.update σ i st₁) (j + 1) ≠
+      wrapperRunHist P (Function.update σ i st₂) (j + 1))
+    (hproc : P.proc (Function.update σ i st₁)
+        (wrapperRunHist P (Function.update σ i st₁) j).2
+        (wrapperRunHist P (Function.update σ i st₁) j).1 =
+      P.proc (Function.update σ i st₂)
+        (wrapperRunHist P (Function.update σ i st₁) j).2
+        (wrapperRunHist P (Function.update σ i st₁) j).1) :
+    let cur := wrapperRunHist P (Function.update σ i st₁) j
+    let res := P.proc (Function.update σ i st₁) cur.2 cur.1
+    i ∉ res.1 ∪ cur.1.losers ∧
+      P.chooseDouble st₁ cur.2 cur.1 res.1 res.2 ≠
+        P.chooseDouble st₂ cur.2 cur.1 res.1 res.2 := by
+  set σ₁ := Function.update σ i st₁
+  set σ₂ := Function.update σ i st₂
+  set cur := wrapperRunHist P σ₁ j
+  set res := P.proc σ₁ cur.2 cur.1
+  have hcontra : (∀ k, k ∉ res.1 ∪ cur.1.losers →
+      P.chooseDouble (σ₁ k) cur.2 cur.1 res.1 res.2 =
+      P.chooseDouble (σ₂ k) cur.2 cur.1 res.1 res.2) → False := fun hch => by
+    apply hm_ne
+    simp only [wrapperRunHist]
+    refine Prod.ext ?_ (by rw [← hj_eq])
+    rw [← hj_eq]
+    exact wrapperNext_congr hproc fun k hk => by
+      change P.chooseDouble (σ₁ k) cur.2 cur.1 (P.proc σ₁ cur.2 cur.1).1 (P.proc σ₁ cur.2 cur.1).2 =
+        P.chooseDouble (σ₂ k) cur.2 cur.1 (P.proc σ₂ cur.2 cur.1).1 (P.proc σ₂ cur.2 cur.1).2
+      rw [← hproc]
+      exact hch k hk
+  constructor
+  · intro hm
+    exact hcontra fun k hk => by
+      have hki : k ≠ i := fun h => hk (h ▸ hm)
+      simp only [σ₁, σ₂, Function.update_of_ne hki]
+  · intro hch
+    exact hcontra fun k _ => by
+      by_cases hk : k = i
+      · subst hk
+        simpa only [σ₁, σ₂, Function.update_self] using hch
+      · simp only [σ₁, σ₂, Function.update_of_ne hk]
+
+/-- Under a proper procedure, if player `i` retires (`val = 0`) at iteration `j + 1` (after a
+non-terminated iteration `j`), her wrapper utility is at most `0`. -/
+private theorem utility_le_zero_of_val_eq_zero {P : WrapperProc N M Strat} {σ : N → Strat}
+    (hproper : P.IsProperOn σ) (p : SingleValuePlayer M) {i : N} {j : ℕ}
+    (hnotT : ¬ TerminatedAt P σ j) (hret : (wrapperState P σ (j + 1)).val i = 0) :
+    P.utility σ p i ≤ 0 := by
+  classical
+  simp only [WrapperProc.utility, WrapperProc.alloc, WrapperProc.payment]
+  split_ifs with hT hW
+  · have hJ_ge : j + 1 ≤ termRound P σ := by
+      by_contra hlt
+      exact hnotT (terminatedAt_mono (termRound_spec hT) (Nat.le_of_lt_succ (not_le.1 hlt)))
+    have hiL : i ∈ (wrapperState P σ (termRound P σ)).losers :=
+      losers_mono P σ hJ_ge ((mem_losers_iff_val_eq_zero P σ (j + 1) i).2 hret)
+    exact absurd hW (Finset.disjoint_right.1 (disjoint_winners_losers_of_isProperOn hproper _) hiL)
+  · simp only [SingleValuePlayer.eval_empty, sub_zero, le_refl]
+  · simp only [SingleValuePlayer.eval_empty, sub_zero, le_refl]
+
+/-- Under a proper procedure, if player `i`'s bid reaches at least `p.value` at iteration `j + 1`
+(after a non-terminated iteration `j`), her wrapper utility is at most `0`. -/
+private theorem utility_le_zero_of_value_le_val {P : WrapperProc N M Strat} {σ : N → Strat}
+    (hproper : P.IsProperOn σ) (p : SingleValuePlayer M) {i : N} {j : ℕ}
+    (hnotT : ¬ TerminatedAt P σ j) (hge : p.value ≤ ((wrapperState P σ (j + 1)).val i : ℝ)) :
+    P.utility σ p i ≤ 0 := by
+  classical
+  simp only [WrapperProc.utility, WrapperProc.alloc, WrapperProc.payment]
+  split_ifs with hT hW
+  · have hJ_ge : j + 1 ≤ termRound P σ := by
+      by_contra hlt
+      exact hnotT (terminatedAt_mono (termRound_spec hT) (Nat.le_of_lt_succ (not_le.1 hlt)))
+    have hiNotL : i ∉ (wrapperState P σ (termRound P σ)).losers :=
+      Finset.disjoint_left.1 (disjoint_winners_losers_of_isProperOn hproper _) hW
+    have hmono : ((wrapperState P σ (j + 1)).val i : ℝ) ≤
+        ((wrapperState P σ (termRound P σ)).val i : ℝ) := by
+      exact_mod_cast val_mono_of_not_mem_losers P σ hJ_ge hiNotL
+    linarith [p.eval_le_value ((wrapperState P σ (termRound P σ)).bundle i)]
+  · simp only [SingleValuePlayer.eval_empty, sub_zero, le_refl]
+  · simp only [SingleValuePlayer.eval_empty, sub_zero, le_refl]
+
 /-- Whether player `i` doubled in iteration `j` (active nonwinner choosing `true`). -/
 private def doubledAt (P : WrapperProc N M Strat) (σ : N → Strat) (i : N) (j : ℕ) : Bool :=
   let cur := wrapperRunHist P σ j
@@ -1056,6 +1241,36 @@ variable [Fintype N] [DecidableEq N]
 /-- Players who retire at iteration `j`: `L_{j+1} \ L_j`. -/
 @[expose] def retiredAt (P : WrapperProc N M Strat) (σ : N → Strat) (j : ℕ) : Finset N :=
   (wrapperState P σ (j + 1)).losers \ (wrapperState P σ j).losers
+
+/-- If player `i`'s doubling rule always doubles strictly below `v / 2`, then whenever player `i`
+retires at iteration `j`, her bid satisfies `v / 2 ≤ v_i^j`. -/
+private theorem half_le_val_of_retiredAt {P : WrapperProc N M Strat} {σ : N → Strat}
+    {i : N} {v : ℝ}
+    (hdouble : ∀ past st W' s',
+      2 * (st.val i : ℝ) < v → P.chooseDouble (σ i) past st W' s' = true)
+    {j : ℕ} (hi : i ∈ retiredAt P σ j) :
+    v / 2 ≤ ((wrapperState P σ j).val i : ℝ) := by
+  rw [retiredAt, Finset.mem_sdiff] at hi
+  obtain ⟨hi1, hi0⟩ := hi
+  have hnotT : ¬ TerminatedAt P σ j := fun ht =>
+    hi0 (by rwa [wrapperState_succ_of_terminatedAt ht] at hi1)
+  rw [mem_losers_iff_val_eq_zero] at hi1
+  set cur := wrapperRunHist P σ j
+  set res := P.proc σ cur.2 cur.1
+  have hnz : cur.1.val i ≠ 0 := mt (mem_losers_iff_val_eq_zero P σ j i).2 hi0
+  rw [wrapperState_succ_val hnotT i] at hi1
+  by_contra hlt
+  push Not at hlt
+  have hlt' : 2 * (cur.1.val i : ℝ) < v := by
+    have : (cur.1.val i : ℝ) = ((wrapperState P σ j).val i : ℝ) := rfl
+    linarith
+  have htrue : P.chooseDouble (σ i) cur.2 cur.1 res.1 res.2 = true :=
+    hdouble cur.2 cur.1 res.1 res.2 hlt'
+  rw [htrue] at hi1
+  simp only [↓reduceIte] at hi1
+  split_ifs at hi1
+  · exact hnz hi1
+  · exact mul_ne_zero two_ne_zero hnz hi1
 
 /-- Desired bundles of player `i` restricted to subsets of `s i` ([Lavi2007], eq. (12.14),
 p. 323): `S_i|_{s_i} = {b ∈ S_i | b ⊆ s_i}`. -/
@@ -1369,17 +1584,42 @@ private theorem ksmProc_bundle_eq (bundle : N → Finset M) (alg : (N → ℝ) �
     · simp only [wrapperState, wrapperRunHist, wrapperNext, TerminatedAt, ksmProc] at ht ih ⊢
       simpa only [ht, ↓reduceIte] using ih
 
+private theorem ksmProc_step_props (bundle : N → Finset M) {alg : (N → ℝ) → Finset N}
+    (halg_feas : ∀ v : N → ℝ, (∀ i, 0 ≤ v i) → (alg v : Set N).PairwiseDisjoint bundle)
+    {σ : N → KsmStrategy N M} {j : ℕ}
+    (hdisj : Disjoint (wrapperState (ksmProc bundle alg) σ j).winners
+      (wrapperState (ksmProc bundle alg) σ j).losers)
+    (hpw : ((wrapperState (ksmProc bundle alg) σ j).winners : Set N).PairwiseDisjoint bundle) :
+    let st := wrapperState (ksmProc bundle alg) σ j
+    let wAlg := (alg fun i => (st.val i : ℝ)).filter fun i => 0 < st.val i
+    let wBase := if ∑ i ∈ st.winners, st.val i ≤ ∑ i ∈ wAlg, st.val i then wAlg else st.winners
+    wBase ⊆ ksmExtendPareto bundle st.losers wBase ∧
+    Disjoint (ksmExtendPareto bundle st.losers wBase) st.losers ∧
+    ((ksmExtendPareto bundle st.losers wBase : Set N).PairwiseDisjoint bundle) ∧
+    (∀ i, i ∉ ksmExtendPareto bundle st.losers wBase ∪ st.losers →
+      ∃ l ∈ ksmExtendPareto bundle st.losers wBase, ¬ Disjoint (bundle i) (bundle l)) := by
+  set st := wrapperState (ksmProc bundle alg) σ j
+  let wAlg := (alg fun i => (st.val i : ℝ)).filter fun i => 0 < st.val i
+  have hwAlg_disj : Disjoint wAlg st.losers := by
+    rw [Finset.disjoint_left]
+    intro i hi hiL
+    rw [mem_losers_iff_val_eq_zero] at hiL
+    exact (Finset.mem_filter.1 hi).2.ne' hiL
+  have hwAlg_pw : (wAlg : Set N).PairwiseDisjoint bundle :=
+    (halg_feas _ fun _ => Nat.cast_nonneg _).subset (by exact_mod_cast Finset.filter_subset _ _)
+  let wBase := if ∑ i ∈ st.winners, st.val i ≤ ∑ i ∈ wAlg, st.val i then wAlg else st.winners
+  have hwBase_disj : Disjoint wBase st.losers := by
+    simp only [wBase]; split_ifs <;> [exact hwAlg_disj; exact hdisj]
+  have hwBase_pw : (wBase : Set N).PairwiseDisjoint bundle := by
+    simp only [wBase]; split_ifs <;> [exact hwAlg_pw; exact hpw]
+  exact ksmExtendPareto_props bundle st.losers wBase hwBase_disj hwBase_pw
+
 private theorem ksmProc_isProperOn_and_hasImprovementOn (bundle : N → Finset M)
     {alg : (N → ℝ) → Finset N}
     (halg_feas : ∀ v : N → ℝ, (∀ i, 0 ≤ v i) → (alg v : Set N).PairwiseDisjoint bundle)
     (σ : N → KsmStrategy N M) :
     (ksmProc bundle alg).IsProperOn σ ∧ (ksmProc bundle alg).HasImprovementOn σ := by
   set P := ksmProc bundle alg
-  have hproc_eq : ∀ (past : List (WrapperState N M)) (st : WrapperState N M),
-      P.proc σ past st =
-        let wAlg := (alg fun i => (st.val i : ℝ)).filter fun i => 0 < st.val i
-        let wBase := if ∑ i ∈ st.winners, st.val i ≤ ∑ i ∈ wAlg, st.val i then wAlg else st.winners
-        (ksmExtendPareto bundle st.losers wBase, st.bundle) := fun _ _ => rfl
   have hinv : ∀ j : ℕ,
       Disjoint (wrapperState P σ j).winners (wrapperState P σ j).losers ∧
       ((wrapperState P σ j).winners : Set N).PairwiseDisjoint bundle := by
@@ -1393,21 +1633,8 @@ private theorem ksmProc_isProperOn_and_hasImprovementOn (bundle : N → Finset M
       · rwa [wrapperState_succ_of_terminatedAt ht]
       · set st := wrapperState P σ j
         let wAlg := (alg fun i => (st.val i : ℝ)).filter fun i => 0 < st.val i
-        have hwAlg_disj : Disjoint wAlg st.losers := by
-          rw [Finset.disjoint_left]
-          intro i hi hiL
-          rw [mem_losers_iff_val_eq_zero] at hiL
-          exact (Finset.mem_filter.1 hi).2.ne' hiL
-        have hwAlg_pw : (wAlg : Set N).PairwiseDisjoint bundle :=
-          (halg_feas _ fun _ => Nat.cast_nonneg _).subset
-            (by exact_mod_cast Finset.filter_subset _ _)
         let wBase := if ∑ i ∈ st.winners, st.val i ≤ ∑ i ∈ wAlg, st.val i then wAlg else st.winners
-        have hwBase_disj : Disjoint wBase st.losers := by
-          simp only [wBase]; split_ifs <;> [exact hwAlg_disj; exact ih.1]
-        have hwBase_pw : (wBase : Set N).PairwiseDisjoint bundle := by
-          simp only [wBase]; split_ifs <;> [exact hwAlg_pw; exact ih.2]
-        obtain ⟨_, hd_ext, hp_ext, _⟩ := ksmExtendPareto_props bundle st.losers wBase
-          hwBase_disj hwBase_pw
+        obtain ⟨_, hd_ext, hp_ext, _⟩ := ksmProc_step_props bundle halg_feas ih.1 ih.2
         have hW' : (wrapperState P σ (j + 1)).winners =
             ksmExtendPareto bundle st.losers wBase :=
           wrapperState_succ_winners ht
@@ -1429,21 +1656,10 @@ private theorem ksmProc_isProperOn_and_hasImprovementOn (bundle : N → Finset M
   · intro j _
     set st := wrapperState P σ j
     have hbun : st.bundle = bundle := ksmProc_bundle_eq bundle alg σ j
-    let wAlg := (alg fun i => (st.val i : ℝ)).filter fun i => 0 < st.val i
-    have hwAlg_disj : Disjoint wAlg st.losers := by
-      rw [Finset.disjoint_left]
-      intro i hi hiL
-      rw [mem_losers_iff_val_eq_zero] at hiL
-      exact (Finset.mem_filter.1 hi).2.ne' hiL
-    have hwAlg_pw : (wAlg : Set N).PairwiseDisjoint bundle :=
-      (halg_feas _ fun _ => Nat.cast_nonneg _).subset (by exact_mod_cast Finset.filter_subset _ _)
-    let wBase := if ∑ i ∈ st.winners, st.val i ≤ ∑ i ∈ wAlg, st.val i then wAlg else st.winners
-    have hwBase_disj : Disjoint wBase st.losers := by
-      simp only [wBase]; split_ifs <;> [exact hwAlg_disj; exact (hinv j).1]
-    have hwBase_pw : (wBase : Set N).PairwiseDisjoint bundle := by
-      simp only [wBase]; split_ifs <;> [exact hwAlg_pw; exact (hinv j).2]
     obtain ⟨_, hd_ext, hp_ext, hpar_ext⟩ :=
-      ksmExtendPareto_props bundle st.losers wBase hwBase_disj hwBase_pw
+      ksmProc_step_props bundle halg_feas (hinv j).1 (hinv j).2
+    let wAlg := (alg fun i => (st.val i : ℝ)).filter fun i => 0 < st.val i
+    let wBase := if ∑ i ∈ st.winners, st.val i ≤ ∑ i ∈ wAlg, st.val i then wAlg else st.winners
     change (ksmExtendPareto bundle st.losers wBase : Set N).PairwiseDisjoint st.bundle ∧
       Disjoint (ksmExtendPareto bundle st.losers wBase) st.losers ∧
       (∀ i, i ∉ ksmExtendPareto bundle st.losers wBase ∪ st.losers →
@@ -1457,81 +1673,9 @@ private theorem ksmProc_isProperOn_and_hasImprovementOn (bundle : N → Finset M
     let wBase := if ∑ i ∈ st.winners, st.val i ≤ ∑ i ∈ wAlg, st.val i then wAlg else st.winners
     have hle_base : ∑ i ∈ st.winners, st.val i ≤ ∑ i ∈ wBase, st.val i := by
       simp only [wBase]; split_ifs with h <;> [exact h; exact le_rfl]
-    have hsub : wBase ⊆ ksmExtendPareto bundle st.losers wBase := by
-      have hwAlg_disj : Disjoint wAlg st.losers := by
-        rw [Finset.disjoint_left]
-        intro i hi hiL
-        rw [mem_losers_iff_val_eq_zero] at hiL
-        exact (Finset.mem_filter.1 hi).2.ne' hiL
-      have hwAlg_pw : (wAlg : Set N).PairwiseDisjoint bundle :=
-        (halg_feas _ fun _ => Nat.cast_nonneg _).subset (by exact_mod_cast Finset.filter_subset _ _)
-      have hwBase_disj : Disjoint wBase st.losers := by
-        simp only [wBase]; split_ifs <;> [exact hwAlg_disj; exact (hinv j).1]
-      have hwBase_pw : (wBase : Set N).PairwiseDisjoint bundle := by
-        simp only [wBase]; split_ifs <;> [exact hwAlg_pw; exact (hinv j).2]
-      exact (ksmExtendPareto_props bundle st.losers wBase hwBase_disj hwBase_pw).1
+    have hsub : wBase ⊆ ksmExtendPareto bundle st.losers wBase :=
+      (ksmProc_step_props bundle halg_feas (hinv j).1 (hinv j).2).1
     exact hle_base.trans (Finset.sum_le_sum_of_subset hsub)
-
-private theorem ksmDominantSet_val_le {bundle : N → Finset M} {alg : (N → ℝ) → Finset N}
-    {σ : N → KsmStrategy N M} {i : N} {v : ℝ} (hv : 1 ≤ v)
-    (hs : σ i ∈ ksmDominantSet i v) (j : ℕ) :
-    ((wrapperState (ksmProc bundle alg) σ j).val i : ℝ) ≤ v := by
-  set P := ksmProc bundle alg
-  induction j with
-  | zero =>
-    simpa only [wrapperState_zero, initState, Nat.cast_one] using hv
-  | succ j ih =>
-    by_cases ht : TerminatedAt P σ j
-    · rwa [wrapperState_succ_of_terminatedAt ht]
-    · set cur := wrapperRunHist P σ j
-      set res := P.proc σ cur.2 cur.1
-      have hval_succ : (wrapperState P σ (j + 1)).val i =
-          if i ∈ res.1 ∪ cur.1.losers then cur.1.val i
-          else if σ i cur.2 cur.1 res.1 res.2 then 2 * cur.1.val i else 0 :=
-        wrapperState_succ_val ht i
-      rw [hval_succ]
-      split_ifs with h1 h2
-      · exact ih
-      · by_contra hgt
-        push Not at hgt
-        have hgt' : v < 2 * (cur.1.val i : ℝ) := by
-          have : ((2 * cur.1.val i : ℕ) : ℝ) = 2 * (cur.1.val i : ℝ) := by
-            rw [Nat.cast_mul, Nat.cast_ofNat]
-          linarith
-        have hfalse := (hs cur.2 cur.1 res.1 res.2).1 hgt'
-        exact Bool.false_ne_true (hfalse.symm.trans h2)
-      · simp only [Nat.cast_zero]
-        linarith
-
-private theorem ksmDominantSet_retire_ge {bundle : N → Finset M} {alg : (N → ℝ) → Finset N}
-    {σ : N → KsmStrategy N M} {i : N} {v : ℝ} (hs : σ i ∈ ksmDominantSet i v)
-    {j : ℕ} (hi : i ∈ retiredAt (ksmProc bundle alg) σ j) :
-    v / 2 ≤ ((wrapperState (ksmProc bundle alg) σ j).val i : ℝ) := by
-  set P := ksmProc bundle alg
-  rw [retiredAt, Finset.mem_sdiff] at hi
-  obtain ⟨hi1, hi0⟩ := hi
-  have hnotT : ¬ TerminatedAt P σ j := fun ht =>
-    hi0 (by rwa [wrapperState_succ_of_terminatedAt ht] at hi1)
-  rw [mem_losers_iff_val_eq_zero] at hi1
-  set cur := wrapperRunHist P σ j
-  set res := P.proc σ cur.2 cur.1
-  have hnz : cur.1.val i ≠ 0 := mt (mem_losers_iff_val_eq_zero P σ j i).2 hi0
-  have hval_succ : (wrapperState P σ (j + 1)).val i =
-      if i ∈ res.1 ∪ cur.1.losers then cur.1.val i
-      else if σ i cur.2 cur.1 res.1 res.2 then 2 * cur.1.val i else 0 :=
-    wrapperState_succ_val hnotT i
-  rw [hval_succ] at hi1
-  by_contra hlt
-  push Not at hlt
-  have hlt' : 2 * (cur.1.val i : ℝ) < v := by
-    have : (cur.1.val i : ℝ) = ((wrapperState P σ j).val i : ℝ) := rfl
-    linarith
-  have htrue : σ i cur.2 cur.1 res.1 res.2 = true := (hs cur.2 cur.1 res.1 res.2).2 hlt'
-  rw [htrue] at hi1
-  simp only [↓reduceIte] at hi1
-  split_ifs at hi1
-  · exact hnz hi1
-  · exact mul_ne_zero two_ne_zero hnz hi1
 
 omit [Fintype N] [LinearOrder N] [DecidableEq M] in
 /-- **Proposition 12.41 (retirement threshold)** ([Lavi2007], §12.5, p. 323): under the canonical
@@ -1552,150 +1696,52 @@ theorem ksmDominantStrategy_retire_iff (i : N) {v : ℝ} (past : List (WrapperSt
 desiring `bundle i`, `ksmDominantStrategy i p.value` is a dominant strategy in `Wrapper + KSM-PROC`
 against all opponent full-history strategies. -/
 theorem ksmDominantStrategy_isDominant (bundle : N → Finset M) (alg : (N → ℝ) → Finset N)
-    {halg_feas : ∀ v : N → ℝ, (∀ i, 0 ≤ v i) → (alg v : Set N).PairwiseDisjoint bundle}
+    (halg_feas : ∀ v : N → ℝ, (∀ i, 0 ≤ v i) → (alg v : Set N).PairwiseDisjoint bundle)
     (i : N) (p : SingleValuePlayer M) (hb : bundle i ∈ p.desired) :
     (ksmProc bundle alg).IsDominantStrategy p i (ksmDominantStrategy i p.value) := by
   intro st σ
   set P := ksmProc bundle alg
   set σ₁ := Function.update σ i st
   set σ₂ := Function.update σ i (ksmDominantStrategy i p.value)
-  have hutil₂_nonneg : 0 ≤ P.utility σ₂ p i := by
-    classical
-    simp only [WrapperProc.utility, WrapperProc.alloc, WrapperProc.payment]
-    split_ifs with hT hW
-    · have hbun : (wrapperState P σ₂ (termRound P σ₂)).bundle i = bundle i := by
-        rw [ksmProc_bundle_eq]
-      rw [hbun, p.eval_of_mem hb]
-      have hσ₂i : σ₂ i ∈ ksmDominantSet i p.value := by
-        simpa only [σ₂, Function.update_self] using ksmDominantStrategy_mem (M := M) i p.value
-      have hle := ksmDominantSet_val_le (bundle := bundle) (alg := alg) p.one_le_value hσ₂i
-        (termRound P σ₂)
-      linarith
-    · simp only [SingleValuePlayer.eval_empty, sub_zero, le_refl]
-    · simp only [SingleValuePlayer.eval_empty, sub_zero, le_refl]
+  have hσ₂i : σ₂ i ∈ ksmDominantSet i p.value := by
+    simpa only [σ₂, Function.update_self] using ksmDominantStrategy_mem (M := M) i p.value
+  have hutil₂_nonneg : 0 ≤ P.utility σ₂ p i :=
+    utility_nonneg_of_desired_of_val_le p
+      (fun j => by rw [ksmProc_bundle_eq]; exact hb)
+      (val_le_of_not_double_above p.one_le_value fun past st' W' s' =>
+        (hσ₂i past st' W' s').1)
   by_cases heq : ∀ j, wrapperRunHist P σ₁ j = wrapperRunHist P σ₂ j
-  · have hstEq : ∀ j, wrapperState P σ₁ j = wrapperState P σ₂ j := fun j =>
-      congrArg Prod.fst (heq j)
-    have hTeq : Terminates P σ₁ ↔ Terminates P σ₂ := by
-      simp only [Terminates, TerminatedAt, hstEq]
-    have hreq : termRound P σ₁ = termRound P σ₂ := by
-      classical
-      simp only [termRound, hTeq]
-      split_ifs with hT₂
-      · refine le_antisymm ?_ ?_
-        · exact Nat.find_min' (hTeq.2 hT₂)
-            (by simpa only [TerminatedAt, hstEq] using Nat.find_spec hT₂)
-        · exact Nat.find_min' hT₂
-            (by simpa only [TerminatedAt, ← hstEq] using Nat.find_spec (hTeq.2 hT₂))
-      · rfl
-    have haeq : P.alloc σ₁ i = P.alloc σ₂ i := by
-      classical simp only [WrapperProc.alloc, hTeq, hreq, hstEq]
-    have hpeq : P.payment σ₁ i = P.payment σ₂ i := by
-      classical simp only [WrapperProc.payment, hTeq, hreq, hstEq]
-    simp only [WrapperProc.utility, haeq, hpeq, le_refl]
-  · -- First iteration where the two runs diverge.
-    classical
-    push Not at heq
-    set m := Nat.find heq
-    have hm_ne : wrapperRunHist P σ₁ m ≠ wrapperRunHist P σ₂ m := Nat.find_spec heq
-    have hm_pos : 0 < m := by
-      by_contra h0
-      have hm0 : m = 0 := Nat.eq_zero_of_not_pos h0
-      exact hm_ne (by simp only [hm0, wrapperRunHist])
-    obtain ⟨j, hj⟩ := Nat.exists_eq_succ_of_ne_zero hm_pos.ne'
-    rw [hj] at hm_ne
-    have hj_eq : wrapperRunHist P σ₁ j = wrapperRunHist P σ₂ j := by
-      by_contra hne
-      exact Nat.find_min heq (by omega : j < m) hne
-    have hnotT₁ : ¬ TerminatedAt P σ₁ j := by
-      intro ht
-      have ht₂ : TerminatedAt P σ₂ j := by
-        simpa only [TerminatedAt, wrapperState, hj_eq] using ht
-      apply hm_ne
-      simp only [wrapperRunHist, wrapperNext, TerminatedAt, wrapperState] at ht ht₂ ⊢
-      simp only [hj_eq, ht₂, ↓reduceIte]
-    have hst_eq : wrapperState P σ₁ j = wrapperState P σ₂ j := congrArg Prod.fst hj_eq
-    -- `P.proc` ignores strategies, so `(W', s')` is identical for `σ₁` and `σ₂` at iteration `j`.
+  · rw [utility_eq_of_wrapperRunHist_eq p i heq]
+  · obtain ⟨j, hj_eq, hm_ne, hnotT₁, _⟩ := exists_first_wrapperRunHist_ne heq
     set cur := wrapperRunHist P σ₁ j
     set res := P.proc σ₁ cur.2 cur.1
-    have hproc_eq : P.proc σ₁ cur.2 cur.1 = P.proc σ₂ cur.2 cur.1 := rfl
-    have hnotMem : i ∉ res.1 ∪ cur.1.losers := by
-      intro hm
-      apply hm_ne
-      simp only [wrapperRunHist]
-      refine Prod.ext ?_ (by
-        change (wrapperRunHist P σ₁ j).1 :: (wrapperRunHist P σ₁ j).2 =
-          (wrapperRunHist P σ₂ j).1 :: (wrapperRunHist P σ₂ j).2
-        rw [← hj_eq])
-      rw [← hj_eq]
-      exact wrapperNext_congr hproc_eq fun k hk => by
-        have hki : k ≠ i := fun h => hk (h ▸ hm)
-        have hσk : σ₁ k = σ₂ k := by simp only [σ₁, σ₂, Function.update_of_ne hki]
-        simp only [hσk]
-        rfl
-    have hch_ne : σ₁ i cur.2 cur.1 res.1 res.2 ≠ σ₂ i cur.2 cur.1 res.1 res.2 := by
-      intro hch
-      apply hm_ne
-      simp only [wrapperRunHist]
-      refine Prod.ext ?_ (by
-        change (wrapperRunHist P σ₁ j).1 :: (wrapperRunHist P σ₁ j).2 =
-          (wrapperRunHist P σ₂ j).1 :: (wrapperRunHist P σ₂ j).2
-        rw [← hj_eq])
-      rw [← hj_eq]
-      exact wrapperNext_congr hproc_eq fun k _ => by
-        by_cases hk : k = i
-        · subst hk; exact hch
-        · have hσk : σ₁ k = σ₂ k := by simp only [σ₁, σ₂, Function.update_of_ne hk]
-          simp only [hσk]
-          rfl
-    -- Because `chooseDouble` differs for `i ∉ W' ∪ L_j`, `st` chose opposite to the dominant move.
-    have hutil₁_le_zero : P.utility σ₁ p i ≤ 0 := by
-      have hproper₁ := (ksmProc_isProperOn_and_hasImprovementOn bundle halg_feas σ₁).1
-      by_cases hT₁ : Terminates P σ₁
-      · have hJ_ge : j + 1 ≤ termRound P σ₁ := by
-          by_contra hlt
-          push Not at hlt
-          exact hnotT₁ (terminatedAt_mono (termRound_spec hT₁) (Nat.le_of_lt_succ hlt))
-        have hval_j1 : (wrapperState P σ₁ (j + 1)).val i =
-            if σ₁ i cur.2 cur.1 res.1 res.2 then 2 * cur.1.val i else 0 := by
-          rw [wrapperState_succ_val hnotT₁ i]
-          change (if i ∈ res.1 ∪ cur.1.losers then cur.1.val i
-            else if σ₁ i cur.2 cur.1 res.1 res.2 then 2 * cur.1.val i else 0) = _
-          simp only [hnotMem, ↓reduceIte]
-        cases hst_ch : σ₁ i cur.2 cur.1 res.1 res.2
-        · -- `st` retired at iteration `j`, so `i ∈ L_J`, hence `i ∉ W_J` and utility is `0`.
-          have hret₁ : (wrapperState P σ₁ (j + 1)).val i = 0 := by
-            simp only [hval_j1, hst_ch, Bool.false_eq_true, ↓reduceIte]
-          have hiL : i ∈ (wrapperState P σ₁ (termRound P σ₁)).losers :=
-            losers_mono P σ₁ hJ_ge ((mem_losers_iff_val_eq_zero P σ₁ (j + 1) i).2 hret₁)
-          have hiNotW : i ∉ (wrapperState P σ₁ (termRound P σ₁)).winners :=
-            Finset.disjoint_right.1 (disjoint_winners_losers_of_isProperOn hproper₁ _) hiL
-          simp only [WrapperProc.utility, WrapperProc.alloc, WrapperProc.payment, hT₁, ↓reduceIte,
-            hiNotW, SingleValuePlayer.eval_empty, sub_zero, le_refl]
-        · -- `st` doubled while `ksmDominantStrategy` retired, so `2 * v_i^j ≥ p.value`.
-          have hdom_false :
-              ksmDominantStrategy (M := M) i p.value cur.2 cur.1 res.1 res.2 = false := by
-            have hσ₂i : σ₂ i = ksmDominantStrategy i p.value := Function.update_self i _ σ
-            rw [hst_ch, hσ₂i] at hch_ne
-            cases h2 : ksmDominantStrategy (M := M) i p.value cur.2 cur.1 res.1 res.2
-            · rfl
-            · exact absurd h2.symm hch_ne
-          have hge_val : p.value ≤ ((wrapperState P σ₁ (j + 1)).val i : ℝ) := by
-            simp only [hval_j1, hst_ch, ↓reduceIte, Nat.cast_mul, Nat.cast_ofNat]
-            simp only [ksmDominantStrategy, decide_eq_false_iff_not, not_lt] at hdom_false
-            exact hdom_false
-          simp only [WrapperProc.utility, WrapperProc.alloc, WrapperProc.payment, hT₁, ↓reduceIte]
-          split_ifs with hW
-          · have hiNotL : i ∉ (wrapperState P σ₁ (termRound P σ₁)).losers :=
-              Finset.disjoint_left.1 (disjoint_winners_losers_of_isProperOn hproper₁ _) hW
-            have hmono : ((wrapperState P σ₁ (j + 1)).val i : ℝ) ≤
-                ((wrapperState P σ₁ (termRound P σ₁)).val i : ℝ) := by
-              exact_mod_cast val_mono_of_not_mem_losers P σ₁ hJ_ge hiNotL
-            linarith [p.eval_le_value ((wrapperState P σ₁ (termRound P σ₁)).bundle i)]
-          · simp only [SingleValuePlayer.eval_empty, sub_zero, le_refl]
-      · simp only [WrapperProc.utility, WrapperProc.alloc, WrapperProc.payment, hT₁, ↓reduceIte,
-          SingleValuePlayer.eval_empty, sub_zero, le_refl]
-    exact hutil₁_le_zero.trans hutil₂_nonneg
+    obtain ⟨hnotMem, hch_ne⟩ := step_divergence_of_proc_eq hj_eq hm_ne rfl
+    change i ∉ res.1 ∪ cur.1.losers at hnotMem
+    have hproper₁ := (ksmProc_isProperOn_and_hasImprovementOn bundle halg_feas σ₁).1
+    have hval_j1 : (wrapperState P σ₁ (j + 1)).val i =
+        if st cur.2 cur.1 res.1 res.2 then 2 * cur.1.val i else 0 := by
+      rw [wrapperState_succ_val hnotT₁ i]
+      have hσ₁i : σ₁ i = st := Function.update_self i st σ
+      change (if i ∈ res.1 ∪ cur.1.losers then cur.1.val i
+        else if σ₁ i cur.2 cur.1 res.1 res.2 then 2 * cur.1.val i else 0) = _
+      simp only [hnotMem, hσ₁i, ↓reduceIte]
+    suffices hutil₁_le_zero : P.utility σ₁ p i ≤ 0 by exact hutil₁_le_zero.trans hutil₂_nonneg
+    cases hst_ch : st cur.2 cur.1 res.1 res.2
+    · exact utility_le_zero_of_val_eq_zero hproper₁ p hnotT₁
+        (hval_j1.trans (by simp only [hst_ch, Bool.false_eq_true, ↓reduceIte]))
+    · have hdom_false :
+          ksmDominantStrategy (M := M) i p.value cur.2 cur.1 res.1 res.2 = false := by
+        change st cur.2 cur.1 res.1 res.2 ≠
+          ksmDominantStrategy (M := M) i p.value cur.2 cur.1 res.1 res.2 at hch_ne
+        rw [hst_ch] at hch_ne
+        cases h2 : ksmDominantStrategy (M := M) i p.value cur.2 cur.1 res.1 res.2
+        · rfl
+        · exact absurd h2.symm hch_ne
+      have hge_val : p.value ≤ ((wrapperState P σ₁ (j + 1)).val i : ℝ) := by
+        simp only [hval_j1, hst_ch, ↓reduceIte, Nat.cast_mul, Nat.cast_ofNat]
+        simp only [ksmDominantStrategy, decide_eq_false_iff_not, not_lt] at hdom_false
+        exact hdom_false
+      exact utility_le_zero_of_value_le_val hproper₁ p hnotT₁ hge_val
 
 /-- **Claim 12.43** ([Lavi2007], §12.5, p. 324): given any feasible `c`-approximation algorithm
 `alg` for KSM players with public bundles `bundle`, `ksmProc bundle alg` is a
@@ -1749,26 +1795,12 @@ theorem ksmProc_isLocalApproxOn [Fintype M] (bundle : N → Finset M)
       exact_mod_cast hnat
     have hbase_sub : wBase ⊆ (wrapperState (ksmProc bundle alg) σ (j + 1)).winners := by
       have hW1 : (wrapperState (ksmProc bundle alg) σ (j + 1)).winners =
-          ksmExtendPareto bundle st.losers wBase := by
-        simp only [wrapperState, wrapperRunHist, wrapperNext, TerminatedAt, ksmProc, st, wBase,
-          wAlg] at hnotT ⊢
-        simp only [hnotT, ↓reduceIte]
+          ksmExtendPareto bundle st.losers wBase := wrapperState_succ_winners hnotT
       rw [hW1]
-      have hwAlg_disj : Disjoint wAlg st.losers := by
-        rw [Finset.disjoint_left]
-        intro i hi hiL
-        rw [mem_losers_iff_val_eq_zero] at hiL
-        exact (Finset.mem_filter.1 hi).2.ne' hiL
-      have hwAlg_pw : (wAlg : Set N).PairwiseDisjoint bundle :=
-        (halg_feas _ fun _ => Nat.cast_nonneg _).subset (by exact_mod_cast Finset.filter_subset _ _)
-      have hst_disj := disjoint_winners_losers_of_isProperOn hproper j
-      have hst_pw : (st.winners : Set N).PairwiseDisjoint bundle := by
-        simpa only [ksmProc_bundle_eq] using winners_pairwiseDisjoint_of_isProperOn hproper j
-      have hwBase_disj : Disjoint wBase st.losers := by
-        simp only [wBase]; split_ifs <;> [exact hwAlg_disj; exact hst_disj]
-      have hwBase_pw : (wBase : Set N).PairwiseDisjoint bundle := by
-        simp only [wBase]; split_ifs <;> [exact hwAlg_pw; exact hst_pw]
-      exact (ksmExtendPareto_props bundle st.losers wBase hwBase_disj hwBase_pw).1
+      exact (ksmProc_step_props bundle halg_feas (disjoint_winners_losers_of_isProperOn hproper j)
+        (by
+          simpa only [ksmProc_bundle_eq] using
+            winners_pairwiseDisjoint_of_isProperOn hproper j)).1
     have hbase_le_W1 : ∑ i ∈ wBase, (st.val i : ℝ) ≤
         ∑ i ∈ (wrapperState (ksmProc bundle alg) σ (j + 1)).winners, (st.val i : ℝ) :=
       Finset.sum_le_sum_of_subset_of_nonneg hbase_sub fun _ _ _ => Nat.cast_nonneg _
@@ -1778,9 +1810,9 @@ theorem ksmProc_isLocalApproxOn [Fintype M] (bundle : N → Finset M)
     rw [ksmProc_bundle_eq]
     exact Subset.rfl
   · intro j i
-    exact ksmDominantSet_val_le (hv i) (hσ i) j
+    exact val_le_of_not_double_above (hv i) (fun past st' W' s' => (hσ i past st' W' s').1) j
   · intro j i hi
-    exact ksmDominantSet_retire_ge (hσ i) hi
+    exact half_le_val_of_retiredAt (fun past st' W' s' => (hσ i past st' W' s').2) hi
 
 /-- **Theorem 12.45** ([Lavi2007], §12.5, p. 324): given any feasible `c`-approximation algorithm
 `alg` for known single-minded players with `1 ≤ v_i ≤ v_max`, `Wrapper + KSM-PROC` is a
@@ -1859,8 +1891,7 @@ theorem ksmProc_isDominantStrategyImpl [Fintype M] (bundle : N → Finset M)
       exact optWelfareOn_le_sum fun i _ => (players i).value_pos.le
     rw [hv_eq] at hrBar
     linarith
-  exact ⟨fun i => ksmDominantStrategy_isDominant bundle alg (halg_feas := halg_feas) i (players i)
-      Subset.rfl,
+  exact ⟨fun i => ksmDominantStrategy_isDominant bundle alg halg_feas i (players i) Subset.rfl,
     hT, P.isFeasibleAlloc_of_isProperOn hproper, hopt_all⟩
 
 end KsmProc
@@ -1953,15 +1984,19 @@ private instance (v : N → ℕ) : Std.Antisymm (oneCaRel v) := ⟨fun a b hab h
   · exact absurd (h1 ▸ h2) (lt_irrefl _)
   · exact le_antisymm h1' h2'⟩
 
-/-- Accumulator state inside one iteration of `1-CA-PROC`. -/
-private structure OneCaAcc (N M : Type*) where
+/-- Accumulator state inside one iteration of `1-CA-PROC` ([Lavi2007], Definition 12.46, p. 325). -/
+structure OneCaAcc (N M : Type*) where
+  /-- Current tentative winner set `W_j`. -/
   wSet : Finset N
+  /-- Current max-bidder candidate set `M_j`. -/
   mSet : Finset N
+  /-- Current greedy candidate set `GREEDY_j`. -/
   gSet : Finset N
+  /-- Current player bundle assignment `s^{j+1}`. -/
   bundles : N → Finset M
 
-/-- Effective bundle selected for player `i` during `1-CA-PROC`. -/
-private def oneCaPickBundle (σ : N → OneCaStrategy N M) (past : List (WrapperState N M))
+/-- Effective bundle selected for player `i` during one step of `1-CA-PROC`. -/
+@[expose] def oneCaPickBundle (σ : N → OneCaStrategy N M) (past : List (WrapperState N M))
     (st : WrapperState N M) (acc : OneCaAcc N M) (i : N) : Finset M :=
   if i ∈ st.winners then acc.bundles i
   else
@@ -1972,7 +2007,7 @@ private def oneCaPickBundle (σ : N → OneCaStrategy N M) (past : List (Wrapper
 
 /-- One player step of the descending-value loop in `1-CA-PROC` ([Lavi2007], Definition 12.46,
 p. 325). -/
-private def oneCaStep (σ : N → OneCaStrategy N M) (past : List (WrapperState N M))
+@[expose] def oneCaStep (σ : N → OneCaStrategy N M) (past : List (WrapperState N M))
     (st : WrapperState N M) (acc : OneCaAcc N M) (i : N) : OneCaAcc N M :=
   let bNew := oneCaPickBundle σ past st acc i
   let sNext := Function.update acc.bundles i bNew
@@ -2048,156 +2083,45 @@ private def oneCaRunAcc (σ : N → OneCaStrategy N M) (past : List (WrapperStat
 
 /-- **The `1-CA-PROC` subprocedure** ([Lavi2007], Definition 12.46, p. 325) for single-value
 combinatorial auctions. Initializes `s_i^0 = Finset.univ`. -/
-@[expose] def oneCaProc : WrapperProc N M (OneCaStrategy N M) where
+def oneCaProc : WrapperProc N M (OneCaStrategy N M) where
   initBundle := fun _ => Finset.univ
   proc σ past st :=
-    let rel : N → N → Prop := fun i k => st.val k < st.val i ∨ (st.val k = st.val i ∧ i ≤ k)
-    letI : DecidableRel rel := fun _ _ => inferInstanceAs (Decidable (_ ∨ _))
-    letI : Std.Total rel := ⟨fun a b => by
-      rcases lt_trichotomy (st.val a) (st.val b) with h | h | h
-      · exact Or.inr (Or.inl h)
-      · rcases le_total a b with hab | hba
-        · exact Or.inl (Or.inr ⟨h.symm, hab⟩)
-        · exact Or.inr (Or.inr ⟨h, hba⟩)
-      · exact Or.inl (Or.inl h)⟩
-    letI : IsTrans N rel := ⟨fun a b c hab hbc => by
-      rcases hab with h1 | ⟨h1, h1'⟩ <;> rcases hbc with h2 | ⟨h2, h2'⟩
-      · exact Or.inl (h2.trans h1)
-      · exact Or.inl (h2 ▸ h1)
-      · exact Or.inl (h1 ▸ h2)
-      · exact Or.inr ⟨h2.trans h1, h1'.trans h2'⟩⟩
-    letI : Std.Antisymm rel := ⟨fun a b hab hba => by
-      rcases hab with h1 | ⟨h1, h1'⟩ <;> rcases hba with h2 | ⟨h2, h2'⟩
-      · exact absurd (h1.trans h2) (lt_irrefl _)
-      · exact absurd (h2 ▸ h1) (lt_irrefl _)
-      · exact absurd (h1 ▸ h2) (lt_irrefl _)
-      · exact le_antisymm h1' h2'⟩
-    let active := Finset.univ.filter fun i => 0 < st.val i
-    let order := active.sort rel
-    match order with
-    | [] => (st.winners, st.bundle)
-    | iMax :: _ =>
-      let (wSet, mSet, gSet, bundles) :=
-        order.foldl (fun (wSet, mSet, gSet, bundles) i =>
-          let bNew :=
-            if i ∈ st.winners then bundles i
-            else
-              let view : OneCaShrinkView N M := ⟨past, st, wSet, mSet, gSet, bundles⟩
-              match (σ i).shrink view with
-              | some b => if IsValidShrink gSet bundles (bundles i) b then b else bundles i
-              | none => bundles i
-          let sNext := Function.update bundles i bNew
-          if bNew.card ≤ Nat.sqrt (Fintype.card M) then
-            let wNext := if bNew ⊆ freeItems wSet sNext then insert i wSet else wSet
-            let mNext := if bNew ⊆ freeItems mSet sNext then insert i mSet else mSet
-            let gNext := if bNew ⊆ freeItems gSet sNext then insert i gSet else gSet
-            (wNext, mNext, gNext, sNext)
-          else
-            (wSet, mSet, gSet, sNext))
-          (st.winners, {iMax}, ∅, st.bundle)
-      let sumW := ∑ k ∈ wSet, st.val k
-      let sumM := ∑ k ∈ mSet, st.val k
-      let sumG := ∑ k ∈ gSet, st.val k
-      let W := if sumM ≤ sumW ∧ sumG ≤ sumW then wSet
-        else if sumG ≤ sumM then mSet else gSet
-      (W, bundles)
+    let acc := oneCaRunAcc σ past st
+    (oneCaSelectBest st.val acc, acc.bundles)
   chooseDouble s past st W' s' := s.double past st W' s'
 
-private theorem oneCaProc_proc_eq (σ : N → OneCaStrategy N M) (past : List (WrapperState N M))
-    (st : WrapperState N M) :
+/-- `oneCaProc` initializes every player's bundle to `Finset.univ`. -/
+theorem oneCaProc_initBundle :
+    (oneCaProc (N := N) (M := M)).initBundle = fun _ => Finset.univ := by rfl
+
+/-- `oneCaProc` delegates step-2 doubling decisions to `OneCaStrategy.double`. -/
+theorem oneCaProc_chooseDouble (s : OneCaStrategy N M) (past : List (WrapperState N M))
+    (st : WrapperState N M) (W' : Finset N) (s' : N → Finset M) :
+    (oneCaProc (N := N) (M := M)).chooseDouble s past st W' s' = s.double past st W' s' := by rfl
+
+/-- Stepping equation for `oneCaProc.proc` given an explicit descending active-player order
+`iMax :: tl` (with deterministic tie-breaking by `≤` on `N`). -/
+theorem oneCaProc_proc_of_order (σ : N → OneCaStrategy N M) (past : List (WrapperState N M))
+    (st : WrapperState N M) {iMax : N} {tl : List N}
+    (hnodup : (iMax :: tl).Nodup)
+    (hmem : ∀ x, x ∈ Finset.univ.filter (fun i => 0 < st.val i) ↔ x ∈ iMax :: tl)
+    (hpair : (iMax :: tl).Pairwise fun i k =>
+      st.val k < st.val i ∨ (st.val k = st.val i ∧ i ≤ k)) :
+    let acc := (iMax :: tl).foldl (oneCaStep σ past st) ⟨st.winners, {iMax}, ∅, st.bundle⟩
+    let sumW := ∑ k ∈ acc.wSet, st.val k
+    let sumM := ∑ k ∈ acc.mSet, st.val k
+    let sumG := ∑ k ∈ acc.gSet, st.val k
     (oneCaProc (N := N) (M := M)).proc σ past st =
-      (oneCaSelectBest st.val (oneCaRunAcc σ past st), (oneCaRunAcc σ past st).bundles) := by
-  dsimp only [oneCaProc, oneCaRunAcc, oneCaSelectBest]
-  set active := Finset.univ.filter fun i => 0 < st.val i
-  let rel : N → N → Prop := fun i k => st.val k < st.val i ∨ (st.val k = st.val i ∧ i ≤ k)
-  let _ : DecidableRel rel := fun _ _ => inferInstanceAs (Decidable (_ ∨ _))
-  let _ : Std.Total rel := ⟨fun a b => by
-    rcases lt_trichotomy (st.val a) (st.val b) with h | h | h
-    · exact Or.inr (Or.inl h)
-    · rcases le_total a b with hab | hba
-      · exact Or.inl (Or.inr ⟨h.symm, hab⟩)
-      · exact Or.inr (Or.inr ⟨h, hba⟩)
-    · exact Or.inl (Or.inl h)⟩
-  let _ : IsTrans N rel := ⟨fun a b c hab hbc => by
-    rcases hab with h1 | ⟨h1, h1'⟩ <;> rcases hbc with h2 | ⟨h2, h2'⟩
-    · exact Or.inl (h2.trans h1)
-    · exact Or.inl (h2 ▸ h1)
-    · exact Or.inl (h1 ▸ h2)
-    · exact Or.inr ⟨h2.trans h1, h1'.trans h2'⟩⟩
-  let _ : Std.Antisymm rel := ⟨fun a b hab hba => by
-    rcases hab with h1 | ⟨h1, h1'⟩ <;> rcases hba with h2 | ⟨h2, h2'⟩
-    · exact absurd (h1.trans h2) (lt_irrefl _)
-    · exact absurd (h2 ▸ h1) (lt_irrefl _)
-    · exact absurd (h1 ▸ h2) (lt_irrefl _)
-    · exact le_antisymm h1' h2'⟩
-  have hperm : (active.sort rel).Perm (active.sort (oneCaRel st.val)) :=
-    (List.perm_ext_iff_of_nodup (active.sort_nodup rel)
-      (active.sort_nodup (oneCaRel st.val))).2 fun _ => by simp only [Finset.mem_sort]
-  have hsort : active.sort rel = active.sort (oneCaRel st.val) :=
-    hperm.eq_of_pairwise
+      (if sumM ≤ sumW ∧ sumG ≤ sumW then acc.wSet
+       else if sumG ≤ sumM then acc.mSet else acc.gSet,
+       acc.bundles) := by
+  have hord : (Finset.univ.filter fun i => 0 < st.val i).sort (oneCaRel st.val) = iMax :: tl :=
+    ((List.perm_ext_iff_of_nodup (Finset.sort_nodup _ _) hnodup).2 fun x => by
+      rw [Finset.mem_sort, hmem]).eq_of_pairwise
       (fun _ _ _ _ h1 h2 => Std.Antisymm.antisymm (r := oneCaRel st.val) _ _ h1 h2)
-      (active.pairwise_sort rel) (active.pairwise_sort (oneCaRel st.val))
-  rw [hsort]
-  cases hord : active.sort (oneCaRel st.val) with
-  | nil =>
-    simp only [Finset.sum_empty, Nat.zero_le, and_self, ↓reduceIte]
-  | cons iMax tl =>
-    let toTuple : OneCaAcc N M → Finset N × Finset N × Finset N × (N → Finset M) :=
-      fun a => (a.wSet, a.mSet, a.gSet, a.bundles)
-    have hfold : ∀ (xs : List N) (acc : OneCaAcc N M),
-        xs.foldl (fun (wSet, mSet, gSet, bundles) i =>
-          let bNew :=
-            if i ∈ st.winners then bundles i
-            else
-              let view : OneCaShrinkView N M := ⟨past, st, wSet, mSet, gSet, bundles⟩
-              match (σ i).shrink view with
-              | some b => if IsValidShrink gSet bundles (bundles i) b then b else bundles i
-              | none => bundles i
-          let sNext := Function.update bundles i bNew
-          if bNew.card ≤ Nat.sqrt (Fintype.card M) then
-            let wNext := if bNew ⊆ freeItems wSet sNext then insert i wSet else wSet
-            let mNext := if bNew ⊆ freeItems mSet sNext then insert i mSet else mSet
-            let gNext := if bNew ⊆ freeItems gSet sNext then insert i gSet else gSet
-            (wNext, mNext, gNext, sNext)
-          else
-            (wSet, mSet, gSet, sNext)) (toTuple acc) =
-        toTuple (xs.foldl (oneCaStep σ past st) acc) := by
-      intro xs
-      induction xs with
-      | nil => intro _; rfl
-      | cons a l ih =>
-        intro acc
-        rw [List.foldl_cons, List.foldl_cons]
-        have hstep : (let bNew :=
-              if a ∈ st.winners then acc.bundles a
-              else
-                let view : OneCaShrinkView N M :=
-                  ⟨past, st, acc.wSet, acc.mSet, acc.gSet, acc.bundles⟩
-                match (σ a).shrink view with
-                | some b =>
-                  if IsValidShrink acc.gSet acc.bundles (acc.bundles a) b then b else acc.bundles a
-                | none => acc.bundles a
-            let sNext := Function.update acc.bundles a bNew
-            if bNew.card ≤ Nat.sqrt (Fintype.card M) then
-              let wNext := if bNew ⊆ freeItems acc.wSet sNext then insert a acc.wSet else acc.wSet
-              let mNext := if bNew ⊆ freeItems acc.mSet sNext then insert a acc.mSet else acc.mSet
-              let gNext := if bNew ⊆ freeItems acc.gSet sNext then insert a acc.gSet else acc.gSet
-              (wNext, mNext, gNext, sNext)
-            else
-              (acc.wSet, acc.mSet, acc.gSet, sNext)) =
-            toTuple (oneCaStep σ past st acc a) := by
-          dsimp only [toTuple, oneCaStep, oneCaPickBundle]
-          split_ifs <;> rfl
-        dsimp only [toTuple] at hstep ⊢
-        rw [hstep]
-        exact ih (oneCaStep σ past st acc a)
-    exact congrArg (fun t =>
-      let sumW := ∑ k ∈ t.1, st.val k
-      let sumM := ∑ k ∈ t.2.1, st.val k
-      let sumG := ∑ k ∈ t.2.2.1, st.val k
-      let W := if sumM ≤ sumW ∧ sumG ≤ sumW then t.1
-        else if sumG ≤ sumM then t.2.1 else t.2.2.1
-      (W, t.2.2.2)) (hfold (iMax :: tl) ⟨st.winners, {iMax}, ∅, st.bundle⟩)
+      (Finset.pairwise_sort _ _) hpair
+  dsimp only [oneCaProc, oneCaRunAcc, oneCaSelectBest]
+  rw [hord]
 
 /-- **Loser-if-silent** condition for player `i` at a `1-CA-PROC` shrink query ([Lavi2007], §12.5,
 p. 325): `v̄ᵢ / 2 ≤ v_i^j`, `i` is not currently in `W_j`, `M_j`, or `GREEDY_j`, and staying silent
@@ -2664,6 +2588,37 @@ private structure OneCaStateInv (st : WrapperState N M) : Prop where
   nonempty : ∀ i, (st.bundle i).Nonempty
   dichotomy : ∀ i, st.bundle i = Finset.univ ∨ (st.bundle i).card ≤ Nat.sqrt (Fintype.card M)
 
+omit [LinearOrder N] [DecidableEq M] in
+private theorem oneCaFoldInv_init {st : WrapperState N M} {iMax : N}
+    (hlos : ∀ i, i ∈ st.losers ↔ st.val i = 0)
+    (hst : OneCaStateInv st)
+    (hiMax_act : iMax ∈ Finset.univ.filter fun i => 0 < st.val i) :
+    OneCaFoldInv st (Finset.univ.filter fun i => 0 < st.val i) iMax []
+      ⟨st.winners, {iMax}, ∅, st.bundle⟩ :=
+  { w_sub_active := fun k hk =>
+      Finset.mem_filter.2 ⟨Finset.mem_univ k,
+        Nat.pos_of_ne_zero (mt (hlos k).2 (Finset.disjoint_left.1 hst.disj hk))⟩
+    m_sub_active := Finset.singleton_subset_iff.2 hiMax_act
+    g_sub_active := Finset.empty_subset _
+    stW_sub_w := Subset.rfl
+    iMax_mem_m := Finset.mem_singleton_self iMax
+    w_diff_visited := fun _ hk => Or.inl hk
+    m_diff_visited := fun _ hk => Or.inl (Finset.mem_singleton.1 hk)
+    g_sub_visited := fun _ hk => absurd hk (Finset.notMem_empty _)
+    bundle_sub := fun _ => Subset.rfl
+    bundle_unvisited := fun _ _ => rfl
+    bundle_winners := fun _ _ => rfl
+    bundle_nonempty := hst.nonempty
+    bundle_dichotomy := hst.dichotomy
+    w_pw := hst.pw
+    m_pw := by simp only [Finset.coe_singleton, Set.pairwiseDisjoint_singleton]
+    g_pw := by simp only [Finset.coe_empty, Set.pairwiseDisjoint_empty]
+    g_small := fun _ hk => absurd hk (Finset.notMem_empty _)
+    g_first_shrink := fun _ hk => absurd hk List.not_mem_nil
+    w_pareto := fun _ hk => absurd hk List.not_mem_nil
+    m_pareto := fun _ hk => absurd hk List.not_mem_nil
+    g_pareto := fun _ hk => absurd hk List.not_mem_nil }
+
 private theorem oneCaRunAcc_inv (σ : N → OneCaStrategy N M)
     (past : List (WrapperState N M)) (st : WrapperState N M)
     (hlos : ∀ i, i ∈ st.losers ↔ st.val i = 0)
@@ -2721,32 +2676,8 @@ private theorem oneCaRunAcc_inv (σ : N → OneCaStrategy N M)
         rcases hrel with hlt | ⟨heq, _⟩
         · exact hlt.le
         · exact heq.le
-    have hw_sub_act : st.winners ⊆ active := by
-      intro k hk
-      refine Finset.mem_filter.2 ⟨Finset.mem_univ k, Nat.pos_of_ne_zero ?_⟩
-      exact mt (hlos k).2 (Finset.disjoint_left.1 hst.disj hk)
-    have hinit_inv : OneCaFoldInv st active iMax [] ⟨st.winners, {iMax}, ∅, st.bundle⟩ := {
-      w_sub_active := hw_sub_act
-      m_sub_active := Finset.singleton_subset_iff.2 hiMax_act
-      g_sub_active := Finset.empty_subset _
-      stW_sub_w := Subset.rfl
-      iMax_mem_m := Finset.mem_singleton_self iMax
-      w_diff_visited := fun _ hk => Or.inl hk
-      m_diff_visited := fun _ hk => Or.inl (Finset.mem_singleton.1 hk)
-      g_sub_visited := fun _ hk => absurd hk (Finset.notMem_empty _)
-      bundle_sub := fun _ => Subset.rfl
-      bundle_unvisited := fun _ _ => rfl
-      bundle_winners := fun _ _ => rfl
-      bundle_nonempty := hst.nonempty
-      bundle_dichotomy := hst.dichotomy
-      w_pw := hst.pw
-      m_pw := by simp only [Finset.coe_singleton, Set.pairwiseDisjoint_singleton]
-      g_pw := by simp only [Finset.coe_empty, Set.pairwiseDisjoint_empty]
-      g_small := fun _ hk => absurd hk (Finset.notMem_empty _)
-      g_first_shrink := fun _ hk => absurd hk List.not_mem_nil
-      w_pareto := fun _ hk => absurd hk List.not_mem_nil
-      m_pareto := fun _ hk => absurd hk List.not_mem_nil
-      g_pareto := fun _ hk => absurd hk List.not_mem_nil }
+    have hinit_inv : OneCaFoldInv st active iMax [] ⟨st.winners, {iMax}, ∅, st.bundle⟩ :=
+      oneCaFoldInv_init hlos hst hiMax_act
     have hfirst : ∀ x ∈ iMax :: tl, x = iMax →
         ([] : List N) = [] ∧ (iMax :: tl).head? = some iMax :=
       fun _ _ _ => ⟨rfl, rfl⟩
@@ -2824,11 +2755,11 @@ private theorem oneCaStateInv_of_run [Nonempty M] (σ : N → OneCaStrategy N M)
       obtain ⟨_, _, _, _, hfold, hpw, hdisj, _, _, _⟩ :=
         oneCaRunAcc_inv σ cur.2 cur.1 (mem_losers_iff_val_eq_zero oneCaProc σ j) ih ht
       have hW' : (wrapperState oneCaProc σ (j + 1)).winners =
-          oneCaSelectBest cur.1.val (oneCaRunAcc σ cur.2 cur.1) := by
-        rw [wrapperState_succ_winners ht, oneCaProc_proc_eq]
+          oneCaSelectBest cur.1.val (oneCaRunAcc σ cur.2 cur.1) :=
+        wrapperState_succ_winners ht
       have hB' : (wrapperState oneCaProc σ (j + 1)).bundle =
-          (oneCaRunAcc σ cur.2 cur.1).bundles := by
-        rw [wrapperState_succ_bundle ht, oneCaProc_proc_eq]
+          (oneCaRunAcc σ cur.2 cur.1).bundles :=
+        wrapperState_succ_bundle ht
       refine ⟨?_, hW' ▸ hB' ▸ hpw, hB' ▸ hfold.bundle_nonempty, hB' ▸ hfold.bundle_dichotomy⟩
       rw [Finset.disjoint_left]
       intro i hiW hiL
@@ -2838,9 +2769,8 @@ private theorem oneCaStateInv_of_run [Nonempty M] (σ : N → OneCaStrategy N M)
       have hnz : cur.1.val i ≠ 0 := mt (mem_losers_iff_val_eq_zero oneCaProc σ j i).2 hnotL
       have hval_eq : (wrapperState oneCaProc σ (j + 1)).val i = cur.1.val i := by
         rw [wrapperState_succ_val ht i]
-        have hmem : i ∈ (oneCaProc.proc σ cur.2 cur.1).1 ∪ cur.1.losers := by
-          rw [oneCaProc_proc_eq]
-          exact Finset.mem_union_left _ hiW
+        have hmem : i ∈ (oneCaProc.proc σ cur.2 cur.1).1 ∪ cur.1.losers :=
+          Finset.mem_union_left _ hiW
         change (if i ∈ (oneCaProc.proc σ cur.2 cur.1).1 ∪ cur.1.losers then cur.1.val i
           else _) = cur.1.val i
         simp only [hmem, ↓reduceIte]
@@ -2852,15 +2782,6 @@ private theorem oneCaProc_isProperOn [Nonempty M] (σ : N → OneCaStrategy N M)
   set cur := wrapperRunHist oneCaProc σ j
   obtain ⟨_, _, _, _, _, hpw, hdisj, hpar, hsub, _⟩ := oneCaRunAcc_inv σ cur.2 cur.1
     (mem_losers_iff_val_eq_zero oneCaProc σ j) (oneCaStateInv_of_run σ j) hnotT
-  dsimp only [WrapperProc.IsProperOn]
-  change ((oneCaProc.proc σ cur.2 cur.1).1 : Set N).PairwiseDisjoint
-      (oneCaProc.proc σ cur.2 cur.1).2 ∧
-    Disjoint (oneCaProc.proc σ cur.2 cur.1).1 cur.1.losers ∧
-    (∀ i, i ∉ (oneCaProc.proc σ cur.2 cur.1).1 ∪ cur.1.losers →
-      ∃ l ∈ (oneCaProc.proc σ cur.2 cur.1).1,
-        ¬ Disjoint ((oneCaProc.proc σ cur.2 cur.1).2 i) ((oneCaProc.proc σ cur.2 cur.1).2 l)) ∧
-    (∀ i, (oneCaProc.proc σ cur.2 cur.1).2 i ⊆ cur.1.bundle i)
-  rw [oneCaProc_proc_eq]
   exact ⟨hpw, hdisj, hpar, hsub⟩
 
 private theorem oneCaProc_hasImprovementOn [Nonempty M] (σ : N → OneCaStrategy N M) :
@@ -2869,8 +2790,6 @@ private theorem oneCaProc_hasImprovementOn [Nonempty M] (σ : N → OneCaStrateg
   set cur := wrapperRunHist oneCaProc σ j
   obtain ⟨_, _, _, _, _, _, _, _, _, himp⟩ := oneCaRunAcc_inv σ cur.2 cur.1
     (mem_losers_iff_val_eq_zero oneCaProc σ j) (oneCaStateInv_of_run σ j) hnotT
-  change ∑ i ∈ cur.1.winners, cur.1.val i ≤ ∑ i ∈ (oneCaProc.proc σ cur.2 cur.1).1, cur.1.val i
-  rw [oneCaProc_proc_eq]
   exact himp
 
 /-- `1-CA-PROC` satisfies first-time shrink (Definition 12.48, p. 326) for every strategy profile
@@ -2882,8 +2801,8 @@ theorem oneCaProc_hasFirstTimeShrinkOn [Nonempty M] (σ : N → OneCaStrategy N 
   obtain ⟨_, _, _, _, hfold, _, _, _, _, _⟩ := oneCaRunAcc_inv σ cur.2 cur.1
     (mem_losers_iff_val_eq_zero oneCaProc σ j) (oneCaStateInv_of_run σ j) hnotT
   have hB' : (wrapperState oneCaProc σ (j + 1)).bundle =
-      (oneCaRunAcc σ cur.2 cur.1).bundles := by
-    rw [wrapperState_succ_bundle hnotT, oneCaProc_proc_eq]
+      (oneCaRunAcc σ cur.2 cur.1).bundles :=
+    wrapperState_succ_bundle hnotT
   rw [hB'] at h1lt h2lt ⊢
   set active := Finset.univ.filter fun i => 0 < cur.1.val i
   set order := active.sort (oneCaRel cur.1.val)
@@ -2959,31 +2878,8 @@ private theorem oneCaRunAcc_split_at (σ : N → OneCaStrategy N M)
   obtain ⟨iMax, hhead, hiMax_act, _, _, _, _, _, _, _⟩ :=
     oneCaRunAcc_inv σ past st hlos hst hnotT
   change order.head? = some iMax at hhead
-  have hw_sub_act : st.winners ⊆ active := fun k hk =>
-    Finset.mem_filter.2 ⟨Finset.mem_univ k, Nat.pos_of_ne_zero (mt (hlos k).2
-      (Finset.disjoint_left.1 hst.disj hk))⟩
-  have hinit_inv : OneCaFoldInv st active iMax [] ⟨st.winners, {iMax}, ∅, st.bundle⟩ := {
-    w_sub_active := hw_sub_act
-    m_sub_active := Finset.singleton_subset_iff.2 hiMax_act
-    g_sub_active := Finset.empty_subset _
-    stW_sub_w := Subset.rfl
-    iMax_mem_m := Finset.mem_singleton_self iMax
-    w_diff_visited := fun _ hk => Or.inl hk
-    m_diff_visited := fun _ hk => Or.inl (Finset.mem_singleton.1 hk)
-    g_sub_visited := fun _ hk => absurd hk (Finset.notMem_empty _)
-    bundle_sub := fun _ => Subset.rfl
-    bundle_unvisited := fun _ _ => rfl
-    bundle_winners := fun _ _ => rfl
-    bundle_nonempty := hst.nonempty
-    bundle_dichotomy := hst.dichotomy
-    w_pw := hst.pw
-    m_pw := by simp only [Finset.coe_singleton, Set.pairwiseDisjoint_singleton]
-    g_pw := by simp only [Finset.coe_empty, Set.pairwiseDisjoint_empty]
-    g_small := fun _ hk => absurd hk (Finset.notMem_empty _)
-    g_first_shrink := fun _ hk => absurd hk List.not_mem_nil
-    w_pareto := fun _ hk => absurd hk List.not_mem_nil
-    m_pareto := fun _ hk => absurd hk List.not_mem_nil
-    g_pareto := fun _ hk => absurd hk List.not_mem_nil }
+  have hinit_inv : OneCaFoldInv st active iMax [] ⟨st.winners, {iMax}, ∅, st.bundle⟩ :=
+    oneCaFoldInv_init hlos hst hiMax_act
   have hpre_first : ∀ x ∈ pre, x = iMax → ([] : List N) = [] ∧ pre.head? = some iMax := by
     intro x hx rfl
     refine ⟨rfl, ?_⟩
@@ -3076,8 +2972,8 @@ private theorem oneCaStrategyClass_invariants [Nonempty M] {σ : N → OneCaStra
       · rwa [wrapperState_succ_of_terminatedAt ht]
       · set cur := wrapperRunHist oneCaProc σ j
         have hB' : (wrapperState oneCaProc σ (j + 1)).bundle i =
-            (oneCaRunAcc σ cur.2 cur.1).bundles i := by
-          rw [wrapperState_succ_bundle ht, oneCaProc_proc_eq]
+            (oneCaRunAcc σ cur.2 cur.1).bundles i :=
+          congrFun (wrapperState_succ_bundle ht) i
         rw [hB']
         by_cases hpos : 0 < cur.1.val i
         · obtain ⟨pre, suf, iMax, accBefore, _, _, _, _, _, _, _, hbi_eq, _, _, _, _, _, _, _,
@@ -3107,61 +3003,9 @@ private theorem oneCaStrategyClass_invariants [Nonempty M] {σ : N → OneCaStra
             (mem_losers_iff_val_eq_zero oneCaProc σ j) (oneCaStateInv_of_run σ j) ht
           rw [hfold.bundle_unvisited i (by rwa [List.mem_reverse])]
           exact ih
-  have hval : ∀ j, ((wrapperState oneCaProc σ j).val i : ℝ) ≤ p.value := by
-    intro j
-    induction j with
-    | zero =>
-      simpa only [wrapperState_zero, initState, Nat.cast_one] using p.one_le_value
-    | succ j ih =>
-      by_cases ht : TerminatedAt oneCaProc σ j
-      · rwa [wrapperState_succ_of_terminatedAt ht]
-      · set cur := wrapperRunHist oneCaProc σ j
-        set res := oneCaProc.proc σ cur.2 cur.1
-        have hval_succ : (wrapperState oneCaProc σ (j + 1)).val i =
-            if i ∈ res.1 ∪ cur.1.losers then cur.1.val i
-            else if (σ i).double cur.2 cur.1 res.1 res.2 then 2 * cur.1.val i else 0 :=
-          wrapperState_succ_val ht i
-        rw [hval_succ]
-        split_ifs with h1 h2
-        · exact ih
-        · by_contra hgt
-          push Not at hgt
-          have hgt' : p.value < 2 * (cur.1.val i : ℝ) := by
-            have : ((2 * cur.1.val i : ℕ) : ℝ) = 2 * (cur.1.val i : ℝ) := by
-              rw [Nat.cast_mul, Nat.cast_ofNat]
-            linarith
-          have hfalse := (hσ.2.2 cur.2 cur.1 res.1 res.2).1 hgt'
-          exact Bool.false_ne_true (hfalse.symm.trans h2)
-        · simp only [Nat.cast_zero]
-          exact p.value_pos.le
-  have hret : ∀ j, i ∈ retiredAt oneCaProc σ j →
-      p.value / 2 ≤ ((wrapperState oneCaProc σ j).val i : ℝ) := by
-    intro j hi
-    rw [retiredAt, Finset.mem_sdiff] at hi
-    obtain ⟨hi1, hi0⟩ := hi
-    have hnotT : ¬ TerminatedAt oneCaProc σ j := fun ht =>
-      hi0 (by rwa [wrapperState_succ_of_terminatedAt ht] at hi1)
-    rw [mem_losers_iff_val_eq_zero] at hi1
-    set cur := wrapperRunHist oneCaProc σ j
-    set res := oneCaProc.proc σ cur.2 cur.1
-    have hnz : cur.1.val i ≠ 0 := mt (mem_losers_iff_val_eq_zero oneCaProc σ j i).2 hi0
-    have hval_succ : (wrapperState oneCaProc σ (j + 1)).val i =
-        if i ∈ res.1 ∪ cur.1.losers then cur.1.val i
-        else if (σ i).double cur.2 cur.1 res.1 res.2 then 2 * cur.1.val i else 0 :=
-      wrapperState_succ_val hnotT i
-    rw [hval_succ] at hi1
-    by_contra hlt
-    push Not at hlt
-    have hlt' : 2 * (cur.1.val i : ℝ) < p.value := by
-      have : (cur.1.val i : ℝ) = ((wrapperState oneCaProc σ j).val i : ℝ) := rfl
-      linarith
-    have htrue := (hσ.2.2 cur.2 cur.1 res.1 res.2).2 hlt'
-    rw [htrue] at hi1
-    simp only [↓reduceIte] at hi1
-    split_ifs at hi1
-    · exact hnz hi1
-    · exact mul_ne_zero two_ne_zero hnz hi1
-  exact ⟨hbun, hval, hret⟩
+  exact ⟨hbun,
+    val_le_of_not_double_above p.one_le_value fun past st' W' s' => (hσ.2.2 past st' W' s').1,
+    fun _ hi => half_le_val_of_retiredAt (fun past st' W' s' => (hσ.2.2 past st' W' s').2) hi⟩
 
 /-- **Weak dominance of `oneCaStrategyClass` (`D`) in `Wrapper + 1-CA-PROC`** ([Lavi2007], §12.5,
 p. 325): for every player `i` and every full-history strategy `st`, `dominateOneCaStrategy p i st`
@@ -3176,397 +3020,261 @@ theorem dominateOneCaStrategy_weaklyDominates [Nonempty M] (p : SingleValuePlaye
   have hσ₂_mem : σ₂ i ∈ oneCaStrategyClass p i := by
     simpa only [σ₂, Function.update_self] using dominateOneCaStrategy_mem p i st
   obtain ⟨hbun₂, hval₂, _⟩ := oneCaStrategyClass_invariants hσ₂_mem
-  have hutil₂_nonneg : 0 ≤ P.utility σ₂ p i := by
-    classical
-    simp only [WrapperProc.utility, WrapperProc.alloc, WrapperProc.payment]
-    split_ifs with hT hW
-    · rw [p.eval_of_mem (hbun₂ (termRound P σ₂))]
-      linarith [hval₂ (termRound P σ₂)]
-    · simp only [SingleValuePlayer.eval_empty, sub_zero, le_refl]
-    · simp only [SingleValuePlayer.eval_empty, sub_zero, le_refl]
+  have hutil₂_nonneg : 0 ≤ P.utility σ₂ p i :=
+    utility_nonneg_of_desired_of_val_le p hbun₂ hval₂
   by_cases heq : ∀ j, wrapperRunHist P σ₁ j = wrapperRunHist P σ₂ j
-  · have hstEq : ∀ j, wrapperState P σ₁ j = wrapperState P σ₂ j := fun j =>
-      congrArg Prod.fst (heq j)
-    have hTeq : Terminates P σ₁ ↔ Terminates P σ₂ := by
-      simp only [Terminates, TerminatedAt, hstEq]
-    have hreq : termRound P σ₁ = termRound P σ₂ := by
-      classical
-      simp only [termRound, hTeq]
-      split_ifs with hT₂
-      · refine le_antisymm ?_ ?_
-        · exact Nat.find_min' (hTeq.2 hT₂)
-            (by simpa only [TerminatedAt, hstEq] using Nat.find_spec hT₂)
-        · exact Nat.find_min' hT₂
-            (by simpa only [TerminatedAt, ← hstEq] using Nat.find_spec (hTeq.2 hT₂))
-      · rfl
-    have haeq : P.alloc σ₁ i = P.alloc σ₂ i := by
-      classical simp only [WrapperProc.alloc, hTeq, hreq, hstEq]
-    have hpeq : P.payment σ₁ i = P.payment σ₂ i := by
-      classical simp only [WrapperProc.payment, hTeq, hreq, hstEq]
-    simp only [WrapperProc.utility, haeq, hpeq, le_refl]
-  · -- Consider the first iteration `j` where `wrapperRunHist` diverges.
-    classical
-    push Not at heq
-    set m := Nat.find heq
-    have hm_ne : wrapperRunHist P σ₁ m ≠ wrapperRunHist P σ₂ m := Nat.find_spec heq
-    have hm_pos : 0 < m := by
-      by_contra h0
-      have hm0 : m = 0 := Nat.eq_zero_of_not_pos h0
-      exact hm_ne (by simp only [hm0, wrapperRunHist])
-    obtain ⟨j, hj⟩ := Nat.exists_eq_succ_of_ne_zero hm_pos.ne'
-    rw [hj] at hm_ne
-    have hj_eq : wrapperRunHist P σ₁ j = wrapperRunHist P σ₂ j := by
-      by_contra hne
-      exact Nat.find_min heq (by omega : j < m) hne
-    have hnotT₁ : ¬ TerminatedAt P σ₁ j := by
-      intro ht
-      have ht₂ : TerminatedAt P σ₂ j := by
-        simpa only [TerminatedAt, wrapperState, hj_eq] using ht
-      apply hm_ne
-      simp only [wrapperRunHist, wrapperNext, TerminatedAt, wrapperState] at ht ht₂ ⊢
-      simp only [hj_eq, ht₂, ↓reduceIte]
-    have hnotT₂ : ¬ TerminatedAt P σ₂ j := by
-      simpa only [TerminatedAt, wrapperState, hj_eq] using hnotT₁
+  · rw [utility_eq_of_wrapperRunHist_eq p i heq]
+  · obtain ⟨j, hj_eq, hm_ne, hnotT₁, _⟩ := exists_first_wrapperRunHist_ne heq
     set cur := wrapperRunHist P σ₁ j
-    have hcur₂ : wrapperRunHist P σ₂ j = cur := hj_eq.symm
+    have hproper₁ := oneCaProc_isProperOn σ₁
     suffices hutil₁_le_zero : P.utility σ₁ p i ≤ 0 by exact hutil₁_le_zero.trans hutil₂_nonneg
-    by_cases hT₁ : Terminates P σ₁
-    · have hJ_ge : j + 1 ≤ termRound P σ₁ := by
-        by_contra hlt
-        push Not at hlt
-        exact hnotT₁ (terminatedAt_mono (termRound_spec hT₁) (Nat.le_of_lt_succ hlt))
-      have hproper₁ := oneCaProc_isProperOn σ₁
-      -- Check whether `oneCaRunAcc` itself differed at iteration `j`.
-      by_cases hproc_eq : oneCaRunAcc σ₁ cur.2 cur.1 = oneCaRunAcc σ₂ cur.2 cur.1
-      · -- `oneCaRunAcc` matched, so `σ₁` and `σ₂` must have differed in step 2 (`double`) for `i`.
-        have hprocP : P.proc σ₁ cur.2 cur.1 = P.proc σ₂ cur.2 cur.1 := by
-          simp only [P, oneCaProc_proc_eq, hproc_eq]
-        set W' := oneCaSelectBest cur.1.val (oneCaRunAcc σ₁ cur.2 cur.1)
-        set s' := (oneCaRunAcc σ₁ cur.2 cur.1).bundles
-        have hprocP₁ : P.proc σ₁ cur.2 cur.1 = (W', s') := oneCaProc_proc_eq σ₁ cur.2 cur.1
-        have hnotMem : i ∉ W' ∪ cur.1.losers := by
-          intro hm
-          apply hm_ne
-          simp only [wrapperRunHist]
-          refine Prod.ext ?_ (by rw [hcur₂])
-          rw [hcur₂]
-          exact wrapperNext_congr hprocP fun k hk => by
-            have hki : k ≠ i := fun h => hk (by
-              change k ∈ (P.proc σ₁ cur.2 cur.1).1 ∪ cur.1.losers
-              rw [hprocP₁]; exact h ▸ hm)
-            have hσk : σ₁ k = σ₂ k := by simp only [σ₁, σ₂, Function.update_of_ne hki]
-            change P.chooseDouble (σ₁ k) cur.2 cur.1
-              (P.proc σ₁ cur.2 cur.1).1 (P.proc σ₁ cur.2 cur.1).2 =
-              P.chooseDouble (σ₂ k) cur.2 cur.1
-              (P.proc σ₂ cur.2 cur.1).1 (P.proc σ₂ cur.2 cur.1).2
-            rw [hσk, hprocP]
-        have hch_ne : st.double cur.2 cur.1 W' s' ≠
-            (dominateOneCaStrategy p i st).double cur.2 cur.1 W' s' := by
-          intro hch
-          apply hm_ne
-          simp only [wrapperRunHist]
-          refine Prod.ext ?_ (by rw [hcur₂])
-          rw [hcur₂]
-          exact wrapperNext_congr hprocP fun k _ => by
-            by_cases hk : k = i
-            · subst hk
-              change P.chooseDouble (σ₁ k) cur.2 cur.1
-                (P.proc σ₁ cur.2 cur.1).1 (P.proc σ₁ cur.2 cur.1).2 =
-                P.chooseDouble (σ₂ k) cur.2 cur.1
-                (P.proc σ₂ cur.2 cur.1).1 (P.proc σ₂ cur.2 cur.1).2
-              rw [← hprocP, hprocP₁]
-              have hσ₁i : σ₁ k = st := Function.update_self k st σ
-              have hσ₂i : σ₂ k = dominateOneCaStrategy p k st := Function.update_self k _ σ
-              change (σ₁ k).double cur.2 cur.1 W' s' = (σ₂ k).double cur.2 cur.1 W' s'
-              rw [hσ₁i, hσ₂i]
-              exact hch
-            · have hσk : σ₁ k = σ₂ k := by simp only [σ₁, σ₂, Function.update_of_ne hk]
-              change P.chooseDouble (σ₁ k) cur.2 cur.1
-                (P.proc σ₁ cur.2 cur.1).1 (P.proc σ₁ cur.2 cur.1).2 =
-                P.chooseDouble (σ₂ k) cur.2 cur.1
-                (P.proc σ₂ cur.2 cur.1).1 (P.proc σ₂ cur.2 cur.1).2
-              rw [hσk, hprocP]
-        have hval_j1 : (wrapperState P σ₁ (j + 1)).val i =
-            if st.double cur.2 cur.1 W' s' then 2 * cur.1.val i else 0 := by
-          rw [wrapperState_succ_val hnotT₁ i]
-          have hσ₁i : σ₁ i = st := Function.update_self i st σ
-          change (if i ∈ (P.proc σ₁ cur.2 cur.1).1 ∪ cur.1.losers then cur.1.val i
-            else if (σ₁ i).double cur.2 cur.1 (P.proc σ₁ cur.2 cur.1).1 (P.proc σ₁ cur.2 cur.1).2
-              then 2 * cur.1.val i else 0) = _
-          rw [hprocP₁]
-          simp only [hnotMem, hσ₁i, ↓reduceIte]
-        cases hst_ch : st.double cur.2 cur.1 W' s'
-        · have hret₁ : (wrapperState P σ₁ (j + 1)).val i = 0 := by
-            simp only [hval_j1, hst_ch, Bool.false_eq_true, ↓reduceIte]
-          have hiL : i ∈ (wrapperState P σ₁ (termRound P σ₁)).losers :=
-            losers_mono P σ₁ hJ_ge ((mem_losers_iff_val_eq_zero P σ₁ (j + 1) i).2 hret₁)
-          have hiNotW : i ∉ (wrapperState P σ₁ (termRound P σ₁)).winners :=
-            Finset.disjoint_right.1 (disjoint_winners_losers_of_isProperOn hproper₁ _) hiL
-          simp only [WrapperProc.utility, WrapperProc.alloc, WrapperProc.payment, hT₁, ↓reduceIte,
-            hiNotW, SingleValuePlayer.eval_empty, sub_zero, le_refl]
-        · have hdom_false : (dominateOneCaStrategy p i st).double cur.2 cur.1 W' s' = false := by
-            rw [hst_ch] at hch_ne
-            cases h2 : (dominateOneCaStrategy p i st).double cur.2 cur.1 W' s'
-            · rfl
-            · exact absurd h2.symm hch_ne
-          have hge_val : p.value ≤ ((wrapperState P σ₁ (j + 1)).val i : ℝ) := by
-            simp only [hval_j1, hst_ch, ↓reduceIte, Nat.cast_mul, Nat.cast_ofNat]
-            simp only [dominateOneCaStrategy] at hdom_false
-            split_ifs at hdom_false with hgt hlt
-            · exact hgt.le
-            · exact Bool.noConfusion (hst_ch.symm.trans hdom_false)
-          simp only [WrapperProc.utility, WrapperProc.alloc, WrapperProc.payment, hT₁, ↓reduceIte]
-          split_ifs with hW
-          · have hiNotL : i ∉ (wrapperState P σ₁ (termRound P σ₁)).losers :=
-              Finset.disjoint_left.1 (disjoint_winners_losers_of_isProperOn hproper₁ _) hW
-            have hmono : ((wrapperState P σ₁ (j + 1)).val i : ℝ) ≤
-                ((wrapperState P σ₁ (termRound P σ₁)).val i : ℝ) := by
-              exact_mod_cast val_mono_of_not_mem_losers P σ₁ hJ_ge hiNotL
-            linarith [p.eval_le_value ((wrapperState P σ₁ (termRound P σ₁)).bundle i)]
-          · simp only [SingleValuePlayer.eval_empty, sub_zero, le_refl]
-      · -- `oneCaRunAcc` differed at iteration `j`: `i` is active and `oneCaPickBundle` differed.
-        have hi_pos : 0 < cur.1.val i := by
-          by_contra h0
-          apply hproc_eq
-          have hfold_eq : ∀ (xs : List N) (acc : OneCaAcc N M), i ∉ xs →
-              xs.foldl (oneCaStep σ₁ cur.2 cur.1) acc =
-                xs.foldl (oneCaStep σ₂ cur.2 cur.1) acc := by
-            intro xs
-            induction xs with
-            | nil => intro _ _; rfl
-            | cons a l ih =>
-              intro acc hni
-              rw [List.mem_cons, not_or] at hni
-              have hσa : σ₁ a = σ₂ a := by simp only [σ₁, σ₂, Function.update_of_ne (Ne.symm hni.1)]
-              have hstep : oneCaStep σ₁ cur.2 cur.1 acc a = oneCaStep σ₂ cur.2 cur.1 acc a := by
-                simp only [oneCaStep, oneCaPickBundle, hσa]
-              rw [List.foldl_cons, List.foldl_cons, hstep]
-              exact ih _ hni.2
-          simp only [oneCaRunAcc]
-          cases hord : (Finset.univ.filter fun k => 0 < cur.1.val k).sort (oneCaRel cur.1.val) with
-          | nil => rfl
-          | cons iMax tl =>
-            refine hfold_eq (iMax :: tl) _ ?_
-            rw [← hord, Finset.mem_sort, Finset.mem_filter]
-            exact fun h => h0 h.2
-        obtain ⟨pre, suf, iMax, accBefore, hsplit, hhead, hacc_def, _, hi_not_pre, hi_not_suf,
-          hinv_pre, hbi_eq, hrun₁, _, _, _, _, _, _, hbun_end₁, _, hnotW₁, hnotM₁, hnotG₁⟩ :=
-          oneCaRunAcc_split_at σ₁ cur.2 cur.1 (mem_losers_iff_val_eq_zero P σ₁ j)
-            (oneCaStateInv_of_run σ₁ j) hnotT₁ hi_pos
-        have hfold_agree : ∀ (xs : List N) (acc : OneCaAcc N M), i ∉ xs →
-            xs.foldl (oneCaStep σ₁ cur.2 cur.1) acc = xs.foldl (oneCaStep σ₂ cur.2 cur.1) acc := by
-          intro xs
-          induction xs with
-          | nil => intro _ _; rfl
-          | cons a l ih =>
-            intro acc hni
-            rw [List.mem_cons, not_or] at hni
-            have hσa : σ₁ a = σ₂ a := by
-              simp only [σ₁, σ₂, Function.update_of_ne (Ne.symm hni.1)]
-            have hstep : oneCaStep σ₁ cur.2 cur.1 acc a = oneCaStep σ₂ cur.2 cur.1 acc a := by
-              simp only [oneCaStep, oneCaPickBundle, hσa]
-            rw [List.foldl_cons, List.foldl_cons, hstep]
-            exact ih _ hni.2
-        have hpick_ne : oneCaPickBundle σ₁ cur.2 cur.1 accBefore i ≠
-            oneCaPickBundle σ₂ cur.2 cur.1 accBefore i := by
-          intro hpick
-          apply hproc_eq
-          have hord_cases : ∃ tl, (Finset.univ.filter fun k => 0 < cur.1.val k).sort
-              (oneCaRel cur.1.val) = iMax :: tl := by
-            cases hord :
-                (Finset.univ.filter fun k => 0 < cur.1.val k).sort (oneCaRel cur.1.val) with
-            | nil => rw [hord] at hhead; simp only [List.head?_nil, reduceCtorEq] at hhead
-            | cons a l =>
-              rw [hord, List.head?_cons, Option.some.injEq] at hhead
-              exact ⟨l, hhead ▸ rfl⟩
-          obtain ⟨tl, hord⟩ := hord_cases
-          have hrun₂ : oneCaRunAcc σ₂ cur.2 cur.1 =
-              suf.foldl (oneCaStep σ₂ cur.2 cur.1)
-                (oneCaStep σ₂ cur.2 cur.1 accBefore i) := by
-            simp only [oneCaRunAcc, hord]
-            rw [← hord, hsplit, List.foldl_append, List.foldl_cons,
-              ← hfold_agree pre _ hi_not_pre, ← hacc_def]
-          have hstep_eq : oneCaStep σ₁ cur.2 cur.1 accBefore i =
-              oneCaStep σ₂ cur.2 cur.1 accBefore i := by
-            simp only [oneCaStep, hpick]
-          rw [hrun₁, hrun₂, ← hstep_eq]
-          exact hfold_agree suf _ hi_not_suf
-        have hiNotW : i ∉ cur.1.winners := by
-          intro hW
-          apply hpick_ne
-          simp only [oneCaPickBundle, hW, ↓reduceIte]
-        set view : OneCaShrinkView N M :=
-          ⟨cur.2, cur.1, accBefore.wSet, accBefore.mSet, accBefore.gSet, accBefore.bundles⟩
+    -- Check whether `oneCaRunAcc` itself differed at iteration `j`.
+    by_cases hproc_eq : oneCaRunAcc σ₁ cur.2 cur.1 = oneCaRunAcc σ₂ cur.2 cur.1
+    · -- `oneCaRunAcc` matched, so `σ₁` and `σ₂` must have differed in step 2 (`double`) for `i`.
+      have hprocP : P.proc σ₁ cur.2 cur.1 = P.proc σ₂ cur.2 cur.1 := by
+        dsimp only [P, oneCaProc]
+        rw [hproc_eq]
+      set W' := oneCaSelectBest cur.1.val (oneCaRunAcc σ₁ cur.2 cur.1)
+      set s' := (oneCaRunAcc σ₁ cur.2 cur.1).bundles
+      obtain ⟨hnotMem, hch_ne⟩ := step_divergence_of_proc_eq hj_eq hm_ne hprocP
+      change i ∉ W' ∪ cur.1.losers at hnotMem
+      have hval_j1 : (wrapperState P σ₁ (j + 1)).val i =
+          if st.double cur.2 cur.1 W' s' then 2 * cur.1.val i else 0 := by
+        rw [wrapperState_succ_val hnotT₁ i]
         have hσ₁i : σ₁ i = st := Function.update_self i st σ
-        have hσ₂i : σ₂ i = dominateOneCaStrategy p i st := Function.update_self i _ σ
-        -- Analyze why `oneCaPickBundle` differed between `st` and `dominateOneCaStrategy p i st`.
-        by_cases hst_undes : ∃ b, st.shrink view = some b ∧
-            IsValidShrink accBefore.gSet accBefore.bundles (cur.1.bundle i) b ∧ b ∉ p.desired
-        · -- Violation 1: `st` shrunk to a valid but undesired bundle `b ∉ p.desired`.
-          obtain ⟨b, hsh, hval, hbNotD⟩ := hst_undes
-          have hpick₁ : oneCaPickBundle σ₁ cur.2 cur.1 accBefore i = b := by
-            simp only [oneCaPickBundle, hiNotW, ↓reduceIte, hσ₁i, hbi_eq]
-            change (match st.shrink view with
-              | some b' => if IsValidShrink accBefore.gSet accBefore.bundles (cur.1.bundle i) b'
-                  then b' else cur.1.bundle i
-              | none => cur.1.bundle i) = b
-            simp only [hsh, hval, ↓reduceIte]
-          have hB_j1 : (wrapperState P σ₁ (j + 1)).bundle i = b := by
-            have hB' : (wrapperState P σ₁ (j + 1)).bundle i =
-                (oneCaRunAcc σ₁ cur.2 cur.1).bundles i := by
-              rw [wrapperState_succ_bundle hnotT₁, oneCaProc_proc_eq]
-            rw [hB', hbun_end₁]
-            have hstep_bun : (oneCaStep σ₁ cur.2 cur.1 accBefore i).bundles i =
-                oneCaPickBundle σ₁ cur.2 cur.1 accBefore i := by
-              simp only [oneCaStep]; split_ifs <;> exact Function.update_self _ _ _
-            rw [hstep_bun, hpick₁]
+        change (if i ∈ W' ∪ cur.1.losers then cur.1.val i
+          else if (σ₁ i).double cur.2 cur.1 W' s' then 2 * cur.1.val i else 0) = _
+        simp only [hnotMem, hσ₁i, ↓reduceIte]
+      cases hst_ch : st.double cur.2 cur.1 W' s'
+      · exact utility_le_zero_of_val_eq_zero hproper₁ p hnotT₁
+          (hval_j1.trans (by simp only [hst_ch, Bool.false_eq_true, ↓reduceIte]))
+      · have hdom_false : (dominateOneCaStrategy p i st).double cur.2 cur.1 W' s' = false := by
+          change st.double cur.2 cur.1 W' s' ≠
+            (dominateOneCaStrategy p i st).double cur.2 cur.1 W' s' at hch_ne
+          rw [hst_ch] at hch_ne
+          cases h2 : (dominateOneCaStrategy p i st).double cur.2 cur.1 W' s'
+          · rfl
+          · exact absurd h2.symm hch_ne
+        have hge_val : p.value ≤ ((wrapperState P σ₁ (j + 1)).val i : ℝ) := by
+          simp only [hval_j1, hst_ch, ↓reduceIte, Nat.cast_mul, Nat.cast_ofNat]
+          simp only [dominateOneCaStrategy] at hdom_false
+          split_ifs at hdom_false with hgt hlt
+          · exact hgt.le
+          · exact Bool.noConfusion (hst_ch.symm.trans hdom_false)
+        exact utility_le_zero_of_value_le_val hproper₁ p hnotT₁ hge_val
+    · -- `oneCaRunAcc` differed at iteration `j`: `i` is active and `oneCaPickBundle` differed.
+      have hfold_agree : ∀ (xs : List N) (acc : OneCaAcc N M), i ∉ xs →
+          xs.foldl (oneCaStep σ₁ cur.2 cur.1) acc = xs.foldl (oneCaStep σ₂ cur.2 cur.1) acc := by
+        intro xs
+        induction xs with
+        | nil => intro _ _; rfl
+        | cons a l ih =>
+          intro acc hni
+          rw [List.mem_cons, not_or] at hni
+          have hσa : σ₁ a = σ₂ a := by
+            simp only [σ₁, σ₂, Function.update_of_ne (Ne.symm hni.1)]
+          have hstep : oneCaStep σ₁ cur.2 cur.1 acc a = oneCaStep σ₂ cur.2 cur.1 acc a := by
+            simp only [oneCaStep, oneCaPickBundle, hσa]
+          rw [List.foldl_cons, List.foldl_cons, hstep]
+          exact ih _ hni.2
+      have hi_pos : 0 < cur.1.val i := by
+        by_contra h0
+        apply hproc_eq
+        simp only [oneCaRunAcc]
+        cases hord : (Finset.univ.filter fun k => 0 < cur.1.val k).sort (oneCaRel cur.1.val) with
+        | nil => rfl
+        | cons iMax tl =>
+          refine hfold_agree (iMax :: tl) _ ?_
+          rw [← hord, Finset.mem_sort, Finset.mem_filter]
+          exact fun h => h0 h.2
+      obtain ⟨pre, suf, iMax, accBefore, hsplit, hhead, hacc_def, _, hi_not_pre, hi_not_suf,
+        hinv_pre, hbi_eq, hrun₁, _, _, _, _, _, _, hbun_end₁, _, hnotW₁, hnotM₁, hnotG₁⟩ :=
+        oneCaRunAcc_split_at σ₁ cur.2 cur.1 (mem_losers_iff_val_eq_zero P σ₁ j)
+          (oneCaStateInv_of_run σ₁ j) hnotT₁ hi_pos
+      have hpick_ne : oneCaPickBundle σ₁ cur.2 cur.1 accBefore i ≠
+          oneCaPickBundle σ₂ cur.2 cur.1 accBefore i := by
+        intro hpick
+        apply hproc_eq
+        have hord_cases : ∃ tl, (Finset.univ.filter fun k => 0 < cur.1.val k).sort
+            (oneCaRel cur.1.val) = iMax :: tl := by
+          cases hord :
+              (Finset.univ.filter fun k => 0 < cur.1.val k).sort (oneCaRel cur.1.val) with
+          | nil => rw [hord] at hhead; simp only [List.head?_nil, reduceCtorEq] at hhead
+          | cons a l =>
+            rw [hord, List.head?_cons, Option.some.injEq] at hhead
+            exact ⟨l, hhead ▸ rfl⟩
+        obtain ⟨tl, hord⟩ := hord_cases
+        have hrun₂ : oneCaRunAcc σ₂ cur.2 cur.1 =
+            suf.foldl (oneCaStep σ₂ cur.2 cur.1)
+              (oneCaStep σ₂ cur.2 cur.1 accBefore i) := by
+          simp only [oneCaRunAcc, hord]
+          rw [← hord, hsplit, List.foldl_append, List.foldl_cons,
+            ← hfold_agree pre _ hi_not_pre, ← hacc_def]
+        have hstep_eq : oneCaStep σ₁ cur.2 cur.1 accBefore i =
+            oneCaStep σ₂ cur.2 cur.1 accBefore i := by
+          simp only [oneCaStep, hpick]
+        rw [hrun₁, hrun₂, ← hstep_eq]
+        exact hfold_agree suf _ hi_not_suf
+      have hiNotW : i ∉ cur.1.winners := by
+        intro hW
+        apply hpick_ne
+        simp only [oneCaPickBundle, hW, ↓reduceIte]
+      set view : OneCaShrinkView N M :=
+        ⟨cur.2, cur.1, accBefore.wSet, accBefore.mSet, accBefore.gSet, accBefore.bundles⟩
+      have hσ₁i : σ₁ i = st := Function.update_self i st σ
+      have hσ₂i : σ₂ i = dominateOneCaStrategy p i st := Function.update_self i _ σ
+      -- Analyze why `oneCaPickBundle` differed between `st` and `dominateOneCaStrategy p i st`.
+      by_cases hst_undes : ∃ b, st.shrink view = some b ∧
+          IsValidShrink accBefore.gSet accBefore.bundles (cur.1.bundle i) b ∧ b ∉ p.desired
+      · -- Violation 1: `st` shrunk to a valid but undesired bundle `b ∉ p.desired`.
+        obtain ⟨b, hsh, hval, hbNotD⟩ := hst_undes
+        have hpick₁ : oneCaPickBundle σ₁ cur.2 cur.1 accBefore i = b := by
+          simp only [oneCaPickBundle, hiNotW, ↓reduceIte, hσ₁i, hbi_eq]
+          change (match st.shrink view with
+            | some b' => if IsValidShrink accBefore.gSet accBefore.bundles (cur.1.bundle i) b'
+                then b' else cur.1.bundle i
+            | none => cur.1.bundle i) = b
+          simp only [hsh, hval, ↓reduceIte]
+        have hB_j1 : (wrapperState P σ₁ (j + 1)).bundle i = b := by
+          have hB' : (wrapperState P σ₁ (j + 1)).bundle i =
+              (oneCaRunAcc σ₁ cur.2 cur.1).bundles i :=
+            congrFun (wrapperState_succ_bundle hnotT₁) i
+          rw [hB', hbun_end₁, oneCaStep_bundles_eq, Function.update_self, hpick₁]
+        classical
+        simp only [WrapperProc.utility, WrapperProc.alloc, WrapperProc.payment]
+        split_ifs with hT₁ hW
+        · have hJ_ge : j + 1 ≤ termRound P σ₁ := by
+            by_contra hlt
+            exact hnotT₁ (terminatedAt_mono (termRound_spec hT₁) (Nat.le_of_lt_succ (not_le.1 hlt)))
           have hnotDes_J : (wrapperState P σ₁ (termRound P σ₁)).bundle i ∉ p.desired := fun hmem =>
             hbNotD (p.upward_closed hmem (hB_j1 ▸ bundle_subset_of_isProperOn hproper₁ hJ_ge i))
-          simp only [WrapperProc.utility, WrapperProc.alloc, WrapperProc.payment, hT₁, ↓reduceIte]
-          split_ifs with hW
-          · rw [p.eval_of_not_mem hnotDes_J, zero_sub, neg_nonpos]
-            exact Nat.cast_nonneg _
-          · simp only [SingleValuePlayer.eval_empty, sub_zero, le_refl]
-        · -- Violation 2: `st` stayed silent while `IsLoserIfSilent p i view` held!
-          have hsilent : oneCaPickBundle σ₁ cur.2 cur.1 accBefore i = cur.1.bundle i := by
-            simp only [oneCaPickBundle, hiNotW, ↓reduceIte, hσ₁i, hbi_eq]
-            cases hsh : st.shrink view with
-            | none => rfl
-            | some b =>
-              by_cases hval : IsValidShrink accBefore.gSet accBefore.bundles (cur.1.bundle i) b
-              · -- Then `b ∈ p.desired`, so `dominateOneCaStrategy` also returns `some b`.
-                have hdes : b ∈ p.desired := by
-                  by_contra hnd
-                  exact hst_undes ⟨b, hsh, hval, hnd⟩
-                exfalso
-                apply hpick_ne
-                simp only [oneCaPickBundle, hiNotW, ↓reduceIte, hσ₁i, hσ₂i, hbi_eq]
+          rw [p.eval_of_not_mem hnotDes_J, zero_sub, neg_nonpos]
+          exact Nat.cast_nonneg _
+        · simp only [SingleValuePlayer.eval_empty, sub_zero, le_refl]
+        · simp only [SingleValuePlayer.eval_empty, sub_zero, le_refl]
+      · -- Violation 2: `st` stayed silent while `IsLoserIfSilent p i view` held!
+        have hsilent : oneCaPickBundle σ₁ cur.2 cur.1 accBefore i = cur.1.bundle i := by
+          simp only [oneCaPickBundle, hiNotW, ↓reduceIte, hσ₁i, hbi_eq]
+          cases hsh : st.shrink view with
+          | none => rfl
+          | some b =>
+            by_cases hval : IsValidShrink accBefore.gSet accBefore.bundles (cur.1.bundle i) b
+            · have hdes : b ∈ p.desired := by
+                by_contra hnd
+                exact hst_undes ⟨b, hsh, hval, hnd⟩
+              exfalso
+              apply hpick_ne
+              simp only [oneCaPickBundle, hiNotW, ↓reduceIte, hσ₁i, hσ₂i, hbi_eq]
+              change (match st.shrink view with
+                | some b' => if IsValidShrink accBefore.gSet accBefore.bundles (cur.1.bundle i) b'
+                    then b' else cur.1.bundle i
+                | none => cur.1.bundle i) =
+                (match (dominateOneCaStrategy p i st).shrink view with
+                | some b' => if IsValidShrink accBefore.gSet accBefore.bundles (cur.1.bundle i) b'
+                    then b' else cur.1.bundle i
+                | none => cur.1.bundle i)
+              simp only [dominateOneCaStrategy, view, hsh, hval, hdes, and_self, ↓reduceIte]
+            · simp only [hval, ↓reduceIte]
+        have hlis : IsLoserIfSilent p i view := by
+          by_contra hnotLis
+          apply hpick_ne
+          rw [hsilent]
+          symm
+          simp only [oneCaPickBundle, hiNotW, ↓reduceIte, hσ₂i, hbi_eq]
+          change (match (dominateOneCaStrategy p i st).shrink view with
+            | some b' => if IsValidShrink accBefore.gSet accBefore.bundles (cur.1.bundle i) b'
+                then b' else cur.1.bundle i
+            | none => cur.1.bundle i) = cur.1.bundle i
+          simp only [dominateOneCaStrategy]
+          cases hsh : st.shrink view with
+          | none => simp only [hnotLis, ↓reduceIte]
+          | some b =>
+            by_cases hgood : IsValidShrink accBefore.gSet accBefore.bundles (cur.1.bundle i) b ∧
+                b ∈ p.desired
+            · exfalso
+              have hpick₁ : oneCaPickBundle σ₁ cur.2 cur.1 accBefore i = b := by
+                simp only [oneCaPickBundle, hiNotW, ↓reduceIte, hσ₁i, hbi_eq]
                 change (match st.shrink view with
-                  | some b' => if IsValidShrink accBefore.gSet accBefore.bundles (cur.1.bundle i) b'
-                      then b' else cur.1.bundle i
-                  | none => cur.1.bundle i) =
-                  (match (dominateOneCaStrategy p i st).shrink view with
-                  | some b' => if IsValidShrink accBefore.gSet accBefore.bundles (cur.1.bundle i) b'
-                      then b' else cur.1.bundle i
-                  | none => cur.1.bundle i)
-                simp only [dominateOneCaStrategy, view, hsh, hval, hdes, and_self, ↓reduceIte]
-              · simp only [hval, ↓reduceIte]
-          have hlis : IsLoserIfSilent p i view := by
-            by_contra hnotLis
-            apply hpick_ne
-            rw [hsilent]
-            symm
-            simp only [oneCaPickBundle, hiNotW, ↓reduceIte, hσ₂i, hbi_eq]
-            change (match (dominateOneCaStrategy p i st).shrink view with
-              | some b' => if IsValidShrink accBefore.gSet accBefore.bundles (cur.1.bundle i) b'
-                  then b' else cur.1.bundle i
-              | none => cur.1.bundle i) = cur.1.bundle i
-            simp only [dominateOneCaStrategy]
-            cases hsh : st.shrink view with
-            | none => simp only [hnotLis, ↓reduceIte]
-            | some b =>
-              by_cases hgood : IsValidShrink accBefore.gSet accBefore.bundles (cur.1.bundle i) b ∧
-                  b ∈ p.desired
-              · exfalso
-                have hpick₁ : oneCaPickBundle σ₁ cur.2 cur.1 accBefore i = b := by
-                  simp only [oneCaPickBundle, hiNotW, ↓reduceIte, hσ₁i, hbi_eq]
-                  change (match st.shrink view with
-                    | some b' =>
-                      if IsValidShrink accBefore.gSet accBefore.bundles (cur.1.bundle i) b'
-                        then b' else cur.1.bundle i
-                    | none => cur.1.bundle i) = b
-                  simp only [hsh, hgood.1, ↓reduceIte]
-                apply hpick_ne
-                rw [hpick₁]
-                symm
-                simp only [oneCaPickBundle, hiNotW, ↓reduceIte, hσ₂i, hbi_eq]
-                change (match (dominateOneCaStrategy p i st).shrink view with
-                  | some b' => if IsValidShrink accBefore.gSet accBefore.bundles (cur.1.bundle i) b'
+                  | some b' =>
+                    if IsValidShrink accBefore.gSet accBefore.bundles (cur.1.bundle i) b'
                       then b' else cur.1.bundle i
                   | none => cur.1.bundle i) = b
-                simp only [dominateOneCaStrategy, view, hsh, hgood.1, hgood.2, and_self, ↓reduceIte]
-              · simp only [view, hgood, hnotLis, ↓reduceIte]
-          -- Since `i` stayed silent while `IsLoserIfSilent p i view`, `i ∉ W_{j+1}`.
-          obtain ⟨hval_half, hiNotW0, hiNotM0, hiNotG0, hnotFree⟩ := hlis
-          have hsNext_eq : Function.update accBefore.bundles i (cur.1.bundle i) =
-              accBefore.bundles := by
-            rw [← hbi_eq, Function.update_eq_self]
-          have hstep_notW : i ∉ (oneCaStep σ₁ cur.2 cur.1 accBefore i).wSet := by
-            rw [oneCaStep_wSet_eq, hsilent, hsNext_eq]
-            split_ifs with hc hf
-            · exact absurd ⟨hc, Or.inl hf⟩ hnotFree
-            · exact hiNotW0
-            · exact hiNotW0
-          have hstep_notM : i ∉ (oneCaStep σ₁ cur.2 cur.1 accBefore i).mSet := by
-            rw [oneCaStep_mSet_eq, hsilent, hsNext_eq]
-            split_ifs with hc hf
-            · exact absurd ⟨hc, Or.inr (Or.inl hf)⟩ hnotFree
-            · exact hiNotM0
-            · exact hiNotM0
-          have hstep_notG : i ∉ (oneCaStep σ₁ cur.2 cur.1 accBefore i).gSet := by
-            rw [oneCaStep_gSet_eq, hsilent, hsNext_eq]
-            split_ifs with hc hf
-            · exact absurd ⟨hc, Or.inr (Or.inr hf)⟩ hnotFree
-            · exact hiNotG0
-            · exact hiNotG0
-          have hiNotW_j1 : i ∉ (wrapperState P σ₁ (j + 1)).winners := by
-            have hW1 : (wrapperState P σ₁ (j + 1)).winners =
-                oneCaSelectBest cur.1.val (oneCaRunAcc σ₁ cur.2 cur.1) := by
-              rw [wrapperState_succ_winners hnotT₁, oneCaProc_proc_eq]
-            rw [hW1]
-            rcases (oneCaSelectBest_props cur.1.val
-                (oneCaRunAcc σ₁ cur.2 cur.1)).1 with h | h | h <;>
-              rw [h]
-            · exact hnotW₁ hstep_notW
-            · exact hnotM₁ hstep_notM
-            · exact hnotG₁ hstep_notG
-          have hiNotL_j : i ∉ cur.1.losers := by
-            change i ∉ (wrapperState P σ₁ j).losers
-            rw [mem_losers_iff_val_eq_zero]
-            exact hi_pos.ne'
-          -- At step 2, `st` either retires (utility `0`) or doubles to `2 * v_i^j ≥ p.value`.
-          by_cases hret₁ : (wrapperState P σ₁ (j + 1)).val i = 0
-          · have hiL : i ∈ (wrapperState P σ₁ (termRound P σ₁)).losers :=
-              losers_mono P σ₁ hJ_ge ((mem_losers_iff_val_eq_zero P σ₁ (j + 1) i).2 hret₁)
-            have hiNotWJ : i ∉ (wrapperState P σ₁ (termRound P σ₁)).winners :=
-              Finset.disjoint_right.1 (disjoint_winners_losers_of_isProperOn hproper₁ _) hiL
-            simp only [WrapperProc.utility, WrapperProc.alloc, WrapperProc.payment, hT₁, ↓reduceIte,
-              hiNotWJ, SingleValuePlayer.eval_empty, sub_zero, le_refl]
-          · have hval_j1 : (wrapperState P σ₁ (j + 1)).val i = 2 * cur.1.val i := by
-              have hnotMem : i ∉ oneCaSelectBest cur.1.val (oneCaRunAcc σ₁ cur.2 cur.1) ∪
-                  cur.1.losers := by
-                rw [Finset.mem_union, not_or]
-                refine ⟨?_, hiNotL_j⟩
-                have hW1 : (wrapperState P σ₁ (j + 1)).winners =
-                    oneCaSelectBest cur.1.val (oneCaRunAcc σ₁ cur.2 cur.1) := by
-                  rw [wrapperState_succ_winners hnotT₁, oneCaProc_proc_eq]
-                rwa [← hW1]
-              rw [wrapperState_succ_val hnotT₁ i] at hret₁ ⊢
-              change (if i ∈ (P.proc σ₁ cur.2 cur.1).1 ∪ cur.1.losers
-                then cur.1.val i
-                else if (σ₁ i).double _ _ _ _ then 2 * cur.1.val i else 0) ≠ 0 at hret₁
-              change (if i ∈ (P.proc σ₁ cur.2 cur.1).1 ∪ cur.1.losers
-                then cur.1.val i
-                else if (σ₁ i).double _ _ _ _ then 2 * cur.1.val i else 0) = 2 * cur.1.val i
-              rw [oneCaProc_proc_eq] at hret₁ ⊢
-              simp only [hnotMem, ↓reduceIte] at hret₁ ⊢
-              split_ifs at hret₁ ⊢
-              · rfl
-              · exact absurd rfl hret₁
-            simp only [WrapperProc.utility, WrapperProc.alloc, WrapperProc.payment, hT₁, ↓reduceIte]
-            split_ifs with hW
-            · have hiNotLJ : i ∉ (wrapperState P σ₁ (termRound P σ₁)).losers :=
-                Finset.disjoint_left.1 (disjoint_winners_losers_of_isProperOn hproper₁ _) hW
-              have hmono : ((wrapperState P σ₁ (j + 1)).val i : ℝ) ≤
-                  ((wrapperState P σ₁ (termRound P σ₁)).val i : ℝ) := by
-                exact_mod_cast val_mono_of_not_mem_losers P σ₁ hJ_ge hiNotLJ
-              have hge_val : p.value ≤ ((wrapperState P σ₁ (j + 1)).val i : ℝ) := by
-                rw [hval_j1, Nat.cast_mul, Nat.cast_ofNat]
-                linarith
-              linarith [p.eval_le_value ((wrapperState P σ₁ (termRound P σ₁)).bundle i)]
-            · simp only [SingleValuePlayer.eval_empty, sub_zero, le_refl]
-    · simp only [WrapperProc.utility, WrapperProc.alloc, WrapperProc.payment, hT₁, ↓reduceIte,
-        SingleValuePlayer.eval_empty, sub_zero, le_refl]
+                simp only [hsh, hgood.1, ↓reduceIte]
+              apply hpick_ne
+              rw [hpick₁]
+              symm
+              simp only [oneCaPickBundle, hiNotW, ↓reduceIte, hσ₂i, hbi_eq]
+              change (match (dominateOneCaStrategy p i st).shrink view with
+                | some b' => if IsValidShrink accBefore.gSet accBefore.bundles (cur.1.bundle i) b'
+                    then b' else cur.1.bundle i
+                | none => cur.1.bundle i) = b
+              simp only [dominateOneCaStrategy, view, hsh, hgood.1, hgood.2, and_self, ↓reduceIte]
+            · simp only [view, hgood, hnotLis, ↓reduceIte]
+        -- Since `i` stayed silent while `IsLoserIfSilent p i view`, `i ∉ W_{j+1}`.
+        obtain ⟨hval_half, hiNotW0, hiNotM0, hiNotG0, hnotFree⟩ := hlis
+        have hsNext_eq : Function.update accBefore.bundles i (cur.1.bundle i) =
+            accBefore.bundles := by
+          rw [← hbi_eq, Function.update_eq_self]
+        have hstep_notW : i ∉ (oneCaStep σ₁ cur.2 cur.1 accBefore i).wSet := by
+          rw [oneCaStep_wSet_eq, hsilent, hsNext_eq]
+          split_ifs with hc hf
+          · exact absurd ⟨hc, Or.inl hf⟩ hnotFree
+          · exact hiNotW0
+          · exact hiNotW0
+        have hstep_notM : i ∉ (oneCaStep σ₁ cur.2 cur.1 accBefore i).mSet := by
+          rw [oneCaStep_mSet_eq, hsilent, hsNext_eq]
+          split_ifs with hc hf
+          · exact absurd ⟨hc, Or.inr (Or.inl hf)⟩ hnotFree
+          · exact hiNotM0
+          · exact hiNotM0
+        have hstep_notG : i ∉ (oneCaStep σ₁ cur.2 cur.1 accBefore i).gSet := by
+          rw [oneCaStep_gSet_eq, hsilent, hsNext_eq]
+          split_ifs with hc hf
+          · exact absurd ⟨hc, Or.inr (Or.inr hf)⟩ hnotFree
+          · exact hiNotG0
+          · exact hiNotG0
+        have hiNotW_j1 : i ∉ (wrapperState P σ₁ (j + 1)).winners := by
+          have hW1 : (wrapperState P σ₁ (j + 1)).winners =
+              oneCaSelectBest cur.1.val (oneCaRunAcc σ₁ cur.2 cur.1) :=
+            wrapperState_succ_winners hnotT₁
+          rw [hW1]
+          rcases (oneCaSelectBest_props cur.1.val
+              (oneCaRunAcc σ₁ cur.2 cur.1)).1 with h | h | h <;>
+            rw [h]
+          · exact hnotW₁ hstep_notW
+          · exact hnotM₁ hstep_notM
+          · exact hnotG₁ hstep_notG
+        have hiNotL_j : i ∉ cur.1.losers := by
+          change i ∉ (wrapperState P σ₁ j).losers
+          rw [mem_losers_iff_val_eq_zero]
+          exact hi_pos.ne'
+        -- At step 2, `st` either retires (utility `0`) or doubles to `2 * v_i^j ≥ p.value`.
+        by_cases hret₁ : (wrapperState P σ₁ (j + 1)).val i = 0
+        · exact utility_le_zero_of_val_eq_zero hproper₁ p hnotT₁ hret₁
+        · have hval_j1 : (wrapperState P σ₁ (j + 1)).val i = 2 * cur.1.val i := by
+            have hnotMem : i ∉ oneCaSelectBest cur.1.val (oneCaRunAcc σ₁ cur.2 cur.1) ∪
+                cur.1.losers := by
+              rw [Finset.mem_union, not_or]
+              refine ⟨?_, hiNotL_j⟩
+              have hW1 : (wrapperState P σ₁ (j + 1)).winners =
+                  oneCaSelectBest cur.1.val (oneCaRunAcc σ₁ cur.2 cur.1) :=
+                wrapperState_succ_winners hnotT₁
+              rwa [← hW1]
+            rw [wrapperState_succ_val hnotT₁ i] at hret₁ ⊢
+            change (if i ∈ oneCaSelectBest cur.1.val (oneCaRunAcc σ₁ cur.2 cur.1) ∪ cur.1.losers
+              then cur.1.val i
+              else if (σ₁ i).double _ _ _ _ then 2 * cur.1.val i else 0) ≠ 0 at hret₁
+            change (if i ∈ oneCaSelectBest cur.1.val (oneCaRunAcc σ₁ cur.2 cur.1) ∪ cur.1.losers
+              then cur.1.val i
+              else if (σ₁ i).double _ _ _ _ then 2 * cur.1.val i else 0) = 2 * cur.1.val i
+            simp only [hnotMem, ↓reduceIte] at hret₁ ⊢
+            split_ifs at hret₁ ⊢
+            · rfl
+            · exact absurd rfl hret₁
+          have hge_val : p.value ≤ ((wrapperState P σ₁ (j + 1)).val i : ℝ) := by
+            rw [hval_j1, Nat.cast_mul, Nat.cast_ofNat]
+            linarith
+          exact utility_le_zero_of_value_le_val hproper₁ p hnotT₁ hge_val
 
 /-! #### Lemma 12.47 (`1-CA-PROC` is a `(3 + 2 √m)`-local-approximation) -/
 
@@ -3592,8 +3300,8 @@ theorem oneCaProc_isLocalApproxOn [Nonempty M] (players : N → SingleValuePlaye
   set st := cur.1
   set acc := oneCaRunAcc σ cur.2 st
   set Wout := oneCaSelectBest st.val acc
-  have hW1 : (wrapperState P σ (j + 1)).winners = Wout := by
-    rw [wrapperState_succ_winners hnotT, oneCaProc_proc_eq]
+  have hW1 : (wrapperState P σ (j + 1)).winners = Wout :=
+    wrapperState_succ_winners hnotT
   rw [hW1]
   obtain ⟨iMax, _, hiMax_act, hiMax_ge, hfold, _, _, _, _, _⟩ :=
     oneCaRunAcc_inv σ cur.2 st (mem_losers_iff_val_eq_zero P σ j) (oneCaStateInv_of_run σ j) hnotT

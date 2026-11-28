@@ -500,79 +500,9 @@ private theorem oneCaGoodStrat_mem (i : Fin 3) :
         have : ((2 * st.val 2 : ℕ) : ℝ) < (2 : ℕ) := by push_cast; linarith
         exact_mod_cast this
 
-/-- Single-player step function matching the `foldl` body of `oneCaProc` on `oneCaGoodStrat`,
-allowing each step of a concrete trace to be evaluated individually without term blowup. -/
-private def oneCaStep3 (past : List (WrapperState (Fin 3) (Fin 4)))
-    (st : WrapperState (Fin 3) (Fin 4))
-    (acc : Finset (Fin 3) × Finset (Fin 3) × Finset (Fin 3) × (Fin 3 → Finset (Fin 4)))
-    (i : Fin 3) :
-    Finset (Fin 3) × Finset (Fin 3) × Finset (Fin 3) × (Fin 3 → Finset (Fin 4)) :=
-  let (wSet, mSet, gSet, bundles) := acc
-  let bNew :=
-    if i ∈ st.winners then bundles i
-    else
-      let view : OneCaShrinkView (Fin 3) (Fin 4) := ⟨past, st, wSet, mSet, gSet, bundles⟩
-      match (oneCaGoodStrat i).shrink view with
-      | some b => if IsValidShrink gSet bundles (bundles i) b then b else bundles i
-      | none => bundles i
-  let sNext := Function.update bundles i bNew
-  if bNew.card ≤ Nat.sqrt (Fintype.card (Fin 4)) then
-    let wNext := if bNew ⊆ freeItems wSet sNext then insert i wSet else wSet
-    let mNext := if bNew ⊆ freeItems mSet sNext then insert i mSet else mSet
-    let gNext := if bNew ⊆ freeItems gSet sNext then insert i gSet else gSet
-    (wNext, mNext, gNext, sNext)
-  else
-    (wSet, mSet, gSet, sNext)
-
 private theorem sqrt_fin4 : Nat.sqrt (Fintype.card (Fin 4)) = 2 := by
   rw [Fintype.card_fin]
   exact (Nat.eq_sqrt.2 ⟨by norm_num, by norm_num⟩).symm
-
-private theorem oneCaProc_proc_of_fold3 (past : List (WrapperState (Fin 3) (Fin 4)))
-    (st : WrapperState (Fin 3) (Fin 4)) (a b c : Fin 3)
-    (hnodup : ([a, b, c] : List (Fin 3)).Nodup)
-    (hmem : ∀ x : Fin 3,
-      x ∈ (Finset.univ.filter fun i => 0 < st.val i) ↔ x ∈ ([a, b, c] : List (Fin 3)))
-    (hpair : ([a, b, c] : List (Fin 3)).Pairwise
-      fun i k => st.val k < st.val i ∨ (st.val k = st.val i ∧ i ≤ k))
-    {res : Finset (Fin 3) × Finset (Fin 3) × Finset (Fin 3) × (Fin 3 → Finset (Fin 4))}
-    (hfold : ([a, b, c] : List (Fin 3)).foldl (oneCaStep3 past st)
-      (st.winners, {a}, ∅, st.bundle) = res) :
-    oneCaProc.proc oneCaGoodStrat past st =
-      let sumW := ∑ k ∈ res.1, st.val k
-      let sumM := ∑ k ∈ res.2.1, st.val k
-      let sumG := ∑ k ∈ res.2.2.1, st.val k
-      (if sumM ≤ sumW ∧ sumG ≤ sumW then res.1 else if sumG ≤ sumM then res.2.1 else res.2.2.1,
-        res.2.2.2) := by
-  dsimp only [oneCaProc]
-  rw [finset_sort_eq ([a, b, c] : List (Fin 3)) hnodup hmem hpair]
-  suffices h :
-      ∀ (f : (Finset (Fin 3) × Finset (Fin 3) × Finset (Fin 3) × (Fin 3 → Finset (Fin 4))) →
-        Fin 3 → Finset (Fin 3) × Finset (Fin 3) × Finset (Fin 3) × (Fin 3 → Finset (Fin 4))),
-        f = oneCaStep3 past st →
-        let t := ([a, b, c] : List (Fin 3)).foldl f (st.winners, {a}, ∅, st.bundle)
-        (if ∑ k ∈ t.2.1, st.val k ≤ ∑ k ∈ t.1, st.val k ∧
-              ∑ k ∈ t.2.2.1, st.val k ≤ ∑ k ∈ t.1, st.val k then t.1
-          else if ∑ k ∈ t.2.2.1, st.val k ≤ ∑ k ∈ t.2.1, st.val k then t.2.1 else t.2.2.1,
-          t.2.2.2) =
-        (if ∑ k ∈ res.2.1, st.val k ≤ ∑ k ∈ res.1, st.val k ∧
-              ∑ k ∈ res.2.2.1, st.val k ≤ ∑ k ∈ res.1, st.val k then res.1
-          else if ∑ k ∈ res.2.2.1, st.val k ≤ ∑ k ∈ res.2.1, st.val k then res.2.1 else res.2.2.1,
-          res.2.2.2) by
-    exact h _ (by
-      funext ⟨wSet, mSet, gSet, bundles⟩ i
-      dsimp only [oneCaStep3]
-      by_cases hi : i ∈ st.winners
-      · simp only [hi, ↓reduceIte]
-      · simp only [hi, ↓reduceIte]
-        cases (oneCaGoodStrat i).shrink ⟨past, st, wSet, mSet, gSet, bundles⟩ with
-        | none => split_ifs <;> rfl
-        | some b =>
-          by_cases hv : IsValidShrink gSet bundles (bundles i) b <;>
-            simp only [hv, ↓reduceIte])
-  rintro f rfl
-  dsimp only
-  rw [hfold]
 
 /-- Exact multi-round trace of `Wrapper + 1-CA-PROC` on the 3-bidder, 4-item multi-minded auction:
 * Round 0: bidders `0` and `2` first-time-shrink to disjoint bundles `{0, 1}` and `{2, 3}` and win
@@ -599,7 +529,8 @@ example :
   let b12 : Fin 3 → Finset (Fin 4) := ![{0, 1}, {0, 1}, {2, 3}]
   let st1 : WrapperState (Fin 3) (Fin 4) := ⟨![1, 2, 1], b02, {0, 2}, ∅⟩
   let st2 : WrapperState (Fin 3) (Fin 4) := ⟨![2, 2, 1], b12, {1, 2}, ∅⟩
-  have hst0 : wrapperState oneCaProc oneCaGoodStrat 0 = st0 := rfl
+  have hst0 : wrapperState oneCaProc oneCaGoodStrat 0 = st0 := by
+    simp only [wrapperState, wrapperRunHist, initState, oneCaProc_initBundle, st0]
   have h0T : ¬ TerminatedAt oneCaProc oneCaGoodStrat 0 := by
     rw [TerminatedAt, hst0]; decide
   -- Round 0 → 1: active order is `[0, 1, 2]`.
@@ -609,7 +540,8 @@ example :
     rw [hstep, hst0, wrapperNext]
     have hnt : st0.winners ∪ st0.losers ≠ Finset.univ := by decide
     simp only [hnt, ↓reduceIte]
-    have hstep0 : oneCaStep3 [] st0 (∅, {0}, ∅, st0.bundle) 0 = ({0}, {0}, {0}, b01) := by
+    have hstep0 : oneCaStep oneCaGoodStrat [] st0 ⟨∅, {0}, ∅, st0.bundle⟩ 0 =
+        ⟨{0}, {0}, {0}, b01⟩ := by
       have hv0 : IsValidShrink (∅ : Finset (Fin 3)) st0.bundle (st0.bundle 0) {0, 1} := by
         simp only [IsValidShrink, freeItems, sqrt_fin4]; decide
       have hu : Function.update st0.bundle 0 {0, 1} = b01 := by funext i; fin_cases i <;> rfl
@@ -621,21 +553,23 @@ example :
         simp only [freeItems, Finset.mem_sdiff, Finset.mem_biUnion, Finset.mem_singleton,
           exists_eq_left] at this
         exact this.2 (by decide)
-      dsimp only [oneCaStep3, oneCaGoodStrat]
+      dsimp only [oneCaStep, oneCaPickBundle, oneCaGoodStrat]
       simp only [show (0 : Fin 3) ∉ st0.winners by decide, hv0, ↓reduceIte, hu, sqrt_fin4,
         show ({0, 1} : Finset (Fin 4)).card ≤ 2 by decide, hfw, hfm]
       rfl
-    have hstep1 : oneCaStep3 [] st0 ({0}, {0}, {0}, b01) 1 = ({0}, {0}, {0}, b01) := by
+    have hstep1 : oneCaStep oneCaGoodStrat [] st0 ⟨{0}, {0}, {0}, b01⟩ 1 =
+        ⟨{0}, {0}, {0}, b01⟩ := by
       have hv1 : ¬ IsValidShrink ({0} : Finset (Fin 3)) b01 (st0.bundle 1) {0, 1} := by
         intro ⟨_, hsub, _⟩
         have := hsub (by decide : (0 : Fin 4) ∈ ({0, 1} : Finset (Fin 4)))
         simp only [freeItems, Finset.mem_inter, Finset.mem_sdiff, Finset.mem_biUnion,
           Finset.mem_singleton, exists_eq_left] at this
         exact this.1.2 (by decide)
-      dsimp only [oneCaStep3, oneCaGoodStrat]
+      dsimp only [oneCaStep, oneCaPickBundle, oneCaGoodStrat]
       simp only [show (1 : Fin 3) ∉ st0.winners by decide, hv1, ↓reduceIte,
         Function.update_eq_self, sqrt_fin4, show ¬ (b01 1).card ≤ 2 by decide]
-    have hstep2 : oneCaStep3 [] st0 ({0}, {0}, {0}, b01) 2 = ({0, 2}, {0, 2}, {0, 2}, b02) := by
+    have hstep2 : oneCaStep oneCaGoodStrat [] st0 ⟨{0}, {0}, {0}, b01⟩ 2 =
+        ⟨{0, 2}, {0, 2}, {0, 2}, b02⟩ := by
       have hv2 : IsValidShrink ({0} : Finset (Fin 3)) b01 (st0.bundle 2) {2, 3} := by
         refine ⟨by decide, fun x hx => ?_, by rw [sqrt_fin4]; decide⟩
         simp only [freeItems, Finset.mem_inter, Finset.mem_sdiff, Finset.mem_univ, true_and,
@@ -648,20 +582,21 @@ example :
         simp only [freeItems, Finset.mem_sdiff, Finset.mem_univ, true_and, Finset.mem_biUnion,
           Finset.mem_singleton, exists_eq_left]
         fin_cases x <;> simp_all [b02]
-      dsimp only [oneCaStep3, oneCaGoodStrat]
+      dsimp only [oneCaStep, oneCaPickBundle, oneCaGoodStrat]
       simp only [show (2 : Fin 3) ∉ st0.winners by decide, hv2, hv2', ↓reduceIte, hu, sqrt_fin4,
         show ({2, 3} : Finset (Fin 4)).card ≤ 2 by decide, hf2]
       have hins : insert (2 : Fin 3) ({0} : Finset (Fin 3)) = {0, 2} := by decide
       rw [hins]
-    have hfold0 : ([0, 1, 2] : List (Fin 3)).foldl (oneCaStep3 [] st0)
-        (st0.winners, {0}, ∅, st0.bundle) = ({0, 2}, {0, 2}, {0, 2}, b02) := by
+    have hfold0 : ([0, 1, 2] : List (Fin 3)).foldl (oneCaStep oneCaGoodStrat [] st0)
+        ⟨st0.winners, {0}, ∅, st0.bundle⟩ = ⟨{0, 2}, {0, 2}, {0, 2}, b02⟩ := by
       rw [List.foldl_cons, hstep0, List.foldl_cons, hstep1, List.foldl_cons, hstep2,
         List.foldl_nil]
     have hproc : oneCaProc.proc oneCaGoodStrat [] st0 = ({0, 2}, b02) := by
-      rw [oneCaProc_proc_of_fold3 [] st0 0 1 2 (by decide)
-        (fun x => by fin_cases x <;> decide) (by decide) hfold0]
+      rw [oneCaProc_proc_of_order oneCaGoodStrat [] st0 (iMax := 0) (tl := [1, 2])
+        (by decide) (fun x => by fin_cases x <;> decide) (by decide)]
+      rw [hfold0]
       simp only [le_refl, and_self, ↓reduceIte]
-    simp only [hproc, st1, WrapperState.mk.injEq]
+    simp only [hproc, oneCaProc_chooseDouble, st1, WrapperState.mk.injEq]
     refine ⟨?_, trivial, trivial, ?_⟩
     · funext i; fin_cases i <;> decide
     · ext i; fin_cases i <;> decide
@@ -687,25 +622,27 @@ example :
       simp only [freeItems, Finset.mem_sdiff, Finset.mem_biUnion, Finset.mem_singleton,
         exists_eq_left] at this
       exact this.2 (by decide)
-    have hstep1 : oneCaStep3 past1 st1 ({0, 2}, {1}, ∅, b02) 1 = ({0, 2}, {1}, {1}, b12) := by
+    have hstep1 : oneCaStep oneCaGoodStrat past1 st1 ⟨{0, 2}, {1}, ∅, b02⟩ 1 =
+        ⟨{0, 2}, {1}, {1}, b12⟩ := by
       have hv1 : IsValidShrink (∅ : Finset (Fin 3)) b02 (st1.bundle 1) {0, 1} := by
         simp only [IsValidShrink, freeItems, sqrt_fin4, st1, b02]; decide
       have hv1' : IsValidShrink (∅ : Finset (Fin 3)) b02 (b02 1) {0, 1} := hv1
       have hu : Function.update b02 1 {0, 1} = b12 := by funext i; fin_cases i <;> rfl
       have hfg : ({0, 1} : Finset (Fin 4)) ⊆ freeItems (∅ : Finset (Fin 3)) b12 := by
         simp only [freeItems]; decide
-      dsimp only [oneCaStep3, oneCaGoodStrat]
+      dsimp only [oneCaStep, oneCaPickBundle, oneCaGoodStrat]
       simp only [show (1 : Fin 3) ∉ st1.winners by decide, hv1, hv1', ↓reduceIte, hu, sqrt_fin4,
         show ({0, 1} : Finset (Fin 4)).card ≤ 2 by decide, hnotfW01, hnotfM01, hfg]
       rfl
-    have hstep0 : oneCaStep3 past1 st1 ({0, 2}, {1}, {1}, b12) 0 = ({0, 2}, {1}, {1}, b12) := by
+    have hstep0 : oneCaStep oneCaGoodStrat past1 st1 ⟨{0, 2}, {1}, {1}, b12⟩ 0 =
+        ⟨{0, 2}, {1}, {1}, b12⟩ := by
       have hu : Function.update b12 0 {0, 1} = b12 := Function.update_eq_self 0 b12
-      dsimp only [oneCaStep3]
+      dsimp only [oneCaStep, oneCaPickBundle]
       simp only [show (0 : Fin 3) ∈ st1.winners by decide, ↓reduceIte, sqrt_fin4,
         show (b12 0 : Finset (Fin 4)) = {0, 1} from rfl, hu,
         show ({0, 1} : Finset (Fin 4)).card ≤ 2 by decide, hnotfW01, hnotfM01]
-    have hstep2 : oneCaStep3 past1 st1 ({0, 2}, {1}, {1}, b12) 2 =
-        ({0, 2}, {1, 2}, {1, 2}, b12) := by
+    have hstep2 : oneCaStep oneCaGoodStrat past1 st1 ⟨{0, 2}, {1}, {1}, b12⟩ 2 =
+        ⟨{0, 2}, {1, 2}, {1, 2}, b12⟩ := by
       have hu : Function.update b12 2 {2, 3} = b12 := Function.update_eq_self 2 b12
       have hnotfW2 : ¬ ({2, 3} : Finset (Fin 4)) ⊆ freeItems ({0, 2} : Finset (Fin 3)) b12 := by
         intro h
@@ -717,23 +654,24 @@ example :
         simp only [freeItems, Finset.mem_sdiff, Finset.mem_univ, true_and, Finset.mem_biUnion,
           Finset.mem_singleton, exists_eq_left]
         fin_cases x <;> simp_all [b12]
-      dsimp only [oneCaStep3]
+      dsimp only [oneCaStep, oneCaPickBundle]
       simp only [show (2 : Fin 3) ∈ st1.winners by decide, ↓reduceIte, sqrt_fin4,
         show (b12 2 : Finset (Fin 4)) = {2, 3} from rfl, hu,
         show ({2, 3} : Finset (Fin 4)).card ≤ 2 by decide, hnotfW2, hfMG2]
       have hins : insert (2 : Fin 3) ({1} : Finset (Fin 3)) = {1, 2} := by decide
       rw [hins]
-    have hfold1 : ([1, 0, 2] : List (Fin 3)).foldl (oneCaStep3 past1 st1)
-        (st1.winners, {1}, ∅, st1.bundle) = ({0, 2}, {1, 2}, {1, 2}, b12) := by
+    have hfold1 : ([1, 0, 2] : List (Fin 3)).foldl (oneCaStep oneCaGoodStrat past1 st1)
+        ⟨st1.winners, {1}, ∅, st1.bundle⟩ = ⟨{0, 2}, {1, 2}, {1, 2}, b12⟩ := by
       rw [List.foldl_cons, hstep1, List.foldl_cons, hstep0, List.foldl_cons, hstep2,
         List.foldl_nil]
     have hproc1 : oneCaProc.proc oneCaGoodStrat past1 st1 = ({1, 2}, b12) := by
-      rw [oneCaProc_proc_of_fold3 past1 st1 1 0 2 (by decide)
-        (fun x => by fin_cases x <;> decide) (by decide) hfold1]
+      rw [oneCaProc_proc_of_order oneCaGoodStrat past1 st1 (iMax := 1) (tl := [0, 2])
+        (by decide) (fun x => by fin_cases x <;> decide) (by decide)]
+      rw [hfold1]
       have hsumW : ∑ k ∈ ({0, 2} : Finset (Fin 3)), st1.val k = 2 := by decide
       have hsumM : ∑ k ∈ ({1, 2} : Finset (Fin 3)), st1.val k = 3 := by decide
       simp only [hsumW, hsumM, show ¬ (3 : ℕ) ≤ 2 by decide, false_and, le_refl, ↓reduceIte]
-    simp only [hproc1, st2, WrapperState.mk.injEq]
+    simp only [hproc1, oneCaProc_chooseDouble, st2, WrapperState.mk.injEq]
     refine ⟨?_, trivial, trivial, ?_⟩
     · funext i; fin_cases i <;> decide
     · ext i; fin_cases i <;> decide
@@ -760,25 +698,27 @@ example :
       simp only [freeItems, Finset.mem_sdiff, Finset.mem_biUnion, Finset.mem_singleton,
         exists_eq_left] at this
       exact this.2 (by decide)
-    have hstep0 : oneCaStep3 past2 st2 ({1, 2}, {0}, ∅, b12) 0 = ({1, 2}, {0}, {0}, b12) := by
+    have hstep0 : oneCaStep oneCaGoodStrat past2 st2 ⟨{1, 2}, {0}, ∅, b12⟩ 0 =
+        ⟨{1, 2}, {0}, {0}, b12⟩ := by
       have hv0 : IsValidShrink (∅ : Finset (Fin 3)) b12 (st2.bundle 0) {0, 1} := by
         simp only [IsValidShrink, freeItems, sqrt_fin4, st2, b12]; decide
       have hv0' : IsValidShrink (∅ : Finset (Fin 3)) b12 (b12 0) {0, 1} := hv0
       have hu : Function.update b12 0 {0, 1} = b12 := Function.update_eq_self 0 b12
       have hfg : ({0, 1} : Finset (Fin 4)) ⊆ freeItems (∅ : Finset (Fin 3)) b12 := by
         simp only [freeItems]; decide
-      dsimp only [oneCaStep3, oneCaGoodStrat]
+      dsimp only [oneCaStep, oneCaPickBundle, oneCaGoodStrat]
       simp only [show (0 : Fin 3) ∉ st2.winners by decide, hv0, hv0', ↓reduceIte, hu, sqrt_fin4,
         show ({0, 1} : Finset (Fin 4)).card ≤ 2 by decide, hnotfW01, hnotfM01, hfg]
       rfl
-    have hstep1 : oneCaStep3 past2 st2 ({1, 2}, {0}, {0}, b12) 1 = ({1, 2}, {0}, {0}, b12) := by
+    have hstep1 : oneCaStep oneCaGoodStrat past2 st2 ⟨{1, 2}, {0}, {0}, b12⟩ 1 =
+        ⟨{1, 2}, {0}, {0}, b12⟩ := by
       have hu : Function.update b12 1 {0, 1} = b12 := Function.update_eq_self 1 b12
-      dsimp only [oneCaStep3]
+      dsimp only [oneCaStep, oneCaPickBundle]
       simp only [show (1 : Fin 3) ∈ st2.winners by decide, ↓reduceIte, sqrt_fin4,
         show (b12 1 : Finset (Fin 4)) = {0, 1} from rfl, hu,
         show ({0, 1} : Finset (Fin 4)).card ≤ 2 by decide, hnotfW01, hnotfM01]
-    have hstep2 : oneCaStep3 past2 st2 ({1, 2}, {0}, {0}, b12) 2 =
-        ({1, 2}, {0, 2}, {0, 2}, b12) := by
+    have hstep2 : oneCaStep oneCaGoodStrat past2 st2 ⟨{1, 2}, {0}, {0}, b12⟩ 2 =
+        ⟨{1, 2}, {0, 2}, {0, 2}, b12⟩ := by
       have hu : Function.update b12 2 {2, 3} = b12 := Function.update_eq_self 2 b12
       have hnotfW2 : ¬ ({2, 3} : Finset (Fin 4)) ⊆ freeItems ({1, 2} : Finset (Fin 3)) b12 := by
         intro h
@@ -790,23 +730,24 @@ example :
         simp only [freeItems, Finset.mem_sdiff, Finset.mem_univ, true_and, Finset.mem_biUnion,
           Finset.mem_singleton, exists_eq_left]
         fin_cases x <;> simp_all [b12]
-      dsimp only [oneCaStep3]
+      dsimp only [oneCaStep, oneCaPickBundle]
       simp only [show (2 : Fin 3) ∈ st2.winners by decide, ↓reduceIte, sqrt_fin4,
         show (b12 2 : Finset (Fin 4)) = {2, 3} from rfl, hu,
         show ({2, 3} : Finset (Fin 4)).card ≤ 2 by decide, hnotfW2, hfMG2]
       have hins : insert (2 : Fin 3) ({0} : Finset (Fin 3)) = {0, 2} := by decide
       rw [hins]
-    have hfold2 : ([0, 1, 2] : List (Fin 3)).foldl (oneCaStep3 past2 st2)
-        (st2.winners, {0}, ∅, st2.bundle) = ({1, 2}, {0, 2}, {0, 2}, b12) := by
+    have hfold2 : ([0, 1, 2] : List (Fin 3)).foldl (oneCaStep oneCaGoodStrat past2 st2)
+        ⟨st2.winners, {0}, ∅, st2.bundle⟩ = ⟨{1, 2}, {0, 2}, {0, 2}, b12⟩ := by
       rw [List.foldl_cons, hstep0, List.foldl_cons, hstep1, List.foldl_cons, hstep2,
         List.foldl_nil]
     have hproc2 : oneCaProc.proc oneCaGoodStrat past2 st2 = ({1, 2}, b12) := by
-      rw [oneCaProc_proc_of_fold3 past2 st2 0 1 2 (by decide)
-        (fun x => by fin_cases x <;> decide) (by decide) hfold2]
+      rw [oneCaProc_proc_of_order oneCaGoodStrat past2 st2 (iMax := 0) (tl := [1, 2])
+        (by decide) (fun x => by fin_cases x <;> decide) (by decide)]
+      rw [hfold2]
       have hsumW : ∑ k ∈ ({1, 2} : Finset (Fin 3)), st2.val k = 3 := by decide
       have hsumM : ∑ k ∈ ({0, 2} : Finset (Fin 3)), st2.val k = 3 := by decide
       simp only [hsumW, hsumM, le_refl, and_self, ↓reduceIte]
-    simp only [hproc2, WrapperState.mk.injEq]
+    simp only [hproc2, oneCaProc_chooseDouble, WrapperState.mk.injEq]
     refine ⟨?_, trivial, trivial, ?_⟩
     · funext i; fin_cases i <;> decide
     · ext i; fin_cases i <;> decide
@@ -923,7 +864,8 @@ example :
     rw [Fintype.card_fin]
     exact (Nat.eq_sqrt.2 ⟨by norm_num, by norm_num⟩).symm
   have hst0 : wrapperState oneCaProc unitStrat 0 =
-      ⟨fun _ => 1, fun _ => Finset.univ, ∅, ∅⟩ := rfl
+      ⟨fun _ => 1, fun _ => Finset.univ, ∅, ∅⟩ := by
+    simp only [wrapperState, wrapperRunHist, initState, oneCaProc_initBundle]
   have h0 : ¬ TerminatedAt oneCaProc unitStrat 0 := by
     rw [TerminatedAt, hst0]; decide
   have hst1 : wrapperState oneCaProc unitStrat 1 =
@@ -935,16 +877,14 @@ example :
     simp only [hnt, ↓reduceIte]
     have hproc : oneCaProc.proc unitStrat [] ⟨fun _ => 1, fun _ => Finset.univ, ∅, ∅⟩ =
         ({0}, fun _ => Finset.univ) := by
-      dsimp only [oneCaProc]
-      rw [finset_sort_eq ([0, 1] : List (Fin 2))]
-      swap; · decide
-      swap; · intro x; fin_cases x <;> decide
-      swap; · decide
-      simp only [List.foldl_cons, List.foldl_nil, unitStrat, Finset.notMem_empty, ↓reduceIte,
-        hsqrt2, Function.update_eq_self, show ¬ (Finset.univ : Finset (Fin 2)).card ≤ 1 by decide,
+      rw [oneCaProc_proc_of_order unitStrat [] _ (iMax := 0) (tl := [1])
+        (by decide) (fun x => by fin_cases x <;> decide) (by decide)]
+      simp only [List.foldl_cons, List.foldl_nil, oneCaStep, oneCaPickBundle, unitStrat,
+        Finset.notMem_empty, ↓reduceIte, hsqrt2, Function.update_eq_self,
+        show ¬ (Finset.univ : Finset (Fin 2)).card ≤ 1 by decide,
         Finset.sum_empty, Finset.sum_singleton, show ¬ (1 : ℕ) ≤ 0 by decide, false_and,
         Nat.zero_le]
-    simp only [hproc, WrapperState.mk.injEq]
+    simp only [hproc, oneCaProc_chooseDouble, WrapperState.mk.injEq]
     refine ⟨?_, trivial, trivial, ?_⟩
     · funext i; fin_cases i <;> decide
     · ext i; fin_cases i <;> decide
