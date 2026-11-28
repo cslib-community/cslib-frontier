@@ -99,7 +99,7 @@ theorem card_filter_nonempty_card_le_pow (k : ℕ) :
     refine ⟨?_, fun hx => ⟨⟨e ⟨x, hx⟩, (e ⟨x, hx⟩).isLt.trans_le hSk⟩, ?_⟩⟩
     · rintro ⟨i, rfl⟩
       split_ifs with h
-      · exact (e.symm ⟨i, h⟩).2
+      · exact (e.symm ⟨i, h⟩).property
       · exact ha
     · simp only [(e ⟨x, hx⟩).isLt, ↓reduceDIte, Fin.eta, Equiv.symm_apply_apply]
   calc _ ≤ #(univ.image fun f : Fin k → ι => univ.image f) := card_le_card hsub

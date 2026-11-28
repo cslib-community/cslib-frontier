@@ -112,22 +112,22 @@ variable (R : Routes T m Uu) (ch : Fin A ↪ T.X 0)
   | .start a c γ s => RelayRole.elim (.ofChamber (Nat.zero_le J) (R.pn (ch a) (ch c) γ s))
       (.ofChamber (Nat.zero_le J) (R.pn (ch a) (ch c) γ (s + 1)))
       (.ofChamber (Nat.zero_le J) (ch c))
-  | .inner j i e => RelayRole.elim (.ofChamber j.2.le (T.e0 e))
-      (.ofChamber j.2 (T.hostOf i (T.e0 e))) (.ofChamber j.2.le (T.e1 e))
+  | .inner j i e => RelayRole.elim (.ofChamber j.isLt.le (T.e0 e))
+      (.ofChamber j.isLt (T.hostOf i (T.e0 e))) (.ofChamber j.isLt.le (T.e1 e))
   | .middle j e s =>
-    let host₀ : T.Node := .ofChamber j.2 (T.hostOf (T.ty e) (T.e0 e))
-    let host₁ : T.Node := .ofChamber j.2 (T.hostOf (T.ty e) (T.e1 e))
-    let image₀ : T.Node := .ofChamber j.2 (T.π (T.e0 e))
-    let image₁ : T.Node := .ofChamber j.2 (T.π (T.e1 e))
-    RelayRole.elim (![.ofChamber j.2.le (T.e0 e), host₀, image₀, image₁] s)
-      (![host₀, image₀, image₁, host₁] s) (.ofChamber j.2.le (T.e1 e))
+    let host₀ : T.Node := .ofChamber j.isLt (T.hostOf (T.ty e) (T.e0 e))
+    let host₁ : T.Node := .ofChamber j.isLt (T.hostOf (T.ty e) (T.e1 e))
+    let image₀ : T.Node := .ofChamber j.isLt (T.π (T.e0 e))
+    let image₁ : T.Node := .ofChamber j.isLt (T.π (T.e1 e))
+    RelayRole.elim (![.ofChamber j.isLt.le (T.e0 e), host₀, image₀, image₁] s)
+      (![host₀, image₀, image₁, host₁] s) (.ofChamber j.isLt.le (T.e1 e))
   | .final e => RelayRole.elim (.ofChamber le_rfl (T.e0 e)) .root (.ofChamber le_rfl (T.e1 e))
 
 /-- The relay is a move of the plan: its three parties are different. A step of a route is
 before the first visit of the last chamber, the host of an inner relay is of another type than
 the edge, and trivial steps of the way of an edge are omitted. -/
 @[expose] def Occurs : Relay T m A → Prop
-  | .start a c γ s => a ≠ c ∧ s.1 + 1 < R.pl (ch a) (ch c) γ
+  | .start a c γ s => a ≠ c ∧ s.val + 1 < R.pl (ch a) (ch c) γ
   | .inner _ i e => T.ty e ≠ i
   | .middle _ e s => (s = 1 → T.hostOf (T.ty e) (T.e0 e) ≠ T.π (T.e0 e)) ∧
       (s = 3 → T.π (T.e1 e) ≠ T.hostOf (T.ty e) (T.e1 e))
@@ -151,9 +151,10 @@ theorem party_injective {x : Relay T m A} (hx : x.Occurs R ch) :
       (by simpa using R.pn_ne _ _ _ hs)
   · exact RelayRole.elim_injective (Tower.Node.ofChamber_ne_of_ne (by omega))
       (by simpa using T.e_ne e) (Tower.Node.ofChamber_ne_of_ne (by omega))
-  · have h1 := T.π_ne j.2 e
+  · have h1 := T.π_ne j.isLt e
     have h2 := T.e_ne e
-    have h3 {c : T.X j} {c' : T.X (j + 1)} : (.ofChamber j.2.le c : T.Node) ≠ .ofChamber j.2 c' :=
+    have h3 {c : T.X j} {c' : T.X (j + 1)} :
+        (.ofChamber j.isLt.le c : T.Node) ≠ .ofChamber j.isLt c' :=
       Tower.Node.ofChamber_ne_of_ne (by omega)
     refine RelayRole.elim_injective ?_ ?_ ?_ <;> fin_cases s <;> simp_all [Occurs, h3.symm]
   · exact RelayRole.elim_injective Tower.Node.ofChamber_ne_root (by simpa using T.e_ne e)
@@ -198,8 +199,8 @@ variable (R : Routes T m Uu) (ch : Fin A ↪ T.X 0)
 @[expose] def target : Relay T m A → Bool → Target T m A
   | .start a c γ s, false => stepTarget R (ch a) (ch c) γ s
   | .start a c γ s, true =>
-    if hs : s.1 + 1 < 2 * m ∧ s.1 + 2 < R.pl (ch a) (ch c) γ then
-      .relay (.start a c γ ⟨s.1 + 1, hs.1⟩)
+    if hs : s.val + 1 < 2 * m ∧ s.val + 2 < R.pl (ch a) (ch c) γ then
+      .relay (.start a c γ ⟨s.val + 1, hs.1⟩)
     else stepTarget R (ch a) (ch c) γ (s + 1)
   | .inner _ _ _, _ => .done
   | .middle j e s, false =>
@@ -230,7 +231,7 @@ variable {R ch}
 theorem time_lt_time_target (x : Relay T m A) (d : Bool) :
     x.time m < (x.target R ch d).time := by
   rcases x with ⟨a, c, γ, s⟩ | ⟨j, i, e⟩ | ⟨j, e, s⟩ | e
-  · have hs := s.2
+  · have hs := s.isLt
     have h1 := two_mul_le_time_stepTarget (A := A) R (ch a) (ch c) γ
     cases d
     · exact hs.trans_le (h1 s)
@@ -238,10 +239,10 @@ theorem time_lt_time_target (x : Relay T m A) (d : Bool) :
       split_ifs
       · simp [Target.time, Relay.time]
       · exact hs.trans_le (h1 _)
-  · have := j.2
+  · have := j.isLt
     simp only [target, Relay.time, Target.time, endTime]
     omega
-  · have := j.2
+  · have := j.isLt
     cases d <;> fin_cases s <;> simp [target, Relay.time, Target.time, endTime] <;> grind
   · exact Nat.lt_succ_self _
 

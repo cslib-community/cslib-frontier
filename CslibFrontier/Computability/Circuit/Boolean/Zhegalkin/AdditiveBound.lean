@@ -68,7 +68,7 @@ private theorem mul_sum_hasFullCol_le_activeSquare (A : Matrix (Fin m) (Fin n) B
         #{q : Fin (n / s) | (fullRowPattern A s r q).Nonempty} := by
     let activeQ := univ.filter fun q : Fin (n / s) => (fullRowPattern A s r q).Nonempty
     let φ : {q : Fin (n / s) // q ∈ activeQ} → FullCol n s :=
-      fun q => (q.1, ⟨fullRowPattern A s r q.1, (mem_filter.mp q.2).2⟩)
+      fun q => (q.val, ⟨fullRowPattern A s r q.val, (mem_filter.mp q.property).2⟩)
     have hφ_inj : Function.Injective φ := fun q₁ q₂ h =>
       Subtype.ext (congrArg Prod.fst h)
     have himg : univ.filter (fun c : FullCol n s => hasFullCol A s r c = true) =
@@ -130,7 +130,7 @@ private theorem mul_sum_hasFullCol_le_activeSquare (A : Matrix (Fin m) (Fin n) B
   obtain ⟨a₀, ha₀⟩ := (mem_filter.mp hq).2
   have hA₀ := (mem_filter.mp ha₀).2
   refine mem_filter.mpr ⟨mem_univ _, fullBlockEmb q a₀, hA₀, ?_⟩
-  change Nat.dist (q.1 * s + a.1) (q.1 * s + a₀.1) ≤ Nat.log 2 m
+  change Nat.dist (q.val * s + a.val) (q.val * s + a₀.val) ≤ Nat.log 2 m
   unfold Nat.dist
   have := a.isLt
   have := a₀.isLt
@@ -149,14 +149,14 @@ private def matrixOddVal (A : Matrix (Fin m) (Fin n) Bool) (s p : ℕ)
 private def matrixRowParts (A : Matrix (Fin m) (Fin n) Bool) (s p : ℕ) (r : Fin m) :
     Finset (Fin m ⊕ Bool) :=
   ((sectionPeers p r).filter fun r' =>
-      (pairedCols (hasFullCol A s) p (r.1 / p) (min r r') (max r r')).Nonempty).map
+      (pairedCols (hasFullCol A s) p (r.val / p) (min r r') (max r r')).Nonempty).map
         Function.Embedding.inl ∪
     (if (oddCols (hasFullCol A s) p r).Nonempty then {Sum.inr false} else ∅) ∪
     (if (matrixTailSet A s r).Nonempty then {Sum.inr true} else ∅)
 
 private def matrixPartVal (A : Matrix (Fin m) (Fin n) Bool) (s p : ℕ) (r : Fin m) :
     Fin m ⊕ Bool → (Fin n → G) → G
-  | .inl r' => matrixPairVal A s p (r.1 / p, (min r r', max r r'))
+  | .inl r' => matrixPairVal A s p (r.val / p, (min r r', max r r'))
   | .inr false => matrixOddVal A s p r
   | .inr true => fun x => ∑ j ∈ matrixTailSet A s r, x j
 
@@ -212,9 +212,9 @@ theorem exists_circuit_matrix_le_bound (G : Type*) [AddCommMonoid G]
     (fun j (x : Fin n → G) => x j) (fun j => ⟨j, rfl⟩)
   set groupSet : Set ((Fin n → G) → G) :=
     {f | ∃ (q : ℕ) (T : Finset (Fin n)),
-      T.Nonempty ∧ (∀ j ∈ T, j.1 / s = q) ∧ f = fun x => ∑ j ∈ T, x j}
+      T.Nonempty ∧ (∀ j ∈ T, j.val / s = q) ∧ f = fun x => ∑ j ∈ T, x j}
   have hcolVal_mem (c : FullCol n s) : fullColVal c ∈ inputs n ∪ groupSet := by
-    refine Or.inr ⟨c.1.1, c.2.1.map (fullBlockEmb c.1), c.2.2.map, ?_, ?_⟩
+    refine Or.inr ⟨c.1.val, c.2.val.map (fullBlockEmb c.1), c.2.property.map, ?_, ?_⟩
     · intro j hj
       obtain ⟨a, _, rfl⟩ := mem_map.mp hj
       exact fullBlockEmb_div c.1 a
@@ -284,7 +284,7 @@ theorem exists_circuit_matrix_le_bound (G : Type*) [AddCommMonoid G]
         have hne := (mem_filter.mp hr').2
         refine Or.inr (Or.inr (Or.inl ?_))
         rw [Set.mem_iUnion₂]
-        exact ⟨(r.1 / p, (min r r', max r r')),
+        exact ⟨(r.val / p, (min r r', max r r')),
           mem_filter.mpr ⟨mem_product.mpr ⟨mem_range.mpr (div_lt_ceilDiv r.isLt hp), mem_univ _⟩,
             hne⟩, rfl⟩
       · split_ifs at hkodd with hne

@@ -316,13 +316,13 @@ theorem columnPacking_of_count {a b c t d h : ℕ} (ha : 1 ≤ a) (hb : 1 ≤ b)
     (univ.filter fun i => w i = Fin.last (c + 1)).card = h with hW
   let e : Fin (W.card ^ 2) ≃ W × W :=
     (Fintype.equivFinOfCardEq (by simp [Fintype.card_prod, sq])).symm
-  have hres := (hprim.amplify d).slSum_comp (fun i => ((e i).1.1, (e i).2.1)) fun i j hij =>
+  have hres := (hprim.amplify d).slSum_comp (fun i => ((e i).1.val, (e i).2.val)) fun i j hij =>
     e.injective (Prod.ext (Subtype.ext (congrArg Prod.fst hij))
       (Subtype.ext (congrArg Prod.snd hij)))
   choose E hE using fun i : Fin (W.card ^ 2) =>
-    exists_reindex_eq_canonical (K := K) a b {Fin.last (c + 1)} (e i).1.1 (e i).2.1
-      (by simpa using (Finset.mem_filter.1 (e i).1.2).2)
-      (by simpa using (Finset.mem_filter.1 (e i).2.2).2)
+    exists_reindex_eq_canonical (K := K) a b {Fin.last (c + 1)} (e i).1.val (e i).2.val
+      (by simpa using (Finset.mem_filter.1 (e i).1.property).2)
+      (by simpa using (Finset.mem_filter.1 (e i).2.property).2)
   -- separate the left inputs
   have hsep := hres.separate
   rw [mul_one] at hsep

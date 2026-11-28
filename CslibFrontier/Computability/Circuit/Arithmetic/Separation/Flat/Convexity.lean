@@ -178,7 +178,7 @@ private theorem unitExponent_midpoint_le {n : ℕ} (V : Finset (EuclideanSpace �
     (I : Type) [Fintype I] [DecidableEq I] {ε : ℝ} (hε : 0 < ε) :
     ∃ δ > 0, ∀ (F : SpectralPoint K V) (c : ℝ), 0 ≤ c →
       (∀ x y : V, |c * F.wireExponent x y - dist x y| < δ) → ∀ a b m : I → V,
-        (∀ i, (m i : EuclideanSpace ℝ (Fin n)) = midpoint ℝ (a i).1 (b i).1) →
+        (∀ i, (m i : EuclideanSpace ℝ (Fin n)) = midpoint ℝ (a i).val (b i).val) →
           c * F.unitExponent m ≤ 1 / 2 * (c * F.unitExponent a) + 1 / 2 * (c * F.unitExponent b) +
             ε := by
   classical
@@ -198,8 +198,8 @@ section Cube
 (the sign `s`) stays where it is if `d < j`, and otherwise goes to `±½ χ_d (0, …, 0, χ)` with `j`
 zeros. -/
 private def cubeSign {k : ℕ} (j : ℕ) (χ : Fin k → Bool) (d : Fin k) (s : Bool) : Fin k → SignType :=
-  fun x => if d.1 < j then (if x = d then boolSign s else 0) else
-    (if x.1 < j then 0 else boolSign s * boolSign (χ d) * boolSign (χ x))
+  fun x => if d.val < j then (if x = d then boolSign s else 0) else
+    (if x.val < j then 0 else boolSign s * boolSign (χ d) * boolSign (χ x))
 
 /-- At level `0` the image lies on a main diagonal of the cube. -/
 private theorem cubeSign_zero {k : ℕ} (χ : Fin k → Bool) (d : Fin k) (s : Bool) :
@@ -228,19 +228,19 @@ private theorem cubePoint_cubeSign_succ {k j : ℕ} (hj : j < k) (χ : Fin k →
       (((cubeSign j (Function.update χ ⟨j, hj⟩ true) d s x : SignType) : ℝ) +
         ((cubeSign j (Function.update χ ⟨j, hj⟩ false) d s x : SignType) : ℝ)) / 2 := by
     unfold cubeSign
-    by_cases h1 : d.1 < j
+    by_cases h1 : d.val < j
     · simp [h1, h1.trans (Nat.lt_succ_self j)]
     · rcases eq_or_ne d ⟨j, hj⟩ with rfl | h2
       · rcases eq_or_ne x ⟨j, hj⟩ with rfl | h4
         · cases s <;> simp [boolSign]
-        · by_cases h3 : x.1 < j <;> cases s <;> cases hχ : χ x <;> simp [h3, h4, hχ, boolSign]
-      · have h2' : ¬ d.1 < j + 1 := fun h => h2 (Fin.ext (show d.1 = j by omega))
+        · by_cases h3 : x.val < j <;> cases s <;> cases hχ : χ x <;> simp [h3, h4, hχ, boolSign]
+      · have h2' : ¬ d.val < j + 1 := fun h => h2 (Fin.ext (show d.val = j by omega))
         rcases eq_or_ne x ⟨j, hj⟩ with rfl | h4
         · cases s <;> cases χ d <;> simp [h1, h2, h2', boolSign]
-        · have h4' : x.1 < j + 1 ↔ x.1 < j :=
+        · have h4' : x.val < j + 1 ↔ x.val < j :=
             ⟨fun h => Nat.lt_of_le_of_ne (Nat.le_of_lt_succ h) fun e => h4 (Fin.ext e),
               Nat.lt_succ_of_lt⟩
-          by_cases h3 : x.1 < j <;> simp [h1, h2, h2', h3, h4, h4']
+          by_cases h3 : x.val < j <;> simp [h1, h2, h2', h3, h4, h4']
   ext x
   rw [midpoint_eq_smul_add]
   simp only [PiLp.smul_apply, PiLp.add_apply, cubePoint_apply, smul_eq_mul, key, invOf_eq_inv]
@@ -257,20 +257,20 @@ theorem exists_spectralPoint_cube (hK : FlatCase K) {k : ℕ} (V : Finset (Eucli
     {ε : ℝ} (hε : 0 < ε) :
     ∃ (F : SpectralPoint K V) (c : ℝ), 0 ≤ c ∧
       (∀ x y : V, |c * F.wireExponent x y - dist x y| < ε) ∧
-      c * F.unitExponent (fun x : P => (⟨x.1, hPV x.2⟩ : V)) ≤ √k + ε := by
+      c * F.unitExponent (fun x : P => (⟨x.val, hPV x.property⟩ : V)) ≤ √k + ε := by
   classical
   have : Nonempty P := hP.coe_sort
   have hk : 0 < k := (hc hP.choose hP.choose_spec).choose.pos
   have hk' : (0 : ℝ) < k := Nat.cast_pos.2 hk
-  choose j b hjb using fun x : P => hc x.1 x.2
+  choose j b hjb using fun x : P => hc x.val x.property
   -- add the points `½ u` of the cube
   let V' : Finset (EuclideanSpace ℝ (Fin k)) := V ∪ univ.image cubePoint
-  let incl : V → V' := fun x => ⟨x.1, mem_union_left _ x.2⟩
+  let incl : V → V' := fun x => ⟨x.val, mem_union_left _ x.property⟩
   let pt : (Fin k → SignType) → V' :=
     fun u => ⟨cubePoint u, mem_union_right _ (mem_image_of_mem _ (mem_univ u))⟩
   have : Nonempty V' := ⟨pt fun _ => 0⟩
   obtain ⟨δ, hδ, hconv⟩ := unitExponent_midpoint_le K V' P (show 0 < ε / (2 * k) by positivity)
-  obtain ⟨F, c, hc0, hF⟩ := (hK k V' fun x => x.1).exists_spectralPoint id
+  obtain ⟨F, c, hc0, hF⟩ := (hK k V' fun x => x.val).exists_spectralPoint id
     (show 0 < min δ (ε / 2) by positivity)
   have hF' (x y : V') : |c * F.wireExponent x y - dist x y| < min δ (ε / 2) := by
     simpa only [abs_sub_comm, Subtype.dist_eq, id_eq] using hF x y
@@ -296,7 +296,7 @@ theorem exists_spectralPoint_cube (hK : FlatCase K) {k : ℕ} (V : Finset (Eucli
   refine ⟨F.pull incl, c, hc0, fun x y => ?_, ?_⟩
   · rw [F.pull_wireExponent, Subtype.dist_eq]
     exact (hF' (incl x) (incl y)).trans_le ((min_le_right _ _).trans (by linarith))
-  · have e : incl ∘ (fun x : P => (⟨x.1, hPV x.2⟩ : V)) = α k fun _ => true :=
+  · have e : incl ∘ (fun x : P => (⟨x.val, hPV x.property⟩ : V)) = α k fun _ => true :=
       funext fun x => Subtype.ext ((hjb x).trans (cubePoint_cubeSign_top _ _ _).symm)
     rw [F.pull_unitExponent, e]
     exact (hlevel k le_rfl _).trans_eq (by field_simp; ring)

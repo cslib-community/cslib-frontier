@@ -228,7 +228,7 @@ example : emptyInput.expectedOutput = [0] := by decide
 
 example :
     let out := G8Input.expectedOutput
-    let side : Finset (Fin 8) := Finset.univ.filter fun v : Fin 8 => out[v.1 + 1]? = some 1
+    let side : Finset (Fin 8) := Finset.univ.filter fun v : Fin 8 => out[v.val + 1]? = some 1
     out.length = 9 ∧
       out.head? = some (minCut G8Input.W) ∧
       IsNonTrivialCut side ∧

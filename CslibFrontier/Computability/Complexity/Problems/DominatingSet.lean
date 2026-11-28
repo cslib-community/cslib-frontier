@@ -133,13 +133,13 @@ theorem mem_DominatingSet_iff {G : Graph} {k : ℕ} :
   constructor
   · rintro ⟨S, hS, hcard⟩
     refine ⟨S.map (.subtype _),
-      fun v hv => by obtain ⟨u, _, rfl⟩ := Finset.mem_map.1 hv; exact u.2,
+      fun v hv => by obtain ⟨u, _, rfl⟩ := Finset.mem_map.1 hv; exact u.property,
       fun v hv => (SimpleGraph.isDominatingSet_iff.1 hS ⟨v, hv⟩).imp (Finset.mem_map_of_mem _)
-        fun ⟨s, hs, hadj⟩ => ⟨s.1, Finset.mem_map_of_mem (.subtype _) hs, hadj⟩,
+        fun ⟨s, hs, hadj⟩ => ⟨s.val, Finset.mem_map_of_mem (.subtype _) hs, hadj⟩,
       (Finset.card_map _).trans hcard⟩
   · rintro ⟨S, hSV, hS, rfl⟩
     refine ⟨S.subtype (· ∈ G.vertices), SimpleGraph.isDominatingSet_iff.2 fun v =>
-        (hS v.1 v.2).imp (fun h => Finset.mem_coe.2 (Finset.mem_subtype.2 h))
+        (hS v.val v.property).imp (fun h => Finset.mem_coe.2 (Finset.mem_subtype.2 h))
           fun ⟨s, hs, hadj⟩ => ⟨⟨s, hSV s hs⟩, Finset.mem_coe.2 (Finset.mem_subtype.2 hs), hadj⟩,
       by rw [← Finset.card_map (.subtype _), Finset.subtype_map, Finset.filter_eq_self.mpr hSV]⟩
 
@@ -360,8 +360,9 @@ private theorem mem_DominatingSet_of_mem_VertexCover {G : Graph} {k : ℕ}
 `k` vertices: drop the hub and the pendant, and read the remaining vertices back in `G`. -/
 private theorem exists_cover_of_mem_DominatingSet {G : Graph} {k : ℕ}
     (h : (⟨dominationGraph G, k + 1⟩ : DominatingSetInstance) ∈ DominatingSet) :
-    ∃ S : Finset ℕ, (∀ v ∈ S, v ∈ G.1) ∧
-      (∀ u ∈ G.1, ∀ v ∈ G.1, G.toSimpleGraph.Adj u v → u ∈ S ∨ v ∈ S) ∧ S.card ≤ k := by
+    ∃ S : Finset ℕ, (∀ v ∈ S, v ∈ G.vertices) ∧
+      (∀ u ∈ G.vertices, ∀ v ∈ G.vertices, G.toSimpleGraph.Adj u v → u ∈ S ∨ v ∈ S) ∧
+      S.card ≤ k := by
   classical
   obtain ⟨D, hDV, hD, hcard⟩ := mem_DominatingSet_iff.1 h
   set S := (((D.erase 1).erase 3).image decodeVertex).filter (· ∈ G.vertices)

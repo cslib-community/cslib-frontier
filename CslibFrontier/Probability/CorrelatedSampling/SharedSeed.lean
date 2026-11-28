@@ -253,7 +253,7 @@ noncomputable def seedSample (P : PMF S) (ω : ℕ → S × I) : S :=
 
 omit [Fintype S] [Nonempty S] in
 theorem measurableSet_underGraph [Finite S] (t : S → ℝ) : MeasurableSet (underGraph t) :=
-  measurableSet_lt (measurable_subtype_coe.comp measurable_snd)
+  measurableSet_lt (measurable_subtypeVal.comp measurable_snd)
     ((measurable_of_countable t).comp measurable_fst)
 
 omit [Fintype S] [Nonempty S] [MeasurableSpace S] [MeasurableSingletonClass S] in
@@ -312,7 +312,7 @@ theorem map_seedSample (P : PMF S) : (seed S).map (seedSample P) = P.toMeasure :
     ext ⟨x, u⟩
     by_cases hx : x = s
     · simp [underGraph, hx]
-    · simpa [underGraph, hx] using u.2.1
+    · simpa [underGraph, hx] using u.property.1
   rw [hslice, seedPoint_underGraph h0 h1, seedPoint_underGraph (fun x => by split_ifs <;> simp [h0])
       (fun x => by split_ifs <;> simp [h1]), sum_ofReal_toReal, one_mul,
     inv_inv, mul_left_comm, ENNReal.mul_inv_cancel (Nat.cast_ne_zero.2 Fintype.card_ne_zero)

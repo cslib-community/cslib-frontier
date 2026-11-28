@@ -29,7 +29,7 @@ open Cslib.Algorithms.MatrixMultiplication.Schonhage
 /-- The reserved window has a fixed polynomial size in original dimensions and query count. -/
 theorem windowSize_le (N Q : ℕ) : windowSize N Q ≤ (2 * (N + Q + 3)) ^ 128 := by
   have hc := Nat.clog_pos (by decide : 1 < (2 : ℕ)) (by omega : 1 < N + Q + 3)
-  have hp := Nat.pow_pred_clog_lt_self (by decide : 1 < (2 : ℕ)) (by omega : 1 < N + Q + 3)
+  have hp := Nat.pow_pred_clog_lt_self 2 (by omega : 1 < N + Q + 3)
   have he : Nat.clog 2 (N + Q + 3) = (Nat.clog 2 (N + Q + 3)).pred + 1 :=
     (Nat.succ_pred_eq_of_pos hc).symm
   have hceil : 2 ^ Nat.clog 2 (N + Q + 3) ≤ 2 * (N + Q + 3) := by

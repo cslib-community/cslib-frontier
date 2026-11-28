@@ -219,7 +219,7 @@ theorem not_isContinuousOn_lexRel : ¬ IsContinuousOn (X₃ : Set (Fin 3)) lexRe
     simp only [p1, PMF.pure_apply, Fin.reduceEq, ↓reduceIte, ENNReal.toReal_zero]
   have hq_1 : (p1 1).toReal = 1 := by
     simp only [p1, PMF.pure_apply_self, ENNReal.toReal_one]
-  rcases eq_or_lt_of_le a.2.1 with ha0 | ha0
+  rcases eq_or_lt_of_le a.property.1 with ha0 | ha0
   · rcases ha.1 with hlt | ⟨_, hle⟩
     · rw [hm2, hq_2] at hlt
       linarith

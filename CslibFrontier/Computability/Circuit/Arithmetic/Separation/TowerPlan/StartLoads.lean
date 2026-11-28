@@ -193,7 +193,7 @@ private theorem stepTarget_eq_edge {c c' γ : T.X 0} {s : ℕ} {e : T.Ed 0} :
 route. -/
 private theorem Relay.of_target_eq_relay_start {x : Relay T m A} {d : Bool} {a c : Fin A}
     {γ : T.X 0} {s : Fin (2 * m)} (hx : x.target R ch d = .relay (.start a c γ s)) :
-    ∃ s' : Fin (2 * m), x = .start a c γ s' ∧ d = true ∧ s.1 = s'.1 + 1 := by
+    ∃ s' : Fin (2 * m), x = .start a c γ s' ∧ d = true ∧ s.val = s'.val + 1 := by
   rcases x with ⟨a', c', γ', s'⟩ | ⟨j', i', e'⟩ | ⟨j', e', s'⟩ | e' <;> cases d <;>
     (try fin_cases s') <;> simp only [Relay.target] at hx <;> (try split_ifs at hx) <;>
     first | (cases hx; exact ⟨_, rfl, rfl, rfl⟩) | simp_all
@@ -224,8 +224,8 @@ the channel `true` of the last relay, on step `s + 1`. -/
 private theorem Relay.start_target_eq_edge {a c : Fin A} {γ : T.X 0} {s : Fin (2 * m)}
     {d : Bool} {e : T.Ed 0}
     (h : (Relay.start a c γ s : Relay T m A).target R ch d = .edge 0 e) :
-    (R.path (ch a) (ch c) γ)[s.1 + d.toNat]? = some e ∧
-      (d = true → R.pl (ch a) (ch c) γ ≤ s.1 + 2) := by
+    (R.path (ch a) (ch c) γ)[s.val + d.toNat]? = some e ∧
+      (d = true → R.pl (ch a) (ch c) γ ≤ s.val + 2) := by
   have := (R.pl_le (ch a) (ch c) γ).trans (R.length_path (ch a) (ch c) γ)
   cases d
   · exact ⟨stepTarget_eq_edge.1 h, nofun⟩
@@ -297,8 +297,8 @@ theorem initialLoad_eq_zero {τ : Target T m A} (hd : τ ≠ .done) (hτ : 2 * m
 private theorem load_relay_start_le (a c : Fin A) (γ : T.X 0) (s : Fin (2 * m)) :
     load lhat n o (.relay (.start a c γ s)) ≤ batchSize ch lhat n a c γ := by
   have hinit {s : Fin (2 * m)} : initialLoad R ch lhat n (.relay (.start a c γ s)) ≤
-      if s.1 = 0 then batchSize ch lhat n a c γ else 0 := by
-    refine (initialLoad_le (fun a' c' γ' => a' = a ∧ c' = c ∧ γ' = γ ∧ s.1 = 0)
+      if s.val = 0 then batchSize ch lhat n a c γ else 0 := by
+    refine (initialLoad_le (fun a' c' γ' => a' = a ∧ c' = c ∧ γ' = γ ∧ s.val = 0)
       fun a' c' k hk => ?_).trans ?_
     · unfold initialTarget at hk
       split_ifs at hk
@@ -349,7 +349,7 @@ theorem moveCount_middle_le {j : Fin J} {e : T.Ed j} {s : Fin 4}
       .relay (.middle j e s) → relayAlive lhat n o x d ≠ 0 → x = .middle j e s' ∧ d = true)
       (hM : relayAlive lhat n o (.middle j e s') true ≤ M) (hx) :
       moveCount lhat n o (.relay (.middle j e s) hx) ≤ M := by
-    have hs0 : 0 < s.1 := Fin.pos_iff_ne_zero.2 hs
+    have hs0 : 0 < s.val := Fin.pos_iff_ne_zero.2 hs
     refine (moveCount_relay_le _ hx).trans ?_
     rw [Relay.input, ite_eq_right hs]
     refine (load_le_relayAlive (fun _ _ => by simp [Move.target]) _ _ hs').trans ?_

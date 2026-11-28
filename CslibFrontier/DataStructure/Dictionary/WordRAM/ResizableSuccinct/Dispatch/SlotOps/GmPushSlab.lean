@@ -393,7 +393,8 @@ theorem validProg_compGmPushSlabGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {
   obtain ⟨hq_lt, hq_eq, htop_lt, htop_eq, h0_lt⟩ := gmPush_q_indices hb_pos hb
   dsimp only [compGmPushSlabGenProg]
   refine validProg_bind (by
-    rw [compGmPushReadProg, hq_eq, htop_eq]
+    dsimp only [compGmPushReadProg]
+    rw [hq_eq, htop_eq]
     refine validProg_bind (validProg_readCompGMGen ⟨mkEnv s rfl, hq_lt⟩) ?_
     rw [clientState_readCompGMGenProg]
     refine validProg_bind (validProg_readCompGMGen ⟨mkEnv s rfl, h0_lt⟩) ?_

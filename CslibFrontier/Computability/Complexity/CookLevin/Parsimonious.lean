@@ -41,9 +41,11 @@ unsatisfiable.
 
 ## Main results
 
-* `Cslib.Complexity.CookLevin.determined_of_mem_vars_tableau`: the variables of the tableau are
-  determined.
-* `Cslib.Complexity.CookLevin.eq_runAssignment_of_eval_tableau`: a satisfying assignment is
+* `Cslib.Complexity.CookLevin.determined_of_mem_vars_runTableau`,
+  `Cslib.Complexity.CookLevin.determined_of_mem_vars_tableau`: the variables of the run tableau
+  and of the tableau are determined.
+* `Cslib.Complexity.CookLevin.eq_runAssignment_of_eval_runTableau`,
+  `Cslib.Complexity.CookLevin.eq_runAssignment_of_eval_tableau`: a satisfying assignment is
   determined by its certificate.
 * `Cslib.Complexity.CookLevin.modelCount_tableau`: the number of satisfying assignments of the
   tableau is the number of accepted certificates.
@@ -203,17 +205,25 @@ private theorem determined_of_mem_acceptClauses
   rcases hc with rfl | rfl <;> obtain rfl := List.mem_singleton.1 hl
   exacts [.holds_basic le_rfl (state_mem_basic _), .holds_basic le_rfl (out_mem_basic _)]
 
+/-- **The variables of the run tableau are determined** by the certificate. -/
+theorem determined_of_mem_vars_runTableau {v : Var k State}
+    (hv : v ∈ (runTableau tm u L T).vars) : Determined (u.length + L) L T v := by
+  obtain ⟨c, hc, b, hl⟩ := CNF.mem_vars.1 hv
+  change Determined (u.length + L) L T (v, b).1
+  simp only [runTableau, List.mem_append, List.mem_flatMap, List.mem_range] at hc
+  rcases hc with (hc | ⟨t, ht, hc⟩) | ⟨t, ht, ((hc | hc) | hc) | hc⟩
+  exacts [determined_of_mem_initClauses hc hl, determined_of_mem_oneHotClauses (by omega) hc hl,
+    determined_of_mem_readClauses ht hc hl, determined_of_mem_sitClauses ht hc hl,
+    determined_of_mem_uniqueClauses ht hc hl, determined_of_mem_stepClauses ht hc hl]
+
 /-- **The variables of the tableau are determined** by the certificate. -/
 theorem determined_of_mem_vars_tableau {v : Var k State} (hv : v ∈ (tableau tm u L T).vars) :
     Determined (u.length + L) L T v := by
   obtain ⟨c, hc, b, hl⟩ := CNF.mem_vars.1 hv
-  change Determined (u.length + L) L T (v, b).1
-  simp only [tableau, List.mem_append, List.mem_flatMap, List.mem_range] at hc
-  rcases hc with ((hc | ⟨t, ht, hc⟩) | ⟨t, ht, ((hc | hc) | hc) | hc⟩) | hc
-  exacts [determined_of_mem_initClauses hc hl, determined_of_mem_oneHotClauses (by omega) hc hl,
-    determined_of_mem_readClauses ht hc hl, determined_of_mem_sitClauses ht hc hl,
-    determined_of_mem_uniqueClauses ht hc hl, determined_of_mem_stepClauses ht hc hl,
-    determined_of_mem_acceptClauses hc hl]
+  rw [tableau, List.mem_append] at hc
+  rcases hc with hc | hc
+  · exact determined_of_mem_vars_runTableau (CNF.mem_vars.2 ⟨c, hc, b, hl⟩)
+  · exact determined_of_mem_acceptClauses hc hl
 
 /-- When the tableau unrolls at least one step, it mentions every certificate bit. -/
 private theorem cert_mem_vars_tableau (hT : 0 < T) {j : ℕ} (hj : j < L) :
@@ -221,7 +231,7 @@ private theorem cert_mem_vars_tableau (hT : 0 < T) {j : ℕ} (hj : j < L) :
   refine CNF.mem_vars.2 ⟨Clause.impLits [(.holds 0 (.inPos (u.length + 1 + j)), true),
     (.cert j, true)] (.holds 0 (.inRead (some true))), ?_, false,
     by simp [Clause.impLits, Std.Sat.Literal.negate]⟩
-  simp only [tableau, List.mem_append, List.mem_flatMap, List.mem_range]
+  simp only [tableau, runTableau, List.mem_append, List.mem_flatMap, List.mem_range]
   refine Or.inl (Or.inr ⟨0, hT, Or.inl (Or.inl (Or.inl ?_))⟩)
   simp only [readClauses, List.mem_append, List.mem_flatMap, List.mem_range]
   refine Or.inr ⟨u.length + 1 + j, by omega, ?_⟩
@@ -239,13 +249,13 @@ section Determination
 variable [DecidableEq State] {tm : MultiTapeTM k Bool State} {u : List Bool}
   {L T : ℕ} {σ : Var k State → Bool}
 
-/-- **A satisfying assignment is determined by its certificate**: on the determined variables it
-agrees with the assignment read off the run on its certificate. -/
-theorem eq_runAssignment_of_eval_tableau (h : (tableau tm u L T).eval σ = true)
+/-- **A satisfying assignment of the run tableau is determined by its certificate**: on the
+determined variables it agrees with the assignment read off the run on its certificate. -/
+theorem eq_runAssignment_of_eval_runTableau (h : (runTableau tm u L T).eval σ = true)
     {v : Var k State} (hv : Determined (u.length + L) L T v) :
     σ v = runAssignment tm u (certWord σ L) v := by
-  obtain ⟨-, -, hsteps, -⟩ := eval_tableau.1 h
-  have hA := agrees_of_eval_tableau h
+  obtain ⟨-, -, hsteps⟩ := eval_runTableau.1 h
+  have hA := agrees_of_eval_runTableau h
   have hb (t : ℕ) (ht : t ≤ T) (i : Fin k) :
       |(tm.runFrom (tm.initCfg (u ++ certWord σ L)) t).workTapePos i| ≤ T :=
     (abs_workTapePos_runFrom_le _ t i).trans (by exact_mod_cast ht)
@@ -283,6 +293,14 @@ theorem eq_runAssignment_of_eval_tableau (h : (tableau tm u L T).eval σ = true)
     obtain ⟨hq, hi, hri⟩ := ((eval_uniqueClauses t).1 hu).2.2 y hy
     exact (holds_sit_iff y).2 ⟨(hA t ht.le _ (state_mem_basic _)).1 hq, (hinRead t ht _).1 hi,
       fun i => (hread t ht i _).1 (hri i)⟩
+
+/-- **A satisfying assignment is determined by its certificate**: on the determined variables it
+agrees with the assignment read off the run on its certificate. -/
+theorem eq_runAssignment_of_eval_tableau (h : (tableau tm u L T).eval σ = true)
+    {v : Var k State} (hv : Determined (u.length + L) L T v) :
+    σ v = runAssignment tm u (certWord σ L) v := by
+  rw [tableau, CNF.eval_append, Bool.and_eq_true] at h
+  exact eq_runAssignment_of_eval_runTableau h.1 hv
 
 /-- Two satisfying assignments with the same certificate agree on the variables of the
 tableau. -/
@@ -322,7 +340,7 @@ theorem modelCount_tableau :
     fun w => ⟨?_, ?_⟩
   · rcases Nat.eq_zero_or_pos T with rfl | hT
     · simp [eval_tableau_zero] at hσ
-    · exact h _ (cert_mem_vars_tableau hT j.2)
+    · exact h _ (cert_mem_vars_tableau hT j.isLt)
   · exact fun ⟨hhalt, hout⟩ => ⟨runAssignment tm u (List.ofFn w),
       eval_tableau_runAssignment (by simp) hhalt hout,
       funext fun j => by simp [runAssignment, List.getD_eq_getElem?_getD]⟩

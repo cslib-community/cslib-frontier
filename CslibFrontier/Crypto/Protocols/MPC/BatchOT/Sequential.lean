@@ -227,7 +227,7 @@ empty coins and, as its answer in transfer `j`, the `j`-th part of its output. -
 @[expose] def seqBatchOTSim (k : ℕ) (M : Type) (I : Finset (Fin 2)) :
     CoalitionSimulator (seqBatchOTSchedule k M) ((batchOTSpec k M).Query ()) (fun _ => Unit)
       ((batchOTSpec k M).Answer ()) I :=
-  fun x y => pure fun i => ⟨x i, (), seqOTReceived k i.1 (batchOTRoundAnswers i.1 (y i))⟩
+  fun x y => pure fun i => ⟨x i, (), seqOTReceived k i.val (batchOTRoundAnswers i.val (y i))⟩
 
 /-- **The execution of `seqBatchOT k M` is deterministic and correct.** In the ideal world of the
 single transfer, on the inputs `x` every party outputs its part of `batchOTAnswer x`, and its view
@@ -287,7 +287,7 @@ theorem semiHonestAdvantage_seqBatchOT_compose_le (k : ℕ) (M : Type)
         (composeSim (seqBatchOT k M) (seqBatchOTSim k M I) (fun _ => S₂)) x D : ℝ≥0∞) ≤
       replacementBound (otWorld M) W₂ (fun _ => Sub) (fun _ => S₂) I (seqBatchOT k M).steps
         (fun i => (x i, ()))
-        (fun res => D (fun i : I => ⟨x i.1, ((), (res.1 i).1), (res.1 i).2⟩, res.2)) := by
+        (fun res => D (fun i : I => ⟨x i.val, ((), (res.1 i).1), (res.1 i).2⟩, res.2)) := by
   refine (semiHonestAdvantage_compose_le_replacementBound (seqBatchOT k M) (otWorld M) W₂
     (batchOTFunctionality k M) I (seqBatchOTSim k M I) (fun _ => Sub) (fun _ => S₂) x D).trans ?_
   rw [(perfectSemiHonestPrivate_seqBatchOT k M).semiHonestAdvantage_eq_zero, ENNReal.coe_zero,
@@ -431,8 +431,8 @@ theorem replacementBound_seqOTSteps_le {M : Type} {Out : Fin 2 → Type}
     (hε : ∀ q D, (semiHonestAdvantage Sub W₂ (otFunctionality M) I (S₂ I) q D : ℝ≥0∞) ≤ ε)
     (k : ℕ) {State : Fin 2 → Type} (query : Fin k → (s : Fin 2) → State s → OTIn M s)
     (output : (s : Fin 2) → State s → (Fin k → OTOut M s) → Out s) (st : (i : Fin 2) → State i)
-    (D : ((i : I) → Schedule.SubCoins (fun _ => Coins₂) (seqBatchOTSchedule k M) i.1 ×
-        Schedule.Received (Schedule.compose (fun _ => sc₂) (seqBatchOTSchedule k M)) i.1) ×
+    (D : ((i : I) → Schedule.SubCoins (fun _ => Coins₂) (seqBatchOTSchedule k M) i.val ×
+        Schedule.Received (Schedule.compose (fun _ => sc₂) (seqBatchOTSchedule k M)) i.val) ×
       ((i : Fin 2) → Out i) → ProbComp Bool) :
     replacementBound (otWorld M) W₂ (fun _ => Sub) (fun _ => S₂) I (seqOTSteps k query output) st
       D ≤ k * ε := by

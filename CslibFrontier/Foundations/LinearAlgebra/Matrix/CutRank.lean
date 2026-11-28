@@ -82,9 +82,9 @@ section BlockRank
 variable (M : Matrix m n K)
 
 /-- Block ranks are ranks of submatrices. -/
-theorem blockRank_eq_rank [Finite m] (S : Set m) (T : Set n) [Fintype T] :
+theorem blockRank_eq_rank [Finite m] (S : Set m) (T : Set n) [Finite T] :
     M.blockRank S T = (M.submatrix ((↑) : S → m) ((↑) : T → n)).rank :=
-  (rank_eq_finrank_span_row _).symm
+  finrank_span_range_row _
 
 /-- Restricting the columns of a block maps its row space onto the row space of the smaller
 block. -/
@@ -106,7 +106,7 @@ theorem blockRank_mono_left [Finite n] {S S' : Set m} (T : Set n) (h : S' ⊆ S)
     M.blockRank S' T ≤ M.blockRank S T := by
   refine Submodule.finrank_mono (span_mono ?_)
   rintro _ ⟨i, rfl⟩
-  exact ⟨⟨i, h i.2⟩, rfl⟩
+  exact ⟨⟨i, h i.property⟩, rfl⟩
 
 /-- A sub-block has at most the rank of the block. -/
 theorem blockRank_mono [Finite n] {S S' : Set m} {T T' : Set n} (hS : S' ⊆ S) (hT : T' ⊆ T) :
@@ -132,8 +132,8 @@ theorem blockRank_le_add_ncard_sdiff [Finite m] [Finite n] {S S' : Set m} (T : S
       · exact Or.inl ⟨⟨i, hi'⟩, rfl⟩
       · exact Or.inr ⟨⟨i, hi, hi'⟩, rfl⟩
     · rintro (⟨i, rfl⟩ | ⟨i, rfl⟩)
-      · exact ⟨⟨i, h i.2⟩, rfl⟩
-      · exact ⟨⟨i, i.2.1⟩, rfl⟩
+      · exact ⟨⟨i, h i.property⟩, rfl⟩
+      · exact ⟨⟨i, i.property.1⟩, rfl⟩
   have h₁ := Submodule.finrank_add_le_finrank_add_finrank
     (span K (range (M.submatrix ((↑) : S' → m) ((↑) : T → n)).row))
     (span K (range (M.submatrix ((↑) : ↥(S \ S') → m) ((↑) : T → n)).row))
@@ -146,7 +146,7 @@ theorem blockRank_le_add_ncard_sdiff [Finite m] [Finite n] {S S' : Set m} (T : S
 theorem blockRank_congr {M M' : Matrix m n K} {S : Set m} {T : Set n}
     (h : ∀ i ∈ S, ∀ j ∈ T, M i j = M' i j) : M.blockRank S T = M'.blockRank S T := by
   have : M.submatrix ((↑) : S → m) ((↑) : T → n) = M'.submatrix (↑) (↑) :=
-    Matrix.ext fun i j => h i i.2 j j.2
+    Matrix.ext fun i j => h i i.property j j.property
   rw [blockRank, blockRank, this]
 
 /-- Row rank equals column rank: transposing a matrix transposes its blocks. -/
@@ -191,7 +191,7 @@ theorem add_blockRank_le_of_disjoint [Finite n] {S S₁ S₂ : Set m} {T T₁ T�
     induction hv using Submodule.span_induction with
     | mem x hx =>
       obtain ⟨i, rfl⟩ := hx
-      exact hM i i.2 j j.2 hj
+      exact hM i i.property j j.property hj
     | zero => rfl
     | add _ _ _ _ hx hy => simp [hx, hy]
     | smul _ _ _ hx => simp [hx]
@@ -205,9 +205,9 @@ theorem add_blockRank_le_of_disjoint [Finite n] {S S₁ S₂ : Set m} {T T₁ T�
   rw [blockRank, blockRank, ← hsum]
   refine Submodule.finrank_mono (sup_le (span_mono ?_) (span_mono ?_))
   · rintro _ ⟨i, rfl⟩
-    exact ⟨⟨i, h₁ i.2⟩, rfl⟩
+    exact ⟨⟨i, h₁ i.property⟩, rfl⟩
   · rintro _ ⟨i, rfl⟩
-    exact ⟨⟨i, h₂ i.2⟩, rfl⟩
+    exact ⟨⟨i, h₂ i.property⟩, rfl⟩
 
 end BlockRank
 
@@ -216,7 +216,7 @@ section CutRank
 variable (M : Matrix ι ι K)
 
 /-- Cut ranks are ranks of submatrices. -/
-theorem cutRank_eq_rank [Finite ι] (X : Set ι) [Fintype ↥Xᶜ] :
+theorem cutRank_eq_rank [Finite ι] (X : Set ι) :
     M.cutRank X = (M.submatrix ((↑) : X → ι) ((↑) : ↥Xᶜ → ι)).rank :=
   M.blockRank_eq_rank X Xᶜ
 

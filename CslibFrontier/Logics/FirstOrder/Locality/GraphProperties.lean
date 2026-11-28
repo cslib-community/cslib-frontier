@@ -226,17 +226,17 @@ theorem card_le_of_realize_iff_connected [Finite V] {φ : Language.graph.Sentenc
 first `r` and the last `a - r` vertices of `P_{a+b}` go to `P_a` in order, the middle `b` vertices
 to `C_b`. -/
 private def pathCycleEquiv (a b r : ℕ) (hr : r ≤ a) : Fin (a + b) ≃ Fin a ⊕ Fin b where
-  toFun c := if h : c.1 < r then .inl ⟨c.1, by omega⟩
-    else if h' : c.1 < r + b then .inr ⟨c.1 - r, by omega⟩
-    else .inl ⟨c.1 - b, by omega⟩
+  toFun c := if h : c.val < r then .inl ⟨c.val, by omega⟩
+    else if h' : c.val < r + b then .inr ⟨c.val - r, by omega⟩
+    else .inl ⟨c.val - b, by omega⟩
   invFun
-    | .inl d => if d.1 < r then ⟨d.1, by omega⟩ else ⟨d.1 + b, by omega⟩
-    | .inr d => ⟨d.1 + r, by omega⟩
+    | .inl d => if d.val < r then ⟨d.val, by omega⟩ else ⟨d.val + b, by omega⟩
+    | .inr d => ⟨d.val + r, by omega⟩
   left_inv c := by
-    have := c.2
-    by_cases h : c.1 < r
+    have := c.isLt
+    by_cases h : c.val < r
     · simp only [h, dite_true, ite_true]
-    · by_cases h' : c.1 < r + b
+    · by_cases h' : c.val < r + b
       · simp only [h, h', dite_false, dite_true]
         fin_index
       · simp only [h, h', dite_false]
@@ -245,15 +245,15 @@ private def pathCycleEquiv (a b r : ℕ) (hr : r ≤ a) : Fin (a + b) ≃ Fin a 
         · fin_index
   right_inv d := by
     rcases d with d | d
-    · have := d.2
-      by_cases h : d.1 < r
+    · have := d.isLt
+      by_cases h : d.val < r
       · simp only [h, ite_true, dite_true]
       · simp only [h, ite_false]
         split_ifs with h₁ h₂
         · omega
         · omega
         · exact congrArg Sum.inl (by fin_index)
-    · have := d.2
+    · have := d.isLt
       simp only
       split_ifs with h₁ h₂
       · omega
@@ -272,25 +272,25 @@ theorem hanfEquiv_pathGraph {a b r : ℕ} (ha : 2 * r ≤ a) (hb : 2 * r + 2 ≤
   let := (pathGraph (a + b)).structure
   let := (pathGraph a ⊕g cycleGraph b).structure
   refine hanfEquiv_zero_iff.2 ⟨pathCycleEquiv a b r (by omega), fun c => ?_⟩
-  have hc := c.2
-  by_cases h : c.1 < r
+  have hc := c.isLt
+  by_cases h : c.val < r
   · simp only [pathCycleEquiv, Equiv.coe_fn_mk, h, dite_true]
     obtain ⟨φ, hφ0, hφ⟩ := exists_isBallPath_pathGraph (r := r) c rfl rfl
-    obtain ⟨ψ, hψ0, hψ⟩ := exists_isBallPath_pathGraph (r := r) (⟨c.1, by omega⟩ : Fin a)
-      (lo := -(min r c.1 : ℕ)) (hi := (min r (a + b - 1 - c.1) : ℕ)) rfl (by simp only; omega)
+    obtain ⟨ψ, hψ0, hψ⟩ := exists_isBallPath_pathGraph (r := r) (⟨c.val, by omega⟩ : Fin a)
+      (lo := -(min r c.val : ℕ)) (hi := (min r (a + b - 1 - c.val) : ℕ)) rfl (by simp only; omega)
     exact nbhdIso_of_isBallPath hφ (hψ.sumInl (H := cycleGraph b)) hφ0
       (by simp only [Function.comp_apply, hψ0])
-  by_cases h' : c.1 < r + b
+  by_cases h' : c.val < r + b
   · simp only [pathCycleEquiv, Equiv.coe_fn_mk, h, h', dite_false, dite_true]
     obtain ⟨φ, hφ0, hφ⟩ := exists_isBallPath_pathGraph (r := r) c (lo := -r) (hi := r)
       (by omega) (by omega)
-    obtain ⟨ψ, hψ0, hψ⟩ := exists_isBallPath_cycleGraph hb (⟨c.1 - r, by omega⟩ : Fin b)
+    obtain ⟨ψ, hψ0, hψ⟩ := exists_isBallPath_cycleGraph hb (⟨c.val - r, by omega⟩ : Fin b)
     exact nbhdIso_of_isBallPath hφ (hψ.sumInr (G := pathGraph a)) hφ0
       (by simp only [Function.comp_apply, hψ0])
   · simp only [pathCycleEquiv, Equiv.coe_fn_mk, h, h', dite_false]
     obtain ⟨φ, hφ0, hφ⟩ := exists_isBallPath_pathGraph (r := r) c rfl rfl
-    obtain ⟨ψ, hψ0, hψ⟩ := exists_isBallPath_pathGraph (r := r) (⟨c.1 - b, by omega⟩ : Fin a)
-      (lo := -(min r c.1 : ℕ)) (hi := (min r (a + b - 1 - c.1) : ℕ))
+    obtain ⟨ψ, hψ0, hψ⟩ := exists_isBallPath_pathGraph (r := r) (⟨c.val - b, by omega⟩ : Fin a)
+      (lo := -(min r c.val : ℕ)) (hi := (min r (a + b - 1 - c.val) : ℕ))
       (by simp only; omega) (by simp only; omega)
     exact nbhdIso_of_isBallPath hφ (hψ.sumInl (H := cycleGraph b)) hφ0
       (by simp only [Function.comp_apply, hψ0])

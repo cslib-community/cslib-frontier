@@ -1010,9 +1010,9 @@ private theorem nisanGameCode_isSymmetric (G : Graph) (k : ℕ) :
     rcases hr with rfl | ⟨u, _, rfl⟩ <;> simp
   refine ⟨⟨by omega, by omega, rfl, fun r hr => (hlen r hr).trans hcols.symm,
       fun r hr => (hlen r hr).trans hcols.symm⟩, hrows.trans hcols.symm, fun i j => ?_⟩
-  change ((nisanRows G k).getD i.1 []).getD j.1 0 = ((nisanRows G k).getD j.1 []).getD i.1 0
-  have hi : i.1 < G.distinctVertices.length + 1 := hrows ▸ i.2
-  have hj : j.1 < G.distinctVertices.length + 1 := hrows ▸ j.2
+  change ((nisanRows G k).getD i.val []).getD j.val 0 = ((nisanRows G k).getD j.val []).getD i.val 0
+  have hi : i.val < G.distinctVertices.length + 1 := hrows ▸ i.isLt
+  have hj : j.val < G.distinctVertices.length + 1 := hrows ▸ j.isLt
   rcases i with ⟨_ | i', hi'⟩ <;> rcases j with ⟨_ | j', hj'⟩
   · rfl
   · have hjlt : j' < G.distinctVertices.length := by omega
@@ -1050,8 +1050,8 @@ private theorem nisanGameCode_A_eq (G : Graph) (k : ℕ)
     (nisanGameCode G k).toSymGame.A i j =
       (cliqueESSGame G.induced k).A (nisanEquiv G k i) (nisanEquiv G k j) := by
   have hrows := nisanGameCode_rows G k
-  have hi : i.1 < G.distinctVertices.length + 1 := hrows ▸ i.2
-  have hj : j.1 < G.distinctVertices.length + 1 := hrows ▸ j.2
+  have hi : i.val < G.distinctVertices.length + 1 := hrows ▸ i.isLt
+  have hj : j.val < G.distinctVertices.length + 1 := hrows ▸ j.isLt
   rcases i with ⟨_ | i', hi'⟩ <;> rcases j with ⟨_ | j', hj'⟩
   · rw [nisanEquiv_zero G k, cliqueESSGame_A_none_left]
     simp [toSymGame, nisanGameCode, nisanRows]
@@ -1064,8 +1064,8 @@ private theorem nisanGameCode_A_eq (G : Graph) (k : ℕ)
   · have hilt : i' < G.distinctVertices.length := by omega
     have hjlt : j' < G.distinctVertices.length := by omega
     have hval (a : Fin G.distinctVertices.length) :
-        (G.vertexEquiv a : ℕ) = G.distinctVertices[a.1] := by
-      rw [G.vertexEquiv_apply a, List.getD_eq_getElem _ _ a.2]
+        (G.vertexEquiv a : ℕ) = G.distinctVertices[a.val] := by
+      rw [G.vertexEquiv_apply a, List.getD_eq_getElem _ _ a.isLt]
     have heq_i : nisanEquiv G k ⟨i' + 1, hi'⟩ = some (G.vertexEquiv ⟨i', hilt⟩) := by
       simp [nisanEquiv]
     have heq_j : nisanEquiv G k ⟨j' + 1, hj'⟩ = some (G.vertexEquiv ⟨j', hjlt⟩) := by
@@ -1112,7 +1112,7 @@ private theorem nisanGameCode_pureZero_mem_SymGameIsESS_iff (G : Graph) {k : ℕ
       (Pi.single none (1 : ℝ)) ∘ nisanEquiv G k := by
     funext i
     have hrows := nisanGameCode_rows G k
-    have hi : i.1 < G.distinctVertices.length + 1 := hrows ▸ i.2
+    have hi : i.val < G.distinctVertices.length + 1 := hrows ▸ i.isLt
     rcases i with ⟨_ | i', hi'⟩
     · have h0 := nisanEquiv_zero G k
       simp [strategyVec, strat, nisanEquiv]

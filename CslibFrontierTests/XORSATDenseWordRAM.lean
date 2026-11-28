@@ -49,7 +49,7 @@ def runInst (w : ℕ) (q : Instance) : Option (ℕ × ℕ) :=
 def ok (w : ℕ) (q : Instance) : Bool :=
   match runInst w q with
   | some (v, steps) =>
-    v == (decide q.1).toNat && steps ≤ 30 * (q.1.rows.length + 1) * (q.1.width + 1)
+    v == (decide q.val).toNat && steps ≤ 30 * (q.val.rows.length + 1) * (q.val.width + 1)
   | none => false
 
 /-- `ok` on an `Input`, or `false` if a row has the wrong width. -/
@@ -68,13 +68,13 @@ theorem inputFits_q₀ : InputFits 8 (encode q₀) := by decide
 
 /-- Client check across the `module` boundary, without `import all`: the public running-time
 theorem applies to `q₀` at width `8`. -/
-example : ∃ n, Executes 8 program (.init (encode q₀)) (decide q₀.1).toNat n ∧
+example : ∃ n, Executes 8 program (.init (encode q₀)) (decide q₀.val).toNat n ∧
     n ≤ 30 * (2 + 1) * (2 + 1) :=
   computesInTime_decide q₀ 8 fitsWidth_q₀ inputFits_q₀
 
 /-- Client check: the public decision theorem applies to `q₀` at width `8`. -/
 example : (WordSizeDependentProgram.const program 8).Answers 8 (encode q₀)
-    (q₀ ∈ {q : Instance | Satisfiable q.1.width q.1.rows}) (30 * (2 + 1) * (2 + 1)) :=
+    (q₀ ∈ {q : Instance | Satisfiable q.val.width q.val.rows}) (30 * (2 + 1) * (2 + 1)) :=
   decidesInTime_decide q₀ 8 fitsWidth_q₀ inputFits_q₀
 
 #guard okInput 8 ⟨2, [⟨[true, true], true⟩, ⟨[false, true], true⟩]⟩

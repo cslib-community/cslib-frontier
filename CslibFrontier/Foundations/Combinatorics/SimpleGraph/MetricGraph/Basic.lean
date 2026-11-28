@@ -176,7 +176,7 @@ theorem exists_isPath_walkLength_eq_vertexDist [Finite V]
   let : Fintype V := Fintype.ofFinite V
   let f : { p : G.Walk u v // p.IsPath } →
       Fin (Fintype.card V) × (Fin (Fintype.card V) → V) :=
-    fun p => (⟨p.1.length, p.2.length_lt⟩, fun i => p.1.getVert i)
+    fun p => (⟨p.val.length, p.property.length_lt⟩, fun i => p.val.getVert i)
   have hf : Function.Injective f := by
     rintro ⟨p, hp⟩ ⟨q, hq⟩ h
     have hfst := congrArg Prod.fst h
@@ -190,7 +190,7 @@ theorem exists_isPath_walkLength_eq_vertexDist [Finite V]
     simpa only [f, Walk.support_getElem_eq_getVert] using hget
   have hfinType : Finite { p : G.Walk u v // p.IsPath } := Finite.of_injective f hf
   obtain ⟨p₀⟩ := hr
-  let S := Set.range fun p : { p : G.Walk u v // p.IsPath } => walkLength w p.1
+  let S := Set.range fun p : { p : G.Walk u v // p.IsPath } => walkLength w p.val
   have hne : S.Nonempty := ⟨_, ⟨p₀.bypass, p₀.bypass_isPath⟩, rfl⟩
   have hfin : S.Finite := Set.finite_range _
   have hmem : sInf S ∈ S := hfin.isClosed.csInf_mem hne hfin.bddBelow
@@ -321,7 +321,7 @@ private theorem RawPoint.endOff_nonneg {V : Type u} (W : WeightedGraph V) (b : B
   | vertex _ => cases b <;> exact le_rfl
   | edge d t =>
     cases b
-    · exact mul_nonneg t.2.1 (W.dart_weight_nonneg d)
+    · exact mul_nonneg t.property.1 (W.dart_weight_nonneg d)
     · exact mul_nonneg (unitInterval.one_sub_nonneg t) (W.dart_weight_nonneg d)
 
 private theorem RawPoint.vertexDist_endV_le {V : Type u} (W : WeightedGraph V) (a b : Bool)
@@ -336,8 +336,8 @@ private theorem RawPoint.vertexDist_endV_le {V : Type u} (W : WeightedGraph V) (
       ring
     cases a <;> cases b <;> simp only [RawPoint.endV, RawPoint.endOff]
     · simp only [vertexDist_self W.weight_nonneg]
-      exact add_nonneg (mul_nonneg t.2.1 (W.dart_weight_nonneg d))
-        (mul_nonneg t.2.1 (W.dart_weight_nonneg d))
+      exact add_nonneg (mul_nonneg t.property.1 (W.dart_weight_nonneg d))
+        (mul_nonneg t.property.1 (W.dart_weight_nonneg d))
     · rw [hsum]
       exact vertexDist_adj_le W.weight_nonneg d.adj
     · rw [add_comm, hsum]
@@ -466,8 +466,8 @@ theorem ind {motive : MetricGraph W → Prop}
       · subst ht1
         change motive (MetricGraph.edgePoint d 1)
         simpa only [edgePoint_one] using vertex d.snd
-      · have h0 : 0 < (t : ℝ) := lt_of_le_of_ne t.2.1 (fun h => ht0 (Subtype.ext h.symm))
-        have h1 : (t : ℝ) < 1 := lt_of_le_of_ne t.2.2 (fun h => ht1 (Subtype.ext h))
+      · have h0 : 0 < (t : ℝ) := lt_of_le_of_ne t.property.1 (fun h => ht0 (Subtype.ext h.symm))
+        have h1 : (t : ℝ) < 1 := lt_of_le_of_ne t.property.2 (fun h => ht1 (Subtype.ext h))
         exact edgePoint d t h0 h1
 
 theorem ind_simple {motive : MetricGraph W → Prop}
@@ -520,8 +520,8 @@ theorem edgePoint_eq_edgePoint_iff {d₁ d₂ : W.graph.Dart} {t₁ t₂ : unitI
         rw [edgePoint_one, eq_comm, edgePoint_eq_vertex_iff] at h
         exact Or.inr (Or.inl ⟨rfl, h⟩)
       · have h01 : 0 < (t₁ : ℝ) ∧ (t₁ : ℝ) < 1 :=
-          ⟨lt_of_le_of_ne t₁.2.1 (fun h => ht10 (Subtype.ext h.symm)),
-           lt_of_le_of_ne t₁.2.2 (fun h => ht11 (Subtype.ext h))⟩
+          ⟨lt_of_le_of_ne t₁.property.1 (fun h => ht10 (Subtype.ext h.symm)),
+           lt_of_le_of_ne t₁.property.2 (fun h => ht11 (Subtype.ext h))⟩
         simp only [rawRel, RawPoint.toVertex?, ht10, ht11, ↓reduceIte] at hrel
         by_cases ht20 : t₂ = 0
         · subst ht20; simp at hrel
@@ -533,8 +533,8 @@ theorem edgePoint_eq_edgePoint_iff {d₁ d₂ : W.graph.Dart} {t₁ t₂ : unitI
             injection hb with hb1 hb2
             subst ha1 ha2 hb1 hb2
             refine Or.inr (Or.inr ⟨h01.1, h01.2,
-              lt_of_le_of_ne t₂.2.1 (fun h => ht20 (Subtype.ext h.symm)),
-              lt_of_le_of_ne t₂.2.2 (fun h => ht21 (Subtype.ext h)), hpair⟩)
+              lt_of_le_of_ne t₂.property.1 (fun h => ht20 (Subtype.ext h.symm)),
+              lt_of_le_of_ne t₂.property.2 (fun h => ht21 (Subtype.ext h)), hpair⟩)
   · rintro (⟨rfl, ⟨rfl, h⟩ | ⟨rfl, h⟩⟩ | ⟨rfl, ⟨rfl, h⟩ | ⟨rfl, h⟩⟩ |
       ⟨_, _, _, _, ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩⟩)
     · simp [h]
@@ -1028,7 +1028,8 @@ theorem dist_edgePoint_eq_direct_of_vertexDist_eq [Finite V] {d : W.graph.Dart}
   rw [dist_edgePoint_edgePoint_same, vertexDist_self W.weight_nonneg,
     vertexDist_self W.weight_nonneg, hd, vertexDist_comm, hd]
   have hw := W.dart_weight_nonneg d
-  have hs0 := s.2.1; have hs1 := s.2.2; have ht0 := t.2.1; have ht1 := t.2.2
+  have hs0 := s.property.1; have hs1 := s.property.2
+  have ht0 := t.property.1; have ht1 := t.property.2
   rw [mul_comm (W.weight d.edge), min_eq_left]
   have hle1 : |(s : ℝ) - t| ≤ (s : ℝ) + t := abs_le.mpr ⟨by linarith, by linarith⟩
   have hle2 : |(s : ℝ) - t| ≤ (s : ℝ) + 1 + (1 - t) :=

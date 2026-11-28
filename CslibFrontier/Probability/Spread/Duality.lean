@@ -82,7 +82,7 @@ theorem exists_coverScore_majorant {q b : ℝ} (hq : 0 < q) (f : Finset ι → �
             _ = 1 := by field_simp
       have hμf := h μ hμ
       rw [dilute_mean] at hμf
-      have hlow : 0 ≤ (1 - (r : ℝ)) * f ∅ := mul_nonneg (sub_nonneg.mpr r.2.2) (hf ∅)
+      have hlow : 0 ≤ (1 - (r : ℝ)) * f ∅ := mul_nonneg (sub_nonneg.mpr r.property.2) (hf ∅)
       have hdiv : (∑ J, (ν J).toReal * f J) / m ≤ b := by
         have hh : (r : ℝ) * (∑ J, (ν J).toReal * f J) ≤ b := by linarith
         simpa only [r, one_div, div_eq_mul_inv, mul_comm, one_mul] using hh

@@ -108,9 +108,9 @@ theorem isPACLearnerFor_univ_of_uniformConvergenceSampleSize_le {C : ConceptClas
   · exact ⟨fun _ _ => false, fun D _ _ => by simp [optimalError]⟩
   obtain ⟨A, hA⟩ := exists_isERM (m := m) hne
   refine ⟨A, fun D _ _ => ?_⟩
-  have hε1 : (ε.val : ℝ) ≤ 1 := by exact_mod_cast ε.2.2.le
+  have hε1 : (ε.val : ℝ) ≤ 1 := by exact_mod_cast ε.property.2.le
   have h := hA.measure_pi_lt_error_le_of_uniformConvergenceSampleSize_le D hC
-    (by exact_mod_cast ε.2.1) (by linarith) (by exact_mod_cast δ.2.1) hm
+    (by exact_mod_cast ε.property.1) (by linarith) (by exact_mod_cast δ.property.1) hm
   rwa [ENNReal.ofReal_coe_nnreal, ENNReal.ofReal_coe_nnreal] at h
 
 /-- The agnostic sample complexity of a class of finite VC dimension on a countable domain is at

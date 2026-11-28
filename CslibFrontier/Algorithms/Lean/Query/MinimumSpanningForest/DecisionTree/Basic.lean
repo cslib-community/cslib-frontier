@@ -1133,13 +1133,13 @@ theorem msfTreeOfFreeM_depth_le {e : ℕ} {α : Type} :
     · obtain ⟨p0, hp0⟩ := hP
       have hq0 := hstep p0 ▸ hD p0 hp0
       have hL := msfTreeOfFreeM_depth_le (cont true) (permFilterLt P a b) (D - 1)
-        (Finset.nonempty_iff_ne_empty.mpr hPl) fun p hp => by
+        (Finset.ne_empty_iff_nonempty.mp hPl) fun p hp => by
           obtain ⟨hpP, hlt⟩ := Finset.mem_filter.mp hp
           have hq := hD p hpP
           rw [hstep, keyOracle_perm_iff p hab, decide_eq_true hlt] at hq
           omega
       have hR := msfTreeOfFreeM_depth_le (cont false) (permFilterGe P a b) (D - 1)
-        (Finset.nonempty_iff_ne_empty.mpr hPr) fun p hp => by
+        (Finset.ne_empty_iff_nonempty.mp hPr) fun p hp => by
           obtain ⟨hpP, hnotlt⟩ := Finset.mem_filter.mp hp
           have hq := hD p hpP
           rw [hstep, keyOracle_perm_iff p hab, decide_eq_false hnotlt] at hq

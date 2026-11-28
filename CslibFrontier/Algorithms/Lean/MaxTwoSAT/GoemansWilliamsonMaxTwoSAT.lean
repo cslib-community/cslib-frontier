@@ -75,7 +75,7 @@ theorem goemansWilliamsonConstant_mul_countP_le_integral (φ : CNF V) (hφ : ∀
       ∫ r, (φ.countP (Clause.eval (satHyperplaneAssignment v r)) : ℝ) ∂stdGaussian F := by
   simp only [← satValue_eq_countP]
   exact goemansWilliamsonConstant_mul_sub_le_integral (fun i : Fin φ.length => φ[i])
-    (fun i => hφ φ[i] (List.getElem_mem i.2)) (fun _ => zero_le_one) hv hopt σ
+    (fun i => hφ φ[i] (List.getElem_mem i.isLt)) (fun _ => zero_le_one) hv hopt σ
 
 /-- **Goemans–Williamson guarantee for `Cslib.Complexity.MaxTwoSAT`.** If `⟨φ, K⟩ ∈ MaxTwoSAT` and
 unit vectors `v` are within `ε` of optimal for `satSdpValue`, then the expected number of clauses

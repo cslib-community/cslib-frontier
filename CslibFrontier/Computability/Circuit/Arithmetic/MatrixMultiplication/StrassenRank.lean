@@ -296,16 +296,16 @@ private theorem exists_biv_wire_decomp {K : Type*} [CommRing K] {n : ℕ}
   have hcard : Fintype.card (Fin 2 × MulGate) = 2 * m := by
     rw [Fintype.card_prod, Fintype.card_fin, hcard_mul]
   let e : (Fin 2 × MulGate) ≃ Fin (2 * m) := Fintype.equivFinOfCardEq hcard
-  let mulArg (g : MulGate) (i : Fin 2) : Fin (ArithOp.arity K (C.program.lines g.1).op) :=
-    Fin.cast (congrArg (ArithOp.arity K) g.2.symm) i
+  let mulArg (g : MulGate) (i : Fin 2) : Fin (ArithOp.arity K (C.program.lines g.val).op) :=
+    Fin.cast (congrArg (ArithOp.arity K) g.property.symm) i
   let α : Fin (2 * m) → Fin n × Fin n → K := fun ν =>
     let p := e.symm ν
-    if p.1 = 0 then fA ((C.program.lines p.2.1).wires (mulArg p.2 0))
-    else fA ((C.program.lines p.2.1).wires (mulArg p.2 1))
+    if p.1 = 0 then fA ((C.program.lines p.2.val).wires (mulArg p.2 0))
+    else fA ((C.program.lines p.2.val).wires (mulArg p.2 1))
   let β : Fin (2 * m) → Fin n × Fin n → K := fun ν =>
     let p := e.symm ν
-    if p.1 = 0 then fB ((C.program.lines p.2.1).wires (mulArg p.2 1))
-    else fB ((C.program.lines p.2.1).wires (mulArg p.2 0))
+    if p.1 = 0 then fB ((C.program.lines p.2.val).wires (mulArg p.2 1))
+    else fB ((C.program.lines p.2.val).wires (mulArg p.2 0))
   refine ⟨α, β, fun w => ⟨⟨c₀ w, hc₀ w⟩, ⟨fA w, hfA w⟩, ⟨fB w, hfB w⟩, ?_⟩⟩
   refine C.program.wire_induction
     (P := fun w => ∃ γ : Fin (2 * m) → K, ∀ A B : Fin n × Fin n → K,

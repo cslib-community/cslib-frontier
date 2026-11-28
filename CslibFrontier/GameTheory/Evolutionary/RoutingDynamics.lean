@@ -614,8 +614,8 @@ private theorem lipschitzWith_mul_of_bdd {X : Type*} [PseudoMetricSpace X]
     calc |f x * g x - f y * g y|
         ≤ Bf * (Kg * dist x y) + Bg * (Kf * dist x y) := by
           refine htri.trans (add_le_add ?_ ?_)
-          · exact mul_le_mul (hBf x) h1 (abs_nonneg _) Bf.2
-          · exact mul_le_mul (hBg y) h2 (abs_nonneg _) Bg.2
+          · exact mul_le_mul (hBf x) h1 (abs_nonneg _) Bf.property
+          · exact mul_le_mul (hBg y) h2 (abs_nonneg _) Bg.property
       _ = ↑(Bf * Kg + Bg * Kf) * dist x y := by push_cast; ring
 
 /-- Global ODE existence on `ℝ` for any bounded globally Lipschitz autonomous vector field on a
@@ -679,10 +679,10 @@ private noncomputable def clamp01 (u : ℝ) : ℝ := (projIcc (0 : ℝ) 1 zero_l
 private noncomputable def clamp02 (u : ℝ) : ℝ := (projIcc (0 : ℝ) 2 (by norm_num) u : ℝ)
 
 private theorem clamp01_mem (u : ℝ) : clamp01 u ∈ Icc (0 : ℝ) 1 :=
-  (projIcc (0 : ℝ) 1 zero_le_one u).2
+  (projIcc (0 : ℝ) 1 zero_le_one u).property
 
 private theorem clamp02_mem (u : ℝ) : clamp02 u ∈ Icc (0 : ℝ) 2 :=
-  (projIcc (0 : ℝ) 2 (by norm_num) u).2
+  (projIcc (0 : ℝ) 2 (by norm_num) u).property
 
 private theorem clamp01_of_mem {u : ℝ} (hu : u ∈ Icc (0 : ℝ) 1) : clamp01 u = u :=
   congrArg Subtype.val (projIcc_of_mem zero_le_one hu)
@@ -750,7 +750,7 @@ private theorem clampedDrift_bounded_and_lipschitz (G : NonatomicCongestionGame 
       simpa only [mul_one] using!
         (hKe e).comp lipschitzWith_clamp01.lipschitzOnWith (fun u _ => clamp01_mem u)
   have hlat_bdd : ∀ e, ∃ Be : ℝ≥0, ∀ u, |G.latency e (clamp01 u)| ≤ Be := fun e => by
-    refine ⟨⟨G.latency e 0 + Ke e, add_nonneg (hnonneg e 0 ⟨le_rfl, zero_le_one⟩) (Ke e).2⟩,
+    refine ⟨⟨G.latency e 0 + Ke e, add_nonneg (hnonneg e 0 ⟨le_rfl, zero_le_one⟩) (Ke e).property⟩,
       fun u => ?_⟩
     have hu := clamp01_mem u
     have hnn := hnonneg e (clamp01 u) hu
@@ -758,7 +758,7 @@ private theorem clampedDrift_bounded_and_lipschitz (G : NonatomicCongestionGame 
     have hd := (hKe e).dist_le_mul (clamp01 u) hu 0 ⟨le_rfl, zero_le_one⟩
     rw [Real.dist_eq, Real.dist_eq, sub_zero, abs_of_nonneg hu.1] at hd
     have hle : G.latency e (clamp01 u) - G.latency e 0 ≤ (Ke e : ℝ) :=
-      (le_abs_self _).trans (hd.trans (mul_le_of_le_one_right (Ke e).2 hu.2))
+      (le_abs_self _).trans (hd.trans (mul_le_of_le_one_right (Ke e).property hu.2))
     change G.latency e (clamp01 u) ≤ G.latency e 0 + Ke e
     linarith
   choose Be hBe using hlat_bdd
@@ -850,7 +850,7 @@ private theorem clampedDrift_bounded_and_lipschitz (G : NonatomicCongestionGame 
       rw [abs_mul]
       calc |clampedRate G lStar x| * |clamp02 (x p)|
           ≤ (Br : ℝ) * (2 : ℝ≥0) :=
-            mul_le_mul (hBr x) (hclamp_coord_bdd p x) (abs_nonneg _) Br.2
+            mul_le_mul (hBr x) (hclamp_coord_bdd p x) (abs_nonneg _) Br.property
         _ = ↑(Br * 2) := by push_cast; rfl
     have hprod1_lip : LipschitzWith (Br * 1 + 2 * Kr)
         (fun x => clampedRate G lStar x * clamp02 (x p)) :=
@@ -862,16 +862,16 @@ private theorem clampedDrift_bounded_and_lipschitz (G : NonatomicCongestionGame 
     rw [abs_mul]
     calc |clampedRate G lStar x * clamp02 (x p)| * |clampedCost G x - clampedPathLatency G x p|
         ≤ ↑(Br * 2) * ↑(Bc + Bpath p) :=
-          mul_le_mul (hprod1_bdd x) (hdiff_bdd x) (abs_nonneg _) (Br * 2).2
+          mul_le_mul (hprod1_bdd x) (hdiff_bdd x) (abs_nonneg _) (Br * 2).property
       _ = ↑(Br * 2 * (Bc + Bpath p)) := by push_cast; rfl
   choose Lcoord hLcoord using fun p => (hcoord p).1
   choose Kcoord hKcoord using fun p => (hcoord p).2
   refine ⟨⟨Finset.univ.sup Lcoord, fun x => ?_⟩,
     ⟨Finset.univ.sup Kcoord, LipschitzWith.of_dist_le_mul fun x y => ?_⟩⟩
-  · refine (pi_norm_le_iff_of_nonneg (Finset.univ.sup Lcoord).2).2 fun p => ?_
+  · refine (pi_norm_le_iff_of_nonneg (Finset.univ.sup Lcoord).property).2 fun p => ?_
     rw [Real.norm_eq_abs]
     exact (hLcoord p x).trans (NNReal.coe_le_coe.2 (Finset.le_sup (Finset.mem_univ p)))
-  · refine (dist_pi_le_iff (mul_nonneg (Finset.univ.sup Kcoord).2 dist_nonneg)).2 fun p => ?_
+  · refine (dist_pi_le_iff (mul_nonneg (Finset.univ.sup Kcoord).property dist_nonneg)).2 fun p => ?_
     calc dist (clampedDrift G lStar x p) (clampedDrift G lStar y p)
         ≤ (Kcoord p : ℝ) * dist x y := (hKcoord p).dist_le_mul x y
       _ ≤ (Finset.univ.sup Kcoord : ℝ≥0) * dist x y :=

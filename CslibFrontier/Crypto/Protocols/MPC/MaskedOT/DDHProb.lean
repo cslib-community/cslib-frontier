@@ -297,7 +297,7 @@ applied to the pad-transfer distinguisher `maskedOTTransferDistinguisher` of `D`
     F.Carrier d → F.Carrier d → F.Carrier d → ProbComp Bool :=
   F.ddhOTProbReduction n d (fun s => maskedOTQuery s (x s, c s)) fun r =>
     maskedOTTransferDistinguisher mask unmask S₂ {1} x c D
-      (fun s => r.1 ⟨s.1, mem_subCoalition.1 s.2⟩, r.2)
+      (fun s => r.1 ⟨s.val, mem_subCoalition.1 s.property⟩, r.2)
 
 /-- **The masked transfer over the fair-coin DDH transfer of a group family, corrupted receiver,
 for one distinguisher.** Step towards [LindellPinkas2009], Theorem 7, not the cited result (#6045):
@@ -386,7 +386,8 @@ arbitrary program and nothing bounds it or the guessing stage it outputs. -/
     | .inl b => pure b
     | .inr c =>
       if h : c.coalition = {1} then
-        F.ddhOTProbReduction n d c.query (fun r => c.guess (fun s => r.1 ⟨s.1, h ▸ s.2⟩, r.2)) u v w
+        F.ddhOTProbReduction n d c.query (fun r => c.guess
+            (fun s => r.1 ⟨s.val, h ▸ s.property⟩, r.2)) u v w
       else pure false
 
 /-- **The challenged fair-coin DDH transfer against a sampled environment, corrupted receiver,

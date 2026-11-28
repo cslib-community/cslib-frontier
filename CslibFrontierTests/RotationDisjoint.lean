@@ -25,10 +25,10 @@ private theorem genus : r.NumericalGenusZero :=
     Graph.RotationCertificate.verifyRotation G c = true)).mp (by decide)
 
 -- Two copies with equal old names occupy disjoint parity-tagged blocks, without deduplication.
-example : (G.disjointUnion G).1 =
+example : (G.disjointUnion G).vertices =
     [2000, 200000, 14, 18, 18, 2001, 200001, 15, 19, 19] := rfl
 
-example : (G.disjointUnion G).2 =
+example : (G.disjointUnion G).edges =
     [(2000, 200000), (14, 14), (2001, 200001), (15, 15)] := rfl
 
 example : Graph.RotationCertificate.ofRotation (r.disjointUnion r) =

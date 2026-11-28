@@ -54,11 +54,19 @@ values:
   `Cslib.Complexity.Interaction.gameTree_value_eq`). Its leaf values count the accepting coin
   values, within polynomial space
   (`Cslib.Complexity.Interaction.computableInPolySpace_countAccepts`).
-* The explicit-stack evaluator of the game tree (`Cslib.Complexity.Interaction.evaluate`) runs for
-  `2 ^ ((t + 1) * (2 * t + 1))` steps, with at most `t` frames of `O(t)` bits each
-  (`Cslib.Complexity.Interaction.length_encEvalState_iterate_le`), so it computes `W` within
-  polynomial space (`Cslib.Complexity.Interaction.evaluate_eq`,
-  `Cslib.Complexity.Interaction.computableInPolySpace_evaluate`), in exponential time.
+* The explicit-stack evaluator of a game tree with given leaf values
+  (`Cslib.Complexity.Interaction.evaluateWith`) runs for `2 ^ ((t + 1) * (2 * t + 1))` evaluator
+  iterations (a count of loop iterations, not of machine steps), with at most `t` frames of `O(t)`
+  bits each. The machine resource theorem proved here bounds space only: it computes the value
+  within polynomial space when the leaf values are within polynomial space, and states no explicit
+  exponential bound on machine time
+  (`Cslib.Complexity.Interaction.evaluateWith_eq`,
+  `Cslib.Complexity.Interaction.computableInPolySpace_evaluateWith`). For the leaf values of the
+  verifier after a history (`Cslib.Complexity.Interaction.evalFrom`) it computes the value of the
+  history (`Cslib.Complexity.Interaction.evalFrom_eq`,
+  `Cslib.Complexity.Interaction.computableInPolySpace_evalFrom`), and from the empty history `W`
+  (`Cslib.Complexity.Interaction.evaluate`, `Cslib.Complexity.Interaction.evaluate_eq`,
+  `Cslib.Complexity.Interaction.computableInPolySpace_evaluate`).
 
 The converse inclusion `PSPACE ⊆ IP` (`Cslib.Complexity.PSPACE_subset_IP`), and with it
 `IP = PSPACE` (`Cslib.Complexity.IP_eq_PSPACE`), is proved downstream in
@@ -69,13 +77,24 @@ The converse inclusion `PSPACE ⊆ IP` (`Cslib.Complexity.PSPACE_subset_IP`), an
 * `Cslib.Complexity.Interaction.decodeWord`, `Cslib.Complexity.Interaction.firstCode`,
   `Cslib.Complexity.Interaction.lastCode`: the codes of the short words.
 * `Cslib.Complexity.Interaction.leafValue`: the leaf values, the accepting programs.
-* `Cslib.Complexity.Interaction.evalStep`, `Cslib.Complexity.Interaction.evaluate`: the evaluation.
+* `Cslib.Complexity.Interaction.evalStepWith`, `Cslib.Complexity.Interaction.evaluateWith`: the
+  evaluation of a game tree with given leaf values.
+* `Cslib.Complexity.Interaction.shiftFamily`: a family of programs started after a history.
+* `Cslib.Complexity.Interaction.evalFrom`, `Cslib.Complexity.Interaction.evaluate`: the evaluation
+  with the leaf values of the verifier after a history, and from the empty history.
 
 ## Main results
 
 * `Cslib.Complexity.Interaction.image_decodeWord_iterate_firstCode`: the codes enumerate the short
   words.
 * `Cslib.Complexity.Interaction.gameTree_value_eq`: the value is the value of the game tree.
+* `Cslib.Complexity.Interaction.evaluateWith_eq`: the evaluation computes the value of the game
+  tree.
+* `Cslib.Complexity.Interaction.computableInPolySpace_evaluateWith`: within polynomial space, given
+  the leaf values.
+* `Cslib.Complexity.Interaction.value_shiftFamily`: the value of a shifted family.
+* `Cslib.Complexity.Interaction.evalFrom_eq`: the evaluation from a history computes its value.
+* `Cslib.Complexity.Interaction.computableInPolySpace_evalFrom`: within polynomial space.
 * `Cslib.Complexity.Interaction.evaluate_eq`: the evaluation computes the value.
 * `Cslib.Complexity.Interaction.computableInPolySpace_evaluate`: within polynomial space.
 * `Cslib.Complexity.mem_iff_two_pow_lt_value`: the value decides the problem.
@@ -147,6 +166,12 @@ def lastCode (u : List Bool) : Bool := decide (u = List.replicate (L + 1) true)
 
 /-- The number of codes, and of the words of length at most `L`. -/
 def codeCount : ℕ := 2 ^ (L + 1) - 1
+
+/-- There is at least one code. -/
+theorem codeCount_pos : 0 < codeCount L := by
+  have := Nat.one_lt_two_pow (n := L + 1) (by lia)
+  simp only [codeCount]
+  lia
 
 private theorem iterate_firstCode (i : ℕ) :
     increment^[i] (firstCode L) = increment^[i + 1] (List.replicate (L + 1) false) :=
@@ -243,6 +268,51 @@ theorem gameTree_value_eq {cap : ℕ} (hcap : Fintype.card R ≤ cap) (n : ℕ)
 
 end GameTree
 
+/-! ### Families started after a history -/
+
+section Shift
+
+variable {R : Type} [Fintype R] (F : R → WordQueryComp Unit Bool) (L : ℕ)
+
+/-- The programs of `F` after the history `h0`; a program that does not follow `h0` is replaced by
+one that rejects. -/
+def shiftFamily (h0 : History) (r : R) : WordQueryComp Unit Bool :=
+  (after (F r) h0).getD (pure false)
+
+omit [Fintype R] in
+/-- A shifted program accepts after `e` exactly when the original accepts after `h0 ++ e`. -/
+theorem outcome_shiftFamily_eq_done_true_iff (h0 e : History) (r : R) :
+    outcome (shiftFamily F h0 r) e = .done true ↔ outcome (F r) (h0 ++ e) = .done true := by
+  unfold outcome
+  rw [after_append]
+  rcases hah : after (F r) h0 with _ | p
+  · cases e with
+    | nil =>
+      simp only [shiftFamily, hah, Option.getD_none, Option.bind_none, after_nil]
+      exact iff_of_false (by decide) nofun
+    | cons x e =>
+      simp only [shiftFamily, hah, Option.getD_none, Option.bind_none, after_pure_cons]
+  · simp [shiftFamily, hah]
+
+/-- The accepting programs of a shifted family. -/
+theorem accepted_shiftFamily (h0 e : History) :
+    accepted (shiftFamily F h0) e = accepted F (h0 ++ e) := by
+  classical
+  simp only [accepted]
+  congr 1
+  ext r
+  simpa using outcome_shiftFamily_eq_done_true_iff F h0 e r
+
+/-- **The value of a shifted family** is the value after the history. -/
+theorem value_shiftFamily (h0 : History) (n : ℕ) (e : History) :
+    value (shiftFamily F h0) L n e = value F L n (h0 ++ e) := by
+  induction n generalizing e with
+  | zero => simp only [value, accepted_shiftFamily]
+  | succ n ih =>
+    simp only [value, accepted_shiftFamily, ih, List.append_assoc]
+
+end Shift
+
 /-! ### Polynomial-time parts -/
 
 section PolyTime
@@ -266,56 +336,65 @@ end PolyTime
 
 section Evaluation
 
-variable {α : Type} (enc : α ↪ List Bool) {k : ℕ} {Control : Type}
-  (M : _root_.Turing.MultiTapePTM k Bool Control Unit) (fuel : α → ℕ)
+variable {α : Type} (fuel : α → ℕ) (leaf : α → List (List Bool × List Bool) → ℕ)
 
 /-- The states of the evaluation: the instance, the stack and the value being returned. -/
 abbrev EvalState (α : Type) := α × List (GameTree.Frame (List Bool)) × Option ℕ
 
-/-- One step of the evaluation of the game tree of the verifier `M` on `a`, with `fuel a` coins,
+/-- One step of the evaluation of a game tree whose leaf values are `leaf a`, with `fuel a` coins,
 rounds and message lengths. -/
-def evalStep (s : EvalState α) : EvalState α :=
+def evalStepWith (s : EvalState α) : EvalState α :=
   (s.1, GameTree.step (fuel s.1) (2 ^ fuel s.1) (firstCode (fuel s.1)) BitString.increment
-    (lastCode (fuel s.1)) (leafValue (coinFamily M (fuel s.1) (enc s.1))) s.2)
+    (lastCode (fuel s.1)) (leaf s.1) s.2)
 
 /-- The number of steps of the evaluation, a bound on `GameTree.time`. -/
 def evalTime (a : α) : ℕ := 2 ^ ((fuel a + 1) * (2 * fuel a + 1))
 
-/-- The value computed by the evaluation. -/
-def evaluate (a : α) : ℕ :=
-  ((evalStep enc M fuel)^[evalTime fuel a] (a, [], none)).2.2.getD 0
+/-- The value computed by the evaluation of the game tree with leaf values `leaf a`. -/
+def evaluateWith (a : α) : ℕ :=
+  ((evalStepWith fuel leaf)^[evalTime fuel a] (a, [], none)).2.2.getD 0
 
 /-- The evaluation keeps its instance and runs the game-tree evaluator. -/
-private theorem iterate_evalStep (a : α) (st : List (GameTree.Frame (List Bool)) × Option ℕ)
-    (j : ℕ) :
-    (evalStep enc M fuel)^[j] (a, st) = (a, (GameTree.step (fuel a) (2 ^ fuel a)
-      (firstCode (fuel a)) increment (lastCode (fuel a))
-        (leafValue (coinFamily M (fuel a) (enc a))))^[j] st) := by
+private theorem iterate_evalStepWith (a : α)
+    (st : List (GameTree.Frame (List Bool)) × Option ℕ) (j : ℕ) :
+    (evalStepWith fuel leaf)^[j] (a, st) = (a, (GameTree.step (fuel a) (2 ^ fuel a)
+      (firstCode (fuel a)) increment (lastCode (fuel a)) (leaf a))^[j] st) := by
   induction j generalizing st with
   | zero => rfl
   | succ j ih => rw [Function.iterate_succ_apply, Function.iterate_succ_apply, ← ih]; rfl
 
-/-- **The evaluation computes the value** of the verifier on `a`. -/
-theorem evaluate_eq (a : α) :
-    evaluate enc M fuel a = value (coinFamily M (fuel a) (enc a)) (fuel a) (fuel a) [] := by
-  have hN : 0 < codeCount (fuel a) := Nat.sub_pos_of_lt (Nat.one_lt_two_pow (by lia))
+/-- **The evaluation computes the value of the game tree.** -/
+theorem evaluateWith_eq (a : α) : evaluateWith fuel leaf a =
+    GameTree.value (codeCount (fuel a)) (2 ^ fuel a) (firstCode (fuel a)) increment
+      (leaf a) (fuel a) [] := by
   have htime : GameTree.time (codeCount (fuel a)) (fuel a) ≤ evalTime fuel a := by
     refine (GameTree.time_le _).trans (le_of_eq ?_)
     rw [evalTime, codeCount, Nat.sub_add_cancel Nat.one_le_two_pow, ← pow_mul]
-  rw [evaluate, iterate_evalStep, GameTree.iterate_step_eval hN
-    (fun i hi => lastCode_iterate_firstCode hi) htime, Option.getD_some,
-    gameTree_value_eq _ (by simp), decodeHistory_nil]
+  rw [evaluateWith, iterate_evalStepWith, GameTree.iterate_step_eval (codeCount_pos _)
+    (fun i hi => lastCode_iterate_firstCode hi) htime, Option.getD_some]
+
+/-- The current reply of a frame of the evaluator. -/
+private abbrev _root_.Cslib.Complexity.GameTree.Frame.reply {X : Type} (f : GameTree.Frame X) : X :=
+  f.2.1
+
+/-- The capped sum over the earlier messages, in a frame of the evaluator. -/
+private abbrev _root_.Cslib.Complexity.GameTree.Frame.total {X : Type} (f : GameTree.Frame X) : ℕ :=
+  f.2.2.1
+
+/-- The maximum over the earlier replies to the current message, in a frame of the evaluator. -/
+private abbrev _root_.Cslib.Complexity.GameTree.Frame.best {X : Type} (f : GameTree.Frame X) : ℕ :=
+  f.2.2.2
 
 /-- Returning a value into the stack, with its explicit cases. -/
 private def returnStep (L cap : ℕ) (st : List (GameTree.Frame (List Bool))) (v : ℕ) :
     List (GameTree.Frame (List Bool)) × Option ℕ :=
   if st.isEmpty then (st, some v)
   else
-    let f := st.headD ([], [], 0, 0)
-    if lastCode L f.2.1 then
-      if lastCode L f.1 then (st.tail, some (min cap (f.2.2.1 + max f.2.2.2 v)))
-      else ((increment f.1, firstCode L, min cap (f.2.2.1 + max f.2.2.2 v), 0) :: st.tail, none)
-    else ((f.1, increment f.2.1, f.2.2.1, max f.2.2.2 v) :: st.tail, none)
+    let f : GameTree.Frame (List Bool) := st.headD ([], [], 0, 0)
+    if lastCode L f.reply then
+      if lastCode L f.1 then (st.tail, some (min cap (f.total + max f.best v)))
+      else ((increment f.1, firstCode L, min cap (f.total + max f.best v), 0) :: st.tail, none)
+    else ((f.1, increment f.reply, f.total, max f.best v) :: st.tail, none)
 
 /-- A value returned into the stack, by `returnStep`. -/
 private theorem step_some_eq (L cap : ℕ) (leaf : List (List Bool × List Bool) → ℕ)
@@ -336,15 +415,53 @@ theorem step_none_eq (L cap : ℕ) (leaf : List (List Bool × List Bool) → ℕ
       pushStep L st (min cap (leaf (GameTree.history st))) := rfl
 
 /-- One step of the evaluation, as a case distinction calling the leaf value once. -/
-private theorem evalStep_eq (s : EvalState α) : evalStep enc M fuel s =
+private theorem evalStepWith_eq (s : EvalState α) : evalStepWith fuel leaf s =
     if s.2.2.isSome then (s.1, returnStep (fuel s.1) (2 ^ fuel s.1) s.2.1 (s.2.2.getD 0))
     else (s.1, pushStep (fuel s.1) s.2.1 (min (2 ^ fuel s.1)
-      (leafValue (coinFamily M (fuel s.1) (enc s.1)) (GameTree.history s.2.1)))) :=
+      (leaf s.1 (GameTree.history s.2.1)))) :=
   match s with
   | ⟨_, _, none⟩ => rfl
   | ⟨_, st, some v⟩ => congrArg _ (step_some_eq _ _ _ st v)
 
 end Evaluation
+
+/-! ### The evaluation of the verifier -/
+
+section Verifier
+
+variable {α : Type} (enc : α ↪ List Bool) {k : ℕ} {Control : Type}
+  (M : _root_.Turing.MultiTapePTM k Bool Control Unit) (fuel : α → ℕ)
+
+/-- The leaf value of a game-tree history after the history `b.2`: the number of accepting
+programs of `fuel b.1` coins on the input `enc b.1`. -/
+def leafFrom (b : α × History) (hs : List (List Bool × List Bool)) : ℕ :=
+  accepted (coinFamily M (fuel b.1) (enc b.1)) (b.2 ++ decodeHistory hs)
+
+/-- The value of the programs of `M` on `a` after the history `h`, with `fuel a` rounds to go,
+computed by the evaluation of the game tree. -/
+def evalFrom : α × History → ℕ := evaluateWith (fun b => fuel b.1) (leafFrom enc M fuel)
+
+/-- **The evaluation from a history computes the value of the history.** -/
+theorem evalFrom_eq (b : α × History) :
+    evalFrom enc M fuel b =
+      value (coinFamily M (fuel b.1) (enc b.1)) (fuel b.1) (fuel b.1) b.2 := by
+  rw [evalFrom, evaluateWith_eq]
+  have hleaf : leafFrom enc M fuel b =
+      leafValue (shiftFamily (coinFamily M (fuel b.1) (enc b.1)) b.2) := by
+    funext hs
+    exact (accepted_shiftFamily _ _ _).symm
+  rw [hleaf, gameTree_value_eq _ (by simp), decodeHistory_nil, value_shiftFamily,
+    List.append_nil]
+
+/-- The value computed by the evaluation of the verifier: the evaluation from the empty history. -/
+def evaluate (a : α) : ℕ := evalFrom enc M fuel (a, [])
+
+/-- **The evaluation computes the value** of the verifier on `a`. -/
+theorem evaluate_eq (a : α) :
+    evaluate enc M fuel a = value (coinFamily M (fuel a) (enc a)) (fuel a) (fuel a) [] :=
+  evalFrom_eq enc M fuel (a, [])
+
+end Verifier
 
 /-! ### The evaluation in polynomial space -/
 
@@ -354,12 +471,13 @@ open _root_.Turing _root_.Turing.MultiTapeTM ComputableInPolyTime
 
 variable {γ : Type} {input : γ ↪ List Bool}
 
-attribute [local fun_prop] binary_max' binary_min'
-
-@[local fun_prop] private theorem firstCode_pt {count : γ → ℕ}
+/-- The first code, computed from the number of coins, is polynomial-time. -/
+theorem computableInPolyTime_firstCode {count : γ → ℕ}
     (h : ComputableInPolyTime count input encUnary) :
     ComputableInPolyTime (fun x => firstCode (count x)) input encBits :=
   bitsCons (const true) ((bitsReplicate false).comp h)
+
+attribute [local fun_prop] binary_max' binary_min' computableInPolyTime_firstCode
 
 @[local fun_prop] private theorem lastCode_pt {count : γ → ℕ} {word : γ → List Bool}
     (h : ComputableInPolyTime count input encUnary)
@@ -398,46 +516,35 @@ private theorem computableInPolyTime_pushStep :
       (encPair (encEvalState enc) encNat) encUnary := hfuel.comp (by fun_prop)
   fun_prop [pushStep]
 
-/-- **The leaf value within polynomial space**: the count of accepting coins, capped. -/
-private theorem computableInPolySpace_leaf [Finite Control] :
-    ComputableInPolySpace (fun s : EvalState α => min (2 ^ fuel s.1)
-      (leafValue (coinFamily M (fuel s.1) (enc s.1)) (GameTree.history s.2.1)))
-      (encEvalState enc) encNat := by
-  have hcount := computableInPolySpace_countAccepts M enc fuel hfuel
-  have hdec := computableInPolyTime_decodeHistory
-  have harg : ComputableInPolyTime (fun s : EvalState α =>
-      (s.1, decodeHistory (GameTree.history s.2.1))) (encEvalState enc)
-      (encPair enc encHistory) := by fun_prop [GameTree.history]
-  refine ((ComputableInPolySpace.of_polyTime (encIn := encPair encNat encNat) (encOut := encNat)
-    (f := fun p : ℕ × ℕ => min p.1 p.2) (by fun_prop)).comp
-    ((ComputableInPolySpace.of_polyTime (binary_two_pow.comp (hfuel.comp (fst _ _)))).prod
-      (hcount.comp (.of_polyTime harg)))).congr fun _ => ?_
-  simp only [leafValue, countAccepts_eq_accepted, Function.comp_apply]
+variable {leaf : α → List (List Bool × List Bool) → ℕ}
 
-/-- **A step of the evaluation within polynomial space.** -/
-private theorem computableInPolySpace_evalStep [Finite Control] :
-    ComputableInPolySpace (evalStep enc M fuel) (encEvalState enc) (encEvalState enc) := by
+/-- **A step of the evaluation within polynomial space**, given the leaf values within polynomial
+space. -/
+private theorem computableInPolySpace_evalStepWith
+    (hleaf : ComputableInPolySpace (fun s : EvalState α =>
+      min (2 ^ fuel s.1) (leaf s.1 (GameTree.history s.2.1))) (encEvalState enc) encNat) :
+    ComputableInPolySpace (evalStepWith fuel leaf) (encEvalState enc) (encEvalState enc) := by
   have hcond : ComputableInPolyTime (fun s : EvalState α => s.2.2.isSome)
       (encEvalState enc) encBool := by fun_prop
   exact (ComputableInPolySpace.ite (.of_polyTime hcond)
     (.of_polyTime (computableInPolyTime_returnStep hfuel))
     ((ComputableInPolySpace.of_polyTime (computableInPolyTime_pushStep hfuel)).comp
-      ((ComputableInPolySpace.of_polyTime id').prod
-        (computableInPolySpace_leaf M hfuel)))).congr fun s => (evalStep_eq enc M fuel s).symm
+      ((ComputableInPolySpace.of_polyTime id').prod hleaf))).congr fun s =>
+    (evalStepWith_eq fuel leaf s).symm
 
 omit hfuel in
-/-- **The states of the evaluation are of polynomial size.** -/
-theorem length_encEvalState_iterate_le (a : α) (j : ℕ) :
-    (encEvalState enc ((evalStep enc M fuel)^[j] (a, [], none))).length ≤
+/-- The states of the evaluation are of polynomial size. -/
+private theorem length_encEvalState_iterate_with_le (a : α) (j : ℕ) :
+    (encEvalState enc ((evalStepWith fuel leaf)^[j] (a, [], none))).length ≤
       2 * (enc a).length + 2 * fuel a * (14 * fuel a + 21) + fuel a + 4 := by
-  rw [iterate_evalStep]
+  rw [iterate_evalStepWith]
   have hgood := GameTree.good_iterate_step (D := fuel a) (cap := 2 ^ fuel a)
     (first := firstCode (fuel a)) (next := BitString.increment) (last := lastCode (fuel a))
-    (leaf := leafValue (coinFamily M (fuel a) (enc a)))
+    (leaf := leaf a)
     (P := fun u => u.length = fuel a + 1) (by simp [firstCode])
     (fun u hu => by simpa using hu) j
   set st := (GameTree.step (fuel a) (2 ^ fuel a) (firstCode (fuel a)) BitString.increment
-    (lastCode (fuel a)) (leafValue (coinFamily M (fuel a) (enc a))))^[j] ([], none)
+    (lastCode (fuel a)) (leaf a))^[j] ([], none)
   have hframe (f) (hf : f ∈ st.1) : (encFrame f).length ≤ 7 * fuel a + 10 := by
     obtain ⟨hu, hw, hs, ha⟩ := hgood.frames f hf
     have hs' := length_encNat_le_of_le_two_pow hs
@@ -456,11 +563,12 @@ theorem length_encEvalState_iterate_le (a : α) (j : ℕ) :
       _ = 2 * fuel a * (14 * fuel a + 21) := by ring
   omega
 
-omit hfuel in
-/-- **The evaluation within polynomial space.** -/
-theorem computableInPolySpace_evaluate [Finite Control] [Inhabited α]
-    (hfuel : ComputableInPolyTime fuel enc encUnary) :
-    ComputableInPolySpace (evaluate enc M fuel) enc encNat := by
+/-- **The evaluation of a game tree within polynomial space**, given the leaf values within
+polynomial space and the number of coins in polynomial time. -/
+theorem computableInPolySpace_evaluateWith [Inhabited α]
+    (hleaf : ComputableInPolySpace (fun s : EvalState α =>
+      min (2 ^ fuel s.1) (leaf s.1 (GameTree.history s.2.1))) (encEvalState enc) encNat) :
+    ComputableInPolySpace (evaluateWith fuel leaf) enc encNat := by
   have hn : ComputableInPolyTime (evalTime fuel) enc encNat :=
     binary_two_pow.comp <| unary_mul.comp
       ((unary_add.comp (hfuel.prod (const (encOut := encUnary) 1))).prod
@@ -469,11 +577,39 @@ theorem computableInPolySpace_evaluate [Finite Control] [Inhabited α]
   have hit := ComputableInPolySpace.iterate hn
     (.of_polyTime (f := fun a : α => ((a, [], none) : EvalState α))
       (encIn := enc) (encOut := encEvalState enc) (by fun_prop))
-    (computableInPolySpace_evalStep M hfuel)
+    (computableInPolySpace_evalStepWith hfuel hleaf)
     (B := fun a => 2 * (enc a).length + 2 * fuel a * (14 * fuel a + 21) + fuel a + 4)
-    (by growth_poly) (fun a j _ => length_encEvalState_iterate_le M a j)
+    (by growth_poly) (fun a j _ => length_encEvalState_iterate_with_le a j)
   exact (ComputableInPolySpace.of_polyTime (f := fun s : EvalState α => s.2.2.getD 0)
     (encIn := encEvalState enc) (encOut := encNat) (by fun_prop)).comp hit
+
+/-- **The value of a history within polynomial space**: the evaluation from a history. -/
+theorem computableInPolySpace_evalFrom [Finite Control] [Inhabited α] :
+    ComputableInPolySpace (evalFrom enc M fuel) (encPair enc encHistory) encNat := by
+  have hfuel' : ComputableInPolyTime (fun b : α × History => fuel b.1)
+      (encPair enc encHistory) encUnary := hfuel.comp (fst _ _)
+  have hcount := computableInPolySpace_countAccepts M enc fuel hfuel
+  have hdec := computableInPolyTime_decodeHistory
+  have harg : ComputableInPolyTime (fun s : EvalState (α × History) =>
+      (s.1.1, s.1.2 ++ decodeHistory (GameTree.history s.2.1)))
+      (encEvalState (encPair enc encHistory)) (encPair enc encHistory) := by
+    unfold GameTree.history
+    fun_prop
+  have hcap : ComputableInPolyTime (fun s : EvalState (α × History) => 2 ^ fuel s.1.1)
+      (encEvalState (encPair enc encHistory)) encNat :=
+    binary_two_pow.comp (hfuel'.comp (fst _ _))
+  have hmin : ComputableInPolyTime (fun p : ℕ × ℕ => min p.1 p.2) (encPair encNat encNat)
+      encNat := by fun_prop
+  have hleaf := ((ComputableInPolySpace.of_polyTime hmin).comp
+    ((ComputableInPolySpace.of_polyTime hcap).prod (hcount.comp
+      (ComputableInPolySpace.of_polyTime harg))))
+  exact computableInPolySpace_evaluateWith hfuel' (hleaf.congr fun s => by
+    simp only [leafFrom, countAccepts_eq_accepted])
+
+/-- **The evaluation within polynomial space.** -/
+theorem computableInPolySpace_evaluate [Finite Control] [Inhabited α] :
+    ComputableInPolySpace (evaluate enc M fuel) enc encNat :=
+  (computableInPolySpace_evalFrom M hfuel).comp (.of_polyTime (by fun_prop))
 
 end Space
 

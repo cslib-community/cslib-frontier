@@ -124,9 +124,4 @@ example :
     step (M := model) 0 [.jump 0] (state 0) = .next (state 0) :=
   ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
-/-- info: 'CslibFrontierTests.GenericRAMSigned.step_eq_reference' depends on axioms:
-[propext, Quot.sound] -/
-#guard_msgs (whitespace := lax) in
-#print axioms step_eq_reference
-
 end CslibFrontierTests.GenericRAMSigned

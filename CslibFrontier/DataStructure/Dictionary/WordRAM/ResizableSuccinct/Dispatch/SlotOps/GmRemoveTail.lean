@@ -234,7 +234,7 @@ private theorem realizesBounded_compRemoveTailReadGM :
   all_goals (
     rcases d with ⟨⟨cp, metaBase⟩, b⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hb, htail, hr_pos⟩ := h
-    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.1
+    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.frontier_fits
     have hr_le_nt := r_le_ntails_of_tailBijection htail hb
     obtain ⟨hr_idx_lt, hptr_del_lt, h1_lt, hown_last_lt⟩ :=
       compRemoveTailReadGM_idx_lt hb_pos hb htail hr_pos
@@ -277,7 +277,7 @@ private theorem realizesBounded_compRemoveTailWriteGM :
   all_goals (
     rcases d with ⟨⟨⟨cp, metaBase⟩, b⟩, ⟨⟨r_del, t_del⟩, ⟨t_last, d_last⟩⟩⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hb, ht_del_lt, hd_last_lt⟩ := h
-    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.1
+    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.frontier_fits
     have hr_idx_lt : gmRIdx b < globalMetaLen N := gmRIdx_lt hb_pos hb
     have h1_lt : 1 < globalMetaLen N := by unfold globalMetaLen; omega
     have hptr_last_lt := gmTailPtrFlatIdx_lt hb_pos hd_last_lt

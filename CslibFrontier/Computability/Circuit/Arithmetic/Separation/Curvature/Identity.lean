@@ -310,13 +310,13 @@ private theorem exists_products {β γ κ : Type} [Fintype κ] {f : β → γ �
     ∃ (g' : Fin r → β → ℤ) (h' : Fin r → γ → ℤ), ∀ b c, f b c = ∑ t, g' t b * h' t c := by
   classical
   let e := Fintype.equivFin κ
-  refine ⟨fun t b => if ht : t.1 < Fintype.card κ then g (e.symm ⟨t.1, ht⟩) b else 0,
-    fun t c => if ht : t.1 < Fintype.card κ then h (e.symm ⟨t.1, ht⟩) c else 0, fun b c => ?_⟩
+  refine ⟨fun t b => if ht : t.val < Fintype.card κ then g (e.symm ⟨t.val, ht⟩) b else 0,
+    fun t c => if ht : t.val < Fintype.card κ then h (e.symm ⟨t.val, ht⟩) c else 0, fun b c => ?_⟩
   rw [hf]
   refine Finset.sum_of_injOn (fun t => Fin.castLE hr (e t))
     (fun _ _ _ _ he => e.injective (Fin.castLE_injective hr he)) (fun _ _ => by simp)
-    (fun t _ ht => ?_) (fun t _ => by simp [(e t).2])
-  simp only [dite_eq_right fun hlt => ht ⟨e.symm ⟨t.1, hlt⟩, mem_univ _, by simp [Fin.castLE]⟩,
+    (fun t _ ht => ?_) (fun t _ => by simp [(e t).isLt])
+  simp only [dite_eq_right fun hlt => ht ⟨e.symm ⟨t.val, hlt⟩, mem_univ _, by simp [Fin.castLE]⟩,
     zero_mul]
 
 section Expansion
@@ -559,10 +559,10 @@ theorem exists_crossing_identity (μ ν e₁ e₂ : ℕ) :
         ↥(states ν e₂) → ℤ,
       (∀ a b c d, ∑ N, Ψ N a b c d = (if a = c then 1 else 0) * (if b = d then 1 else 0)) ∧
       (∀ N : Fin (2 * (e₁ + e₂) + 1),
-          ∃ (g : Fin ((N.1 + 1) * stateCount N) → ↥(states μ e₁) × ↥(states ν e₂) → ℤ)
-        (h : Fin ((N.1 + 1) * stateCount N) → ↥(states ν e₂) × ↥(states μ e₁) → ℤ),
+          ∃ (g : Fin ((N.val + 1) * stateCount N) → ↥(states μ e₁) × ↥(states ν e₂) → ℤ)
+        (h : Fin ((N.val + 1) * stateCount N) → ↥(states ν e₂) × ↥(states μ e₁) → ℤ),
         ∀ a b c d, Ψ N a b c d = ∑ k, g k (a, d) * h k (b, c)) ∧
-      (∀ N : Fin (2 * (e₁ + e₂) + 1), ∀ N', N' = 2 * (e₁ + e₂) - N.1 →
+      (∀ N : Fin (2 * (e₁ + e₂) + 1), ∀ N', N' = 2 * (e₁ + e₂) - N.val →
         ∃ (g : Fin ((N' + 1) * stateCount N') → ↥(states μ e₁) × ↥(states ν e₂) → ℤ)
         (h : Fin ((N' + 1) * stateCount N') → ↥(states μ e₁) × ↥(states ν e₂) → ℤ),
         ∀ a b c d, Ψ N a b c d = ∑ k, g k (a, b) * h k (c, d)) := by

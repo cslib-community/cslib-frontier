@@ -456,11 +456,11 @@ theorem isCriticalCoalition_of_higher_contagion {qExt : ι → ℝ}
     intro X Y hXY hOrd
     have hbij := Finset.equivOfCardEq hXY
     rw [← prod_coe_sort Y,
-      ← Fintype.prod_equiv hbij (fun x => 1 - qExt (hbij x).1) (fun y => 1 - qExt y.1)
+      ← Fintype.prod_equiv hbij (fun x => 1 - qExt (hbij x).val) (fun y => 1 - qExt y.val)
         (fun _ => rfl),
       ← prod_coe_sort X]
-    exact prod_le_prod₀ (fun x _ => sub_nonneg.mpr (hq1 x.1))
-      fun x _ => sub_le_sub_left (hOrd x.1 x.2 (hbij x).1 (hbij x).2) 1
+    exact prod_le_prod₀ (fun x _ => sub_nonneg.mpr (hq1 x.val))
+      fun x _ => sub_le_sub_left (hOrd x.val x.property (hbij x).val (hbij x).property) 1
   -- Multiply both sides by the common complement `univ \ (insert i M ∪ insert j M')`.
   have hcompl : ∀ A B : Finset ι, A.card = B.card → A \ B ⊆ M \ M' → B \ A ⊆ M' \ M →
       ∏ u ∈ univ \ B, (1 - qExt u) ≤ ∏ u ∈ univ \ A, (1 - qExt u) := by

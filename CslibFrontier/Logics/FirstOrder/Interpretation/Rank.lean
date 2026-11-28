@@ -87,8 +87,8 @@ theorem domainRank_lt_of_inDomain {u u' : ℕ} (hu : I.InDomain e n u) (h : u < 
 
 /-- For any `x : I.Model (Fin n)`, the tuple index `(tupleEquiv e x.1).val` satisfies
 `I.InDomain e n`. -/
-theorem inDomain_tupleEquiv (x : I.Model (Fin n)) : I.InDomain e n (tupleEquiv e x.1).val :=
-  ⟨(tupleEquiv e x.1).isLt, by simpa only [Fin.eta, Equiv.symm_apply_apply] using x.2⟩
+theorem inDomain_tupleEquiv (x : I.Model (Fin n)) : I.InDomain e n (tupleEquiv e x.val).val :=
+  ⟨(tupleEquiv e x.val).isLt, by simpa only [Fin.eta, Equiv.symm_apply_apply] using x.property⟩
 
 variable (I e n) in
 /-- The number of elements of the interpreted structure: the number of indices of the domain. -/
@@ -101,8 +101,8 @@ theorem modelCard_le_pow : modelCard I e n ≤ n ^ d := by
 
 /-- The rank of the index of an element of the interpreted structure. -/
 noncomputable def rankOf (x : I.Model (Fin n)) : Fin (modelCard I e n) :=
-  ⟨I.domainRank e n (tupleEquiv e x.1).val, domainRank_lt_of_inDomain (inDomain_tupleEquiv x)
-    (tupleEquiv e x.1).isLt⟩
+  ⟨I.domainRank e n (tupleEquiv e x.val).val, domainRank_lt_of_inDomain (inDomain_tupleEquiv x)
+    (tupleEquiv e x.val).isLt⟩
 
 /-- `rankOf` is injective on `I.Model (Fin n)`. -/
 theorem rankOf_injective : Function.Injective (rankOf (I := I) (e := e) (n := n)) := by
@@ -124,7 +124,7 @@ theorem exists_inDomain_of_lt {r : ℕ} (hr : r < modelCard I e n) :
 /-- `rankOf` is surjective onto `Fin (modelCard I e n)`. -/
 theorem rankOf_surjective : Function.Surjective (rankOf (I := I) (e := e) (n := n)) := by
   intro r
-  obtain ⟨u, ⟨hu, hdom⟩, hr⟩ := exists_inDomain_of_lt r.2
+  obtain ⟨u, ⟨hu, hdom⟩, hr⟩ := exists_inDomain_of_lt r.isLt
   refine ⟨⟨(tupleEquiv e).symm ⟨u, hu⟩, hdom⟩, Fin.ext ?_⟩
   simp only [rankOf, Equiv.apply_symm_apply, hr]
 
@@ -138,7 +138,7 @@ noncomputable def rankEquiv : I.Model (Fin n) ≃ Fin (modelCard I e n) :=
 `I.domainRank e n (tupleEquiv e x.1).val`. -/
 @[simp]
 theorem rankEquiv_apply_val (x : I.Model (Fin n)) :
-    (rankEquiv I e n x).val = I.domainRank e n (tupleEquiv e x.1).val := rfl
+    (rankEquiv I e n x).val = I.domainRank e n (tupleEquiv e x.val).val := rfl
 
 /-- **The element of a given rank** is the tuple whose index is in the domain and has that rank. -/
 theorem rankEquiv_symm_val {r : Fin (modelCard I e n)} {u : ℕ} (hu : I.InDomain e n u)

@@ -72,7 +72,7 @@ variable {L : Language.{u, v}}
 as `x i`. -/
 private def atomEmbed {n k : ℕ} (x : Fin k → Fin n)
     (q : {z : Fin n // z ∉ Set.range x} × NewAtom L k) : Atom L n :=
-  ⟨q.2.1.1, (Fin.cons q.1.1 x : Fin (k + 1) → Fin n) ∘ q.2.1.2⟩
+  ⟨q.2.val.1, (Fin.cons q.1.val x : Fin (k + 1) → Fin n) ∘ q.2.val.2⟩
 
 private theorem atomEmbed_injective {n k : ℕ} {x : Fin k → Fin n} (hx : Function.Injective x) :
     Function.Injective (atomEmbed (L := L) x) := by
@@ -120,7 +120,8 @@ theorem structProb_bernoulliStructure_forall_not_isExtensionWitness
       g ⁻¹' {u | ∀ z, u z ∈ ({s}ᶜ : Set (NewAtom L k → Bool))} := Set.ext fun y => by
     simp only [Set.mem_preimage, Set.mem_ofPred_eq, isExtensionWitness_atomStructure_iff,
       not_exists, Set.mem_compl_iff, Set.mem_singleton_iff, g, e]
-    exact ⟨fun h z hz => h z z.2 fun a => congrFun hz a, fun h z hz ha => h ⟨z, hz⟩ (funext ha)⟩
+    exact ⟨fun h z hz => h z z.property fun a => congrFun hz a,
+      fun h z hz ha => h ⟨z, hz⟩ (funext ha)⟩
   -- These families are independent, one for each fresh element.
   have hg : (PMF.pi fun a : Atom L n => PMF.coin (p a.1)).map g =
       PMF.pi fun _ : O => PMF.pi fun a : NewAtom L k => PMF.coin (p a.symbol) := by

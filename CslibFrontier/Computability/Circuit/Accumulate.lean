@@ -123,7 +123,7 @@ theorem eval_accumulate_prefix (hstep : ∀ r y, (step r).eval I y = Fin.append 
 /-- In an accumulation of rounds that keep their inputs, the output keeps the input. -/
 theorem eval_accumulate_input (hstep : ∀ r y, (step r).eval I y = Fin.append y (sel r y))
     (x : Fin K₀ → U) (R : ℕ) (i : Fin K₀) :
-    (accumulate step R).eval I x ⟨i, i.2.trans_le (Nat.le_add_right _ _)⟩ = x i := by
+    (accumulate step R).eval I x ⟨i, i.isLt.trans_le (Nat.le_add_right _ _)⟩ = x i := by
   rw [eval_accumulate_prefix hstep x (Nat.zero_le R) i (by simp)]
   rfl
 

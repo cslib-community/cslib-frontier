@@ -345,7 +345,8 @@ theorem exists_symmetric_query_two_pow_mul_le {k L t : ℕ} (hLk : L ≤ k)
       simpa only [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, Fintype.card_coe]
         using hCcard)
   have hc : ∀ w w', w ≠ w' → L ≤ 2 * hammingDist (c w : Fin L → Fin 16) (c w') :=
-    fun w w' hww' => hCdist _ (c w).2 _ (c w').2 fun h => hww' (c.injective (Subtype.ext h))
+    fun w w' hww' => hCdist _ (c w).property _ (c w').property fun h =>
+      hww' (c.injective (Subtype.ext h))
   -- the items and rows used by the encoding
   obtain ⟨e⟩ : Nonempty (Option (Fin L × Fin 16) ↪ X) :=
     Function.Embedding.nonempty_of_card_le (by

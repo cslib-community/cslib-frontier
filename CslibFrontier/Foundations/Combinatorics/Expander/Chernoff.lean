@@ -260,7 +260,7 @@ theorem expect_exp_mul_sum_walkAt_le [Nonempty D] {g : V → ℝ} (hg : 𝔼 v, 
         gcongr
         linarith only [Real.add_one_le_exp (9 * r ^ 2 / s)]
     _ = exp (9 * r ^ 2 * (t + 1) / s) := by
-        rw [← Real.exp_nat_mul]; push_cast; ring_nf
+        rw [← Real.exp_natCast_mul]; push_cast; ring_nf
 
 /-- One tail of the expander Chernoff bound for a bounded function with mean zero. -/
 private theorem dens_filter_le_sum_walkAt_le [Nonempty D] {g : V → ℝ} (hg : 𝔼 v, g v = 0)

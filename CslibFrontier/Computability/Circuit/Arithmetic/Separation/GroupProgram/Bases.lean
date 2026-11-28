@@ -201,7 +201,7 @@ private theorem exists_formula_simSem (mu : Tape.Letter S Unit Γ → Matrix Q Q
     have e := eqF_gives (θ := θ) (u := num b.2.control) (v := num q') (Gives.id y).tl.hd
       (Gives.id y).hd.tl.tl
     rw [size_num] at e
-    have hs := b.2.control.2
+    have hs := b.2.control.isLt
     by_cases h : b.2.control = q'
     · refine ((Does.ite_true e (by simp [h, bit, one]) (Gives.id y).tl.tl.tl).of_eq ?_).mono
         (by omega)
@@ -345,7 +345,7 @@ private theorem exists_formula_packSem (sep : List Bool) {c : ℕ} (hsep : sep.l
     (g := fun i => nthF (Fin.castAdd (tapeCount S) i.rev) (.hd .id))
     (fun i => ⟨B.flags.getD i.rev [], o (Fin.castAdd (tapeCount S) i.rev)⟩)
     (fun i => (getD_map_flags B.flags i.rev ▸ nthF_gives (i.rev : ℕ) gF).mono
-      (by have := i.rev.2; omega))
+      (by have := i.rev.isLt; omega))
     (fun i => (nthF_gives_ofFn (Fin.castAdd (tapeCount S) i.rev) gO).mono (by omega))
   have hR := Does.of_gives (iR.cons (gOnes.cons ((Gives.id x).tl.hd.cons
     (gW.cons (Gives.id x).tl.tl.hd))))

@@ -663,7 +663,7 @@ private noncomputable def nextFreezeDelta (G : CostSharingGame A) (T F : Finset 
     (hne : (T \ F).Nonempty) (α : A → ℝ) : ℝ :=
   ((T.powerset.filter (fun S => (S \ F).Nonempty)).attach).inf'
     (nonempty_attach_activeSubsets hne)
-    (fun x => (G.cost x.1 - ∑ j ∈ x.1, α j) / ((x.1 \ F).card : ℝ))
+    (fun x => (G.cost x.val - ∑ j ∈ x.val, α j) / ((x.val \ F).card : ℝ))
 
 private theorem nextFreezeDelta_le (G : CostSharingGame A) {T F S : Finset A}
     (hne : (T \ F).Nonempty) (α : A → ℝ) (hST : S ⊆ T) (hSF : (S \ F).Nonempty) :
@@ -672,7 +672,7 @@ private theorem nextFreezeDelta_le (G : CostSharingGame A) {T F S : Finset A}
     Finset.mem_filter.2 ⟨Finset.mem_powerset.2 hST, hSF⟩
   exact Finset.inf'_le
     (fun x : {S // S ∈ T.powerset.filter (fun S => (S \ F).Nonempty)} =>
-      (G.cost x.1 - ∑ j ∈ x.1, α j) / ((x.1 \ F).card : ℝ))
+      (G.cost x.val - ∑ j ∈ x.val, α j) / ((x.val \ F).card : ℝ))
     (Finset.mem_attach _ ⟨S, hmem⟩)
 
 /-- Raising the unfrozen shares `S \ F` of a core-feasible `α` by `nextFreezeDelta` keeps the
@@ -825,7 +825,7 @@ private theorem waterFilling_step {G : CostSharingGame A} {T : Finset A} {α : A
   obtain ⟨⟨SStar, hSStar_mem⟩, _, hδ_eq⟩ :=
     Finset.exists_mem_eq_inf' (nonempty_attach_activeSubsets hne)
       (fun x : {S // S ∈ T.powerset.filter (fun S => (S \ F).Nonempty)} =>
-        (G.cost x.1 - ∑ j ∈ x.1, α j) / ((x.1 \ F).card : ℝ))
+        (G.cost x.val - ∑ j ∈ x.val, α j) / ((x.val \ F).card : ℝ))
   have hδ_val : δ = (G.cost SStar - ∑ j ∈ SStar, α j) / ((SStar \ F).card : ℝ) := hδ_eq
   obtain ⟨hSStar_T, hSStar_SF⟩ := Finset.mem_filter.1 hSStar_mem
   rw [Finset.mem_powerset] at hSStar_T

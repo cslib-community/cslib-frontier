@@ -97,7 +97,8 @@ theorem NbhdIso.partialIso {k r : ℕ} {a : Fin k → M} {b : Fin k → N} (H : 
 private theorem card_compl_fiber {X Q : Type*} {u : Set X} (κ : X → Q) (q : Q) :
     Nat.card {x : (uᶜ : Set X) // κ x = q} = ({x | κ x = q} \ u).ncard := by
   rw [← Nat.card_coe_set_eq]
-  exact Nat.card_congr ⟨fun x => ⟨x.1.1, x.2, x.1.2⟩, fun x => ⟨⟨x.1, x.2.2⟩, x.2.1⟩,
+  exact Nat.card_congr ⟨fun x => ⟨x.val.val, x.property, x.val.property⟩,
+    fun x => ⟨⟨x.val, x.property.2⟩, x.property.1⟩,
     fun _ => rfl, fun _ => rfl⟩
 
 /-- If a bijection `e : α ≃ β` and a bijection `h` between `s` and `t` both preserve labels
@@ -232,7 +233,7 @@ theorem hanfEquiv_of_nbhdIso [Finite M] {k d : ℕ} {a : Fin k → M} {b : Fin k
     obtain ⟨h₂, H₂⟩ := nbhdIso_iff.1 (hg ⟨c, hc⟩)
     exact (Hh.mono (by omega)).snoc H₂
       (fun i => lt_of_not_ge fun h' => hc (mem_ball.2 ⟨i, h'⟩))
-      (fun i => lt_of_not_ge fun h' => (g ⟨c, hc⟩).2 (mem_ball.2 ⟨i, h'⟩))
+      (fun i => lt_of_not_ge fun h' => (g ⟨c, hc⟩).property (mem_ball.2 ⟨i, h'⟩))
 
 /-- [Libkin, Corollary 4.10][Libkin2004]: if `(M, a) ⇆_{3d+1} (N, b)`, then some bijection
 `f : M ≃ N` gives `(M, a c) ⇆_d (N, b (f c))` for every `c`. -/

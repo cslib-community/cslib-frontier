@@ -445,7 +445,7 @@ theorem seqGame_card_seqVar : Fintype.card (SeqVar seqGame false) = 5 := by
     · exact ⟨Node.here, rfl⟩
     · exact ⟨Node.decision true Node.here, rfl⟩
   let e : {h : seqH false // seqGame.OccursInfoSet false h} ≃ Bool :=
-    { toFun := fun h => h.1
+    { toFun := fun h => h.val
       invFun := fun b => ⟨b, hocc b⟩
       left_inv := fun ⟨_, _⟩ => rfl
       right_inv := fun _ => rfl }

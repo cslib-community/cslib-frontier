@@ -160,7 +160,7 @@ theorem rpow_le_size {n : ℕ} [NeZero n] (hn : Real.exp 29200 ≤ n) {K : Type*
   have h20 : 2 ^ 20 ≤ n := by
     have h : ((2 : ℝ) ^ 20) ≤ Real.exp 29200 := by
       have h₁ : Real.exp 29200 = Real.exp 1460 ^ 20 := by
-        rw [← Real.exp_nat_mul]; norm_num
+        rw [← Real.exp_natCast_mul]; norm_num
       rw [h₁]
       exact pow_le_pow_left₀ (by norm_num) (by linarith [Real.add_one_le_exp 1460]) 20
     exact_mod_cast h.trans hn

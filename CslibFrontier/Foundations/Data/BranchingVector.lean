@@ -228,7 +228,7 @@ namespace BranchingTree
 variable {σ : Type*} (T : BranchingTree σ)
 
 private theorem attach_flatMap_val {α β : Type*} (xs : List α) (f : α → List β) :
-    (xs.attach.flatMap fun x => f x.1) = xs.flatMap f := by
+    (xs.attach.flatMap fun x => f x.val) = xs.flatMap f := by
   rw [List.flatMap_def, List.flatMap_def, List.attach_map_val]
 
 /-- Every child of a non-leaf state has strictly smaller `measure`. -/

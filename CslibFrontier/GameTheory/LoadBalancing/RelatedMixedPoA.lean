@@ -653,11 +653,11 @@ theorem expectedMakespan_le_log_div_log_log_log (G : LoadBalancingGame ι M)
         _ ≤ Real.exp (-(((r + 1 : ℕ) : ℝ) * (2 * x))) := Real.exp_le_exp.mpr hexp_le
         _ = (1 / (m : ℝ) ^ 2) ^ (r + 1) := by
             rw [show -(((r + 1 : ℕ) : ℝ) * (2 * x)) = ((r + 1 : ℕ) : ℝ) * (-(2 * x)) by ring,
-              Real.exp_nat_mul]
+              Real.exp_natCast_mul]
             congr 1
             rw [Real.exp_neg,
               show (2 : ℝ) * x = ((2 : ℕ) : ℝ) * Real.log (m : ℝ) by simp only [x]; norm_num,
-              Real.exp_nat_mul, Real.exp_log hm_pos, one_div]
+              Real.exp_natCast_mul, Real.exp_log hm_pos, one_div]
     -- Step 4: Union bound over `m` machines for each layer `r`.
     have htail_max : ∀ r : ℕ,
         (∑ A : ι → M,

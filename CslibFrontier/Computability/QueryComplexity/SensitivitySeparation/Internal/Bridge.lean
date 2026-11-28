@@ -82,7 +82,7 @@ theorem blockSensitivityAt_eq_queryComplexity_blockSensitivityAt (f : BooleanFun
   · obtain ⟨hsens, hdisj⟩ := mem_sensitiveFamilies.mp hF
     refine Finset.le_sup_of_le (mem_univ F) ?_
     rw [ite_eq_left ⟨fun A hA B hB hAB => hdisj hA hB hAB, fun B hB =>
-      ⟨Finset.nonempty_iff_ne_empty.mpr fun h0 =>
+      ⟨Finset.ne_empty_iff_nonempty.mp fun h0 =>
           hsens _ hB (congrArg f (h0 ▸ BitString.flipBlock_empty x)),
         (BitString.flipOn_eq_flipBlock B x).symm ▸ hsens B hB⟩⟩]
 

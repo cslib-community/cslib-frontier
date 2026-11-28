@@ -497,7 +497,7 @@ private theorem mem_explore_iff {K : ℕ} {init : Finset (HoleList n State)}
         · exact absurd hρ hρnew
       · intro hne
         rw [Finset.card_union_of_disjoint Finset.disjoint_sdiff]
-        have := hfuel (Finset.nonempty_iff_ne_empty.mpr hempty)
+        have := hfuel (Finset.ne_empty_iff_nonempty.mp hempty)
         have hpos := hne.card_pos
         rw [hnew] at hpos
         omega

@@ -280,8 +280,8 @@ private theorem coeff1_spendPoly_eq (w v : Fin 2 → ZMod 5) :
     simp [m0, m1] at h0
   have hsub_supp : (spendPoly (R := ZMod 5)).support ⊆ ({m0, m1} : Finset (Fin 2 →₀ ℕ)) := by
     intro m hm
-    rw [hsp, MvPolynomial.mem_support_iff, MvPolynomial.coeff_sub, MvPolynomial.coeff_monomial,
-      MvPolynomial.coeff_monomial] at hm
+    rw [hsp, MvPolynomial.mem_support_iff, AddMonoidAlgebra.coeff_sub, Finsupp.sub_apply,
+      MvPolynomial.coeff_monomial, MvPolynomial.coeff_monomial] at hm
     rw [Finset.mem_insert, Finset.mem_singleton]
     by_cases h0 : m0 = m
     · exact Or.inl h0.symm
@@ -299,11 +299,11 @@ private theorem coeff1_spendPoly_eq (w v : Fin 2 → ZMod 5) :
     simp [MvPolynomial.notMem_support_iff.mp hm]
   rw [hrewrite, Finset.sum_pair hm_ne, Polynomial.coeff_add]
   have hc0 : (spendPoly (R := ZMod 5)).coeff m0 = 1 := by
-    rw [hsp, MvPolynomial.coeff_sub, MvPolynomial.coeff_monomial, MvPolynomial.coeff_monomial,
-      ite_eq_left rfl, ite_eq_right hm_ne.symm, sub_zero]
+    rw [hsp, AddMonoidAlgebra.coeff_sub, Finsupp.sub_apply, MvPolynomial.coeff_monomial,
+      MvPolynomial.coeff_monomial, ite_eq_left rfl, ite_eq_right hm_ne.symm, sub_zero]
   have hc1 : (spendPoly (R := ZMod 5)).coeff m1 = -1 := by
-    rw [hsp, MvPolynomial.coeff_sub, MvPolynomial.coeff_monomial, MvPolynomial.coeff_monomial,
-      ite_eq_right hm_ne, ite_eq_left rfl, zero_sub]
+    rw [hsp, AddMonoidAlgebra.coeff_sub, Finsupp.sub_apply, MvPolynomial.coeff_monomial,
+      MvPolynomial.coeff_monomial, ite_eq_right hm_ne, ite_eq_left rfl, zero_sub]
   have hs0 : (m0.sum fun _ e => e) = 9 := Finsupp.sum_single_index rfl
   have hs1 : (m1.sum fun _ e => e) = 1 := Finsupp.sum_single_index rfl
   have hp0 : (∏ i : Fin 2, qsWirePoly w v i ^ m0 i) = qsWirePoly w v 0 ^ 9 := by
@@ -622,7 +622,7 @@ private theorem qsHomogVerifierValue_neg {n : ℕ} (d : ℕ)
   rw [qsHomogVerifierValue, qsHomogVerifierValue]
   rw [MvPolynomial.support_neg (p := F), ← Finset.sum_neg_distrib]
   refine Finset.sum_congr rfl fun m _ => ?_
-  rw [MvPolynomial.coeff_neg]
+  rw [AddMonoidAlgebra.coeff_neg, Finsupp.neg_apply]
   ring
 
 private theorem qsHomogVerifierValue_sub {n : ℕ} (d : ℕ)
@@ -657,7 +657,7 @@ private theorem qsHomogPoly_neg {n : ℕ} (d : ℕ)
     qsHomogPoly d (-F) w v = -qsHomogPoly d F w v := by
   rw [qsHomogPoly, qsHomogPoly, MvPolynomial.support_neg (p := F), ← Finset.sum_neg_distrib]
   refine Finset.sum_congr rfl fun m _ => ?_
-  rw [MvPolynomial.coeff_neg, map_neg]
+  rw [AddMonoidAlgebra.coeff_neg, Finsupp.neg_apply, map_neg]
   ring
 
 private theorem qsHomogPoly_sub {n : ℕ} (d : ℕ)

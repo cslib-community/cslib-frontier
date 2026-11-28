@@ -217,7 +217,7 @@ theorem test_sequential_caller_specs :
     change s₁'.frontier + 200 = _; rw [hfr1', hfr1, zero_add]
   have hmem1'' : s₁''.mem = s₁'.mem := rfl
   have hwf1'' : Memory.WellFormed 16 s₁'' :=
-    ⟨by rw [hfr1'']; decide, by rw [hmem1'']; exact hwf1'.2⟩
+    ⟨by rw [hfr1'']; decide, by rw [hmem1'']; exact hwf1'.mem_fits⟩
   have h1'_eq_on : ∀ a, 0 + smallParams.hSpace ≤ a → a < 0 + totalSpace smallParams →
       s₁''.mem a = s₁.mem a := fun a _ ha2 => by
     rw [hmem1'']; exact hout_a2 a (by rw [htb, hfr1]; omega)
@@ -460,7 +460,7 @@ def EmittedSubroutine (B : Basis) {k l : ℕ} {δ α : Type}
     (prog : δ → Memory.Prog α) (input : δ ↪ (Fin k → ℕ)) (output : α ↪ (Fin l → ℕ))
     (safe : ℕ → δ → Memory.State → Prop) (work : δ → Memory.State → ℕ) : Prop :=
   ∃ (r C : ℕ) (frontier : Fin r) (src : Fin k → Fin r) (res : Fin l → Fin r) (c : Code B r),
-    ¬c.ReadsWidth ∧ k ≤ frontier.1 ∧ (∀ i : Fin k, (src i).1 = i.1) ∧
+    ¬c.ReadsWidth ∧ k ≤ frontier.val ∧ (∀ i : Fin k, (src i).val = i.val) ∧
     ∀ (w : ℕ) (d : δ) (x : Data r), x.Bounded w → x.regs ∘ src = input d →
       safe w d (memoryState frontier x) →
       (Memory.spec w).ValidHistory (memoryState frontier x)
@@ -482,8 +482,8 @@ theorem exists_emitted_not_readsWidth {B : Basis} {k l : ℕ} {δ α : Type}
   obtain ⟨n, C, emit, hspec⟩ := h
   let r := k + (l + n + 1) + 1
   let frontier : Fin r := ⟨k + (l + n + 1), by omega⟩
-  let src : Fin k → Fin r := fun i => ⟨i.1, by omega⟩
-  let tmp : Fin (l + n + 1) → Fin r := fun j => ⟨k + j.1, by omega⟩
+  let src : Fin k → Fin r := fun i => ⟨i.val, by omega⟩
+  let tmp : Fin (l + n + 1) → Fin r := fun j => ⟨k + j.val, by omega⟩
   have hinj : Function.Injective tmp := fun j₁ j₂ heq =>
     Fin.ext (by have := congrArg Fin.val heq; dsimp [tmp] at this; omega)
   have hdisj : ∀ i j, src i ≠ tmp j := fun i j heq => by
@@ -627,10 +627,10 @@ theorem test_native_alloc_nonvacuous :
       x.regs frontier = 0 ∧ y.regs frontier = totalSpace testParams ∧ y ≠ x := by
   obtain ⟨r, C, frontier, src, _, c, hnw, hk_le, hsrc, hrun⟩ :=
     exists_emitted_not_readsWidth realizes_allocKickTableGen
-  have : 12 ≤ frontier.1 := hk_le
+  have : 12 ≤ frontier.val := hk_le
   let rp := mkKickRuntimeParams testParams
   let x : Data r := {
-    regs := fun reg => if h : reg.1 < 12 then WordEncoding.encode rp ⟨reg.1, h⟩ else 0
+    regs := fun reg => if h : reg.val < 12 then WordEncoding.encode rp ⟨reg.val, h⟩ else 0
     mem := fun _ => 0
   }
   have hxf : x.regs frontier = 0 := dite_eq_right (by omega)
@@ -639,10 +639,10 @@ theorem test_native_alloc_nonvacuous :
     fits_encode_mkKickRuntimeParams testParams test_kickEnvGen_64.1 (by decide) (by decide)
   have hxb : x.Bounded 64 := ⟨fun reg => by
     dsimp [x]; split_ifs with h
-    · exact hfit_rp ⟨reg.1, h⟩
+    · exact hfit_rp ⟨reg.val, h⟩
     · decide, fun _ => show 0 < 2 ^ 64 by decide⟩
   have hin : x.regs ∘ src = WordEncoding.encode rp := by
-    funext i; dsimp [x]; rw [dite_eq_left (by rw [hsrc i]; exact i.2)]
+    funext i; dsimp [x]; rw [dite_eq_left (by rw [hsrc i]; exact i.isLt)]
     exact congrArg (WordEncoding.encode rp) (Fin.ext (hsrc i))
   have hv : (Memory.spec 64).ValidHistory (memoryState frontier x)
       ((Memory.spec 64).clientHistory (memoryState frontier x) (allocKickTableGenProg rp)) := by
@@ -673,7 +673,7 @@ theorem test_native_query_nonvacuous :
       (∀ i : Fin 2, y.regs (res i) = WordEncoding.encode (some (42 : ℕ)) i) := by
   obtain ⟨r, C, frontier, src, res, c, hnw, hk_le, hsrc, hrun⟩ :=
     exists_emitted_not_readsWidth realizes_querySlotGen
-  have : 15 ≤ frontier.1 := hk_le
+  have : 15 ≤ frontier.val := hk_le
   let rp := mkKickRuntimeParams testParams
   let d : KickQueryInput := ⟨rp, 0, 0, 7⟩
   let mQ : ℕ → ℕ :=
@@ -681,7 +681,7 @@ theorem test_native_query_nonvacuous :
       0 1
   let x : Data r := {
     regs := fun reg =>
-      if h : reg.1 < 15 then WordEncoding.encode d ⟨reg.1, h⟩
+      if h : reg.val < 15 then WordEncoding.encode d ⟨reg.val, h⟩
       else if reg = frontier then totalSpace testParams else 0
     mem := mQ
   }
@@ -702,11 +702,11 @@ theorem test_native_query_nonvacuous :
     exact BitPackedArray.writePacked_lt_two_pow (w := 64) (by decide) (by decide) h2 0 1
   have hxb : x.Bounded 64 := ⟨fun reg => by
     dsimp [x]; split_ifs with h1 h2
-    · exact hfit_d ⟨reg.1, h1⟩
+    · exact hfit_d ⟨reg.val, h1⟩
     · decide
     · decide, hmQ_fit⟩
   have hin : x.regs ∘ src = WordEncoding.encode d := by
-    funext i; dsimp [x]; rw [dite_eq_left (by rw [hsrc i]; exact i.2)]
+    funext i; dsimp [x]; rw [dite_eq_left (by rw [hsrc i]; exact i.isLt)]
     exact congrArg (WordEncoding.encode d) (Fin.ext (hsrc i))
   have hs : KickEnvGen 64 d.rp d.base ∧ d.slot < d.rp.nMax :=
     ⟨test_kickEnvGen_64.2, by decide⟩
@@ -752,13 +752,13 @@ theorem test_native_clear_nonvacuous :
       y ≠ x := by
   obtain ⟨r, C, frontier, src, _, c, hnw, hk_le, hsrc, hrun⟩ :=
     exists_emitted_not_readsWidth realizes_clearSlotGen
-  have : 14 ≤ frontier.1 := hk_le
+  have : 14 ≤ frontier.val := hk_le
   let rp := mkKickRuntimeParams testParams
   let d : KickClearInput := ⟨rp, 0, 0⟩
   let mC : ℕ → ℕ := writeOccMem 0 testParams zeroMem 0 1
   let x : Data r := {
     regs := fun reg =>
-      if h : reg.1 < 14 then WordEncoding.encode d ⟨reg.1, h⟩
+      if h : reg.val < 14 then WordEncoding.encode d ⟨reg.val, h⟩
       else if reg = frontier then totalSpace testParams else 0
     mem := mC
   }
@@ -774,11 +774,11 @@ theorem test_native_clear_nonvacuous :
       (fun _ => Nat.two_pow_pos 64) 0 1
   have hxb : x.Bounded 64 := ⟨fun reg => by
     dsimp [x]; split_ifs with h1 h2
-    · exact hfit_d ⟨reg.1, h1⟩
+    · exact hfit_d ⟨reg.val, h1⟩
     · decide
     · decide, hmC_fit⟩
   have hin : x.regs ∘ src = WordEncoding.encode d := by
-    funext i; dsimp [x]; rw [dite_eq_left (by rw [hsrc i]; exact i.2)]
+    funext i; dsimp [x]; rw [dite_eq_left (by rw [hsrc i]; exact i.isLt)]
     exact congrArg (WordEncoding.encode d) (Fin.ext (hsrc i))
   have hs : KickEnvGen 64 d.rp d.base ∧ d.slot < d.rp.nMax :=
     ⟨test_kickEnvGen_64.2, by decide⟩

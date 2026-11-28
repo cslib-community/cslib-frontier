@@ -268,7 +268,7 @@ variable {n : ℕ}
 @[expose] def stepCell (adj : Fin n → Fin n → Bool) (k : ℕ) (dp : Vector ℕ n)
     (u : Fin n) : ℕ :=
   (List.finRange n).foldl
-    (fun acc (v : Fin n) => acc + if (k.testBit u && adj u v) then dp[v.1] else 0) 0
+    (fun acc (v : Fin n) => acc + if (k.testBit u && adj u v) then dp[v.val] else 0) 0
 
 /-- One round of restricted vector–adjacency multiplication. -/
 @[expose] def stepVec (adj : Fin n → Fin n → Bool) (k : ℕ) (dp : Vector ℕ n) :
@@ -281,7 +281,7 @@ variable {n : ℕ}
 
 /-- Sum the entries of a length-`n` vector. -/
 @[expose] def sumVec (dp : Vector ℕ n) : ℕ :=
-  (List.finRange n).foldl (fun acc (u : Fin n) => acc + dp[u.1]) 0
+  (List.finRange n).foldl (fun acc (u : Fin n) => acc + dp[u.val]) 0
 
 /-- Count the `n`-vertex walks in `adj` whose vertices all lie in `maskSet n k`. -/
 @[expose] def subsetWalks (adj : Fin n → Fin n → Bool) (k : ℕ) : ℕ :=
@@ -306,13 +306,13 @@ vector–adjacency multiplication, and accumulates the signed sum in `ℤ`. -/
 @[simp] theorem stepCell_eq (adj : Fin n → Fin n → Bool) (k : ℕ) (dp : Vector ℕ n)
     (u : Fin n) :
     stepCell adj k dp u =
-      ∑ v : Fin n, if u ∈ maskSet n k ∧ adj u v then dp[v.1] else 0 := by
+      ∑ v : Fin n, if u ∈ maskSet n k ∧ adj u v then dp[v.val] else 0 := by
   simp only [stepCell, Bool.and_eq_true, mem_maskSet]
   rw [← List.foldl_map, ← List.sum_eq_foldl, ← Fin.sum_univ_def]
 
 @[simp] theorem stepVec_eq (adj : Fin n → Fin n → Bool) (k : ℕ) (dp : Vector ℕ n) :
     stepVec adj k dp =
-      Vector.ofFn fun u => ∑ v : Fin n, if u ∈ maskSet n k ∧ adj u v then dp[v.1] else 0 := by
+      Vector.ofFn fun u => ∑ v : Fin n, if u ∈ maskSet n k ∧ adj u v then dp[v.val] else 0 := by
   ext u hu
   simp [stepVec]
 
@@ -337,7 +337,7 @@ theorem rounds_eq (adj : Fin n → Fin n → Bool) (k r : ℕ) :
   simpa [rounds] using h
 
 @[simp] theorem sumVec_eq (dp : Vector ℕ n) :
-    sumVec dp = ∑ u : Fin n, dp[u.1] := by
+    sumVec dp = ∑ u : Fin n, dp[u.val] := by
   simp only [sumVec]
   rw [← List.foldl_map, ← List.sum_eq_foldl, ← Fin.sum_univ_def]
 

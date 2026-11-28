@@ -95,7 +95,7 @@ random choices, maps `α` and `β` into Alice's and Bob's inputs and a relabelli
 outputs, the matrix with entry `∑ s, ∑ t, g (p.run (α x s) (β y t))` at `x` and `y` has rank at
 most the number of leaves of `p`: on each leaf rectangle the sum factors as the number of `s` with
 `α x s` on Alice's side times the number of `t` with `β y t` on Bob's side. -/
-theorem rank_sum_comp_run_le {S T : Type*} [Fintype S] [Fintype T] [Fintype Y]
+theorem rank_sum_comp_run_le {S T : Type*} [Fintype S] [Fintype T] [Finite Y]
     (p : Protocol X' Y' Z) (α : X → S → X') (β : Y → T → Y') (g : Z → ℝ) :
     (Matrix.of fun x y => ∑ s, ∑ t, g (p.run (α x s) (β y t))).rank ≤ p.leafCount := by
   classical
@@ -123,7 +123,7 @@ private theorem eq_output_of_depth_eq_zero {p : Protocol X' Y' Z} (h : p.depth =
   | output z => exact ⟨z, rfl⟩
   | alice _ _ _ | bob _ _ _ => simp only [depth_alice, depth_bob] at h; omega
 
-private theorem rank_sum_mul_comp_run_le {S T : Type*} [Fintype S] [Fintype T] [Fintype Y]
+private theorem rank_sum_mul_comp_run_le {S T : Type*} [Fintype S] [Fintype T] [Finite Y]
     (p : Protocol X' Y' Z) (α : X → S → X') (β : Y → T → Y')
     (wA : X → S → ℝ) (wB : Y → T → ℝ) (g : Z → ℝ) :
     (Matrix.of fun x y => ∑ s, ∑ t, wA x s * (wB y t * g (p.run (α x s) (β y t)))).rank ≤
@@ -179,7 +179,7 @@ into Alice's and Bob's inputs and a relabelling `g` of the outputs, the matrix w
 `∑ s, ∑ t, g (p.run (α x s) (β y t))` at `x` and `y` has rank at most `2 ^ (p.depth - 1)`: every
 subtree of depth at most one depends on at most one player, so it contributes a matrix of rank at
 most one. -/
-theorem rank_sum_comp_run_le_two_pow_sub_one {S T : Type*} [Fintype S] [Fintype T] [Fintype Y]
+theorem rank_sum_comp_run_le_two_pow_sub_one {S T : Type*} [Fintype S] [Fintype T] [Finite Y]
     (p : Protocol X' Y' Z) (α : X → S → X') (β : Y → T → Y') (g : Z → ℝ) :
     (Matrix.of fun x y => ∑ s, ∑ t, g (p.run (α x s) (β y t))).rank ≤ 2 ^ (p.depth - 1) := by
   simpa only [one_mul] using
@@ -303,7 +303,7 @@ theorem errorProb_lt_half_iff (P : PrivateCoin a b X Y Bool) (f : X → Y → Bo
 /-- **Paturi–Simon, lower bound (leaf form).** A private-coin protocol computing `f` with
 unbounded error has at least `signRank f` leaves: the signed votes form a matrix that
 sign-represents `f` and has rank at most the number of leaves (`Protocol.rank_sum_comp_run_le`). -/
-theorem signRank_le_leafCount [Fintype Y] {f : X → Y → Bool} (P : PrivateCoin a b X Y Bool)
+theorem signRank_le_leafCount [Finite Y] {f : X → Y → Bool} (P : PrivateCoin a b X Y Bool)
     (hP : P.SolvesUnbounded (fun x y z => f x y = z) Set.univ Set.univ) :
     signRank f ≤ P.leafCount := by
   refine (signRank_le_rank (A := Matrix.of fun x y => ∑ s, ∑ t,
@@ -314,7 +314,7 @@ theorem signRank_le_leafCount [Fintype Y] {f : X → Y → Bool} (P : PrivateCoi
 
 /-- A private-coin protocol computing `f` with unbounded error sends at least
 `⌈log₂ (signRank f)⌉` bits. -/
-theorem clog_signRank_le_depth [Fintype Y] {f : X → Y → Bool} (P : PrivateCoin a b X Y Bool)
+theorem clog_signRank_le_depth [Finite Y] {f : X → Y → Bool} (P : PrivateCoin a b X Y Bool)
     (hP : P.SolvesUnbounded (fun x y z => f x y = z) Set.univ Set.univ) :
     Nat.clog 2 (signRank f) ≤ P.depth :=
   Nat.clog_le_of_le_pow
@@ -322,14 +322,14 @@ theorem clog_signRank_le_depth [Fintype Y] {f : X → Y → Bool} (P : PrivateCo
 
 /-- **Paturi–Simon, lower bound**: the unbounded-error complexity of `f` is at least
 `⌈log₂ (signRank f)⌉` [Sherstov and Wu, Theorem 2.16][SherstovWu2019]. -/
-theorem clog_signRank_le_uppComplexityFun [Fintype Y] (f : X → Y → Bool) :
+theorem clog_signRank_le_uppComplexityFun [Finite Y] (f : X → Y → Bool) :
     (Nat.clog 2 (signRank f) : ℕ∞) ≤ uppComplexityFun f :=
   le_uppComplexityFun_iff.mpr fun _ _ P hP => by exact_mod_cast clog_signRank_le_depth P hP
 
 /-- When `2 ≤ signRank f`, a private-coin protocol computing `f` with unbounded error sends at
 least `⌈log₂ (signRank f)⌉ + 1` bits: its signed vote matrix sign-represents `f` and has rank at
 most `2 ^ (P.depth - 1)` (`Protocol.rank_sum_comp_run_le_two_pow_sub_one`). -/
-theorem clog_signRank_add_one_le_depth [Fintype Y] {f : X → Y → Bool}
+theorem clog_signRank_add_one_le_depth [Finite Y] {f : X → Y → Bool}
     (P : PrivateCoin a b X Y Bool)
     (hP : P.SolvesUnbounded (fun x y z => f x y = z) Set.univ Set.univ) (hf : 2 ≤ signRank f) :
     Nat.clog 2 (signRank f) + 1 ≤ P.depth := by
@@ -351,7 +351,7 @@ theorem clog_signRank_add_one_le_depth [Fintype Y] {f : X → Y → Bool}
 of `f` is at least `⌈log₂ (signRank f)⌉ + 1`. With `uppComplexityFun_le_log_signRank_add_two` this
 gives `uppComplexityFun f = ⌊log₂ (signRank f)⌋ + 2` whenever `signRank f` is not a power of two;
 `2 ≤ signRank f` is needed since a constant function has sign-rank `1` and complexity `0`. -/
-theorem clog_signRank_add_one_le_uppComplexityFun [Fintype Y] {f : X → Y → Bool}
+theorem clog_signRank_add_one_le_uppComplexityFun [Finite Y] {f : X → Y → Bool}
     (hf : 2 ≤ signRank f) :
     (Nat.clog 2 (signRank f) + 1 : ℕ∞) ≤ uppComplexityFun f :=
   le_uppComplexityFun_iff.mpr fun _ _ P hP =>
@@ -409,7 +409,7 @@ private theorem exists_protocol_of_weights {ι : Type*} [Fintype ι] [Nonempty �
 protocol with unbounded error that sends at most `⌈log₂ (signRank f + 1)⌉ + 1` bits: Alice sends
 an index in `Option (Fin (signRank f))` drawn according to her row of an integer sign-representation
 and Bob answers with one biased bit. -/
-theorem exists_solvesUnbounded_depth_le [Finite X] [Fintype Y] (f : X → Y → Bool) :
+theorem exists_solvesUnbounded_depth_le [Finite X] [Finite Y] (f : X → Y → Bool) :
     ∃ (a b : ℕ) (P : PrivateCoin a b X Y Bool),
       P.SolvesUnbounded (fun x y z => f x y = z) Set.univ Set.univ ∧
         P.depth ≤ Nat.clog 2 (signRank f + 1) + 1 := by
@@ -445,7 +445,7 @@ theorem exists_solvesUnbounded_depth_le [Finite X] [Fintype Y] (f : X → Y → 
 
 /-- **Paturi–Simon, upper bound**: on finite inputs, the unbounded-error complexity of `f` is at
 most `⌊log₂ (signRank f)⌋ + 2` [Sherstov and Wu, Theorem 2.16][SherstovWu2019]. -/
-theorem uppComplexityFun_le_log_signRank_add_two [Finite X] [Fintype Y] (f : X → Y → Bool) :
+theorem uppComplexityFun_le_log_signRank_add_two [Finite X] [Finite Y] (f : X → Y → Bool) :
     uppComplexityFun f ≤ Nat.log 2 (signRank f) + 2 := by
   obtain ⟨a, b, P, hP, hd⟩ := exists_solvesUnbounded_depth_le f
   refine (uppComplexityFun_le_depth hP).trans ?_
@@ -456,7 +456,7 @@ theorem uppComplexityFun_le_log_signRank_add_two [Finite X] [Fintype Y] (f : X �
 /-- **The Paturi–Simon theorem**: on finite inputs, the unbounded-error communication complexity
 of a Boolean function lies between `⌈log₂ (signRank f)⌉` and `⌊log₂ (signRank f)⌋ + 2`
 [Sherstov and Wu, Theorem 2.16][SherstovWu2019]. -/
-theorem clog_signRank_le_uppComplexityFun_le [Finite X] [Fintype Y] (f : X → Y → Bool) :
+theorem clog_signRank_le_uppComplexityFun_le [Finite X] [Finite Y] (f : X → Y → Bool) :
     (Nat.clog 2 (signRank f) : ℕ∞) ≤ uppComplexityFun f ∧
       uppComplexityFun f ≤ Nat.log 2 (signRank f) + 2 :=
   ⟨clog_signRank_le_uppComplexityFun f, uppComplexityFun_le_log_signRank_add_two f⟩

@@ -93,7 +93,7 @@ theorem mem_inputGates_iff_inputSupport_nonempty (p : Program signature n g) (ga
 /-- A gate's aggregated input support is nonempty iff it belongs to `inputGates p`. -/
 theorem inputSupport_ne_empty_iff (p : Program signature n g) (gate : Fin g) :
     inputSupport p gate ≠ ∅ ↔ gate ∈ inputGates p := by
-  rw [← nonempty_iff_ne_empty, mem_inputGates_iff_inputSupport_nonempty]
+  rw [ne_empty_iff_nonempty, mem_inputGates_iff_inputSupport_nonempty]
 
 /-! ### Gluing across a coordinate split -/
 
@@ -109,8 +109,8 @@ theorem card_lt_or_card_lt_of_rectangleFree {f : Cslib.BooleanFunction n} {K : �
     (hconst : ∀ p ∈ P, ∀ q ∈ Q, f (glue U p q) = b) :
     P.card < K ∨ Q.card < K := by
   let emb : (↥Uᶜ → Bool) ↪ (↥(↑U : Set (Fin n))ᶜ → Bool) :=
-    ⟨fun q i => q ⟨i.1, mem_compl.mpr i.2⟩, fun q₁ q₂ h =>
-      funext fun i => congrFun h ⟨i.1, mem_compl.mp i.2⟩⟩
+    ⟨fun q i => q ⟨i.val, mem_compl.mpr i.property⟩, fun q₁ q₂ h =>
+      funext fun i => congrFun h ⟨i.val, mem_compl.mp i.property⟩⟩
   have hrect : Frontier.rectangle (↑U : Set (Fin n)) (↑P : Set (U → Bool))
       (↑(Q.map emb) : Set (↥(↑U : Set (Fin n))ᶜ → Bool)) ⊆ {x | f x = b} := by
     intro x hx
@@ -199,9 +199,9 @@ private theorem exists_initial (S A : Finset (Fin n)) :
   have hinj : Function.Injective ext := by
     intro f f' hff
     funext i
-    have := congrFun hff ⟨i.1, (mem_sdiff.mp i.2).1⟩
+    have := congrFun hff ⟨i.val, (mem_sdiff.mp i.property).1⟩
     simp only [ext] at this
-    rwa [dite_eq_left i.2, dite_eq_left i.2] at this
+    rwa [dite_eq_left i.property, dite_eq_left i.property] at this
   refine ⟨univ.image ext, ?_, ?_⟩
   · rw [card_image_of_injective _ hinj, card_univ, Fintype.card_fun,
       Fintype.card_bool, Fintype.card_coe]
@@ -426,8 +426,8 @@ theorem exists_rectangle_of_cut (p : Program signature n g)
     exists_rectangle_of_cut_with_fixed p U ∅ ∅
   refine ⟨P, Q, readout v, fun x hx y hy => ?_, ?_, ?_⟩
   · rw [← hreadout, hv x hx y hy]
-  · simpa [subset_empty, nonempty_iff_ne_empty] using hP
-  · simpa [subset_empty, nonempty_iff_ne_empty] using hQ
+  · simpa [subset_empty] using hP
+  · simpa [subset_empty] using hQ
 
 /-- **Coordinate-split rectangle extraction.** When every gate's input support is contained in
 `U` or in `Uᶜ`, for any sets `A` and `B` of coordinates there is a monochromatic rectangle

@@ -86,7 +86,8 @@ private theorem sum_pairs_le_of_poincareBound {K : Type} [Field K] {u : ℕ} (hu
     div_le_iff₀ (by positivity)] at h1
   -- the sum over the ordered pairs is twice the sum over the pairs
   let f : Sym2 (U (l * u)) → ℝ := Sym2.lift ⟨(w · · ^ 2), fun p q => congrArg (· ^ 2) (hw.symm p q)⟩
-  have h2 : ∑ k, ∑ g, w k (g * k) ^ 2 = 2 * ∑ e : {q : Sym2 (U (l * u)) // ¬ q.IsDiag}, f e.1 := by
+  have h2 : ∑ k, ∑ g, w k (g * k) ^ 2 =
+      2 * ∑ e : {q : Sym2 (U (l * u)) // ¬ q.IsDiag}, f e.val := by
     rw [Fintype.sum_subtype_not_isDiag, two_mul, ← two_nsmul,
       ← Fintype.sum_sum_ite_eq_two_nsmul_sum_sym2]
     refine sum_congr rfl fun k _ => (Fintype.sum_equiv (Equiv.mulRight k) _ (w k · ^ 2)
@@ -98,8 +99,8 @@ private theorem sum_pairs_le_of_poincareBound {K : Type} [Field K] {u : ℕ} (hu
   set b : ℝ := (Fintype.card (U (l * u)) : ℝ)
   set S := ∑ ν : NN (l * u), w ν.elt (x (l * u) ν.idx * ν.elt) ^ 2
   have hS : 0 ≤ S := sum_nonneg fun _ _ => sq_nonneg _
-  calc _ = ∑ e : {q : Sym2 (U (l * u)) // ¬ q.IsDiag}, f e.1 :=
-        sum_congr rfl fun e _ => congrArg f (Sym2.mk_fst_out_snd_out e.1)
+  calc _ = ∑ e : {q : Sym2 (U (l * u)) // ¬ q.IsDiag}, f e.val :=
+        sum_congr rfl fun e _ => congrArg f (Sym2.mk_fst_out_snd_out e.val)
     _ ≤ C * b * S := by linarith [(by field_simp : C * (2 * S / b) * b ^ 2 = 2 * (C * b * S))]
     _ ≤ C₀ * (b - 1) * S := mul_le_mul_of_nonneg_right (by nlinarith) hS
 
@@ -175,32 +176,34 @@ private theorem exists_vertexLaws_of_sum_pairs_le {K : Type} [Field K] {h : ℕ}
   let _ : DecidableEq (Loads β (R + Z₂)) := Classical.decEq _
   -- for every price, the slots of a load cost at most the channels of a load (Cauchy–Schwarz)
   have hmax (t : Loads α R) (w : U h → U h → ℝ) (hw : IsPrice K w) : ∃ y : Loads β (R + Z₂),
-      ∑ e, (t.1 e : ℝ) * w e.val.out.fst e.val.out.snd ≤
-        ∑ ν, (y.1 ν : ℝ) * w ν.elt (x h ν.idx * ν.elt) := by
-    obtain ⟨y, hy, hle⟩ := exists_load α hα β hβ _ _ (fun ν => hw.nonneg _ _) (hquad w hw) t.1
-      hR.le (div_nonneg hZ₂ hR.le) t.2 1 (by rw [Nat.cast_one, one_mul, div_mul_cancel₀ _ hR.ne'])
+      ∑ e, (t.val e : ℝ) * w e.val.out.fst e.val.out.snd ≤
+        ∑ ν, (y.val ν : ℝ) * w ν.elt (x h ν.idx * ν.elt) := by
+    obtain ⟨y, hy, hle⟩ := exists_load α hα β hβ _ _ (fun ν => hw.nonneg _ _) (hquad w hw) t.val
+      hR.le (div_nonneg hZ₂ hR.le) t.property 1
+      (by rw [Nat.cast_one, one_mul, div_mul_cancel₀ _ hR.ne'])
     exact ⟨⟨y, hy.trans_eq (by
       rw [Nat.cast_one, mul_one, add_mul, one_mul, div_mul_cancel₀ _ hR.ne', add_comm])⟩,
       by simpa using hle⟩
   -- Theorem A.6, with one `q` for all kinds
   choose q₀ hq₀ using fun t : Loads α R => exists_bitId (K := K) (fun e : E => e.val.out.fst)
-    (fun e => e.val.out.snd) (fun ν : NN h => ν.elt) (fun ν => x h ν.idx * ν.elt) t.1
-    (fun y : Loads β (R + Z₂) => y.1) (hmax t)
+    (fun e => e.val.out.snd) (fun ν : NN h => ν.elt) (fun ν => x h ν.idx * ν.elt) t.val
+    (fun y : Loads β (R + Z₂) => y.val) (hmax t)
   set q := ∑ t, q₀ t + 1
   choose m v hm hv tab htab using fun t => hq₀ t q
     ((single_le_sum (fun _ _ => Nat.zero_le _) (mem_univ t)).trans (Nat.le_succ _))
   -- (a): every load on pairs of norm at most `a q t` is below `t` times the slots of a law
   have hcover (n : Sym2 (U h) → ℕ) (t : ℕ) (ht : √(b * (b - 1) / 2 *
       ∑ r, if r.IsDiag then 0 else (n r : ℝ) ^ 2) ≤ (a * q : ℕ) * t) :
-      ∃ σ : Loads α R, ∀ r (hr : ¬ r.IsDiag), n r ≤ q * σ.1 ⟨r, hr⟩ * t := by
+      ∃ σ : Loads α R, ∀ r (hr : ¬ r.IsDiag), n r ≤ q * σ.val ⟨r, hr⟩ * t := by
     rw [← Fintype.sum_subtype_not_isDiag, mul_sum, ← sum_congr rfl fun e _ =>
-      (by simp only [α]; field_simp : (n e.1 : ℝ) ^ 2 / α e = b * (b - 1) / 2 * (n e.1 : ℝ) ^ 2)]
+      (by simp only [α]; field_simp :
+        (n e.val : ℝ) ^ 2 / α e = b * (b - 1) / 2 * (n e.val : ℝ) ^ 2)]
       at ht
     set c : ℝ := ((a * q : ℕ) : ℝ) * t
-    have hx : loadNorm α (fun e => c⁻¹ * (n e.1 : ℝ)) ≤ 1 := by
+    have hx : loadNorm α (fun e => c⁻¹ * (n e.val : ℝ)) ≤ 1 := by
       rw [loadNorm_smul α (by positivity)]
       exact inv_mul_le_one_of_le₀ ht (by positivity)
-    let σ (e : E) : ℕ := ⌈(a : ℝ) * (c⁻¹ * n e.1)⌉₊
+    let σ (e : E) : ℕ := ⌈(a : ℝ) * (c⁻¹ * n e.val)⌉₊
     have hσ : loadNorm α (fun e => (σ e : ℝ)) ≤ R := by
       refine (loadNorm_mono α hα (fun _ => Nat.cast_nonneg _) fun e =>
         (Nat.ceil_lt_add_one (by positivity)).le).trans ((loadNorm_add_le α hα _ _).trans ?_)
@@ -228,18 +231,19 @@ private theorem exists_vertexLaws_of_sum_pairs_le {K : Type} [Field K] {h : ℕ}
       sum_eq_zero fun _ _ => ite_eq_right (mt Subtype.ext he)]
     simp
   -- (b): the label and the strings on the near pairs are short
-  have hshort (t : Loads α R) (i : Fin (m t)) : b * ∑ ν, ((q : ℝ) + ∑ y, (v t i y : ℝ) * y.1 ν) ^ 2
+  have hshort (t : Loads α R) (i : Fin (m t)) :
+      b * ∑ ν, ((q : ℝ) + ∑ y, (v t i y : ℝ) * y.val ν) ^ 2
       ≤ 8 * C₀ * ((a : ℝ) * q) ^ 2 := by
-    have h1 : loadNorm β (fun ν => ∑ y, (v t i y : ℝ) * y.1 ν) ≤ q * (R + Z₂) := by
+    have h1 : loadNorm β (fun ν => ∑ y, (v t i y : ℝ) * y.val ν) ≤ q * (R + Z₂) := by
       refine (loadNorm_sum_le univ β hβ _).trans ?_
       rw [← hv t i, Nat.cast_sum, sum_mul]
       exact sum_le_sum fun y _ => (loadNorm_smul β (Nat.cast_nonneg _) _).trans_le
-        (mul_le_mul_of_nonneg_left y.2 (Nat.cast_nonneg _))
+        (mul_le_mul_of_nonneg_left y.property (Nat.cast_nonneg _))
     have h2 : loadNorm β (fun _ => (q : ℝ)) = q * Z₂ := by
       simpa using loadNorm_smul β (Nat.cast_nonneg q) fun _ => (1 : ℝ)
     have h3 := (loadNorm_add_le β hβ _ _).trans (add_le_add h2.le h1)
     rw [loadNorm, Real.sqrt_le_left (by positivity)] at h3
-    calc _ = 2 * C₀ * ∑ ν, ((q : ℝ) + ∑ y, (v t i y : ℝ) * y.1 ν) ^ 2 / β ν := by
+    calc _ = 2 * C₀ * ∑ ν, ((q : ℝ) + ∑ y, (v t i y : ℝ) * y.val ν) ^ 2 / β ν := by
           rw [mul_sum, mul_sum]; exact sum_congr rfl fun ν _ => by simp only [β]; field_simp
       _ ≤ 2 * C₀ * (q * Z₂ + q * (R + Z₂)) ^ 2 := by gcongr
       _ ≤ 2 * C₀ * (2 * (a * q)) ^ 2 := by gcongr; nlinarith
@@ -247,7 +251,7 @@ private theorem exists_vertexLaws_of_sum_pairs_le {K : Type} [Field K] {h : ℕ}
   -- the laws
   let L (t : Loads α R) : Law K :=
     { Role := U h
-      Slot := Σ e : E, Fin (q * t.1 e)
+      Slot := Σ e : E, Fin (q * t.val e)
       Channel := NN h
       Index := Fin (m t)
       slotEnd s d := cond d s.fst.val.out.snd s.fst.val.out.fst
@@ -258,9 +262,9 @@ private theorem exists_vertexLaws_of_sum_pairs_le {K : Type} [Field K] {h : ℕ}
       labelLength := q
       label i := (BitString.equivFin q).symm (Fin.castLE (hm t) i)
       label_injective := (BitString.equivFin q).symm.injective.comp (Fin.castLE_injective _)
-      length i ν := ∑ y, v t i y * y.1 ν
-      table p i X g := tab t p i (fun e => X ⟨e.1, e.2.elim (⟨false, ·⟩) (⟨true, ·⟩)⟩)
-        fun ν => g ⟨ν.1, ν.2.elim (⟨false, ·⟩) (⟨true, ·⟩)⟩
+      length i ν := ∑ y, v t i y * y.val ν
+      table p i X g := tab t p i (fun e => X ⟨e.val, e.property.elim (⟨false, ·⟩) (⟨true, ·⟩)⟩)
+        fun ν => g ⟨ν.val, ν.property.elim (⟨false, ·⟩) (⟨true, ·⟩)⟩
       identity X := htab t X
       connected _ hι := apply_eq_of_near hι }
   refine ⟨{ Kind := Loads α R
@@ -278,7 +282,7 @@ private theorem exists_vertexLaws_of_sum_pairs_le {K : Type} [Field K] {h : ℕ}
             lengthBound := 8 * C₀ * (a * q) ^ 2
             lengthBound_le := le_of_eq (by push_cast; ring)
             exists_le_card_slot n t ht := (hcover n t (by rwa [Tower.NN2_def, ← hcard] at ht)).imp
-              fun σ hσ r hr => (hσ r hr).trans_eq (congrArg (· * t) (hcount σ.1 r hr).symm)
+              fun σ hσ r hr => (hσ r hr).trans_eq (congrArg (· * t) (hcount σ.val r hr).symm)
             sum_length_sq_le t i := by
               rw [one_mul]
               exact_mod_cast hcard ▸ hshort t i }, rfl, rfl⟩

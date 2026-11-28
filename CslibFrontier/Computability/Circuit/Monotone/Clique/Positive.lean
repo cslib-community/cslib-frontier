@@ -52,21 +52,23 @@ variable {n k p w : ℕ}
 
 /-- The `k`-sets of vertices containing `s`. -/
 def superCliques (n k : ℕ) (s : Finset (Fin n)) : Finset (CliqueSet n k) :=
-  univ.filter fun c => s ⊆ c.1
+  univ.filter fun c => s ⊆ c.val
 
 /-- A `k`-set `c` belongs to `superCliques n k s` if and only if `s ⊆ c.1`. -/
 @[simp] theorem mem_superCliques {s : Finset (Fin n)} {c : CliqueSet n k} :
-    c ∈ superCliques n k s ↔ s ⊆ c.1 := by
+    c ∈ superCliques n k s ↔ s ⊆ c.val := by
   simp [superCliques]
 
 /-- The number of `k`-sets containing a set `s` of at most `k` vertices. -/
 theorem card_superCliques {s : Finset (Fin n)} (hs : s.card ≤ k) :
     (superCliques n k s).card = (n - s.card).choose (k - s.card) := by
   have e : superCliques n k s = (((univ : Finset (Fin n)).powersetCard k).filter (s ⊆ ·)).attach.map
-      ⟨fun c => ⟨c.1, (mem_filter.1 c.2).1⟩, fun a b h => Subtype.ext (by simpa using h)⟩ := by
+      ⟨fun c => ⟨c.val, (mem_filter.1 c.property).1⟩,
+        fun a b h => Subtype.ext (by simpa using h)⟩ := by
     ext c
     simp only [mem_superCliques, mem_map, mem_attach, true_and]
-    exact ⟨fun h => ⟨⟨c.1, mem_filter.2 ⟨c.2, h⟩⟩, rfl⟩, fun ⟨d, hd⟩ => hd ▸ (mem_filter.1 d.2).2⟩
+    exact ⟨fun h => ⟨⟨c.val, mem_filter.2 ⟨c.property, h⟩⟩, rfl⟩,
+      fun ⟨d, hd⟩ => hd ▸ (mem_filter.1 d.property).2⟩
   rw [e, card_map, card_attach]
   simpa using card_filter_powersetCard_subset s (univ : Finset (Fin n)) k (by simp) hs
 
@@ -128,8 +130,8 @@ variable [Fact (2 ≤ p)]
 /-- Away from its exceptions, a gate is positively correct on complete graphs. -/
 theorem gate_correct (hw : 1 ≤ w) (op : Op) (A : Fin (signature.Arity op) → Approximator n p w)
     (c : CliqueSet n k) (hc : c ∉ exceptions n k op A) :
-    Monotone.interpretation op (fun i => (A i).decode (ofFinset c.1)) ≤
-      (Approximator.interpretation op A).decode (ofFinset c.1) := by
+    Monotone.interpretation op (fun i => (A i).decode (ofFinset c.val)) ≤
+      (Approximator.interpretation op A).decode (ofFinset c.val) := by
   rw [Bool.le_iff_imp]
   intro h
   rw [decode_eq_true, terms_interpretation]
@@ -150,7 +152,7 @@ theorem gate_correct (hw : 1 ≤ w) (op : Op) (A : Fin (signature.Arity op) → 
     have hjoin := contains_join_ofFinset hcs hct
     have hjw : (join s t).card ≤ w := by
       by_contra hjw
-      have hsub : join s t ⊆ c.1 := subset_of_contains_ofFinset (by omega) hjoin
+      have hsub : join s t ⊆ c.val := subset_of_contains_ofFinset (by omega) hjoin
       exact hc (mem_biUnion.2 ⟨(s, t), mem_filter.2 ⟨mem_product.2 ⟨hs, ht⟩, not_le.1 hjw⟩,
         mem_superCliques.2 hsub⟩)
     exact ⟨join s t, mem_filter.2 ⟨mem_image.2 ⟨(s, t), mem_product.2 ⟨hs, ht⟩, rfl⟩, hjw⟩, hjoin⟩
@@ -159,8 +161,8 @@ theorem gate_correct (hw : 1 ≤ w) (op : Op) (A : Fin (signature.Arity op) → 
 approximate value is at least the exact one away from the exceptions of the conjunctions. -/
 def scheme (hw : 2 ≤ w) (hk : w + 1 ≤ k) :
     Approximation.Scheme Monotone.interpretation (Approximator.interpretation (n := n) (p := p))
-      (fun (A : Approximator n p w) (c : CliqueSet n k) => A.decode (ofFinset c.1))
-      (fun c => ofFinset c.1) Approximator.input where
+      (fun (A : Approximator n p w) (c : CliqueSet n k) => A.decode (ofFinset c.val))
+      (fun c => ofFinset c.val) Approximator.input where
   relation := (· ≤ ·)
   relation_trans := le_trans
   map_relation op _ _ h := interpretation_mono op h

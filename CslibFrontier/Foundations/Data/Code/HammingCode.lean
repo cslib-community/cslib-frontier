@@ -128,16 +128,16 @@ this is the standard `[2 ^ m - 1, 2 ^ m - 1 - m, 3]` binary Hamming parity-check
 restriction `(c, 0⃗) ∈ C_s` of [Sergeev2026UniqueDisjointness, §2, Lemma 1, p. 3]. -/
 @[expose] def hammingCheckMatrix (n : ℕ) :
     Matrix (Fin (Nat.clog 2 (n + 1))) (Fin n) Bool :=
-  fun k i => BitString.indexBits (⟨i.1 + 1, Nat.succ_lt_succ i.2⟩ : Fin (n + 1)) k
+  fun k i => BitString.indexBits (⟨i.val + 1, Nat.succ_lt_succ i.isLt⟩ : Fin (n + 1)) k
 
 private theorem hammingCheckMatrix_col_ne_zero (n : ℕ) (i : Fin n) :
     (fun k => hammingCheckMatrix n k i) ≠ 0 := by
   intro h0
   have hval := congrArg (fun w => (BitString.equivFin (Nat.clog 2 (n + 1)) w : ℕ)) h0
   have h1 : (BitString.equivFin (Nat.clog 2 (n + 1)) (fun k => hammingCheckMatrix n k i) : ℕ) =
-      i.1 + 1 := by
-    change (BitString.equivFin _ (BitString.indexBits ⟨i.1 + 1, Nat.succ_lt_succ i.2⟩) : ℕ) =
-      i.1 + 1
+      i.val + 1 := by
+    change (BitString.equivFin _ (BitString.indexBits ⟨i.val + 1, Nat.succ_lt_succ i.isLt⟩) : ℕ) =
+      i.val + 1
     simp only [BitString.indexBits, Equiv.apply_symm_apply, Fin.val_castLE]
   have h2 : (BitString.equivFin (Nat.clog 2 (n + 1)) (0 : BitString _) : ℕ) = 0 :=
     BitString.val_equivFin_false _
@@ -168,7 +168,7 @@ theorem two_pow_clog_succ_le_two_mul {n : ℕ} (hn : 1 ≤ n) :
   have h1 : 1 < n + 1 := by omega
   have hpos : 1 ≤ Nat.clog 2 (n + 1) := Nat.clog_pos Nat.one_lt_two h1
   have hlt : 2 ^ (Nat.clog 2 (n + 1) - 1) < n + 1 :=
-    Nat.pow_pred_clog_lt_self Nat.one_lt_two h1
+    Nat.pow_pred_clog_lt_self 2 h1
   rw [← Nat.sub_add_cancel hpos, pow_succ']
   omega
 

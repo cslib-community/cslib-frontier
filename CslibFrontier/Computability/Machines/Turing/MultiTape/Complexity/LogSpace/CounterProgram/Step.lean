@@ -209,7 +209,7 @@ or `¬c` is a hypothesis or, for a comparison of numbers, follows by `omega`. -/
 private def decideIte (l : Lean.Expr) : TacticM (Option Lean.Expr) := do
   let #[α, c, inst, t, e] := l.getAppArgs | return none
   let eq (pos : Bool) (h : Lean.Expr) : TacticM (Option Lean.Expr) := do
-    return some (mkAppN (mkConst (if pos then ``if_pos else ``if_neg) [← getLevel α])
+    return some (mkAppN (mkConst (if pos then ``ite_eq_left else ``ite_eq_right) [← getLevel α])
       #[c, inst, h, α, t, e])
   if let some (pos, h) ← byHyp c then return ← eq pos h
   unless isArith c do return none

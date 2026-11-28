@@ -287,7 +287,7 @@ theorem oddCycleInstance_mem_iff : oddCycleInstance G ∈ USTCON ↔ G ∉ Bipar
     push Not at h
     obtain ⟨x, p, hp⟩ := h
     have hodd : p.length.bodd = true := by
-      rw [Nat.not_even_iff_odd, Nat.odd_iff, Nat.mod_two_of_bodd] at hp
+      rw [Nat.odd_iff, Nat.mod_two_of_bodd] at hp
       cases h : p.length.bodd <;> simp_all
     have hreach := reachable_cv_of_walk G x.isLt p false
     rw [hodd] at hreach

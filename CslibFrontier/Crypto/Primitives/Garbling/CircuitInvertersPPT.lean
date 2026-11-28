@@ -98,9 +98,9 @@ theorem shapeData_polyTime :
 `encValidCircuit`. -/
 theorem phiSize_polyTime : ComputableInPolyTime phiSize.phi encValidCircuit encValidShape := by
   have hd := circuitData_polyTime
-  have hq : ComputableInPolyTime (fun f : ValidCircuit => f.1.q) encValidCircuit encUnary :=
+  have hq : ComputableInPolyTime (fun f : ValidCircuit => f.val.q) encValidCircuit encUnary :=
     ((ComputableInPolyTime.length_list _).comp hd.snd'.snd').of_enc_eq fun f =>
-      congrArg encUnary (ConventionalCircuit.length_gateList f.1).symm
+      congrArg encUnary (ConventionalCircuit.length_gateList f.val).symm
   exact (hd.fst'.prod (hd.snd'.fst'.prod hq)).of_enc_eq fun _ => rfl
 
 /-- The full-circuit side information `Φ_circ(f) = f` is computed in polynomial time on
@@ -203,24 +203,24 @@ theorem mTopo_polyTime :
       (encPair encValidTopo encBits) (encQuery ValidCircuit encValidCircuit) := by
   let E := encPair encValidTopo encBits
   have ht := topoData_polyTime.comp (ComputableInPolyTime.fst encValidTopo encBits)
-  have hn : ComputableInPolyTime (fun p : ValidTopo × List Bool => p.1.1.n) E encUnary := ht.fst'
-  have hm : ComputableInPolyTime (fun p : ValidTopo × List Bool => p.1.1.m) E encUnary :=
+  have hn : ComputableInPolyTime (fun p : ValidTopo × List Bool => p.1.val.n) E encUnary := ht.fst'
+  have hm : ComputableInPolyTime (fun p : ValidTopo × List Bool => p.1.val.m) E encUnary :=
     ht.snd'.fst'
-  have hgates : ComputableInPolyTime (fun p : ValidTopo × List Bool => p.1.1.gateList) E
+  have hgates : ComputableInPolyTime (fun p : ValidTopo × List Bool => p.1.val.gateList) E
       (encList (encPair encNat encNat)) := ht.snd'.snd'
-  have hq : ComputableInPolyTime (fun p : ValidTopo × List Bool => p.1.1.q) E encUnary :=
+  have hq : ComputableInPolyTime (fun p : ValidTopo × List Bool => p.1.val.q) E encUnary :=
     ((ComputableInPolyTime.length_list _).comp hgates).of_enc_eq fun p =>
-      congrArg encUnary (Topo.length_gateList p.1.1).symm
+      congrArg encUnary (Topo.length_gateList p.1.val).symm
   have hy : ComputableInPolyTime (fun p : ValidTopo × List Bool => p.2) E encBits :=
     ComputableInPolyTime.snd encValidTopo encBits
   have hpar := (hn.prod (hm.prod hq)).prod hy
   have hzip := (ComputableInPolyTime.zipIdx (encPair encNat encNat)).comp hgates
   have hgateList : ComputableInPolyTime
-      (fun p : ValidTopo × List Bool => (ofTopo p.1.1 (mTopoGates p.1.1 p.2)).gateList) E
+      (fun p : ValidTopo × List Bool => (ofTopo p.1.val (mTopoGates p.1.val p.2)).gateList) E
       (encList (encPair encNat (encPair encNat encBits))) :=
     (ComputableInPolyTime.mapWith mTopoGateData_polyTime hpar hzip).of_enc_eq fun p =>
       congrArg (encList (encPair encNat (encPair encNat encBits)))
-        (gateList_ofTopo_mTopoGates p.1.1 p.2)
+        (gateList_ofTopo_mTopoGates p.1.val p.2)
   have hcirc : ComputableInPolyTime
       (fun p : ValidTopo × List Bool => (mTopo p.1 p.2).fn) E encValidCircuit :=
     (hn.prod (hm.prod hgateList)).of_enc_eq fun p => encValidCircuit_apply (mTopo p.1 p.2).fn
@@ -261,12 +261,12 @@ theorem mSize_polyTime :
 linear-time bound, which remains open (#5293). -/
 theorem mTopoInv_polyTime :
     ComputableInPolyTime mTopoInv encValidTopo encValidCircuit := by
-  have hm : ComputableInPolyTime (fun t : ValidTopo => t.1.m) encValidTopo encUnary :=
+  have hm : ComputableInPolyTime (fun t : ValidTopo => t.val.m) encValidTopo encUnary :=
     topoData_polyTime.snd'.fst'
-  have hy : ComputableInPolyTime (fun t : ValidTopo => List.replicate t.1.m false)
+  have hy : ComputableInPolyTime (fun t : ValidTopo => List.replicate t.val.m false)
       encValidTopo encBits :=
     (ComputableInPolyTime.bitsReplicate false).comp hm
-  have hq : ComputableInPolyTime (fun t : ValidTopo => mTopo t (List.replicate t.1.m false))
+  have hq : ComputableInPolyTime (fun t : ValidTopo => mTopo t (List.replicate t.val.m false))
       encValidTopo (encQuery ValidCircuit encValidCircuit) :=
     mTopo_polyTime.comp ((ComputableInPolyTime.id').prod hy)
   exact encQuery_fn_polyTime ValidCircuit encValidCircuit hq

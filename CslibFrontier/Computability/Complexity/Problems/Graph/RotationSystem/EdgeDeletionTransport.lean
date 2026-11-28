@@ -32,8 +32,8 @@ theorem numericalGenusZero_deleteLastEdge_transport {S G T : Graph} {u v : ℕ}
     (r : RotationSystem S) (h : S = lastEdgeGraph G u v) (e : Dart G ≃ Dart T)
     (hv : ∀ a b, (e a).vertex = (e b).vertex ↔ a.vertex = b.vertex)
     (he : ∀ a, e a.reverse = (e a).reverse)
-    (hS : ∀ w ∈ S.incidenceVertices, w ∈ S.1)
-    (hT : ∀ w ∈ T.incidenceVertices, w ∈ T.1) (hr : r.NumericalGenusZero) :
+    (hS : ∀ w ∈ S.incidenceVertices, w ∈ S.vertices)
+    (hT : ∀ w ∈ T.incidenceVertices, w ∈ T.vertices) (hr : r.NumericalGenusZero) :
     (((r.transport (graphEqDartEquiv h)
       (by intro a b; rw [vertex_graphEqDartEquiv, vertex_graphEqDartEquiv])).deleteLastEdge
         (G := G) (u := u) (v := v)).transport e hv).NumericalGenusZero := by

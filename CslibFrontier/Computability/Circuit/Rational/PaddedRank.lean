@@ -210,7 +210,8 @@ theorem rank_ge (w B M N q e : ℕ) (hw : 1 ≤ w) (hN : 1 ≤ N)
   let E := LinearMap.toMatrix' (extend (K := K) q M N)
   have hE : E.mulVecLin = extend q M N := Matrix.toLin'_toMatrix' _
   have hr : (raw A R * E).rank = q * N := by
-    rw [Matrix.rank, Matrix.mulVecLin_mul, hE, LinearMap.finrank_range_of_inj hi]
+    rw [← Matrix.finrank_range_mulVecLin, Matrix.mulVecLin_mul, hE,
+      LinearMap.finrank_range_of_inj hi]
     simp
   exact hr ▸ Matrix.rank_mul_le_left (raw A R) E
 

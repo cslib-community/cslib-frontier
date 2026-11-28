@@ -256,11 +256,11 @@ variable [Fact (2 ≤ r)]
 
 /-- The approximator of an input variable: the sets of at most `l` vertices containing its edge. -/
 noncomputable def input (i : Fin (edgeCount n)) : Approximator n r l where
-  terms := (smallSets n l).filter (((edgeEquiv n).symm i).1.toFinset ⊆ ·)
+  terms := (smallSets n l).filter (((edgeEquiv n).symm i).val.toFinset ⊆ ·)
   card_le_of_mem _ hs := (mem_filter.1 (mem_filter.1 hs).1).2
   isClosed W hW := by
     have hr : 2 ≤ r := Fact.out
-    have he := Sym2.card_toFinset_of_not_isDiag _ ((edgeEquiv n).symm i).2
+    have he := Sym2.card_toFinset_of_not_isDiag _ ((edgeEquiv n).symm i).property
     refine mem_filter.2 ⟨mem_filter.2 ⟨mem_univ _, hW.1⟩, ?_⟩
     obtain ⟨-, h | ⟨-, V, hV, hV1⟩⟩ := hW
     · obtain ⟨V, hV, hVW⟩ := (impliedBy_iff_of_two_le hr).1 h
@@ -273,7 +273,7 @@ noncomputable def input (i : Fin (edgeCount n)) : Approximator n r l where
 /-- When `2 ≤ l`, the input approximator `input i` decodes to `x i`. -/
 theorem decode_input (hl : 2 ≤ l) (i : Fin (edgeCount n)) (x : Fin (edgeCount n) → Bool) :
     (input i : Approximator n r l).decode x = x i := by
-  have he := Sym2.card_toFinset_of_not_isDiag _ ((edgeEquiv n).symm i).2
+  have he := Sym2.card_toFinset_of_not_isDiag _ ((edgeEquiv n).symm i).property
   rw [Bool.eq_iff_iff, decode_eq_true]
   constructor
   · rintro ⟨W, hW, hxW⟩

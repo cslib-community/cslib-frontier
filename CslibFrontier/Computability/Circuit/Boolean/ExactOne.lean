@@ -70,19 +70,19 @@ def tseitinSatAssignmentEquiv {n : ℕ} {gates : List (Op × List ℕ)} {o : ℕ
           (fun w => if hw : w ∈ Finset.range (n + gates.length) then σ ⟨w, hw⟩ else false) =
             true} where
   toFun x :=
-    ⟨fun w => (evalCode interpretation false (List.ofFn x.1) gates).getD w.1 false, by
-      let vals := evalCode interpretation false (List.ofFn x.1) gates
+    ⟨fun w => (evalCode interpretation false (List.ofFn x.val) gates).getD w.val false, by
+      let vals := evalCode interpretation false (List.ofFn x.val) gates
       let ext : ℕ → Bool := fun w =>
         if hw : w ∈ Finset.range (n + gates.length) then vals.getD w false else false
-      have hin (i : ℕ) (hi : i < n) : vals.getD i false = x.1 ⟨i, hi⟩ := by
-        obtain ⟨r, hr⟩ := prefix_evalCode interpretation false (List.ofFn x.1) gates
+      have hin (i : ℕ) (hi : i < n) : vals.getD i false = x.val ⟨i, hi⟩ := by
+        obtain ⟨r, hr⟩ := prefix_evalCode interpretation false (List.ofFn x.val) gates
         dsimp [vals]
         rw [← hr, List.getD_append _ _ _ _ (by simp [hi]),
           List.getD_eq_getElem _ _ (by simpa using hi), List.getElem_ofFn]
       have hext (w : ℕ) (hw : w < n + gates.length) : ext w = vals.getD w false := by
         dsimp only [ext]
         simp only [Finset.mem_range.mpr hw, ↓reduceDIte]
-      have heqFn : (List.ofFn fun i : Fin n => ext i) = List.ofFn x.1 := by
+      have heqFn : (List.ofFn fun i : Fin n => ext i) = List.ofFn x.val := by
         refine List.ext_getElem (by simp) fun i h₁ _ => ?_
         have hi : i < n := by simpa using h₁
         rw [List.getElem_ofFn, List.getElem_ofFn,
@@ -94,15 +94,16 @@ def tseitinSatAssignmentEquiv {n : ℕ} {gates : List (Op × List ℕ)} {o : ℕ
       refine ⟨?_, fun i hi => by simp at hi, hcnf⟩
       change ext o = true
       rw [hext o ho]
-      exact x.2⟩
+      exact x.property⟩
   invFun σ :=
-    ⟨fun i => σ.1 ⟨i.1, Finset.mem_range.mpr (Nat.lt_of_lt_of_le i.2 (Nat.le_add_right _ _))⟩, by
+    ⟨fun i => σ.val
+        ⟨i.val, Finset.mem_range.mpr (Nat.lt_of_lt_of_le i.isLt (Nat.le_add_right _ _))⟩, by
       let ext : ℕ → Bool := fun w =>
-        if hw : w ∈ Finset.range (n + gates.length) then σ.1 ⟨w, hw⟩ else false
-      have hval := eq_evalCode_of_eval_tseitinSatCNF hcode σ.2 o ho
-      have ho' := ((eval_tseitinSatCNF_eq_true_iff [] n gates o ext).mp σ.2).1
+        if hw : w ∈ Finset.range (n + gates.length) then σ.val ⟨w, hw⟩ else false
+      have hval := eq_evalCode_of_eval_tseitinSatCNF hcode σ.property o ho
+      have ho' := ((eval_tseitinSatCNF_eq_true_iff [] n gates o ext).mp σ.property).1
       have hof : (List.ofFn fun i : Fin n =>
-          σ.1 ⟨i.1, Finset.mem_range.mpr (Nat.lt_of_lt_of_le i.2 (Nat.le_add_right _ _))⟩) =
+          σ.val ⟨i.val, Finset.mem_range.mpr (Nat.lt_of_lt_of_le i.isLt (Nat.le_add_right _ _))⟩) =
           List.ofFn fun i : Fin n => ext i := by
         refine List.ext_getElem (by simp) fun i h₁ _ => ?_
         have hi : i < n := by simpa using h₁
@@ -117,21 +118,21 @@ def tseitinSatAssignmentEquiv {n : ℕ} {gates : List (Op × List ℕ)} {o : ℕ
     obtain ⟨x, hx⟩ := x
     ext i
     obtain ⟨r, hr⟩ := prefix_evalCode interpretation false (List.ofFn x) gates
-    change (evalCode interpretation false (List.ofFn x) gates).getD i.1 false = x i
-    rw [← hr, List.getD_append _ _ _ _ (by simp [i.2]),
-      List.getD_eq_getElem _ _ (by simp [i.2])]
+    change (evalCode interpretation false (List.ofFn x) gates).getD i.val false = x i
+    rw [← hr, List.getD_append _ _ _ _ (by simp [i.isLt]),
+      List.getD_eq_getElem _ _ (by simp [i.isLt])]
     simp
   right_inv σ := by
     obtain ⟨σ, hσ⟩ := σ
     ext w
     change (evalCode interpretation false (List.ofFn fun i : Fin n =>
-      σ ⟨i.1, Finset.mem_range.mpr (Nat.lt_of_lt_of_le i.2 (Nat.le_add_right _ _))⟩)
-      gates).getD w.1 false = σ w
+      σ ⟨i.val, Finset.mem_range.mpr (Nat.lt_of_lt_of_le i.isLt (Nat.le_add_right _ _))⟩)
+      gates).getD w.val false = σ w
     let ext : ℕ → Bool := fun u =>
       if hu : u ∈ Finset.range (n + gates.length) then σ ⟨u, hu⟩ else false
-    have hval := eq_evalCode_of_eval_tseitinSatCNF hcode hσ w.1 (Finset.mem_range.mp w.2)
+    have hval := eq_evalCode_of_eval_tseitinSatCNF hcode hσ w.val (Finset.mem_range.mp w.property)
     have hof : (List.ofFn fun i : Fin n =>
-        σ ⟨i.1, Finset.mem_range.mpr (Nat.lt_of_lt_of_le i.2 (Nat.le_add_right _ _))⟩) =
+        σ ⟨i.val, Finset.mem_range.mpr (Nat.lt_of_lt_of_le i.isLt (Nat.le_add_right _ _))⟩) =
         List.ofFn fun i : Fin n => ext i := by
       refine List.ext_getElem (by simp) fun i h₁ _ => ?_
       have hi : i < n := by simpa using h₁
@@ -140,7 +141,7 @@ def tseitinSatAssignmentEquiv {n : ℕ} {gates : List (Op × List ℕ)} {o : ℕ
       dsimp only [ext]
       simp only [List.getElem_ofFn, hmi, ↓reduceDIte]
     rw [hof, ← hval]
-    simp only [w.2, ↓reduceDIte]
+    simp only [w.property, ↓reduceDIte]
 
 /-- **`tseitinSatCNF` preserves the exact number of accepting input bitstrings.** -/
 theorem card_evalOutput_eq_modelCountOn_tseitinSatCNF {n : ℕ} {gates : List (Op × List ℕ)} {o : ℕ}
@@ -339,7 +340,9 @@ theorem isCodeFrom_seqExactlyOneClause (n base : ℕ) {ws : List ℕ} (hws : ∀
   have hstep := isCodeFrom_seqExactlyOneStep n ws (base + 1) (n + base) (n + base)
     (fun u hu => (hws u hu).trans (by omega)) (by omega) (by omega)
   have hbase : n + base + 1 = n + (base + 1) := by omega
-  rw [seqExactlyOneClause, List.append_assoc, List.singleton_append]
+  rw [seqExactlyOneClause]
+  dsimp only
+  rw [List.append_assoc, List.singleton_append]
   refine isCodeFrom_const n base false _ ?_
   rw [hbase, Program.isCodeFrom_append]
   refine ⟨hstep.1, ?_⟩

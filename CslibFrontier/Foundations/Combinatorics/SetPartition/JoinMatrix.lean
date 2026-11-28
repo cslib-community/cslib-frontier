@@ -50,8 +50,7 @@ Partitions are `Setoid α` rather than `Finpartition`, since Mathlib's complete 
 `Setoid α` provides the join, and the proof works with quotients and kernels (`Setoid.ker`). The
 number of blocks `blocks s` and the `Finite (Setoid α)` instance come from
 `CslibFrontier.Foundations.Combinatorics.SetPartition.Basic`; statements that sum over the
-partitions
-or take ranks assume `[Fintype (Setoid α)]`, which `Fintype.ofFinite` provides, and counts are
+partitions assume `[Fintype (Setoid α)]`, which `Fintype.ofFinite` provides, and counts are
 stated with `Nat.card`.
 
 ## Main definitions
@@ -99,7 +98,7 @@ variable [Finite α] (t : ℕ)
 /-- The maps constant on the blocks of `x` are the maps on its blocks. -/
 private def constEquiv (x : Setoid α) :
     {f : α → Fin t // x ≤ Setoid.ker f} ≃ (Quotient x → Fin t) where
-  toFun f := Quotient.lift f.1 fun _ _ h => f.2 h
+  toFun f := Quotient.lift f.val fun _ _ h => f.property h
   invFun g := ⟨g ∘ Quotient.mk x, fun _ _ h => by
     simp only [Setoid.ker_def, Function.comp_apply, Quotient.sound h]⟩
   left_inv _ := rfl
@@ -108,12 +107,12 @@ private def constEquiv (x : Setoid α) :
 /-- The maps with kernel `z` are the injective maps on its blocks. -/
 private def kerEquiv (z : Setoid α) :
     {f : α → Fin t // Setoid.ker f = z} ≃ (Quotient z ↪ Fin t) where
-  toFun f := ⟨Quotient.lift f.1 fun a b h => by
-      rw [← f.2] at h
+  toFun f := ⟨Quotient.lift f.val fun a b h => by
+      rw [← f.property] at h
       exact Setoid.ker_def.mp h,
     fun p q => Quotient.inductionOn₂ p q fun a b hab => Quotient.sound (by
-      have : Setoid.ker f.1 a b := Setoid.ker_def.mpr hab
-      rwa [f.2] at this)⟩
+      have : Setoid.ker f.val a b := Setoid.ker_def.mpr hab
+      rwa [f.property] at this)⟩
   invFun e := ⟨e ∘ Quotient.mk z, Setoid.ext fun a b => by
     simp only [Setoid.ker_def, Function.comp_apply, e.injective.eq_iff, Quotient.eq]⟩
   left_inv _ := rfl
@@ -317,11 +316,13 @@ theorem det_zetaMatrix [CommRing R] : (zetaMatrix R α).det = 1 := by
   exact if_congr ⟨fun h => eq_of_le_of_blocks_eq h (by simpa using hP.trans hz.symm),
     fun h => h ▸ le_rfl⟩ rfl rfl
 
+omit [Fintype (Setoid α)] in
 /-- **Dowling–Wilson for the partition lattice**: over a field of characteristic zero, the join
 matrix has full rank, the number of partitions [DowlingWilson1975, Lemma 1 and the proof of
 Theorem 2]. -/
 theorem rank_joinMatrix [Field R] [CharZero R] : (joinMatrix R α).rank = Nat.card (Setoid α) := by
   classical
+  have := Fintype.ofFinite (Setoid α)
   rw [Nat.card_eq_fintype_card]
   rcases isEmpty_or_nonempty α with hα | hα
   · have : Subsingleton (Setoid α) := ⟨fun _ _ => Setoid.ext fun a => isEmptyElim a⟩

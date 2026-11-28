@@ -183,7 +183,7 @@ theorem realizesBounded_compGmUnlinkWrite :
   all_goals (
     rcases d with ⟨⟨⟨cp, metaBase⟩, b⟩, ⟨bel_del, q_b⟩⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hb, hq_pos⟩ := h
-    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.1
+    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.frontier_fits
     have hq_idx_lt : gmQIdx b < globalMetaLen N := gmQIdx_lt hb_pos hb
     have htop_idx_lt : gmSlabTopIdx b < globalMetaLen N := gmSlabTopIdx_lt hb_pos hb
     simp only [StateTransitionSpec.clientState, runClient_state_writeCompGMGenProg] at *)
@@ -279,7 +279,7 @@ private theorem realizesBounded_compGmRelinkWrite :
   all_goals (
     rcases d with ⟨⟨⟨cp, metaBase⟩, p_del⟩, ⟨⟨b_last, s_last⟩, q_last⟩⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hb_last, hs_le⟩ := h
-    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.1
+    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.frontier_fits
     have hq_lt := gmQIdx_lt hb_pos hb_last
     have htop_lt := gmSlabTopIdx_lt hb_pos hb_last
     simp only [succinct_param_simps, StateTransitionSpec.clientState] at *)

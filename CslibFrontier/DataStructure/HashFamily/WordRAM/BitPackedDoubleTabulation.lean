@@ -196,7 +196,7 @@ theorem isKWiseIndependentHash_evalSalted_of_goodTop
       evalSalted U w₀ R c_tab d b_char M_out s_max (α, T₁, T₂) (p.1, p.2.val)) := by
   refine isKWiseIndependentHash_of_isKUnique
     (f := fun p : Fin s_max × W_set =>
-      simpleTabTuple T₁ (saltedChars c_tab b_char p.1 (multiplyShiftReduced U w₀ R α p.2.1)))
+      simpleTabTuple T₁ (saltedChars c_tab b_char p.1 (multiplyShiftReduced U w₀ R α p.2.val)))
     (hgood.2.comp_injective ?_)
   rintro ⟨s₁, ⟨u₁, hu₁⟩⟩ ⟨s₂, ⟨u₂, hu₂⟩⟩ heq
   obtain ⟨rfl, hr⟩ := Prod.mk.inj (saltedChars_injective hs (Nat.pow_le_pow_right two_pos hcov) heq)

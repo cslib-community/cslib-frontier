@@ -71,7 +71,7 @@ theorem codeTable_congr {p : Ro} {G : (i : ι) → ((ν : {ν // Holds h p ν}) 
     codeTable h code p G z = codeTable h code p G z' := by
   unfold codeTable
   exact sum_congr rfl fun i _ => sum_congr rfl fun g _ =>
-    if_congr (forall_congr' fun ν => by rw [hz ν.1 ν.2]) rfl rfl
+    if_congr (forall_congr' fun ν => by rw [hz ν.val ν.property]) rfl rfl
 
 variable {h code}
 

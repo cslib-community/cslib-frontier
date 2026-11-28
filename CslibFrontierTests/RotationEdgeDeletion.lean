@@ -31,7 +31,7 @@ example : (bridge.componentVertexSet 0).card + (bridgeRotation.componentFaceIndi
   bridgeRotation.component_euler_le (by decide) (0, false)
 
 private theorem bridgeGenus : bridgeRotation.NumericalGenusZero := by
-  have hG : ∀ v ∈ bridge.incidenceVertices, v ∈ bridge.1 := by decide
+  have hG : ∀ v ∈ bridge.incidenceVertices, v ∈ bridge.vertices := by decide
   have h := (RotationCertificate.verifyEuler_eq_true_iff
     (RotationCertificate.verifyRotation_ofRotation bridgeRotation hG)).mp (by decide)
   exact RotationCertificate.decode_ofRotation bridgeRotation hG ▸ h
@@ -64,7 +64,7 @@ example : (torus.componentVertexSet 0).card + (torusRotation.componentFaceIndice
     · rintro ⟨rfl | rfl, h⟩
       · rfl
       · have hbool :=
-          (RotationCertificate.componentBool_eq_true_iff (by decide : 0 ∈ torus.1)).mpr h
+          (RotationCertificate.componentBool_eq_true_iff (by decide : 0 ∈ torus.vertices)).mpr h
         exact False.elim ((by decide : RotationCertificate.componentBool torus 0 9 ≠ true) hbool)
     · rintro rfl
       exact ⟨Or.inl rfl, .refl (by decide)⟩
@@ -125,7 +125,8 @@ private abbrev oneLoop : Graph := ⟨[0], [(0, 0)]⟩
 
 private def sphereBigon : RotationSystem (lastEdgeGraph bridge 0 1) where
   rotate := (Equiv.prodCongr
-    (finCongr (show 2 = (lastEdgeGraph bridge 0 1).2.length by decide)) (Equiv.refl Bool)).permCongr
+    (finCongr (show 2 = (lastEdgeGraph bridge 0 1).edges.length by decide))
+    (Equiv.refl Bool)).permCongr
       (Equiv.prodCongr (Equiv.swap (0 : Fin 2) 1) (Equiv.refl Bool))
   sameCycle_iff := by decide +kernel
 
@@ -148,7 +149,7 @@ example : ([0, 2, 3] : List ℕ).formPerm 2 = 3 ∧ ([0, 3, 2] : List ℕ).formP
 
 private theorem bigonGenus : sphereBigon.NumericalGenusZero := by
   have hG : ∀ v ∈ (lastEdgeGraph bridge 0 1).incidenceVertices,
-      v ∈ (lastEdgeGraph bridge 0 1).1 := by decide
+      v ∈ (lastEdgeGraph bridge 0 1).vertices := by decide
   have h := (RotationCertificate.verifyEuler_eq_true_iff
     (RotationCertificate.verifyRotation_ofRotation sphereBigon hG)).mp (by decide)
   exact RotationCertificate.decode_ofRotation sphereBigon hG ▸ h

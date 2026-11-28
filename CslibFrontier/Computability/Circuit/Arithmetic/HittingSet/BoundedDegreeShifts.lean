@@ -269,7 +269,7 @@ theorem isConcentrating_seedPoint {P : Finset (Fin n → Fin k)} (hP : IsPerfect
     simp only [hHH', map_mul, aeval_C, algebraMap_eq] at hvan
     have h3 := congrArg (map (Polynomial.evalRingHom (Polynomial.C ((e₀ : ℕ) : F))))
       ((mul_eq_zero.1 hvan).resolve_left hC)
-    rw [map_zero, aeval_eq_bind₁, aeval_eq_bind₁, map_bind₁, map_bind₁] at h3
+    rw [map_zero, map_aeval_eq_aeval_map_map, map_aeval_eq_aeval_map_map] at h3
     have e1 : (fun i => map (Polynomial.evalRingHom (Polynomial.C ((e₀ : ℕ) : F)))
         (Function.update (X : Fin n → MvPolynomial (Fin n) F[X][X]) j 1 i)) =
         Function.update X j 1 := by

@@ -379,7 +379,7 @@ theorem IsIdentical.expectedMakespan_le_log_div_log_log
       _ = 1 / (m : ℝ) ^ 2 := by
           rw [Real.exp_neg,
             show (2 : ℝ) * x = ((2 : ℕ) : ℝ) * Real.log (m : ℝ) by simp only [x]; norm_num,
-            Real.exp_nat_mul, Real.exp_log hm_pos, one_div]
+            Real.exp_natCast_mul, Real.exp_log hm_pos, one_div]
 
 /-- **Small-weight identical-machine mixed PoA** ([Vocking2007], Exercise 20.6(b); locator not
 re-verified against primary PDF): on `m = |M| ≥ 2` identical machines, if every job has weight at
@@ -423,7 +423,7 @@ theorem IsIdentical.expectedMakespan_le_seven_mul_optMakespan_of_weight_le
       _ = 1 / (m : ℝ) ^ 2 := by
           rw [Real.exp_neg,
             show (2 : ℝ) * Real.log (m : ℝ) = ((2 : ℕ) : ℝ) * Real.log (m : ℝ) by norm_num,
-            Real.exp_nat_mul, Real.exp_log hm_pos, one_div]
+            Real.exp_natCast_mul, Real.exp_log hm_pos, one_div]
 
 end IdenticalMixedPoA
 

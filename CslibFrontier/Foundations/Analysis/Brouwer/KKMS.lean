@@ -134,37 +134,37 @@ theorem exists_balanced_inter_of_kkmCover {A : Type*} [Fintype A] [DecidableEq A
   let active : (A → ℝ) → Finset (Finset A) := fun x =>
     Finset.univ.filter fun S : Finset A => S.Nonempty ∧ x ∈ F S
   let U : (A → ℝ) → Set (A → ℝ) := fun x =>
-    ⋂ S : {S : Finset A // S.Nonempty ∧ x ∉ F S}, (F S.1)ᶜ
+    ⋂ S : {S : Finset A // S.Nonempty ∧ x ∉ F S}, (F S.val)ᶜ
   have hU_open : ∀ x : A → ℝ, IsOpen (U x) := fun x =>
-    isOpen_iInter_of_finite fun S => (hclosed S.1 S.2.1).isOpen_compl
+    isOpen_iInter_of_finite fun S => (hclosed S.val S.property.1).isOpen_compl
   have hmem_U : ∀ x : A → ℝ, x ∈ U x := fun x =>
-    Set.mem_iInter.2 fun S hx => S.2.2 hx
+    Set.mem_iInter.2 fun S hx => S.property.2 hx
   have hU_sub (x z : A → ℝ) (hz : z ∈ U x) (S : Finset A) (hSne : S.Nonempty)
       (hzS : z ∈ F S) : S ∈ active x :=
     Finset.mem_filter.2 ⟨Finset.mem_univ _, hSne,
       by_contra fun hxS => (Set.mem_iInter.1 hz ⟨S, hSne, hxS⟩) hzS⟩
-  have hΔ_cov : Δ ⊆ ⋃ x : Δ, U x.1 := fun x hx => Set.mem_iUnion.2 ⟨⟨x, hx⟩, hmem_U x⟩
-  obtain ⟨t, ht⟩ := isCompact_simplex.elim_finite_subcover (fun x : Δ => U x.1)
-    (fun x => hU_open x.1) hΔ_cov
-  have hsep (x : Δ) : ∃ v : A → ℝ, 0 < ∑ i, v i ∧ ∀ S ∈ active x.1, ∑ i ∈ S, v i < 0 :=
-    exists_strictSep_of_not_balanced (active x.1) (fun S hS => (Finset.mem_filter.1 hS).2.1)
+  have hΔ_cov : Δ ⊆ ⋃ x : Δ, U x.val := fun x hx => Set.mem_iUnion.2 ⟨⟨x, hx⟩, hmem_U x⟩
+  obtain ⟨t, ht⟩ := isCompact_simplex.elim_finite_subcover (fun x : Δ => U x.val)
+    (fun x => hU_open x.val) hΔ_cov
+  have hsep (x : Δ) : ∃ v : A → ℝ, 0 < ∑ i, v i ∧ ∀ S ∈ active x.val, ∑ i ∈ S, v i < 0 :=
+    exists_strictSep_of_not_balanced (active x.val) (fun S hS => (Finset.mem_filter.1 hS).2.1)
       fun ⟨w, hw0, hw_empty, hw_bal, hw_supp⟩ =>
-        hnone ⟨x.1, x.2, w, hw0, hw_empty, hw_bal,
+        hnone ⟨x.val, x.property, w, hw0, hw_empty, hw_bal,
           fun S hSw => (Finset.mem_filter.1 (hw_supp S hSw)).2.2⟩
   choose sep hsep_pos hsep_lt using hsep
   let wt : Δ → (A → ℝ) → ℝ := fun k z =>
-    if (U k.1)ᶜ.Nonempty then Metric.infDist z (U k.1)ᶜ else 1
+    if (U k.val)ᶜ.Nonempty then Metric.infDist z (U k.val)ᶜ else 1
   have hwt_cont (k : Δ) : Continuous (wt k) := by
     dsimp only [wt]
     split_ifs
     exacts [Metric.continuous_infDist_pt _, continuous_const]
   have hwt_nonneg (k : Δ) (z : A → ℝ) : 0 ≤ wt k z := by
-    by_cases h : (U k.1)ᶜ.Nonempty <;> simp [wt, h, Metric.infDist_nonneg]
-  have hwt_pos_iff (k : Δ) (z : A → ℝ) : 0 < wt k z ↔ z ∈ U k.1 := by
+    by_cases h : (U k.val)ᶜ.Nonempty <;> simp [wt, h, Metric.infDist_nonneg]
+  have hwt_pos_iff (k : Δ) (z : A → ℝ) : 0 < wt k z ↔ z ∈ U k.val := by
     dsimp only [wt]
     split_ifs with hne
     · simpa only [Set.notMem_compl_iff] using
-        ((hU_open k.1).isClosed_compl.notMem_iff_infDist_pos hne).symm
+        ((hU_open k.val).isClosed_compl.notMem_iff_infDist_pos hne).symm
     · exact ⟨fun _ => Set.notMem_compl_iff.1 (Set.not_nonempty_iff_eq_empty.1 hne ▸
         Set.notMem_empty z), fun _ => zero_lt_one⟩
   let dir : (A → ℝ) → A → ℝ := fun z i => ∑ k ∈ t, wt k z * sep k i
@@ -184,10 +184,10 @@ theorem exists_balanced_inter_of_kkmCover {A : Type*} [Fintype A] [DecidableEq A
     rw [hdir_sum]
     refine Finset.sum_neg' (fun k _ => ?_)
       ⟨k₀, hk₀, mul_neg_of_pos_of_neg ((hwt_pos_iff k₀ z).2 hzk₀)
-        (hsep_lt k₀ S (hU_sub k₀.1 z hzk₀ S hSne hzS))⟩
+        (hsep_lt k₀ S (hU_sub k₀.val z hzk₀ S hSne hzS))⟩
     rcases (hwt_nonneg k z).lt_or_eq with hpos | h0
     · exact (mul_neg_of_pos_of_neg hpos
-        (hsep_lt k S (hU_sub k.1 z ((hwt_pos_iff k z).1 hpos) S hSne hzS))).le
+        (hsep_lt k S (hU_sub k.val z ((hwt_pos_iff k z).1 hpos) S hSne hzS))).le
     · simp [← h0]
   let gain : (A → ℝ) → A → ℝ := fun z i => max 0 (dir z i - ∑ j, dir z j * z j)
   let denom : (A → ℝ) → ℝ := fun z => 1 + ∑ j, gain z j

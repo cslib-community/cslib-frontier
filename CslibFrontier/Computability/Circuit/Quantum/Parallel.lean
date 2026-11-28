@@ -335,6 +335,6 @@ theorem Circuit.ofCodes_map_shift {o : ℕ} (h : o + m ≤ N) {gs : List GateCod
     Circuit.ofCodes N (gs.map (GateCode.shift o)) =
       (Circuit.ofCodes m gs).mapWires (blockEmb o h) := by
   simp only [ofCodes, mapWires, List.filterMap_map, List.map_filterMap]
-  exact List.filterMap_congr fun g hg => GateCode.toPlacedGate?_shift h (hgs g hg)
+  exact List.filterMap_congr rfl fun g hg => GateCode.toPlacedGate?_shift h (hgs g hg)
 
 end Cslib.Quantum

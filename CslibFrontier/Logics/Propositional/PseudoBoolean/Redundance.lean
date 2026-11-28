@@ -964,10 +964,10 @@ theorem wellFounded {L : LoadedOrder} (hL : L.Good) :
     WellFounded fun σ τ : ℕ → Bool => L.Le σ τ ∧ ¬ L.Le τ σ := by
   have hg := hL.order
   let r : List.Vector Bool L.order.left.length → List.Vector Bool L.order.left.length → Prop :=
-    fun a b => L.order.Le a.1 b.1 ∧ ¬ L.order.Le b.1 a.1
+    fun a b => L.order.Le a.val b.val ∧ ¬ L.order.Le b.val a.val
   have : IsTrans _ r := ⟨fun a b c hab hbc =>
-    ⟨hg.trans _ _ _ a.2 b.2 c.2 hab.1 hbc.1,
-      fun hca => hab.2 (hg.trans _ _ _ b.2 c.2 a.2 hbc.1 hca)⟩⟩
+    ⟨hg.trans _ _ _ a.property b.property c.property hab.1 hbc.1,
+      fun hca => hab.2 (hg.trans _ _ _ b.property c.property a.property hbc.1 hca)⟩⟩
   have : Std.Irrefl r := ⟨fun a h => h.2 h.1⟩
   exact InvImage.wf (fun σ => (⟨L.vals σ, by simp [vals, hL.length]⟩ :
     List.Vector Bool L.order.left.length)) (Finite.wellFounded_of_trans_of_irrefl r)

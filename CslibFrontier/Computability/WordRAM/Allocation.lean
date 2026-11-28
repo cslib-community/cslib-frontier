@@ -138,7 +138,7 @@ theorem clear_succ (m : ℕ → ℕ) (base k : ℕ) :
 /-- A cleared block holds zeros. -/
 theorem Block.realizes_clear (m : ℕ → ℕ) (base k : ℕ) :
     (Block.mk base k).Realizes (clear m base k) fun _ => 0 :=
-  fun i => clear_of_owns ⟨Nat.le_add_right _ _, Nat.add_lt_add_left i.2 _⟩
+  fun i => clear_of_owns ⟨Nat.le_add_right _ _, Nat.add_lt_add_left i.isLt _⟩
 
 /-- Memory `m` with the `k` cells from address `base` set to `v`. -/
 def fill (m : ℕ → ℕ) (base k v : ℕ) : ℕ → ℕ :=

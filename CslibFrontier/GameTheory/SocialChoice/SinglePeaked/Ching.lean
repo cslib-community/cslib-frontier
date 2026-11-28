@@ -115,7 +115,7 @@ private lemma lt_maxMinEval_iff (E : MoulinScheme ι a b) (x : ι → Set.Icc a 
   refine ⟨fun hy => ?_, fun hy => ?_⟩
   · rw [maxMinEval, Finset.lt_fold_max] at hy
     rcases hy with hy_a | ⟨S, _, hS⟩
-    · linarith [y.2.1]
+    · linarith [y.property.1]
     · refine (lt_of_lt_of_le hS (min_le_left _ _)).trans_le (E.antitone fun i hi => ?_)
       rw [Finset.mem_compl]
       intro hiS
@@ -359,12 +359,12 @@ theorem minPeakScheme_eval [Nonempty ι] (hab : a ≤ b) (x : ι → Set.Icc a b
   obtain ⟨i₀, _, hi₀⟩ :=
     Finset.exists_min_image Finset.univ (fun i => (x i : ℝ)) Finset.univ_nonempty
   have hm_mem : m ∈ Set.Icc a b :=
-    ⟨(Finset.le_inf'_iff _ _).mpr fun i _ => (x i).2.1,
-      (Finset.inf'_le (fun i => (x i : ℝ)) (Finset.mem_univ i₀)).trans (x i₀).2.2⟩
+    ⟨(Finset.le_inf'_iff _ _).mpr fun i _ => (x i).property.1,
+      (Finset.inf'_le (fun i => (x i : ℝ)) (Finset.mem_univ i₀)).trans (x i₀).property.2⟩
   refine le_antisymm (not_lt.mp fun hlt => ?_) ?_
   · have hlt' := ((minPeakScheme (ι := ι) hab).lt_eval_iff x ⟨m, hm_mem⟩).mp hlt
     have hne : (Finset.univ.filter fun i => (x i : ℝ) ≤ m) ≠ ∅ :=
-      Finset.nonempty_iff_ne_empty.mp
+      Finset.ne_empty_iff_nonempty.mpr
         ⟨i₀, Finset.mem_filter.mpr ⟨Finset.mem_univ i₀, (Finset.le_inf'_iff _ _).mpr hi₀⟩⟩
     simp only [minPeakScheme, hne, ↓reduceIte] at hlt'
     exact hlt'.not_ge hm_mem.1
@@ -380,8 +380,8 @@ theorem maxPeakScheme_eval [Nonempty ι] (hab : a ≤ b) (x : ι → Set.Icc a b
   obtain ⟨j₀, _, hj₀⟩ :=
     Finset.exists_max_image Finset.univ (fun i => (x i : ℝ)) Finset.univ_nonempty
   have hm_mem : m ∈ Set.Icc a b :=
-    ⟨(x j₀).2.1.trans (Finset.le_sup' (fun i => (x i : ℝ)) (Finset.mem_univ j₀)),
-      (Finset.sup'_le_iff _ _).mpr fun i _ => (x i).2.2⟩
+    ⟨(x j₀).property.1.trans (Finset.le_sup' (fun i => (x i : ℝ)) (Finset.mem_univ j₀)),
+      (Finset.sup'_le_iff _ _).mpr fun i _ => (x i).property.2⟩
   refine le_antisymm ?_ (not_lt.mp fun hlt => ?_)
   · obtain ⟨_, ⟨j, hj⟩⟩ := eval_mem_peaks_bounds (maxPeakScheme (ι := ι) hab) x
     exact hj.trans (Finset.le_sup' (fun k => (x k : ℝ)) (Finset.mem_univ j))
@@ -429,7 +429,7 @@ theorem isStrategyProof_surjective_isIR_left_iff [Nonempty ι]
       by_cases hT : T = ∅
       · subst hT; simp only [boundary_empty, ↓reduceIte]
       · simp only [hT, ↓reduceIte]
-        obtain ⟨i₀, hi₀⟩ := Finset.nonempty_iff_ne_empty.mpr hT
+        obtain ⟨i₀, hi₀⟩ := Finset.ne_empty_iff_nonempty.mp hT
         have hi₀' : i₀ ∉ Tᶜ := Finset.notMem_compl.mpr hi₀
         let E₀ : MoulinScheme ι a b := ⟨alpha, mem_Icc, antitone, boundary_empty, boundary_univ⟩
         have hir := hf_ir
@@ -439,7 +439,7 @@ theorem isStrategyProof_surjective_isIR_left_iff [Nonempty ι]
         exact le_antisymm hir (mem_Icc T).1
   · rintro rfl
     refine ⟨ofMoulinScheme_isStrategyProof _, ofMoulinScheme_surjective _, fun P i => ?_⟩
-    refine (P i).atLeast_of_between_left (ofMoulinScheme (minPeakScheme hab) P).2.1 ?_
+    refine (P i).atLeast_of_between_left (ofMoulinScheme (minPeakScheme hab) P).property.1 ?_
     rw [ofMoulinScheme, minPeakScheme_eval]
     exact Finset.inf'_le (fun k => ((P k).peak : ℝ)) (Finset.mem_univ i)
 
@@ -464,7 +464,7 @@ theorem isStrategyProof_surjective_isIR_right_iff [Nonempty ι]
       by_cases hT : T = Finset.univ
       · subst hT; simp only [boundary_univ, ↓reduceIte]
       · simp only [hT, ↓reduceIte]
-        obtain ⟨i₀, hi₀⟩ := Finset.nonempty_iff_ne_empty.mpr fun (h : Tᶜ = ∅) =>
+        obtain ⟨i₀, hi₀⟩ := Finset.ne_empty_iff_nonempty.mp fun (h : Tᶜ = ∅) =>
           hT (by simpa only [compl_compl, Finset.compl_empty] using congrArg compl h)
         let E₀ : MoulinScheme ι a b := ⟨alpha, mem_Icc, antitone, boundary_empty, boundary_univ⟩
         have hir := hf_ir
@@ -474,7 +474,7 @@ theorem isStrategyProof_surjective_isIR_right_iff [Nonempty ι]
         exact le_antisymm (mem_Icc T).2 hir
   · rintro rfl
     refine ⟨ofMoulinScheme_isStrategyProof _, ofMoulinScheme_surjective _, fun P i => ?_⟩
-    refine (P i).atLeast_of_between_right ?_ (ofMoulinScheme (maxPeakScheme hab) P).2.2
+    refine (P i).atLeast_of_between_right ?_ (ofMoulinScheme (maxPeakScheme hab) P).property.2
     rw [ofMoulinScheme, maxPeakScheme_eval]
     exact Finset.le_sup' (fun k => ((P k).peak : ℝ)) (Finset.mem_univ i)
 

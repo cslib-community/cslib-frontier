@@ -216,7 +216,7 @@ theorem exists_polarization {α β : ℝ} (hβ : 0 ≤ β) (hβα : β < α ^ 2)
             apply Real.exp_le_exp.2
             push_cast at hX ⊢
             linarith
-        _ = Real.exp (-1) ^ (2 * k + 2) := Real.exp_nat_mul _ _
+        _ = Real.exp (-1) ^ (2 * k + 2) := Real.exp_natCast_mul _ _
         _ ≤ (1 / 2) ^ (2 * k + 2) :=
           pow_le_pow_left₀ (Real.exp_pos _).le Real.exp_neg_one_lt_half.le _
     calc 2 * (k : ℝ) * Real.exp (-(((2 ^ (b * j) : ℕ) : ℝ) * dist p₀ p₁ ^ (2 * (m * j))) / 2)

@@ -65,7 +65,7 @@ private theorem subsetMobius_or_univ [DecidableEq ι] [Nonempty ι] :
     intro T
     rcases T.eq_empty_or_nonempty with rfl | ⟨i, hi⟩
     · simp [monomial]
-    · simp [monomial, Finset.nonempty_iff_ne_empty.1 ⟨i, hi⟩, show ∃ j, j ∈ T from ⟨i, hi⟩]
+    · simp [monomial, Finset.ne_empty_iff_nonempty.2 ⟨i, hi⟩, show ∃ j, j ∈ T from ⟨i, hi⟩]
   simp only [subsetMobius] at hconst ⊢
   simp_rw [hor, smul_sub, Finset.sum_sub_distrib, hconst, smul_ite, smul_zero,
     Finset.sum_ite_eq' _ (∅ : Finset ι), Finset.empty_mem_powerset, ite_true, card_empty,

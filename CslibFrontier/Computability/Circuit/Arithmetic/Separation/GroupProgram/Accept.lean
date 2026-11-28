@@ -234,7 +234,7 @@ theorem count_le_of_accept (hub : 0 < ub) (hx : ∀ κ, (x κ).length ≤ T)
   induction p using Fin.addCases with
   | left κ =>
     rw [Fin.addCases_left, instructionSem, dite_eq_left_of_eq_true (eq_true ⟨(Fintype.equivFin Q
-      _).2, (Fintype.equivFin Q _).2⟩)] at ht'
+      _).isLt, (Fintype.equivFin Q _).isLt⟩)] at ht'
     obtain ⟨a, ha, r, hr, -⟩ :=
       List.mem_weightedBind_iff.1 (List.exists_mem_of_ne_nil _ ht').choose_spec
     obtain ⟨u, hu, hout⟩ := exists_of_mem_simSem mu cb ha
@@ -257,7 +257,8 @@ theorem outcome_eq_of_accept (hub : 0 < ub) (hkind : ∀ r, kinds[tg r]? = some 
     (h : scriptSem θ mu cb kinds T ub (groupScript (fun z => (Fintype.equivFin Q z : ℕ)) cb P q x ρ
       n o grp g key dkey tg b) t ≠ []) {r : M.Role} (hr : grp (M.roleParty r) = g) :
     ∃ ι : Fin (P.count n o r.1 * ub) → (M.law r.1).Index, ∀ ν : (M.law r.1).ChannelAt r.2,
-      (o ⟨r.1, ν.1⟩ : ℕ) = (∑ k, ((M.law r.1).labelLength + (M.law r.1).length (ι k) ν)) / ub := by
+      (o ⟨r.1, ν.val⟩ : ℕ) =
+        (∑ k, ((M.law r.1).labelLength + (M.law r.1).length (ι k) ν)) / ub := by
   obtain ⟨t', ht'⟩ := exists_of_scriptSem_ne_nil mu cb kinds h _ (List.mem_append_left _
     (List.mem_append_right _ (List.mem_map.2 ⟨r, mem_groupRoles.2 hr, rfl⟩)))
   simp only [roleInstruction, instructionSem, hkind, roleSem] at ht'
@@ -266,8 +267,8 @@ theorem outcome_eq_of_accept (hub : 0 < ub) (hkind : ∀ r, kinds[tg r]? = some 
     List.mem_weightedBind_iff.1 (List.exists_mem_of_ne_nil _ ht').choose_spec
   obtain ⟨ι, hι⟩ := exists_of_mem_run_roleTable _ _ ha
   have hc := unitCount_eq_of_putStrings_ne_nil hub (List.ofFn fun i =>
-    ((indicesBelow (o ⟨r.1, ((channelList (M.law r.1) r.2).get i).1⟩).succ).map fun k =>
-      key ⟨M.roleParty r, .new ⟨r.1, ((channelList (M.law r.1) r.2).get i).1⟩ k⟩,
+    ((indicesBelow (o ⟨r.1, ((channelList (M.law r.1) r.2).get i).val⟩).succ).map fun k =>
+      key ⟨M.roleParty r, .new ⟨r.1, ((channelList (M.law r.1) r.2).get i).val⟩ k⟩,
       (a.2.outputs i).reverse)) t' (by
         simpa [List.map_ofFn, Function.comp_def, ← List.ofFn_getElem_eq_map] using
           List.ne_nil_of_mem (List.mem_map.1 hz).choose_spec.1)

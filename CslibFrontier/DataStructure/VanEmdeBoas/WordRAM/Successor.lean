@@ -342,7 +342,7 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
         have hout_fit : Fits w (i.val * universeSize d + y) := by
           have hmul_lt : i.val * universeSize d + y < universeSize (d + 1) :=
             ((Nat.add_lt_add_left hy_lt _).trans_le
-              ((Nat.succ_mul i.val _).symm.trans_le (Nat.mul_le_mul_right _ i.2))).trans_eq
+              ((Nat.succ_mul i.val _).symm.trans_le (Nat.mul_le_mul_right _ i.isLt))).trans_eq
               (universeSize_succ d).symm
           exact ha.of_le
             ((hmul_lt.le.trans (universeSize_le_span (d + 1))).trans (Nat.le_add_left _ base))

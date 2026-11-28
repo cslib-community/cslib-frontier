@@ -144,7 +144,7 @@ theorem eval_affineSubst (A : FrameChannel P H r) (y : ZMod P) :
   simp_rw [← pow_add_sum_substMatrix α β, add_smul, sum_add_distrib, sum_smul, smul_sum,
     smul_smul]
   rw [sum_comm (s := univ) (t := univ)
-    (f := fun j k ↦ (y ^ (k.val + 1) * substMatrix α β k j) • A.2.1 j)]
+    (f := fun j k ↦ (y ^ (k.val + 1) * substMatrix α β k j) • A.2.val j)]
   abel
 
 /-- The substituted channel, as a function of the identifier. -/
@@ -157,10 +157,11 @@ and then the constant column. -/
 theorem affineSubst_injective :
     Function.Injective (affineSubst (P := P) (H := H) (r := r) β hα) := by
   intro A A' h
-  have hF : A.2.1 = A'.2.1 := by
-    have h2 := congrArg (fun A ↦ A.2.1) h
+  have hF : A.2.val = A'.2.val := by
+    have h2 := congrArg (fun A ↦ A.2.val) h
     funext j i
-    have hi : substMatrix α β *ᵥ (fun j ↦ A.2.1 j i) = substMatrix α β *ᵥ (fun j ↦ A'.2.1 j i) := by
+    have hi :
+        substMatrix α β *ᵥ (fun j ↦ A.2.val j i) = substMatrix α β *ᵥ (fun j ↦ A'.2.val j i) := by
       funext k
       have := congrFun (congrFun h2 k) i
       simpa [affineSubst, substColumns, mulVec, dotProduct, Finset.sum_apply] using this

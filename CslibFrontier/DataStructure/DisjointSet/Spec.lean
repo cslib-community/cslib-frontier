@@ -477,7 +477,7 @@ theorem spanningForestEdges_rel_iff_eqvGen {n : ℕ} {E : Type} (endpts : E → 
     exact p.toSetoid.iseqv.eqvGen_iff.symm
   | cons e es ih =>
     rw [eval_spanningForestEdges_cons, ih (p.merge (endpts e).1 (endpts e).2)]
-    refine ⟨fun h => (Relation.EqvGen.is_equivalence _).eqvGen_iff.mp (h.mono ?_),
+    refine ⟨fun h => (Relation.EqvGen.equivalence _).eqvGen_iff.mp (h.mono ?_),
       fun h => h.mono ?_⟩
     · rintro u v (huv | ⟨f, hf, rfl, rfl⟩)
       · exact (Partition.rel_merge_iff_eqvGen.mp huv).mono fun w z hwz =>

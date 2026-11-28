@@ -264,7 +264,7 @@ private theorem coeffs_injective (h : n ≤ prime t n ^ (8 * t + 2)) :
   intro i j hij
   have := congrArg Fin.val ((Fintype.equivFin _).symm.injective hij)
   simp only [Fintype.card_fun, Fintype.card_fin, ZMod.card] at this
-  rw [Nat.mod_eq_of_lt (i.2.trans_le h), Nat.mod_eq_of_lt (j.2.trans_le h)] at this
+  rw [Nat.mod_eq_of_lt (i.isLt.trans_le h), Nat.mod_eq_of_lt (j.isLt.trans_le h)] at this
   exact Fin.ext this
 
 /-- Two distinct blocks meet in at most `8t + 1` points once `n ≤ q ^ (8t + 2)`. -/

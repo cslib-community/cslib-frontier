@@ -153,7 +153,7 @@ variable {L : Type} [Fintype L] [DecidableEq L]
 /-- Giving each leg to the party of its own name changes nothing, up to equivalence. -/
 theorem antisymmRel_push_id (t : PartyTensor K I) : AntisymmRel (· ≤ ·) (push id t) t :=
   antisymmRel_of_equiv
-    (fun q => ⟨fun y => y ⟨q, rfl⟩, fun a j => (show q = j.1 from j.2.symm) ▸ a,
+    (fun q => ⟨fun y => y ⟨q, rfl⟩, fun a j => (show q = j.val from j.property.symm) ▸ a,
       fun y => by funext ⟨j, hj⟩; cases hj; rfl, fun _ => rfl⟩)
     fun _ => rfl
 
@@ -161,8 +161,8 @@ theorem antisymmRel_push_id (t : PartyTensor K I) : AntisymmRel (· ≤ ·) (pus
 theorem antisymmRel_push_push (π : J → I) (ρ : L → J) (t : PartyTensor K L) :
     AntisymmRel (· ≤ ·) (push π (push ρ t)) (push (π ∘ ρ) t) :=
   antisymmRel_of_equiv
-    (fun q => ⟨fun y i => y ⟨ρ i.1, i.2⟩ ⟨i.1, rfl⟩, fun z j i => z ⟨i.1, by
-        rw [Function.comp, i.2]; exact j.2⟩, fun y => by
+    (fun q => ⟨fun y i => y ⟨ρ i.val, i.property⟩ ⟨i.val, rfl⟩, fun z j i => z ⟨i.val, by
+        rw [Function.comp, i.property]; exact j.property⟩, fun y => by
         funext ⟨j, hj⟩ ⟨i, hi⟩
         cases hj
         cases hi

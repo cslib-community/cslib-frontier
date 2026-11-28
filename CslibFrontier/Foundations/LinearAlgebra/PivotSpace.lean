@@ -111,10 +111,10 @@ theorem sum_finrank_pivotSpace [FiniteDimensional K M] (V : Submodule K (Fin r â
       subst hmr
       have hbot : lowerZero V m = âŠ¥ := by
         refine (Submodule.eq_bot_iff _).2 fun v hv => funext fun j => ?_
-        exact (mem_lowerZero.1 hv).2 j j.2
+        exact (mem_lowerZero.1 hv).2 j j.isLt
       rw [hbot, finrank_bot, eq_comm]
       refine Finset.sum_eq_zero fun i hi => ?_
-      exact absurd i.2 (not_lt.2 (Finset.mem_filter.1 hi).2)
+      exact absurd i.isLt (not_lt.2 (Finset.mem_filter.1 hi).2)
     | succ q ih =>
       have hmr : m < r := by omega
       rw [finrank_lowerZero V m hmr, ih (m + 1) (by omega) (by omega)]

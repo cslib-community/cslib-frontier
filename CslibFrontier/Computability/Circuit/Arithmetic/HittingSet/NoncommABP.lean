@@ -135,7 +135,7 @@ private theorem apply_polynomial [NeZero W] (hW : ∀ k ≤ d, A.width k ≤ W)
   have hd : (0 : ℕ) < A.width d := by simp [A.width_deg]
   have hsum : A.polynomial = A.pre d ⟨0, hd⟩ :=
     Fintype.sum_eq_single _ fun j hj =>
-      absurd (Fin.ext (Nat.lt_one_iff.1 (j.2.trans_eq A.width_deg))) hj
+      absurd (Fin.ext (Nat.lt_one_iff.1 (j.isLt.trans_eq A.width_deg))) hj
   rw [hsum]
   simpa [pad, hd] using congrFun (key d le_rfl) 0
 
@@ -204,7 +204,7 @@ private theorem natDegree_uniLayer_le (k : Fin d) (i j : Fin W) :
     (A.uniLayer W k i j).natDegree ≤ n - 1 := by
   rw [uniLayer, Matrix.of_apply]
   exact Polynomial.natDegree_sum_le_of_forall_le _ _ fun x _ =>
-    (Polynomial.natDegree_C_mul_X_pow_le _ _).trans (by have := x.2; omega)
+    (Polynomial.natDegree_C_mul_X_pow_le _ _).trans (by have := x.isLt; omega)
 
 end NoncommABP
 

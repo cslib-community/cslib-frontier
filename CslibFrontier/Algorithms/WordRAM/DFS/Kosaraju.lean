@@ -405,6 +405,7 @@ private theorem peelLoop_spec {N w : ℕ} (hN : 0 < N) (revAdj : Fin N → List 
     refine ⟨y, ⟨t₁ + t₂ + 2, ?_, Exec.loop_iter hlt he₁ he₂⟩,
       fun u hu => ?_, fun a ha => ?_, fun reg hreg => (hy_fr reg hreg).trans (hy₂_fr0 reg hreg)⟩
     · rw [peelSCCs, show visit revAdj N r ⟨vis, []⟩ = s from rfl]
+      dsimp only
       split_ifs with he
       · have hlen0 : s.finished = [] := List.isEmpty_iff.1 he
         simp only [hlen0, List.length_nil, outDegreeSum, List.map_nil, List.sum_nil] at ht₁
@@ -414,6 +415,7 @@ private theorem peelLoop_spec {N w : ℕ} (hN : 0 < N) (revAdj : Fin N → List 
           outDegreeSum_append]
         omega
     · rw [peelSCCs, show visit revAdj N r ⟨vis, []⟩ = s from rfl] at hu ⊢
+      dsimp only at hu ⊢
       split_ifs with he
       · simp only [he, ↓reduceIte] at hu
         dsimp only [cIdx', f'] at hy_comp

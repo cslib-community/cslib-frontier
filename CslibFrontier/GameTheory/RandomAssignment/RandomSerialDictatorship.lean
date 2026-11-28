@@ -101,21 +101,21 @@ private def sdPrefix {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n)) :
   | 0, _ => ⟨∅, by simp⟩
   | t + 1, ht =>
     let prev := sdPrefix p σ t (by omega)
-    let hne := exists_avail_of_card_lt (p (σ ⟨t, by omega⟩)) prev.1 (by rw [prev.2]; omega)
-    let o := bestRemaining (p (σ ⟨t, by omega⟩)) prev.1 hne
-    ⟨insert o prev.1, by
-      rw [Finset.card_insert_of_notMem (bestRemaining_not_mem _ _ hne), prev.2]⟩
+    let hne := exists_avail_of_card_lt (p (σ ⟨t, by omega⟩)) prev.val (by rw [prev.property]; omega)
+    let o := bestRemaining (p (σ ⟨t, by omega⟩)) prev.val hne
+    ⟨insert o prev.val, by
+      rw [Finset.card_insert_of_notMem (bestRemaining_not_mem _ _ hne), prev.property]⟩
 
 /-- The object picked at turn `t : Fin n` (by agent `σ t`). -/
 private def serialDictPick {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n)) (t : Fin n) : Fin n :=
   let prev := sdPrefix p σ t.val (by omega)
-  bestRemaining (p (σ t)) prev.1
-    (exists_avail_of_card_lt (p (σ t)) prev.1 (by rw [prev.2]; exact t.isLt))
+  bestRemaining (p (σ t)) prev.val
+    (exists_avail_of_card_lt (p (σ t)) prev.val (by rw [prev.property]; exact t.isLt))
 
 /-- The set of objects already claimed strictly before turn `t : Fin n`. -/
 private def serialDictTaken {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n)) (t : ℕ)
     (ht : t ≤ n) : Finset (Fin n) :=
-  (sdPrefix p σ t ht).1
+  (sdPrefix p σ t ht).val
 
 private lemma serialDictTaken_succ {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n))
     (t : ℕ) (ht : t < n) :
@@ -276,8 +276,8 @@ private lemma sdPrefix_update_of_le {n : ℕ} (p : Profile n) (σ : Equiv.Perm (
     have hpick : serialDictPick (Function.update p i π') σ ⟨t, by omega⟩ =
         serialDictPick p σ ⟨t, by omega⟩ := by
       unfold serialDictPick
-      have hset : (sdPrefix (Function.update p i π') σ t (by omega)).1 =
-          (sdPrefix p σ t (by omega)).1 := hprev
+      have hset : (sdPrefix (Function.update p i π') σ t (by omega)).val =
+          (sdPrefix p σ t (by omega)).val := hprev
       simp only [Function.update_of_ne hne, hset]
     rw [serialDictTaken_succ _ σ t (by omega), serialDictTaken_succ _ σ t (by omega),
       hpick, hprev]
@@ -309,8 +309,8 @@ private lemma serialDictTaken_comp {n : ℕ} (p : Profile n) (τ σ : Equiv.Perm
     have hpick : serialDictPick (p ∘ τ) (τ⁻¹ * σ) ⟨t, by omega⟩ =
         serialDictPick p σ ⟨t, by omega⟩ := by
       unfold serialDictPick
-      have hset : (sdPrefix (p ∘ τ) (τ⁻¹ * σ) t (by omega)).1 =
-          (sdPrefix p σ t (by omega)).1 := hprev
+      have hset : (sdPrefix (p ∘ τ) (τ⁻¹ * σ) t (by omega)).val =
+          (sdPrefix p σ t (by omega)).val := hprev
       simp only [hcomp, hset]
     rw [serialDictTaken_succ _ _ t (by omega), serialDictTaken_succ _ _ t (by omega),
       hpick, hprev]
@@ -321,8 +321,8 @@ lemma serialDictatorship_comp {n : ℕ} (p : Profile n) (τ σ : Equiv.Perm (Fin
   have hidx : (τ⁻¹ * σ).symm i = σ.symm (τ i) := by
     rw [Equiv.symm_apply_eq]
     simp [Equiv.Perm.mul_apply]
-  have hset : (sdPrefix (p ∘ τ) (τ⁻¹ * σ) (σ.symm (τ i)).val (by omega)).1 =
-      (sdPrefix p σ (σ.symm (τ i)).val (by omega)).1 :=
+  have hset : (sdPrefix (p ∘ τ) (τ⁻¹ * σ) (σ.symm (τ i)).val (by omega)).val =
+      (sdPrefix p σ (σ.symm (τ i)).val (by omega)).val :=
     serialDictTaken_comp p τ σ (σ.symm (τ i)).val (by omega)
   have hpref : (p ∘ τ) ((τ⁻¹ * σ) (σ.symm (τ i))) = p (σ (σ.symm (τ i))) := by
     simp [Function.comp_apply, Equiv.Perm.mul_apply]

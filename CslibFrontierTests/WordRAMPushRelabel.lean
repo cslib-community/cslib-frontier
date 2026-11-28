@@ -61,7 +61,7 @@ private meta def runFlat (inst : Instance) (w : ℕ) : Option (ℕ × Bool × Bo
 
 /-- CLRS 6-vertex capacity matrix (`s = 0`, `t = 5`, antiparallel arcs `(1, 2)` and `(2, 1)`). -/
 def clrsCap (u v : Fin 6) : ℕ :=
-  match u.1, v.1 with
+  match u.val, v.val with
   | 0, 1 => 16
   | 0, 2 => 13
   | 1, 2 => 10
@@ -125,7 +125,7 @@ example :
 
 /-- Network `0 → 2 → 1 → 3 → 4` where vertex `2` relabels past `1` and triggers move-to-front. -/
 def mtfCap (u v : Fin 5) : ℕ :=
-  match u.1, v.1 with
+  match u.val, v.val with
   | 0, 2 => 5
   | 2, 1 => 5
   | 1, 3 => 5
@@ -156,7 +156,7 @@ example : ∃ steps ≤ prTime 5,
 
 /-- Self-loop capacity matrix: high-capacity self-loop `(1, 1)` does not inflate flow. -/
 def selfLoopCap (u v : Fin 3) : ℕ :=
-  match u.1, v.1 with
+  match u.val, v.val with
   | 0, 1 => 4
   | 1, 1 => 9
   | 1, 2 => 4
@@ -180,7 +180,7 @@ example : ∃ steps ≤ prTime 3,
 
 /-- Arcs entering `s = 0` (`(1, 0)`) and leaving `t = 2` (`(2, 1)`). -/
 def backArcCap (u v : Fin 3) : ℕ :=
-  match u.1, v.1 with
+  match u.val, v.val with
   | 0, 1 => 5
   | 1, 2 => 4
   | 1, 0 => 3
@@ -203,7 +203,7 @@ example : ∃ steps ≤ prTime 3,
 
 /-- 4-vertex network with antiparallel arcs `(1, 2)` and `(2, 1)`. -/
 def antiCap (u v : Fin 4) : ℕ :=
-  match u.1, v.1 with
+  match u.val, v.val with
   | 0, 1 => 2
   | 0, 2 => 2
   | 1, 2 => 1
@@ -229,7 +229,7 @@ example : ∃ steps ≤ prTime 4,
 #eval runStructured antiInst 16
 
 /-- Direct `s → t` network (`n = 2`, zero non-terminal vertices). -/
-abbrev directInst : Instance := ⟨2, 0, 1, fun u v => if u.1 = 0 ∧ v.1 = 1 then 7 else 0⟩
+abbrev directInst : Instance := ⟨2, 0, 1, fun u v => if u.val = 0 ∧ v.val = 1 then 7 else 0⟩
 
 example : ∃ steps ≤ prTime 2,
     ExecutesList 16 program (State.init directInst.encode) [7, 1, 0, 0, 7, 0, 0] steps ∧
@@ -251,7 +251,7 @@ example : ∃ steps ≤ prTime 2,
 
 /-- Unreachable sink `t = 2`: flow value `0`. -/
 def cutOffCap (u v : Fin 3) : ℕ :=
-  match u.1, v.1 with
+  match u.val, v.val with
   | 0, 1 => 5
   | 2, 1 => 5
   | _, _ => 0

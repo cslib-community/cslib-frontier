@@ -165,7 +165,7 @@ example : (rankEquiv distinctPairs (Equiv.refl _) 2
 
 private theorem distinctPairs_rel (t : Fin 2 → distinctPairs.Model (Fin 2)) :
     RelMap adj t ↔ t 0 = t 1 := by
-  change (t 0).1 0 = (t 1).1 0 ↔ t 0 = t 1
+  change (t 0).val 0 = (t 1).val 0 ↔ t 0 = t 1
   constructor
   · intro h
     apply Model.ext
@@ -173,14 +173,14 @@ private theorem distinctPairs_rel (t : Fin 2 → distinctPairs.Model (Fin 2)) :
     fin_cases i
     · exact h
     · apply Fin.ext
-      change ((t 0).1 1).val = ((t 1).1 1).val
-      have hx : (t 0).1 0 ≠ (t 0).1 1 := (t 0).2
-      have hy : (t 1).1 0 ≠ (t 1).1 1 := (t 1).2
+      change ((t 0).val 1).val = ((t 1).val 1).val
+      have hx : (t 0).val 0 ≠ (t 0).val 1 := (t 0).property
+      have hy : (t 1).val 0 ≠ (t 1).val 1 := (t 1).property
       simp only [ne_eq, Fin.ext_iff] at hx hy h
-      have h00 := ((t 0).1 0).isLt
-      have h01 := ((t 0).1 1).isLt
-      have h10 := ((t 1).1 0).isLt
-      have h11 := ((t 1).1 1).isLt
+      have h00 := ((t 0).val 0).isLt
+      have h01 := ((t 0).val 1).isLt
+      have h10 := ((t 1).val 0).isLt
+      have h11 := ((t 1).val 1).isLt
       omega
   · intro h
     rw [h]

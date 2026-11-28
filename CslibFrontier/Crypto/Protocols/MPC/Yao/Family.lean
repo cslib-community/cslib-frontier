@@ -976,7 +976,7 @@ theorem isPPT_oneSidedGarblerSim {encFn : Fn ↪ List Bool}
     (⟨0, Finset.mem_singleton_self 0⟩ : ({0} : Finset (Fin 2)))
   refine isPPT_sim_of_coins E (encParams_fn_polyTime .id') hcoins
     (reps := fun (p : SimInput (oneSidedFamily G) {0} × List Bool) i =>
-      (Finset.mem_singleton.mp i.2).symm ▸
+      (Finset.mem_singleton.mp i.property).symm ▸
         OneSidedGarblerViewWords.mk
           (E.input.rep p.1.secParam p.1.desc 0 (p.1.inputs ⟨0, Finset.mem_singleton_self 0⟩)) p.2)
     (fun ⟨j, hj⟩ => ?_) (fun ⟨n, c, xs, _⟩ => ?_)
@@ -1000,7 +1000,7 @@ theorem isPPT_garblerSim {encFn : Fn ↪ List Bool}
     (⟨0, Finset.mem_singleton_self 0⟩ : ({0} : Finset (Fin 2)))
   refine isPPT_sim_of_coins E (encParams_fn_polyTime .id') hcoins
     (reps := fun (p : SimInput (family G) {0} × List Bool) i =>
-      (Finset.mem_singleton.mp i.2).symm ▸
+      (Finset.mem_singleton.mp i.property).symm ▸
         GarblerViewWords.mk
           (E.input.rep p.1.secParam p.1.desc 0 (p.1.inputs ⟨0, Finset.mem_singleton_self 0⟩)) p.2
           (E.output.rep p.1.secParam p.1.desc 0 (p.1.outputs ⟨0, Finset.mem_singleton_self 0⟩)))

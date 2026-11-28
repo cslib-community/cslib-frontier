@@ -388,7 +388,7 @@ theorem det_hermiteMatrix_ne_zero {t : Fin Q → ℤ} (ht : Function.Injective t
       (finProdFinEquiv c)
     rwa [Function.comp_apply, Equiv.symm_apply_apply] at this
   have hp : p.degree < ↑(Q * J) :=
-    mem_degreeLT.mp ((degreeLTEquiv ℚ (Q * J)).symm (v ∘ finProdFinEquiv.symm)).2
+    mem_degreeLT.mp ((degreeLTEquiv ℚ (Q * J)).symm (v ∘ finProdFinEquiv.symm)).property
   have hunit : Pairwise fun i j => IsUnit ((t i : ℚ) - t j) := fun i j hij =>
     isUnit_iff_ne_zero.mpr (sub_ne_zero.mpr (by exact_mod_cast ht.ne hij))
   have hjet := hermiteMatrix_mulVec t hp

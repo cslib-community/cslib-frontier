@@ -204,7 +204,7 @@ example :
 example :
     ((shamirUniformAccessScheme params3).shareDist
       (uniformOfFintype (Randomness params3)) 3).map (fun v (i : ({0} : Finset (Fin 3))) =>
-        v i.1) = uniformOfFintype (({0} : Finset (Fin 3)) → ZMod 5) := by
+        v i.val) = uniformOfFintype (({0} : Finset (Fin 3)) → ZMod 5) := by
   rw [AccessScheme.shareDist, PMF.map_comp]
   exact shamirUniform_viewDist_eq params3 (by
     simp only [shamirUniformAccessScheme_access, shamirAccessStructure,
@@ -433,15 +433,15 @@ noncomputable def taggedPadScheme :
         · exact Or.inr (Or.inr rfl)
     rcases hsub with rfl | rfl | rfl
     · have hfun (m : ZMod 3) :
-          (fun k (i : (∅ : Finset (Fin 2))) => taggedPadShare k m i.1) =
-            fun _ i => (Finset.notMem_empty i.1 i.2).elim := by
-        ext k i; exact (Finset.notMem_empty i.1 i.2).elim
+          (fun k (i : (∅ : Finset (Fin 2))) => taggedPadShare k m i.val) =
+            fun _ i => (Finset.notMem_empty i.val i.property).elim := by
+        ext k i; exact (Finset.notMem_empty i.val i.property).elim
       simp only [AccessStructure.viewDistOf, hfun]
     · have hfun (m : ZMod 3) :
-          (fun k (i : ({0} : Finset (Fin 2))) => taggedPadShare k m i.1) =
+          (fun k (i : ({0} : Finset (Fin 2))) => taggedPadShare k m i.val) =
             fun k _ => if k.1 then .inr k.2 else .inl k.2 := by
         ext k i
-        have hi : i.1 = 0 := Finset.mem_singleton.mp i.2
+        have hi : i.val = 0 := Finset.mem_singleton.mp i.property
         simp [hi, taggedPadShare]
       simp only [AccessStructure.viewDistOf, hfun]
     · have hfun (m : ZMod 3) :
@@ -450,22 +450,22 @@ noncomputable def taggedPadScheme :
         simp only [AccessStructure.viewDistOf, taggedPadSource, PMF.map_bind, PMF.map_comp]
         have hinner : ∀ b : Bool,
             (uniformOfFintype (ZMod 3)).map (fun k (i : ({1} : Finset (Fin 2))) =>
-              taggedPadShare (b, k) m i.1) =
+              taggedPadShare (b, k) m i.val) =
               (uniformOfFintype (ZMod 3)).map fun x _ => .inl x := by
           intro b
           have hcomp :
-              (fun k (i : ({1} : Finset (Fin 2))) => taggedPadShare (b, k) m i.1) =
+              (fun k (i : ({1} : Finset (Fin 2))) => taggedPadShare (b, k) m i.val) =
                 (fun x (_ : ({1} : Finset (Fin 2))) => Sum.inl x) ∘
                   (fun k => m - k) := by
             ext k i
-            have hi : i.1 = 1 := Finset.mem_singleton.mp i.2
+            have hi : i.val = 1 := Finset.mem_singleton.mp i.property
             simp [hi, taggedPadShare]
           rw [hcomp, ← PMF.map_comp]
           rw [uniformOfFintype_map_sub_left m]
         simp_rw [Function.comp_def] at hinner ⊢
         have hbind :
             (q.bind fun b => (uniformOfFintype (ZMod 3)).map
-              (fun x (i : ({1} : Finset (Fin 2))) => taggedPadShare (b, x) m i.1)) =
+              (fun x (i : ({1} : Finset (Fin 2))) => taggedPadShare (b, x) m i.val)) =
               q.bind fun _ => (uniformOfFintype (ZMod 3)).map fun x _ => .inl x :=
           congrArg q.bind (funext hinner)
         exact hbind.trans (PMF.bind_const q _)
@@ -483,7 +483,7 @@ example :
       mem_support_uniformOfFintype, true_and]
     refine ⟨0, ?_⟩
     ext i
-    have hi : i.1 = 0 := Finset.mem_singleton.mp i.2
+    have hi : i.val = 0 := Finset.mem_singleton.mp i.property
     simp [v, taggedPadScheme, taggedPadShare, hi]
   have hnot :
       v ∉ (taggedPadScheme.viewDist (taggedPadSource (PMF.pure true)) {0} 0).support := by
@@ -502,7 +502,8 @@ example :
     let d := ThresholdDesignOn.toTwoTwo (Fin 3) (t' := 2) (by decide) (by decide)
     StatisticallyPrivate (AccessStructure.threshold (Fin 2) 2)
       (shamirAccessScheme params3).sources
-      (fun k secret (i : Fin 2) (j : d.assign i) => (shamirAccessScheme params3).share k secret j.1)
+      (fun k secret (i : Fin 2) (j : d.assign i) =>
+        (shamirAccessScheme params3).share k secret j.val)
       (1 / 4 : NNReal) :=
   StatisticallyPrivate.composeDesign
     (ThresholdDesignOn.toTwoTwo (Fin 3) (t' := 2) (by decide) (by decide))
@@ -518,9 +519,9 @@ private theorem leakyView_zero :
   simp only [AccessStructure.viewDistOf, PMF.map_apply]
   rw [tsum_eq_sum (s := Finset.univ)]
   · have hsum : ∀ a : ZMod 3, (fun _ : ({1} : Finset (Fin 2)) => (0 : ZMod 3)) =
-        fun i => leakyShare a 0 i.1 := by
+        fun i => leakyShare a 0 i.val := by
       intro a; ext i
-      have hi : i.1 = 1 := Finset.mem_singleton.mp i.2
+      have hi : i.val = 1 := Finset.mem_singleton.mp i.property
       simp [hi, leakyShare]
     rw [Finset.sum_congr (g := fun a => (uniformOfFintype (ZMod 3)) a) rfl
       fun a _ => by simp only [hsum a, ↓reduceIte]]
@@ -534,7 +535,7 @@ private theorem leakyView_one :
   rw [tsum_eq_zero_iff]
   intro a
   have hne : (fun _ : ({1} : Finset (Fin 2)) => (0 : ZMod 3)) ≠
-      fun i => leakyShare a 1 i.1 := by
+      fun i => leakyShare a 1 i.val := by
     intro heq
     have := congrFun heq ⟨1, Finset.mem_singleton_self 1⟩
     simp [leakyShare] at this

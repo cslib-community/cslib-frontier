@@ -155,11 +155,12 @@ theorem coinCountWithSymbol_eq_configMatrix_of_reachable (c : ℕ) {input : List
     (coinCountWithSymbol machine B input.length (vertexID B x.val) (vertexID B y.val)
       input[queryIndex (k := k) B (vertexID B x.val)]? : R) = machine.configMatrix R V x y := by
   dsimp only
-  have hix := input_of_reachable (hV x x.2)
+  have hix := input_of_reachable (hV x x.property)
   simpa only [hix] using coinCountWithSymbol_eq_configMatrix machine x y
-    (hix.trans (input_of_reachable (hV y y.2)).symm)
-    (canonical_of_reachable machine (hV x x.2)) (canonical_of_reachable machine (hV y y.2))
-    (fits_of_runsInSpace c hs (hV x x.2)) (fits_of_runsInSpace c hs (hV y y.2))
+    (hix.trans (input_of_reachable (hV y y.property)).symm)
+    (canonical_of_reachable machine (hV x x.property))
+    (canonical_of_reachable machine (hV y y.property))
+    (fits_of_runsInSpace c hs (hV x x.property)) (fits_of_runsInSpace c hs (hV y y.property))
 
 /-- The same reachable-view corollary for the live configuration matrix. -/
 theorem liveCoinCountWithSymbol_eq_liveConfigMatrix_of_reachable (c : ℕ) {input : List Bool}
@@ -171,11 +172,12 @@ theorem liveCoinCountWithSymbol_eq_liveConfigMatrix_of_reachable (c : ℕ) {inpu
     (liveCoinCountWithSymbol machine B input.length (vertexID B x.val) (vertexID B y.val)
       input[queryIndex (k := k) B (vertexID B x.val)]? : R) = machine.liveConfigMatrix R V x y := by
   dsimp only
-  have hix := input_of_reachable (hV x x.2)
+  have hix := input_of_reachable (hV x x.property)
   simpa only [hix] using liveCoinCountWithSymbol_eq_liveConfigMatrix machine x y
-    (hix.trans (input_of_reachable (hV y y.2)).symm)
-    (canonical_of_reachable machine (hV x x.2)) (canonical_of_reachable machine (hV y y.2))
-    (fits_of_runsInSpace c hs (hV x x.2)) (fits_of_runsInSpace c hs (hV y y.2))
+    (hix.trans (input_of_reachable (hV y y.property)).symm)
+    (canonical_of_reachable machine (hV x x.property))
+    (canonical_of_reachable machine (hV y y.property))
+    (fits_of_runsInSpace c hs (hV x x.property)) (fits_of_runsInSpace c hs (hV y y.property))
 
 end ConfigurationGraph
 

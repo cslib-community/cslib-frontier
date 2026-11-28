@@ -57,10 +57,10 @@ variable {F : Type*} [CommSemiring F] {h b D J r m Uu A : ℕ} {T : Tower h b D 
 @[expose] noncomputable def Target.holders (R : Routes T m Uu) (ch : Fin A ↪ T.X 0) :
     Target T m A → Sym2 T.Node
   | .done => s(.root, .root)
-  | .edge j e => s(.ofChamber (Nat.le_of_lt_succ j.2) (T.e0 e),
-      .ofChamber (Nat.le_of_lt_succ j.2) (T.e1 e))
+  | .edge j e => s(.ofChamber (Nat.le_of_lt_succ j.isLt) (T.e0 e),
+      .ofChamber (Nat.le_of_lt_succ j.isLt) (T.e1 e))
   | .relay x => s(x.party R ch .source, x.party R ch .sink)
-  | .segment j i ω q => q.map fun f => .ofChamber j.2 ((T.chamberEquiv j.2 i).symm (ω, f))
+  | .segment j i ω q => q.map fun f => .ofChamber j.isLt ((T.chamberEquiv j.isLt i).symm (ω, f))
 
 /-- A step of a route before its end has units. -/
 theorem stepTarget_ne_done {c c' γ : T.X 0} {s : ℕ} (hs : s < R.pl c c' γ) :
@@ -115,18 +115,18 @@ private theorem Relay.holders_target {x : Relay T m A} (hx : x.Occurs R ch) {d :
       split_ifs with hs2
       · rfl
       · have h2 := R.pn_pl (ch a) (ch c) γ
-        rw [show R.pl (ch a) (ch c) γ = s.1 + 1 + 1 by omega] at h2
+        rw [show R.pl (ch a) (ch c) γ = s.val + 1 + 1 by omega] at h2
         rw [holders_stepTarget hs, h2]
         rfl
   · exact absurd rfl hd
   · cases d <;> fin_cases s
     · exact absurd rfl hd
-    · exact map_segment j.2 (T.ty e) (T.e0 e)
-    · exact congrArg (Sym2.map (Tower.Node.ofChamber j.2)) (T.π_ends j.2 e)
-    · exact (map_segment j.2 (T.ty e) (T.e1 e)).trans Sym2.eq_swap
+    · exact map_segment j.isLt (T.ty e) (T.e0 e)
+    · exact congrArg (Sym2.map (Tower.Node.ofChamber j.isLt)) (T.π_ends j.isLt e)
+    · exact (map_segment j.isLt (T.ty e) (T.e1 e)).trans Sym2.eq_swap
     · by_cases hh : T.hostOf (T.ty e) (T.e0 e) = T.π (T.e0 e)
       · refine (congrArg (Target.holders R ch) (ite_eq_right (not_not.2 hh))).trans ?_
-        exact congrArg (fun c => s(Tower.Node.ofChamber j.2 c, .ofChamber j.2.le (T.e1 e)))
+        exact congrArg (fun c => s(Tower.Node.ofChamber j.isLt c, .ofChamber j.isLt.le (T.e1 e)))
           hh.symm
       · exact congrArg (Target.holders R ch) (ite_eq_left hh)
     · rfl
@@ -139,24 +139,24 @@ private theorem Relay.holders_target {x : Relay T m A} (hx : x.Occurs R ch) {d :
 private theorem holders_target_vertex (l : VertexMove FL) (ν : (FL.law l.kind).Channel) :
     ((Move.vertex l : Move R ch FL).target ν).holders R ch =
       channelHolders (⟨.vertex l, ν⟩ : MoveChannel R ch FL) := by
-  set p := (T.nr l.stage.2 l.type).symm (l.vertex, FL.nearPair l.kind ν)
-  have hp : T.nr l.stage.2 l.type p = (l.vertex, FL.nearPair l.kind ν) :=
+  set p := (T.nr l.stage.isLt l.type).symm (l.vertex, FL.nearPair l.kind ν)
+  have hp : T.nr l.stage.isLt l.type p = (l.vertex, FL.nearPair l.kind ν) :=
     Equiv.apply_symm_apply _ _
   have h2 := (FL.place_channelEnd l.kind ν).trans
-    ((T.nr_co l.stage.2 l.type p).trans (by rw [hp])).symm
-  have e0 : (T.chamberEquiv l.stage.2 l.type).symm (l.vertex, T.co l.type (T.e0 p.1)) =
-      T.e0 p.1 := by
-    rw [← ((T.nr_vx0 l.stage.2 l.type p).trans (congrArg Prod.fst hp) :
-      T.vx l.type (T.e0 p.1) = l.vertex)]
+    ((T.nr_co l.stage.isLt l.type p).trans (by rw [hp])).symm
+  have e0 : (T.chamberEquiv l.stage.isLt l.type).symm (l.vertex, T.co l.type (T.e0 p.val)) =
+      T.e0 p.val := by
+    rw [← ((T.nr_vx0 l.stage.isLt l.type p).trans (congrArg Prod.fst hp) :
+      T.vx l.type (T.e0 p.val) = l.vertex)]
     exact T.chamberEquiv_symm_vx_co _ _ _
-  have e1 : (T.chamberEquiv l.stage.2 l.type).symm (l.vertex, T.co l.type (T.e1 p.1)) =
-      T.e1 p.1 := by
-    rw [← ((T.nr_vx1 l.stage.2 l.type p).trans (congrArg Prod.fst hp) :
-      T.vx l.type (T.e1 p.1) = l.vertex)]
+  have e1 : (T.chamberEquiv l.stage.isLt l.type).symm (l.vertex, T.co l.type (T.e1 p.val)) =
+      T.e1 p.val := by
+    rw [← ((T.nr_vx1 l.stage.isLt l.type p).trans (congrArg Prod.fst hp) :
+      T.vx l.type (T.e1 p.val) = l.vertex)]
     exact T.chamberEquiv_symm_vx_co _ _ _
-  exact (congrArg₂ (fun x y => s(Tower.Node.ofChamber l.stage.2 x, .ofChamber l.stage.2 y))
-    e0 e1).symm.trans (congrArg (Sym2.map fun f => Tower.Node.ofChamber l.stage.2
-      ((T.chamberEquiv l.stage.2 l.type).symm (l.vertex, f))) h2).symm
+  exact (congrArg₂ (fun x y => s(Tower.Node.ofChamber l.stage.isLt x, .ofChamber l.stage.isLt y))
+    e0 e1).symm.trans (congrArg (Sym2.map fun f => Tower.Node.ofChamber l.stage.isLt
+      ((T.chamberEquiv l.stage.isLt l.type).symm (l.vertex, f))) h2).symm
 
 /-- The units of a channel of a move are held by the nodes of their target. -/
 theorem holders_target (ν : MoveChannel R ch FL) (hd : ν.1.target ν.2 ≠ .done) :

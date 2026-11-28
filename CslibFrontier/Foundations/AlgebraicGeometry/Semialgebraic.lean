@@ -159,11 +159,11 @@ theorem preimage_eval {s : Set (τ → R)} (hs : IsSemialgebraic s) (φ : τ →
     IsSemialgebraic ((fun x j => eval x (φ j)) ⁻¹' s) := by
   induction hs with
   | setOf_pos f =>
-    convert setOf_pos (bind₁ φ f) using 1
+    convert setOf_pos (aeval φ f) using 1
     ext x
     simp only [Set.mem_preimage, Set.mem_ofPred_eq]
-    rw [show eval x (bind₁ φ f) = eval (fun j => eval x (φ j)) f from
-      eval₂Hom_bind₁ (RingHom.id R) x φ f]
+    rw [show eval x (aeval φ f) = eval (fun j => eval x (φ j)) f from
+      comp_aeval_apply φ (aeval x) f]
   | union _ _ hs ht => exact hs.union ht
   | compl _ hs => exact hs.compl
 

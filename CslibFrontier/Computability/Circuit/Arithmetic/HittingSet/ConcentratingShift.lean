@@ -202,7 +202,7 @@ theorem exists_mem_support_shift_card_lt {γ : σ → R} {k w : ℕ} (hw : w < 2
           exact sum_congr rfl fun T _ => mul_smul_comm _ _ _
       _ = ∑ T : Y.powerset, c T •
             ∑ i, aeval b (q i) * algebraMap F R ((p i).coeff (ind (Y \ (T : Finset σ)))) :=
-          sum_congr rfl fun T _ => by rw [hcoef T (mem_powerset.1 T.2)]
+          sum_congr rfl fun T _ => by rw [hcoef T (mem_powerset.1 T.property)]
       _ = ∑ i, algebraMap F R (∑ T : Y.powerset, (p i).coeff (ind (Y \ (T : Finset σ))) * c T) *
             aeval b (q i) := by
           simp only [smul_sum, map_sum, sum_mul]
@@ -213,11 +213,11 @@ theorem exists_mem_support_shift_card_lt {γ : σ → R} {k w : ℕ} (hw : w < 2
       _ = 0 := by simp only [hΛ, map_zero, zero_mul, sum_const_zero]
   refine hc0 (funext fun T => ?_)
   have h := hγ Y hYk (fun T => if h : T ∈ Y.powerset then (-1) ^ T.card * c ⟨T, h⟩ else 0) ?_
-    T T.2
+    T T.property
   · simpa using h
   · rw [← hsum, ← Finset.sum_coe_sort Y.powerset]
     refine sum_congr rfl fun T _ => ?_
-    simp only [T.2, ↓reduceDIte]
+    simp only [T.property, ↓reduceDIte]
     rw [Finset.prod_neg, mul_comm, mul_smul, Algebra.smul_def ((-1 : F) ^ _)]
     simp
 

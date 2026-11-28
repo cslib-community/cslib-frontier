@@ -59,11 +59,11 @@ theorem exists_treeProgram (hh : 0 < h) (hb : 0 < b) (lhat : ℕ) {K Y : ℕ} (h
   let inp : Fin (Fintype.card ((Fin A × Fin A) ⊕ (moves R FL Pl).Channel)) →
       (Fin A → Fin A → Fin (U0 + 1)) × ((moves R FL Pl).Channel → Fin U1) → Fin K :=
     fun i x => match e.symm i with
-      | .inl q => ⟨x.1 q.1 q.2, (Nat.lt_succ_iff.1 (x.1 q.1 q.2).2).trans_lt (hU0 q.1)⟩
-      | .inr ν => ⟨x.2 ν, (x.2 ν).2.trans_le (hU1 ν)⟩
+      | .inl q => ⟨x.1 q.1 q.2, (Nat.lt_succ_iff.1 (x.1 q.1 q.2).isLt).trans_lt (hU0 q.1)⟩
+      | .inr ν => ⟨x.2 ν, (x.2 ν).isLt.trans_le (hU1 ν)⟩
   have hinp (q) : inp (e q) = fun x => match q with
-      | .inl q => ⟨x.1 q.1 q.2, (Nat.lt_succ_iff.1 (x.1 q.1 q.2).2).trans_lt (hU0 q.1)⟩
-      | .inr ν => ⟨x.2 ν, (x.2 ν).2.trans_le (hU1 ν)⟩ := by
+      | .inl q => ⟨x.1 q.1 q.2, (Nat.lt_succ_iff.1 (x.1 q.1 q.2).isLt).trans_lt (hU0 q.1)⟩
+      | .inr ν => ⟨x.2 ν, (x.2 ν).isLt.trans_le (hU1 ν)⟩ := by
     simp only [inp, Equiv.symm_apply_apply]
   have hS : SlpN inp (Fintype.card ((Fin A × Fin A) ⊕ (moves R FL Pl).Channel) + 0 * Y ^ 12)
       (Set.range fun i x => (inp i x : ℕ)) := by

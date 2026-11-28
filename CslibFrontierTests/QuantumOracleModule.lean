@@ -31,10 +31,10 @@ example {a b m : ℕ} (H : (Fin a → Bool) → Fin b → Bool)
     (xorQuery H A).eval (ket z) = ket ((queryRegisters A).symm
       (fun i => z (A (Fin.castAdd b i)),
         (fun i => z (A (Fin.natAdd a i))) + H (fun i => z (A (Fin.castAdd b i))),
-        fun j => z j.1)) := by
+        fun j => z j.val)) := by
   simpa only [← queryRegisters_apply A z, Equiv.symm_apply_apply] using
     xorQuery_eval_ket H A (fun i => z (A (Fin.castAdd b i)))
-      (fun i => z (A (Fin.natAdd a i))) (fun j => z j.1)
+      (fun i => z (A (Fin.natAdd a i))) (fun j => z j.val)
 
 -- The same API transports a concrete query into the existing value-query interface.
 example :

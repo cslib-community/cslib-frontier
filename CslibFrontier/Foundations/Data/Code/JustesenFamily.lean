@@ -197,7 +197,8 @@ theorem codeword_injective (w n : ℕ) : Function.Injective (codeword (w := w) (
       (Finset.univ.image (Units.val : (BinaryField (fieldDegree w n))ˣ → _)) ?_ ?_
     · rw [Finset.card_image_of_injective _ Units.val_injective, Finset.card_univ,
         Fintype.card_units, BinaryField.card (fieldDegree_ne_zero w n)]
-      exact (mem_degreeLT.1 ((degreeLT _ _).sub_mem (message v).2 (message v').2)).trans_le
+      exact (mem_degreeLT.1
+        ((degreeLT _ _).sub_mem (message v).property (message v').property)).trans_le
         (Nat.cast_le.2 (dimension_le _))
     · intro x hx
       obtain ⟨u, -, rfl⟩ := Finset.mem_image.1 hx
@@ -236,7 +237,7 @@ theorem length_le_mul_hammingDist {w n : ℕ} {v v' : Fin w} (hne : v ≠ v') :
   let s := scale w n
   let φ := BinaryField.equivBits (fieldDegree_ne_zero w n)
   have hmem (x : Fin w) : codeword (n := n) x ∈ justesenCode φ (dimension s) :=
-    ⟨_, eval_mem_reedSolomon _ (mem_degreeLT.1 (message x).2), rfl⟩
+    ⟨_, eval_mem_reedSolomon _ (mem_degreeLT.1 (message x).property), rfl⟩
   have hd := minDist_le_hammingDist (hmem v) (hmem v') (codeword_injective w n |>.ne hne)
   have h := card_le_mul_minDist_justesenCode (Nat.succ_pos s) φ
   refine Nat.cast_le.1 (h.trans ?_)
@@ -291,7 +292,7 @@ private theorem fieldOfBits_evalBits {w n : ℕ} {mul : List Bool → List Bool 
             BitString.lowBits (fieldDegree w n) (v.val >>> (fieldDegree w n * i.val))) =
       (message (n := n) v).val.eval ((equivBits (fieldDegree_ne_zero w n)).symm point) := by
   rw [fieldOfBits_hornerBits _ hmul,
-    eval_eq_sum_degreeLTEquiv (message (n := n) v).2]
+    eval_eq_sum_degreeLTEquiv (message (n := n) v).property]
   refine Finset.sum_congr rfl fun i _ => ?_
   rw [lowBits_coefficient_eq, fieldOfBits_ofFn, fieldOfBits_ofFn, message,
     LinearEquiv.apply_symm_apply]

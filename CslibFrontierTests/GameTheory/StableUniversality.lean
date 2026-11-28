@@ -75,24 +75,24 @@ noncomputable def pt : {z : Fin 1 ⊕ Fin (1 - 1) → ℝ |
 /-- The binary homeomorphism sends `-1` to a totally mixed Nash equilibrium of `binaryGame`, in
 which the variable player plays `true` with probability `toUnit (-1) = (3 − √5) / 2`. -/
 example : (binaryGame plusOne).IsTotallyMixedNash
-      (Sigma.curry ((binaryHomeomorph plusOne one_pos).toHomeomorph pt).1) ∧
-    ((binaryHomeomorph plusOne one_pos).toHomeomorph pt).1
+      (Sigma.curry ((binaryHomeomorph plusOne one_pos).toHomeomorph pt).val) ∧
+    ((binaryHomeomorph plusOne one_pos).toHomeomorph pt).val
       ⟨Cslib.GameTheory.DattaBinary.var 0, true⟩ = (3 - √5) / 2 := by
-  refine ⟨((binaryHomeomorph plusOne one_pos).toHomeomorph pt).2, ?_⟩
+  refine ⟨((binaryHomeomorph plusOne one_pos).toHomeomorph pt).property, ?_⟩
   rw [coe_binaryHomeomorph_apply]
   simp [Sigma.uncurry, Cslib.GameTheory.binaryProfile, binaryPoint, pt, toUnit_neg_one]
 
 /-- The point `-1` of `V`, with no free Critter coordinates (`Extra 1 1` is empty). -/
 noncomputable def ptH : {z : Fin 1 ⊕ Extra 1 1 → ℝ |
     z ∘ Sum.inl ∈ {x | ∀ j, eval x (plusOne j) = 0}} :=
-  ⟨Sum.elim (fun _ => -1) fun j => absurd j.2 (by omega), fun _ => by simp [plusOne]⟩
+  ⟨Sum.elim (fun _ => -1) fun j => absurd j.property (by omega), fun _ => by simp [plusOne]⟩
 
 /-- The three-player homeomorphism sends `-1` to a totally mixed Nash equilibrium of
 `hornerGame`, in which Alice plays her strategy `0` with probability `(3 − √5) / 2`. -/
 example : (hornerGame plusOne).IsTotallyMixedNash
-      (Sigma.curry ((hornerHomeomorph plusOne).toHomeomorph ptH).1) ∧
-    ((hornerHomeomorph plusOne).toHomeomorph ptH).1 ⟨.alice, some 0⟩ = (3 - √5) / 2 := by
-  refine ⟨((hornerHomeomorph plusOne).toHomeomorph ptH).2, ?_⟩
+      (Sigma.curry ((hornerHomeomorph plusOne).toHomeomorph ptH).val) ∧
+    ((hornerHomeomorph plusOne).toHomeomorph ptH).val ⟨.alice, some 0⟩ = (3 - √5) / 2 := by
+  refine ⟨((hornerHomeomorph plusOne).toHomeomorph ptH).property, ?_⟩
   rw [coe_hornerHomeomorph_apply, ← toUnit_neg_one]
   simp [Sigma.uncurry, Cslib.GameTheory.simplexProfile, hornerPoint, simplexPoint,
     toUnit, ptH]

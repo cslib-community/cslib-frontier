@@ -49,20 +49,19 @@ variable {R S K σ M : Type*} [CommSemiring R] [CommSemiring S] [Field K] [AddCo
 image of the monomial `D`. -/
 noncomputable def sliceMatrix (T : Module.End R (MvPolynomial σ R)) :
     Matrix {d : σ →₀ ℕ // weight w d = m'} {d : σ →₀ ℕ // weight w d = m} R :=
-  Matrix.of fun N D => (T (monomial D.1 1)).coeff N.1
+  Matrix.of fun N D => (T (monomial D.val 1)).coeff N.val
 
 /-- The rank of the matrix of an operator that maps weight `m` to weight `m'` is the dimension
 of the image of the slice of weight `m`. -/
-theorem rank_sliceMatrix [Fintype {d : σ →₀ ℕ // weight w d = m}]
-    (T : Module.End K (MvPolynomial σ K))
+theorem rank_sliceMatrix (T : Module.End K (MvPolynomial σ K))
     (hT : ∀ p ∈ weightedHomogeneousSubmodule K w m, T p ∈ weightedHomogeneousSubmodule K w m') :
     (sliceMatrix w m' m T).rank =
       Module.finrank K ((weightedHomogeneousSubmodule K w m).map T) := by
   classical
   let φ : MvPolynomial σ K →ₗ[K] ({d : σ →₀ ℕ // weight w d = m'} → K) :=
-    LinearMap.pi fun N => lcoeff K N.1
+    LinearMap.pi fun N => lcoeff K N.val
   have hcols : Set.range (sliceMatrix w m' m T).col =
-      (φ ∘ₗ T) '' Set.range fun D : {d : σ →₀ ℕ // weight w d = m} => monomial D.1 (1 : K) := by
+      (φ ∘ₗ T) '' Set.range fun D : {d : σ →₀ ℕ // weight w d = m} => monomial D.val (1 : K) := by
     rw [← Set.range_comp]
     exact congrArg Set.range (funext fun D => funext fun N => rfl)
   have hinj : Function.Injective
@@ -74,10 +73,10 @@ theorem rank_sliceMatrix [Fintype {d : σ →₀ ℕ // weight w d = m}]
     · exact congrFun (congrArg Subtype.val h) ⟨d, hd⟩
     · exact (hT p hp).coeff_eq_zero d hd
   have hspan : weightedHomogeneousSubmodule K w m = Submodule.span K
-      (Set.range fun D : {d : σ →₀ ℕ // weight w d = m} => monomial D.1 (1 : K)) := by
+      (Set.range fun D : {d : σ →₀ ℕ // weight w d = m} => monomial D.val (1 : K)) := by
     rw [weightedHomogeneousSubmodule_eq_finsupp_supported]
     exact (restrictSupport_eq_span K _).trans (by rw [Set.image_eq_range]; rfl)
-  rw [Matrix.rank_eq_finrank_span_cols, hcols, ← Submodule.map_span, ← hspan,
+  rw [← Matrix.finrank_span_range_col, hcols, ← Submodule.map_span, ← hspan,
     Submodule.map_comp]
   exact (LinearEquiv.ofBijective _ ⟨hinj, LinearMap.submoduleMap_surjective _ _⟩).finrank_eq.symm
 

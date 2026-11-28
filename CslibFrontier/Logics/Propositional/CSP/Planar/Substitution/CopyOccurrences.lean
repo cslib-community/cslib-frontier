@@ -50,15 +50,15 @@ private def replacementLocalOccurrence
     (gadgets : ∀ r, PPGadget arity sem (booleanRelation srcArity srcSem r))
     (B : ℕ) (F : CSP Src ℕ) (i : Fin F.length)
     (o : (gadgets F[i.val].rel).body.Occurrence) :
-    (instantiate B F.zipIdx[i.val].2 F.zipIdx[i.val].1.2
-      (gadgets F.zipIdx[i.val].1.1).template).Occurrence := by
+    (instantiate B F.zipIdx[i.val].2 F.zipIdx[i.val].1.scope
+      (gadgets F.zipIdx[i.val].1.rel).template).Occurrence := by
   have he : F.zipIdx[i.val] = (F[i.val], i.val) := by
     simpa only [Nat.zero_add] using
       (List.getElem_zipIdx (l := F) (i := i.val)
         (show i.val < F.zipIdx.length from by
           simpa only [List.length_zipIdx] using i.isLt))
   have hbody := congrArg (fun entry : Constraint Src ℕ × ℕ =>
-    instantiate B entry.2 entry.1.2 (gadgets entry.1.1).template) he
+    instantiate B entry.2 entry.1.scope (gadgets entry.1.rel).template) he
   exact hbody.symm ▸ instantiatedOccurrence (gadgets F[i.val].rel) B i.val F[i.val].scope o
 
 /-- Copy an actual local occurrence through the exact original replacement operation. -/
@@ -116,11 +116,11 @@ theorem incidenceEdgeIndex_replacementOccurrence
   unfold replacementOccurrence replaceGadgets
   rw [incidenceEdgeIndex_flatMapOccurrence]
   have hp : (CSP.vars ((F.zipIdx.take i.val).flatMap fun entry =>
-      instantiate B entry.2 entry.1.2 (gadgets entry.1.1).template)).length =
+      instantiate B entry.2 entry.1.scope (gadgets entry.1.rel).template)).length =
       occurrencePrefix (fun r => (gadgets r).template) F i.val := by
     rw [CSP.vars, List.flatMap_assoc]
     change ((F.zipIdx.take i.val).flatMap fun entry =>
-      (instantiate B entry.2 entry.1.2 (gadgets entry.1.1).template).vars).length = _
+      (instantiate B entry.2 entry.1.scope (gadgets entry.1.rel).template).vars).length = _
     simp only [instantiate, vars_relabel]
     exact instantiatedPrefix_length B (fun r => (gadgets r).template) F i.val
   rw [hp]

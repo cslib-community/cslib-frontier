@@ -415,7 +415,7 @@ private theorem primeNonresidues_nonempty {p : ℕ} [Fact p.Prime] (hp : 2 < p) 
 
 private noncomputable def primeNonresidueLaw (p : ℕ) [Fact p.Prime] (hp : 2 < p) : PMF ℕ :=
   letI : Nonempty (primeNonresidues p) := (primeNonresidues_nonempty hp).to_subtype
-  (PMF.uniformOfFintype (primeNonresidues p)).map fun u => u.1.val.val
+  (PMF.uniformOfFintype (primeNonresidues p)).map fun u => u.val.val.val
 
 private theorem singleLaw_qnrRejectionSpec_some_raw (p a : ℕ) :
     (qnrRejectionSpec p).singleLaw (some a) =
@@ -465,15 +465,15 @@ private theorem primeNonresidueLaw_apply {p : ℕ} [Fact p.Prime] (hp : 2 < p) (
       · exfalso
         apply hv
         ext
-        rw [← ZMod.natCast_zmod_val u.val, ← ZMod.natCast_zmod_val v.1.val, heq]
+        rw [← ZMod.natCast_zmod_val u.val, ← ZMod.natCast_zmod_val v.val.val, heq]
       · rfl
     · exact fun hnot => (hnot (Finset.mem_univ _)).elim
   · refine Finset.sum_eq_zero fun v _ => ?_
     split_ifs with heq
     · exfalso
       subst heq
-      have hmem := mem_primeNonresidues.mp v.2
-      exact ha ((isNonresidueModPrime_eq_true_iff hp _).mpr ⟨v.1, hmem, rfl⟩)
+      have hmem := mem_primeNonresidues.mp v.property
+      exact ha ((isNonresidueModPrime_eq_true_iff hp _).mpr ⟨v.val, hmem, rfl⟩)
     · rfl
 
 private theorem acceptProb_qnrRejectionSpec {p : ℕ} [Fact p.Prime] (hp : 2 < p) :
@@ -611,23 +611,23 @@ theorem closeTo_textbookKeyGen_publicKeyLaw (gen : ℕ → ProbComp ModulusDesc)
           (ProbComp.eval (sampleNonresidueModPrime n d.q)).map fun z_q =>
             textbookPublicKey d.p d.q z_p z_q)
         ((PMF.uniformOfFintype (positiveNonresidues d.p d.q)).map fun z =>
-          encPair encNat encNat (d.p * d.q, z.1.val.val))
+          encPair encNat encNat (d.p * d.q, z.val.val.val))
         ((1 / 2 ^ n : ℝ≥0) : ℝ≥0∞) := by
     have : Nonempty (primeNonresidues d.p) := (primeNonresidues_nonempty d.two_lt_p).to_subtype
     have : Nonempty (primeNonresidues d.q) := (primeNonresidues_nonempty d.two_lt_q).to_subtype
     have hcop : d.p.Coprime d.q := (Nat.coprime_primes d.prime_p d.prime_q).mpr d.ne_pq
     let e : primeNonresidues d.p × primeNonresidues d.q ≃ positiveNonresidues d.p d.q :=
       { toFun := fun pq =>
-          ⟨(ZMod.unitsChineseRemainder hcop).symm (pq.1.1, pq.2.1), by
+          ⟨(ZMod.unitsChineseRemainder hcop).symm (pq.1.val, pq.2.val), by
             rw [mem_positiveNonresidues_iff_unitsChineseRemainder d.p d.q hcop
                 d.two_lt_p d.two_lt_q,
               (ZMod.unitsChineseRemainder hcop).apply_symm_apply]
-            exact ⟨mem_primeNonresidues.mp pq.1.2, mem_primeNonresidues.mp pq.2.2⟩⟩
+            exact ⟨mem_primeNonresidues.mp pq.1.property, mem_primeNonresidues.mp pq.2.property⟩⟩
         invFun := fun u =>
           have hu := (mem_positiveNonresidues_iff_unitsChineseRemainder d.p d.q hcop
-            d.two_lt_p d.two_lt_q u.1).mp u.2
-          (⟨(ZMod.unitsChineseRemainder hcop u.1).1, mem_primeNonresidues.mpr hu.1⟩,
-           ⟨(ZMod.unitsChineseRemainder hcop u.1).2, mem_primeNonresidues.mpr hu.2⟩)
+            d.two_lt_p d.two_lt_q u.val).mp u.property
+          (⟨(ZMod.unitsChineseRemainder hcop u.val).1, mem_primeNonresidues.mpr hu.1⟩,
+           ⟨(ZMod.unitsChineseRemainder hcop u.val).2, mem_primeNonresidues.mpr hu.2⟩)
         left_inv := fun ⟨⟨u_p, hp_mem⟩, ⟨u_q, hq_mem⟩⟩ => by
           ext <;> simp [(ZMod.unitsChineseRemainder hcop).apply_symm_apply]
         right_inv := fun ⟨u, hu_mem⟩ => by
@@ -638,26 +638,26 @@ theorem closeTo_textbookKeyGen_publicKeyLaw (gen : ℕ → ProbComp ModulusDesc)
           (primeNonresidueLaw d.q d.two_lt_q).map fun z_q =>
             textbookPublicKey d.p d.q z_p z_q) =
         ((PMF.uniformOfFintype (positiveNonresidues d.p d.q)).map fun z =>
-          encPair encNat encNat (d.p * d.q, z.1.val.val)) := by
+          encPair encNat encNat (d.p * d.q, z.val.val.val)) := by
       simp only [primeNonresidueLaw, PMF.bind_map, PMF.map_comp, Function.comp_def,
         textbookPublicKey]
       have hbody :
           (fun u_p : primeNonresidues d.p =>
             (PMF.uniformOfFintype (primeNonresidues d.q)).map fun u_q : primeNonresidues d.q =>
               encPair encNat encNat
-                (d.p * d.q, crtCombine d.p d.q (u_p.1.val.val % d.p) u_q.1.val.val
+                (d.p * d.q, crtCombine d.p d.q (u_p.val.val.val % d.p) u_q.val.val.val
                   (BinaryGcd.modInv d.p d.q))) =
           (fun u_p : primeNonresidues d.p =>
             (PMF.uniformOfFintype (primeNonresidues d.q)).bind fun u_q : primeNonresidues d.q =>
-              PMF.pure (encPair encNat encNat (d.p * d.q, (e (u_p, u_q)).1.val.val))) := by
+              PMF.pure (encPair encNat encNat (d.p * d.q, (e (u_p, u_q)).val.val.val))) := by
         funext u_p
         rw [PMF.map]
         congr 1; funext u_q
         rw [Function.comp_apply,
-          crtCombine_modInv_eq_unitsChineseRemainder_symm_val d hcop u_p.1 u_q.1]
+          crtCombine_modInv_eq_unitsChineseRemainder_symm_val d hcop u_p.val u_q.val]
         rfl
       rw [hbody, Probability.PMF.uniformOfFintype_bind_bind_equiv e
-        (fun z => PMF.pure (encPair encNat encNat (d.p * d.q, z.1.val.val)))]
+        (fun z => PMF.pure (encPair encNat encNat (d.p * d.q, z.val.val.val)))]
       rfl
     rw [← hideal_eq, ← one_div_two_pow_succ_add n]
     exact CloseTo.bind (closeTo_sampleNonresidueModPrime d.two_lt_p n) fun z_p _ =>
@@ -671,7 +671,7 @@ theorem closeTo_textbookKeyGen_publicKeyLaw (gen : ℕ → ProbComp ModulusDesc)
   have hpub : publicKeyLaw (fun k => ProbComp.eval (gen k)) n =
       (ProbComp.eval (gen n)).bind fun d =>
         (PMF.uniformOfFintype (positiveNonresidues d.p d.q)).map fun z =>
-          encPair encNat encNat (d.p * d.q, z.1.val.val) := rfl
+          encPair encNat encNat (d.p * d.q, z.val.val.val) := rfl
   rw [hrew, hpub]
   exact CloseTo.bind_right (ProbComp.eval (gen n)) fun d _ => hperModulus d
 

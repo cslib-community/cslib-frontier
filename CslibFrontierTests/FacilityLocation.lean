@@ -375,8 +375,8 @@ example (α : ℝ) : ¬ constantZero2.HasApproxRatio α := by
       optSocialECost_le_socialECost _ _
     have hzero : socialECost (![1, 1] : Fin 2 → ℝ) 1 = 0 := by
       simp [socialECost, Fin.sum_univ_two]
-    exact le_zero_iff.1 (hle.trans_eq hzero)
-  rw [hsc, hopt, mul_zero, le_zero_iff, ENNReal.ofReal_eq_zero] at hx
+    exact nonpos_iff_eq_zero.1 (hle.trans_eq hzero)
+  rw [hsc, hopt, mul_zero, nonpos_iff_eq_zero, ENNReal.ofReal_eq_zero] at hx
   norm_num at hx
 
 example {M : Mechanism (Fin 2) ℝ} {α : ℝ} (h : M.HasApproxRatio α) : 1 ≤ α :=

@@ -660,7 +660,7 @@ theorem dens_binLoad_ge_le_pow {ι α : Type*} [Fintype ι] {m k_indep : ℕ} (h
   have : Nonempty (Fin (2 ^ P.hashBits)) := ⟨⟨0, by positivity⟩⟩
   by_cases hm_bin : 2 * (m : ℝ) ≤ 3 * (P.binSize i.succ : ℝ)
   · refine dens_le_of_hash_fiber (hh.mono hk) x _ fun v₀ _ hsub_ind => ?_
-    let f_emb (y : {y : α // y ∈ S}) : {y : α // y ≠ x} := ⟨y.1, fun heq => hx (heq ▸ y.2)⟩
+    let f_emb (y : {y : α // y ∈ S}) : {y : α // y ≠ x} := ⟨y.val, fun heq => hx (heq ▸ y.property)⟩
     let R : Finset {y : α // y ≠ x} :=
       S.attach.map ⟨f_emb, fun _ _ h => Subtype.ext (Subtype.mk.inj h)⟩
     let g (_ : {y : α // y ≠ x}) (hx' : Fin (2 ^ P.hashBits)) : ℝ :=
@@ -684,19 +684,20 @@ theorem dens_binLoad_ge_le_pow {ι α : Type*} [Fintype ι] {m k_indep : ℕ} (h
       (fun _ _ _ => by dsimp [g]; split_ifs <;> constructor <;> norm_num)
       (hmean_sub.trans (by linarith [ha_pos.le])) hm_bin ha_pos
     have hsub_ev : ({θ : {θ : ι // h θ x = v₀} |
-        P.binSize i.succ ≤ P.binLoad (h θ.1) S (h θ.1 x) i.succ} : Finset _) ⊆
+        P.binSize i.succ ≤ P.binLoad (h θ.val) S (h θ.val x) i.succ} : Finset _) ⊆
         ({θ : {θ : ι // h θ x = v₀} |
-          a ≤ |∑ z ∈ R, (g z (h θ.1 z.1) - 𝔼 hx', g z hx')|} : Finset _) := by
+          a ≤ |∑ z ∈ R, (g z (h θ.val z.val) - 𝔼 hx', g z hx')|} : Finset _) := by
       intro θ hθ; rw [Finset.mem_filter] at hθ ⊢; refine ⟨Finset.mem_univ _, ?_⟩
-      have hload : (P.binLoad (h θ.1) S (h θ.1 x) i.succ : ℝ) = ∑ z ∈ R, g z (h θ.1 z.1) := by
-        refine (by rw [Finset.sum_boole, θ.2, binLoad] :
-          (P.binLoad (h θ.1) S (h θ.1 x) i.succ : ℝ) = _).trans
-          ((Finset.sum_attach S fun y => if P.InBin (h θ.1 y) i.succ (P.preferredSlot v₀) ∧
-            i.succ ≤ P.depthCap (h θ.1 y) then (1 : ℝ) else 0).symm.trans ?_)
+      have hload : (P.binLoad (h θ.val) S (h θ.val x) i.succ : ℝ) =
+          ∑ z ∈ R, g z (h θ.val z.val) := by
+        refine (by rw [Finset.sum_boole, θ.property, binLoad] :
+          (P.binLoad (h θ.val) S (h θ.val x) i.succ : ℝ) = _).trans
+          ((Finset.sum_attach S fun y => if P.InBin (h θ.val y) i.succ (P.preferredSlot v₀) ∧
+            i.succ ≤ P.depthCap (h θ.val y) then (1 : ℝ) else 0).symm.trans ?_)
         exact (Finset.sum_map S.attach ⟨f_emb, fun _ _ h => Subtype.ext (Subtype.mk.inj h)⟩
-          fun z => g z (h θ.1 z.1)).symm
+          fun z => g z (h θ.val z.val)).symm
       rw [Finset.sum_sub_distrib]
-      exact (by linarith [show (P.binSize i.succ : ℝ) ≤ ∑ z ∈ R, g z (h θ.1 z.1) from
+      exact (by linarith [show (P.binSize i.succ : ℝ) ≤ ∑ z ∈ R, g z (h θ.val z.val) from
         hload ▸ Nat.cast_le.mpr hθ.2] : a ≤ _).trans (le_abs_self _)
     refine (show (dens _ : ℝ) ≤ dens _ by exact_mod_cast Finset.dens_le_dens hsub_ev).trans
       (hconc.trans_eq ?_)

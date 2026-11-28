@@ -204,7 +204,7 @@ theorem sumDomainValues_result {args : SumDomainArgs} {outScope : List ℕ}
     (Memory.spec 0).clientResult s (sumDomainValues args) =
       ∑ a : Fin args.dom,
         (bucket.map fun f => f.evalAt args.dom fun v =>
-          if v = args.x then a.1
+          if v = args.x then a.val
           else assignScope outScope (lsbDecode args.dom outScope.length args.idx) v).prod := by
   unfold sumDomainValues
   rw [StateTransitionSpec.clientResult_bind,

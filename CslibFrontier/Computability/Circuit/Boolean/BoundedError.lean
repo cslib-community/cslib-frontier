@@ -76,8 +76,8 @@ theorem exists_complexity_le_of_boundedError (S : Set (Fin n → Bool))
   set R := 6 * n + 6 with hR
   obtain ⟨ω, hω⟩ := Cslib.exists_forall_lt_card_filter_mem (X := S) (n := n)
     ((Fintype.card_subtype_le _).trans (by simp))
-    (fun x => univ.filter fun r => F (Fin.append x.1 r) = g x.1)
-    fun x => by simpa [Fintype.card_fun] using h x.1 x.2
+    (fun x => univ.filter fun r => F (Fin.append x.val r) = g x.val)
+    fun x => by simpa [Fintype.card_fun] using h x.val x.property
   refine ⟨fun x => threshold (2 * R) (R + 1) fun i => F (Fin.append x (ω i)), fun x hx => ?_,
     (complexity_le_of_eq_threshold F _ ω fun _ => rfl).trans_eq
       (by rw [show 2 * R = 12 * n + 12 by omega])⟩
@@ -126,11 +126,11 @@ theorem exists_complexity_le_of_oneSidedError (S : Set (Fin n → Bool))
           (2 + (n + 1) * (2 * (n + 1 + 2))) := by
   classical
   let good : S → Finset (Fin p → Bool) := fun x =>
-    if g x.1 = true then univ.filter fun r => F (Fin.append x.1 r) = true else univ
+    if g x.val = true then univ.filter fun r => F (Fin.append x.val r) = true else univ
   obtain ⟨ω, hω⟩ := Cslib.exists_forall_exists_apply_mem (X := S) (n := n)
     ((Fintype.card_subtype_le _).trans (by simp)) good fun x => by
-      by_cases hx : g x.1 = true
-      · simpa [good, hx, Fintype.card_fun] using h₁ x.1 x.2 hx
+      by_cases hx : g x.val = true
+      · simpa [good, hx, Fintype.card_fun] using h₁ x.val x.property hx
       · simp only [good, ite_eq_right hx, card_univ, Fintype.card_fun, Fintype.card_bool,
           Fintype.card_fin]
         omega

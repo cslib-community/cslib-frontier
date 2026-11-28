@@ -1052,6 +1052,7 @@ theorem ofSparse_sparseResidual {n : ℕ} {A At P : List (List (ℕ × ℚ))} (h
         ((sparseScaledResidual A At P).getD i []) := List.getD_map _ [] _
   rw [ofSparse_apply, sparseResidual, hrow,
     sparseGet_sparseMap (by simp) (fun a b => by push_cast; ring), sparseScaledResidual]
+  dsimp only
   set sA := sparseDenLcm (A ++ At)
   set sP := sparseDenLcm P
   set hA := A.map (scaleSparse sA)

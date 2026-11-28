@@ -272,7 +272,7 @@ theorem realizesBounded_compResolveOvfStepGen :
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hb, hj_bc, hslot, hp⟩ := h
     have hb_ne : bucketBits N ≠ 0 := hb_pos.ne'
     have hK : 0 < slabSize N := slabSize_pos N
-    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.1
+    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.frontier_fits
     have hq_lt : gmQIdx b < globalMetaLen N := gmQIdx_lt hb_pos hb
     have hq_eq : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
     have hbc_le : bCount N (compGmAt metaBase U w N s.mem) b ≤ N := bCount_le_n_max hslot b

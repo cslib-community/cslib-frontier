@@ -107,7 +107,7 @@ theorem spectralExpansion_cubeCayley_le [NeZero d] (s : Fin d → ι → Bool) {
   by_cases hS : S = ∅
   · subst hS
     simp [h₀]
-  · have hb := hs S (Finset.nonempty_iff_ne_empty.mpr hS)
+  · have hb := hs S (Finset.ne_empty_iff_nonempty.mp hS)
     have : bias ((uniformOfFintype (Fin d)).map s) S ^ 2 ≤ ε ^ 2 :=
       sq_le_sq' (by linarith [neg_abs_le (bias ((uniformOfFintype (Fin d)).map s) S)])
         ((le_abs_self _).trans hb)

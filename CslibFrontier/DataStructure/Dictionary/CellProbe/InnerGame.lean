@@ -471,9 +471,9 @@ private theorem exists_perm_innerKeyConfig {U n m g : ℕ}
 private def segSlotEquiv (off m N : ℕ) (h : off + m ≤ N) :
     Fin m ≃ {i : Fin N // off ≤ i.val ∧ i.val < off + m} where
   toFun r := ⟨⟨off + r.val, by have := r.isLt; omega⟩, by have := r.isLt; dsimp; omega⟩
-  invFun i := ⟨i.1.val - off, by have := i.2; omega⟩
+  invFun i := ⟨i.val.val - off, by have := i.property; omega⟩
   left_inv r := Fin.ext (by dsimp; omega)
-  right_inv i := Subtype.ext (Fin.ext (by have := i.2; dsimp; omega))
+  right_inv i := Subtype.ext (Fin.ext (by have := i.property; dsimp; omega))
 
 private def slotPerm {n : ℕ} (t₀ m : ℕ) (ht : t₀ + m ≤ n)
     (α β : Equiv.Perm (Fin m)) : Equiv.Perm (Fin (2 * n)) :=
@@ -1129,7 +1129,7 @@ private theorem prob_innerPool_eq_le {U V n t₀ m g cells w : ℕ} {γ R t : �
   let S_B (ω : Ω) := D_det.probedCellsInterval step₀ (C_bef ω) (ops_B ω)
   let C_B (ω : Ω) := (D_det.runInterval step₀ (C_bef ω) (ops_B ω)).2
   let s_after (ω : Ω) :=
-    (windowDict ω.1.permKeyEmb (fun idx => ω.1.kv (ω.1.permKeyEmb idx)) (t₀ + m) ht₀).1
+    (windowDict ω.1.permKeyEmb (fun idx => ω.1.kv (ω.1.permKeyEmb idx)) (t₀ + m) ht₀).val
   have hstate (ω : Ω) :
       let s₀ := ((Dynamic.spec U V n).run (Dictionary.empty U) (pref_bef ω)).1
       (Dynamic.spec U V n).ValidHistory (Dictionary.empty U) (pref_bef ω) ∧
@@ -1145,8 +1145,8 @@ private theorem prob_innerPool_eq_le {U V n t₀ m g cells w : ℕ} {γ R t : �
       (fun idx => s.kv (s.keys idx)) s.delPerm ht₀).1
     have hwval (t_k : ℕ) (ht_k : t_k ≤ n) (u : Fin U)
         (hu : u ∈ Dictionary.dom (windowDict s.permKeyEmb (fun idx => s.kv (s.permKeyEmb idx))
-          t_k ht_k).1) :
-        (windowDict s.permKeyEmb (fun idx => s.kv (s.permKeyEmb idx)) t_k ht_k).1 u =
+          t_k ht_k).val) :
+        (windowDict s.permKeyEmb (fun idx => s.kv (s.permKeyEmb idx)) t_k ht_k).val u =
           some (s.kv u).val := by
       rw [windowDict_coe, dom_dictOfEmb, Finset.mem_map] at hu
       obtain ⟨i, _, rfl⟩ := hu; rw [windowDict_coe, dictOfEmb_apply_self]; simp

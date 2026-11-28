@@ -163,8 +163,8 @@ private theorem mem_satList {n : ℕ} {T : List (ℕ × List ℕ)} {V : ℕ} :
       · rw [Function.update_of_ne hyx, val_assign ha, List.getD_set_ne (Ne.symm hyx)]
     constructor
     · intro h m
-      have hm := (mem_satList φ hV.2 (by simp [hl]) (hset m m.2)).1 (h m m.2)
-      rwa [hupd m m.2] at hm
+      have hm := (mem_satList φ hV.2 (by simp [hl]) (hset m m.isLt)).1 (h m m.isLt)
+      rwa [hupd m m.isLt] at hm
     · intro h i hi
       rw [mem_satList φ hV.2 (by simp [hl]) (hset i hi), hupd i hi]
       exact h ⟨i, hi⟩
@@ -206,7 +206,7 @@ private theorem satOnFin_iff_ne_nil {n : ℕ} {φ : RawFormula} :
     let a : List ℕ := (List.range φ.varBound).map fun x => (v x : ℕ)
     have ha : ∀ i ∈ a, i < n + 1 := fun i hi => by
       obtain ⟨x, -, rfl⟩ := List.mem_map.1 hi
-      exact (v x).2
+      exact (v x).isLt
     have hsat : a ∈ satList n T φ.varBound φ := by
       refine (mem_satList φ le_rfl (by simp [a]) ha).2 ?_
       have hv : ∀ x < φ.varBound, assign n a x = v x := fun x hx =>
@@ -219,7 +219,7 @@ private theorem satOnFin_iff_ne_nil {n : ℕ} {φ : RawFormula} :
       have hg : (r, as.map Fin.val) ∈ groundAtoms n φ := by
         refine mem_groundAtoms.2 ⟨by simpa using hr, fun i hi => ?_⟩
         obtain ⟨j, -, rfl⟩ := List.mem_map.1 hi
-        exact j.2
+        exact j.isLt
       change (r, as.map Fin.val) ∈ T ↔ I r as
       simp [T, hg, hofNat]
     exact List.ne_nil_of_mem

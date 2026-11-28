@@ -33,7 +33,7 @@ theorem pow_self_le_three_pow_mul_factorial (n : ℕ) :
   have he : Real.exp (n : ℝ) ≤ (3 : ℝ) ^ n := by
     calc
       Real.exp (n : ℝ) = Real.exp 1 ^ n := by
-        rw [← Real.exp_nat_mul, mul_one]
+        rw [← Real.exp_natCast_mul, mul_one]
       _ ≤ _ := pow_le_pow_left₀ (Real.exp_pos 1).le Real.exp_one_lt_three.le n
   have hf : (0 : ℝ) < n.factorial := by exact_mod_cast Nat.factorial_pos n
   have hn := (div_le_iff₀ hf).mp (h.trans he)

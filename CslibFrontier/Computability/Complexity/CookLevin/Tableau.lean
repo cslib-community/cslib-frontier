@@ -55,6 +55,7 @@ explicit lists. Only the set of satisfying assignments matters for correctness.
 ## Main definitions
 
 * `Cslib.Complexity.CookLevin.Var`.
+* `Cslib.Complexity.CookLevin.runTableau`: the tableau without acceptance clauses.
 * `Cslib.Complexity.CookLevin.tableau`.
 
 ## References
@@ -155,12 +156,17 @@ noncomputable def stepClauses [Fintype State] [DecidableEq State] (t : ℕ) : CN
 def acceptClauses : CNF (Var k State) :=
   [[(.holds T (.state none), true)], [(.holds T (.out (.one true)), true)]]
 
-/-- The Cook–Levin tableau of `tm` on inputs `u ++ w` with `|w| = L`, unrolled for `T` steps. -/
-noncomputable def tableau [Fintype State] [DecidableEq State] : CNF (Var k State) :=
+/-- The run tableau of `tm` on inputs `u ++ w` with `|w| = L`, unrolled for `T` steps: the
+tableau without the acceptance clauses, so its satisfying assignments describe the runs. -/
+noncomputable def runTableau [Fintype State] [DecidableEq State] : CNF (Var k State) :=
   initClauses tm T ++ (List.range (T + 1)).flatMap (oneHotClauses u L T) ++
     (List.range T).flatMap (fun t =>
-      readClauses u L T t ++ sitClauses t ++ uniqueClauses t ++ stepClauses tm u L T t) ++
-    acceptClauses T
+      readClauses u L T t ++ sitClauses t ++ uniqueClauses t ++ stepClauses tm u L T t)
+
+/-- The Cook–Levin tableau of `tm` on inputs `u ++ w` with `|w| = L`, unrolled for `T` steps: the
+run tableau together with the clauses asking that the run has halted with output `[true]`. -/
+noncomputable def tableau [Fintype State] [DecidableEq State] : CNF (Var k State) :=
+  runTableau tm u L T ++ acceptClauses T
 
 end Clauses
 

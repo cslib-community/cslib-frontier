@@ -127,7 +127,7 @@ private theorem mem_support_seqProcess_take (step : ∀ t : ℕ, (Fin t → α) 
 /-- Cumulative predictable quadratic variation `∑ j < k, V j (h_{≤ j})` along a trajectory prefix
 `h : Fin k → α`. -/
 abbrev seqPredVar (V : ∀ j : ℕ, (Fin j → α) → ℝ) (k : ℕ) (h : Fin k → α) : ℝ :=
-  ∑ j : Fin k, V j.1 (Fin.take j.1 j.isLt.le h)
+  ∑ j : Fin k, V j.val (Fin.take j.val j.isLt.le h)
 
 @[simp]
 theorem seqPredVar_zero (V : ∀ j : ℕ, (Fin j → α) → ℝ) (h : Fin 0 → α) :
@@ -138,7 +138,7 @@ theorem seqPredVar_snoc (V : ∀ j : ℕ, (Fin j → α) → ℝ) (k : ℕ) (h :
     seqPredVar V (k + 1) (Fin.snoc (α := fun _ => α) h a) = seqPredVar V k h + V k h := by
   simp only [seqPredVar, Fin.sum_univ_castSucc, Fin.val_castSucc, Fin.val_last]
   exact congrArg₂ (· + ·)
-    (Finset.sum_congr rfl fun j _ => congrArg (V j.1) (take_snoc_of_le j.isLt.le h a))
+    (Finset.sum_congr rfl fun j _ => congrArg (V j.val) (take_snoc_of_le j.isLt.le h a))
     (congrArg (V k) ((take_snoc_of_le le_rfl h a).trans (take_self_eq _ h)))
 
 /-! ### Ville's maximal supermartingale inequality -/
@@ -404,10 +404,10 @@ theorem seqProcess_exists_prefix_ge_and_var_le (step : ∀ t : ℕ, (Fin t → �
       · refine hzero_of_disj fun h hh ⟨k, hk, hge, hV_le⟩ => ?_
         set hk_pref := Fin.take k hk h
         have hsupp_k := mem_support_seqProcess_take step hk hh
-        have hV_nn (j : Fin k) : 0 ≤ V j.1 (Fin.take j.1 j.isLt.le hk_pref) :=
+        have hV_nn (j : Fin k) : 0 ≤ V j.val (Fin.take j.val j.isLt.le hk_pref) :=
           (tsum_nonneg fun _ => mul_nonneg ENNReal.toReal_nonneg (sq_nonneg _)).trans
-            (hvar j.1 (j.isLt.trans_le hk) _ (mem_support_seqProcess_take step j.isLt.le hsupp_k))
-        have hV_zero (j : Fin k) : V j.1 (Fin.take j.1 j.isLt.le hk_pref) = 0 :=
+            (hvar j.val (j.isLt.trans_le hk) _ (mem_support_seqProcess_take step j.isLt.le hsupp_k))
+        have hV_zero (j : Fin k) : V j.val (Fin.take j.val j.isLt.le hk_pref) = 0 :=
           (Finset.sum_eq_zero_iff_of_nonneg fun i _ => hV_nn i).mp
             (le_antisymm hV_le (Finset.sum_nonneg fun i _ => hV_nn i)) j (Finset.mem_univ j)
         have hzero_step (m : ℕ) (hmk : m ≤ k) :

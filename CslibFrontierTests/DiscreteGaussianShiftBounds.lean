@@ -91,7 +91,7 @@ private theorem width_two_bound : (2 : ℝ) * Real.exp (-3 * Real.pi / 4) ≤ 1 
   have he := Real.exp_lt_exp.mpr (show -3 * Real.pi / 4 < -3 * Real.log 2 by linarith)
   have hr : Real.exp (-3 * Real.log 2) = (1 / 8 : ℝ) := by
     rw [show -3 * Real.log 2 = -((3 : ℕ) * Real.log 2) by ring, Real.exp_neg,
-      Real.exp_nat_mul, Real.exp_log (by norm_num : (0 : ℝ) < 2)]
+      Real.exp_natCast_mul, Real.exp_log (by norm_num : (0 : ℝ) < 2)]
     norm_num
   rw [hr] at he
   linarith

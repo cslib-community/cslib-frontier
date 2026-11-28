@@ -54,7 +54,8 @@ private theorem spectralExpansion_completeFour : completeFour.spectralExpansion 
 
 example {V D : Type*} [Fintype V] [Fintype D] (G : RotationMap V D) :
     G.spectralExpansion =
-      ⨆ f : {f : V → ℝ // 𝔼 v, f v = 0 ∧ f ≠ 0}, |𝔼 v, f.1 v * G.walk f.1 v| / 𝔼 v, f.1 v ^ 2 :=
+      ⨆ f : {f : V → ℝ // 𝔼 v, f v = 0 ∧ f ≠ 0}, |𝔼 v, f.val v * G.walk f.val v| /
+          𝔼 v, f.val v ^ 2 :=
   G.spectralExpansion_eq_ciSup
 
 example {V D : Type*} [Fintype V] [Fintype D] (G : RotationMap V D) :

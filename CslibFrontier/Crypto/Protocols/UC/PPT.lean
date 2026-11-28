@@ -420,7 +420,7 @@ theorem Environment.IsPPT.isOraclePPTOn_run_wordHandle
       x.2 ∈ Set.range (cert.codec (param x.1).secParam (param x.1).corrupted).enc }
   let encValid : ValidState ↪ List Bool :=
     (Function.Embedding.subtype _).trans (encPair encEnvParam encBits)
-  have hval : ComputableInPolyTime (fun x : ValidState => x.1)
+  have hval : ComputableInPolyTime (fun x : ValidState => x.val)
       encValid (encPair encEnvParam encBits) :=
     ComputableInPolyTime.of_eq fun _ => rfl
   have hinitBase : IsPPTOn encEnvParam (encPair encEnvParam encBits) fun e =>
@@ -439,35 +439,35 @@ theorem Environment.IsPPT.isOraclePPTOn_run_wordHandle
     rfl
   have hstep : IsOraclePPTOn (Operation := iI.Channel)
       encValid (encPair encBool encBits) fun x =>
-        wordRunFrom M iI party adv cert.codec Z param envParam x.1.1 x.1.2 := by
-    have hbase : ComputableInPolyTime (fun x : ValidState => x.1.1) encValid encEnvParam :=
+        wordRunFrom M iI party adv cert.codec Z param envParam x.val.1 x.val.2 := by
+    have hbase : ComputableInPolyTime (fun x : ValidState => x.val.1) encValid encEnvParam :=
       (ComputableInPolyTime.fst encEnvParam encBits).comp hval
-    have hprepare : ComputableInPolyTime (fun x : ValidState => envParam x.1.1)
+    have hprepare : ComputableInPolyTime (fun x : ValidState => envParam x.val.1)
         encValid encEnvParam :=
       henv.comp hbase
-    have hparamValid : ComputableInPolyTime (fun x : ValidState => param x.1.1)
+    have hparamValid : ComputableInPolyTime (fun x : ValidState => param x.val.1)
         encValid (encPPTParam n) :=
       hparam.comp hbase
     have hhandlerProj : ComputableInPolyTime
         (fun x : ValidState × ((iE.Channel × List Bool) × List Bool) =>
-          (param x.1.1.1, x.2))
+          (param x.1.val.1, x.2))
         (encHandlerCall encValid (encFinite iE.Channel) encBits)
         (encHandlerCall (encPPTParam n) (encFinite iE.Channel) encBits) :=
       (hparamValid.comp (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _)
     have hhandler : IsOraclePPTOn
         (encHandlerCall encValid (encFinite iE.Channel) encBits)
         (encPair encBits encBits)
-        (fun x => wordHandle M iI iE cert.codec (param x.1.1.1) x.2.1 x.2.2) :=
+        (fun x => wordHandle M iI iE cert.codec (param x.1.val.1) x.2.1 x.2.2) :=
       cert.handle.preprocess hhandlerProj
-    have hinitProj : ComputableInPolyTime (fun x : ValidState => x.1.2) encValid encBits :=
+    have hinitProj : ComputableInPolyTime (fun x : ValidState => x.val.2) encValid encBits :=
       (ComputableInPolyTime.snd encEnvParam encBits).comp hval
     have hgrowthProj : ComputableInPolyTime
-        (fun pair : ValidState × List Bool => (param pair.1.1.1, pair.2))
+        (fun pair : ValidState × List Bool => (param pair.1.val.1, pair.2))
         (encPair encValid encBits) (encPair (encPPTParam n) encBits) :=
       (hparamValid.comp (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _)
     have hgrowth : Turing.MultiTapeTM.PolyBounded
         (fun pair : ValidState × List Bool => (encPair encValid encBits pair).length)
-        (fun pair => cert.growth (param pair.1.1.1) pair.2) :=
+        (fun pair => cert.growth (param pair.1.val.1) pair.2) :=
       cert.growth_poly.comp hgrowthProj.polyBounded_length
     exact IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
       (Operation := iE.Channel) (External := iI.Channel)
@@ -476,17 +476,17 @@ theorem Environment.IsPPT.isOraclePPTOn_run_wordHandle
         ProbOracleComp.lowerWith iE e.replyBound (Z e.secParam e.aux))
       hZ hprepare hhandler hinitProj
       (fun x state =>
-        state ∈ Set.range (cert.codec (param x.1.1).secParam (param x.1.1).corrupted).enc)
-      (fun x => x.2) hgrowth
+        state ∈ Set.range (cert.codec (param x.val.1).secParam (param x.val.1).corrupted).enc)
+      (fun x => x.property) hgrowth
       (fun x req state hinv result hmem =>
-        cert.preserve_wordHandle (param x.1.1) req state hinv result hmem)
+        cert.preserve_wordHandle (param x.val.1) req state hinv result hmem)
   have hcombined : IsOraclePPTOn (Operation := iI.Channel)
       encEnvParam encBool fun e =>
         Prod.fst <$> (ProbOracleComp.sample
           ((fun s => (⟨(e, (cert.codec (param e).secParam (param e).corrupted).enc s),
             ⟨s, rfl⟩⟩ : ValidState)) <$>
             (M (param e).secParam (param e).corrupted).init) >>= fun x =>
-          wordRunFrom M iI party adv cert.codec Z param envParam x.1.1 x.1.2) :=
+          wordRunFrom M iI party adv cert.codec Z param envParam x.val.1 x.val.2) :=
     (hinitValid.isOraclePPTOn.bind hstep).map (ComputableInPolyTime.fst encBool encBits)
   refine hcombined.congr fun e State oracle s => ?_
   simp only [wordRun, ProbOracleComp.runWith_map, ProbOracleComp.runWith_bind,

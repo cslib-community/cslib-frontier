@@ -194,30 +194,31 @@ private theorem get_eval_toFinCNF_eq {N : ℕ} (hN : 1 ≤ N) {ψ : CNF ℕ}
     (hsub : ψ.vars.toFinset ⊆ Finset.range N) (σ : Fin N → Bool)
     (e : Fin (toFinCNF N hN ψ).length) :
     ((toFinCNF N hN ψ).get e).eval σ =
-      (ψ.get ⟨e.1, by simpa only [toFinCNF, CNF.relabel, List.length_map] using e.2⟩).eval
+      (ψ.get ⟨e.val, by simpa only [toFinCNF, CNF.relabel, List.length_map] using e.isLt⟩).eval
         (extendFinAssign σ) := by
-  have he_lt : e.1 < ψ.length := by simpa only [toFinCNF, CNF.relabel, List.length_map] using e.2
-  change ((ψ.map (Clause.relabel fun v => ⟨v % N, Nat.mod_lt v hN⟩))[e.1]).eval σ =
-    ψ[e.1].eval (extendFinAssign σ)
+  have he_lt : e.val < ψ.length := by
+    simpa only [toFinCNF, CNF.relabel, List.length_map] using e.isLt
+  change ((ψ.map (Clause.relabel fun v => ⟨v % N, Nat.mod_lt v hN⟩))[e.val]).eval σ =
+    ψ[e.val].eval (extendFinAssign σ)
   rw [List.getElem_map, Clause.eval_relabel]; apply Bool.eq_iff_iff.mpr
   simp only [Clause.eval_eq_true_iff]
   refine exists_congr fun b => and_congr_right fun hb1 => ?_
   have hlt := Finset.mem_range.mp (hsub (List.mem_toFinset.mpr
-    (CNF.mem_vars.mpr ⟨ψ[e.1], List.getElem_mem he_lt, b.2, hb1⟩)))
+    (CNF.mem_vars.mpr ⟨ψ[e.val], List.getElem_mem he_lt, b.2, hb1⟩)))
   simp only [Function.comp_apply, Nat.mod_eq_of_lt hlt, extendFinAssign_lt σ hlt]
 
 private theorem passesTests_toFinCNF_iff {N : ℕ} (hN : 1 ≤ N) {ψ : CNF ℕ}
     (hsub : ψ.vars.toFinset ⊆ Finset.range N) (rows : List (List Bool)) (σ : Fin N → Bool) :
     PassesTests (toFinCNF N hN ψ).violations
         (rows.map (ofList (toFinCNF N hN ψ).length)) σ ↔
-      PassesTests ψ.violations (rows.map fun r (e : Fin ψ.length) => r.getD e.1 false)
+      PassesTests ψ.violations (rows.map fun r (e : Fin ψ.length) => r.getD e.val false)
         (extendFinAssign σ) := by
   have hlen : (toFinCNF N hN ψ).length = ψ.length := by
     simp only [toFinCNF, CNF.relabel, List.length_map]
   simp only [PassesTests, List.mem_map, forall_exists_index, and_imp, forall_apply_eq_imp_iff₂]
   refine forall₂_congr fun r _ => ?_
   rw [show ofList (toFinCNF N hN ψ).length r ⬝ᵥ (toFinCNF N hN ψ).violations σ =
-      (fun e : Fin ψ.length => r.getD e.1 false) ⬝ᵥ ψ.violations (extendFinAssign σ) from
+      (fun e : Fin ψ.length => r.getD e.val false) ⬝ᵥ ψ.violations (extendFinAssign σ) from
     Fintype.sum_equiv (finCongr hlen) _ _ fun i => by
       simp only [finCongr_apply, Fin.val_cast, ofList, CNF.violations,
         get_eval_toFinCNF_eq hN hsub]; rfl]
@@ -226,8 +227,8 @@ private theorem card_sat_toFinCNF_eq_modelCountOn {N : ℕ} (hN : 1 ≤ N) {ψ :
     (hsub : ψ.vars.toFinset ⊆ Finset.range N) :
     #{σ : Fin N → Bool | (toFinCNF N hN ψ).eval σ = true} = ψ.modelCountOn (Finset.range N) := by
   let eqv : (Fin N → Bool) ≃ (↥(Finset.range N) → Bool) :=
-    ⟨fun σ v => σ ⟨v.1, Finset.mem_range.mp v.2⟩,
-      fun τ i => τ ⟨i.1, Finset.mem_range.mpr i.2⟩, fun _ => rfl, fun _ => rfl⟩
+    ⟨fun σ v => σ ⟨v.val, Finset.mem_range.mp v.property⟩,
+      fun τ i => τ ⟨i.val, Finset.mem_range.mpr i.isLt⟩, fun _ => rfl, fun _ => rfl⟩
   have heval (σ : Fin N → Bool) : (toFinCNF N hN ψ).eval σ =
       ψ.eval (fun v => if hv : v ∈ Finset.range N then eqv σ ⟨v, hv⟩ else false) := by
     rw [eval_toFinCNF_eq hN hsub σ]; refine CNF.eval_congr fun v hv => ?_
@@ -353,11 +354,11 @@ theorem sparseCNFDeclaredCounter_eq_modelCountOn {P : Type*} {NOf BOf : P → �
               Bool.false_ne_true (hfalse.symm.trans ((CNF.violations_eq_zero_iff ψFin σ).mp h0))
             have hdot : ∀ row ∈ initialTestsRows ψ.length (BOf p),
                 ofList ψ.length row ⬝ᵥ
-                  (fun e : Fin ψ.length => ψFin.violations σ ⟨e.1, by omega⟩) = false :=
+                  (fun e : Fin ψ.length => ψFin.violations σ ⟨e.val, by omega⟩) = false :=
               fun row hrow => (Fintype.sum_equiv (finCongr hlen_fin) _ _ fun _ => rfl).symm.trans
                 (hpass (ofList ψFin.length row) (List.mem_map_of_mem hrow))
             let eqv : Fin ψ.length ≃ Fin ψFin.length := finCongr hlen_fin.symm
-            have hwt_eq : weight (fun e : Fin ψ.length => ψFin.violations σ ⟨e.1, by omega⟩) =
+            have hwt_eq : weight (fun e : Fin ψ.length => ψFin.violations σ ⟨e.val, by omega⟩) =
                 weight (ψFin.violations σ) :=
               Finset.card_bij (fun i _ => eqv i)
                 (fun _ hi => by
@@ -366,8 +367,8 @@ theorem sparseCNFDeclaredCounter_eq_modelCountOn {P : Type*} {NOf BOf : P → �
                 (fun j hj => ⟨eqv.symm j,
                   by simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hj ⊢; exact hj,
                   eqv.apply_symm_apply j⟩)
-            have hz_ne' : (fun e : Fin ψ.length => ψFin.violations σ ⟨e.1, by omega⟩) ≠ 0 :=
-              fun h0 => hz_ne (funext fun e => congrFun h0 ⟨e.1, by omega⟩)
+            have hz_ne' : (fun e : Fin ψ.length => ψFin.violations σ ⟨e.val, by omega⟩) ≠ 0 :=
+              fun h0 => hz_ne (funext fun e => congrFun h0 ⟨e.val, by omega⟩)
             have hdist := hinit_dist _ hz_ne' hdot
             rw [hwt_eq] at hdist; exact hlen_fin.le.trans hdist)
         rw [hcard, hlen_fin, card_sat_toFinCNF_eq_modelCountOn hN1 hsub] at hgreedy

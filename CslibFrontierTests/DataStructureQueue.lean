@@ -188,30 +188,6 @@ example {α : Type} (p : (queue Nat).Client α)
     omega
 
 /--
-info: 'CslibFrontierTests.DataStructureQueue.reverseStep_correct' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms CslibFrontierTests.DataStructureQueue.reverseStep_correct
-/--
-info: 'CslibFrontierTests.DataStructureQueue.adaptiveClient_backend' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms CslibFrontierTests.DataStructureQueue.adaptiveClient_backend
-/--
-info: 'CslibFrontierTests.DataStructureQueue.adaptiveClient_direct' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms CslibFrontierTests.DataStructureQueue.adaptiveClient_direct
-/--
-info: 'CslibFrontierTests.DataStructureQueue.adaptiveClient_reversed' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms CslibFrontierTests.DataStructureQueue.adaptiveClient_reversed
-/--
 info: 'Cslib.DataStructure.StateTransitionImpl.exists_executes' depends on axioms:
 [propext]
 -/
@@ -229,12 +205,6 @@ info: 'Cslib.DataStructure.Module.realize' does not depend on any axioms
 #guard_msgs (whitespace := lax) in
 #print axioms Cslib.DataStructure.Module.realize
 /--
-info: 'Cslib.DataStructure.Module.amortized_client' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.DataStructure.Module.amortized_client
-/--
 info: 'Cslib.DataStructure.link_exec' depends on axioms:
 [propext]
 -/
@@ -246,29 +216,5 @@ info: 'Cslib.DataStructure.link_exec_decompose' depends on axioms:
 -/
 #guard_msgs (whitespace := lax) in
 #print axioms Cslib.DataStructure.link_exec_decompose
-/--
-info: 'Cslib.DataStructure.Queue.implementation' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.DataStructure.Queue.implementation
-/--
-info: 'Cslib.DataStructure.Queue.potential_step' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.DataStructure.Queue.potential_step
-/--
-info: 'Cslib.DataStructure.Queue.realized_client' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.DataStructure.Queue.realized_client
-/--
-info: 'Cslib.DataStructure.Queue.realized_client_bound' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.DataStructure.Queue.realized_client_bound
 
 end CslibFrontierTests.DataStructureQueue

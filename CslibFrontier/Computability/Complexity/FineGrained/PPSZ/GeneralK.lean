@@ -390,16 +390,17 @@ theorem bijOn_R (hk : 3 ≤ k) :
 [PaturiPudlakSaksZane2005], for `k ≥ 3`: it is monotone and maps `[0, 1]` onto `[0, 1]`. -/
 theorem continuousOn_R (hk : 3 ≤ k) : ContinuousOn (R k) (Icc 0 1) := by
   have hc1 := div_lt_one_of_three_le hk
-  let f : Icc (0 : ℝ) 1 → Icc (0 : ℝ) 1 := fun r => ⟨R k r, R_mem_Icc r.2⟩
+  let f : Icc (0 : ℝ) 1 → Icc (0 : ℝ) 1 := fun r => ⟨R k r, R_mem_Icc r.property⟩
   have hf : Continuous f := by
-    refine Monotone.continuous_of_surjective (fun r s hrs => monotoneOn_R r.2 s.2 hrs) ?_
+    refine Monotone.continuous_of_surjective
+      (fun r s hrs => monotoneOn_R r.property s.property hrs) ?_
     rintro ⟨t, ht⟩
     rcases ht.2.lt_or_eq with ht1 | rfl
     · have hS := S_mem_Ico hk ⟨ht.1, ht1⟩
       exact ⟨⟨S k t, hS.1, hS.2.le.trans hc1.le⟩, Subtype.ext (R_S hk ⟨ht.1, ht1⟩)⟩
     · exact ⟨⟨1, zero_le_one, le_rfl⟩, Subtype.ext (R_eq_one hk hc1.le le_rfl)⟩
   rw [continuousOn_iff_continuous_domRestrict]
-  exact continuous_subtype_val.comp hf
+  exact continuous_subtypeVal.comp hf
 
 /-! ### The integral of the limit -/
 

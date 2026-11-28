@@ -1476,13 +1476,14 @@ theorem FragReachable.fragment_induce_isTree {V W : Type*} [Fintype V] [Decidabl
     · rintro ⟨e, heH, rfl⟩
       induction e using Sym2.ind with
       | _ x y =>
-        have hadj_br : s.branchGraph.Adj x.1 y.1 := H.mem_edgeSet.mp heH
-        have hz_mem : s(x.1, y.1) ∈ s.branchGraph.edgeSet := s.branchGraph.mem_edgeSet.mpr hadj_br
+        have hadj_br : s.branchGraph.Adj x.val y.val := H.mem_edgeSet.mp heH
+        have hz_mem : s(x.val, y.val) ∈ s.branchGraph.edgeSet :=
+            s.branchGraph.mem_edgeSet.mpr hadj_br
         rw [hinv.edgeSet_branchGraph, Finset.mem_coe] at hz_mem
         refine ⟨hz_mem, ?_⟩
-        change bothIn F.verts s(x.1, y.1) = true
+        change bothIn F.verts s(x.val, y.val) = true
         rw [bothIn_mk, Bool.and_eq_true, decide_eq_true_eq, decide_eq_true_eq]
-        exact ⟨Finset.mem_coe.mp x.2, Finset.mem_coe.mp y.2⟩
+        exact ⟨Finset.mem_coe.mp x.property, Finset.mem_coe.mp y.property⟩
     · rintro ⟨hzB, hzIn⟩
       induction z using Sym2.ind with
       | _ a b =>

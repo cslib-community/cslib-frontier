@@ -76,11 +76,12 @@ theorem val_emX_eq_sum_wts {S₀ : Series A (Zc K × Sy M K)}
     exists_MX ((hR tr).1 htr) fun st hst i => by
       simpa [σi] using ((Mach.gv_iff hc tr).1 ((hR tr).1 htr)).le hc st hst i
   choose f hf using hex
-  have hinj : Set.InjOn (fun t : R => f t.1 t.2) (univ : Finset R) := by
+  have hinj : Set.InjOn (fun t : R => f t.val t.property) (univ : Finset R) := by
     rintro ⟨t, ht⟩ - ⟨t', ht'⟩ - e
     exact Subtype.ext ((hf t ht).2.symm.trans
       ((congrArg (fun x : XP P => x.steps.map nst) e).trans (hf t' ht').2))
-  rw [h.val_eq _ _ (univ.image fun t : R => f t.1 t.2), sum_image fun a ha b hb e => hinj ha hb e,
+  rw [h.val_eq _ _ (univ.image fun t : R => f t.val t.property),
+    sum_image fun a ha b hb e => hinj ha hb e,
     ← sum_coe_sort R]
   · refine sum_congr rfl fun ⟨tr, htr⟩ _ => ?_
     change _ = (tr.map fun st => P.wt st.1).prod

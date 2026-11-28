@@ -341,7 +341,7 @@ theorem isKWiseSmallBias_map_restrict_of_condenser
           else 0| ≤ 2 ^ (Δ + 1) * ε_nm := by
     let f : Fin m → Seed₂ → Seed₂ × Fin D := fun j r => (cond (g r) (e j : Fin D), (e j : Fin D))
     have hf : ∀ j r, f j r ≠ (r, a₀) := fun j r h =>
-      (ne_of_mem_erase (e j).2) (congrArg Prod.snd h)
+      (ne_of_mem_erase (e j).property) (congrArg Prod.snd h)
     have hχ (x : X) {r : Seed₂} (hr : r ∈ R.support) :
         chi ℝ S' (fun i => nmExt x (cond (g r) i) i) =
           BitString.signVal (nmExt x r a₀) *
@@ -354,7 +354,7 @@ theorem isKWiseSmallBias_map_restrict_of_condenser
       congr 1
       rw [← prod_coe_sort T]
       exact (Fintype.prod_equiv e (fun j => BitString.signVal (nmExt x (f j r).1 (f j r).2))
-        (fun i : T => BitString.signVal (nmExt x (cond (g r) i.1) i.1)) fun j => rfl).symm
+        (fun i : T => BitString.signVal (nmExt x (cond (g r) i.val) i.val)) fun j => rfl).symm
     have hR'_mass (r : Seed₂) : (R' r).toReal ≤ 2 ^ Δ / (Fintype.card Seed₂ : ℝ) := by
       have hle := (le_minEntropy_iff R').mp hR'_ent r
       have hpow : (2 : ℝ) ^ (-(Real.logb 2 (Fintype.card Seed₂) - Δ)) =

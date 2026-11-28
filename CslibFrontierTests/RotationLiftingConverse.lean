@@ -56,10 +56,10 @@ private def torusRotation : RotationSystem torus where
 
 -- The converse cannot incorrectly identify the torus as genus zero: its universal
 -- lifting premise is false. The unchanged forward implication still accepts gradients.
-example : ¬ ∀ x : Fin torus.2.length → Bool, torusRotation.FaceEven x →
+example : ¬ ∀ x : Fin torus.edges.length → Bool, torusRotation.FaceEven x →
     ∃ spin : ℕ → Bool, torus.edgeGradient spin = x := by
   intro h
-  have hG : ∀ v ∈ torus.incidenceVertices, v ∈ torus.1 := by decide
+  have hG : ∀ v ∈ torus.incidenceVertices, v ∈ torus.vertices := by decide
   have hg := torusRotation.numericalGenusZero_of_faceEven_lifts hG h
   have he := (RotationCertificate.verifyEuler_eq_true_iff
     (RotationCertificate.verifyRotation_ofRotation torusRotation hG)).mpr

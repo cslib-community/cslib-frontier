@@ -355,7 +355,7 @@ over any nontrivial commutative ring `R`. -/
 noncomputable def boolSolutionEquivEmbedding (m n : ℕ) (R : Type*) [CommRing R] [Nontrivial R] :
     {x : Fin m × Fin n → Bool // IsBoolSolution (algFPHP m n R) x} ≃ (Fin m ↪ Fin n) where
   toFun s :=
-    let hex := (isBoolSolution_algFPHP_iff s.1).1 s.2
+    let hex := (isBoolSolution_algFPHP_iff s.val).1 s.property
     ⟨Classical.choose hex, (Classical.choose_spec hex).1⟩
   invFun e := ⟨pigeonIndicator e, isBoolSolution_algFPHP_pigeonIndicator e.injective⟩
   left_inv := by
@@ -373,8 +373,8 @@ noncomputable def boolSolutionEquivEmbedding (m n : ℕ) (R : Type*) [CommRing R
 /-- The embedding assigned by `boolSolutionEquivEmbedding` represents the Boolean solution. -/
 theorem pigeonIndicator_boolSolutionEquivEmbedding {m n : ℕ} {R : Type*} [CommRing R] [Nontrivial R]
     (s : {x : Fin m × Fin n → Bool // IsBoolSolution (algFPHP m n R) x}) :
-    pigeonIndicator (boolSolutionEquivEmbedding m n R s) = s.1 :=
-  (Classical.choose_spec ((isBoolSolution_algFPHP_iff (R := R) s.1).1 s.2)).2.symm
+    pigeonIndicator (boolSolutionEquivEmbedding m n R s) = s.val :=
+  (Classical.choose_spec ((isBoolSolution_algFPHP_iff (R := R) s.val).1 s.property)).2.symm
 
 /-- `boolSolutionEquivEmbedding`'s inverse sends an embedding `e` to `pigeonIndicator e`. -/
 theorem boolSolutionEquivEmbedding_symm_val {m n : ℕ} {R : Type*} [CommRing R] [Nontrivial R]
@@ -414,7 +414,7 @@ over any integral domain `R`. -/
 noncomputable def commonZeroEquivEmbedding (m n : ℕ) (R : Type*) [CommRing R] [IsDomain R] :
     {a : Fin m × Fin n → R // ∀ p ∈ algFPHP m n R, eval a p = 0} ≃ (Fin m ↪ Fin n) where
   toFun s :=
-    let hex := (eval_algFPHP_eq_zero_iff s.1).1 s.2
+    let hex := (eval_algFPHP_eq_zero_iff s.val).1 s.property
     ⟨Classical.choose hex, (Classical.choose_spec hex).1⟩
   invFun e :=
     ⟨Cslib.BitString.bitPoint (pigeonIndicator e),
@@ -434,8 +434,8 @@ noncomputable def commonZeroEquivEmbedding (m n : ℕ) (R : Type*) [CommRing R] 
 /-- The embedding assigned by `commonZeroEquivEmbedding` represents the common zero. -/
 theorem bitPoint_commonZeroEquivEmbedding {m n : ℕ} {R : Type*} [CommRing R] [IsDomain R]
     (s : {a : Fin m × Fin n → R // ∀ p ∈ algFPHP m n R, eval a p = 0}) :
-    Cslib.BitString.bitPoint (pigeonIndicator (commonZeroEquivEmbedding m n R s)) = s.1 :=
-  (Classical.choose_spec ((eval_algFPHP_eq_zero_iff (R := R) s.1).1 s.2)).2.symm
+    Cslib.BitString.bitPoint (pigeonIndicator (commonZeroEquivEmbedding m n R s)) = s.val :=
+  (Classical.choose_spec ((eval_algFPHP_eq_zero_iff (R := R) s.val).1 s.property)).2.symm
 
 /-- `commonZeroEquivEmbedding`'s inverse sends an embedding `e` to its `0`/`1` indicator. -/
 theorem commonZeroEquivEmbedding_symm_val {m n : ℕ} {R : Type*} [CommRing R] [IsDomain R]

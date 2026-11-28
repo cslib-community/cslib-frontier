@@ -80,7 +80,7 @@ example (G : Graph) : G.maximumMatchingSubgraph.IsMaximumMatching :=
 example (G : Graph) (M : G.induced.Subgraph) (hM : M.IsMatching) :
     M.edgeSet.ncard ≤ G.maximumMatching.length := maximumMatching_cardinality G M hM
 
-example (G : Graph) (u v : {v // v ∈ G.1}) :
+example (G : Graph) (u v : {v // v ∈ G.vertices}) :
     G.maximumMatchingSubgraph.Adj u v ↔
       (u.val, v.val) ∈ G.maximumMatching ∨ (v.val, u.val) ∈ G.maximumMatching :=
   maximumMatchingSubgraph_adj_iff G u v

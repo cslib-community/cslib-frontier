@@ -245,7 +245,7 @@ private theorem sum_alpha_small_orders_le (m : ℕ) :
     ((∑ d ∈ (range (m + 1)).filter (fun d => 9 * d ≤ m), alpha m d : ℕ) : ℝ)
       ≤ (2 : ℝ) ^ m * saving m := by
   rcases Nat.eq_zero_or_pos m with rfl | hm
-  · simp [alpha, saving]
+  · simp [alpha, saving, Finset.filter_singleton]
   · exact (sum_alpha_small_orders_lt m hm).le
 
 /-- Split the order sum at `m / 9`, applying the query-dependent estimate below the cutoff

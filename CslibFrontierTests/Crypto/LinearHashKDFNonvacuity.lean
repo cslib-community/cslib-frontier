@@ -59,20 +59,21 @@ def additivePrimeGroups : PrimeOrderGroupFamily where
   Desc := PrimeDesc
   encDesc := encPrimeDesc
   order d := d.val
-  prime_order d := d.2
+  prime_order d := d.property
   Carrier d := ZMod d.val
   generator _ := 1
   card_carrier d := Nat.card_zmod d.val
   generator_ne_zero d := fun h => by
     have hval := congrArg ZMod.val h
-    rw [ZMod.val_one_eq_one_mod, Nat.mod_eq_of_lt d.2.one_lt, ZMod.val_zero] at hval
+    rw [ZMod.val_one_eq_one_mod, Nat.mod_eq_of_lt d.property.one_lt, ZMod.val_zero] at hval
     exact one_ne_zero hval
   encode _ x := x.val.bits
-  encode_injective d _ _ h := @ZMod.val_injective d.val ⟨d.2.ne_zero⟩ _ _ (encNat.injective h)
+  encode_injective d _ _ h :=
+      @ZMod.val_injective d.val ⟨d.property.ne_zero⟩ _ _ (encNat.injective h)
   add | (d, x, y) => ((ofBits x + ofBits y) % d.val).bits
   add_encode d x y := by
     simp only [ofBits_bits]
-    exact (congrArg Nat.bits (@ZMod.val_add d.val ⟨d.2.ne_zero⟩ x y)).symm
+    exact (congrArg Nat.bits (@ZMod.val_add d.val ⟨d.property.ne_zero⟩ x y)).symm
   smul | (d, a, x) => ((a * ofBits x) % d.val).bits
   smul_encode d a x := by
     rw [Nat.cast_smul_eq_nsmul, nsmul_eq_mul]
@@ -84,7 +85,7 @@ def additivePrimeGroups : PrimeOrderGroupFamily where
         encPrimeDesc encBits :=
       ComputableInPolyTime.const [true]
     exact hconst.of_enc_eq fun d => by
-      have : Fact (1 < d.val) := ⟨d.2.one_lt⟩
+      have : Fact (1 < d.val) := ⟨d.property.one_lt⟩
       rw [ZMod.val_one]
       rfl
   computableInPolyTime_add := by
@@ -177,7 +178,7 @@ theorem linearHashKDFConditions_bertrand :
     rw [encNat_apply, bits_length_bertrandPrimeDesc]
     omega
   length_encode_le _ d _ x := by
-    have : NeZero d.val := ⟨d.2.ne_zero⟩
+    have : NeZero d.val := ⟨d.property.ne_zero⟩
     change (encNat x.val).length ≤ (encNat d.val).length
     exact length_encNat_mono (Nat.le_of_lt x.val_lt)
   qMin_le_order n d hd := by

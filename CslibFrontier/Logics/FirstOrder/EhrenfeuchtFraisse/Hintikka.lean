@@ -222,8 +222,8 @@ noncomputable def hintikka [Finite (Σ l, L.Relations l)] :
     ∀ {n k : ℕ}, RankType L n k → L.BoundedFormula Empty k
   | 0, _, T => atomicDiagram T
   | _ + 1, _, T =>
-    atomicDiagram T.1 ⊓ BoundedFormula.iInf (fun T' : T.2 => (hintikka T'.1).ex) ⊓
-      (BoundedFormula.iSup fun T' : T.2 => hintikka T'.1).all
+    atomicDiagram T.1 ⊓ BoundedFormula.iInf (fun T' : T.2 => (hintikka T'.val).ex) ⊓
+      (BoundedFormula.iSup fun T' : T.2 => hintikka T'.val).all
 
 theorem realize_hintikka [Finite (Σ l, L.Relations l)] :
     ∀ {n k : ℕ} (T : RankType L n k) (a : Fin k → M),
@@ -244,8 +244,8 @@ theorem quantifierRank_hintikka_le [Finite (Σ l, L.Relations l)] :
     simp only [hintikka, quantifierRank_inf, quantifierRank_all, quantifierRank_atomicDiagram,
       max_le_iff, Nat.zero_le, true_and]
     exact ⟨quantifierRank_iInf_le fun S => (quantifierRank_ex _).trans_le
-      (Nat.succ_le_succ (quantifierRank_hintikka_le S.1)),
-      Nat.succ_le_succ (quantifierRank_iSup_le fun S => quantifierRank_hintikka_le S.1)⟩
+      (Nat.succ_le_succ (quantifierRank_hintikka_le S.val)),
+      Nat.succ_le_succ (quantifierRank_iSup_le fun S => quantifierRank_hintikka_le S.val)⟩
 
 /-! ### The Ehrenfeucht–Fraïssé theorem -/
 
@@ -302,10 +302,10 @@ theorem exists_finite_quantifierRank_le_realize_iff [L.IsRelational] [Finite (Σ
         ∀ (M : Type w) [L.Structure M] (a : Fin k → M),
           φ.Realize default a ↔ ψ.Realize default a := by
   let F := Set.range fun S : Set (RankType L n k) =>
-    BoundedFormula.iSup fun T : S => hintikka T.1
+    BoundedFormula.iSup fun T : S => hintikka T.val
   refine ⟨F, Set.finite_range _, ?_, fun φ hφ => ?_⟩
   · rintro _ ⟨S, rfl⟩
-    exact quantifierRank_iSup_le fun T => quantifierRank_hintikka_le T.1
+    exact quantifierRank_iSup_le fun T => quantifierRank_hintikka_le T.val
   · refine ⟨_, ⟨{T | ∀ (M : Type w) [L.Structure M] (a : Fin k → M), rankType n a = T →
       φ.Realize default a}, rfl⟩, fun M _ a => ?_⟩
     simp only [BoundedFormula.realize_iSup, realize_hintikka, Subtype.exists, Set.mem_ofPred_eq,

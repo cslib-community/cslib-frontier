@@ -250,49 +250,49 @@ def dictOfKeySetVals {U V n : ℕ}
     (K : { K : Finset (Fin U) // K.card = n }) (vals : Fin n → Fin V) :
     Dictionary.State U :=
   fun u =>
-    if hu : u ∈ K.1 then
-      some (vals ((K.1.orderIsoOfFin K.2).symm ⟨u, hu⟩)).1
+    if hu : u ∈ K.val then
+      some (vals ((K.val.orderIsoOfFin K.property).symm ⟨u, hu⟩)).val
     else
       none
 
 @[simp]
 theorem dom_dictOfKeySetVals {U V n : ℕ}
     (K : { K : Finset (Fin U) // K.card = n }) (vals : Fin n → Fin V) :
-    Dictionary.dom (dictOfKeySetVals K vals) = K.1 := by
+    Dictionary.dom (dictOfKeySetVals K vals) = K.val := by
   ext u
-  by_cases hu : u ∈ K.1 <;> simp [Dictionary.dom, dictOfKeySetVals, hu]
+  by_cases hu : u ∈ K.val <;> simp [Dictionary.dom, dictOfKeySetVals, hu]
 
 theorem valuesBounded_dictOfKeySetVals {U V n : ℕ}
     (K : { K : Finset (Fin U) // K.card = n }) (vals : Fin n → Fin V) :
     Dictionary.ValuesBounded V (dictOfKeySetVals K vals) := by
   intro u w hw
-  by_cases hu : u ∈ K.1
+  by_cases hu : u ∈ K.val
   · simp only [dictOfKeySetVals, hu, ↓reduceDIte, Option.some.injEq] at hw
     subst hw
-    exact (vals _).2
+    exact (vals _).isLt
   · simp [dictOfKeySetVals, hu] at hw
 
 @[simp]
 theorem dictOfKeySetVals_orderEmbOfFin {U V n : ℕ}
     (K : { K : Finset (Fin U) // K.card = n }) (vals : Fin n → Fin V) (i : Fin n) :
-    dictOfKeySetVals K vals (K.1.orderEmbOfFin K.2 i) = some (vals i).1 := by
-  have hu : K.1.orderEmbOfFin K.2 i ∈ K.1 := K.1.orderEmbOfFin_mem K.2 i
+    dictOfKeySetVals K vals (K.val.orderEmbOfFin K.property i) = some (vals i).val := by
+  have hu : K.val.orderEmbOfFin K.property i ∈ K.val := K.val.orderEmbOfFin_mem K.property i
   simp only [dictOfKeySetVals, hu, ↓reduceDIte, Option.some.injEq]
-  have hiso : (K.1.orderIsoOfFin K.2).symm ⟨K.1.orderEmbOfFin K.2 i, hu⟩ = i :=
-    (OrderIso.symm_apply_eq (K.1.orderIsoOfFin K.2)).mpr (Subtype.ext rfl)
+  have hiso : (K.val.orderIsoOfFin K.property).symm ⟨K.val.orderEmbOfFin K.property i, hu⟩ = i :=
+    (OrderIso.symm_apply_eq (K.val.orderIsoOfFin K.property)).mpr (Subtype.ext rfl)
   rw [hiso]
 
 @[simp]
 theorem dictOfKeySetVals_eq_none_of_notMem {U V n : ℕ}
     (K : { K : Finset (Fin U) // K.card = n }) (vals : Fin n → Fin V)
-    {u : Fin U} (hu : u ∉ K.1) :
+    {u : Fin U} (hu : u ∉ K.val) :
     dictOfKeySetVals K vals u = none := by
   simp [dictOfKeySetVals, hu]
 
 /-- Domain-cardinality proof carried by `s : SizedDict U V n`. -/
 theorem SizedDict.card_dom {U V n : ℕ} (s : SizedDict U V n) :
-    (Dictionary.dom s.1).card = n :=
-  s.2.1
+    (Dictionary.dom s.val).card = n :=
+  s.property.1
 
 /-- Canonical bijection between size-`n`, `V`-bounded dictionary states (`SizedDict U V n`) and
 pairs `(K, vals)` consisting of a size-`n` key subset `K ⊆ Fin U` and its ordered value vector
@@ -323,11 +323,11 @@ def sizedDictEquiv (U V n : ℕ) :
     · simp only [dictOfKeySetVals, hu, ↓reduceDIte]
       exact (Dictionary.notMem_dom_iff.mp hu).symm
   right_inv := fun ⟨K, vals⟩ => by
-    have hdom : Dictionary.dom (dictOfKeySetVals K vals) = K.1 := dom_dictOfKeySetVals K vals
+    have hdom : Dictionary.dom (dictOfKeySetVals K vals) = K.val := dom_dictOfKeySetVals K vals
     refine Prod.ext (Subtype.ext hdom) (funext fun i => Fin.ext ?_)
     have hemb :
-        ∀ (D : Finset (Fin U)) (hD : D = K.1) (hc : D.card = n),
-          D.orderEmbOfFin hc i = K.1.orderEmbOfFin K.2 i := by
+        ∀ (D : Finset (Fin U)) (hD : D = K.val) (hc : D.card = n),
+          D.orderEmbOfFin hc i = K.val.orderEmbOfFin K.property i := by
       rintro _ rfl hc
       rfl
     dsimp only
@@ -336,20 +336,20 @@ def sizedDictEquiv (U V n : ℕ) :
 
 @[simp]
 theorem sizedDictEquiv_fst (U V n : ℕ) (s : SizedDict U V n) :
-    ((sizedDictEquiv U V n s).1 : Finset (Fin U)) = Dictionary.dom s.1 := by
+    ((sizedDictEquiv U V n s).1 : Finset (Fin U)) = Dictionary.dom s.val := by
   rfl
 
 @[simp]
 theorem some_val_sizedDictEquiv_snd (U V n : ℕ) (s : SizedDict U V n) (i : Fin n) :
     some ((sizedDictEquiv U V n s).2 i : ℕ) =
-      s.1 ((Dictionary.dom s.1).orderEmbOfFin s.card_dom i) :=
+      s.val ((Dictionary.dom s.val).orderEmbOfFin s.card_dom i) :=
   Option.some_get
-    (Dictionary.mem_dom_iff_isSome.mp ((Dictionary.dom s.1).orderEmbOfFin_mem s.card_dom i))
+    (Dictionary.mem_dom_iff_isSome.mp ((Dictionary.dom s.val).orderEmbOfFin_mem s.card_dom i))
 
 @[simp]
 theorem sizedDictEquiv_symm_coe (U V n : ℕ)
     (kv : { K : Finset (Fin U) // K.card = n } × (Fin n → Fin V)) :
-    ((sizedDictEquiv U V n).symm kv).1 = dictOfKeySetVals kv.1 kv.2 := by
+    ((sizedDictEquiv U V n).symm kv).val = dictOfKeySetVals kv.1 kv.2 := by
   rfl
 
 instance instFintypeSizedDict (U V n : ℕ) : Fintype (SizedDict U V n) :=
@@ -382,8 +382,8 @@ noncomputable def extractKeySetVals {U V n : ℕ} (hU : n ≤ U) (hV : 1 ≤ V)
 
 @[simp]
 theorem extractKeySetVals_coe {U V n : ℕ} (hU : n ≤ U) (hV : 1 ≤ V) (s : SizedDict U V n) :
-    extractKeySetVals hU hV s.1 = sizedDictEquiv U V n s := by
-  simp [extractKeySetVals, s.2]
+    extractKeySetVals hU hV s.val = sizedDictEquiv U V n s := by
+  simp [extractKeySetVals, s.property]
 
 /-! ### Deterministic hard operational sequence builders and sliding-window state -/
 
@@ -394,7 +394,7 @@ private def dictOfPrefix {U V m : ℕ} (f : Fin m ↪ Fin U) (v : Fin m → Fin 
   | 0, _ => Dictionary.empty U
   | k + 1, hk =>
       Function.update (dictOfPrefix f v k (Nat.le_of_succ_le hk))
-        (f ⟨k, hk⟩) (some (v ⟨k, hk⟩).1)
+        (f ⟨k, hk⟩) (some (v ⟨k, hk⟩).val)
 
 /-- Dictionary state mapping `f i ↦ some (v i).1` for `i : Fin n` and `none` elsewhere. -/
 def dictOfEmb {U V n : ℕ} (f : Fin n ↪ Fin U) (v : Fin n → Fin V) : Dictionary.State U :=
@@ -402,7 +402,7 @@ def dictOfEmb {U V n : ℕ} (f : Fin n ↪ Fin U) (v : Fin n → Fin V) : Dictio
 
 private theorem dictOfPrefix_apply_lt {U V m : ℕ} (f : Fin m ↪ Fin U) (v : Fin m → Fin V)
     {k : ℕ} (hk : k ≤ m) {i : ℕ} (hi : i < k) :
-    dictOfPrefix f v k hk (f ⟨i, hi.trans_le hk⟩) = some (v ⟨i, hi.trans_le hk⟩).1 := by
+    dictOfPrefix f v k hk (f ⟨i, hi.trans_le hk⟩) = some (v ⟨i, hi.trans_le hk⟩).val := by
   induction k with
   | zero => omega
   | succ k ih =>
@@ -429,7 +429,7 @@ private theorem dom_dictOfPrefix {U V m : ℕ} (f : Fin m ↪ Fin U) (v : Fin m 
     (k : ℕ) (hk : k ≤ m) :
     Dictionary.dom (dictOfPrefix f v k hk) =
       (Finset.range k).attach.map
-        ⟨fun i => f ⟨i.1, (Finset.mem_range.mp i.2).trans_le hk⟩,
+        ⟨fun i => f ⟨i.val, (Finset.mem_range.mp i.property).trans_le hk⟩,
          fun _ _ h => Subtype.ext (congrArg Fin.val (f.injective h))⟩ := by
   induction k with
   | zero => simp [dictOfPrefix]
@@ -454,8 +454,8 @@ private theorem card_dom_dictOfPrefix {U V m : ℕ} (f : Fin m ↪ Fin U) (v : F
 
 @[simp]
 theorem dictOfEmb_apply_self {U V n : ℕ} (f : Fin n ↪ Fin U) (v : Fin n → Fin V) (i : Fin n) :
-    dictOfEmb f v (f i) = some (v i).1 :=
-  dictOfPrefix_apply_lt f v le_rfl i.2
+    dictOfEmb f v (f i) = some (v i).val :=
+  dictOfPrefix_apply_lt f v le_rfl i.isLt
 
 theorem dictOfEmb_apply_eq_none {U V n : ℕ} (f : Fin n ↪ Fin U) (v : Fin n → Fin V)
     {u : Fin U} (hu : ∀ i : Fin n, f i ≠ u) :
@@ -489,12 +489,12 @@ theorem valuesBounded_dictOfEmb {U V n : ℕ} (f : Fin n ↪ Fin U) (v : Fin n �
   obtain ⟨i, _, rfl⟩ := hu
   rw [dictOfEmb_apply_self, Option.some.injEq] at hw
   subst hw
-  exact (v i).2
+  exact (v i).isLt
 
 /-- Active size-`n` key embedding `[t, t + n)` inside `keys : Fin (2 * n) ↪ Fin U` after `t ≤ n`
 meta-operations (under identity deletion order). -/
 def windowEmb {U n : ℕ} (keys : Fin (2 * n) ↪ Fin U) (t : ℕ) (ht : t ≤ n) : Fin n ↪ Fin U where
-  toFun k := keys ⟨t + k.1, by omega⟩
+  toFun k := keys ⟨t + k.val, by omega⟩
   inj' a b h := Fin.ext (by
     have := congrArg Fin.val (keys.injective h)
     dsimp only at this
@@ -502,17 +502,17 @@ def windowEmb {U n : ℕ} (keys : Fin (2 * n) ↪ Fin U) (t : ℕ) (ht : t ≤ n
 
 @[simp]
 theorem windowEmb_apply {U n : ℕ} (keys : Fin (2 * n) ↪ Fin U) (t : ℕ) (ht : t ≤ n) (k : Fin n) :
-    windowEmb keys t ht k = keys ⟨t + k.1, by omega⟩ := by rfl
+    windowEmb keys t ht k = keys ⟨t + k.val, by omega⟩ := by rfl
 
 /-- Active size-`n` value slice `[t, t + n)` inside `vals : Fin (2 * n) → Fin V` after `t ≤ n`
 meta-operations (under identity deletion order). -/
 def windowVals {V n : ℕ} (vals : Fin (2 * n) → Fin V) (t : ℕ) (ht : t ≤ n) : Fin n → Fin V :=
-  fun k => vals ⟨t + k.1, by omega⟩
+  fun k => vals ⟨t + k.val, by omega⟩
 
 @[simp]
 theorem windowVals_apply {V n : ℕ} (vals : Fin (2 * n) → Fin V) (t : ℕ) (ht : t ≤ n)
     (k : Fin n) :
-    windowVals vals t ht k = vals ⟨t + k.1, by omega⟩ := by rfl
+    windowVals vals t ht k = vals ⟨t + k.val, by omega⟩ := by rfl
 
 /-- Sliding-window size-`n` dictionary state on `[t, t + n)`. -/
 def windowDict {U V n : ℕ} (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V)
@@ -524,32 +524,32 @@ def windowDict {U V n : ℕ} (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) 
 @[simp]
 theorem windowDict_coe {U V n : ℕ} (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V)
     (t : ℕ) (ht : t ≤ n) :
-    (windowDict keys vals t ht).1 = dictOfEmb (windowEmb keys t ht) (windowVals vals t ht) := by
+    (windowDict keys vals t ht).val = dictOfEmb (windowEmb keys t ht) (windowVals vals t ht) := by
   rfl
 
 /-- Lift a deletion permutation `delPerm : Equiv.Perm (Fin n)` on the initial `n` indices `[0, n)`
 to `Equiv.Perm (Fin (2 * n))` by acting as the identity on `[n, 2 * n)`. -/
 def liftDelPerm {n : ℕ} (delPerm : Equiv.Perm (Fin n)) : Equiv.Perm (Fin (2 * n)) where
   toFun m :=
-    if hm : m.1 < n then ⟨(delPerm ⟨m.1, hm⟩).1, by omega⟩ else m
+    if hm : m.val < n then ⟨(delPerm ⟨m.val, hm⟩).val, by omega⟩ else m
   invFun m :=
-    if hm : m.1 < n then ⟨(delPerm.symm ⟨m.1, hm⟩).1, by omega⟩ else m
+    if hm : m.val < n then ⟨(delPerm.symm ⟨m.val, hm⟩).val, by omega⟩ else m
   left_inv m := by
-    by_cases hm : m.1 < n
-    · have hm' : (delPerm ⟨m.1, hm⟩).1 < n := (delPerm ⟨m.1, hm⟩).2
+    by_cases hm : m.val < n
+    · have hm' : (delPerm ⟨m.val, hm⟩).val < n := (delPerm ⟨m.val, hm⟩).isLt
       apply Fin.ext
       simp [hm, hm']
     · simp [hm]
   right_inv m := by
-    by_cases hm : m.1 < n
-    · have hm' : (delPerm.symm ⟨m.1, hm⟩).1 < n := (delPerm.symm ⟨m.1, hm⟩).2
+    by_cases hm : m.val < n
+    · have hm' : (delPerm.symm ⟨m.val, hm⟩).val < n := (delPerm.symm ⟨m.val, hm⟩).isLt
       apply Fin.ext
       simp [hm, hm']
     · simp [hm]
 
 @[simp]
 theorem liftDelPerm_apply_lt {n : ℕ} (delPerm : Equiv.Perm (Fin n)) {i : ℕ} (hi : i < n) :
-    liftDelPerm delPerm ⟨i, by omega⟩ = ⟨(delPerm ⟨i, hi⟩).1, by omega⟩ := by
+    liftDelPerm delPerm ⟨i, by omega⟩ = ⟨(delPerm ⟨i, hi⟩).val, by omega⟩ := by
   simp [liftDelPerm, hi]
 
 @[simp]
@@ -659,7 +659,7 @@ theorem activeWindowDict_zero {U V n : ℕ} (keys : Fin (2 * n) ↪ Fin U)
 @[expose] def initInsertSeq {U V n : ℕ} (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V) :
     List (Dynamic.Op U) :=
   (List.finRange n).map fun i =>
-    .insert (keys ⟨i.1, by omega⟩) (vals ⟨i.1, by omega⟩).1
+    .insert (keys ⟨i.val, by omega⟩) (vals ⟨i.val, by omega⟩).val
 
 /-- Single three-step `[query, delete, insert]` meta-operation `j : Fin n` from `Distribution 1`
 ([LiLiangYuZhou2023], Section 3, p. 11 / PDF p. 12): queries and deletes `keys (delPerm j)` and
@@ -668,9 +668,9 @@ inserts `keys (n + j)` with value `(vals (n + j)).1`. -/
     (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V)
     (delPerm : Equiv.Perm (Fin n)) (j : Fin n) :
     List (Dynamic.Op U) :=
-  [.query (keys ⟨(delPerm j).1, by omega⟩),
-   .delete (keys ⟨(delPerm j).1, by omega⟩),
-   .insert (keys ⟨n + j.1, by omega⟩) (vals ⟨n + j.1, by omega⟩).1]
+  [.query (keys ⟨(delPerm j).val, by omega⟩),
+   .delete (keys ⟨(delPerm j).val, by omega⟩),
+   .insert (keys ⟨n + j.val, by omega⟩) (vals ⟨n + j.val, by omega⟩).val]
 
 /-- Single two-step `[delete, insert]` update-only meta-operation `j : Fin n`
 ([LiLiangYuZhou2023], Section 8, p. 28 / PDF p. 29): deletes `keys (delPerm j)` and inserts
@@ -679,8 +679,8 @@ inserts `keys (n + j)` with value `(vals (n + j)).1`. -/
     (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V)
     (delPerm : Equiv.Perm (Fin n)) (j : Fin n) :
     List (Dynamic.Op U) :=
-  [.delete (keys ⟨(delPerm j).1, by omega⟩),
-   .insert (keys ⟨n + j.1, by omega⟩) (vals ⟨n + j.1, by omega⟩).1]
+  [.delete (keys ⟨(delPerm j).val, by omega⟩),
+   .insert (keys ⟨n + j.val, by omega⟩) (vals ⟨n + j.val, by omega⟩).val]
 
 theorem queryDeleteInsertMetaOp_eq_perm {U V n : ℕ}
     (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V)
@@ -767,8 +767,8 @@ theorem length_insertDeleteSeq {U V n : ℕ}
 private theorem insertedKeyAt?_hardSeq {U V n : ℕ}
     (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V)
     (tail : List (Dynamic.Op U)) (i : Fin n) :
-    insertedKeyAt? (initInsertSeq keys vals ++ tail) i.1 = some (keys ⟨i.1, by omega⟩) := by
-  have hlt : i.1 < (initInsertSeq keys vals).length := by simp
+    insertedKeyAt? (initInsertSeq keys vals ++ tail) i.val = some (keys ⟨i.val, by omega⟩) := by
+  have hlt : i.val < (initInsertSeq keys vals).length := by simp
   rw [insertedKeyAt?, List.getElem?_append_left hlt]
   simp [initInsertSeq]
 
@@ -776,14 +776,14 @@ private theorem insertedKeyAt?_hardSeq {U V n : ℕ}
 theorem insertedKeyAt?_insertQueryDeleteSeq {U V n : ℕ}
     (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V)
     (delPerm : Equiv.Perm (Fin n)) (i : Fin n) :
-    insertedKeyAt? (insertQueryDeleteSeq keys vals delPerm) i.1 = some (keys ⟨i.1, by omega⟩) :=
+    insertedKeyAt? (insertQueryDeleteSeq keys vals delPerm) i.val = some (keys ⟨i.val, by omega⟩) :=
   insertedKeyAt?_hardSeq keys vals _ i
 
 @[simp]
 theorem insertedKeyAt?_insertDeleteSeq {U V n : ℕ}
     (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V)
     (delPerm : Equiv.Perm (Fin n)) (i : Fin n) :
-    insertedKeyAt? (insertDeleteSeq keys vals delPerm) i.1 = some (keys ⟨i.1, by omega⟩) :=
+    insertedKeyAt? (insertDeleteSeq keys vals delPerm) i.val = some (keys ⟨i.val, by omega⟩) :=
   insertedKeyAt?_hardSeq keys vals _ i
 
 private theorem deletedKeys_initInsertSeq {U V n : ℕ}
@@ -791,7 +791,7 @@ private theorem deletedKeys_initInsertSeq {U V n : ℕ}
     deletedKeys (initInsertSeq keys vals) = [] := by
   have h : ∀ xs : List (Fin n),
       deletedKeys
-        (xs.map fun i => .insert (keys ⟨i.1, by omega⟩) (vals ⟨i.1, by omega⟩).1) = [] := by
+        (xs.map fun i => .insert (keys ⟨i.val, by omega⟩) (vals ⟨i.val, by omega⟩).val) = [] := by
     intro xs
     induction xs with
     | nil => rfl
@@ -810,9 +810,9 @@ private theorem filterMap_flatMap_singleton {α β γ : Type*} (xs : List α)
 private theorem deletedKeys_hardSeq {U V n : ℕ}
     (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V)
     (delPerm : Equiv.Perm (Fin n)) (metaOp : Fin n → List (Dynamic.Op U))
-    (hm : ∀ j : Fin n, deletedKeys (metaOp j) = [keys ⟨(delPerm j).1, by omega⟩]) :
+    (hm : ∀ j : Fin n, deletedKeys (metaOp j) = [keys ⟨(delPerm j).val, by omega⟩]) :
     deletedKeys (initInsertSeq keys vals ++ (List.finRange n).flatMap metaOp) =
-      (List.finRange n).map fun j => keys ⟨(delPerm j).1, by omega⟩ := by
+      (List.finRange n).map fun j => keys ⟨(delPerm j).val, by omega⟩ := by
   unfold deletedKeys at hm ⊢
   rw [List.filterMap_append,
     show (initInsertSeq keys vals).filterMap _ = [] from deletedKeys_initInsertSeq keys vals,
@@ -823,7 +823,7 @@ theorem deletedKeys_insertQueryDeleteSeq {U V n : ℕ}
     (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V)
     (delPerm : Equiv.Perm (Fin n)) :
     deletedKeys (insertQueryDeleteSeq keys vals delPerm) =
-      (List.finRange n).map fun j => keys ⟨(delPerm j).1, by omega⟩ :=
+      (List.finRange n).map fun j => keys ⟨(delPerm j).val, by omega⟩ :=
   deletedKeys_hardSeq keys vals delPerm _ (fun _ => rfl)
 
 @[simp]
@@ -831,7 +831,7 @@ theorem deletedKeys_insertDeleteSeq {U V n : ℕ}
     (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V)
     (delPerm : Equiv.Perm (Fin n)) :
     deletedKeys (insertDeleteSeq keys vals delPerm) =
-      (List.finRange n).map fun j => keys ⟨(delPerm j).1, by omega⟩ :=
+      (List.finRange n).map fun j => keys ⟨(delPerm j).val, by omega⟩ :=
   deletedKeys_hardSeq keys vals delPerm _ (fun _ => rfl)
 
 /-- `insertDeleteSeq` issues zero `.query` operations. -/
@@ -856,10 +856,10 @@ private theorem validHistory_run_initInsertSeq_take {U V n : ℕ}
     ∀ {k : ℕ} (hk : k ≤ n),
       (Dynamic.spec U V n).ValidHistory (Dictionary.empty U)
         (((List.finRange n).take k).map fun i =>
-          .insert (keys ⟨i.1, by omega⟩) (vals ⟨i.1, by omega⟩).1) ∧
+          .insert (keys ⟨i.val, by omega⟩) (vals ⟨i.val, by omega⟩).val) ∧
       ((Dynamic.spec U V n).run (Dictionary.empty U)
         (((List.finRange n).take k).map fun i =>
-          .insert (keys ⟨i.1, by omega⟩) (vals ⟨i.1, by omega⟩).1)).1 =
+          .insert (keys ⟨i.val, by omega⟩) (vals ⟨i.val, by omega⟩).val)).1 =
         dictOfPrefix (windowEmb keys 0 (Nat.zero_le n))
           (windowVals vals 0 (Nat.zero_le n)) k hk
   | 0, _ => by simp [dictOfPrefix]
@@ -872,10 +872,10 @@ private theorem validHistory_run_initInsertSeq_take {U V n : ℕ}
     have hcard : (Dictionary.dom s_k).card < n := by
       rw [card_dom_dictOfPrefix]
       exact hk
-    refine ⟨⟨hvh, ⟨Or.inl hcard, (vals ⟨k, by omega⟩).2⟩, trivial⟩, ?_⟩
-    change Function.update s_k (keys ⟨k, by omega⟩) (some (vals ⟨k, by omega⟩).1) =
+    refine ⟨⟨hvh, ⟨Or.inl hcard, (vals ⟨k, by omega⟩).isLt⟩, trivial⟩, ?_⟩
+    change Function.update s_k (keys ⟨k, by omega⟩) (some (vals ⟨k, by omega⟩).val) =
       Function.update s_k (windowEmb keys 0 (Nat.zero_le n) ⟨k, hk⟩)
-        (some (windowVals vals 0 (Nat.zero_le n) ⟨k, hk⟩).1)
+        (some (windowVals vals 0 (Nat.zero_le n) ⟨k, hk⟩).val)
     have hidx : (⟨0 + k, by omega⟩ : Fin (2 * n)) = ⟨k, by omega⟩ :=
       Fin.ext (Nat.zero_add k)
     simp only [windowEmb_apply, windowVals_apply, hidx]
@@ -891,7 +891,7 @@ theorem validHistory_initInsertSeq {U V n : ℕ}
 theorem run_initInsertSeq_fst {U V n : ℕ}
     (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V) :
     ((Dynamic.spec U V n).run (Dictionary.empty U) (initInsertSeq keys vals)).1 =
-      (windowDict keys vals 0 (Nat.zero_le n)).1 := by
+      (windowDict keys vals 0 (Nat.zero_le n)).val := by
   have htake : (List.finRange n).take n = List.finRange n :=
     List.take_of_length_le (by simp)
   simpa only [initInsertSeq, htake, windowDict, dictOfEmb] using
@@ -899,50 +899,50 @@ theorem run_initInsertSeq_fst {U V n : ℕ}
 
 private theorem step_windowDict_deleteInsertMetaOp {U V n : ℕ}
     (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V) {j : ℕ} (hj : j < n) :
-    (Dynamic.spec U V n).ValidHistory (windowDict keys vals j hj.le).1
+    (Dynamic.spec U V n).ValidHistory (windowDict keys vals j hj.le).val
       (deleteInsertMetaOp keys vals (Equiv.refl (Fin n)) ⟨j, hj⟩) ∧
-    ((Dynamic.spec U V n).run (windowDict keys vals j hj.le).1
+    ((Dynamic.spec U V n).run (windowDict keys vals j hj.le).val
       (deleteInsertMetaOp keys vals (Equiv.refl (Fin n)) ⟨j, hj⟩)).1 =
-      (windowDict keys vals (j + 1) hj).1 := by
-  set s_j := (windowDict keys vals j hj.le).1
+      (windowDict keys vals (j + 1) hj).val := by
+  set s_j := (windowDict keys vals j hj.le).val
   have hn_pos : 0 < n := by omega
   have heq₀ : windowEmb keys j hj.le ⟨0, hn_pos⟩ = keys ⟨j, by omega⟩ := by
     simp only [windowEmb_apply]
     exact congrArg keys (Fin.ext (Nat.add_zero j))
-  have hs_j_at : s_j (keys ⟨j, by omega⟩) = some (vals ⟨j, by omega⟩).1 := by
+  have hs_j_at : s_j (keys ⟨j, by omega⟩) = some (vals ⟨j, by omega⟩).val := by
     rw [← heq₀]
     exact (dictOfEmb_apply_self (windowEmb keys j hj.le) (windowVals vals j hj.le)
-      ⟨0, hn_pos⟩).trans (congrArg (fun idx => some (vals idx).1) (Fin.ext (Nat.add_zero j)))
+      ⟨0, hn_pos⟩).trans (congrArg (fun idx => some (vals idx).val) (Fin.ext (Nat.add_zero j)))
   have hisSome : (s_j (keys ⟨j, by omega⟩)).isSome := by
     rw [hs_j_at]; rfl
   have hcard_del :
       (Dictionary.dom (Function.update s_j (keys ⟨j, by omega⟩) none)).card < n := by
-    rw [Dynamic.card_dom_delete_eq_of_isSome hisSome, (windowDict keys vals j hj.le).2.1]
+    rw [Dynamic.card_dom_delete_eq_of_isSome hisSome, (windowDict keys vals j hj.le).property.1]
     omega
-  refine ⟨⟨trivial, ⟨Or.inl hcard_del, (vals ⟨n + j, by omega⟩).2⟩, trivial⟩, ?_⟩
+  refine ⟨⟨trivial, ⟨Or.inl hcard_del, (vals ⟨n + j, by omega⟩).isLt⟩, trivial⟩, ?_⟩
   change Function.update (Function.update s_j (keys ⟨j, by omega⟩) none)
-      (keys ⟨n + j, by omega⟩) (some (vals ⟨n + j, by omega⟩).1) =
+      (keys ⟨n + j, by omega⟩) (some (vals ⟨n + j, by omega⟩).val) =
     dictOfEmb (windowEmb keys (j + 1) hj) (windowVals vals (j + 1) hj)
   funext u
   by_cases hex : ∃ k : Fin n, windowEmb keys (j + 1) hj k = u
   · obtain ⟨k, rfl⟩ := hex
     rw [dictOfEmb_apply_self]
-    by_cases hlast : k.1 = n - 1
-    · have hidx : (⟨j + 1 + k.1, by omega⟩ : Fin (2 * n)) = ⟨n + j, by omega⟩ :=
+    by_cases hlast : k.val = n - 1
+    · have hidx : (⟨j + 1 + k.val, by omega⟩ : Fin (2 * n)) = ⟨n + j, by omega⟩ :=
         Fin.ext (by dsimp only; omega)
       simp only [windowEmb_apply, windowVals_apply, hidx, Function.update_self]
-    · have hk_lt : k.1 + 1 < n := by omega
-      have hne_ins : keys ⟨j + 1 + k.1, by omega⟩ ≠ keys ⟨n + j, by omega⟩ := fun heq => by
+    · have hk_lt : k.val + 1 < n := by omega
+      have hne_ins : keys ⟨j + 1 + k.val, by omega⟩ ≠ keys ⟨n + j, by omega⟩ := fun heq => by
         have := congrArg Fin.val (keys.injective heq); dsimp only at this; omega
-      have hne_del : keys ⟨j + 1 + k.1, by omega⟩ ≠ keys ⟨j, by omega⟩ := fun heq => by
+      have hne_del : keys ⟨j + 1 + k.val, by omega⟩ ≠ keys ⟨j, by omega⟩ := fun heq => by
         have := congrArg Fin.val (keys.injective heq); dsimp only at this; omega
       simp only [windowEmb_apply, windowVals_apply,
         Function.update_of_ne hne_ins, Function.update_of_ne hne_del]
-      have hshift : (⟨j + 1 + k.1, by omega⟩ : Fin (2 * n)) = ⟨j + (k.1 + 1), by omega⟩ :=
+      have hshift : (⟨j + 1 + k.val, by omega⟩ : Fin (2 * n)) = ⟨j + (k.val + 1), by omega⟩ :=
         Fin.ext (by dsimp only; omega)
       rw [hshift]
       exact dictOfEmb_apply_self (windowEmb keys j hj.le) (windowVals vals j hj.le)
-        ⟨k.1 + 1, hk_lt⟩
+        ⟨k.val + 1, hk_lt⟩
   · push Not at hex
     rw [dictOfEmb_apply_eq_none _ _ hex]
     have hne_ins : u ≠ keys ⟨n + j, by omega⟩ := by
@@ -956,37 +956,37 @@ private theorem step_windowDict_deleteInsertMetaOp {U V n : ℕ}
     · rw [Function.update_of_ne hudel]
       refine dictOfEmb_apply_eq_none (windowEmb keys j hj.le) (windowVals vals j hj.le) ?_
       intro k'
-      by_cases hk0 : k'.1 = 0
+      by_cases hk0 : k'.val = 0
       · rw [windowEmb_apply]
         intro heq
         refine hudel ?_
         rw [← heq]
         exact congrArg keys (Fin.ext (by dsimp only; omega))
-      · have hprev : k'.1 - 1 < n := by omega
+      · have hprev : k'.val - 1 < n := by omega
         intro heq
-        refine hex ⟨k'.1 - 1, hprev⟩ ?_
+        refine hex ⟨k'.val - 1, hprev⟩ ?_
         rw [← heq, windowEmb_apply, windowEmb_apply]
         exact congrArg keys (Fin.ext (by dsimp only; omega))
 
 private theorem step_activeWindowDict_deleteInsertMetaOp {U V n : ℕ}
     (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V)
     (delPerm : Equiv.Perm (Fin n)) {j : ℕ} (hj : j < n) :
-    (Dynamic.spec U V n).ValidHistory (activeWindowDict keys vals delPerm j hj.le).1
+    (Dynamic.spec U V n).ValidHistory (activeWindowDict keys vals delPerm j hj.le).val
       (deleteInsertMetaOp keys vals delPerm ⟨j, hj⟩) ∧
-    ((Dynamic.spec U V n).run (activeWindowDict keys vals delPerm j hj.le).1
+    ((Dynamic.spec U V n).run (activeWindowDict keys vals delPerm j hj.le).val
       (deleteInsertMetaOp keys vals delPerm ⟨j, hj⟩)).1 =
-      (activeWindowDict keys vals delPerm (j + 1) hj).1 := by
+      (activeWindowDict keys vals delPerm (j + 1) hj).val := by
   rw [deleteInsertMetaOp_eq_perm]
   exact step_windowDict_deleteInsertMetaOp (permKeys keys delPerm) (permVals vals delPerm) hj
 
 private theorem step_activeWindowDict_queryDeleteInsertMetaOp {U V n : ℕ}
     (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V)
     (delPerm : Equiv.Perm (Fin n)) {j : ℕ} (hj : j < n) :
-    (Dynamic.spec U V n).ValidHistory (activeWindowDict keys vals delPerm j hj.le).1
+    (Dynamic.spec U V n).ValidHistory (activeWindowDict keys vals delPerm j hj.le).val
       (queryDeleteInsertMetaOp keys vals delPerm ⟨j, hj⟩) ∧
-    ((Dynamic.spec U V n).run (activeWindowDict keys vals delPerm j hj.le).1
+    ((Dynamic.spec U V n).run (activeWindowDict keys vals delPerm j hj.le).val
       (queryDeleteInsertMetaOp keys vals delPerm ⟨j, hj⟩)).1 =
-      (activeWindowDict keys vals delPerm (j + 1) hj).1 := by
+      (activeWindowDict keys vals delPerm (j + 1) hj).val := by
   have h := step_activeWindowDict_deleteInsertMetaOp (V := V) keys vals delPerm hj
   exact ⟨⟨trivial, h.1⟩, h.2⟩
 
@@ -1011,16 +1011,16 @@ private theorem validHistory_run_metaPrefix {U V n : ℕ}
     (metaOp : Fin n → List (Dynamic.Op U))
     (hstep : ∀ {j : ℕ} (hj : j < n),
       (Dynamic.spec U V n).ValidHistory
-        (activeWindowDict keys vals delPerm j hj.le).1 (metaOp ⟨j, hj⟩) ∧
+        (activeWindowDict keys vals delPerm j hj.le).val (metaOp ⟨j, hj⟩) ∧
       ((Dynamic.spec U V n).run
-        (activeWindowDict keys vals delPerm j hj.le).1 (metaOp ⟨j, hj⟩)).1 =
-        (activeWindowDict keys vals delPerm (j + 1) hj).1) :
+        (activeWindowDict keys vals delPerm j hj.le).val (metaOp ⟨j, hj⟩)).1 =
+        (activeWindowDict keys vals delPerm (j + 1) hj).val) :
     ∀ {t : ℕ} (ht : t ≤ n),
       (Dynamic.spec U V n).ValidHistory (Dictionary.empty U)
         (initInsertSeq keys vals ++ ((List.finRange n).take t).flatMap metaOp) ∧
       ((Dynamic.spec U V n).run (Dictionary.empty U)
         (initInsertSeq keys vals ++ ((List.finRange n).take t).flatMap metaOp)).1 =
-        (activeWindowDict keys vals delPerm t ht).1
+        (activeWindowDict keys vals delPerm t ht).val
   | 0, _ => by
     simp only [List.take_zero, List.flatMap_nil, List.append_nil]
     rw [activeWindowDict_zero]
@@ -1096,15 +1096,15 @@ private theorem drop_take_of_take_add {α : Type*} {xs pref mid : List α} {a b 
 private theorem drop_take_hardSeq {U V n : ℕ} (c : ℕ)
     (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V)
     (metaOp : Fin n → List (Dynamic.Op U)) (hc : ∀ k, (metaOp k).length = c) (j : Fin n) :
-    ((initInsertSeq keys vals ++ (List.finRange n).flatMap metaOp).drop (n + c * j.1)).take c =
+    ((initInsertSeq keys vals ++ (List.finRange n).flatMap metaOp).drop (n + c * j.val)).take c =
       metaOp j := by
-  have htake := take_hardSeq c (j.1 + 1) keys vals metaOp hc
-  have hidx : n + c * (j.1 + 1) = (n + c * j.1) + c := by ring
-  rw [hidx, List.take_succ_finRange j.2, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
-    List.append_nil, ← List.append_assoc] at htake
+  have htake := take_hardSeq c (j.val + 1) keys vals metaOp hc
+  have hidx : n + c * (j.val + 1) = (n + c * j.val) + c := by ring
+  rw [hidx, List.take_succ_finRange j.isLt, List.flatMap_append, List.flatMap_cons,
+    List.flatMap_nil, List.append_nil, ← List.append_assoc] at htake
   refine drop_take_of_take_add htake ?_ (hc j)
   rw [List.length_append, length_initInsertSeq, length_flatMap_const c _ _ hc,
-    List.length_take, List.length_finRange, min_eq_left j.2.le]
+    List.length_take, List.length_finRange, min_eq_left j.isLt.le]
 
 /-- Elementary slice `[n + 3 * j, n + 3 * (j + 1))` of `insertQueryDeleteSeq` recovers
 `queryDeleteInsertMetaOp keys vals delPerm j`. -/
@@ -1112,7 +1112,7 @@ private theorem drop_take_hardSeq {U V n : ℕ} (c : ℕ)
 theorem drop_take_insertQueryDeleteSeq {U V n : ℕ}
     (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V)
     (delPerm : Equiv.Perm (Fin n)) (j : Fin n) :
-    ((insertQueryDeleteSeq keys vals delPerm).drop (n + 3 * j.1)).take 3 =
+    ((insertQueryDeleteSeq keys vals delPerm).drop (n + 3 * j.val)).take 3 =
       queryDeleteInsertMetaOp keys vals delPerm j :=
   drop_take_hardSeq 3 keys vals _ (fun _ => rfl) j
 
@@ -1122,7 +1122,7 @@ theorem drop_take_insertQueryDeleteSeq {U V n : ℕ}
 theorem drop_take_insertDeleteSeq {U V n : ℕ}
     (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V)
     (delPerm : Equiv.Perm (Fin n)) (j : Fin n) :
-    ((insertDeleteSeq keys vals delPerm).drop (n + 2 * j.1)).take 2 =
+    ((insertDeleteSeq keys vals delPerm).drop (n + 2 * j.val)).take 2 =
       deleteInsertMetaOp keys vals delPerm j :=
   drop_take_hardSeq 2 keys vals _ (fun _ => rfl) j
 
@@ -1131,10 +1131,10 @@ private theorem validHistory_hardSeq {U V n : ℕ}
     (delPerm : Equiv.Perm (Fin n)) (metaOp : Fin n → List (Dynamic.Op U))
     (hstep : ∀ {j : ℕ} (hj : j < n),
       (Dynamic.spec U V n).ValidHistory
-        (activeWindowDict keys vals delPerm j hj.le).1 (metaOp ⟨j, hj⟩) ∧
+        (activeWindowDict keys vals delPerm j hj.le).val (metaOp ⟨j, hj⟩) ∧
       ((Dynamic.spec U V n).run
-        (activeWindowDict keys vals delPerm j hj.le).1 (metaOp ⟨j, hj⟩)).1 =
-        (activeWindowDict keys vals delPerm (j + 1) hj).1) :
+        (activeWindowDict keys vals delPerm j hj.le).val (metaOp ⟨j, hj⟩)).1 =
+        (activeWindowDict keys vals delPerm (j + 1) hj).val) :
     (Dynamic.spec U V n).ValidHistory (Dictionary.empty U)
       (initInsertSeq keys vals ++ (List.finRange n).flatMap metaOp) := by
   have h := (validHistory_run_metaPrefix keys vals delPerm metaOp hstep le_rfl).1
@@ -1168,7 +1168,7 @@ theorem validHistory_and_run_take_insertQueryDeleteSeq {U V n t : ℕ}
       ((insertQueryDeleteSeq keys vals delPerm).take (n + 3 * t)) ∧
     ((Dynamic.spec U V n).run (Dictionary.empty U)
       ((insertQueryDeleteSeq keys vals delPerm).take (n + 3 * t))).1 =
-      (activeWindowDict keys vals delPerm t ht).1 := by
+      (activeWindowDict keys vals delPerm t ht).val := by
   rw [take_insertQueryDeleteSeq]
   exact validHistory_run_metaPrefix keys vals delPerm (queryDeleteInsertMetaOp keys vals delPerm)
     (fun hj => step_activeWindowDict_queryDeleteInsertMetaOp keys vals delPerm hj) ht
@@ -1182,7 +1182,7 @@ theorem validHistory_and_run_take_insertDeleteSeq {U V n t : ℕ}
       ((insertDeleteSeq keys vals delPerm).take (n + 2 * t)) ∧
     ((Dynamic.spec U V n).run (Dictionary.empty U)
       ((insertDeleteSeq keys vals delPerm).take (n + 2 * t))).1 =
-      (activeWindowDict keys vals delPerm t ht).1 := by
+      (activeWindowDict keys vals delPerm t ht).val := by
   rw [take_insertDeleteSeq]
   exact validHistory_run_metaPrefix keys vals delPerm (deleteInsertMetaOp keys vals delPerm)
     (fun hj => step_activeWindowDict_deleteInsertMetaOp keys vals delPerm hj) ht
@@ -1373,32 +1373,32 @@ private theorem map_deletedKey_eq_insertedKey_sampleHardDist {U V n : ℕ}
     (seq : (Fin (2 * n) ↪ Fin U) → (Fin (2 * n) → Fin V) →
       Equiv.Perm (Fin n) → List (Dynamic.Op U))
     (hins : ∀ keys vals delPerm (i : Fin n),
-      insertedKeyAt? (seq keys vals delPerm) i.1 = some (keys ⟨i.1, by omega⟩))
+      insertedKeyAt? (seq keys vals delPerm) i.val = some (keys ⟨i.val, by omega⟩))
     (hdel : ∀ keys vals delPerm,
       deletedKeys (seq keys vals delPerm) =
-        (List.finRange n).map fun r => keys ⟨(delPerm r).1, by omega⟩)
+        (List.finRange n).map fun r => keys ⟨(delPerm r).val, by omega⟩)
     (j i : Fin n) :
     ((sampleHardDist hU hV seq).map
-      (fun ops => decide ((deletedKeys ops)[j.1]? = insertedKeyAt? ops i.1))) true =
+      (fun ops => decide ((deletedKeys ops)[j.val]? = insertedKeyAt? ops i.val))) true =
       (n : ℝ≥0∞)⁻¹ := by
   let _ : Nonempty (Fin (2 * n) ↪ Fin U) := ⟨Fin.castLEEmb hU⟩
   let _ : Nonempty (Fin V) := ⟨⟨0, hV⟩⟩
   let _ : Nonempty (Fin n) := ⟨i⟩
   have hdec : ∀ p : HardSeed U V n,
-      decide ((deletedKeys (seq p.1.1 p.1.2 p.2))[j.1]? =
-        insertedKeyAt? (seq p.1.1 p.1.2 p.2) i.1) =
+      decide ((deletedKeys (seq p.1.1 p.1.2 p.2))[j.val]? =
+        insertedKeyAt? (seq p.1.1 p.1.2 p.2) i.val) =
         decide (p.2 j = i) := fun ⟨⟨keys, vals⟩, σ⟩ => by
-    have hj_len : j.1 < (List.finRange n).length := by simp
+    have hj_len : j.val < (List.finRange n).length := by simp
     simp only [hdel, hins, List.getElem?_map, List.getElem?_eq_getElem hj_len,
       List.getElem_finRange, Fin.cast_mk, Option.map_some, Option.some.injEq,
       keys.injective.eq_iff, Fin.ext_iff]
   have hdist :
       (sampleHardDist hU hV seq).map
-        (fun ops => decide ((deletedKeys ops)[j.1]? = insertedKeyAt? ops i.1)) =
+        (fun ops => decide ((deletedKeys ops)[j.val]? = insertedKeyAt? ops i.val)) =
         (PMF.uniformOfFintype (Fin n)).map (fun k => decide (k = i)) := by
     rw [sampleHardDist_eq_uniformOfFintype_map hU hV seq, _root_.PMF.map_comp]
     have hcomp :
-        ((fun ops => decide ((deletedKeys ops)[j.1]? = insertedKeyAt? ops i.1)) ∘
+        ((fun ops => decide ((deletedKeys ops)[j.val]? = insertedKeyAt? ops i.val)) ∘
           fun p : HardSeed U V n => seq p.1.1 p.1.2 p.2) =
         ((fun k : Fin n => decide (k = i)) ∘ (fun σ : Equiv.Perm (Fin n) => σ j) ∘
           Prod.fst ∘ Equiv.prodComm _ _) :=
@@ -1418,7 +1418,7 @@ probability `1 / n` (confirming non-FIFO uniform deletion order). -/
 theorem map_deletedKey_eq_insertedKey_insertQueryDeleteDist {U V n : ℕ}
     (hU : 2 * n ≤ U) (hV : 1 ≤ V) (j i : Fin n) :
     ((insertQueryDeleteDist U V n hU hV).map
-      (fun ops => decide ((deletedKeys ops)[j.1]? = insertedKeyAt? ops i.1))) true =
+      (fun ops => decide ((deletedKeys ops)[j.val]? = insertedKeyAt? ops i.val))) true =
       (n : ℝ≥0∞)⁻¹ :=
   map_deletedKey_eq_insertedKey_sampleHardDist hU hV insertQueryDeleteSeq
     insertedKeyAt?_insertQueryDeleteSeq deletedKeys_insertQueryDeleteSeq j i
@@ -1429,40 +1429,40 @@ probability `1 / n` (confirming non-FIFO uniform deletion order). -/
 theorem map_deletedKey_eq_insertedKey_insertDeleteDist {U V n : ℕ}
     (hU : 2 * n ≤ U) (hV : 1 ≤ V) (j i : Fin n) :
     ((insertDeleteDist U V n hU hV).map
-      (fun ops => decide ((deletedKeys ops)[j.1]? = insertedKeyAt? ops i.1))) true =
+      (fun ops => decide ((deletedKeys ops)[j.val]? = insertedKeyAt? ops i.val))) true =
       (n : ℝ≥0∞)⁻¹ :=
   map_deletedKey_eq_insertedKey_sampleHardDist hU hV insertDeleteSeq
     insertedKeyAt?_insertDeleteSeq deletedKeys_insertDeleteSeq j i
 
 private def splitWindow {n : ℕ} (t : ℕ) (ht : t ≤ n) : Fin n ⊕ Fin n ≃ Fin (2 * n) where
   toFun
-    | .inl k => ⟨t + k.1, by omega⟩
-    | .inr r => if r.1 < t then ⟨r.1, by omega⟩ else ⟨r.1 + n, by omega⟩
+    | .inl k => ⟨t + k.val, by omega⟩
+    | .inr r => if r.val < t then ⟨r.val, by omega⟩ else ⟨r.val + n, by omega⟩
   invFun m :=
-    if hm1 : m.1 < t then .inr ⟨m.1, by omega⟩
-    else if hm2 : m.1 < t + n then .inl ⟨m.1 - t, by omega⟩
-    else .inr ⟨m.1 - n, by omega⟩
+    if hm1 : m.val < t then .inr ⟨m.val, by omega⟩
+    else if hm2 : m.val < t + n then .inl ⟨m.val - t, by omega⟩
+    else .inr ⟨m.val - n, by omega⟩
   left_inv x := by
     rcases x with k | r
     · dsimp only
-      have h1 : ¬ t + k.1 < t := by omega
-      have h2 : t + k.1 < t + n := by omega
+      have h1 : ¬ t + k.val < t := by omega
+      have h2 : t + k.val < t + n := by omega
       simp only [h1, ↓reduceDIte, h2]
       exact congrArg Sum.inl (Fin.ext (by dsimp only; omega))
-    · by_cases hrt : r.1 < t
+    · by_cases hrt : r.val < t
       · dsimp only; simp [hrt]
       · dsimp only
-        have h1 : ¬ r.1 + n < t := by omega
-        have h2 : ¬ r.1 + n < t + n := by omega
+        have h1 : ¬ r.val + n < t := by omega
+        have h2 : ¬ r.val + n < t + n := by omega
         simp only [hrt, ↓reduceIte, h1, ↓reduceDIte, h2]
         exact congrArg Sum.inr (Fin.ext (by dsimp only; omega))
   right_inv m := by
-    by_cases h1 : m.1 < t
+    by_cases h1 : m.val < t
     · simp [h1]
-    · by_cases h2 : m.1 < t + n
+    · by_cases h2 : m.val < t + n
       · simp only [h1, ↓reduceDIte, h2]
         exact Fin.ext (by dsimp only; omega)
-      · have h3 : ¬ m.1 - n < t := by omega
+      · have h3 : ¬ m.val - n < t := by omega
         simp only [h1, ↓reduceDIte, h2, h3, ↓reduceIte]
         exact Fin.ext (by dsimp only; omega)
 
@@ -1492,7 +1492,7 @@ private theorem windowValsEquiv_fst {V n : ℕ} (t : ℕ) (ht : t ≤ n)
     (vals : Fin (2 * n) → Fin V) :
     (windowValsEquiv t ht vals).1 = windowVals vals t ht := by
   funext k
-  change vals ((splitWindow t ht).symm.symm (.inl k)) = vals ⟨t + k.1, by omega⟩
+  change vals ((splitWindow t ht).symm.symm (.inl k)) = vals ⟨t + k.val, by omega⟩
   rfl
 
 private noncomputable def embToPerm {U n : ℕ} (f : Fin n ↪ Fin U) : Equiv.Perm (Fin n) :=
@@ -1512,7 +1512,7 @@ private noncomputable def embValsEquiv (U V n : ℕ) :
     let σ := embToPerm p.1
     ((⟨Finset.univ.map p.1, by simp⟩, p.2 ∘ σ.symm), σ)
   invFun q :=
-    (q.2.toEmbedding.trans (q.1.1.1.orderEmbOfFin q.1.1.2).toEmbedding,
+    (q.2.toEmbedding.trans (q.1.1.val.orderEmbOfFin q.1.1.property).toEmbedding,
      q.1.2 ∘ q.2)
   left_inv := fun ⟨f, v⟩ => by
     set K : Finset (Fin U) := Finset.univ.map f
@@ -1528,25 +1528,26 @@ private noncomputable def embValsEquiv (U V n : ℕ) :
     dsimp only [Function.comp_apply]
     rw [σ.symm_apply_apply]
   right_inv := fun ⟨⟨K, v_sorted⟩, σ⟩ => by
-    set f : Fin n ↪ Fin U := σ.toEmbedding.trans (K.1.orderEmbOfFin K.2).toEmbedding
+    set f : Fin n ↪ Fin U := σ.toEmbedding.trans (K.val.orderEmbOfFin K.property).toEmbedding
     have hcard_f : (Finset.univ.map f).card = n := by simp
-    have hmap : Finset.univ.map f = K.1 := by
+    have hmap : Finset.univ.map f = K.val := by
       have hperm : (Finset.univ : Finset (Fin n)).map σ.toEmbedding = Finset.univ := by
         ext x; simp
-      rw [← Finset.map_map, hperm, K.1.map_orderEmbOfFin_univ K.2]
+      rw [← Finset.map_map, hperm, K.val.map_orderEmbOfFin_univ K.property]
     have hσ : embToPerm f = σ := by
       ext i
       have hval : (embToPerm f i : Fin n) = σ i := by
         change ((Finset.univ.map f).orderIsoOfFin hcard_f).symm
             ⟨f i, Finset.mem_map_of_mem f (Finset.mem_univ i)⟩ = σ i
-        have helper : ∀ (D : Finset (Fin U)) (hD : D = K.1) (hc : D.card = n)
-            (hmem : K.1.orderEmbOfFin K.2 (σ i) ∈ D),
-            (D.orderIsoOfFin hc).symm ⟨K.1.orderEmbOfFin K.2 (σ i), hmem⟩ = σ i := by
+        have helper : ∀ (D : Finset (Fin U)) (hD : D = K.val) (hc : D.card = n)
+            (hmem : K.val.orderEmbOfFin K.property (σ i) ∈ D),
+            (D.orderIsoOfFin hc).symm ⟨K.val.orderEmbOfFin K.property (σ i), hmem⟩ = σ i := by
           rintro _ rfl hc hmem
-          have hsub : (⟨K.1.orderEmbOfFin K.2 (σ i), hmem⟩ : K.1) = K.1.orderIsoOfFin hc (σ i) :=
+          have hsub : (⟨K.val.orderEmbOfFin K.property (σ i), hmem⟩ : K.val) =
+              K.val.orderIsoOfFin hc (σ i) :=
             Subtype.ext rfl
           rw [hsub]
-          exact (K.1.orderIsoOfFin hc).symm_apply_apply (σ i)
+          exact (K.val.orderIsoOfFin hc).symm_apply_apply (σ i)
         exact helper (Finset.univ.map f) hmap hcard_f (Finset.mem_map_of_mem f (Finset.mem_univ i))
       exact congrArg Fin.val hval
     refine Prod.ext (Prod.ext (Subtype.ext hmap) ?_) hσ
@@ -1563,12 +1564,12 @@ private theorem sizedDictEquiv_symm_embValsEquiv_fst {U V n : ℕ}
   set K : { K : Finset (Fin U) // K.card = n } := ⟨Finset.univ.map f, by simp⟩
   set σ := embToPerm f
   funext u
-  by_cases hu : u ∈ K.1
+  by_cases hu : u ∈ K.val
   · have hmem := hu
     rw [Finset.mem_map] at hmem
     obtain ⟨i, _, rfl⟩ := hmem
-    have hfi : K.1.orderEmbOfFin K.2 (σ i) = f i :=
-      congrArg Subtype.val ((K.1.orderIsoOfFin K.2).apply_symm_apply ⟨f i, hu⟩)
+    have hfi : K.val.orderEmbOfFin K.property (σ i) = f i :=
+      congrArg Subtype.val ((K.val.orderIsoOfFin K.property).apply_symm_apply ⟨f i, hu⟩)
     rw [dictOfEmb_apply_self, ← hfi, dictOfKeySetVals_orderEmbOfFin]
     dsimp only [Function.comp_apply]
     rw [σ.symm_apply_apply]
@@ -1651,7 +1652,7 @@ private theorem map_run_take_sampleHardDist {U V n t : ℕ} (c : ℕ)
     (hrun : ∀ keys vals delPerm,
       ((Dynamic.spec U V n).run (Dictionary.empty U)
         ((seq keys vals delPerm).take (n + c * t))).1 =
-        (activeWindowDict keys vals delPerm t ht).1) :
+        (activeWindowDict keys vals delPerm t ht).val) :
     letI : Nonempty (SizedDict U V n) := nonempty_sizedDict (by omega) hV
     (sampleHardDist hU hV seq).map
       (fun ops => ((Dynamic.spec U V n).run (Dictionary.empty U) (ops.take (n + c * t))).1) =
@@ -1706,7 +1707,7 @@ private theorem map_extractKeySetVals_of_map_run_take {U V n prefLen : ℕ}
   rw [_root_.PMF.map_comp, _root_.PMF.map_comp] at hmap
   dsimp only [Function.comp_def] at hmap
   refine hmap.trans ?_
-  have heq : (fun s : SizedDict U V n => extractKeySetVals hnU hV s.1) = sizedDictEquiv U V n :=
+  have heq : (fun s : SizedDict U V n => extractKeySetVals hnU hV s.val) = sizedDictEquiv U V n :=
     funext fun s => extractKeySetVals_coe hnU hV s
   rw [heq, PMF.uniformOfFintype_map_equiv (sizedDictEquiv U V n)]
 

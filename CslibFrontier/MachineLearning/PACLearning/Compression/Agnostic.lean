@@ -400,8 +400,8 @@ private theorem measure_pi_holdout_of_pred (D : Measure (α × β)) [IsProbabili
         simpa only [Function.comp_apply, Equiv.apply_symm_apply] using this
       · intro j hj
         simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hj
-        refine ⟨(eqv j).1, Finset.mem_filter.2 ⟨Finset.mem_compl.2 (eqv j).2, ?_⟩, ?_⟩
-        · simpa only [e, MeasurableEquiv.piEquivPiSubtypeProd_symm_apply, (eqv j).2,
+        refine ⟨(eqv j).val, Finset.mem_filter.2 ⟨Finset.mem_compl.2 (eqv j).property, ?_⟩, ?_⟩
+        · simpa only [e, MeasurableEquiv.piEquivPiSubtypeProd_symm_apply, (eqv j).property,
             dite_false, Subtype.coe_eta] using hj
         · exact eqv.symm_apply_apply j
     let reidx : ((i : {i // i ∉ J}) → α × β) ≃ᵐ LabeledSample α β (m - J.card) :=
@@ -458,7 +458,7 @@ private theorem measure_pi_union_compression_le (D : Measure (α × β))
       ⋃ ι, B ι := by
     intro S hS
     let j : Fin (k + 1) := ⟨(κ.compress S).length, Nat.lt_succ_of_le (κ.length_compress_le S)⟩
-    let r : Fin j → Fin m := fun t => (κ.compress S)[t.1]
+    let r : Fin j → Fin m := fun t => (κ.compress S)[t.val]
     refine Set.mem_iUnion.2 ⟨⟨j, r⟩, ?_⟩
     have hlist : List.ofFn (S ∘ r) = (κ.compress S).map S :=
       List.ext_getElem (by simp [j]) fun t _ _ => by simp [r]
@@ -467,7 +467,7 @@ private theorem measure_pi_union_compression_le (D : Measure (α × β))
       simp only [J, GeneralCompressionScheme.keptSet, Finset.mem_image, Finset.mem_univ, true_and,
         List.mem_toFinset, List.mem_iff_getElem]
       constructor
-      · rintro ⟨t, rfl⟩; exact ⟨t.1, t.2, rfl⟩
+      · rintro ⟨t, rfl⟩; exact ⟨t.val, t.isLt, rfl⟩
       · rintro ⟨t, ht, rfl⟩; exact ⟨⟨t, ht⟩, rfl⟩
     change P (heldOutError (J ⟨j, r⟩) (g ⟨j, r⟩ S) S) (error D (g ⟨j, r⟩ S)).toReal
     have hg_eq : g ⟨j, r⟩ S = κ.learner S := by
@@ -490,7 +490,7 @@ private theorem card_image_le_k {k m : ℕ} (ι : Σ j : Fin (k + 1), Fin j → 
     (Finset.univ.image ι.2).card ≤ k :=
   (Finset.card_image_le).trans (by
     rw [Finset.card_univ, Fintype.card_fin]
-    exact Nat.lt_succ_iff.1 ι.1.2)
+    exact Nat.lt_succ_iff.1 ι.1.isLt)
 
 omit [MeasurableSpace α] [MeasurableSpace β] [DecidableEq β] in
 private theorem dependsOn_ofFn {m j : ℕ} (ρ : List (α × β) → α → β) (r : Fin j → Fin m) :
@@ -552,7 +552,7 @@ private theorem pow_add_one_mul_exp_neg_le (m k : ℕ) {a δ : ℝ} (ha : 0 < a)
     rw [← ENNReal.ofReal_natCast]; push_cast; rfl
   rw [hcast, ← ENNReal.ofReal_mul (by positivity)]
   refine ENNReal.ofReal_le_ofReal (le_of_eq ?_)
-  rw [neg_add, Real.exp_add, Real.exp_neg, Real.exp_neg, Real.exp_nat_mul,
+  rw [neg_add, Real.exp_add, Real.exp_neg, Real.exp_neg, Real.exp_natCast_mul,
     Real.exp_log (by positivity : (0 : ℝ) < (m : ℝ) + 1), Real.exp_log (div_pos ha hδ)]
   have hmp : (m : ℝ) + 1 ≠ 0 := by positivity
   field_simp

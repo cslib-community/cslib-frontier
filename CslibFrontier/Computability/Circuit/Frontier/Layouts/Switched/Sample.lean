@@ -326,7 +326,7 @@ private theorem measureReal_innerFrontier_le {n : ℕ} (H : SimpleGraph (Fin n))
   set E := EuclideanSpace ℝ (Fin n)
   let e : H.neighborFinset v ≃ Fin (H.degree v) :=
     Fintype.equivFinOfCardEq ((Fintype.card_coe _).trans (H.card_neighborFinset_eq_degree v))
-  let b : Fin (H.degree v) → E := fun i => unitKernelRow H q R (e.symm i).1
+  let b : Fin (H.degree v) → E := fun i => unitKernelRow H q R (e.symm i).val
   have hm : ∀ w, Measurable fun x : E => ⟪unitKernelRow H q R w, x⟫ :=
     measurable_inner_row H q R
   have hmeas : MeasurableSet {x : E | ⟪unitKernelRow H q R v, x⟫ ≤ t ∧
@@ -360,7 +360,7 @@ private theorem measureReal_innerFrontier_le {n : ℕ} (H : SimpleGraph (Fin n))
   refine (measureReal_mono hsub (measure_ne_top _ _)).trans ?_
   exact starFrontier hρ0 hρs (hdeg v) (norm_row H q R v)
     (fun i => norm_row H q R _)
-    (fun i => hadj v _ ((H.mem_neighborFinset v _).mp (e.symm i).2)) (by linarith)
+    (fun i => hadj v _ ((H.mem_neighborFinset v _).mp (e.symm i).property)) (by linarith)
 
 open Classical in
 private theorem measureReal_outerFrontier_le {n : ℕ} (H : SimpleGraph (Fin n))
@@ -373,7 +373,7 @@ private theorem measureReal_outerFrontier_le {n : ℕ} (H : SimpleGraph (Fin n))
   set E := EuclideanSpace ℝ (Fin n)
   let e : H.neighborFinset v ≃ Fin (H.degree v) :=
     Fintype.equivFinOfCardEq ((Fintype.card_coe _).trans (H.card_neighborFinset_eq_degree v))
-  let b : Fin (H.degree v) → E := fun i => unitKernelRow H q R (e.symm i).1
+  let b : Fin (H.degree v) → E := fun i => unitKernelRow H q R (e.symm i).val
   have hm : ∀ w, Measurable fun x : E => ⟪unitKernelRow H q R w, x⟫ :=
     measurable_inner_row H q R
   have hmeas : MeasurableSet {x : E | t < ⟪unitKernelRow H q R v, x⟫ ∧
@@ -395,7 +395,7 @@ private theorem measureReal_outerFrontier_le {n : ℕ} (H : SimpleGraph (Fin n))
   refine (measureReal_mono hsub (measure_ne_top _ _)).trans ?_
   exact starFrontier hρ0 hρs (hdeg v) (norm_row H q R v)
     (fun i => norm_row H q R _)
-    (fun i => hadj v _ ((H.mem_neighborFinset v _).mp (e.symm i).2)) ht
+    (fun i => hadj v _ ((H.mem_neighborFinset v _).mp (e.symm i).property)) ht
 
 open Classical in
 private theorem measureReal_lowerZero_vertex_le {n : ℕ} (H : SimpleGraph (Fin n))
@@ -411,7 +411,7 @@ private theorem measureReal_lowerZero_vertex_le {n : ℕ} (H : SimpleGraph (Fin 
   set E := EuclideanSpace ℝ (Fin n)
   let e : H.neighborFinset v ≃ Fin (H.degree v) :=
     Fintype.equivFinOfCardEq ((Fintype.card_coe _).trans (H.card_neighborFinset_eq_degree v))
-  let b : Fin (H.degree v) → E := fun i => unitKernelRow H q R (e.symm i).1
+  let b : Fin (H.degree v) → E := fun i => unitKernelRow H q R (e.symm i).val
   have hm : ∀ w, Measurable fun x : E => ⟪unitKernelRow H q R w, x⟫ :=
     measurable_inner_row H q R
   have hm1 : MeasurableSet {x : E | ⟪unitKernelRow H q R v, x⟫ ≤ 0 ∧
@@ -447,14 +447,14 @@ private theorem measureReal_lowerZero_vertex_le {n : ℕ} (H : SimpleGraph (Fin 
       refine ⟨hpos.le, fun i => ?_⟩
       simp only [b]
       exact not_lt.mp fun hlt => (not_le.mpr hpos)
-        ((hall _ ((H.mem_neighborFinset v _).mp (e.symm i).2)).mpr hlt)
+        ((hall _ ((H.mem_neighborFinset v _).mp (e.symm i).property)).mpr hlt)
     · have heq : {x : E | 0 < ⟪unitKernelRow H q R v, x⟫ ∧ H.degree v = 3 ∧
           ∀ z, H.Adj v z → (⟪unitKernelRow H q R v, x⟫ ≤ 0 ↔ 0 < ⟪unitKernelRow H q R z, x⟫)} =
           ∅ := by ext x; simp [hd]
       rw [heq, measureReal_empty]
   exact (add_le_add h1 h2).trans (switch_bound hρ0 hρs (hdeg v) (norm_row H q R v)
     (fun i => norm_row H q R _)
-    (fun i => hadj v _ ((H.mem_neighborFinset v _).mp (e.symm i).2)))
+    (fun i => hadj v _ ((H.mem_neighborFinset v _).mp (e.symm i).property)))
 
 open Classical in
 private theorem measureReal_upperZero_vertex_le {n : ℕ} (H : SimpleGraph (Fin n))
@@ -470,7 +470,7 @@ private theorem measureReal_upperZero_vertex_le {n : ℕ} (H : SimpleGraph (Fin 
   set E := EuclideanSpace ℝ (Fin n)
   let e : H.neighborFinset v ≃ Fin (H.degree v) :=
     Fintype.equivFinOfCardEq ((Fintype.card_coe _).trans (H.card_neighborFinset_eq_degree v))
-  let b : Fin (H.degree v) → E := fun i => unitKernelRow H q R (e.symm i).1
+  let b : Fin (H.degree v) → E := fun i => unitKernelRow H q R (e.symm i).val
   have hm : ∀ w, Measurable fun x : E => ⟪unitKernelRow H q R w, x⟫ :=
     measurable_inner_row H q R
   have hm1 : MeasurableSet {x : E | 0 < ⟪unitKernelRow H q R v, x⟫ ∧
@@ -539,8 +539,8 @@ private theorem measureReal_upperZero_vertex_le {n : ℕ} (H : SimpleGraph (Fin 
       rw [h2r, measureReal_neg_preimage_stdGaussian hm2']
       refine measureReal_mono (fun x hx => ?_) (measure_ne_top _ _)
       refine ⟨hx.1, fun i => ?_⟩
-      have hadj' : H.Adj v (e.symm i).1 := (H.mem_neighborFinset v _).mp (e.symm i).2
-      have := mem_iInter.mp hx.2 (e.symm i).1
+      have hadj' : H.Adj v (e.symm i).val := (H.mem_neighborFinset v _).mp (e.symm i).property
+      have := mem_iInter.mp hx.2 (e.symm i).val
       simp only [hadj', ite_true, mem_ofPred_eq] at this
       exact this.le
     · have heq : {x : E | ⟪unitKernelRow H q R v, x⟫ ≤ 0 ∧ H.degree v = 3 ∧
@@ -549,7 +549,7 @@ private theorem measureReal_upperZero_vertex_le {n : ℕ} (H : SimpleGraph (Fin 
       rw [heq, measureReal_empty]
   exact (add_le_add h1 h2).trans (switch_bound hρ0 hρs (hdeg v) (norm_row H q R v)
     (fun i => norm_row H q R _)
-    (fun i => hadj v _ ((H.mem_neighborFinset v _).mp (e.symm i).2)))
+    (fun i => hadj v _ ((H.mem_neighborFinset v _).mp (e.symm i).property)))
 
 /-! ### Simultaneous union bound for one good labeling -/
 

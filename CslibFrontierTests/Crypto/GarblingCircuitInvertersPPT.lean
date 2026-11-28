@@ -82,8 +82,8 @@ theorem phiSize_same_and_distinct :
   refine ⟨by rw [encValidShape_apply, encValidShape_apply]; rfl, ?_, ?_⟩
   · intro h
     have h' : phiTopo.phi validA = phiTopo.phi validB := encValidTopo.injective h
-    have heq : (phiTopo.phi validA).1.gateList = (phiTopo.phi validB).1.gateList :=
-      congrArg (fun t : ValidTopo => t.1.gateList) h'
+    have heq : (phiTopo.phi validA).val.gateList = (phiTopo.phi validB).val.gateList :=
+      congrArg (fun t : ValidTopo => t.val.gateList) h'
     exact absurd heq (by decide)
   · intro h
     have h' : phiSize.phi validA = phiSize.phi validSmall := encValidShape.injective h
@@ -95,12 +95,12 @@ theorem phiSize_same_and_distinct :
 
 /-- A concrete circuit garbling scheme over `ValidCircuit`. -/
 def plainCircuitScheme : Scheme ValidCircuit where
-  inLen f := f.1.n
-  outLen f := f.1.m
-  size f := f.1.q
-  ev f x := f.1.evalCirc x
+  inLen f := f.val.n
+  outLen f := f.val.m
+  size f := f.val.q
+  ev f x := f.val.evalCirc x
   coinLen _ _ _ _ := 0
-  gb _ f _ := ⟨[], [], List.replicate f.1.m false⟩
+  gb _ f _ := ⟨[], [], List.replicate f.val.m false⟩
   encode _ x := x
   evalGarbled _ x := x
   decode d y := if y.length = d.length then some y else none
@@ -154,8 +154,8 @@ theorem mSizeInv_isPPTOn :
 theorem mTopo_mSize_concrete_roundtrip :
     let t := phiTopo.phi validA
     let s := phiSize.phi validA
-    (mTopo t [true]).fn.1.evalCirc (mTopo t [true]).input = [true] ∧
-      (mSize s [true]).fn.1.evalCirc (mSize s [true]).input = [true] ∧
+    (mTopo t [true]).fn.val.evalCirc (mTopo t [true]).input = [true] ∧
+      (mSize s [true]).fn.val.evalCirc (mSize s [true]).input = [true] ∧
       phiTopo.phi (mTopoInv t) = t ∧
       phiSize.phi (mSizeInv s) = s := by
   decide
@@ -190,7 +190,7 @@ theorem tooFewGates_not_valid_and_inversion_fails :
 
 /-- When the target string `y` does not have length `t.m`, `mTopo` does not invert to `y`. -/
 theorem mTopo_wrong_output_length_fails :
-    (mTopo (phiTopo.phi validA) [true, false]).fn.1.evalCirc
+    (mTopo (phiTopo.phi validA) [true, false]).fn.val.evalCirc
       (mTopo (phiTopo.phi validA) [true, false]).input ≠ [true, false] := by
   decide
 

@@ -153,13 +153,13 @@ example (I : Finset (Fin 3))
             (fun op J q => ProbComp.eval (idealJoint (sharedMulWorld 2 op) J (S₂ op J) q))
             I (multiPartyMulProtocol 3).steps (fun i => (x i, c₁ i))).bind fun res =>
               ProbComp.eval
-                (D (fun i : I => ⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩, res.2)))
+                (D (fun i : I => ⟨x i.val, (c₁ i.val, (res.1 i).1), (res.1 i).2⟩, res.2)))
         ((ProbComp.eval (OracleComp.pi (multiPartyMulProtocol 3).sampleCoins)).bind fun c₁ =>
           (Composition.kernelRun
             (fun _ J q => twoPartyMulProtocol.realJoint ot14World J q)
             I (multiPartyMulProtocol 3).steps (fun i => (x i, c₁ i))).bind fun res =>
               ProbComp.eval
-                (D (fun i : I => ⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩, res.2))) :=
+                (D (fun i : I => ⟨x i.val, (c₁ i.val, (res.1 i).1), (res.1 i).2⟩, res.2))) :=
   advantage_replacement_eq_kernelRun (multiPartyMulProtocol 3) (sharedMulWorld 2) ot14World
     (fun _ => twoPartyMulProtocol) S₂ I x D
 

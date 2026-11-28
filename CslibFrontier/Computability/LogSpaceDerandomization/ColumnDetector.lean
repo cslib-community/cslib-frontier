@@ -258,7 +258,7 @@ theorem lt_card_of_lt_columnDetector (hch : RetentionChannels X Y f π cπ Cπ C
   have hsumX : ∑ s, (#{x ∈ A0 | X s x} : ℝ) = #A0 * (π * Fintype.card ι) := by
     rw [sum_congr rfl fun _ _ => natCast_card_filter _ _, sum_comm]
     simp only [← natCast_card_filter, card_X hch, sum_const, nsmul_eq_mul]
-  have hTr : (0 : ℝ) < #T := Nat.cast_pos.2 <| card_pos.2 <| nonempty_iff_ne_empty.2 fun hT => by
+  have hTr : (0 : ℝ) < #T := Nat.cast_pos.2 <| card_pos.2 <| ne_empty_iff_nonempty.1 fun hT => by
     linarith [show columnDetector X Y ϕ ρ J K f G y = 0 by simp [columnDetector_eq_sum, T, hT]]
   have hιr : (0 : ℝ) < Fintype.card ι := Nat.cast_pos.2 <| Fintype.card_pos_iff.2 <|
     not_isEmpty_iff.1 fun _ => by

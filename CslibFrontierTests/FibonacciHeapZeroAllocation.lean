@@ -131,7 +131,7 @@ example : ∃ y, ExecWithin 3 (realizes_reserve.code frontier source scratch) na
     refine ⟨fun i => ?_, ?_⟩
     · dsimp only [nativeInput]
       split_ifs <;> decide
-    · exact (Memory.wellFormed_init (w := 3) (input := [7]) (by decide) (by decide)).2
+    · exact (Memory.wellFormed_init (w := 3) (input := [7]) (by decide) (by decide)).mem_fits
   have hin : nativeInput.regs ∘ source = WordEncoding.encode (α := ℕ) 0 := by
     funext i
     fin_cases i

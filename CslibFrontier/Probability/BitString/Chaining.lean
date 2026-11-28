@@ -136,7 +136,7 @@ theorem expect_ciSup_sum_mul_signVal_le_chaining {ι κ : Type*} [Fintype κ]
   -- Massart's lemma at each level.
   have hEA : 𝔼 σ : κ → Bool, A σ ≤ 2 * r * √(2 * Real.log (T 0).card) := by
     refine (expect_ciSup_sum_mul_signVal_le (fun u : L₀ => (u : κ → ℝ)) (by positivity)
-      fun u => (mem_filter.1 u.2).2).trans ?_
+      fun u => (mem_filter.1 u.property).2).trans ?_
     have hlog : Real.log (Fintype.card L₀) ≤ Real.log (T 0).card := by
       rw [Fintype.card_coe]
       exact Real.log_le_log (by exact_mod_cast card_pos.2 ⟨_, hp0 j₀⟩)
@@ -146,7 +146,7 @@ theorem expect_ciSup_sum_mul_signVal_le_chaining {ι κ : Type*} [Fintype κ]
       2 * r / 2 ^ n * √(2 * Real.log ((T (n + 1)).card * (T n).card)) := by
     refine (expect_ciSup_sum_mul_signVal_le
       (fun q : L n => fun i => (q : (κ → ℝ) × (κ → ℝ)).1 i - (q : (κ → ℝ) × (κ → ℝ)).2 i)
-      (by positivity) fun q => (mem_filter.1 q.2).2).trans ?_
+      (by positivity) fun q => (mem_filter.1 q.property).2).trans ?_
     have hlog : Real.log (Fintype.card (L n)) ≤ Real.log ((T (n + 1)).card * (T n).card) := by
       rw [Fintype.card_coe]
       refine Real.log_le_log (by exact_mod_cast card_pos.2 ⟨_, hpL n j₀⟩) ?_

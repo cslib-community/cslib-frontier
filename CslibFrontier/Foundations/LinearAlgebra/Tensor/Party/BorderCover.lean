@@ -139,14 +139,14 @@ exponents. -/
 private theorem coeff_prod_choices {τ : Type} [Fintype τ] [DecidableEq τ] (f : τ → Polynomial K)
     (D : ℕ) :
     (∏ p, f p).coeff D =
-      ∑ d : τ → Fin (D + 1), if (∑ p, (d p).1) = D then ∏ p, (f p).coeff (d p) else 0 := by
+      ∑ d : τ → Fin (D + 1), if (∑ p, (d p).val) = D then ∏ p, (f p).coeff (d p) else 0 := by
   rw [← Polynomial.coeff_coe, show ((∏ p, f p : Polynomial K) : PowerSeries K) = ∏ p,
       (f p : PowerSeries K) from
     map_prod Polynomial.coeToPowerSeries.ringHom f univ, PowerSeries.coeff_prod,
         ← Finset.sum_filter]
   simp only [Polynomial.coeff_coe]
   refine Finset.sum_bij' (fun l hl p => ⟨l p, ?_⟩)
-      (fun d _ => Finsupp.equivFunOnFinite.symm fun p => (d p).1)
+      (fun d _ => Finsupp.equivFunOnFinite.symm fun p => (d p).val)
     ?_ ?_ ?_ ?_ ?_
   · rw [Finset.mem_finsuppAntidiag] at hl
     exact Nat.lt_succ_of_le
@@ -170,7 +170,7 @@ private theorem le_coeff (F : SpectralPoint K I)
   classical
   let p₀ : I := Classical.arbitrary I
   let L : (I → Fin (D + 1)) → ∀ p, s.Index p → z.Index p → K := fun d p a c =>
-    (if p = p₀ then (if (∑ q, (d q).1) = D then (1 : K) else 0) else 1) * (Φ p a c).coeff (d p)
+    (if p = p₀ then (if (∑ q, (d q).val) = D then (1 : K) else 0) else 1) * (Φ p a c).coeff (d p)
   have hs : s.CoveredBy fun _ : I → Fin (D + 1) => z := by
     refine ⟨L, fun x => ?_⟩
     simp only [h, polyApp, Polynomial.finsetSum_coeff, coeff_mul_C, coeff_prod_choices, localApply,
@@ -225,15 +225,15 @@ private theorem le_type_bound (F : SpectralPoint K I) [Nonempty A] (π : A → I
   have key : ∀ x, ∑ m, ∏ j, polyApp (c j) (L j) (fun p => x p (ρ m j)) = polyApp z Φ x := by
     intro x
     let f : (A → Fin r) → Polynomial K := fun u =>
-      C ((unit K A r).entry u) * ∏ j, polyApp (c j) (L j) fun q => x q (pick q (fun a => u a.1) j)
+      C ((unit K A r).entry u) * ∏ j, polyApp (c j) (L j) fun q => x q (pick q (fun a => u a.val) j)
     have e1 : polyApp z Φ x = ∑ u, f u := by
       have e : ∀ u, f u = ∑ y : ∀ q, (prod c).Index q,
-          (∏ q, ∏ j, L j q (x q (pick q (fun a => u a.1) j)) (y q j)) *
+          (∏ q, ∏ j, L j q (x q (pick q (fun a => u a.val) j)) (y q j)) *
             C ((unit K A r).entry u * (prod c).entry y) := by
         intro u
         change C _ * _ = _
         rw [← polyApp_prod (α := fun _ q => t.Index q) c L fun q j =>
-            x q (pick q (fun a => u a.1) j), polyApp, localApply,
+            x q (pick q (fun a => u a.val) j), polyApp, localApply,
           Finset.mul_sum]
         exact Finset.sum_congr rfl fun y _ => by rw [map_mul]; exact mul_left_comm _ _ _
       simp only [e]
@@ -244,13 +244,13 @@ private theorem le_type_bound (F : SpectralPoint K I) [Nonempty A] (π : A → I
           (Equiv.prodCongr
             (Equiv.piCongrFiberwise (f := π) (γ₁ := fun _ : A => Fin r) fun _ => Equiv.refl _).symm
             (Equiv.refl _))) _ _ fun y => ?_
-      have hfib : ∀ q, (fun a : {a : A // π a = q} => (y (π a.1)).1 ⟨a.1, rfl⟩) = (y q).1 := by
+      have hfib : ∀ q, (fun a : {a : A // π a = q} => (y (π a.val)).1 ⟨a.val, rfl⟩) = (y q).1 := by
         intro q
         funext a
         obtain ⟨a, rfl⟩ := a
         rfl
       change (∏ q, ∏ j, L j q (x q (pick q (y q).1 j)) ((y q).2 j)) * C _ =
-        (∏ q, ∏ j, L j q (x q (pick q (fun a => (y (π a.1)).1 ⟨a.1, rfl⟩) j)) ((y q).2 j)) * C _
+        (∏ q, ∏ j, L j q (x q (pick q (fun a => (y (π a.val)).1 ⟨a.val, rfl⟩) j)) ((y q).2 j)) * C _
       simp only [hfib]
       rfl
     rw [e1]
@@ -331,8 +331,8 @@ private theorem pow_le_few (F : SpectralPoint K I) [Nonempty A] [Nonempty κ] (�
       positivity
     let W := {w : Fin N → κ // wordType w = τ}
     let num := Fintype.equivFin W
-    have hσ : ∀ m, ∃ σ : Equiv.Perm (Fin N), w₀ ∘ σ = (num.symm m).1 := fun m =>
-      exists_perm_of_wordType ((num.symm m).2.trans hw₀.symm)
+    have hσ : ∀ m, ∃ σ : Equiv.Perm (Fin N), w₀ ∘ σ = (num.symm m).val := fun m =>
+      exists_perm_of_wordType ((num.symm m).property.trans hw₀.symm)
     choose σ hσ using hσ
     have hr : 1 ≤ Fintype.card W := Fintype.card_pos_iff.2 ⟨⟨w₀, hw₀⟩⟩
     have hv : ∀ x, v τ x =

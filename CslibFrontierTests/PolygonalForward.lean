@@ -37,7 +37,7 @@ example : ∃ D : PolygonalDrawing (starGraph 13), ∃ hD : D.IsEmbedding,
     (D.realizes_rotationOfDirections hD.germ_ne_zero hD.directions_injective).rotate_eq hr⟩
 
 private theorem checkedGenus {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
     (h : RotationCertificate.verifyEuler G (RotationCertificate.ofRotation r) = true) :
     r.NumericalGenusZero := by
   have he := (RotationCertificate.verifyEuler_eq_true_iff

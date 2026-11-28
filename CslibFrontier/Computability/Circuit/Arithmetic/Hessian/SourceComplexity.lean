@@ -42,7 +42,7 @@ namespace Cslib.Circuits
 
 open MvPolynomial
 
-variable {C K ι : Type*} [Field K] [Fintype ι] {n k : ℕ}
+variable {C K ι : Type*} [Field K] [Finite ι] {n k : ℕ}
 
 /-- The least residual Hessian rank is at most twice the least multiplication cost. -/
 theorem hessianResidualRank_le_two_mul_ecomplexityFrom (constant : C → K) (point : ι → K)
@@ -52,8 +52,8 @@ theorem hessianResidualRank_le_two_mul_ecomplexityFrom (constant : C → K) (poi
         (fun (_ : Unit) (_ : Fin 1) => target) (fun _ => sources) := by
   rw [ecomplexityFrom, ENat.mul_iInf_of_ne (by decide : (2 : ℕ∞) ≠ 0)]
   refine le_iInf fun c => ?_
-  obtain ⟨coefficients, h⟩ := c.1.exists_hessian_residual constant point sources 0 target
-    (congrFun (c.2 ()) 0)
+  obtain ⟨coefficients, h⟩ := c.val.exists_hessian_residual constant point sources 0 target
+    (congrFun (c.property ()) 0)
   exact (hessianResidualRank_le point target sources coefficients).trans (by exact_mod_cast h)
 
 /-- Supplying raw variables with helpers requires subtracting only the helper Hessians. -/
@@ -65,8 +65,8 @@ theorem hessianResidualRank_le_two_mul_ecomplexityFrom_with_helpers (constant : 
         (fun (_ : Unit) (_ : Fin 1) => target) (fun _ => Fin.append X helpers) := by
   rw [ecomplexityFrom, ENat.mul_iInf_of_ne (by decide : (2 : ℕ∞) ≠ 0)]
   refine le_iInf fun c => ?_
-  obtain ⟨coefficients, h⟩ := c.1.exists_helper_hessian_residual constant point helpers 0 target
-    (congrFun (c.2 ()) 0)
+  obtain ⟨coefficients, h⟩ := c.val.exists_helper_hessian_residual constant point helpers 0 target
+    (congrFun (c.property ()) 0)
   exact (hessianResidualRank_le point target helpers coefficients).trans (by exact_mod_cast h)
 
 /-- A lower bound on every residual Hessian bounds minimum multiplication cost. -/

@@ -63,7 +63,7 @@ theorem positivePlacedClauses_route_count (φ : CNF ℕ) (d : Graph.OrthogonalDr
 /-- The actual output drawing has exactly one position per actual output graph vertex. -/
 theorem positiveDrawing_vertexCount (φ : CNF ℕ) (d : Graph.OrthogonalDrawing) :
     (positiveDrawing φ d).1.length =
-      (SAT.incidenceGraph (CNF.PositiveExactOneCompile.formula φ)).1.length := by
+      (SAT.incidenceGraph (CNF.PositiveExactOneCompile.formula φ)).vertices.length := by
   have hlen := congrArg List.length (positivePlacedClauses_formula φ d)
   rw [CNF.PositiveExactOneCompile.formula, SAT.incidenceGraph_compact]
   simp only [positiveDrawing, List.length_append, List.length_map,
@@ -74,7 +74,7 @@ theorem positiveDrawing_vertexCount (φ : CNF ℕ) (d : Graph.OrthogonalDrawing)
 /-- Splicing preserves one route per actual literal occurrence, in the emitted finite lists. -/
 theorem positiveDrawing_edgeCount (φ : CNF ℕ) (d : Graph.OrthogonalDrawing) :
     (positiveDrawing φ d).2.length =
-      (SAT.incidenceGraph (CNF.PositiveExactOneCompile.formula φ)).2.length := by
+      (SAT.incidenceGraph (CNF.PositiveExactOneCompile.formula φ)).edges.length := by
   rw [CNF.PositiveExactOneCompile.formula, SAT.incidenceGraph_compact,
     SAT.length_edges_incidenceGraph]
   change ((positivePlacedClauses φ d).flatMap fun pc => pc.routes).length = _

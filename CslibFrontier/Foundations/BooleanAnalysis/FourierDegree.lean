@@ -243,17 +243,17 @@ theorem totalInfluence_eq_expect_sub_expect_sq_iff_fourierCoeff_eq_zero (g : (ι
       (if S ≠ ∅ then fourierCoeff g S ^ 2 else 0) ≤ (#S : ℝ) * fourierCoeff g S ^ 2 := by
     split_ifs with hS
     · exact le_mul_of_one_le_left (sq_nonneg _)
-        (Nat.one_le_cast.2 (card_pos.2 (nonempty_iff_ne_empty.2 hS)))
+        (Nat.one_le_cast.2 (card_pos.2 (ne_empty_iff_nonempty.1 hS)))
     · exact mul_nonneg (Nat.cast_nonneg _) (sq_nonneg _)
   rw [eq_comm, expect_sub_expect_sq_eq_sum_fourierCoeff_sq,
     totalInfluence_eq_sum_card_mul_fourierCoeff_sq, sum_filter, sum_eq_sum_iff_of_le hle]
   refine ⟨fun h S hS => ?_, fun hdeg S _ => ?_⟩
   · have hS' := h S (mem_univ S)
-    rw [ite_eq_left (nonempty_iff_ne_empty.1 (card_pos.1 (by omega)))] at hS'
+    rw [ite_eq_left (ne_empty_iff_nonempty.2 (card_pos.1 (by omega)))] at hS'
     exact sq_eq_zero_iff.1 (by cast_nlinarith [hS])
   · split_ifs with hS
     · rcases le_or_gt #S 1 with hle1 | hgt1
-      · simp [le_antisymm hle1 (card_pos.2 (nonempty_iff_ne_empty.2 hS))]
+      · simp [le_antisymm hle1 (card_pos.2 (ne_empty_iff_nonempty.1 hS))]
       · simp [hdeg S hgt1]
     · simp [not_ne_iff.1 hS]
 
@@ -334,7 +334,7 @@ theorem fourierCoeff_signVal_eq_zero_iff_eq_const_or_exists_eq_xor (f : (ι → 
           chi_empty, mul_one]
         rcases le_or_gt #S 1 with hle1 | hgt1
         · obtain ⟨i, rfl⟩ := card_eq_one.1 (le_antisymm hle1
-            (card_pos.2 (nonempty_iff_ne_empty.2 hS)))
+            (card_pos.2 (ne_empty_iff_nonempty.1 hS)))
           rw [hall i, zero_mul]
         · rw [hdeg S hgt1, zero_mul]
       exact (signVal_eq_iff _ _).1 ((hval x).trans (hval 0).symm)
@@ -347,7 +347,7 @@ theorem fourierCoeff_signVal_eq_zero_iff_eq_const_or_exists_eq_xor (f : (ι → 
       exact hsq.trans <| mul_left_cancel₀ (abs_ne_zero.2 hi) (by rw [← sq, sq_abs, hsq, mul_one])
   · rintro (⟨b, rfl⟩ | ⟨i, b, rfl⟩) S hS
     · exact (fourierCoeff_const (signVal b) S).trans
-        (ite_eq_right (nonempty_iff_ne_empty.1 (card_pos.1 (by omega))))
+        (ite_eq_right (ne_empty_iff_nonempty.2 (card_pos.1 (by omega))))
     · exact (fourierCoeff_signVal_xor b i S).trans
         (ite_eq_right fun h => absurd (h ▸ hS) (by simp))
 

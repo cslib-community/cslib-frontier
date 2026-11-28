@@ -212,29 +212,29 @@ example :
     refine ⟨fun ⟨F, ⟨hV, σ, hF⟩, hsub⟩ => ?_⟩
     subst hF
     obtain ⟨i0, hi0⟩ := σ.surjective (0 : Fin 3)
-    have hlt : i0.1 < 3 := by simpa only [Fintype.card_fin] using i0.isLt
+    have hlt : i0.val < 3 := by simpa only [Fintype.card_fin] using i0.isLt
     let step1 : Fin (Fintype.card (Fin 3)) := ⟨1, by rw [Fintype.card_fin]; omega⟩
     let j0 : Fin (Fintype.card (Fin 3)) := i0 + step1
     let k0 : Fin (Fintype.card (Fin 3)) := j0 + step1
     have hij : i0 ≠ j0 := fun h => by
-      have hv : i0.1 = j0.1 := congrArg Fin.val h
+      have hv : i0.val = j0.val := congrArg Fin.val h
       simp only [j0, step1, Fin.val_add, Fintype.card_fin] at hv
       omega
     have hik : i0 ≠ k0 := fun h => by
-      have hv : i0.1 = k0.1 := congrArg Fin.val h
+      have hv : i0.val = k0.val := congrArg Fin.val h
       simp only [k0, j0, step1, Fin.val_add, Fintype.card_fin] at hv
       omega
     have hjk : j0 ≠ k0 := fun h => by
-      have hv : j0.1 = k0.1 := congrArg Fin.val h
+      have hv : j0.val = k0.val := congrArg Fin.val h
       simp only [k0, j0, step1, Fin.val_add, Fintype.card_fin] at hv
       omega
     have h02 : σ j0 = 2 ∨ σ k0 = 2 := by
-      have hne1 : (σ j0).1 ≠ 0 := fun h => hij (σ.injective (hi0.trans (Fin.ext h).symm))
-      have hne2 : (σ k0).1 ≠ 0 := fun h => hik (σ.injective (hi0.trans (Fin.ext h).symm))
-      have hne3 : (σ j0).1 ≠ (σ k0).1 := fun h => hjk (σ.injective (Fin.ext h))
+      have hne1 : (σ j0).val ≠ 0 := fun h => hij (σ.injective (hi0.trans (Fin.ext h).symm))
+      have hne2 : (σ k0).val ≠ 0 := fun h => hik (σ.injective (hi0.trans (Fin.ext h).symm))
+      have hne3 : (σ j0).val ≠ (σ k0).val := fun h => hjk (σ.injective (Fin.ext h))
       by_contra hnot
-      have hj2 : (σ j0).1 ≠ 2 := fun h => hnot (Or.inl (Fin.ext h))
-      have hk2 : (σ k0).1 ≠ 2 := fun h => hnot (Or.inr (Fin.ext h))
+      have hj2 : (σ j0).val ≠ 2 := fun h => hnot (Or.inl (Fin.ext h))
+      have hk2 : (σ k0).val ≠ 2 := fun h => hnot (Or.inr (Fin.ext h))
       have hjb := (σ j0).isLt
       have hkb := (σ k0).isLt
       omega
@@ -332,7 +332,7 @@ example : (3 : ℕ∞) ≤ extensionComplexity (tspPolytope ℚ (Fin 276)) := by
 example :
     let _ : DecidableRel (tspHardGraph 276).Adj := Classical.decRel _
     let c : ↥(⊤ : SimpleGraph (Fin 276)).edgeSet → ℚ :=
-      fun e => if e.1 ∈ (tspHardGraph 276).edgeSet then 0 else -1
+      fun e => if e.val ∈ (tspHardGraph 276).edgeSet then 0 else -1
     (3 : ℕ∞) ≤ extensionComplexity (tspPolytope ℚ (Fin 276) ∩ {x | c ⬝ᵥ x = 0}) := by
   classical
   intro c

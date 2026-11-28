@@ -108,7 +108,7 @@ private theorem realizesBounded_packOutStepGen :
     have hpowc : Fits w (2 ^ rChunk w₀ b b') :=
       hpow2c.of_le (Nat.pow_le_pow_right two_pos (by omega)))
   all_goals try omega
-  all_goals try exact hmem.1.of_le (by omega)
+  all_goals try exact hmem.frontier_fits.of_le (by omega)
   all_goals try exact hw_lt.of_le (by omega)
   all_goals (try (rw [Nat.shiftLeft_eq, one_mul]; exact Nat.one_le_two_pow))
   all_goals (try

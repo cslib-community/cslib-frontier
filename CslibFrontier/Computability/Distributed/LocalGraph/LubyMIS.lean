@@ -1465,7 +1465,7 @@ theorem toOuterMeasure_not_maximal_coinLubyMIS_le_inv_pow {uid : V → ℕ}
     rintro s ⟨hs, hsupp⟩
     simp only [Set.mem_preimage, Set.mem_ofPred_eq,
       (invariant_of_mem_support_coinRun G huid hsupp).maximal_iff] at hs ⊢
-    exact nonempty_iff_ne_empty.2 hs
+    exact ne_empty_iff_nonempty.1 hs
   refine (_root_.PMF.toOuterMeasure_mono _ hsub).trans ?_
   have hP_le_2 :
       (ProbComp.eval (coinRun G uid (50 * M + 1))).toOuterMeasure {s | s.live.Nonempty} ≤

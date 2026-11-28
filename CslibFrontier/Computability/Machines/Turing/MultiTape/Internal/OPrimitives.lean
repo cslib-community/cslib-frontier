@@ -112,7 +112,7 @@ theorem ite {encC : Bool ↪ List Bool} {c : α → Bool} {f g : α → β}
     (tc := fun a => c₀ * (Tc a + 1)) (sc := fun a => c₀ * (Sc a + 1))
     (tf := fun a => c₁ * (Tf a + 1)) (sf := fun a => c₁ * (Sf a + 1))
     (tg := fun a => c₂ * (Tg a + 1)) (sg := fun a => c₂ * (Sg a + 1))
-    h₀ (fun x => h₁ x.1) (fun x => h₂ x.1)
+    h₀ (fun x => h₁ x.val) (fun x => h₂ x.val)
   -- each bound is a sum of two terms, each at most a constant times their sum plus one
   have key (c' d' X Y : ℕ) (u : ℕ) (hu : u ≤ c₀ * (X + 1) + c' * (Y + 1) + d')
       (hc' : c' + d' ≤ c₁ + c₂ + k) : u ≤ (c₀ + c₁ + c₂ + k) * (X + Y + 1) := by

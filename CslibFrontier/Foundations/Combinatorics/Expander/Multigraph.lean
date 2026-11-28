@@ -66,7 +66,7 @@ def edges : Finset (Sym2 (V × D)) :=
 
 /-- The ends of an edge of `G`: the vertices of its two darts. -/
 def edgeEnds (e : G.edges) : Sym2 V :=
-  e.1.map Prod.fst
+  e.val.map Prod.fst
 
 /-- Every dart `p` gives the edge `{p, G.rot p}` of `G`. -/
 theorem mk_mem_edges (p : V × D) : s(p, G.rot p) ∈ G.edges :=

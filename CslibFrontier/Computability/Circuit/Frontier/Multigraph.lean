@@ -287,8 +287,8 @@ theorem edgeCut_component (v : V) : G.edgeCut (G.component v) = ∅ :=
 
 /-- The subgraph induced on a set of vertices `W`: the edges with both endpoints in `W`. -/
 def induce (W : Set V) : Multigraph W {e // G.src e ∈ W ∧ G.tgt e ∈ W} where
-  src e := ⟨G.src e, e.2.1⟩
-  tgt e := ⟨G.tgt e, e.2.2⟩
+  src e := ⟨G.src e, e.property.1⟩
+  tgt e := ⟨G.tgt e, e.property.2⟩
 
 variable {G} in
 /-- Induced subgraphs of loopless graphs are loopless. -/
@@ -310,13 +310,13 @@ theorem toSimpleGraph_induce (W : Set V) :
   simp only [toSimpleGraph_adj, SimpleGraph.comap_adj, Function.Embedding.subtype_apply, ne_eq,
     Subtype.ext_iff]
   refine and_congr_right fun _ => ⟨fun ⟨e, he⟩ =>
-    ⟨e.1, by simpa [ends, induce, Sym2.map_mk] using congrArg (Sym2.map Subtype.val) he⟩,
+    ⟨e.val, by simpa [ends, induce, Sym2.map_mk] using congrArg (Sym2.map Subtype.val) he⟩,
     fun ⟨e, he⟩ => ?_⟩
   -- An edge between two vertices of `W` is an edge of the induced subgraph.
   rcases Sym2.eq_iff.1 (he : s(G.src e, G.tgt e) = s((u : V), v)) with ⟨h₁, h₂⟩ | ⟨h₁, h₂⟩
-  · exact ⟨⟨e, h₁.symm ▸ u.2, h₂.symm ▸ v.2⟩,
+  · exact ⟨⟨e, h₁.symm ▸ u.property, h₂.symm ▸ v.property⟩,
       Sym2.eq_iff.2 (Or.inl ⟨Subtype.ext h₁, Subtype.ext h₂⟩)⟩
-  · exact ⟨⟨e, h₁.symm ▸ v.2, h₂.symm ▸ u.2⟩,
+  · exact ⟨⟨e, h₁.symm ▸ v.property, h₂.symm ▸ u.property⟩,
       Sym2.eq_iff.2 (Or.inr ⟨Subtype.ext h₁, Subtype.ext h₂⟩)⟩
 
 /-- **Components are connected.** -/
@@ -345,7 +345,7 @@ theorem ncard_component_le_ncard_touching_add_one [Finite E] (v : V) :
 theorem edgeCut_image_val {W : Set V} (hW : G.edgeCut W = ∅) (S : Set W) :
     G.edgeCut (Subtype.val '' S) = Subtype.val '' (G.induce W).edgeCut S := by
   have key (e : {e // G.src e ∈ W ∧ G.tgt e ∈ W}) :
-      e.1 ∈ G.edgeCut (Subtype.val '' S) ↔ e ∈ (G.induce W).edgeCut S := by
+      e.val ∈ G.edgeCut (Subtype.val '' S) ↔ e ∈ (G.induce W).edgeCut S := by
     change ¬(((G.induce W).src e : V) ∈ _ ↔ ((G.induce W).tgt e : V) ∈ _) ↔ _
     rw [Subtype.val_injective.mem_set_image, Subtype.val_injective.mem_set_image]
     rfl

@@ -136,10 +136,10 @@ theorem trivialAdversary_isPPT : trivialAdversary.IsPPT where
 modulo `p`) is encoded by `(1 : ℕ).bits`. -/
 theorem schnorrGroups_encode_zero (d : schnorrGroups.Desc) :
     schnorrGroups.encode d 0 = (1 : ℕ).bits := by
-  change ((((1 : Subgroup.zpowers (SchnorrGroup.generatorUnit d)) : (ZMod d.1.1)ˣ) :
-    ZMod d.1.1).val).bits = (1 : ℕ).bits
+  change ((((1 : Subgroup.zpowers (SchnorrGroup.generatorUnit d)) : (ZMod d.val.1)ˣ) :
+    ZMod d.val.1).val).bits = (1 : ℕ).bits
   rw [Subgroup.coe_one, Units.val_one, ZMod.val_one_eq_one_mod,
-    Nat.mod_eq_of_lt d.2.prime_modulus.one_lt]
+    Nat.mod_eq_of_lt d.property.prime_modulus.one_lt]
 
 /-- From an encoded public key `encPair schnorrGroups.encDesc encBits (d, u)`, `dropFrame (dropFrame
 (unframe pk))` extracts the encoded generator `d.1.2.2.bits = schnorrGroups.encode d (generator d)`.
@@ -148,7 +148,7 @@ theorem dropFrame_dropFrame_unframe_encPair_encDesc (d : schnorrGroups.Desc) (u 
     dropFrame (dropFrame (unframe (encPair schnorrGroups.encDesc encBits (d, u)))) =
       schnorrGroups.encode d (schnorrGroups.generator d) := by
   change dropFrame (dropFrame (unframe
-    (encPair (encPair encNat (encPair encNat encNat)) encBits (d.1, u)))) = _
+    (encPair (encPair encNat (encPair encNat encNat)) encBits (d.val, u)))) = _
   rw [unframe_encPair, dropFrame_encPair, dropFrame_encPair]
   exact (SchnorrGroup.encode_generator d).symm
 
@@ -531,9 +531,9 @@ example :
 length at most `6`. -/
 theorem schnorrGroups_encode_d23_length_le (x : schnorrGroups.Carrier d23) :
     (schnorrGroups.encode d23 x).length ≤ 6 := by
-  have : NeZero d23.1.1 := ⟨by decide⟩
+  have : NeZero d23.val.1 := ⟨by decide⟩
   have hfin : ∀ i : Fin 23, i.val.bits.length ≤ 6 := by decide
-  exact hfin ⟨((Additive.toMul x).1 : ZMod d23.1.1).val, ZMod.val_lt _⟩
+  exact hfin ⟨((Additive.toMul x).val : ZMod d23.val.1).val, ZMod.val_lt _⟩
 
 /-- Unconditional concrete finite quantitative bound on `d23` (`order d23 = 11`, `B = 6`, `k = 4`):
 for any KDF distinguisher, the advantage of distinguishing `linearHashKDF (fun _ => 4) (fun _ => 6)`
@@ -722,11 +722,11 @@ theorem schnorrGroups_encode_length_le (d : schnorrGroups.Desc) (x : schnorrGrou
   have hbits (a b : ℕ) (h : a ≤ b) : a.bits.length ≤ b.bits.length := by
     rw [Nat.size_eq_bits_len, Nat.size_eq_bits_len]
     exact Nat.size_le_size h
-  have : NeZero d.1.1 := ⟨d.2.prime_modulus.ne_zero⟩
-  have hsize : (schnorrGroups.encode d x).length ≤ (encNat d.1.1).length :=
+  have : NeZero d.val.1 := ⟨d.property.prime_modulus.ne_zero⟩
+  have hsize : (schnorrGroups.encode d x).length ≤ (encNat d.val.1).length :=
     hbits _ _ (le_of_lt (ZMod.val_lt _))
-  have hdesc : (encNat d.1.1).length ≤ (schnorrGroups.encDesc d).length := by
-    change (encNat d.1.1).length ≤ (encPair encNat (encPair encNat encNat) d.1).length
+  have hdesc : (encNat d.val.1).length ≤ (schnorrGroups.encDesc d).length := by
+    change (encNat d.val.1).length ≤ (encPair encNat (encPair encNat encNat) d.val).length
     simp only [encPair_apply, List.length_append, length_frame]
     omega
   exact hsize.trans hdesc

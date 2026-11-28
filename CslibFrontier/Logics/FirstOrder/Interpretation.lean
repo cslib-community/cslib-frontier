@@ -146,16 +146,16 @@ def Model.mk (x : ι → M) (hx : I.domain.Realize x) : I.Model M :=
 
 /-- The underlying tuple of `Model.mk x hx` is `x`. -/
 @[simp, fo_realize]
-theorem Model.val_mk (x : ι → M) (hx : I.domain.Realize x) : (Model.mk x hx).1 = x :=
+theorem Model.val_mk (x : ι → M) (hx : I.domain.Realize x) : (Model.mk x hx).val = x :=
   rfl
 
 /-- Two elements of `I.Model M` are equal if their underlying tuples are equal. -/
-theorem Model.ext {x y : I.Model M} (h : x.1 = y.1) : x = y :=
+theorem Model.ext {x y : I.Model M} (h : x.val = y.val) : x = y :=
   Subtype.ext h
 
 /-- Elements of an interpreted structure are equal when all their coordinates are. -/
 @[fo_realize]
-theorem Model.ext_iff {x y : I.Model M} : x = y ↔ ∀ i, x.1 i = y.1 i :=
+theorem Model.ext_iff {x y : I.Model M} : x = y ↔ ∀ i, x.val i = y.val i :=
   ⟨fun h _ => h ▸ rfl, fun h => Model.ext (funext h)⟩
 
 /-- When `ι` and `M` are finite, the interpreted domain `I.Model M` is finite. -/
@@ -167,13 +167,13 @@ variable [L'.IsRelational]
 /-- The structure interpreted by `I` in `M`: a relation symbol holds of some tuples when its
 defining formula holds of their coordinates. -/
 instance : L'.Structure (I.Model M) where
-  RelMap R x := (I.rel R).Realize fun p => (x p.1).1 p.2
+  RelMap R x := (I.rel R).Realize fun p => (x p.1).val p.2
 
 /-- A relation symbol `R` holds on `x` in `I.Model M` iff `I.rel R` holds of the coordinates
 `p ↦ (x p.1).1 p.2`. -/
 @[fo_realize]
 theorem relMap_model {n : ℕ} (R : L'.Relations n) (x : Fin n → I.Model M) :
-    RelMap R x ↔ (I.rel R).Realize fun p => (x p.1).1 p.2 :=
+    RelMap R x ↔ (I.rel R).Realize fun p => (x p.1).val p.2 :=
   Iff.rfl
 
 /-! ### Isomorphisms -/
@@ -183,16 +183,16 @@ variable {N : Type*} [L.Structure N]
 /-- **Interpretations act on isomorphisms**: an isomorphism `M ≃[L] N` maps tuples of `M`
 coordinatewise to tuples of `N`. -/
 def mapEquiv (I : Interpretation L L' ι) (e : M ≃[L] N) : I.Model M ≃[L'] I.Model N where
-  toFun x := ⟨e ∘ x.1, (StrongHomClass.realize_formula e _).2 x.2⟩
-  invFun y := ⟨e.symm ∘ y.1, (StrongHomClass.realize_formula e.symm _).2 y.2⟩
+  toFun x := ⟨e ∘ x.val, (StrongHomClass.realize_formula e _).2 x.property⟩
+  invFun y := ⟨e.symm ∘ y.val, (StrongHomClass.realize_formula e.symm _).2 y.property⟩
   left_inv _ := Model.ext <| funext fun _ => e.symm_apply_apply _
   right_inv _ := Model.ext <| funext fun _ => e.apply_symm_apply _
   map_fun' f := isEmptyElim f
-  map_rel' R x := StrongHomClass.realize_formula e (I.rel R) (v := fun p => (x p.1).1 p.2)
+  map_rel' R x := StrongHomClass.realize_formula e (I.rel R) (v := fun p => (x p.1).val p.2)
 
 /-- The underlying tuple of `I.mapEquiv e x` is `e ∘ x.1`. -/
 @[simp]
-theorem mapEquiv_apply_val (e : M ≃[L] N) (x : I.Model M) : (I.mapEquiv e x).1 = e ∘ x.1 :=
+theorem mapEquiv_apply_val (e : M ≃[L] N) (x : I.Model M) : (I.mapEquiv e x).val = e ∘ x.val :=
   rfl
 
 /-! ### The pullback of formulas -/
@@ -224,8 +224,8 @@ omit [L'.IsRelational] [Finite ι] in
 those of the extended sequence. -/
 private theorem sumElim_comp_snocVar {n : ℕ} (v : α → I.Model M) (xs : Fin n → I.Model M)
     (y : I.Model M) (p : (α ⊕ Fin (n + 1)) × ι) :
-    Sum.elim (fun p : (α ⊕ Fin n) × ι => (Sum.elim v xs p.1).1 p.2) y.1 (snocVar p) =
-      (Sum.elim v (Fin.snoc xs y) p.1).1 p.2 := by
+    Sum.elim (fun p : (α ⊕ Fin n) × ι => (Sum.elim v xs p.1).val p.2) y.val (snocVar p) =
+      (Sum.elim v (Fin.snoc xs y) p.1).val p.2 := by
   rcases p with ⟨a | j, i⟩
   · rfl
   · induction j using Fin.lastCases <;>
@@ -236,14 +236,14 @@ private theorem sumElim_comp_snocVar {n : ℕ} (v : α → I.Model M) (xs : Fin 
 interpreted structure exactly when the formula holds of these elements. -/
 theorem realize_onBoundedFormula {n : ℕ} (φ : L'.BoundedFormula α n) (v : α → I.Model M)
     (xs : Fin n → I.Model M) :
-    (I.onBoundedFormula φ).Realize (fun p => (Sum.elim v xs p.1).1 p.2) ↔ φ.Realize v xs := by
+    (I.onBoundedFormula φ).Realize (fun p => (Sum.elim v xs p.1).val p.2) ↔ φ.Realize v xs := by
   induction φ with
   | falsum => fo_simp [onBoundedFormula, BoundedFormula.Realize]
   | equal t₁ t₂ =>
     fo_simp [onBoundedFormula, BoundedFormula.Realize, realize_termVar t₁, realize_termVar t₂]
   | rel R ts =>
     simp only [onBoundedFormula, Formula.realize_relabel, BoundedFormula.Realize]
-    change _ ↔ (I.rel R).Realize fun p => ((ts p.1).realize (Sum.elim v xs)).1 p.2
+    change _ ↔ (I.rel R).Realize fun p => ((ts p.1).realize (Sum.elim v xs)).val p.2
     simp only [realize_termVar]
     rfl
   | imp φ ψ ihφ ihψ =>
@@ -251,7 +251,7 @@ theorem realize_onBoundedFormula {n : ℕ} (φ : L'.BoundedFormula α n) (v : α
     rw [ihφ, ihψ]
   | all φ ih =>
     fo_simp [onBoundedFormula]
-    exact ⟨fun h y => (ih _).1 (by simpa only [sumElim_comp_snocVar] using h y.1 y.2),
+    exact ⟨fun h y => (ih _).1 (by simpa only [sumElim_comp_snocVar] using h y.val y.property),
       fun h y hy => by simpa only [sumElim_comp_snocVar v xs ⟨y, hy⟩] using (ih _).2 (h ⟨y, hy⟩)⟩
 
 variable (I) in
@@ -265,7 +265,7 @@ structure exactly when the formula holds of these elements
 [Immerman, Proposition 3.5 and Remark 3.6][Immerman1999]. -/
 @[simp, fo_realize]
 theorem realize_onFormula (φ : L'.Formula α) (v : α → I.Model M) :
-    (I.onFormula φ).Realize (fun p => (v p.1).1 p.2) ↔ φ.Realize v := by
+    (I.onFormula φ).Realize (fun p => (v p.1).val p.2) ↔ φ.Realize v := by
   rw [onFormula, Formula.realize_relabel]
   refine Iff.trans (iff_of_eq (congrArg _ (funext fun p => ?_)))
     (realize_onBoundedFormula φ v default)
@@ -306,7 +306,7 @@ protected def id : Interpretation L L Unit where
 
 /-- The structure interpreted by the identity interpretation is the structure itself. -/
 def idEquiv [L.IsRelational] : (Interpretation.id L).Model M ≃[L] M where
-  toFun x := x.1 ()
+  toFun x := x.val ()
   invFun x := ⟨fun _ => x, Formula.realize_top.2 trivial⟩
   left_inv _ := Model.ext rfl
   right_inv _ := rfl
@@ -331,14 +331,14 @@ variable [L''.IsRelational]
 by `J` in the structure interpreted by `I`. -/
 def compEquiv [Finite κ] (J : Interpretation L' L'' κ)
     (I : Interpretation L L' ι) : J.Model (I.Model M) ≃[L''] (J.comp I).Model M where
-  toFun x := ⟨fun p => (x.1 p.1).1 p.2, by
+  toFun x := ⟨fun p => (x.val p.1).val p.2, by
     fo_simp [comp]
-    exact ⟨fun j => (x.1 j).2, x.2⟩⟩
-  invFun z := ⟨fun j => ⟨fun i => z.1 (j, i), by
-    have h := z.2
+    exact ⟨fun j => (x.val j).property, x.property⟩⟩
+  invFun z := ⟨fun j => ⟨fun i => z.val (j, i), by
+    have h := z.property
     fo_simp [comp] at h
     exact h.1 j⟩, by
-    have h := z.2
+    have h := z.property
     simp only [comp, Formula.realize_inf] at h
     exact (realize_onFormula J.domain _).1 h.2⟩
   left_inv _ := rfl
@@ -346,7 +346,7 @@ def compEquiv [Finite κ] (J : Interpretation L' L'' κ)
   map_fun' f := isEmptyElim f
   map_rel' R x := by
     change ((I.onFormula (J.rel R)).relabel (Equiv.prodAssoc _ _ _)).Realize _ ↔
-      (J.rel R).Realize fun p => (x p.1).1 p.2
+      (J.rel R).Realize fun p => (x p.1).val p.2
     rw [Formula.realize_relabel, ← realize_onFormula]
     rfl
 
@@ -355,7 +355,7 @@ def compEquiv [Finite κ] (J : Interpretation L' L'' κ)
 @[simp, fo_realize]
 theorem compEquiv_symm_apply_val_val [Finite κ] (J : Interpretation L' L'' κ)
     (I : Interpretation L L' ι) (z : (J.comp I).Model M) (j : κ) (i : ι) :
-    (((compEquiv J I).symm z).1 j).1 i = z.1 (j, i) :=
+    (((compEquiv J I).symm z).val j).val i = z.val (j, i) :=
   rfl
 
 omit [L''.IsRelational] in

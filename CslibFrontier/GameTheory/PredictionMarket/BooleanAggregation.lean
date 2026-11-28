@@ -1031,7 +1031,7 @@ end Theorem26_14
 section Theorem26_15
 
 /-- Helper splitting `i : Fin k` with `i.1 < 2` into `⟨0, _⟩` or `⟨1, _⟩`. -/
-private theorem fin_lt_two_cases {k : ℕ} (hk : 2 ≤ k) (i : Fin k) (hi : i.1 < 2) :
+private theorem fin_lt_two_cases {k : ℕ} (hk : 2 ≤ k) (i : Fin k) (hi : i.val < 2) :
     i = ⟨0, by omega⟩ ∨ i = ⟨1, by omega⟩ := by
   rcases i with ⟨v, hv⟩
   match v with
@@ -1042,9 +1042,9 @@ private theorem fin_lt_two_cases {k : ℕ} (hk : 2 ≤ k) (i : Fin k) (hi : i.1 
 /-- Split a sum over `Fin (2 * (m + 1))` into indices `0`, `1`, and the tail `j + 2`. -/
 private theorem sum_fin_two_mul_succ {m : ℕ} (g : Fin (2 * (m + 1)) → ℝ) :
     ∑ i : Fin (2 * (m + 1)), g i =
-      g ⟨0, by omega⟩ + g ⟨1, by omega⟩ + ∑ j : Fin (2 * m), g ⟨j.1 + 2, by omega⟩ := by
+      g ⟨0, by omega⟩ + g ⟨1, by omega⟩ + ∑ j : Fin (2 * m), g ⟨j.val + 2, by omega⟩ := by
   let e : Fin (2 * (m + 1)) ≃ Fin ((2 * m + 1) + 1) := finCongr (by omega)
-  rw [Fintype.sum_equiv e g (fun i => g ⟨i.1, by omega⟩) (fun _ => rfl),
+  rw [Fintype.sum_equiv e g (fun i => g ⟨i.val, by omega⟩) (fun _ => rfl),
     Fin.sum_univ_succ, Fin.sum_univ_succ]
   simp [Fin.val_succ, add_assoc]
 
@@ -1056,21 +1056,21 @@ private theorem eq_emptyState (y : Fin (2 * 0) → Bool) : y = emptyState :=
 
 /-- Tail map dropping the outermost pair `(x 0, x 1)` from a `2(n + 1)`-bit vector. -/
 private def tailPair {n : ℕ} (x : Fin (2 * (n + 1)) → Bool) : Fin (2 * n) → Bool :=
-  fun i => x ⟨i.1 + 2, by omega⟩
+  fun i => x ⟨i.val + 2, by omega⟩
 
 /-- Prepend a pair `(a, b)` in front of a `2n`-bit vector. -/
 private def consPair {n : ℕ} (a b : Bool) (y : Fin (2 * n) → Bool) : Fin (2 * (n + 1)) → Bool :=
   fun i =>
-    if h0 : i.1 = 0 then a
-    else if h1 : i.1 = 1 then b
-    else y ⟨i.1 - 2, by omega⟩
+    if h0 : i.val = 0 then a
+    else if h1 : i.val = 1 then b
+    else y ⟨i.val - 2, by omega⟩
 
 private theorem consPair_of_val_zero {n : ℕ} (a b : Bool) (y : Fin (2 * n) → Bool)
-    (i : Fin (2 * (n + 1))) (hi : i.1 = 0) : consPair a b y i = a := by
+    (i : Fin (2 * (n + 1))) (hi : i.val = 0) : consPair a b y i = a := by
   simp [consPair, hi]
 
 private theorem consPair_of_val_one {n : ℕ} (a b : Bool) (y : Fin (2 * n) → Bool)
-    (i : Fin (2 * (n + 1))) (hi : i.1 = 1) : consPair a b y i = b := by
+    (i : Fin (2 * (n + 1))) (hi : i.val = 1) : consPair a b y i = b := by
   simp [consPair, hi]
 
 private theorem consPair_zero {n : ℕ} (a b : Bool) (y : Fin (2 * n) → Bool) :
@@ -1083,9 +1083,9 @@ private theorem consPair_one {n : ℕ} (a b : Bool) (y : Fin (2 * n) → Bool) :
 
 private theorem consPair_add_two {n : ℕ} (a b : Bool) (y : Fin (2 * n) → Bool)
     (i : Fin (2 * n)) :
-    consPair a b y ⟨i.1 + 2, by omega⟩ = y i := by
-  have h0 : ¬ i.1 + 2 = 0 := by omega
-  have h1 : ¬ i.1 + 2 = 1 := by omega
+    consPair a b y ⟨i.val + 2, by omega⟩ = y i := by
+  have h0 : ¬ i.val + 2 = 0 := by omega
+  have h1 : ¬ i.val + 2 = 1 := by omega
   simp only [consPair, h0, ↓reduceDIte, h1]
   exact congrArg y (Fin.ext (by dsimp; omega))
 
@@ -1096,18 +1096,18 @@ private theorem tailPair_consPair {n : ℕ} (a b : Bool) (y : Fin (2 * n) → Bo
 private theorem consPair_tailPair {n : ℕ} (x : Fin (2 * (n + 1)) → Bool) :
     consPair (x ⟨0, by omega⟩) (x ⟨1, by omega⟩) (tailPair x) = x := by
   funext i
-  by_cases h0 : i.1 = 0
+  by_cases h0 : i.val = 0
   · rw [consPair_of_val_zero _ _ _ i h0]
     exact congrArg x (Fin.ext h0.symm)
-  · by_cases h1 : i.1 = 1
+  · by_cases h1 : i.val = 1
     · rw [consPair_of_val_one _ _ _ i h1]
       exact congrArg x (Fin.ext h1.symm)
-    · have hi : 2 ≤ i.1 := by omega
+    · have hi : 2 ≤ i.val := by omega
       simp only [consPair, h0, ↓reduceDIte, h1, tailPair]
       exact congrArg x (Fin.ext (by dsimp; omega))
 
 /-- For `i.1 < 2`, `(false, true)` and `(true, false)` hit each Boolean value `b` once at `i`. -/
-private theorem ite_consPair_alt_add {n : ℕ} {i : Fin (2 * (n + 1))} (hi : i.1 < 2)
+private theorem ite_consPair_alt_add {n : ℕ} {i : Fin (2 * (n + 1))} (hi : i.val < 2)
     (y : Fin (2 * n) → Bool) (b : Bool) (r : ℝ) :
     (if consPair false true y i = b then r else 0) +
       (if consPair true false y i = b then r else 0) = r := by
@@ -1169,16 +1169,16 @@ private theorem carryChain_consPair {n : ℕ} (a b : Bool) (y : Fin (2 * n) → 
 `w(2j) = w(2j + 1) = 2^(n - 1 - j)` and threshold `2^n`. -/
 theorem isWeightedThreshold_carryChain (n : ℕ) : IsWeightedThreshold (carryChain n) := by
   let S : ∀ m, (Fin (2 * m) → Bool) → ℝ := fun m x =>
-    ∑ i : Fin (2 * m), (2 : ℝ) ^ (m - 1 - i.1 / 2) * (if x i then 1 else 0)
+    ∑ i : Fin (2 * m), (2 : ℝ) ^ (m - 1 - i.val / 2) * (if x i then 1 else 0)
   have hS_step (m : ℕ) (x : Fin (2 * (m + 1)) → Bool) :
       S (m + 1) x = (2 : ℝ) ^ m * ((if x ⟨0, by omega⟩ then 1 else 0) +
         (if x ⟨1, by omega⟩ then 1 else 0)) + S m (tailPair x) := by
     simp only [S]
     rw [sum_fin_two_mul_succ]
-    have htail : ∑ j : Fin (2 * m), (2 : ℝ) ^ (m + 1 - 1 - (j.1 + 2) / 2) *
-        (if x ⟨j.1 + 2, by omega⟩ then 1 else 0) = S m (tailPair x) := by
+    have htail : ∑ j : Fin (2 * m), (2 : ℝ) ^ (m + 1 - 1 - (j.val + 2) / 2) *
+        (if x ⟨j.val + 2, by omega⟩ then 1 else 0) = S m (tailPair x) := by
       refine sum_congr rfl fun j _ => ?_
-      have hexp : m + 1 - 1 - (j.1 + 2) / 2 = m - 1 - j.1 / 2 := by omega
+      have hexp : m + 1 - 1 - (j.val + 2) / 2 = m - 1 - j.val / 2 := by omega
       rw [hexp]; rfl
     rw [htail]
     have h0 : m + 1 - 1 - 0 / 2 = m := by omega
@@ -1219,7 +1219,7 @@ theorem isWeightedThreshold_carryChain (n : ℕ) : IsWeightedThreshold (carryCha
         constructor <;> intro h <;> linarith
       · simp only [carryChain, hx0, hx1, Bool.and_self, Bool.true_or, ↓reduceIte, true_iff]
         linarith
-  refine ⟨1 - (2 : ℝ) ^ n, fun i => (2 : ℝ) ^ (n - 1 - i.1 / 2), fun x => ?_⟩
+  refine ⟨1 - (2 : ℝ) ^ n, fun i => (2 : ℝ) ^ (n - 1 - i.val / 2), fun x => ?_⟩
   rw [hchar n x]
   change (2 : ℝ) ^ n ≤ S n x ↔ 1 ≤ 1 - (2 : ℝ) ^ n + S n x
   constructor <;> intro h <;> linarith
@@ -1233,23 +1233,24 @@ private theorem carryChain_compState (m : ℕ) (a b : Bool) :
     carryChain (m + 2) (compState m a b) = a := by
   rw [compState, carryChain_consPair]; cases a <;> rfl
 
-private theorem compState_apply_lt_two {m : ℕ} (a b : Bool) {i : Fin (2 * (m + 2))} (hi : i.1 < 2) :
+private theorem compState_apply_lt_two {m : ℕ} (a b : Bool)
+    {i : Fin (2 * (m + 2))} (hi : i.val < 2) :
     compState m a b i = a := by
   rcases fin_lt_two_cases (by omega) i hi with h0 | h1
   · rw [h0, compState, consPair_zero]
   · rw [h1, compState, consPair_one]
 
 private theorem compState_apply_add_two {m : ℕ} (a b : Bool) (j : Fin (2 * (m + 1))) :
-    compState m a b ⟨j.1 + 2, by omega⟩ = if j.1 < 2 then !a else b := by
+    compState m a b ⟨j.val + 2, by omega⟩ = if j.val < 2 then !a else b := by
   rw [compState, consPair_add_two]
-  by_cases hj : j.1 < 2
+  by_cases hj : j.val < 2
   · simp only [hj, ↓reduceIte]
     rcases fin_lt_two_cases (by omega) j hj with h0 | h1
     · rw [h0, consPair_zero]
     · rw [h1, consPair_one]
   · simp only [hj, ↓reduceIte]
-    have h0 : ¬ j.1 = 0 := by omega
-    have h1 : ¬ j.1 = 1 := by omega
+    have h0 : ¬ j.val = 0 := by omega
+    have h1 : ¬ j.val = 1 := by omega
     simp [consPair, h0, h1]
 
 /-- Unnormalized inductive weights for `carryPrior`:
@@ -1359,7 +1360,7 @@ private theorem sum_carryWeight_head_quad {m : ℕ}
         if carryChain (m + 1) y = true then carryWeight (m + 1) y else 0) = (m : ℝ) + 2)
     (hF : (∑ y : Fin (2 * (m + 1)) → Bool,
         if carryChain (m + 1) y = false then carryWeight (m + 1) y else 0) = (m : ℝ) + 2)
-    {i : Fin (2 * (m + 2))} (hi : i.1 < 2) (b c : Bool) :
+    {i : Fin (2 * (m + 2))} (hi : i.val < 2) (b c : Bool) :
     (∑ x : Fin (2 * (m + 2)) → Bool,
       if x i = b ∧ carryChain (m + 2) x = c then carryWeight (m + 2) x else 0) =
       ((m : ℝ) + 2) / 2 + (if b = c then 1 else 0) := by
@@ -1404,7 +1405,7 @@ private theorem carryWeight_invariants :
           if carryChain (m + 1) x = true then carryWeight (m + 1) x else 0) = (m : ℝ) + 2 ∧
       (∑ x : Fin (2 * (m + 1)) → Bool,
           if carryChain (m + 1) x = false then carryWeight (m + 1) x else 0) = (m : ℝ) + 2 ∧
-      (∀ i : Fin (2 * (m + 1)), i.1 < 2 →
+      (∀ i : Fin (2 * (m + 1)), i.val < 2 →
         (∑ x : Fin (2 * (m + 1)) → Bool,
           if x i = true ∧ carryChain (m + 1) x = true then carryWeight (m + 1) x else 0) -
         (∑ x : Fin (2 * (m + 1)) → Bool,
@@ -1413,7 +1414,7 @@ private theorem carryWeight_invariants :
           if x i = false ∧ carryChain (m + 1) x = false then carryWeight (m + 1) x else 0) -
         (∑ x : Fin (2 * (m + 1)) → Bool,
           if x i = false ∧ carryChain (m + 1) x = true then carryWeight (m + 1) x else 0) = 1) ∧
-      (∀ i : Fin (2 * (m + 1)), 2 ≤ i.1 →
+      (∀ i : Fin (2 * (m + 1)), 2 ≤ i.val →
         (∑ x : Fin (2 * (m + 1)) → Bool,
           if x i = true ∧ carryChain (m + 1) x = true then carryWeight (m + 1) x else 0) =
         (∑ x : Fin (2 * (m + 1)) → Bool,
@@ -1471,8 +1472,8 @@ private theorem carryWeight_invariants :
         sum_carryWeight_head_quad ihT ihF hi false false,
         sum_carryWeight_head_quad ihT ihF hi false true]
       norm_num
-    · let j : Fin (2 * (m + 1)) := ⟨i.1 - 2, by omega⟩
-      have hij : i = ⟨j.1 + 2, by omega⟩ := Fin.ext (by simp [j]; omega)
+    · let j : Fin (2 * (m + 1)) := ⟨i.val - 2, by omega⟩
+      have hij : i = ⟨j.val + 2, by omega⟩ := Fin.ext (by simp [j]; omega)
       have hrec_eval (b c : Bool) :
           (∑ y : Fin (2 * (m + 1)) → Bool, carryWeight (m + 1) y *
             ((if consPair false true y i = b ∧
@@ -1485,7 +1486,7 @@ private theorem carryWeight_invariants :
         refine sum_congr rfl fun y _ => ?_
         rw [hij, consPair_add_two, consPair_add_two, carryChain_consPair, carryChain_consPair]
         cases y j <;> cases b <;> cases carryChain (m + 1) y <;> cases c <;> simp <;> ring
-      have hcs (a b : Bool) : compState m a b i = if j.1 < 2 then !a else b := by
+      have hcs (a b : Bool) : compState m a b i = if j.val < 2 then !a else b := by
         rw [hij]; exact compState_apply_add_two a b j
       have hdiff_step (b : Bool) :
           (∑ x : Fin (2 * (m + 2)) → Bool,
@@ -1496,13 +1497,13 @@ private theorem carryWeight_invariants :
             if y j = b ∧ carryChain (m + 1) y = true then carryWeight (m + 1) y else 0) -
           (∑ y : Fin (2 * (m + 1)) → Bool,
             if y j = b ∧ carryChain (m + 1) y = false then carryWeight (m + 1) y else 0) +
-          (if j.1 < 2 then (if b then -1 else 1) else 0) := by
+          (if j.val < 2 then (if b then -1 else 1) else 0) := by
         rw [sum_carryWeight_ite_eq_mul, sum_carryWeight_ite_eq_mul, sum_carryWeight_split,
           sum_carryWeight_split, hrec_eval, hrec_eval, carryChain_compState, carryChain_compState,
           carryChain_compState, carryChain_compState, hcs true false, hcs true true,
           hcs false false, hcs false true]
-        by_cases hj : j.1 < 2 <;> cases b <;> simp [hj] <;> ring
-      by_cases hj : j.1 < 2
+        by_cases hj : j.val < 2 <;> cases b <;> simp [hj] <;> ring
+      by_cases hj : j.val < 2
       · obtain ⟨hL0_t, hL0_f⟩ := ihL0 j hj
         have ht := hdiff_step true
         have hf := hdiff_step false
@@ -1598,7 +1599,7 @@ private theorem liftAlt_condExpect_and_roundPrice {m : ℕ} {T : Finset (Fin (2 
       ring
     rw [hnum, hden]
   refine ⟨hce, fun x => ?_⟩
-  have hbid0 (i : Fin (2 * (m + 2))) (hi : i.1 < 2) :
+  have hbid0 (i : Fin (2 * (m + 2))) (hi : i.val < 2) :
       agentBid (carryChain (m + 2)) (carryWeight (m + 2)) (liftAlt T) i x =
         condExpect (carryChain (m + 1)) (carryWeight (m + 1)) T := by
     rw [agentBid_apply, condExpect_apply, condExpect_apply, agentKnowledge, sum_filter, sum_filter,
@@ -1630,14 +1631,14 @@ private theorem liftAlt_condExpect_and_roundPrice {m : ℕ} {T : Finset (Fin (2 
       exact ite_consPair_alt_add hi y (x i) ((1 / 2 : ℝ) * carryWeight (m + 1) y)
     rw [hnum, hden, mul_div_mul_left _ _ (by norm_num)]
   have hbid_tail (j : Fin (2 * (m + 1))) :
-      agentBid (carryChain (m + 2)) (carryWeight (m + 2)) (liftAlt T) ⟨j.1 + 2, by omega⟩ x =
+      agentBid (carryChain (m + 2)) (carryWeight (m + 2)) (liftAlt T) ⟨j.val + 2, by omega⟩ x =
         agentBid (carryChain (m + 1)) (carryWeight (m + 1)) T j (tailPair x) := by
     rw [agentBid_apply, agentBid_apply, condExpect_apply, condExpect_apply, agentKnowledge,
       agentKnowledge, sum_filter, sum_filter, sum_filter, sum_filter, sum_liftAlt, sum_liftAlt]
-    have hnum : (∑ y ∈ T, if consPair false true y ⟨j.1 + 2, by omega⟩ = x ⟨j.1 + 2, by omega⟩
+    have hnum : (∑ y ∈ T, if consPair false true y ⟨j.val + 2, by omega⟩ = x ⟨j.val + 2, by omega⟩
           then (if carryChain (m + 2) (consPair false true y) then
             carryWeight (m + 2) (consPair false true y) else 0) else 0) +
-        (∑ y ∈ T, if consPair true false y ⟨j.1 + 2, by omega⟩ = x ⟨j.1 + 2, by omega⟩
+        (∑ y ∈ T, if consPair true false y ⟨j.val + 2, by omega⟩ = x ⟨j.val + 2, by omega⟩
           then (if carryChain (m + 2) (consPair true false y) then
             carryWeight (m + 2) (consPair true false y) else 0) else 0) =
         ∑ y ∈ T, if y j = tailPair x j then
@@ -1653,9 +1654,9 @@ private theorem liftAlt_condExpect_and_roundPrice {m : ℕ} {T : Finset (Fin (2 
         · simp
         · simp; ring
       · simp [hj]
-    have hden : (∑ y ∈ T, if consPair false true y ⟨j.1 + 2, by omega⟩ = x ⟨j.1 + 2, by omega⟩
+    have hden : (∑ y ∈ T, if consPair false true y ⟨j.val + 2, by omega⟩ = x ⟨j.val + 2, by omega⟩
           then carryWeight (m + 2) (consPair false true y) else 0) +
-        (∑ y ∈ T, if consPair true false y ⟨j.1 + 2, by omega⟩ = x ⟨j.1 + 2, by omega⟩
+        (∑ y ∈ T, if consPair true false y ⟨j.val + 2, by omega⟩ = x ⟨j.val + 2, by omega⟩
           then carryWeight (m + 2) (consPair true false y) else 0) =
         ∑ y ∈ T, if y j = tailPair x j then carryWeight (m + 1) y else 0 := by
       rw [← sum_add_distrib]
@@ -1711,7 +1712,7 @@ private theorem sum_carryWeight_coord_split {m : ℕ} (i : Fin (2 * (m + 2))) (b
 
 /-- In round 1 on `carryWeight (m + 2)`, every agent `i ≥ 2` bids `1/2` on any positive-mass
 state. -/
-private theorem carryWeight_round1_deep_bid {m : ℕ} {i : Fin (2 * (m + 2))} (hi : 2 ≤ i.1)
+private theorem carryWeight_round1_deep_bid {m : ℕ} {i : Fin (2 * (m + 2))} (hi : 2 ≤ i.val)
     {y : Fin (2 * (m + 2)) → Bool} (hy : y ∈ priorSupport (carryWeight (m + 2))) :
     agentBid (carryChain (m + 2)) (carryWeight (m + 2))
       (priorSupport (carryWeight (m + 2))) i y = 1 / 2 := by
@@ -1739,7 +1740,7 @@ private theorem carryWeight_round1_deep_bid {m : ℕ} {i : Fin (2 * (m + 2))} (h
 
 /-- In round 1 on `carryWeight (m + 2)`, agents `i ∈ {0, 1}` bid `(m + 4)/(2m + 6)` on `true` and
 `(m + 2)/(2m + 6)` on `false`. -/
-private theorem carryWeight_round1_head_bid {m : ℕ} {i : Fin (2 * (m + 2))} (hi : i.1 < 2)
+private theorem carryWeight_round1_head_bid {m : ℕ} {i : Fin (2 * (m + 2))} (hi : i.val < 2)
     (y : Fin (2 * (m + 2)) → Bool) :
     agentBid (carryChain (m + 2)) (carryWeight (m + 2))
       (priorSupport (carryWeight (m + 2))) i y =
@@ -1781,8 +1782,8 @@ private theorem carryWeight_round1_alt {m : ℕ} {x : Fin (2 * (m + 2)) → Bool
       carryWeight_round1_head_bid (i := ⟨1, by omega⟩) (show (1 : ℕ) < 2 by decide) y]
     have hdeep_sum : ∑ j : Fin (2 * (m + 1)),
         agentBid (carryChain (m + 2)) (carryWeight (m + 2))
-          (priorSupport (carryWeight (m + 2))) ⟨j.1 + 2, by omega⟩ y = (m : ℝ) + 1 := by
-      rw [sum_congr rfl fun j _ => carryWeight_round1_deep_bid (show 2 ≤ j.1 + 2 by omega) hy,
+          (priorSupport (carryWeight (m + 2))) ⟨j.val + 2, by omega⟩ y = (m : ℝ) + 1 := by
+      rw [sum_congr rfl fun j _ => carryWeight_round1_deep_bid (show 2 ≤ j.val + 2 by omega) hy,
         sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
       push_cast; ring
     rw [hdeep_sum]
@@ -1833,21 +1834,21 @@ private theorem carryWeight_round1_alt {m : ℕ} {x : Fin (2 * (m + 2)) → Bool
 /-- Alternating `2n`-bit input `(true, false, true, false, …, true, false)` on which
 `carryChain n = false`. -/
 def carryInputFalse (n : ℕ) : Fin (2 * n) → Bool :=
-  fun i => decide (i.1 % 2 = 0)
+  fun i => decide (i.val % 2 = 0)
 
 /-- Worst-case `2n`-bit input `(true, false, …, true, false, true, true)` on which
 `carryChain n = true` (for `n > 0`). -/
 def carryInputTrue (n : ℕ) : Fin (2 * n) → Bool :=
-  fun i => decide (i.1 % 2 = 0 ∨ i.1 + 1 = 2 * n)
+  fun i => decide (i.val % 2 = 0 ∨ i.val + 1 = 2 * n)
 
 private theorem carryInputFalse_consPair (n : ℕ) :
     carryInputFalse (n + 1) = consPair true false (carryInputFalse n) := by
   funext i
-  by_cases h0 : i.1 = 0
+  by_cases h0 : i.val = 0
   · rw [consPair_of_val_zero _ _ _ i h0]; simp [carryInputFalse, h0]
-  · by_cases h1 : i.1 = 1
+  · by_cases h1 : i.val = 1
     · rw [consPair_of_val_one _ _ _ i h1]; simp [carryInputFalse, h1]
-    · have hi : 2 ≤ i.1 := by omega
+    · have hi : 2 ≤ i.val := by omega
       simp only [carryInputFalse, consPair, h0, ↓reduceDIte, h1, decide_eq_decide]
       omega
 
@@ -1861,12 +1862,12 @@ private theorem carryInputTrue_one :
 private theorem carryInputTrue_consPair (m : ℕ) :
     carryInputTrue (m + 2) = consPair true false (carryInputTrue (m + 1)) := by
   funext i
-  by_cases h0 : i.1 = 0
+  by_cases h0 : i.val = 0
   · rw [consPair_of_val_zero _ _ _ i h0]; simp [carryInputTrue, h0]
-  · by_cases h1 : i.1 = 1
+  · by_cases h1 : i.val = 1
     · rw [consPair_of_val_one _ _ _ i h1]
       simp only [carryInputTrue, h1, decide_eq_false_iff_not]; omega
-    · have hi : 2 ≤ i.1 := by omega
+    · have hi : 2 ≤ i.val := by omega
       simp only [carryInputTrue, consPair, h0, ↓reduceDIte, h1, decide_eq_decide]
       omega
 

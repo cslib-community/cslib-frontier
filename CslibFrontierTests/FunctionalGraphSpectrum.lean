@@ -108,30 +108,4 @@ example (f : Fin 4 → Fin 4) (H : Fin 4 → Prop) [DecidablePred H] (K T : ℕ)
     distinguishedPower f H K T z R x = f^[T] x :=
   distinguishedPower_correct f H K T z R hhit hz hR x
 
-/-! ### Axioms -/
-
-/--
-info: 'Cslib.FunctionalGraph.shifted_payload' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms shifted_payload
-
-/--
-info: 'Cslib.FunctionalGraph.correction_run' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms correction_run
-
-/--
-info: 'Cslib.FunctionalGraph.periodWalk_spec' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms periodWalk_spec
-
-/--
-info: 'Cslib.FunctionalGraph.walk_run' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms walk_run
-
 end CslibFrontierTests.FunctionalGraphSpectrum

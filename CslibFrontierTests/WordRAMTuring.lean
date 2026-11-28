@@ -164,8 +164,8 @@ example : {n : ℕ | Even n} ∈ Cslib.Complexity.P encNat :=
 
 open Cslib.Algorithms.WordRAM.ElementDistinctness in
 /-- Element distinctness and its complement are in `P`, both from the word-RAM table decider. -/
-example : {l : Input | l.1.Nodup} ∈ Cslib.Complexity.P inputEncoding ∧
-    {l : Input | l.1.Nodup}ᶜ ∈ Cslib.Complexity.P inputEncoding :=
+example : {l : Input | l.val.Nodup} ∈ Cslib.Complexity.P inputEncoding ∧
+    {l : Input | l.val.Nodup}ᶜ ∈ Cslib.Complexity.P inputEncoding :=
   ⟨nodup_mem_P, Cslib.Complexity.compl_mem_P nodup_mem_P⟩
 
 end CslibFrontierTests.WordRAMTuring

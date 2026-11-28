@@ -364,7 +364,7 @@ theorem isExponentiallyStable (h : DecayInequalities S P k τ) :
     exact_mod_cast div_nonneg (h.lo_pos.le.trans h.lo_le_hi) h.lo_pos.le
   have hr : 0 ≤ Real.sqrt (k.hi / k.lo) * Real.exp (-(k.α * t)) * ‖x 0‖ := by positivity
   refine pow_le_pow_iff_left₀ (norm_nonneg _) hr two_ne_zero |>.1 ?_
-  rw [mul_pow, mul_pow, Real.sq_sqrt hhl, ← Real.exp_nat_mul]
+  rw [mul_pow, mul_pow, Real.sq_sqrt hhl, ← Real.exp_natCast_mul]
   convert hb using 3
   push_cast; ring_nf
 

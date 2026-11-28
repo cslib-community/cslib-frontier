@@ -194,19 +194,19 @@ theorem decode?_eq_some_iff {X : ℕ} (r_sp : ℕ)
 def equiv (X r_sp : ℕ) :
     Fin X ≃ { km : Fin (spillUniv X r_sp) × Fin (2 ^ memBits X r_sp) // decodeVal km < X } where
   toFun x := ⟨encode r_sp x, by simp [x.isLt]⟩
-  invFun km := ⟨decodeVal km.1, km.2⟩
+  invFun km := ⟨decodeVal km.val, km.property⟩
   left_inv x := Fin.ext (decodeVal_encode r_sp x)
-  right_inv km := Subtype.ext (encode_decodeVal km.1 km.2)
+  right_inv km := Subtype.ext (encode_decodeVal km.val km.property)
 
 @[simp]
 theorem coe_equiv {X r_sp : ℕ} (x : Fin X) :
-    (equiv X r_sp x).1 = encode r_sp x := by
+    (equiv X r_sp x).val = encode r_sp x := by
   simp [equiv]
 
 @[simp]
 theorem val_equiv_symm {X r_sp : ℕ}
     (km : { km : Fin (spillUniv X r_sp) × Fin (2 ^ memBits X r_sp) // decodeVal km < X }) :
-    ((equiv X r_sp).symm km).val = decodeVal km.1 := by
+    ((equiv X r_sp).symm km).val = decodeVal km.val := by
   simp [equiv]
 
 /-! ### Spillover universe and bit-redundancy bounds (Lemma 3.8) -/
@@ -310,7 +310,7 @@ theorem pow_spillUniv_mul_two_pow_le_three_mul {X n : ℕ} (hn : 1 ≤ n) :
       _ ≤ (Real.exp (1 / (n : ℝ))) ^ n :=
           pow_le_pow_left₀ (by positivity) (Real.add_one_le_exp _) n
       _ = Real.exp 1 := by
-          rw [← Real.exp_nat_mul]
+          rw [← Real.exp_natCast_mul]
           exact congrArg Real.exp (by field_simp)
       _ ≤ 3 := by linarith [Real.exp_one_lt_d9]
   have hpow_nat : (n + 1) ^ n ≤ 3 * n ^ n := by
@@ -336,7 +336,7 @@ private theorem clog_two_mul_two_pow {a : ℕ} (ha : 1 ≤ a) (m : ℕ) :
     · have hcpos : 0 < Nat.clog 2 a := Nat.clog_pos Nat.one_lt_two hlt
       have hsub : Nat.clog 2 a - 1 + m < Nat.clog 2 (a * 2 ^ m) := by
         rw [Nat.lt_clog_iff_pow_lt Nat.one_lt_two, Nat.pow_add]
-        exact Nat.mul_lt_mul_of_pos_right (Nat.pow_pred_clog_lt_self Nat.one_lt_two hlt)
+        exact Nat.mul_lt_mul_of_pos_right (Nat.pow_pred_clog_lt_self 2 hlt)
           (Nat.two_pow_pos m)
       omega
 

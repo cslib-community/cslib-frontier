@@ -99,11 +99,13 @@ example :
     (∀ (x : Set.Icc (0 : ℝ) 1), x ≠ pt12 → ∀ (t : ℝ) (ht0 : 0 ≤ t) (ht1 : t < 1),
       (Preference.preferLeft pt12).ranking.Prefers
         ⟨t * x + (1 - t) * pt12,
-          ⟨by nlinarith [x.2.1, pt12.2.1], by nlinarith [x.2.2, pt12.2.2]⟩⟩ x) ∧
+          ⟨by nlinarith [x.property.1, pt12.property.1],
+            by nlinarith [x.property.2, pt12.property.2]⟩⟩ x) ∧
     ¬ (∀ (x : Set.Icc (0 : ℝ) 1), x ≠ pt0 → ∀ (t : ℝ) (ht0 : 0 ≤ t) (ht1 : t < 1),
       (Preference.preferLeft pt12).ranking.Prefers
         ⟨t * x + (1 - t) * pt0,
-          ⟨by nlinarith [x.2.1, pt0.2.1], by nlinarith [x.2.2, pt0.2.2]⟩⟩ x) := by
+          ⟨by nlinarith [x.property.1, pt0.property.1],
+            by nlinarith [x.property.2, pt0.property.2]⟩⟩ x) := by
   have hpos := (Preference.isSinglePeaked_iff_convex (Preference.preferLeft pt12).ranking
     (Preference.preferLeft pt12).peak).mp
       ⟨@(Preference.preferLeft pt12).prefers_of_between_right,
@@ -421,7 +423,7 @@ example :
     refine le_antisymm ?_ ?_
     · exact (Finset.inf'_le (fun i : Fin 3 => ((P i).peak : ℝ)) (Finset.mem_univ 0)).trans
         (by simp [P])
-    · exact (Finset.le_inf'_iff _ _).mpr fun i _ => (P i).peak.2.1
+    · exact (Finset.le_inf'_iff _ _).mpr fun i _ => (P i).peak.property.1
   linarith
 
 /-! ### 5. Symmetric path-distance 3-leaf facility location (`star3`, after Exercise 10.5) -/

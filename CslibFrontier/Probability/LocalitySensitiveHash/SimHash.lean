@@ -124,17 +124,17 @@ theorem measureCollisionProb_simHash_pi {ι : Type*} [Fintype ι] {u v : Euclide
 angular distance. -/
 theorem isLocalitySensitive_simHash_subtype (θ₁ θ₂ : ℝ) :
     IsLocalitySensitive
-      (measureCollisionProb (stdGaussian E) (fun r (u : {x : E // x ≠ 0}) => simHash r u.1))
-      (fun u v => InnerProductGeometry.angle u.1 v.1 ≤ θ₁)
-      (fun u v => θ₂ ≤ InnerProductGeometry.angle u.1 v.1)
+      (measureCollisionProb (stdGaussian E) (fun r (u : {x : E // x ≠ 0}) => simHash r u.val))
+      (fun u v => InnerProductGeometry.angle u.val v.val ≤ θ₁)
+      (fun u v => θ₂ ≤ InnerProductGeometry.angle u.val v.val)
       (1 - θ₁ / π) (1 - θ₂ / π) where
   le_of_near u v h := by
-    change 1 - θ₁ / π ≤ measureCollisionProb (stdGaussian E) simHash u.1 v.1
-    rw [measureCollisionProb_simHash u.2 v.2]
+    change 1 - θ₁ / π ≤ measureCollisionProb (stdGaussian E) simHash u.val v.val
+    rw [measureCollisionProb_simHash u.property v.property]
     exact sub_le_sub_left (div_le_div_of_nonneg_right h pi_pos.le) 1
   le_of_far u v h := by
-    change measureCollisionProb (stdGaussian E) simHash u.1 v.1 ≤ 1 - θ₂ / π
-    rw [measureCollisionProb_simHash u.2 v.2]
+    change measureCollisionProb (stdGaussian E) simHash u.val v.val ≤ 1 - θ₂ / π
+    rw [measureCollisionProb_simHash u.property v.property]
     exact sub_le_sub_left (div_le_div_of_nonneg_right h pi_pos.le) 1
 
 /-- SimHash on `E` is `(1 - θ₁ / π, 1 - θ₂ / π)`-sensitive for pairs of nonzero vectors with
@@ -156,16 +156,16 @@ theorem isLocalitySensitive_simHash (θ₁ θ₂ : ℝ) :
 for near pairs and `⟪u, v⟫ ≤ s₂` for far pairs). -/
 theorem isLocalitySensitive_simHash_inner (s₁ s₂ : ℝ) :
     IsLocalitySensitive
-      (measureCollisionProb (stdGaussian E) (fun r (u : {x : E // ‖x‖ = 1}) => simHash r u.1))
-      (fun u v => s₁ ≤ ⟪u.1, v.1⟫) (fun u v => ⟪u.1, v.1⟫ ≤ s₂)
+      (measureCollisionProb (stdGaussian E) (fun r (u : {x : E // ‖x‖ = 1}) => simHash r u.val))
+      (fun u v => s₁ ≤ ⟪u.val, v.val⟫) (fun u v => ⟪u.val, v.val⟫ ≤ s₂)
       (1 - Real.arccos s₁ / π) (1 - Real.arccos s₂ / π) where
   le_of_near u v h := by
-    change 1 - Real.arccos s₁ / π ≤ measureCollisionProb (stdGaussian E) simHash u.1 v.1
-    rw [measureCollisionProb_simHash_of_norm_eq_one u.2 v.2]
+    change 1 - Real.arccos s₁ / π ≤ measureCollisionProb (stdGaussian E) simHash u.val v.val
+    rw [measureCollisionProb_simHash_of_norm_eq_one u.property v.property]
     exact sub_le_sub_left (div_le_div_of_nonneg_right (Real.arccos_le_arccos h) pi_pos.le) 1
   le_of_far u v h := by
-    change measureCollisionProb (stdGaussian E) simHash u.1 v.1 ≤ 1 - Real.arccos s₂ / π
-    rw [measureCollisionProb_simHash_of_norm_eq_one u.2 v.2]
+    change measureCollisionProb (stdGaussian E) simHash u.val v.val ≤ 1 - Real.arccos s₂ / π
+    rw [measureCollisionProb_simHash_of_norm_eq_one u.property v.property]
     exact sub_le_sub_left (div_le_div_of_nonneg_right (Real.arccos_le_arccos h) pi_pos.le) 1
 
 end Collision

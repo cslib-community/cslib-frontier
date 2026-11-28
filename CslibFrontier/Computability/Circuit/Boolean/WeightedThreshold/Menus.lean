@@ -135,17 +135,17 @@ theorem card_biasMenu_le_two_pow_gateSupport (p : Program signature n g) (gate :
   classical
   have hsub : biasMenu p gate ⊆
       univ.image (fun v : gateSupport p gate → Bool =>
-        ∑ j : gateSupport p gate, gateWeight p gate j.1 * (v j).toNat) := by
+        ∑ j : gateSupport p gate, gateWeight p gate j.val * (v j).toNat) := by
     intro β hβ
     obtain ⟨u, -, rfl⟩ := mem_image.mp hβ
-    refine mem_image.mpr ⟨fun j => u j.1, mem_univ _, ?_⟩
+    refine mem_image.mpr ⟨fun j => u j.val, mem_univ _, ?_⟩
     rw [sum_coe_sort (gateSupport p gate) (fun j => gateWeight p gate j * (u j).toNat)]
     refine sum_subset (subset_univ _) fun j _ hj => ?_
     have hj0 : gateWeight p gate j = 0 := not_not.mp ((mem_gateSupport p gate j).not.mp hj)
     simp [hj0]
   calc (biasMenu p gate).card
       ≤ (univ.image (fun v : gateSupport p gate → Bool =>
-          ∑ j : gateSupport p gate, gateWeight p gate j.1 * (v j).toNat)).card :=
+          ∑ j : gateSupport p gate, gateWeight p gate j.val * (v j).toNat)).card :=
         card_le_card hsub
     _ ≤ (univ : Finset (gateSupport p gate → Bool)).card := card_image_le
     _ = 2 ^ (gateSupport p gate).card := by
@@ -260,12 +260,12 @@ theorem changesAtMost_linear_threshold (θ c β : ℝ) :
 
 /-- Type of the precomputed comparison table for direction `a`. -/
 abbrev MenuTable (p : Program signature n g) (dir : Fin g → Fin d) (a : Fin d) : Type :=
-  (gate : directionGates p dir a) → biasMenu p gate.1 → Bool
+  (gate : directionGates p dir a) → biasMenu p gate.val → Bool
 
 /-- The precomputed comparison table for direction `a` at directional projection `t = w a · x`. -/
 noncomputable def trueMenuTable (p : Program signature n g) (dir : Fin g → Fin d)
     (scale : Fin g → ℝ) (a : Fin d) (t : ℝ) : MenuTable p dir a :=
-  fun gate β => decide ((p.lines gate.1).op.threshold ≤ scale gate.1 * t + β.1)
+  fun gate β => decide ((p.lines gate.val).op.threshold ≤ scale gate.val * t + β.val)
 
 /-- As a function of the scalar `t`, the menu table for direction `a` changes at most
 `directionMenuSum p dir a` times. -/
@@ -274,15 +274,16 @@ theorem changesAtMost_trueMenuTable (p : Program signature n g) (dir : Fin g →
     ChangesAtMost (trueMenuTable p dir scale a) (directionMenuSum p dir a) := by
   classical
   have hgate (gate : directionGates p dir a) :
-      ChangesAtMost (fun t : ℝ => fun β : biasMenu p gate.1 =>
-        decide ((p.lines gate.1).op.threshold ≤ scale gate.1 * t + β.1))
-        (biasMenu p gate.1).card := by
-    have hpi := ChangesAtMost.pi (ι := biasMenu p gate.1) (T := fun _ => 1)
-      (fun β => changesAtMost_linear_threshold (p.lines gate.1).op.threshold (scale gate.1) β.1)
+      ChangesAtMost (fun t : ℝ => fun β : biasMenu p gate.val =>
+        decide ((p.lines gate.val).op.threshold ≤ scale gate.val * t + β.val))
+        (biasMenu p gate.val).card := by
+    have hpi := ChangesAtMost.pi (ι := biasMenu p gate.val) (T := fun _ => 1)
+      (fun β =>
+        changesAtMost_linear_threshold (p.lines gate.val).op.threshold (scale gate.val) β.val)
     simpa [Fintype.card_coe] using hpi
   have hall := ChangesAtMost.pi (ι := directionGates p dir a)
-    (T := fun gate => (biasMenu p gate.1).card) hgate
-  have hsum : (∑ gate : directionGates p dir a, (biasMenu p gate.1).card) =
+    (T := fun gate => (biasMenu p gate.val).card) hgate
+  have hsum : (∑ gate : directionGates p dir a, (biasMenu p gate.val).card) =
       directionMenuSum p dir a := by
     unfold directionMenuSum
     exact sum_coe_sort (directionGates p dir a) (fun gate => (biasMenu p gate).card)

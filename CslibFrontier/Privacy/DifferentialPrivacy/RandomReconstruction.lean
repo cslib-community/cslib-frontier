@@ -326,7 +326,7 @@ theorem reconstructionFails_iff {A : κ → ι → Bool} {α η : ℝ} :
 
 private theorem three_pow_eq_ofReal_exp (n : ℕ) :
     (3 : ℝ≥0∞) ^ n = ENNReal.ofReal (Real.exp (n * Real.log 3)) := by
-  rw [Real.exp_nat_mul, Real.exp_log (by norm_num), ENNReal.ofReal_pow (by norm_num),
+  rw [Real.exp_natCast_mul, Real.exp_log (by norm_num), ENNReal.ofReal_pow (by norm_num),
     ENNReal.ofReal_ofNat]
 
 /-- **Random queries rarely fail** [DworkRoth2014, proof of Theorem 8.2]. For `m` uniformly random

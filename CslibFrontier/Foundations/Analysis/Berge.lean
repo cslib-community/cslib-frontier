@@ -141,7 +141,7 @@ theorem argmaxSet_isCompact {x : X} (hcomp : IsCompact (Γ x)) (hu : ContinuousO
     have : CompactSpace (Γ x) := isCompact_iff_compactSpace.mp hcomp
     have hclosed : IsClosed ((fun y : Γ x => u x y) ⁻¹' Ici (maxValue Γ u x)) :=
       isClosed_Ici.preimage hu.domRestrict
-    exact hclosed.isCompact.image continuous_subtype_val
+    exact hclosed.isCompact.image continuous_subtypeVal
   · rw [not_nonempty_iff_eq_empty] at hne
     have hempty : argmaxSet Γ u x = ∅ := by
       ext y
@@ -208,8 +208,8 @@ theorem upperSemicontinuousOn_maxValue
   have hcover : ∀ y : Γ x₀, ∃ U V, IsOpen U ∧ IsOpen V ∧ x₀ ∈ U ∧ (y : Y) ∈ V ∧
       ∀ x ∈ U ∩ s, ∀ z ∈ V ∩ Γ x, u x z < b := by
     intro y
-    have hyb : u x₀ y < b := (le_maxValue_of_mem (hcomp x₀ hx₀) hu₀ y.2).trans_lt hb
-    exact nhds_prod_basis_of_continuousOn x₀ (y : Y) hx₀ y.2 hu (isOpen_Iio.mem_nhds hyb)
+    have hyb : u x₀ y < b := (le_maxValue_of_mem (hcomp x₀ hx₀) hu₀ y.property).trans_lt hb
+    exact nhds_prod_basis_of_continuousOn x₀ (y : Y) hx₀ y.property hu (isOpen_Iio.mem_nhds hyb)
   choose U V hU hV hxU hyV hUV using hcover
   have hcov : Γ x₀ ⊆ ⋃ y : Γ x₀, V y := fun y hy => mem_iUnion.mpr ⟨⟨y, hy⟩, hyV ⟨y, hy⟩⟩
   obtain ⟨t, ht_cov⟩ := (hcomp x₀ hx₀).elim_finite_subcover V hV hcov
@@ -257,12 +257,13 @@ theorem upperHemicontinuousOn_argmaxSet
   have hu₀ : ContinuousOn (u x₀) (Γ x₀) :=
     hu.comp (continuous_const.prodMk continuous_id).continuousOn fun _ hy => ⟨hx₀, hy⟩
   have hsub_lt : ∀ y : K, u x₀ y < maxValue Γ u x₀ := fun y =>
-    lt_maxValue_of_notMem_argmaxSet (hcomp x₀ hx₀) hu₀ y.2.1 fun hyarg => y.2.2 (hsub hyarg)
+    lt_maxValue_of_notMem_argmaxSet (hcomp x₀ hx₀) hu₀ y.property.1 fun hyarg =>
+      y.property.2 (hsub hyarg)
   have hcover : ∀ y : K, ∃ U V, IsOpen U ∧ IsOpen V ∧ x₀ ∈ U ∧ (y : Y) ∈ V ∧
       ∀ x ∈ U ∩ s, ∀ z ∈ V ∩ Γ x, u x z < (u x₀ y + maxValue Γ u x₀) / 2 := by
     intro y
     have hlt : u x₀ y < (u x₀ y + maxValue Γ u x₀) / 2 := by linarith [hsub_lt y]
-    exact nhds_prod_basis_of_continuousOn x₀ (y : Y) hx₀ y.2.1 hu (isOpen_Iio.mem_nhds hlt)
+    exact nhds_prod_basis_of_continuousOn x₀ (y : Y) hx₀ y.property.1 hu (isOpen_Iio.mem_nhds hlt)
   choose U V hU hV hxU hyV hUV using hcover
   have hcov : K ⊆ ⋃ y : K, V y := fun y hy => mem_iUnion.mpr ⟨⟨y, hy⟩, hyV ⟨y, hy⟩⟩
   obtain ⟨t, ht_cov⟩ := hK_comp.elim_finite_subcover V hV hcov
@@ -350,17 +351,17 @@ theorem isClosed_graph_of_upperHemicontinuousOn
   have : l.NeBot := Filter.comap_neBot fun {U} hU => by
     obtain ⟨p, hpU, hpG⟩ := clusterPt_principal_iff.mp hcl U hU
     exact ⟨⟨p, hpG⟩, hpU⟩
-  have hx_lim : Tendsto (fun p : G => p.1.1) l (𝓝 x₀) :=
+  have hx_lim : Tendsto (fun p : G => p.val.1) l (𝓝 x₀) :=
     continuous_fst.continuousAt.tendsto.comp tendsto_comap
-  have hy_lim : Tendsto (fun p : G => p.1.2) l (𝓝 y₀) :=
+  have hy_lim : Tendsto (fun p : G => p.val.2) l (𝓝 y₀) :=
     continuous_snd.continuousAt.tendsto.comp tendsto_comap
-  have hx₀ : x₀ ∈ s := hs.mem_of_tendsto hx_lim (Eventually.of_forall fun p => p.2.1)
-  have hsub_lim : Tendsto (fun p : G => (⟨p.1.1, p.2.1⟩ : s)) l (𝓝 (⟨x₀, hx₀⟩ : s)) :=
+  have hx₀ : x₀ ∈ s := hs.mem_of_tendsto hx_lim (Eventually.of_forall fun p => p.property.1)
+  have hsub_lim : Tendsto (fun p : G => (⟨p.val.1, p.property.1⟩ : s)) l (𝓝 (⟨x₀, hx₀⟩ : s)) :=
     tendsto_subtype_rng.mpr hx_lim
   have huhc : UpperHemicontinuousAt (s.domRestrict F) ⟨x₀, hx₀⟩ :=
     upperHemicontinuousOn_iff_restrict.mpr hF_uhc ⟨x₀, hx₀⟩
   have hy₀ : y₀ ∈ F x₀ := huhc.mem_of_tendsto (hF_closed x₀ hx₀) hsub_lim
-    (Eventually.of_forall fun p : G => p.2.2).frequently hy_lim
+    (Eventually.of_forall fun p : G => p.property.2).frequently hy_lim
   exact ⟨hx₀, hy₀⟩
 
 /-- A correspondence with closed graph over `s` taking values in a sequentially compact set `K`
@@ -374,12 +375,12 @@ theorem upperHemicontinuousOn_of_isClosed_graph
   rw [← upperHemicontinuousOn_iff_restrict]
   intro ⟨x₀, hx₀⟩
   refine UpperHemicontinuousAt.of_sequences (K := K) hK
-    (Eventually.of_forall fun x => hsub x.1 x.2) ?_
+    (Eventually.of_forall fun x => hsub x.val x.property) ?_
   intro x hx y hy y₀ hy₀
   have hlim_prod : Tendsto (fun n => ((x n : X), y n)) atTop (𝓝 (x₀, y₀)) :=
-    (continuousAt_subtype_val.tendsto.comp hx).prodMk_nhds hy₀
+    (continuousAt_subtypeVal.tendsto.comp hx).prodMk_nhds hy₀
   have hmem : ∀ n, ((x n : X), y n) ∈ {p : X × Y | p.1 ∈ s ∧ p.2 ∈ F p.1} :=
-    fun n => ⟨(x n).2, hy n⟩
+    fun n => ⟨(x n).property, hy n⟩
   exact (hgraph.mem_of_tendsto hlim_prod (Eventually.of_forall hmem)).2
 
 end ClosedGraph

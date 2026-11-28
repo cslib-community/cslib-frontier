@@ -94,14 +94,14 @@ private theorem mixedDigit_eq (ms : List ℕ) (u : Fin (∏ i, ms.get i)) (i : F
     rw [← List.prod_ofFn]
     exact congrArg List.prod (List.ext_getElem (by simp) fun _ _ _ => by simp)
   change _ = u / (∏ j : Fin i, ms.get (Fin.castLE i.is_lt.le j)) % ms.get i
-  rw [hprod, mixedDigit, List.getD_eq_getElem _ _ i.2]; rfl
+  rw [hprod, mixedDigit, List.getD_eq_getElem _ _ i.isLt]; rfl
 
 private theorem bitEquiv_symm_all (k : ℕ) (p : ℕ → Bool) :
     bitEquiv.symm ((List.range k).all p) = ∏ i : Fin k, bitEquiv.symm (p i) := by
   rcases Bool.eq_false_or_eq_true ((List.range k).all p) with h | h
   · rw [h, bitEquiv_symm_true, eq_comm]
     exact Finset.prod_eq_one fun i _ => by
-      rw [List.all_eq_true.1 h i (List.mem_range.2 i.2), bitEquiv_symm_true]
+      rw [List.all_eq_true.1 h i (List.mem_range.2 i.isLt), bitEquiv_symm_true]
   · obtain ⟨i, hi, hpi⟩ := List.all_eq_false.1 h
     rw [h, bitEquiv_symm_false, eq_comm]
     exact Finset.prod_eq_zero (i := ⟨i, List.mem_range.1 hi⟩) (Finset.mem_univ _)
@@ -133,8 +133,8 @@ theorem isMulTable_monomialTable (ms : List ℕ) (R : List (List (List Bool)))
     fieldOfBits, ofBits, ← Equiv.sum_comp finPiFinEquiv]
   refine Finset.sum_congr rfl fun M _ => ?_
   rw [Basis.reindex_apply, Equiv.symm_apply_apply,
-    tableEntry_monomialTable (u.2.trans_eq hms) (w.2.trans_eq hms),
-    List.getD_eq_getElem _ _ (by simpa using (finPiFinEquiv M).2.trans_eq hms),
+    tableEntry_monomialTable (u.isLt.trans_eq hms) (w.isLt.trans_eq hms),
+    List.getD_eq_getElem _ _ (by simpa using (finPiFinEquiv M).isLt.trans_eq hms),
     List.getElem_map, List.getElem_range, monomialBit, bitEquiv_symm_all]
   exact congrArg (· • _) (Finset.prod_congr rfl fun i _ => by
     rw [mixedDigit_eq ms u i, mixedDigit_eq ms w i, mixedDigit_eq ms (finPiFinEquiv M) i,
