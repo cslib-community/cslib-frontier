@@ -121,16 +121,14 @@ private theorem compDemoteStep_effect {metaBase itemBase U V w N m_cap b k : ℕ
       (compDemoteReadItemsProg ((mkCompParams U V w N, itemBase), (g_del, g_last))) =
       ((qA g_del, vA g_del), (qA g_last, vA g_last)) := by
     dsimp only [compDemoteReadItemsProg]
-    rw [StateTransitionSpec.clientResult_bind, clientResult_readCompQuotGenProg hg_del_m,
-      clientState_readCompQuotGenProg, StateTransitionSpec.clientResult_bind,
-      clientResult_readCompValGenProg hg_del_m, clientState_readCompValGenProg,
-      StateTransitionSpec.clientResult_bind, clientResult_readCompQuotGenProg hg_last_m,
-      clientState_readCompQuotGenProg, StateTransitionSpec.clientResult_bind,
-      clientResult_readCompValGenProg hg_last_m, clientState_readCompValGenProg,
-      StateTransitionSpec.clientResult_pure, hcpl0.quot_eq g_del hg_del_m,
-      hcpl0.val_eq g_del hg_del_m, hcpl0.quot_eq g_last hg_last_m,
+    simp only [client_simps, StateTransitionSpec.clientState,
+      clientResult_readCompQuotGenProg hg_del_m, runClient_state_readCompQuotGenProg,
+      clientResult_readCompValGenProg hg_del_m, runClient_state_readCompValGenProg,
+      clientResult_readCompQuotGenProg hg_last_m, clientResult_readCompValGenProg hg_last_m,
+      hcpl0.quot_eq g_del hg_del_m, hcpl0.val_eq g_del hg_del_m, hcpl0.quot_eq g_last hg_last_m,
       hcpl0.val_eq g_last hg_last_m, physByBase_slab _ hg_del_lt_b,
       physByBase_slab _ (Nat.lt_succ_self g_last)]
+    rfl
   set s₁ := (Memory.spec 0).clientState s
     (winGrowLeftGenProg ((mkCompParams U V w N, metaBase), (g_last, gm 1)))
   obtain ⟨hf_w1, htd_w1, hdt_w1, hlm_w1, hgm_w1, hq_w1, hv_w1, hout_w1⟩ :=

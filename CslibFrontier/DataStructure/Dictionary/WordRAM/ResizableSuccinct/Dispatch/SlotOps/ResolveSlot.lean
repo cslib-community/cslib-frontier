@@ -113,10 +113,9 @@ theorem clientResult_compLastSlotOfGenProg {U V w N metaBase b : ℕ} {s : Memor
   · have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
     have hr_pos : 1 ≤ gm (gmRIdx b) := pos_gmRIdx_of_pos_bCount hb_pos hslot hb hbc
     obtain ⟨hr_eq, hr_idx_lt, hptr_lt⟩ := lastTailPtr_read_bounds hslot hb_pos hb
-    rw [ite_eq_right hb0, hr_eq, prog_clientResult_bind, clientResult_readCompGMGenProg hr_idx_lt,
-      clientState_readCompGMGenProg, prog_clientResult_bind,
-      clientResult_readCompGMGenProg hptr_lt, clientState_readCompGMGenProg,
-      prog_clientResult_pure]
+    simp only [client_simps, StateTransitionSpec.clientState, ite_eq_right hb0, hr_eq,
+      clientResult_readCompGMGenProg hr_idx_lt, runClient_state_readCompGMGenProg]
+    rw [clientResult_readCompGMGenProg hptr_lt]
     simp only [slotOf, bCount, hb0, ↓reduceIte, hb, Nat.add_sub_assoc hr_pos,
       Nat.add_sub_cancel_left, Nat.not_lt.mpr (Nat.le_add_right _ _)]
     rfl

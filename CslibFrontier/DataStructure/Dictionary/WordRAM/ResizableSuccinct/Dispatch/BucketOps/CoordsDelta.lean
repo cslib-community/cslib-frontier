@@ -83,10 +83,8 @@ def compGrowDeltaGenProg : CompParams × ℕ → Memory.Prog ℕ
     (Memory.spec 0).clientResult s (compGrowDeltaGenProg (mkCompParams U V w N, n)) =
       compactedItemWords U V w N (n + 1) - compactedItemWords U V w N n := by
   dsimp only [compGrowDeltaGenProg]
-  rw [prog_clientResult_bind, clientResult_compItemWordsGenProg hw,
-    clientState_compItemWordsGenProg, prog_clientResult_bind,
-    clientResult_compItemWordsGenProg hw, clientState_compItemWordsGenProg,
-    prog_clientResult_pure]
+  simp only [client_simps, StateTransitionSpec.clientState, clientResult_compItemWordsGenProg hw,
+    runClient_state_compItemWordsGenProg]
 
 theorem clientState_compGrowDeltaGenProg (d : CompParams × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (compGrowDeltaGenProg d) = s := by
@@ -148,10 +146,8 @@ def compShrinkDeltaGenProg : CompParams × ℕ → Memory.Prog ℕ
     (Memory.spec 0).clientResult s (compShrinkDeltaGenProg (mkCompParams U V w N, n)) =
       compactedItemWords U V w N n - compactedItemWords U V w N (n - 1) := by
   dsimp only [compShrinkDeltaGenProg]
-  rw [prog_clientResult_bind, clientResult_compItemWordsGenProg hw,
-    clientState_compItemWordsGenProg, prog_clientResult_bind,
-    clientResult_compItemWordsGenProg hw, clientState_compItemWordsGenProg,
-    prog_clientResult_pure]
+  simp only [client_simps, StateTransitionSpec.clientState, clientResult_compItemWordsGenProg hw,
+    runClient_state_compItemWordsGenProg]
 
 theorem clientState_compShrinkDeltaGenProg (d : CompParams × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (compShrinkDeltaGenProg d) = s := by

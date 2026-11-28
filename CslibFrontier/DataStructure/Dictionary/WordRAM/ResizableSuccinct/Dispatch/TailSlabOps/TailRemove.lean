@@ -209,20 +209,14 @@ private theorem compRemoveTailLocate_spec {metaBase itemBase U V w N m_cap b : �
     dsimp only [compRemoveTailLocateProg, compRemoveTailReadGM1Prog, compRemoveTailReadGM2Prog,
       compRemoveTailReadTDProg, compRemoveTailCalcDenseProg]
     simp only [bind_assoc, pure_bind, succinct_param_simps]
-    rw [hr_eq, StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg h0_lt,
-      clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind,
-      clientResult_readCompGMGenProg hr_idx_lt, clientState_readCompGMGenProg,
-      StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg hptr_del_lt,
-      clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind,
-      clientResult_readCompGMGenProg h1_lt, clientState_readCompGMGenProg,
-      StateTransitionSpec.clientResult_bind, clientResult_readCompTDGenProg ht_del_max,
-      clientState_readCompTDGenProg, StateTransitionSpec.clientResult_bind,
-      clientResult_readCompTDGenProg hn'_max, clientState_readCompTDGenProg,
-      StateTransitionSpec.clientResult_bind,
+    simp only [client_simps, StateTransitionSpec.clientState, hr_eq,
+      clientResult_readCompGMGenProg h0_lt, runClient_state_readCompGMGenProg,
+      clientResult_readCompGMGenProg hr_idx_lt, clientResult_readCompGMGenProg hptr_del_lt,
+      clientResult_readCompGMGenProg h1_lt, clientResult_readCompTDGenProg ht_del_max,
+      runClient_state_readCompTDGenProg, clientResult_readCompTDGenProg hn'_max,
       clientResult_denseOfCircGenProg (fun _ => hwin0.td_lt _ ht_del_lt'),
-      clientState_denseOfCircGenProg, StateTransitionSpec.clientResult_bind,
-      clientResult_denseOfCircGenProg (fun _ => hwin0.td_lt _ hn'_lt),
-      clientState_denseOfCircGenProg]
+      runClient_state_denseOfCircGenProg,
+      clientResult_denseOfCircGenProg (fun _ => hwin0.td_lt _ hn'_lt)]
     rfl
   have hv : ValidProg w 0 s (compRemoveTailLocateProg ((mkCompParams U V w N, metaBase), b)) := by
     dsimp only [compRemoveTailLocateProg, compRemoveTailReadGM1Prog, compRemoveTailReadGM2Prog,
@@ -584,9 +578,9 @@ private theorem realizesBounded_compRemoveTailLocate :
         (compRemoveTailReadGM1Prog ((mkCompParams U V w N, metaBase), b)) =
         (compGmAt metaBase U w N s.mem 0, compGmAt metaBase U w N s.mem (gmRIdx b)) := by
       dsimp only [compRemoveTailReadGM1Prog]; rw [hr_eq]
-      rw [StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg h0_lt,
-        clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind,
-        clientResult_readCompGMGenProg hr_idx_lt, clientState_readCompGMGenProg]; rfl
+      simp only [client_simps, StateTransitionSpec.clientState,
+        clientResult_readCompGMGenProg h0_lt, runClient_state_readCompGMGenProg,
+        clientResult_readCompGMGenProg hr_idx_lt]
     have hg2_s : (Memory.spec 0).clientState s
         (compRemoveTailReadGM2Prog (((mkCompParams U V w N, metaBase), b),
           (compGmAt metaBase U w N s.mem 0, compGmAt metaBase U w N s.mem (gmRIdx b)))) = s := by
@@ -598,9 +592,9 @@ private theorem realizesBounded_compRemoveTailLocate :
          compGmAt metaBase U w N s.mem
            (gmTailPtrIdx N b (compGmAt metaBase U w N s.mem (gmRIdx b) - 1))) := by
       dsimp only [compRemoveTailReadGM2Prog, succinct_param_simps]
-      rw [StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg hptr_del_lt,
-        clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind,
-        clientResult_readCompGMGenProg h1_lt, clientState_readCompGMGenProg]; rfl)
+      simp only [client_simps, StateTransitionSpec.clientState,
+        clientResult_readCompGMGenProg hptr_del_lt, runClient_state_readCompGMGenProg,
+        clientResult_readCompGMGenProg h1_lt]; rfl)
   · exact ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V, rfl,
       henv.meta_le_frontier, hb_pos, hb⟩
   · rw [hg1_s, hg1_r]; dsimp only
@@ -620,9 +614,9 @@ private theorem realizesBounded_compRemoveTailLocate :
             (gmTailPtrIdx N b (compGmAt metaBase U w N s.mem (gmRIdx b) - 1))),
          compTDAt metaBase U w N s.mem (compGmAt metaBase U w N s.mem 1 - 1)) := by
       dsimp only [compRemoveTailReadTDProg]
-      rw [StateTransitionSpec.clientResult_bind, clientResult_readCompTDGenProg ht_del_max,
-        clientState_readCompTDGenProg, StateTransitionSpec.clientResult_bind,
-        clientResult_readCompTDGenProg hn'_max, clientState_readCompTDGenProg]; rfl
+      simp only [client_simps, StateTransitionSpec.clientState,
+        clientResult_readCompTDGenProg ht_del_max, runClient_state_readCompTDGenProg,
+        clientResult_readCompTDGenProg hn'_max]
     rw [htd_r]; dsimp only
     exact ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V, rfl,
       by omega, fun _ => ⟨hwin0.td_lt _ ht_del_lt,

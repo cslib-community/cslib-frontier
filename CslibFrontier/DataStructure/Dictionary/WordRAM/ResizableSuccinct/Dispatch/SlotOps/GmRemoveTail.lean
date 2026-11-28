@@ -108,12 +108,10 @@ private theorem clientResult_compRemoveTailReadGMProg {U V w N metaBase b : ℕ}
     compRemoveTailReadGM_idx_lt hb_pos hb htail hr_pos
   have hr_eq : 4 + (b + b + b) + 1 = gmRIdx b := by unfold gmRIdx; omega
   dsimp only [compRemoveTailReadGMProg, succinct_param_simps]
-  rw [hr_eq, StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg hr_idx_lt,
-    clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind,
-    clientResult_readCompGMGenProg hptr_del_lt, clientState_readCompGMGenProg,
-    StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg h1_lt,
-    clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind,
-    clientResult_readCompGMGenProg hown_last_lt, clientState_readCompGMGenProg]
+  simp only [client_simps, StateTransitionSpec.clientState, hr_eq,
+    clientResult_readCompGMGenProg hr_idx_lt, runClient_state_readCompGMGenProg,
+    clientResult_readCompGMGenProg hptr_del_lt, clientResult_readCompGMGenProg h1_lt,
+    clientResult_readCompGMGenProg hown_last_lt]
   rfl
 
 private def compRemoveTailWriteGMProg :
