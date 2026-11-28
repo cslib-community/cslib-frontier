@@ -58,7 +58,9 @@ register_result "pettie-ramachandran-optimal-mst-wordram" where
     satisfying Fits w (optimalMSFWordBound n m) (logarithmic width suffices for the workspace \
     threshold, with the additional Fits w condition for edge weights, and any larger width is \
     allowed), ExecutesList halts in at most C * (optDepthMN m n + 1) instructions and outputs \
-    Kruskal.encodeEdges msfEs for a SimpleGraph.IsMST of G, where optDepthMN m n agrees with \
+    Kruskal.encodeEdges msfEs certifying both IsMinSpanningForest (graphEdges G wt) msfEs \
+    (canonical, loop-free, duplicate-free edges of G with exact weights and length n - 1) and \
+    SimpleGraph.IsMST G wt (toSimpleGraph msfEs), where optDepthMN m n agrees with \
     exact-(m, n) decision-tree depth via optDepthMN_eq_exact. The companion raw-multigraph \
     driver theorem optimalMSF_wordRAM_spec outputs a minimum spanning forest in \
     C * (optDepthMN m n + m + n + 1) instructions (covering m > n.choose 2 saturation and \
