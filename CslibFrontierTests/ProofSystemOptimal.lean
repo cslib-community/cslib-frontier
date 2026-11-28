@@ -101,4 +101,21 @@ example {α : Type} {enc : α ↪ List Bool} {L X : Set α}
     ∃ p : Polynomial ℕ, ∀ a ∈ X, ∃ π, P π = a ∧ π.length ≤ p.eval (enc a).length :=
   hP.polyBounded_on_NP_subset D hXL hX
 
+/-- Full `(2) ↔ (3)` equivalence of Krajíček–Pudlák Theorem 2.1(i) for paddable decodable
+languages and for `UNSAT`. -/
+example {α : Type} {enc : α ↪ List Bool} {L : Set α}
+    (D : Decoder enc) (hL : Paddable enc L) :
+    (∃ P : ProofSystem enc L, P.IsOptimal) ↔
+      ∃ P : ProofSystem enc L,
+        ∀ X : Set α, X ⊆ L → X ∈ NP enc →
+          ∃ p : Polynomial ℕ, ∀ a ∈ X, ∃ π, P π = a ∧ π.length ≤ p.eval (enc a).length :=
+  ProofSystem.exists_isOptimal_iff_of_paddable D hL
+
+example :
+    (∃ P : ProofSystem encCNF UNSAT, P.IsOptimal) ↔
+      ∃ P : ProofSystem encCNF UNSAT,
+        ∀ X : Set (Cslib.Logic.PL.CNF ℕ), X ⊆ UNSAT → X ∈ NP encCNF →
+          ∃ p : Polynomial ℕ, ∀ φ ∈ X, ∃ π, P π = φ ∧ π.length ≤ p.eval (encCNF φ).length :=
+  ProofSystem.exists_isOptimal_UNSAT_iff
+
 end CslibFrontierTests.ProofSystemOptimal
