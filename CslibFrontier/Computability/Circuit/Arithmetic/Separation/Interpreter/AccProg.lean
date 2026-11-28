@@ -37,6 +37,8 @@ public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Interpreter
 
+open Cslib.BitString (lsbValue)
+
 open Cslib.Circuits.Arithmetic.Separation.Interpreter.Tree
 
 variable {A : Type} [CommRing A] {θ : List Bool → A} {R : Type} [CommRing R] [Algebra A R]
@@ -152,7 +154,7 @@ theorem wordT_eq (z : Tree) : wordT lt0 lt1 z ++ [lt2] = ((tbits z).map some ++ 
 private theorem look_pairTree {m : ℕ} {z : Tree} (hz : z.size < 2 ^ m)
     {p : List Bool} (hp : p.length = m) :
     look p (pairTree m z) =
-        ((((tbits z).map some ++ [none])[KT.val p.reverse]?).map ltr).getD .nil := by
+        ((((tbits z).map some ++ [none])[lsbValue p.reverse]?).map ltr).getD .nil := by
   rw [pairTree, look_pairs m _ (by rw [List.length_append, length_wordT]; exact hz) p hp, wordT_eq,
     List.getD_eq_getElem?_getD, List.getElem?_map]
 
@@ -198,9 +200,9 @@ private theorem lamK_ge {N : ℕ} (lam : Fin N × Option Bool → R) {i : ℕ} (
 def accK (M m N : ℕ) (γ : R) (k : ℕ → ℕ → ℕ → R)
     (lam : ℕ → Fin N × Option Bool → R) : KT R :=
   .node (.node
-      (KT.full (M + M + M) fun w => k (KT.val (w.take M)) (KT.val ((w.drop M).take M))
-          (KT.val (w.drop (M + M))))
-    (KT.full (M + m + 2) fun w => lamK (lam (KT.val (w.take M))) (KT.val ((w.drop M).take m))
+      (KT.full (M + M + M) fun w => k (lsbValue (w.take M)) (lsbValue ((w.drop M).take M))
+          (lsbValue (w.drop (M + M))))
+    (KT.full (M + m + 2) fun w => lamK (lam (lsbValue (w.take M))) (lsbValue ((w.drop M).take m))
         (decL (w.drop (M + m)))))
     (.leaf γ)
 
@@ -219,8 +221,8 @@ private theorem take_drop_three {α : Type*} {a b c : List α} {la lb : ℕ} (ha
 
 private theorem accK_k {g l r : List Bool} (hg : g.length = M) (hl : l.length = M)
     (hr : r.length = M) :
-    (accK M m N γ k lam).lk ([false, false] ++ g ++ l ++ r ++ [false]) = k (KT.val g) (KT.val l)
-        (KT.val r) ∧
+    (accK M m N γ k lam).lk ([false, false] ++ g ++ l ++ r ++ [false]) = k (lsbValue g) (lsbValue l)
+        (lsbValue r) ∧
     (accK M m N γ k lam).InB 1 ([false, false] ++ g ++ l ++ r ++ [false]) := by
   have e : [false, false] ++ g ++ l ++ r ++ [false] =
       false :: false :: ((g ++ l ++ r) ++ [false]) := by simp
@@ -228,14 +230,14 @@ private theorem accK_k {g l r : List Bool} (hg : g.length = M) (hl : l.length = 
     simp only [List.length_append, hg, hl, hr]
   rw [e]
   obtain ⟨e1, e2, e3⟩ := take_drop_three (c := r) hg hl
-  refine ⟨(KT.lk_full (fun w => k (KT.val (w.take M)) (KT.val ((w.drop M).take M))
-    (KT.val (w.drop (M + M)))) h).trans ?_, KT.inB_full _ h⟩
+  refine ⟨(KT.lk_full (fun w => k (lsbValue (w.take M)) (lsbValue ((w.drop M).take M))
+    (lsbValue (w.drop (M + M)))) h).trans ?_, KT.inB_full _ h⟩
   simp only [e1, e2, e3]
 
 private theorem accK_l {g p c : List Bool} (hg : g.length = M) (hp : p.length = m)
     (hc : c.length = 2) :
     (accK M m N γ k lam).lk ([false, true] ++ g ++ p ++ c ++ [false]) =
-      lamK (lam (KT.val g)) (KT.val p) (decL c) ∧
+      lamK (lam (lsbValue g)) (lsbValue p) (decL c) ∧
     (accK M m N γ k lam).InB 1 ([false, true] ++ g ++ p ++ c ++ [false]) := by
   have e : [false, true] ++ g ++ p ++ c ++ [false] = false :: true :: ((g ++ p ++ c) ++ [false]) :=
       by simp
@@ -243,7 +245,7 @@ private theorem accK_l {g p c : List Bool} (hg : g.length = M) (hp : p.length = 
     simp only [List.length_append, hg, hp, hc]
   rw [e]
   obtain ⟨e1, e2, e3⟩ := take_drop_three (c := c) hg hp
-  refine ⟨(KT.lk_full (fun w => lamK (lam (KT.val (w.take M))) (KT.val ((w.drop M).take m))
+  refine ⟨(KT.lk_full (fun w => lamK (lam (lsbValue (w.take M))) (lsbValue ((w.drop M).take m))
     (decL (w.drop (M + m)))) h).trans ?_, KT.inB_full _ h⟩
   simp only [e1, e2, e3]
 
@@ -252,10 +254,10 @@ private theorem accK_c : (accK M m N γ k lam).lk [true, false] = γ ∧
   ⟨rfl, ⟨0, zero_lt_one, rfl⟩⟩
 
 theorem nds_accK : (accK M m N γ k lam).nds ≤ 2 ^ (3 * M + 1) + 2 ^ (M + m + 3) + 3 := by
-  have h1 := KT.nds_full (M + M + M) fun w => k (KT.val (w.take M)) (KT.val ((w.drop M).take M))
-      (KT.val (w.drop (M + M)))
+  have h1 := KT.nds_full (M + M + M) fun w => k (lsbValue (w.take M)) (lsbValue ((w.drop M).take M))
+      (lsbValue (w.drop (M + M)))
   have h2 := KT.nds_full (M + m + 2) fun w =>
-    lamK (lam (KT.val (w.take M))) (KT.val ((w.drop M).take m)) (decL (w.drop (M + m)))
+    lamK (lam (lsbValue (w.take M))) (lsbValue ((w.drop M).take m)) (decL (w.drop (M + m)))
   have e : M + M + M + 1 = 3 * M + 1 := by ring
   have e2 : M + m + 2 + 1 = M + m + 3 := by ring
   rw [e] at h1
@@ -292,20 +294,21 @@ theorem accF_kv {M m N d s : ℕ} {p : MvPolynomial (Fin N × Option Bool) R}
   have ha : ∀ g : List Bool, g.length = M →
       ((allBits m).map fun p =>
           K.lk ([false, true] ++ g ++ p.reverse ++ lc (look p (pairTree m z)) ++ [false])).sum =
-        ∑ i, lam (KT.val g) i * codeB R N (tbits z) i := by
+        ∑ i, lam (lsbValue g) i * codeB R N (tbits z) i := by
     intro g hg
     have h1 : ∀ p ∈ allBits m,
         K.lk ([false, true] ++ g ++ p.reverse ++ lc (look p (pairTree m z)) ++ [false]) =
-        (fun w => lamK (lam (KT.val g)) (KT.val w) (((tbits z).map some ++ [none])[KT.val w]?))
+        (fun w => lamK (lam (lsbValue g)) (lsbValue w)
+          (((tbits z).map some ++ [none])[lsbValue w]?))
             p.reverse := by
       intro p hp
       have hpm := length_of_mem_allBits hp
       rw [look_pairTree hzm hpm, hK, (accK_l hg (by simpa using hpm) (length_lc _)).1, decL_lc]
     rw [List.map_congr_left h1]
-    refine (sum_allBits_reverse m fun w => lamK (lam (KT.val g)) (KT.val w)
-      (((tbits z).map some ++ [none])[KT.val w]?)).trans ?_
+    refine (sum_allBits_reverse m fun w => lamK (lam (lsbValue g)) (lsbValue w)
+      (((tbits z).map some ++ [none])[lsbValue w]?)).trans ?_
     refine (sum_allBits m fun i =>
-        lamK (lam (KT.val g)) i (((tbits z).map some ++ [none])[i]?)).trans ?_
+        lamK (lam (lsbValue g)) i (((tbits z).map some ++ [none])[i]?)).trans ?_
     rw [← Finset.sum_subset (Finset.range_mono hNm), Finset.sum_range, Fintype.sum_prod_type]
     · refine Finset.sum_congr rfl fun i _ => ?_
       rcases Option.eq_none_or_eq_some (((tbits z).map some ++ [none])[(i : ℕ)]?) with hc | ⟨γ, hc⟩

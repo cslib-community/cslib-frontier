@@ -39,6 +39,8 @@ public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Interpreter
 
+open Cslib.BitString (lsbValue)
+
 open Cslib.Circuits.Arithmetic.Separation.Interpreter.Tree
 
 variable {A : Type} [CommRing A] {θ : List Bool → A} {R : Type} [CommRing R]
@@ -181,9 +183,6 @@ theorem nds_comb (c : R) (n : ℕ) : (comb c n).nds = 2 * n + 1 := by
   | zero => rfl
   | succ n ih => simp only [comb, nds, ih]; omega
 
-omit [CommRing R] in
-theorem nds_pos (K : KT R) : 0 < K.nds := by cases K <;> simp [nds]
-
 theorem nds_expand (B : ℕ) (K : KT R) : (K.expand B).nds ≤ K.nds * (2 * B + 1) := by
   induction K with
   | none => simp [expand, nds]
@@ -311,12 +310,12 @@ theorem gw_ev {pre : List Bool} {b : ℕ} {c : R} (x : Tree) {n j : ℕ}
     (h : ∀ i < j + n,
         κ (pre ++ KT.pw (ν (b + i))) = c ^ 2 ^ (b + i) ∧ P (pre ++ KT.pw (ν (b + i)))) :
     ∃ l, Ev θ (gw ν pre b j n) x l ∧ List.Forall₂ (fun r w => r.th = 1 ∧ r.out = ofBits w ∧
-      (r.bill.map κ).prod = (c ^ 2 ^ (b + j)) ^ KT.val w ∧ (∀ p ∈ r.bill, P p) ∧ r.cost ≤ 8 * n +
+      (r.bill.map κ).prod = (c ^ 2 ^ (b + j)) ^ lsbValue w ∧ (∀ p ∈ r.bill, P p) ∧ r.cost ≤ 8 * n +
           1) l (KT.words n) := by
   induction n generalizing j with
   | zero =>
       exact ⟨_, .quote .nil x,
-          .cons ⟨rfl, rfl, by simp [Run.det, KT.val], by simp [Run.det], by simp [Run.det]⟩ .nil⟩
+          .cons ⟨rfl, rfl, by simp [Run.det, lsbValue], by simp [Run.det], by simp [Run.det]⟩ .nil⟩
   | succ n ih =>
     obtain ⟨l, e, hl⟩ := ih (j := j + 1) (fun i hi => h i (by omega))
     obtain ⟨hκ, hP⟩ := h j (by omega)
@@ -330,8 +329,7 @@ theorem gw_ev {pre : List Bool} {b : ℕ} {c : R} (x : Tree) {n j : ℕ}
       · simp [Run.seq, Run.tick, h1]
       · simp [Run.seq, Run.tick, h2, ofBits, bit]
       · simp only
-          [Run.seq, Run.tick, List.nil_append, h3, KT.val, Bool.false_eq_true, ite_false, zero_add,
-              ← pow_mul]
+          [Run.seq, Run.tick, List.nil_append, h3, lsbValue, Bool.toNat_false, zero_add, ← pow_mul]
         congr 1
         rw [← add_assoc, pow_succ]
         ring
@@ -345,9 +343,8 @@ theorem gw_ev {pre : List Bool} {b : ℕ} {c : R} (x : Tree) {n j : ℕ}
       · simp [Run.seq, Run.tick, h1]
       · simp [Run.seq, Run.tick, h2, ofBits, bit]
       · simp only
-          [Run.seq, Run.tick, List.singleton_append, List.map_cons, List.prod_cons, h3, hκ, KT.val,
-              ite_true,
-          ← pow_mul, ← pow_add]
+          [Run.seq, Run.tick, List.singleton_append, List.map_cons, List.prod_cons, h3, hκ,
+            lsbValue, Bool.toNat_true, ← pow_mul, ← pow_add]
         congr 1
         rw [← add_assoc, pow_succ]
         ring

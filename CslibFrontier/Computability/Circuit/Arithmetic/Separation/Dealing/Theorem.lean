@@ -43,6 +43,8 @@ public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Dealing
 
+open Cslib.BitString (lsbValue)
+
 open Function Interpreter Interpreter.Tree
 
 section Program
@@ -50,8 +52,8 @@ section Program
 variable {A : Type} [CommRing A] {θ : List Bool → A}
 
 /-- The dealing program: the word of the argument, with `t0` for a leaf and `t1` for a node, cut
-into parts of `KT.val nl` letters at the paths `names`; the steps `sts` and then `sts'`, guessing
-bit lists of `KT.val nub` bits; and the templates `ts`. -/
+into parts of `lsbValue nl` letters at the paths `names`; the steps `sts` and then `sts'`, guessing
+bit lists of `BitString.lsbValue nub` bits; and the templates `ts`. -/
 @[expose] def dealFormula (t0 t1 : Tree) (names : List (List Bool)) (nl nub : List Bool)
     (sts sts' : List DStep) (ts : List Tm) : Fm :=
   lett (dstepsF nub sts (partsF names nl (wordF t0 t1 .id)))
@@ -66,38 +68,38 @@ and the weighted sum of the products of their plain sums is the sum over those s
 theorem dealFormula_does (t0 t1 : Tree) (names : List (List Bool)) (nl nub : List Bool)
     (sts sts' : List DStep) (ts : List Tm) (z : Tree) {Ln : ℕ} (hn : ∀ p ∈ names, p.length ≤ Ln)
     {I : List DStep → (List Bool → Tree) → Prop} {c : DStep → ℕ} {ct c9 : ℕ}
-    (hI : ∀ st sts' σ, I (st :: sts') σ → st.cost (KT.val nub) nub.length σ ≤ c st ∧
-      ∀ σ' ∈ st.exec (KT.val nub) σ, I sts' σ')
-    (hI0 : I sts (gets (partsT (KT.val nl) names .nil (wordT t0 t1 z))))
-    (h9 : ∀ σ ∈ execAll (KT.val nub) sts (gets (partsT (KT.val nl) names .nil (wordT t0 t1 z))),
+    (hI : ∀ st sts' σ, I (st :: sts') σ → st.cost (lsbValue nub) nub.length σ ≤ c st ∧
+      ∀ σ' ∈ st.exec (lsbValue nub) σ, I sts' σ')
+    (hI0 : I sts (gets (partsT (lsbValue nl) names .nil (wordT t0 t1 z))))
+    (h9 : ∀ σ ∈ execAll (lsbValue nub) sts (gets (partsT (lsbValue nl) names .nil (wordT t0 t1 z))),
       (∃ I' : List DStep → (List Bool → Tree) → Prop, ∃ c' : DStep → ℕ,
-        (∀ st sts'' σ, I' (st :: sts'') σ → st.cost (KT.val nub) nub.length σ ≤ c' st ∧
-          ∀ σ' ∈ st.exec (KT.val nub) σ, I' sts'' σ') ∧ I' sts' σ ∧
+        (∀ st sts'' σ, I' (st :: sts'') σ → st.cost (lsbValue nub) nub.length σ ≤ c' st ∧
+          ∀ σ' ∈ st.exec (lsbValue nub) σ, I' sts'' σ') ∧ I' sts' σ ∧
             (sts'.map fun st => c' st + 30).sum ≤ c9) ∧
-      ∀ σ' ∈ execAll (KT.val nub) sts' σ, ∀ t ∈ ts, t.cost σ' ≤ ct) :
+      ∀ σ' ∈ execAll (lsbValue nub) sts' σ, ∀ t ∈ ts, t.cost σ' ≤ ct) :
     ∃ Q : List (A × Tree),
       Does θ (dealFormula t0 t1 names nl nub sts sts' ts) z Q (60 * z.size +
         (z.size + names.length) * (60 * nl.length + 100) + names.length * (60 * Ln + 130) +
         (sts.map fun st => c st + 30).sum + c9 + ts.length * (ct + 60) + 300) ∧
-      (∀ q ∈ Q, ∃ σ ∈ execAll (KT.val nub) (sts ++ sts')
-        (gets (partsT (KT.val nl) names .nil (wordT t0 t1 z))),
+      (∀ q ∈ Q, ∃ σ ∈ execAll (lsbValue nub) (sts ++ sts')
+        (gets (partsT (lsbValue nl) names .nil (wordT t0 t1 z))),
           q.2 = listT (ts.map fun t => t.expand σ)) ∧
-      wsum Q (Cut.pvProd θ) = ((execAll (KT.val nub) (sts ++ sts')
-        (gets (partsT (KT.val nl) names .nil (wordT t0 t1 z)))).map
+      wsum Q (Cut.pvProd θ) = ((execAll (lsbValue nub) (sts ++ sts')
+        (gets (partsT (lsbValue nl) names .nil (wordT t0 t1 z)))).map
           fun σ => (ts.map fun t => pv θ (t.expand σ)).prod).sum := by
-  generalize hσ0 : gets (partsT (KT.val nl) names .nil (wordT t0 t1 z)) = σ0 at hI0 h9 ⊢
+  generalize hσ0 : gets (partsT (lsbValue nl) names .nil (wordT t0 t1 z)) = σ0 at hI0 h9 ⊢
   have hw := partsF_gives (wordF_gives (t0 := t0) (t1 := t1) (Gives.id (θ := θ) z)) names nl Ln hn
   rw [length_wordT] at hw
   obtain ⟨Q1, d1, m1, s1⟩ := dstepsF_does (θ := θ) nub sts hw hI (hσ0 ▸ hI0)
   rw [hσ0] at m1 s1
   -- the steps `sts'` and the templates, from every state after `sts`
-  have h2 (W : Tree) : ∃ Q : List (A × Tree), gets W ∈ execAll (KT.val nub) sts σ0 →
+  have h2 (W : Tree) : ∃ Q : List (A × Tree), gets W ∈ execAll (lsbValue nub) sts σ0 →
       Does θ (lett (dstepsF nub sts' .id) (tmsF ts .id)) W Q (c9 + ts.length * (ct + 60) + 150) ∧
-      (∀ q ∈ Q, ∃ σ ∈ execAll (KT.val nub) sts' (gets W),
+      (∀ q ∈ Q, ∃ σ ∈ execAll (lsbValue nub) sts' (gets W),
         q.2 = listT (ts.map fun t => t.expand σ)) ∧
-      wsum Q (Cut.pvProd θ) = ((execAll (KT.val nub) sts' (gets W)).map
+      wsum Q (Cut.pvProd θ) = ((execAll (lsbValue nub) sts' (gets W)).map
         fun σ => (ts.map fun t => pv θ (t.expand σ)).prod).sum := by
-    by_cases hW : gets W ∈ execAll (KT.val nub) sts σ0
+    by_cases hW : gets W ∈ execAll (lsbValue nub) sts σ0
     swap
     · exact ⟨[], fun h => absurd h hW⟩
     obtain ⟨⟨I', c', hI', hI0', hc'⟩, ht⟩ := h9 _ hW
@@ -118,10 +120,10 @@ theorem dealFormula_does (t0 t1 : Tree) (names : List (List Bool)) (nl nub : Lis
   · obtain ⟨q, hq, r, hr, e, -⟩ := mem_bindW hp
     obtain ⟨σ, hσ, h⟩ := (hR q.2 (m1 q hq)).2.1 r hr
     exact ⟨σ, by rw [execAll_append, List.mem_flatMap]; exact ⟨_, m1 q hq, hσ⟩, by rw [e, h]⟩
-  · rw [wsum_bindW, wsum_congr (φ' := fun W => ((execAll (KT.val nub) sts' (gets W)).map
+  · rw [wsum_bindW, wsum_congr (φ' := fun W => ((execAll (lsbValue nub) sts' (gets W)).map
       fun σ => (ts.map fun t => pv θ (t.expand σ)).prod).sum) fun q hq => (hR q.2 (m1 q hq)).2.2,
       execAll_append, List.sum_map_flatMap]
-    exact s1 fun σ => ((execAll (KT.val nub) sts' σ).map fun σ' =>
+    exact s1 fun σ => ((execAll (lsbValue nub) sts' σ).map fun σ' =>
       (ts.map fun t => pv θ (t.expand σ')).prod).sum
 
 end Program

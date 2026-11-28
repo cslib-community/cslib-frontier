@@ -52,6 +52,8 @@ public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Dealing
 
+open Cslib.BitString (lsbValue)
+
 open Function Finset Interpreter Interpreter.Tree Cut GroupProgram
 
 /-- The part `κ` of the input `x`, as the list of the codes of its letters, last letter first. -/
@@ -144,9 +146,9 @@ namespace Codes
   .cons (.c gp) (C.scriptTm tab tg bT bub hD hmm g)
 
 /-- **The dealing program.** It writes the word of its argument with the codes of the letters
-`bt false` for a leaf and `bt true` for a node, cuts it into parts of `KT.val nl` letters at the
+`bt false` for a leaf and `bt true` for a node, cuts it into parts of `lsbValue nl` letters at the
 names of the parts, runs the steps up to the checks (`Codes.dealSteps`), guesses the contents of
-the cut units (`Codes.contentSteps`) with `KT.val nub` bits each, and fills the template of the
+the cut units (`Codes.contentSteps`) with `lsbValue nub` bits each, and fills the template of the
 instance of GROUP, of code `gp`, for every group. -/
 @[expose] noncomputable def dealProgram (qn : Q → ℕ) (tg : M.Role → ℕ) (bT bub nl nub : List Bool)
     (hD : 1 < D) (hmm : mm ≤ D) (gp : Tree) (cb : Option Γ → Fin c → Bool) (bt : Bool → Γ)
@@ -213,7 +215,7 @@ variable {F : Type} [CommRing F] {Γ S Q : Type} [Fintype Γ] [DecidableEq Γ] [
   {τ s τ' s' t T ℓ : ℕ}
 
 /-- **One cut.** Suppose that, for every argument `z` of size at most `s`, with the parts `x` of
-`ℓ = KT.val nl` letters of its word:
+`ℓ = BitString.lsbValue nl` letters of its word:
 * the automaton `mu` has, on the word, the value `pv θ z` if `z` is `τ`-plain (`hU`);
 * that value is the sum, over the states `q` from `i` to `e`, the valid row data `ρ`, the valid
   numbers of units `n`, the good outcomes `o` and the contents `b` of the cut units that are
@@ -224,7 +226,7 @@ variable {F : Type} [CommRing F] {Γ S Q : Type} [Fintype Γ] [DecidableEq Γ] [
   size at most `s'`, is `τ'`-plain and has the value of the group (`hpc`).
 
 Then the dealing program cuts `(τ, s)` into `(τ', s')` with at most `mm` pieces in `t` steps. -/
-theorem isCut_dealProgram (hK : 0 < K) (hnl : KT.val nl = ℓ) (hnub : KT.val nub = ub)
+theorem isCut_dealProgram (hK : 0 < K) (hnl : lsbValue nl = ℓ) (hnub : lsbValue nub = ub)
     (hU : ∀ z : Tree, z.size ≤ s → Plain θ τ z →
       Tape.runVal mu i e (K * T) (fun _ => (tbits z).map bt) = pv θ z)
     (hval : ∀ z : Tree, z.size ≤ s → Tape.runVal mu i e (K * T) (fun _ => (tbits z).map bt) =
@@ -262,9 +264,9 @@ theorem isCut_dealProgram (hK : 0 < K) (hnl : KT.val nl = ℓ) (hnub : KT.val nu
   subst hnl hnub
   intro z hz
   obtain ⟨Qs, hD', hmem, hsum⟩ := hdoes z hz
-  set x := parts (KT.val nl) ((tbits z).map bt)
+  set x := parts (lsbValue nl) ((tbits z).map bt)
   -- the templates at a state with the values of the end
-  have hpiece {q ρ n o st} {b : UnitId (K + K) U0 M.Channel U1 → UnitContent (KT.val nub)}
+  have hpiece {q ρ n o st} {b : UnitId (K + K) U0 M.Channel U1 → UnitContent (lsbValue nub)}
       (hst : Final C tab qn (partTree cb x) q ρ n o b st) (g : Fin mm) :
       (C.pieceTm tab tg bT bub hD hmm gp g).expand (extend C.name st fun _ => .nil) =
         .cons gp (scriptEnc bT bub (groupScript qn cb P q x ρ n o (grp ⟨n, o⟩) g C.key C.dkey tg
@@ -284,7 +286,7 @@ theorem isCut_dealProgram (hK : 0 < K) (hnl : KT.val nl = ℓ) (hnub : KT.val nu
   refine ⟨Qs, by rwa [Fm.ofTree_code], fun r hr => ⟨(hpieces r hr).1.le,
     fun y hy => ((hpieces r hr).2 y hy).1⟩, fun hpl => ⟨fun r hr y hy => ((hpieces r hr).2 y hy).2,
     ?_⟩⟩
-  obtain ⟨st, hf, hs⟩ := sum_execAll_allSteps (ub := KT.val nub) C tab (partTree cb x) qn hU0 hU1
+  obtain ⟨st, hf, hs⟩ := sum_execAll_allSteps (ub := lsbValue nub) C tab (partTree cb x) qn hU0 hU1
     hK i e
   rw [hsum, ← hU z hz hpl, hval z hz, hs]
   refine sum_congr rfl fun q _ => ite_congr rfl (fun _ => sum_congr rfl fun ρ _ => ite_congr rfl

@@ -132,10 +132,6 @@ private theorem mat_blk' (t : U a × Matrix (Fin a) (Fin b) F2 × U b) : mat (bl
   simp only [Matrix.mul_one, Matrix.one_mul]
   abel
 
-theorem mat_blk (A : U a) (M : Matrix (Fin a) (Fin b) F2) (C : U b) : mat (blk (A, M, C)) =
-    wl a b * mat A * (wl a b)ᵀ + wl a b * M * (wr a b)ᵀ + wr a b * mat C * (wr a b)ᵀ :=
-  mat_blk' (A, M, C)
-
 theorem blk_injective : Function.Injective
     (blk : U a × Matrix (Fin a) (Fin b) F2 × U b → U (a + b)) := by
   intro s t hst

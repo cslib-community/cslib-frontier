@@ -36,6 +36,8 @@ public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Interpreter
 
+open Cslib.BitString (lsbValue)
+
 open Cslib.Circuits.Arithmetic.Separation.Interpreter.Tree
 
 variable {A : Type} [CommRing A] {θ : List Bool → A} {R : Type} [CommRing R]
@@ -101,25 +103,14 @@ theorem length_of_mem_allBits {m : ℕ} {w : List Bool} (h : w ∈ allBits m) : 
     simp only [allBits, List.mem_append, List.mem_map] at h
     rcases h with ⟨v, hv, rfl⟩ | ⟨v, hv, rfl⟩ <;> simp [ih hv]
 
-theorem val_lt_of_length {m : ℕ} {w : List Bool} (h : w.length = m) : KT.val w < 2 ^ m := by
-  induction w generalizing m with
-  | nil =>
-    subst h
-    simp [KT.val]
-  | cons b w ih =>
-    subst h
-    have := ih rfl
-    rw [KT.val, List.length_cons, pow_succ]
-    cases b <;> simp <;> omega
-
-theorem exists_word {m k : ℕ} (h : k < 2 ^ m) : ∃ w : List Bool, w.length = m ∧ KT.val w = k := by
+theorem exists_word {m k : ℕ} (h : k < 2 ^ m) : ∃ w : List Bool, w.length = m ∧ lsbValue w = k := by
   induction m generalizing k with
-  | zero => exact ⟨[], rfl, by simp [KT.val]; omega⟩
+  | zero => exact ⟨[], rfl, by simp [lsbValue]; omega⟩
   | succ m ih =>
     rw [pow_succ] at h
     obtain ⟨w, h1, h2⟩ := ih (k := k / 2) (by omega)
     refine ⟨decide (k % 2 = 1) :: w, by simp [h1], ?_⟩
-    rw [KT.val, h2]
+    rw [lsbValue, h2]
     by_cases h3 : k % 2 = 1
     · simp [h3]
       omega
@@ -127,17 +118,17 @@ theorem exists_word {m k : ℕ} (h : k < 2 ^ m) : ∃ w : List Bool, w.length = 
       omega
 
 /-- Sums over words. -/
-theorem sum_allBits (m : ℕ) (f : ℕ → R) : ((allBits m).map fun w => f (KT.val w)).sum =
+theorem sum_allBits (m : ℕ) (f : ℕ → R) : ((allBits m).map fun w => f (lsbValue w)).sum =
     ∑ k ∈ Finset.range (2 ^ m), f k := by
   induction m generalizing f with
-  | zero => simp [allBits, KT.val]
+  | zero => simp [allBits, lsbValue]
   | succ m ih =>
     have h1 := ih fun k => f (1 + 2 * k)
     have h2 := ih fun k => f (2 * k)
-    have e1 : ((allBits (m + 1)).map fun w => f (KT.val w)).sum =
-        ((allBits m).map fun w => f (1 + 2 * KT.val w)).sum +
-            ((allBits m).map fun w => f (2 * KT.val w)).sum := by
-      simp [allBits, KT.val, Function.comp_def]
+    have e1 : ((allBits (m + 1)).map fun w => f (lsbValue w)).sum =
+        ((allBits m).map fun w => f (1 + 2 * lsbValue w)).sum +
+            ((allBits m).map fun w => f (2 * lsbValue w)).sum := by
+      simp [allBits, lsbValue, Function.comp_def]
     rw [e1, h1, h2, pow_succ, mul_comm]
     clear e1 h1 h2 ih
     induction 2 ^ m with
@@ -230,7 +221,7 @@ theorem getD_pairL (l : List Tree) (k : ℕ) : ((pairL l).getD k .nil).hd = l.ge
 /-- Reading in the tree of pairs. -/
 theorem look_pairs (m : ℕ) (xs : List Tree) (hx : xs.length ≤ 2 ^ m) (p : List Bool)
     (hp : p.length = m) :
-    look p (listT (pairL^[m] xs)).hd = xs.getD (KT.val p.reverse) .nil := by
+    look p (listT (pairL^[m] xs)).hd = xs.getD (lsbValue p.reverse) .nil := by
   induction m generalizing xs p with
   | zero =>
     rw [List.length_eq_zero_iff] at hp
@@ -244,13 +235,12 @@ theorem look_pairs (m : ℕ) (xs : List Tree) (hx : xs.length ≤ 2 ^ m) (p : Li
     rw [List.length_append, List.length_singleton, Nat.add_right_cancel_iff] at hp
     rw [Function.iterate_succ_apply, look_append,
         ih (pairL xs) (by rw [length_pairL]; rw [pow_succ] at hx; omega) p hp,
-      List.reverse_append, List.reverse_singleton, List.singleton_append, KT.val]
-    have h := getD_pairL xs (KT.val p.reverse)
+      List.reverse_append, List.reverse_singleton, List.singleton_append, lsbValue]
+    have h := getD_pairL xs (lsbValue p.reverse)
     cases b with
     | true => exact h.2
     | false =>
-      have e : (if false = true then 1 else 0) + 2 * KT.val p.reverse = 2 * KT.val p.reverse :=
-          by simp
+      have e : false.toNat + 2 * lsbValue p.reverse = 2 * lsbValue p.reverse := by simp
       rw [e]
       exact h.1
 

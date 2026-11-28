@@ -53,6 +53,8 @@ public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Dealing
 
+open Cslib.BitString (lsbValue)
+
 open Function Finset Interpreter Cut GroupProgram
 
 /-! ### Codes -/
@@ -199,7 +201,7 @@ theorem isCut_dealProgram_of_evaluatesGroups (tab : SlpTab P grp D nI pS)
     (hGR : EvaluatesGroups θ mu cb kinds qn GROUP κ)
     (hkind : ∀ r, kinds[tg r]? = some ⟨M.law r.1, r.2⟩) (hP : P.Ok cap)
     (hT : BitString.binaryValue bT = T) (hub : BitString.binaryValue bub = ub) (hub0 : 0 < ub)
-    (hnl : KT.val nl = ℓ) (hnub : KT.val nub = ub) (hℓ : ℓ ≤ T) (hlbT : bT.length ≤ Lc)
+    (hnl : lsbValue nl = ℓ) (hnub : lsbValue nub = ub) (hℓ : ℓ ≤ T) (hlbT : bT.length ≤ Lc)
     (hlbub : bub.length ≤ Lc) (hlnl : nl.length ≤ Lc) (hlnub : nub.length ≤ Lc)
     (hU : ∀ z : Tree, z.size ≤ s → Plain θ τ z →
       Tape.runVal mu i e (K * T) (fun _ => (tbits z).map bt) = pv θ z)

@@ -44,6 +44,8 @@ public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Dealing
 
+open Cslib.BitString (lsbValue)
+
 open Function Finset Interpreter Interpreter.Tree Cut GroupProgram
 
 /-- The bound for the time of the dealing program at an argument of size at most `s`, with `K`
@@ -67,8 +69,8 @@ within `dealTime Lc X K mm ub bd s` steps, the lists of the filled templates at 
 all its steps, and the weighted sum of the products of their plain sums is the sum over these
 states. -/
 theorem dealProgram_does (tab : SlpTab P grp D nI pS) (H : C.SizeBounds qn tg X Lc) (hK : 0 < K)
-    {θ : List Bool → F} {nl nub bT bub : List Bool} {ℓ ub : ℕ} (hnl : KT.val nl = ℓ)
-    (hnub : KT.val nub = ub) (hlnl : nl.length ≤ Lc) (hlnub : nub.length ≤ Lc) {hD : 1 < D}
+    {θ : List Bool → F} {nl nub bT bub : List Bool} {ℓ ub : ℕ} (hnl : lsbValue nl = ℓ)
+    (hnub : lsbValue nub = ub) (hlnl : nl.length ≤ Lc) (hlnub : nub.length ≤ Lc) {hD : 1 < D}
     {hmm : mm ≤ D} {gp : Tree} {cb : Option Γ → Fin c → Bool} {bt : Bool → Γ} {i e : Q}
     {hU0 : U0 < D} {hU1 : U1 ≤ D} {bd : ℕ}
     (hbd : ∀ n o, tab.Valid n → (∀ x, P.Good n o x) →
@@ -87,15 +89,16 @@ theorem dealProgram_does (tab : SlpTab P grp D nI pS) (H : C.SizeBounds qn tg X 
             fun t => pv θ (t.expand σ)).prod).sum := by
   classical
   subst hnl hnub
-  have h0 := gets_partsT_eq_initialState C cb bt (KT.val nl) z
-  obtain ⟨I, hI, hI0⟩ := exists_inv_dealSteps (m := KT.val nub) (mb := nub.length) tab H.name
+  have h0 := gets_partsT_eq_initialState C cb bt (lsbValue nl) z
+  obtain ⟨I, hI, hI0⟩ := exists_inv_dealSteps (m := lsbValue nub) (mb := nub.length) tab H.name
     H.digit H.rowData H.states H.rowDatas H.initUnits H.newUnits
-    (partTree cb (parts (KT.val nl) ((tbits z).map bt))) qn i e hU0 hU1
+    (partTree cb (parts (lsbValue nl) ((tbits z).map bt))) qn i e hU0 hU1
   obtain ⟨Qs, hQ, hm, hs⟩ := dealFormula_does (θ := θ) (ofBits (letterCode cb (bt false)))
     (ofBits (letterCode cb (bt true))) ((List.finRange K).map fun κ => C.name (.part κ)) nl nub
     (C.dealSteps tab qn i e hU0 hU1) C.contentSteps
     ((List.finRange mm).map (C.pieceTm tab tg bT bub hD hmm gp)) z (Ln := Lc)
-    (ct := pieceBound Lc X) (c9 := X * (90 * Lc + 230) + bd * ((KT.val nub + 1) * (60 * Lc + 100)))
+    (ct := pieceBound Lc X)
+    (c9 := X * (90 * Lc + 230) + bd * ((lsbValue nub + 1) * (60 * Lc + 100)))
     (fun _ hp => by obtain ⟨κ, -, rfl⟩ := List.mem_map.1 hp; exact H.name _) hI
     (by rwa [h0]) fun σ hσ => by
       rw [h0] at hσ
@@ -104,7 +107,7 @@ theorem dealProgram_does (tab : SlpTab P grp D nI pS) (H : C.SizeBounds qn tg X 
       refine ⟨⟨I', c', hI', hI0', hc'.trans ?_⟩, fun σ' hσ' t ht => ?_⟩
       · have := Nat.mul_le_mul_right (90 * Lc + 230) H.units
         have := Nat.mul_le_mul (hbd n o hn ho)
-          (Nat.mul_le_mul_left (KT.val nub + 1) (Nat.add_le_add_right (Nat.mul_le_mul_left 60
+          (Nat.mul_le_mul_left (lsbValue nub + 1) (Nat.add_le_add_right (Nat.mul_le_mul_left 60
             hlnub) 100))
         omega
       · obtain ⟨g, -, rfl⟩ := List.mem_map.1 ht

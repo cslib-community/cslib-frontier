@@ -23,6 +23,8 @@ import Mathlib.Algebra.Field.ZMod
 
 namespace CslibFrontierTests.Interpreter
 
+open Cslib.BitString (lsbValue)
+
 open Cslib.Circuits.Arithmetic.Separation.Interpreter
 
 /-- `ℤ` is a Jacobson ring. -/
@@ -121,7 +123,8 @@ example : (allBits 2).length = 4 := by decide
 example : addc false [true, false] [true, false] = [false, true] := by decide
 
 /-- `3 + 1 = 0` modulo `2 ^ 2`: the last carry is dropped. -/
-example : KT.val (addc false [true, true] [true, false]) = (KT.val [true, true] + 1) % 2 ^ 2 := by
+example :
+    lsbValue (addc false [true, true] [true, false]) = (lsbValue [true, true] + 1) % 2 ^ 2 := by
   decide
 
 /-- Mapping the constants keeps the shape of the trie. -/

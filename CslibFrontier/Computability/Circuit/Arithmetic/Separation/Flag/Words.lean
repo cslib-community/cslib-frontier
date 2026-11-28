@@ -67,8 +67,6 @@ theorem mul_x_apply (j : Fin (n - 1)) (A : U n) (i k : Fin n) :
   · rw [ite_eq_right h]
     simp [Matrix.mul_apply, Ne.symm h]
 
-theorem f2_add_self (a : F2) : a + a = 0 := CharTwo.add_self_eq_zero a
-
 /-- The sum of the lengths of the generators of types ≥ p. -/
 noncomputable def Len.T (l : Len (U n)) (p : ℕ) : ℝ :=
   ∑ j ∈ univ.filter (fun j : Fin (n - 1) => p ≤ j.val), l (x n j)

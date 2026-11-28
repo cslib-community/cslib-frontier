@@ -111,9 +111,6 @@ variable {κ : Type} [Fintype κ] {M : κ → Type}
   Index l := (t l.1).Index l.2
   entry y := ∏ k, (t k).entry fun m => y ⟨k, m⟩
 
-theorem outer_entry (t : ∀ k, PartyTensor K (M k)) (y : ∀ l, (outer t).Index l) :
-    (outer t).entry y = ∏ k, (t k).entry fun m => y ⟨k, m⟩ := rfl
-
 /-- Giving the legs of a product with separate legs to parties. -/
 theorem antisymmRel_push_outer [DecidableEq κ] [∀ k, Fintype (M k)] [∀ k, DecidableEq (M k)]
     (π : (Σ k, M k) → I) (t : ∀ k, PartyTensor K (M k)) :

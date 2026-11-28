@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Dealing.Program
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Dealing.ScriptSize
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Dealing.TemplateCost
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Dealing.Theorem
+import CslibFrontier.Foundations.Data.BitString.Binary
 import Mathlib.Data.Fintype.BigOperators
 
 /-! Tests of the dealing program, as a client that sees only the public statements.
@@ -42,6 +43,8 @@ import Mathlib.Data.Fintype.BigOperators
 set_option linter.privateModule false
 
 namespace CslibFrontierTests.SeparationDealing
+
+open Cslib.BitString (lsbValue lsbValue_eq_binaryValue_reverse)
 
 open Cslib Cslib.Circuits.Arithmetic.Separation Cslib.Circuits.Arithmetic.Separation.Cut
   Cslib.Circuits.Arithmetic.Separation.Interpreter Cslib.Circuits.Arithmetic.Separation.Dealing
@@ -222,7 +225,7 @@ example [DecidableEq Γ] {θ : List Bool → F} {mu : Tape.Letter S Unit Γ → 
     [∀ n o x, Decidable (P.Good n o x)] {qn : Q → ℕ} {tg : M.Role → ℕ}
     {bT bub nl nub : List Bool} {hD : 1 < D} {hmm : mm ≤ D} {gp : Tree}
     {cb : Option Γ → Fin c → Bool} {bt : Bool → Γ} {i e : Q} {hU0 : U0 < D} {hU1 : U1 ≤ D}
-    {τ s τ' s' t T ℓ : ℕ} (hK : 0 < K) (hnl : KT.val nl = ℓ) (hnub : KT.val nub = ub)
+    {τ s τ' s' t T ℓ : ℕ} (hK : 0 < K) (hnl : lsbValue nl = ℓ) (hnub : lsbValue nub = ub)
     (hU : ∀ z : Tree, z.size ≤ s → Plain θ τ z →
       Tape.runVal mu i e (K * T) (fun _ => (tbits z).map bt) = pv θ z)
     (hval : ∀ z : Tree, z.size ≤ s → Tape.runVal mu i e (K * T) (fun _ => (tbits z).map bt) =
@@ -307,7 +310,7 @@ example : Fintype.card (Name 1 1 1 Unit Unit Unit) = 39 := by
 
 /-- The word `[true, false]` is `2`, most significant bit first. -/
 example : BitString.binaryValue [true, false] = 2 := by
-  rw [show [true, false] = [false, true].reverse from rfl, ← KT.val_eq_binaryValue_reverse]
+  rw [show [true, false] = [false, true].reverse from rfl, ← lsbValue_eq_binaryValue_reverse]
   rfl
 
 /-- The time bound of the dealing program with codes of two bits, numbers at most `3`, one block,
@@ -387,7 +390,7 @@ example {θ : List Bool → F} {mu : Tape.Letter S Unit Γ → Matrix Q Q F}
     (hGR : EvaluatesGroups θ mu cb kinds qn GROUP κ)
     (hkind : ∀ r, kinds[tg r]? = some ⟨M.law r.1, r.2⟩) (hP : P.Ok cap)
     (hT : BitString.binaryValue bT = T) (hub : BitString.binaryValue bub = ub)
-    (hnl : KT.val nl = ℓ) (hnub : KT.val nub = ub) (hℓ : ℓ ≤ T) (hlbT : bT.length ≤ Lc)
+    (hnl : lsbValue nl = ℓ) (hnub : lsbValue nub = ub) (hℓ : ℓ ≤ T) (hlbT : bT.length ≤ Lc)
     (hlbub : bub.length ≤ Lc) (hlnl : nl.length ≤ Lc) (hlnub : nub.length ≤ Lc)
     (hN : CutNumbers v K τ s k T ℓ ub lh X Lc m c ιb bd ev mm) (hκ : κ ≤ m)
     (hU : ∀ z : Tree, z.size ≤ s → Plain θ τ z →

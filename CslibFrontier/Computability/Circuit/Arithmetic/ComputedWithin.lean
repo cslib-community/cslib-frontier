@@ -401,15 +401,6 @@ theorem IsAffine.aeval {P : MvPolynomial τ K} (hP : IsAffine P) {ρ : τ → Mv
 @[expose] def IsAffineProjection (P : MvPolynomial σ K) (Q : MvPolynomial τ K) : Prop :=
   ∃ ρ : τ → MvPolynomial σ K, (∀ i, IsAffine (ρ i)) ∧ aeval ρ Q = P
 
-/-- A projection, which substitutes variables and constants, is an affine projection. -/
-theorem IsProjection.isAffineProjection {P : MvPolynomial σ K} {Q : MvPolynomial τ K}
-    (h : IsProjection P Q) : IsAffineProjection P Q := by
-  obtain ⟨ρ, rfl⟩ := h
-  refine ⟨fun i => Sum.elim X (fun a => C a) (ρ i), fun i => ?_, rfl⟩
-  rcases h : ρ i with j | a
-  · exact Or.inr ⟨j, 1, 0, by simp [h]⟩
-  · exact Or.inl ⟨a, by simp [h]⟩
-
 /-- An affine polynomial, with its variable read from input `i`, costs at most four gates. -/
 private theorem synthesis_affine {P : MvPolynomial σ K} (hP : IsAffine P) (y₀ : σ) (i : Fin n) :
     ∃ (y : σ) (g : (Fin n → MvPolynomial σ K) → MvPolynomial σ K),

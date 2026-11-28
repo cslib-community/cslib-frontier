@@ -22,12 +22,11 @@ is at most `(Lc + 1) * (T + ub + 2) + ι * T + 3 * (ev + ι * lh) * (ub + Lc + 1
 (`groupTime_le_of_sizeBounds`).
 
 GROUP reads the numbers `T` and `ub` most significant bit first (`BitString.binaryValue`), the
-dealing program least significant bit first (`KT.val`): the reversed word has the same value
-(`KT.val_eq_binaryValue_reverse`).
+dealing program least significant bit first (`BitString.lsbValue`); the library lemma
+`BitString.lsbValue_eq_binaryValue_reverse` relates the two.
 
 ## Main results
 
-* `KT.val_eq_binaryValue_reverse`: the two values of binary words.
 * `groupTime_le_of_sizeBounds`: the time of GROUP at the script of a group of the dealing
   program.
 
@@ -42,16 +41,6 @@ on the constants of P1's `groupTime_le`.
 public section
 
 namespace Cslib.Circuits.Arithmetic.Separation
-
-/-- Reading a word least significant bit first is reading the reversed word most significant bit
-first. -/
-theorem Interpreter.KT.val_eq_binaryValue_reverse (w : List Bool) :
-    KT.val w = BitString.binaryValue w.reverse := by
-  induction w with
-  | nil => rfl
-  | cons b w ih =>
-    rw [List.reverse_cons, BitString.binaryValue_snoc, ← ih, KT.val]
-    cases b <;> dsimp <;> omega
 
 namespace Dealing
 

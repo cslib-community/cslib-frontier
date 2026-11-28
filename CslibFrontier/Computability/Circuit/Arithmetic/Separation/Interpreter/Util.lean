@@ -35,6 +35,8 @@ public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Interpreter
 
+open Cslib.BitString (lsbValue)
+
 open Cslib.Circuits.Arithmetic.Separation.Interpreter.Tree
 
 variable {A : Type} [CommRing A] {θ : List Bool → A}
@@ -129,14 +131,15 @@ section Take
   (.quote .nil)
 
 theorem nzB_gives (w : List Bool) :
-    Gives θ nzB (.cons nzB.code (ofBits w)) (bit (decide (KT.val w ≠ 0))) (20 * w.length + 10) := by
+    Gives θ nzB (.cons nzB.code (ofBits w)) (bit (decide (lsbValue w ≠ 0)))
+      (20 * w.length + 10) := by
   induction w with
   | nil => exact ((Gives.id _).tl.ite_false (Gives.quote .nil _)).mono (by simp)
   | cons b w ih =>
     cases b with
     | true =>
-      have e : bit (decide (KT.val (true :: w) ≠ 0)) = one := by
-        have : KT.val (true :: w) ≠ 0 := by simp [KT.val]
+      have e : bit (decide (lsbValue (true :: w) ≠ 0)) = one := by
+        have : lsbValue (true :: w) ≠ 0 := by simp [lsbValue]
         simp [this, bit]
       rw [e]
       refine ((Gives.id _).tl.ite_true (by simp [ofBits])
@@ -146,12 +149,12 @@ theorem nzB_gives (w : List Bool) :
       omega
     | false =>
       have ih' : Gives θ (Fm.ofTree nzB.code) (.cons nzB.code (ofBits w))
-          (bit (decide (KT.val w ≠ 0)))
+          (bit (decide (lsbValue w ≠ 0)))
           (20 * w.length + 10) := by rw [Fm.ofTree_code]; exact ih
       have r := Gives.run (Gives.id (θ := θ) (.cons nzB.code (ofBits (false :: w)))).hd
         (Gives.cons (Gives.id _).hd (Gives.id _).tl.tl) ih'
-      have e : decide (KT.val (false :: w) ≠ 0) = decide (KT.val w ≠ 0) := by
-        simp [KT.val]
+      have e : decide (lsbValue (false :: w) ≠ 0) = decide (lsbValue w ≠ 0) := by
+        simp [lsbValue]
       rw [e]
       refine ((Gives.id _).tl.ite_true (by simp [ofBits]) ((Gives.id _).tl.hd.ite_false r)).mono ?_
       simp only [List.length_cons]
@@ -170,8 +173,8 @@ taken, in reversed order, list))); the value is (elements taken, rest). -/
 
 theorem takeB_gives (w : List Bool) (acc l : List Tree) :
     Gives θ takeB (.cons takeB.code (.cons (ofBits w) (.cons (listT acc) (listT l))))
-      (.cons (listT ((l.take (KT.val w)).reverse ++ acc)) (listT (l.drop (KT.val w))))
-      (((l.take (KT.val w)).length + 1) * (60 * w.length + 100)) := by
+      (.cons (listT ((l.take (lsbValue w)).reverse ++ acc)) (listT (l.drop (lsbValue w))))
+      (((l.take (lsbValue w)).length + 1) * (60 * w.length + 100)) := by
   induction l generalizing w acc with
   | nil =>
     have h : Gives θ takeB (.cons takeB.code (.cons (ofBits w) (.cons (listT acc) (listT []))))
@@ -185,10 +188,10 @@ theorem takeB_gives (w : List Bool) (acc l : List Tree) :
     have hnz := Gives.app (p := nzB.code) (Gives.cons (Gives.quote (θ := θ) nzB.code
       (.cons takeB.code (.cons (ofBits w) (.cons (listT acc) (listT (a :: l))))))
           (Gives.id _).tl.hd)
-      (o' := bit (decide (KT.val w ≠ 0))) (d := 20 * w.length + 10)
+      (o' := bit (decide (lsbValue w ≠ 0))) (d := 20 * w.length + 10)
           (by rw [Fm.ofTree_code]; exact nzB_gives w)
     rcases decw_val w with ⟨h1, h2⟩ | ⟨w', h1, h2⟩
-    · have e : bit (decide (KT.val w ≠ 0)) = .nil := by simp [h2, bit]
+    · have e : bit (decide (lsbValue w ≠ 0)) = .nil := by simp [h2, bit]
       rw [e] at hnz
       have h : Gives θ takeB
           (.cons takeB.code (.cons (ofBits w) (.cons (listT acc) (listT (a :: l)))))
@@ -199,8 +202,8 @@ theorem takeB_gives (w : List Bool) (acc l : List Tree) :
       refine h.mono ?_
       simp only [List.length_nil, zero_add, one_mul]
       omega
-    · have e : bit (decide (KT.val w ≠ 0)) ≠ .nil := by
-        have : KT.val w ≠ 0 := by omega
+    · have e : bit (decide (lsbValue w ≠ 0)) ≠ .nil := by
+        have : lsbValue w ≠ 0 := by omega
         simp [this, bit, one]
       obtain ⟨k, hk, hdw⟩ := DW_some (θ := θ) h1
       have hd : Gives θ (app DW.code (.cons (.quote DW.code) (.hd (.tl .id))))
@@ -212,8 +215,9 @@ theorem takeB_gives (w : List Bool) (acc l : List Tree) :
       have hl : w'.length = w.length := length_decw h1
       have ih' : Gives θ (Fm.ofTree takeB.code)
           (.cons takeB.code (.cons (ofBits w') (.cons (listT (a :: acc)) (listT l))))
-          (.cons (listT ((l.take (KT.val w')).reverse ++ (a :: acc))) (listT (l.drop (KT.val w'))))
-          (((l.take (KT.val w')).length + 1) * (60 * w.length + 100)) := by
+          (.cons (listT ((l.take (lsbValue w')).reverse ++ (a :: acc)))
+            (listT (l.drop (lsbValue w'))))
+          (((l.take (lsbValue w')).length + 1) * (60 * w.length + 100)) := by
         rw [Fm.ofTree_code, ← hl]
         exact ih w' (a :: acc)
       have r :=

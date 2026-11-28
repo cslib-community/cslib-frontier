@@ -56,8 +56,6 @@ opposite group. -/
 @[expose] def trU (p : GLM (Fin m)) : GLM (Fin m) :=
   MulOpposite.unop (Matrix.GeneralLinearGroup.transposeMulEquiv (Fin m) p)
 
-theorem coe_trU (p : GLM (Fin m)) : ((trU p : GLM (Fin m)) : Mt m) = (p : Mt m)ᵀ := rfl
-
 theorem X_transpose (p q : GLM (Fin m)) (S : Finset (Fin m)) : (X p q S)ᵀ = X (trU q) (trU p) S :=
     by
   rw [X, X, Matrix.transpose_mul, Matrix.transpose_mul, dg, Matrix.diagonal_transpose,

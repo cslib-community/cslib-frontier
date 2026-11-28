@@ -38,6 +38,8 @@ public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Interpreter
 
+open Cslib.BitString (lsbValue)
+
 open Cslib.Circuits.Arithmetic.Separation.Interpreter.Tree
 
 variable {A : Type} [CommRing A] {θ : List Bool → A} {R : Type} [CommRing R] [Algebra A R]
@@ -228,19 +230,19 @@ theorem loopF_kv {M m : ℕ} {T : Tree} {κ : List Bool → R} {S : Set (List Bo
         ∑ r ∈ Finset.range (2 ^ M),
       PowerSeries.C (k g l r) * (E l * E r))
     (hk : ∀ g l r : List Bool, g.length = M → l.length = M → r.length = M →
-      κ ([false, false] ++ g ++ l ++ r ++ [false]) = k (KT.val g) (KT.val l) (KT.val r) ∧
+      κ ([false, false] ++ g ++ l ++ r ++ [false]) = k (lsbValue g) (lsbValue l) (lsbValue r) ∧
       [false, false] ++ g ++ l ++ r ++ [false] ∈ S)
     (ha : ∀ g : List Bool, g.length = M →
       ((allBits m).map fun p =>
           κ ([false, true] ++ g ++ p.reverse ++ lc (look p T) ++ [false])).sum =
-          a (KT.val g))
+          a (lsbValue g))
     (hS : ∀ g p c : List Bool,
         g.length = M → p.length = m → c.length = 2 → [false, true] ++ g ++ p ++ c ++ [false] ∈ S)
     (hT : ∀ p : List Bool, p.length = m → look p T = .nil ∨ ∃ c : List Bool,
         c.length = 2 ∧ look p T = ofBits c)
     (n b : ℕ) (ws : List (List Bool)) (hn : 2 * b + ws.length ≤ n) (hws : ∀ w ∈ ws, w.length = M) :
     KV θ κ S (loopF M m) (.cons (loopF M m).code (.cons (num b) (.cons (listT (ws.map ofBits)) T)))
-      (W E b (ws.map KT.val)) ((n + 1) * (400 * (M + m) + 2000)) := by
+      (W E b (ws.map lsbValue)) ((n + 1) * (400 * (M + m) + 2000)) := by
   induction n generalizing b ws with
   | zero =>
     have hws0 : ws = [] := List.length_eq_zero_iff.1 (by omega)
@@ -271,7 +273,7 @@ theorem loopF_kv {M m : ℕ} {T : Tree} {κ : List Bool → R} {S : Set (List Bo
           · rfl
           · rw [path_ofBits, hc]
       -- an input
-      have h1 : KV θ κ S (leafF m) x (a (KT.val g) * W E b (ws.map KT.val))
+      have h1 : KV θ κ S (leafF m) x (a (lsbValue g) * W E b (ws.map lsbValue))
           ((n + 1) * (400 * (M + m) + 2000) + 100 * (M + m) + 800) := by
         have hq := Does.cons (Gives.id (θ := θ) x)
             (Does.of_gives (Gives.cons (Gives.id (θ := θ) x).tl.tl.tl
@@ -281,7 +283,7 @@ theorem loopF_kv {M m : ℕ} {T : Tree} {κ : List Bool → R} {S : Set (List Bo
                 one_mul] at hq
         have h := KV.lett (κ := κ) (S := S) (G := leafB)
             (ω := fun o => κ ([false, true] ++ g ++ o.tl.tl.path ++ lc o.tl.hd
-          ++ [false]) * W E b (ws.map KT.val)) hq
+          ++ [false]) * W E b (ws.map lsbValue)) hq
               (d := (n + 1) * (400 * (M + m) + 2000) + 62 * (M + m) + 600) (by
             intro q hq
             rw [List.mem_map] at hq
@@ -309,7 +311,7 @@ theorem loopF_kv {M m : ℕ} {T : Tree} {κ : List Bool → R} {S : Set (List Bo
         simp only [Function.comp_def, map_one, one_mul, tl_cons, hd_cons, path_ofBits]
         rw [List.sum_map_mul_right, ha g hg]
       -- a product gate
-      have h2 : KV θ κ S (intF M) x (Wi E (2 ^ M) (k (KT.val g)) (ws.map KT.val) b)
+      have h2 : KV θ κ S (intF M) x (Wi E (2 ^ M) (k (lsbValue g)) (ws.map lsbValue) b)
           ((n + 1) * (400 * (M + m) + 2000) + 300 * (M + m) + 900) := by
         cases b with
         | zero =>
@@ -324,7 +326,8 @@ theorem loopF_kv {M m : ℕ} {T : Tree} {κ : List Bool → R} {S : Set (List Bo
             List.flatMap_map, List.map_flatMap] at hq
           have h := KV.lett (κ := κ) (S := S) (G := intB)
               (ω := fun o => κ ([false, false] ++ g ++ o.tl.hd.path ++ o.tl.tl.path
-            ++ [false]) * W E b (KT.val o.tl.hd.path :: KT.val o.tl.tl.path :: ws.map KT.val)) hq
+            ++ [false]) * W E b
+              (lsbValue o.tl.hd.path :: lsbValue o.tl.tl.path :: ws.map lsbValue)) hq
             (d := (n + 1) * (400 * (M + m) + 2000) + 62 * (3 * M) + 600) (by
               intro q hq
               rw [List.mem_flatMap] at hq
@@ -363,11 +366,11 @@ theorem loopF_kv {M m : ℕ} {T : Tree} {κ : List Bool → R} {S : Set (List Bo
             simp only
                 [List.map_map, Function.comp_def, map_one, one_mul, tl_cons, hd_cons, path_ofBits]
             rw [← sum_allBits M fun l => ∑ r ∈ Finset.range (2 ^ M),
-                k (KT.val g) l r * W E b (l :: r :: ws.map KT.val)]
+                k (lsbValue g) l r * W E b (l :: r :: ws.map lsbValue)]
             congr 1
             refine List.map_congr_left fun l hl => ?_
-            rw [← sum_allBits M fun r => k (KT.val g) (KT.val l) r *
-                W E b (KT.val l :: r :: ws.map KT.val)]
+            rw [← sum_allBits M fun r => k (lsbValue g) (lsbValue l) r *
+                W E b (lsbValue l :: r :: ws.map lsbValue)]
             congr 1
             refine List.map_congr_left fun r hr => ?_
             rw [(hk g l r hg (length_of_mem_allBits hl) (length_of_mem_allBits hr)).1]
@@ -378,6 +381,6 @@ theorem loopF_kv {M m : ℕ} {T : Tree} {κ : List Bool → R} {S : Set (List Bo
           (400 * (M + m) + 2000) := by ring
         rw [e]
         omega
-      · rw [List.map_cons, W_cons (hE (KT.val g))]
+      · rw [List.map_cons, W_cons (hE (lsbValue g))]
 
 end Cslib.Circuits.Arithmetic.Separation.Interpreter

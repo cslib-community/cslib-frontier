@@ -126,15 +126,6 @@ with a leg at `π a` for every `a` (the `g_φ` of Lemma A.2). -/
 theorem wireExponent_comm (p q : I) : F.wireExponent p q = F.wireExponent q p := by
   rw [wireExponent, wireExponent, F.congr (antisymmRel_wire_comm 2 p q)]
 
-/-- The unit exponent of two parties is their wire exponent. -/
-theorem unitExponent_pair (p q : I) :
-    F.unitExponent (Subtype.val : ({p, q} : Finset I) → I) = F.wireExponent p q := by
-  have h : Set.range ![p, q] = Set.range (Subtype.val : ({p, q} : Finset I) → I) := by
-    simp only [Matrix.range_cons, Matrix.range_empty, Subtype.range_coe_subtype]
-    ext x
-    simp [or_comm]
-  rw [unitExponent, wireExponent, wire, F.congr (antisymmRel_push_unit_congr _ _ h 2)]
-
 /-- The wire exponents of a pull-back are those of the images. -/
 @[simp] theorem pull_wireExponent (π : J → I) (p q : J) :
     (F.pull π).wireExponent p q = F.wireExponent (π p) (π q) := by

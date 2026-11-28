@@ -45,6 +45,8 @@ public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Interpreter
 
+open Cslib.BitString (lsbValue)
+
 open Cslib.Circuits.Arithmetic.Separation.Interpreter.Tree
 
 variable {A : Type} [CommRing A] {θ : List Bool → A}
@@ -139,10 +141,10 @@ private theorem get_reg {S : Fm} {y W : Tree} {p : List Bool} {k : ℕ}
   exact this
 
 theorem dstepF_does (n : List Bool) (st : DStep) (W : Tree) : ∃ Q,
-    Does θ (dstepF n) (.cons st.tree W) Q (st.cost (KT.val n) n.length (gets W)) ∧
-    (∀ q ∈ Q, gets q.2 ∈ st.exec (KT.val n) (gets W)) ∧
+    Does θ (dstepF n) (.cons st.tree W) Q (st.cost (lsbValue n) n.length (gets W)) ∧
+    (∀ q ∈ Q, gets q.2 ∈ st.exec (lsbValue n) (gets W)) ∧
     ∀ Φ : (List Bool → Tree) → A,
-        wsum Q (fun o => Φ (gets o)) = ((st.exec (KT.val n) (gets W)).map Φ).sum := by
+        wsum Q (fun o => Φ (gets o)) = ((st.exec (lsbValue n) (gets W)).map Φ).sum := by
   cases st with
   | check p =>
     have hg : Gives θ (getF (.tl (.hd .id)) (.tl .id)) (.cons (DStep.check p).tree W) (tget p W)
@@ -321,12 +323,12 @@ theorem execAll_append (m : ℕ) (sts sts' : List DStep) (σ : List Bool → Tre
 theorem dstepsF_does (n : List Bool) (sts : List DStep)
     {wf : Fm} {x W : Tree} {cw : ℕ} (hw : Gives θ wf x W cw)
     {I : List DStep → (List Bool → Tree) → Prop} {c : DStep → ℕ}
-    (hI : ∀ st sts' σ, I (st :: sts') σ → st.cost (KT.val n) n.length σ ≤ c st ∧
-      ∀ σ' ∈ st.exec (KT.val n) σ, I sts' σ') (hW : I sts (gets W)) : ∃ Q,
+    (hI : ∀ st sts' σ, I (st :: sts') σ → st.cost (lsbValue n) n.length σ ≤ c st ∧
+      ∀ σ' ∈ st.exec (lsbValue n) σ, I sts' σ') (hW : I sts (gets W)) : ∃ Q,
     Does θ (dstepsF n sts wf) x Q (cw + (sts.map fun st => c st + 30).sum + 30) ∧
-    (∀ q ∈ Q, gets q.2 ∈ execAll (KT.val n) sts (gets W)) ∧
+    (∀ q ∈ Q, gets q.2 ∈ execAll (lsbValue n) sts (gets W)) ∧
     ∀ Φ : (List Bool → Tree) → A,
-        wsum Q (fun o => Φ (gets o)) = ((execAll (KT.val n) sts (gets W)).map Φ).sum := by
+        wsum Q (fun o => Φ (gets o)) = ((execAll (lsbValue n) sts (gets W)).map Φ).sum := by
   choose f hf1 hf2 hf3 using fun st W => dstepF_does (θ := θ) n st W
   -- a function of trees
   classical
@@ -352,7 +354,7 @@ theorem dstepsF_does (n : List Bool) (sts : List DStep)
     rw [h2, hinj _ _ h1]
   have hsum : ∀ (sts : List DStep) (W : Tree) (Φ : (List Bool → Tree) → A),
       wsum (foldW F (sts.map DStep.tree) W) (fun o => Φ (gets o)) =
-          ((execAll (KT.val n) sts (gets W)).map Φ).sum := by
+          ((execAll (lsbValue n) sts (gets W)).map Φ).sum := by
     intro sts
     induction sts with
     | nil =>
@@ -363,7 +365,7 @@ theorem dstepsF_does (n : List Bool) (sts : List DStep)
       rw [List.map_cons, foldW, wsum_bindW, sum_execAll_cons, ← hf3 st W, hF']
       exact wsum_congr fun q _ => ih q.2 Φ
   have hmem : ∀ (sts : List DStep) (W : Tree), ∀ q ∈ foldW F (sts.map DStep.tree) W,
-      gets q.2 ∈ execAll (KT.val n) sts (gets W) := by
+      gets q.2 ∈ execAll (lsbValue n) sts (gets W) := by
     intro sts
     induction sts with
     | nil =>

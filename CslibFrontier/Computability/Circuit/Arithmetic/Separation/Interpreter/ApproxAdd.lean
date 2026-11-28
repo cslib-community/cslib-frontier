@@ -34,6 +34,8 @@ public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Interpreter
 
+open Cslib.BitString (lsbValue)
+
 open Cslib.Circuits.Arithmetic.Separation.Interpreter.Tree
 
 variable {A : Type} [CommRing A] {θ : List Bool → A}
@@ -46,33 +48,21 @@ variable {A : Type} [CommRing A] {θ : List Bool → A}
   | c, a :: x, b :: y => xor a (xor b c) :: addc (maj a b c) x y
   | _, _, _ => []
 
-theorem length_addc (c : Bool) {x y : List Bool} (h : x.length = y.length) : (addc c x y).length =
-    x.length := by
-  induction x generalizing c y with
-  | nil => simp [addc]
-  | cons a x ih =>
-    cases y with
-    | nil => simp at h
-    | cons b y =>
-      simp only [List.length_cons, Nat.add_right_cancel_iff] at h
-      simp [addc, ih _ h]
-
 /-- **Paper: proof of Proposition prop:approx-acc, the counter adds.** The program's sum is the sum
 modulo 2 ^ length. -/
 theorem val_addc (c : Bool) {x y : List Bool} (h : x.length = y.length) :
-    KT.val (addc c x y) = ((if c then 1 else 0) + KT.val x + KT.val y) % 2 ^ x.length := by
+    lsbValue (addc c x y) = ((if c then 1 else 0) + lsbValue x + lsbValue y) % 2 ^ x.length := by
   induction x generalizing c y with
-  | nil => simp [addc, KT.val, Nat.mod_one]
+  | nil => simp [addc, lsbValue, Nat.mod_one]
   | cons a x ih =>
     cases y with
     | nil => simp at h
     | cons b y =>
       simp only [List.length_cons, Nat.add_right_cancel_iff] at h
-      simp only [addc, KT.val, ih _ h, List.length_cons, pow_succ']
+      simp only [addc, lsbValue, ih _ h, List.length_cons, pow_succ']
       have key :
-          ((if c then 1 else 0) + ((if a then 1 else 0) + 2 * KT.val x) +
-              ((if b then 1 else 0) + 2 * KT.val y)) / 2 =
-          (if maj a b c then 1 else 0) + KT.val x + KT.val y := by
+          ((if c then 1 else 0) + (a.toNat + 2 * lsbValue x) + (b.toNat + 2 * lsbValue y)) / 2 =
+          (if maj a b c then 1 else 0) + lsbValue x + lsbValue y := by
         cases a <;> cases b <;> cases c <;> simp [maj] <;> omega
       rw [Nat.mod_mul, key]
       congr 1

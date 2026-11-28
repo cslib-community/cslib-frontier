@@ -22,6 +22,7 @@ import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Bas
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Laws.Existence
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Constants
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Uni.Automaton
+import CslibFrontier.Foundations.Data.BitString.Binary
 
 /-!
 # Cutting computations
@@ -61,6 +62,8 @@ ring, its generators and the cut hypothesis of Appendix K (`Cutting.exists_cutHy
 public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Cutting
+
+open Cslib.BitString (lsbValue_eq_binaryValue_reverse)
 
 open Finset Cut Interpreter Dealing GroupProgram TowerPlan
 
@@ -316,8 +319,8 @@ theorem exists_oneCut (hθ : (Function.support θ).Finite) (hgen : ∀ a, ∃ w 
   have hcut := (isCut_dealProgram_of_evaluatesGroups (C := C) (θ := θ) (κ := κ) (bt := bt)
     (hD := pc.one_lt_D) (hmm := pc.num_le_D) (hU0 := pc.load_lt_D) (hU1 := pc.U1_le_D)
     (τ := τ) (s := s) (bd := bd) (ιb := ιb) pc.program hK0 H hC.injective hGR (fun r => htg r) pc.ok
-    ((KT.val_eq_binaryValue_reverse wT).symm.trans hwT')
-    ((KT.val_eq_binaryValue_reverse wub).symm.trans hwub') pc.ub_pos hwl' hwub' hℓT
+    ((lsbValue_eq_binaryValue_reverse wT).symm.trans hwT')
+    ((lsbValue_eq_binaryValue_reverse wub).symm.trans hwub') pc.ub_pos hwl' hwub' hℓT
     (by simp [hwT]) (by simp [hwub]) hwl.le hwub.le
     (fun z hz hpl => hU τ z (K * T) hpl (le_trans (by
       rw [htU]
@@ -327,8 +330,8 @@ theorem exists_oneCut (hθ : (Function.support θ).Finite) (hgen : ∀ a, ∃ w 
     (fun n o hn hg y => (pc.program.fn_countGate y ⟨n, o⟩).symm.le.trans
       ((Fin.isLt _).le.trans hDX)) (by omega)
     fun q x ρ n o g b hx hn ho => groupTime_le_of_sizeBounds H
-      ((KT.val_eq_binaryValue_reverse wT).symm.trans hwT')
-      ((KT.val_eq_binaryValue_reverse wub).symm.trans hwub') (by simp [hwT]) (by simp [hwub])
+      ((lsbValue_eq_binaryValue_reverse wT).symm.trans hwT')
+      ((lsbValue_eq_binaryValue_reverse wub).symm.trans hwub') (by simp [hwT]) (by simp [hwub])
       pc.ok hx (hbase n o hn ho g)
       hN.ιb_le_X (fun p _ => (pc.valid_iff n).1 hn p)
       (hev ▸ (Nat.le_div_iff_mul_le (Nat.mul_pos pc.ub_pos (by omega))).2

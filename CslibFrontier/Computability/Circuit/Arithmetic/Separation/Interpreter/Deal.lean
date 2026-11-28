@@ -34,6 +34,8 @@ public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Interpreter
 
+open Cslib.BitString (lsbValue)
+
 open Cslib.Circuits.Arithmetic.Separation.Interpreter.Tree
 
 variable {A : Type} [CommRing A] {θ : List Bool → A}
@@ -100,12 +102,12 @@ section Bits
 /-- The test of `bitsB`: whether the remaining length is nonzero. -/
 private theorem bitsB_nz (w acc : List Bool) :
     Gives θ (app nzB.code (.cons (.quote nzB.code) (.hd (.tl .id))))
-      (.cons bitsB.code (.cons (ofBits w) (ofBits acc))) (bit (decide (KT.val w ≠ 0)))
+      (.cons bitsB.code (.cons (ofBits w) (ofBits acc))) (bit (decide (lsbValue w ≠ 0)))
       (1 + (1 + 1 + 1) + 1 + (20 * w.length + 10) + 2) :=
   Gives.app (Gives.cons (Gives.quote (θ := θ) _ _) (Gives.id (θ := θ) _).tl.hd)
     (by rw [Fm.ofTree_code]; exact nzB_gives (θ := θ) w)
 
-theorem bitsB_does (n : ℕ) : ∀ (w : List Bool) (acc : List Bool), KT.val w = n →
+theorem bitsB_does (n : ℕ) : ∀ (w : List Bool) (acc : List Bool), lsbValue w = n →
     ∃ Q, Does θ bitsB (.cons bitsB.code (.cons (ofBits w) (ofBits acc))) Q
         ((n + 1) * (60 * w.length + 100)) ∧
       (∀ q ∈ Q, ∃ u ∈ allBits n, q.2 = ofBits (u.reverse ++ acc)) ∧
@@ -114,7 +116,7 @@ theorem bitsB_does (n : ℕ) : ∀ (w : List Bool) (acc : List Bool), KT.val w =
   | zero =>
     intro w acc hw
     have hnz := bitsB_nz (θ := θ) w acc
-    have e : bit (decide (KT.val w ≠ 0)) = .nil := by simp [hw, bit]
+    have e : bit (decide (lsbValue w ≠ 0)) = .nil := by simp [hw, bit]
     rw [e] at hnz
     refine ⟨_, (Does.ite_false hnz (Gives.id _).tl.tl).mono (by omega), ?_, ?_⟩
     · intro q hq
@@ -126,8 +128,8 @@ theorem bitsB_does (n : ℕ) : ∀ (w : List Bool) (acc : List Bool), KT.val w =
   | succ n ih =>
     intro w acc hw
     have hnz := bitsB_nz (θ := θ) w acc
-    have e : bit (decide (KT.val w ≠ 0)) ≠ .nil := by
-      have : KT.val w ≠ 0 := by omega
+    have e : bit (decide (lsbValue w ≠ 0)) ≠ .nil := by
+      have : lsbValue w ≠ 0 := by omega
       simp [this, bit, one]
     rcases decw_val w with ⟨h1, h2⟩ | ⟨w', h1, h2⟩
     · omega
@@ -180,10 +182,10 @@ theorem bitsB_does (n : ℕ) : ∀ (w : List Bool) (acc : List Bool), KT.val w =
     app bitsB.code (.quote (.cons bitsB.code (.cons (ofBits n) .nil)))
 
 theorem bitsF_does (n : List Bool) (x : Tree) : ∃ Q,
-    Does θ (bitsF n) x Q ((KT.val n + 1) * (60 * n.length + 100) + 5) ∧
-    (∀ q ∈ Q, ∃ u ∈ allBits (KT.val n), q.2 = ofBits u.reverse) ∧
-    ∀ φ : Tree → A, wsum Q φ = ((allBits (KT.val n)).map fun u => φ (ofBits u.reverse)).sum := by
-  obtain ⟨Q, d, h1, h2⟩ := bitsB_does (θ := θ) (KT.val n) n [] rfl
+    Does θ (bitsF n) x Q ((lsbValue n + 1) * (60 * n.length + 100) + 5) ∧
+    (∀ q ∈ Q, ∃ u ∈ allBits (lsbValue n), q.2 = ofBits u.reverse) ∧
+    ∀ φ : Tree → A, wsum Q φ = ((allBits (lsbValue n)).map fun u => φ (ofBits u.reverse)).sum := by
+  obtain ⟨Q, d, h1, h2⟩ := bitsB_does (θ := θ) (lsbValue n) n [] rfl
   have h := Does.app (p := bitsB.code) (R := fun _ => Q)
       (Gives.quote (θ := θ) (.cons bitsB.code (.cons (ofBits n) .nil)) x)
     (by

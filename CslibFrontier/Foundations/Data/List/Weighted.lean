@@ -79,10 +79,6 @@ variable [Mul A] [AddMonoid A]
 @[simp] theorem weightedSum_cons (p : A × α) (l : List (A × α)) (G : α → A) :
     (p :: l).weightedSum G = p.1 * G p.2 + l.weightedSum G := rfl
 
-theorem weightedSum_append (l l' : List (A × α)) (G : α → A) :
-    (l ++ l').weightedSum G = l.weightedSum G + l'.weightedSum G := by
-  simp [weightedSum]
-
 theorem weightedSum_congr {l : List (A × α)} {G G' : α → A} (h : ∀ p ∈ l, G p.2 = G' p.2) :
     l.weightedSum G = l.weightedSum G' :=
   congrArg sum (map_congr_left fun p hp => by rw [h p hp])

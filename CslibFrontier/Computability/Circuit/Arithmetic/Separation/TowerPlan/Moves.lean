@@ -221,11 +221,6 @@ theorem fst_moveChannelEquiv (ν : (moves R FL Pl).Channel) :
 theorem fst_moveSlotEquiv (z : (moves R FL Pl).Slot) :
     (moveSlotEquiv R FL Pl z).1 = moveOrder R ch FL z.1 := rfl
 
-/-- The parties at the ends of a channel are the parties of the nodes of its move. -/
-theorem channelParty_moves (ν : (moves R FL Pl).Channel) (d : Bool) :
-    (moves R FL Pl).channelParty ν d = Pl.party ((moveChannelEquiv R FL Pl ν).1.party
-      ((moveChannelEquiv R FL Pl ν).1.law.channelEnd (moveChannelEquiv R FL Pl ν).2 d)) := rfl
-
 /-- The parties at the ends of a slot are the parties of the nodes of its move. -/
 theorem slotParty_moves (z : (moves R FL Pl).Slot) (d : Bool) :
     (moves R FL Pl).slotParty z d = Pl.party ((moveSlotEquiv R FL Pl z).1.party

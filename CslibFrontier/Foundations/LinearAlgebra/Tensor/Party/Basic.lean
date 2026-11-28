@@ -150,8 +150,6 @@ theorem mul_entry (s t : PartyTensor K I) (x : ∀ p, (s * t).Index p) :
 theorem prod_entry {κ : Type} [Fintype κ] [DecidableEq κ] (b : κ → PartyTensor K I)
     (x : ∀ p, (prod b).Index p) : (prod b).entry x = ∏ k, (b k).entry (fun p => x p k) := rfl
 
-theorem pow_eq_prod (t : PartyTensor K I) (k : ℕ) : t ^ k = prod fun _ : Fin k => t := rfl
-
 theorem unit_entry [Fintype J] (r : ℕ) (x : J → Fin r) :
     (unit K J r).entry x = if ∀ i j, x i = x j then 1 else 0 := rfl
 

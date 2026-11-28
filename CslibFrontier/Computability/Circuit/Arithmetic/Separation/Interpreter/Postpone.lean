@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.EvalThm
+public import CslibFrontier.Foundations.Data.BitString.Counter
 public import Mathlib.Algebra.Algebra.Defs
 import CslibFrontier.Foundations.Data.List.Blocks
 import CslibFrontier.Foundations.Data.List.Forall2
@@ -43,6 +44,8 @@ From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `NS1.Postpone`.
 public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Interpreter
+
+open Cslib.BitString (lsbValue)
 
 open Cslib.Circuits.Arithmetic.Separation.Interpreter.Tree
 
@@ -85,16 +88,11 @@ namespace KT
   | 0 => [[]]
   | J + 1 => [false, true].flatMap fun b => (words J).map (b :: ·)
 
-/-- The value of a number. -/
-@[expose] def val : List Bool → ℕ
-  | [] => 0
-  | b :: w => (if b then 1 else 0) + 2 * val w
-
 /-- All budgets with `J` digits for the names of a trie, with the products of the powers of its
 constants. -/
 @[expose] def budg (J : ℕ) : KT R → List (Bt × R)
   | none => [(.none, 1)]
-  | leaf c => (words J).map fun w => (.leaf w, c ^ val w)
+  | leaf c => (words J).map fun w => (.leaf w, c ^ lsbValue w)
   | node l r => (l.budg J).flatMap fun p => (r.budg J).map fun q => (.node p.1 q.1, p.2 * q.2)
 
 end KT
@@ -110,32 +108,32 @@ theorem ok_cons (t : Bt) (p : List Bool) (b : List (List Bool)) :
   simp only [Bt.decAll]
   cases Bt.dec p t <;> rfl
 
-theorem all_not_iff (w : List Bool) : (w.all (! ·)) = true ↔ KT.val w = 0 := by
+theorem all_not_iff (w : List Bool) : (w.all (! ·)) = true ↔ lsbValue w = 0 := by
   induction w with
-  | nil => simp [KT.val]
+  | nil => simp [lsbValue]
   | cons b w ih =>
     cases b with
-    | true => simp [KT.val]
-    | false => simp [KT.val, ← ih]
+    | true => simp [lsbValue]
+    | false => simp [lsbValue, ← ih]
 
-theorem decw_val (w : List Bool) : (decw w = none ∧ KT.val w = 0) ∨ ∃ w',
-    decw w = some w' ∧ KT.val w = KT.val w' + 1 := by
+theorem decw_val (w : List Bool) : (decw w = none ∧ lsbValue w = 0) ∨ ∃ w',
+    decw w = some w' ∧ lsbValue w = lsbValue w' + 1 := by
   induction w with
-  | nil => left; simp [decw, KT.val]
+  | nil => left; simp [decw, lsbValue]
   | cons b w ih =>
     cases b with
-    | true => right; exact ⟨false :: w, rfl, by simp [KT.val]; omega⟩
+    | true => right; exact ⟨false :: w, rfl, by simp [lsbValue]; omega⟩
     | false =>
       rcases ih with ⟨h1, h2⟩ | ⟨w', h1, h2⟩
-      · left; simp [decw, h1, KT.val, h2]
+      · left; simp [decw, h1, lsbValue, h2]
       · right
         refine ⟨true :: w', by simp [decw, h1], ?_⟩
-        simp only [KT.val, h2]
+        simp only [lsbValue, h2]
         simp
         omega
 
 theorem ok_leaf (w : List Bool) (b : List (List Bool)) :
-    ok (.leaf w) b = true ↔ (∀ p ∈ b, p = []) ∧ KT.val w = b.length := by
+    ok (.leaf w) b = true ↔ (∀ p ∈ b, p = []) ∧ lsbValue w = b.length := by
   induction b generalizing w with
   | nil =>
     rw [ok_nil, Bt.zero, all_not_iff]
@@ -199,21 +197,23 @@ theorem ok_none (b : List (List Bool)) : ok .none b = true ↔ b = [] := by
   | cons p b => simp [ok_cons, Bt.dec]
 
 theorem sum_words (J n : ℕ) (c : R) :
-    ((KT.words J).map fun w => if KT.val w = n then c else 0).sum = if n < 2 ^ J then c else 0 := by
+    ((KT.words J).map fun w => if lsbValue w = n then c else 0).sum =
+      if n < 2 ^ J then c else 0 := by
   induction J generalizing n with
   | zero =>
     by_cases h : n = 0
     · subst h
-      simp [KT.words, KT.val]
+      simp [KT.words, lsbValue]
     · have h' : ¬ 0 = n := fun e => h e.symm
-      simp [KT.words, KT.val, h, h']
+      simp [KT.words, lsbValue, h, h']
   | succ J ih =>
-    have e : ∀ b : Bool, ((KT.words J).map fun w => if KT.val (b :: w) = n then c else 0).sum =
+    have e : ∀ b : Bool, ((KT.words J).map fun w => if lsbValue (b :: w) = n then c else 0).sum =
         if n % 2 = (if b then 1 else 0) ∧ n < 2 ^ (J + 1) then c else 0 := by
       intro b
-      have hv : ∀ w, KT.val (b :: w) = (if b then 1 else 0) + 2 * KT.val w := fun _ => rfl
+      have hv : ∀ w, lsbValue (b :: w) = (if b then 1 else 0) + 2 * lsbValue w := by
+        intro _; cases b <;> rfl
       by_cases h : n % 2 = (if b then 1 else 0)
-      · have : ∀ w, (KT.val (b :: w) = n) = (KT.val w = n / 2) := by
+      · have : ∀ w, (lsbValue (b :: w) = n) = (lsbValue w = n / 2) := by
           intro w
           rw [hv, eq_iff_iff]
           cases b <;> simp only [Bool.false_eq_true, ite_true, ite_false] at h ⊢ <;> omega
@@ -221,7 +221,7 @@ theorem sum_words (J n : ℕ) (c : R) :
         refine if_congr ?_ rfl rfl
         rw [pow_succ]
         omega
-      · have : ∀ w, (KT.val (b :: w) = n) = False := by
+      · have : ∀ w, (lsbValue (b :: w) = n) = False := by
           intro w
           rw [hv, eq_iff_iff, iff_false]
           cases b <;> simp only [Bool.false_eq_true, ite_true, ite_false] at h ⊢ <;> omega
@@ -276,11 +276,11 @@ theorem sum_budg (J : ℕ) (K : KT R) (b : List (List Bool)) (hb : b.length < 2 
     simp only [KT.budg, List.map_map, Function.comp_def, ok_leaf]
     by_cases h : ∀ p ∈ b, p = []
     · have e1 :
-        ((KT.words J).map fun w => if (∀ p ∈ b, p = []) ∧ KT.val w = b.length then c ^
-            KT.val w else 0) =
-          (KT.words J).map fun w => if KT.val w = b.length then c ^ b.length else 0 := by
+        ((KT.words J).map fun w => if (∀ p ∈ b, p = []) ∧ lsbValue w = b.length then c ^
+            lsbValue w else 0) =
+          (KT.words J).map fun w => if lsbValue w = b.length then c ^ b.length else 0 := by
         refine List.map_congr_left fun w _ => ?_
-        by_cases h2 : KT.val w = b.length
+        by_cases h2 : lsbValue w = b.length
         · simp [h2, ite_eq_left h]
         · simp [h2]
       rw [e1, sum_words, ite_eq_left hb]

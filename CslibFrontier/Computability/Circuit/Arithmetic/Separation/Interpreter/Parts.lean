@@ -32,6 +32,8 @@ public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Interpreter
 
+open Cslib.BitString (lsbValue)
+
 open Cslib.Circuits.Arithmetic.Separation.Interpreter.Tree
 
 variable {A : Type} [CommRing A] {θ : List Bool → A}
@@ -54,8 +56,8 @@ order, at the path. -/
 
 theorem partStep_gives (x W : Tree) (w : List Bool) (l : List Tree) :
     Gives θ partStep (.cons x (.cons W (.cons (ofBits w) (listT l))))
-        (partFun (KT.val w) x (.cons W (.cons (ofBits w) (listT l))))
-      (((l.take (KT.val w)).length + 1) * (60 * w.length + 100) + 60 * x.len + 100) := by
+        (partFun (lsbValue w) x (.cons W (.cons (ofBits w) (listT l))))
+      (((l.take (lsbValue w)).length + 1) * (60 * w.length + 100) + 60 * x.len + 100) := by
   have h1 := Gives.app (p := takeB.code) (Gives.cons (Gives.quote (θ := θ) takeB.code
     (.cons x (.cons W (.cons (ofBits w) (listT l))))) (Gives.cons (Gives.id _).tl.tl.hd
       (Gives.cons (Gives.quote (listT []) _) (Gives.id _).tl.tl.tl)))
@@ -65,13 +67,13 @@ theorem partStep_gives (x W : Tree) (w : List Bool) (l : List Tree) :
   have h3 :=
       setF_gives
           (Gives.id (θ := θ)
-              (.cons (.cons (listT (l.take (KT.val w)).reverse) (listT (l.drop (KT.val w))))
+              (.cons (.cons (listT (l.take (lsbValue w)).reverse) (listT (l.drop (lsbValue w))))
     (.cons x (.cons W (.cons (ofBits w) (listT l)))))).tl.hd (Gives.id _).hd.hd
         (Gives.id _).tl.tl.hd
   have h4 := Gives.lett h2 (Gives.cons h3 (Gives.cons (Gives.id _).tl.tl.tl.hd (Gives.id _).hd.tl))
-  have e : partFun (KT.val w) x (.cons W (.cons (ofBits w) (listT l))) =
-      .cons (tset x.path (listT (l.take (KT.val w)).reverse) W)
-          (.cons (ofBits w) (listT (l.drop (KT.val w)))) := by
+  have e : partFun (lsbValue w) x (.cons W (.cons (ofBits w) (listT l))) =
+      .cons (tset x.path (listT (l.take (lsbValue w)).reverse) W)
+          (.cons (ofBits w) (listT (l.drop (lsbValue w)))) := by
     simp [partFun]
   rw [e]
   refine Gives.mono h4 ?_
@@ -101,14 +103,14 @@ theorem foldl_partFun (m : ℕ) (names : List (List Bool)) (W nT : Tree) (l : Li
 
 theorem partsF_gives {lf : Fm} {x : Tree} {cl : ℕ} {l : List Tree} (hl : Gives θ lf x (listT l) cl)
     (names : List (List Bool)) (n : List Bool) (Ln : ℕ) (hn : ∀ p ∈ names, p.length ≤ Ln) :
-    Gives θ (partsF names n lf) x (partsT (KT.val n) names .nil l)
+    Gives θ (partsF names n lf) x (partsT (lsbValue n) names .nil l)
       (cl + (l.length + names.length) * (60 * n.length + 100) + names.length * (60 * Ln + 130) +
           40) := by
   -- the cost of the steps depends on the rest; we count with a potential
   have key : ∀ (ps : List (List Bool)) (W : Tree) (l : List Tree), (∀ p ∈ ps, p.length ≤ Ln) →
       Gives θ (foldB partStep)
           (.cons (foldB partStep).code (.cons (.cons W (.cons (ofBits n) (listT l)))
-        (listT (ps.map ofBits)))) ((ps.map ofBits).foldl (fun σ x => partFun (KT.val n) x σ)
+        (listT (ps.map ofBits)))) ((ps.map ofBits).foldl (fun σ x => partFun (lsbValue n) x σ)
         (.cons W (.cons (ofBits n) (listT l))))
             ((l.length + ps.length) * (60 * n.length + 100) + ps.length * (60 * Ln + 130) + 10) :=
                 by
@@ -120,22 +122,22 @@ theorem partsF_gives {lf : Fm} {x : Tree} {cl : ℕ} {l : List Tree} (hl : Gives
     | cons p ps ih =>
       intro W l hps
       have hstep := partStep_gives (θ := θ) (ofBits p) W n l
-      have e : partFun (KT.val n) (ofBits p) (.cons W (.cons (ofBits n) (listT l))) =
-          .cons (tset p (listT (l.take (KT.val n)).reverse) W)
-              (.cons (ofBits n) (listT (l.drop (KT.val n)))) := by
+      have e : partFun (lsbValue n) (ofBits p) (.cons W (.cons (ofBits n) (listT l))) =
+          .cons (tset p (listT (l.take (lsbValue n)).reverse) W)
+              (.cons (ofBits n) (listT (l.drop (lsbValue n)))) := by
         simp [partFun]
       have e1 : Gives θ (lett (.cons (.hd (.tl (.tl .id))) (.hd (.tl .id))) partStep)
           (.cons (foldB partStep).code
               (.cons (.cons W (.cons (ofBits n) (listT l))) (listT ((p :: ps).map ofBits))))
-          (partFun (KT.val n) (ofBits p) (.cons W (.cons (ofBits n) (listT l)))) _ :=
+          (partFun (lsbValue n) (ofBits p) (.cons W (.cons (ofBits n) (listT l)))) _ :=
         Gives.lett (Gives.cons (Gives.id _).tl.tl.hd (Gives.id _).tl.hd) hstep
       have ih' : Gives θ (Fm.ofTree (foldB partStep).code) (.cons (foldB partStep).code
-          (.cons (.cons (tset p (listT (l.take (KT.val n)).reverse) W)
-              (.cons (ofBits n) (listT (l.drop (KT.val n)))))
-          (listT (ps.map ofBits)))) ((ps.map ofBits).foldl (fun σ x => partFun (KT.val n) x σ)
-          (.cons (tset p (listT (l.take (KT.val n)).reverse) W)
-              (.cons (ofBits n) (listT (l.drop (KT.val n))))))
-          (((l.drop (KT.val n)).length + ps.length) * (60 * n.length + 100) + ps.length *
+          (.cons (.cons (tset p (listT (l.take (lsbValue n)).reverse) W)
+              (.cons (ofBits n) (listT (l.drop (lsbValue n)))))
+          (listT (ps.map ofBits)))) ((ps.map ofBits).foldl (fun σ x => partFun (lsbValue n) x σ)
+          (.cons (tset p (listT (l.take (lsbValue n)).reverse) W)
+              (.cons (ofBits n) (listT (l.drop (lsbValue n))))))
+          (((l.drop (lsbValue n)).length + ps.length) * (60 * n.length + 100) + ps.length *
               (60 * Ln + 130) + 10) := by
         rw [Fm.ofTree_code]
         exact ih _ _ fun q hq => hps q (List.mem_cons_of_mem _ hq)
@@ -149,12 +151,12 @@ theorem partsF_gives {lf : Fm} {x : Tree} {cl : ℕ} {l : List Tree} (hl : Gives
       rw [List.map_cons, List.foldl_cons, e]
       refine (Gives.ite_true (Gives.id _).tl.tl (by simp [listT]) r).mono ?_
       have hp := hps p List.mem_cons_self
-      have hlen : (l.take (KT.val n)).length + (l.drop (KT.val n)).length = l.length := by
+      have hlen : (l.take (lsbValue n)).length + (l.drop (lsbValue n)).length = l.length := by
         rw [← List.length_append, List.take_append_drop]
       simp only [List.length_cons, len_ofBits]
       have e3 : (l.length + (ps.length + 1)) * (60 * n.length + 100) =
-          ((l.take (KT.val n)).length + 1) * (60 * n.length + 100) +
-          ((l.drop (KT.val n)).length + ps.length) * (60 * n.length + 100) := by
+          ((l.take (lsbValue n)).length + 1) * (60 * n.length + 100) +
+          ((l.drop (lsbValue n)).length + ps.length) * (60 * n.length + 100) := by
         rw [← hlen]
         ring
       have e4 : (ps.length + 1) * (60 * Ln + 130) = ps.length * (60 * Ln + 130) +
