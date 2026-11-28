@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Substitution.MarkerParity
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CertificateColors
+import CslibFrontier.Foundations.Data.List.Blocks
 import Mathlib.Data.List.OfFn
 
 /-!
@@ -76,7 +77,7 @@ theorem vertexParity_sourceEdgeLabels_variable
   have hstart : (incidenceDart q false).index = 2 * F.vars.idxOf o.var := by
     change 2 * incidenceEdgeIndex q + 0 = _
     rw [hq, Nat.add_zero]
-  rw [CSP.map_occurrences, ← hstart, List.map_flatMap, List.flatMap, List.sum_flatten, List.map_map]
+  rw [CSP.map_occurrences, ← hstart, List.sum_map_flatMap]
   congr 1
   refine List.map_congr_left fun j hj => ?_
   obtain ⟨p, hp, _⟩ := (mem_variable_cycleWord_iff hc q j).mp hj

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Planar.PairedCompile
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Planar.PathBounds
+import CslibFrontier.Foundations.Data.List.Blocks
 import Mathlib.Algebra.BigOperators.Ring.List
 import Mathlib.Data.List.GetD
 import Mathlib.Tactic.Linarith
@@ -180,8 +181,7 @@ theorem length_vars_rawFormula (φ : CNF ℕ) :
   rw [CNF.length_vars]
   simp only [rawFormula, List.map_map]
   change ((placedClauses φ).map fun c => c.1.length).sum = _
-  simp only [placedClauses, List.map_append, List.sum_append, List.flatMap,
-    List.map_flatten, List.sum_flatten, List.map_map, Function.comp_def]
+  simp only [placedClauses, List.map_append, List.sum_append, List.sum_map_flatMap]
   simp_rw [original_literal_count, ordinary_literal_count, crossing_literal_count,
     links_literal_count]
   simp [PlanarCompile.linkCount, List.sum_map_mul_left, Nat.mul_comm, Nat.add_assoc]

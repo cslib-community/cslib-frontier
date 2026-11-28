@@ -34,6 +34,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Poly
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.QueryBounds
+import CslibFrontier.Foundations.Data.List.Blocks
 
 /-!
 # Oracle reductions with explicit query and answer lengths
@@ -639,15 +640,14 @@ def id {oracle : List Bool → List Bool} {alenCap : List Bool → ℕ}
   ofSingleQuery (req := _root_.id) (alenCap := alenCap) (decode := Prod.snd)
     .id' halen (.snd encBits encBits) hle
 
-private theorem list_sum_affine_le {ι : Type} (f g : ι → ℕ) (scale offset : ℕ) :
-    ∀ (l : List ι), (∀ x ∈ l, f x ≤ scale * g x + offset) →
-      (l.map f).sum ≤ scale * (l.map g).sum + offset * l.length
-  | [], _ => by simp
-  | x :: xs, h => by
-    have hx := h x List.mem_cons_self
-    have hxs := list_sum_affine_le f g scale offset xs fun y hy => h y (List.mem_cons_of_mem x hy)
-    simp only [List.map_cons, List.sum_cons, List.length_cons, Nat.mul_add, Nat.mul_one]
-    omega
+private theorem list_sum_affine_le {ι : Type} (f g : ι → ℕ) (scale offset : ℕ)
+    (l : List ι) (h : ∀ x ∈ l, f x ≤ scale * g x + offset) :
+    (l.map f).sum ≤ scale * (l.map g).sum + offset * l.length := by
+  calc
+    (l.map f).sum ≤ (l.map fun x => scale * g x + offset).sum := List.sum_le_sum h
+    _ = scale * (l.map g).sum + offset * l.length := by
+      simp [List.sum_map_add, List.sum_map_mul_left, List.map_const', List.sum_replicate,
+        Nat.mul_comm l.length]
 
 private theorem map_sum_le_mul {ι : Type} {f : ι → ℕ} {l : List ι} {m k : ℕ}
     (hmem : ∀ x ∈ l, f x ≤ m) (hlen : l.length ≤ k) : (l.map f).sum ≤ k * m := by
@@ -743,7 +743,7 @@ private theorem comp_respects_bound {oracle₁ oracle₂ : List Bool → List Bo
     obtain ⟨q, hq, hq'_mem⟩ := List.mem_flatMap.mp hq'
     exact ((R₂.respects_bound q.2).2.1 q' hq'_mem).trans
       (le_wordMax (fun w => (R₂.bound w).qlen) (hql₁ q hq))
-  · rw [List.map_flatMap, List.flatMap_def, List.sum_flatten, List.map_map]
+  · rw [List.sum_map_flatMap]
     exact map_sum_le_mul (fun q hq =>
       (R₂.respects_bound q.2).2.2.1.trans
         (le_wordMax (fun w => (R₂.bound w).totalQlen) (hql₁ q hq))) hqc₁
@@ -827,8 +827,7 @@ theorem totalQueryLength_comp_affine {oracle₁ oracle₂ : List Bool → List B
       scale * R₁.totalQlen a + offset * R₁.qcount a := by
   rcases R₁.respects_bound a with ⟨hqc₁, _, htql₁, _⟩
   dsimp only [comp]
-  rw [(comp_interpret_and_queriesWith R₁ R₂ a).2, List.map_flatMap, List.flatMap_def,
-    List.sum_flatten, List.map_map]
+  rw [(comp_interpret_and_queriesWith R₁ R₂ a).2, List.sum_map_flatMap]
   exact (list_sum_affine_le _ (fun q => q.2.length) scale offset _ fun q _ =>
       (R₂.respects_bound q.2).2.2.1.trans (haff q.2)).trans
     (Nat.add_le_add (Nat.mul_le_mul_left scale htql₁) (Nat.mul_le_mul_left offset hqc₁))
