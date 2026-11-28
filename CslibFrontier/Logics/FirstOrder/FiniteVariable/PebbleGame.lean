@@ -143,10 +143,8 @@ theorem PartialIsoOn.update_of_mem {S : Set (Fin k)} {a : Fin k → M} {b : Fin 
   let g : Fin k → Fin k := Function.update id i j₀
   have hgS (r : Fin k) (hr : r ∈ insert i S) : g r ∈ S := by
     rcases eq_or_ne r i with rfl | hri <;> simp_all [g]
-  have ha : Function.update a i c = a ∘ g := funext fun r => by
-    by_cases hri : r = i <;> simp [g, hri, hc]
-  have hb : Function.update b i (b j₀) = b ∘ g := funext fun r => by
-    by_cases hri : r = i <;> simp [g, hri]
+  have ha : Function.update a i c = a ∘ g := hc ▸ (Function.comp_update a id i j₀).symm
+  have hb : Function.update b i (b j₀) = b ∘ g := (Function.comp_update b id i j₀).symm
   rw [ha, hb]
   exact ⟨fun r hr s hs => h.eq_iff (g r) (hgS r hr) (g s) (hgS s hs),
     fun R f hf => h.relMap_iff R (g ∘ f) fun t => hgS (f t) (hf t)⟩

@@ -41,6 +41,12 @@ For square complex matrices, with no norm chosen, the hypothesis is an entrywise
 
 ## References
 
+* [Widder1941], Chapter II, §14, Theorem 14a, p. 94: if `f(s) = Σ aₙ n!/s^{n+1}` for `|s| > c`,
+  then `f(s) = ∫₀^∞ e^{-st} φ(t) dt` for `re s > c` with `φ(t) = Σ aₙ tⁿ`; p. 95 gives the
+  example `φ(t) = e^{2t}`, `f(s) = 1/(s - 2)`. Compare `laplace_exp_smul`: with `aₙ = aⁿ/n!` this
+  is the scalar case on `re s > |a|`. The statement here is in a Banach algebra, on the
+  half-plane given by a growth bound on `exp (t • a)`, and is proved by the fundamental theorem
+  of calculus, not by a power series in `1/s`.
 * S. Boyd, *EE263: Introduction to Linear Dynamical Systems*, Stanford, lecture notes
   "Solution via Laplace transform and matrix exponential" (Stanford Engineering Everywhere
   handout `10-expm.pdf`), slide 10–5 (the resolvent `(sI - A)⁻¹`, defined off the eigenvalues

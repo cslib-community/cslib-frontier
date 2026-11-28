@@ -1268,11 +1268,10 @@ theorem loadActiveCtxCode_exec {U V w N n n_init base L_peak : ℕ}
         mkHashParams w (epochQBits U N) (epochHashB N) (totalMicroBits N) 3 i) ∧
       (∀ i : Fin 36, y.regs (cpReg i) = mkCompParams U V w N i) := by
   obtain ⟨hw, hU, hV⟩ := rootHeaderValid_bounds hx hsplit.root_hdr
-  have hNU : N ≤ U := by rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, hNU⟩ <;> omega
+  have hNU := (epochValid_iff_capacity_bounds.mp hev).2.2
   have hfr_pos : x.frontier = base + offCompItems U w N + compactedItemWords U V w N n := by
-    rw [hfr]; unfold compactedEpochWords; rw [ite_eq_right hn.ne']; omega
-  have hoff_ge : 225 ≤ offCompItems U w N := by
-    unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM epochHdrWords; omega
+    simp only [hfr, compactedEpochWords, ite_eq_right hn.ne', Nat.add_assoc]
+  have hoff_ge := le_offCompItems_225 U w N
   have hfit_fr : Fits w x.frontier := hx.frontier_fits
   obtain ⟨x₁, hex₁, hx₁b, hx₁m, hx₁f, hx₁_hp, hx₁_reg⟩ :=
     loadBlockUpTo_exec rBase rCur (eReg_ne (by decide)) hpReg hpReg_inj
@@ -1413,11 +1412,10 @@ theorem runEvalHashAtQuot {U V w N n n_init base L_peak q : ℕ}
       (∀ a, (a < base + offScratch ∨ base + epochHdrWords ≤ a) → y.mem a = x.mem a) ∧
       ∀ reg, reg ≠ rFr → reg.val < 88 → reg ≠ rHashOut → y.regs reg = x.regs reg := by
   obtain ⟨hw, hU, _⟩ := rootHeaderValid_bounds hx hsplit.root_hdr
-  have hNU : N ≤ U := by rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, hNU⟩ <;> omega
+  have hNU := (epochValid_iff_capacity_bounds.mp hev).2.2
   have hfr_pos : x.frontier = base + offCompItems U w N + compactedItemWords U V w N n := by
-    rw [hfr]; unfold compactedEpochWords; rw [ite_eq_right hn.ne']; omega
-  have hoff_ge : 225 ≤ offCompItems U w N := by
-    unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM epochHdrWords; omega
+    simp only [hfr, compactedEpochWords, ite_eq_right hn.ne', Nat.add_assoc]
+  have hoff_ge := le_offCompItems_225 U w N
   have hfit_fr : Fits w x.frontier := hx.frontier_fits
   have hw2 : 2 ≤ w := by
     by_contra h
@@ -1510,9 +1508,9 @@ theorem evalKeyHashCode_exec {U V w N n n_init base L_peak : ℕ}
       ∀ reg, reg ≠ rFr → reg.val < 88 → reg ≠ rQuot → reg ≠ rHashOut →
         y.regs reg = x.regs reg := by
   obtain ⟨hw, hU, hV⟩ := rootHeaderValid_bounds hx hsplit.root_hdr
-  have hNU : N ≤ U := by rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, hNU⟩ <;> omega
+  have hNU := (epochValid_iff_capacity_bounds.mp hev).2.2
   have hfr_pos : x.frontier = base + offCompItems U w N + compactedItemWords U V w N n := by
-    rw [hfr]; unfold compactedEpochWords; rw [ite_eq_right hn.ne']; omega
+    simp only [hfr, compactedEpochWords, ite_eq_right hn.ne', Nat.add_assoc]
   have hfit_off : Fits w (base + offCompItems U w N) := hx.frontier_fits.of_le (by omega)
   have hcp_fit := fits_mkCompParams (U := U) (V := V) (w := w) (N := N) hw hNU hU hV hfit_off
   have hin_eq : x.regs ∘ srcExtractQuot = WordEncoding.encode (mkCompParams U V w N, u.val) :=
@@ -1567,12 +1565,11 @@ theorem compEpochEnv_of_split {U V w N n n_init base : ℕ}
     CompEpochEnv U V w N base (base + offCompItems U w N) n ⟨x.mem, x.frontier⟩ ∧
     Fits w (base + offCompItems U w N) := by
   obtain ⟨hw, hU, hV⟩ := rootHeaderValid_bounds hx hsplit.root_hdr
-  rcases hev with ⟨rfl, _⟩ | ⟨_, hnN, _, hNU⟩
-  · omega
-  · have hfr_pos : x.frontier = base + offCompItems U w N + compactedItemWords U V w N n := by
-      rw [hfr]; unfold compactedEpochWords; rw [ite_eq_right hn.ne']; omega
-    exact ⟨⟨hw, by omega, hNU, hU, hV, le_rfl, by change _ ≤ x.frontier; omega⟩,
-      hx.frontier_fits.of_le (by omega)⟩
+  obtain ⟨hnN, _, hNU⟩ := epochValid_iff_capacity_bounds.mp hev
+  have hfr_pos : x.frontier = base + offCompItems U w N + compactedItemWords U V w N n := by
+    simp only [hfr, compactedEpochWords, ite_eq_right hn.ne', Nat.add_assoc]
+  exact ⟨⟨hw, hn.trans_le hnN, hNU, hU, hV, le_rfl, hfr_pos.ge⟩,
+    hx.frontier_fits.of_le (hfr_pos ▸ Nat.le_add_right _ _)⟩
 
 theorem compGmAt_eq_of_scratch_mod {U w N base : ℕ} (hw : 0 < w) {mem₁ mem₂ : ℕ → ℕ}
     (hout : ∀ a, (a < base + offScratch ∨ base + epochHdrWords ≤ a) → mem₁ a = mem₂ a) :

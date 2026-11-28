@@ -201,12 +201,11 @@ private theorem realizes_epochTickStageAllGen :
     have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
     have hth := henv.2.2.2.1
     have hh := fastMemHdrs hrep
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       simp [mkWhpParams, Nat.not_lt.mpr hth]
-    obtain ⟨hst_st, hst_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebStage)
-      (by dsimp [hdrRebStage]; omega) (s := s)
+    obtain ⟨hst_st, hst_res, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrRebStage) (s := s) (by decide)
     rw [hh.rebStage] at hst_res
     simp only [hcp_eq, hst_st, hst_res] at *
     first
@@ -312,14 +311,12 @@ private theorem realizes_epochTickRolloverGen :
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
     have hh := fastMemHdrs hrep
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have hq_lt := (large_bounds_lt_n_max hth).2.2.2.2.2.2.1
-    obtain ⟨hck_st, hck_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrEpochClock)
-      (by dsimp [hdrEpochClock]; omega) (s := s)
-    obtain ⟨hce_st, hce_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrCurEp)
-      (by dsimp [hdrCurEp]; omega) (s := s)
+    obtain ⟨hck_st, hck_res, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrEpochClock) (s := s) (by decide)
+    obtain ⟨hce_st, hce_res, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrCurEp) (s := s) (by decide)
     rw [hh.epochClock] at hck_res
     rw [hh.curEp] at hce_res
     simp only [hck_st, hck_res, hce_st, hce_res] at *
@@ -349,7 +346,7 @@ private theorem epochTickRolloverGenProg_fastStep {c U V w n_max base : ℕ}
   have _ := hclk_lt
   have hth := henv.2.2.2.1
   have hh := fastMemHdrs hrep
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   have hq_lt := (large_bounds_lt_n_max hth).2.2.2.2.2.2.1
   dsimp only [epochTickRollover]
   unfold epochTickRolloverGenProg

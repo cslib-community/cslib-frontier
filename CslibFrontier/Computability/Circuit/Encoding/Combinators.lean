@@ -198,10 +198,6 @@ private theorem appendWireCode_input (n offset : ℕ) :
   · simp only [Program.appendWireCode, shiftCodeWire, dite_eq_right hi, ite_eq_right hi]
     omega
 
-private theorem toNat_castAdd {n k : ℕ} (w : Wire n k) (extra : ℕ) :
-    (w.castAdd extra).toNat = w.toNat := by
-  cases w <;> rfl
-
 /-- The serialized code of `c.append d` is `appendCode n c.code d.code`. -/
 theorem code_append {σ : Signature.{v}} {n m p : ℕ} (c : Circuit σ n m) (d : Circuit σ n p) :
     (c.append d).code = appendCode n c.code d.code := by
@@ -209,7 +205,7 @@ theorem code_append {σ : Signature.{v}} {n m p : ℕ} (c : Circuit σ n m) (d :
       (Program.appendedWire Wire.input ∘ d.outputs) j).toNat) =
       Fin.append (fun j => (c.outputs j).toNat)
         (shiftCodeWire n c.size ∘ fun j => (d.outputs j).toNat) :=
-    funext fun j => Fin.addCases (fun _ => by simp [toNat_castAdd])
+    funext fun j => Fin.addCases (fun _ => by simp)
       (fun _ => by simp [Program.appendedWire_toNat, appendWireCode_input]) j
   simp only [appendCode, Circuit.code, Circuit.append, Program.code_append, appendWireCode_input,
     Program.length_code, hout, List.ofFn_fin_append, List.map_ofFn]
@@ -356,6 +352,31 @@ theorem code_pi_bundle {σ : Signature.{v}} {k n : ℕ} (cs : Fin k → Circuit 
   obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hc
   exact (length_code_fst _).trans (hs j)
 
+/-- A parallel layer of single-gate circuits lists their gate rows in output order. Since each
+component returns its gate, its output is relocated past the preceding gates. -/
+theorem code_pi_singleton {σ : Signature.{v}} {n m : ℕ} (cs : Fin m → Circuit σ n 1)
+    (rows : Fin m → σ.Op × List ℕ)
+    (hc : ∀ i, (cs i).code = ([rows i], [n])) :
+    (Circuit.pi cs).code = (List.ofFn rows, (List.range m).map (n + ·)) := by
+  have hw (i : Fin m) : ∀ j ∈ (rows i).2, j < n := by
+    have hvalid := (isSome_ofCode_iff (σ := σ) (n := n) (m := 1)).mp
+      (show (ofCode n 1 (cs i).code).isSome by simp)
+    rw [hc] at hvalid
+    exact hvalid.1.1.2
+  induction m with
+  | zero => rfl
+  | succ m ih =>
+    rw [Circuit.pi, Circuit.code_append, ih _ (fun i => rows i.castSucc)
+      (fun i => hc i.castSucc) (fun i => hw i.castSucc), hc (Fin.last m)]
+    rw [List.ofFn_succ', List.range_succ, List.map_append]
+    simp only [Circuit.appendCode, List.length_ofFn, List.map_cons,
+      List.map_nil, Circuit.shiftCodeWire, lt_self_iff_false, ite_false]
+    congr 3
+    have hmap : (rows (Fin.last m)).2.map (Circuit.shiftCodeWire n m) = (rows (Fin.last m)).2 := by
+      exact (List.map_congr_left (g := id) fun j hj => by
+        simp [Circuit.shiftCodeWire, hw (Fin.last m) j hj]).trans (List.map_id _)
+    simp [hmap, List.concat_eq_append]
+
 /-! ### Sequential composition -/
 
 /-- Route a later circuit's inputs through `c`'s outputs and shift its gates past `c`'s gates. -/
@@ -494,6 +515,17 @@ indices `(args a).val` and designated output wire `n`. -/
 theorem code_oneGate {σ : Signature.{v}} {n : ℕ} (op : σ.Op) (args : Fin (σ.Arity op) → Fin n) :
     (oneGate op args).code = ([(op, List.ofFn fun a => (args a).val)], [n]) := by
   simp [oneGate, Circuit.code, Line.code]
+
+/-- Serializing one gate per output lists those gates in output order. They use only input
+wires, so block relocation leaves every gate argument unchanged. -/
+theorem code_pi_oneGate {σ : Signature.{v}} {n k : ℕ} (op : Fin k → σ.Op)
+    (wire : (i : Fin k) → Fin (σ.Arity (op i)) → Fin n) :
+    (pi fun i => oneGate (op i) (wire i)).code =
+      (List.ofFn fun i => (op i, List.ofFn fun j => (wire i j).val),
+        List.ofFn fun i : Fin k => n + i.val) := by
+  simpa only [List.map_range_eq_ofFn] using
+    code_pi_singleton (fun i => oneGate (op i) (wire i))
+      (fun i => (op i, List.ofFn fun j => (wire i j).val)) (fun i => code_oneGate (op i) (wire i))
 
 /-- Instantiate a formula `F` over `σ` at raw wire numbers. Total even when a selected wire is
 outside the declared input count; typed correctness holds on `Fin n`-valued wires. -/

@@ -90,6 +90,15 @@ variable {Q Q₁ Q₂ : Type*} [Fintype Q] [Fintype Q₁] [Fintype Q₂]
 /-- The series realized by a linear representation. -/
 @[expose] def series (r : Rep F Ω Q) : Series F Ω := fun o => r.lam ⬝ᵥ r.tail o
 
+/-- Cutting after the first letter gives the boundary term. Every longer prefix acts by the
+first letter's transition matrix on the corresponding prefix of the remaining word. -/
+private theorem sum_weighted_tail_cons (r : Rep F Ω Q) (g : Series F Ω) (a : Ω) (o : List Ω) :
+    (∑ k ∈ range (a :: o).length, g ((a :: o).drop (k + 1)) • r.tail ((a :: o).take (k + 1))) =
+      r.mu a *ᵥ (∑ k ∈ range o.length, g (o.drop (k + 1)) • r.tail (o.take (k + 1))) +
+        g o • (r.mu a *ᵥ r.gam) := by
+  rw [List.length_cons, Finset.sum_range_succ', Matrix.mulVec_sum]
+  exact congrArg₂ (· + ·) (Finset.sum_congr rfl fun _ _ => by simp [tail, Matrix.mulVec_smul]) rfl
+
 /-- Sum of two linear representations. -/
 @[expose] def add (r₁ : Rep F Ω Q₁) (r₂ : Rep F Ω Q₂) : Rep F Ω (Q₁ ⊕ Q₂) where
   lam := Sum.elim r₁.lam r₂.lam
@@ -127,11 +136,7 @@ theorem mul_tail (r₁ : Rep F Ω Q₁) (r₂ : Rep F Ω Q₂) (o : List Ω) :
     simp only [mul, Matrix.fromBlocks_mulVec, Matrix.zero_mulVec, zero_add,
       Sum.elim_comp_inl, Sum.elim_comp_inr]
     congr 1
-    rw [List.length_cons, Finset.sum_range_succ', Matrix.mulVec_sum]
-    congr 1
-    · exact Finset.sum_congr rfl fun _ _ => by simp [tail, Matrix.mulVec_smul]
-    · ext
-      simp [tail, series, Matrix.vecMulVec_mulVec, mul_comm]
+    rw [sum_weighted_tail_cons, Matrix.vecMulVec_mulVec, op_smul_eq_smul, series]
 
 theorem mul_series (r₁ : Rep F Ω Q₁) (r₂ : Rep F Ω Q₂) (o : List Ω) :
     (r₁.mul r₂).series o = Series.mul r₁.series r₂.series o := by
@@ -171,11 +176,10 @@ theorem star_tail (r : Rep F Ω Q) (o : List Ω) :
       exact congrArg₂ (· + ·)
         (Finset.sum_congr rfl fun _ _ => by simp [series, tail, Matrix.mulVec_smul, mul_comm])
         (by simp [series, tail, Matrix.mulVec, dotProduct])
-    · rw [List.length_cons, Finset.sum_range_succ', add_comm, Matrix.mulVec_sum]
+    · rw [sum_weighted_tail_cons, add_comm]
       congr 1
-      · exact Finset.sum_congr rfl fun _ _ => by simp [tail, Matrix.mulVec_smul]
-      · ext
-        simp [tail, Matrix.mulVec, dotProduct, mul_comm]
+      ext
+      simp [Matrix.mulVec, dotProduct, mul_comm]
 
 theorem star_series (r : Rep F Ω Q) (o : List Ω) :
     r.star.series o = Series.kstar r.series o := by

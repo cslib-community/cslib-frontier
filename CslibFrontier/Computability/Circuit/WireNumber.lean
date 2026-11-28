@@ -81,6 +81,10 @@ theorem toNat_injective : Function.Injective (toNat : Wire n k → ℕ) :=
 @[simp] theorem toNat_castSucc (w : Wire n k) : w.castSucc.toNat = w.toNat := by
   cases w <;> rfl
 
+/-- Widening a wire by any number of gates preserves its number. -/
+@[simp] theorem toNat_castAdd (w : Wire n k) (extra : ℕ) : (w.castAdd extra).toNat = w.toNat := by
+  cases w <;> rfl
+
 end Wire
 
 end Cslib.Circuits

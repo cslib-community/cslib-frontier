@@ -110,7 +110,7 @@ private theorem realizes_stage2CollisionReset :
     obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, rfl, hseed, hrep, hb, hrIdx, hcand_lt⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have hrc_lt := two_mul_rIndepWhp_lt_qEpochWhp hth
     have hq_lt := (large_bounds_lt_n_max hth).2.2.2.2.2.2.1
     obtain ⟨hrs_st, hrs_res, _, _⟩ := readRebSliceIdxGenProg_spec henv hb hrep (s := s)
@@ -455,7 +455,7 @@ private theorem realizes_stage2SwapPreAdvance :
     obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, rfl, hseed, hrep, hb, hom_lt, hdi_lt⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have h3M_le := (large_index_bounds hth).2.2.2.2.1
     have hq_lt := (large_bounds_lt_n_max hth).2.2.2.2.2.2.1
     have hdc_le := hrep.1
@@ -559,7 +559,7 @@ private theorem realizes_stage2SwapAdvanceNext :
     obtain ⟨c, U, V, w₀, n_max, fsSw, henv, rfl, hrep, hnxt_fn⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have hdc_le := hrep.1
     obtain ⟨hdc_st, hdc_res, _, _⟩ :=
       readHdr_large_spec henv (by decide) (fastMemHdrs hrep).dirtyCount
@@ -764,7 +764,7 @@ theorem realizes_stage2PostScanGen :
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
     have hh := fastMemHdrs hrep
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have hrc_lt := two_mul_rIndepWhp_lt_qEpochWhp hth
     have hq_lt := (large_bounds_lt_n_max hth).2.2.2.2.2.2.1
     obtain ⟨hcl_st, hcl_res, _, _⟩ := readHdr_large_spec henv (by decide) hh.rebCollision

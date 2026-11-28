@@ -48,6 +48,12 @@ allow equal-weight substitutions), and proves weak-support filtering and contrac
 * `Cslib.Query.MinimumSpanningForest.exists_extend_isMinSpanningForest_of_cutStep`,
   `Cslib.Query.MinimumSpanningForest.isMinSpanningForest_append_of_contract`: contraction
   correctness for cut steps and contraction rounds.
+* `Cslib.Query.MinimumSpanningForest.isAcyclic_cons_iff`,
+  `Cslib.Query.MinimumSpanningForest.edgePartition_contractEdgeList_rel_inj`,
+  `Cslib.Query.MinimumSpanningForest.edgePartition_contractEdgeList_rel_of_not_mem`,
+  `Cslib.Query.MinimumSpanningForest.isAcyclic_contractEdgeList_iff_of_injective`,
+  `Cslib.Query.MinimumSpanningForest.isAcyclic_length_le_finset_sub_one`: step and injective
+  contraction acyclicity lemmas.
 -/
 
 public section
@@ -126,7 +132,7 @@ theorem rel_edgePartition_map_iff_joins {n : ℕ} (es : List (WeightedEdge n ℕ
       · exact ih.trans _ _ _ (.symm _ _ (.rel _ _ ⟨es[i.val], him, h1.symm, h2.symm⟩))
 
 /-- MSF edge list extracted from `Cslib.Multigraph.msf` under weight function `w`. -/
-noncomputable def msfEdges {n : ℕ} {W : Type} [LinearOrder W]
+@[expose] noncomputable def msfEdges {n : ℕ} {W : Type} [LinearOrder W]
     (es : List (WeightedEdge n ℕ)) (w : Fin es.length → W) : List (WeightedEdge n ℕ) :=
   (Cslib.Multigraph.msf (edgeEnds es) w Finset.univ).toList.map fun i => es[i.val]
 
@@ -817,5 +823,115 @@ theorem isMinSpanningForest_append_of_contract {n n' : ℕ}
   have htw_G := hF_ext.2 G' hG'
   rw [totalWeight_append] at htw_G ⊢
   omega
+
+/-- `e :: L` is acyclic iff `e`'s endpoints lie in distinct components of `L` and `L` is
+acyclic. -/
+theorem isAcyclic_cons_iff {n : ℕ} {W : Type} (e : WeightedEdge n W)
+    (L : List (WeightedEdge n W)) :
+    IsAcyclic (e :: L) ↔ (edgePartition L).rel e.u e.v = false ∧ IsAcyclic L := by
+  have hperm : (e :: L).Perm (L ++ [e]) := by
+    simpa using (List.perm_append_singleton e L).symm
+  rw [Perm.isAcyclic_iff hperm, isAcyclic_iff, isAcyclic_iff, edgePartition,
+    edgePartitionFrom_append, edgePartitionFrom_cons, edgePartitionFrom_nil, List.length_append,
+    List.length_singleton]
+  change ((edgePartition L).merge e.u e.v).numComponents + (L.length + 1) = n ↔
+    (edgePartition L).rel e.u e.v = false ∧ (edgePartition L).numComponents + L.length = n
+  cases hrel : (edgePartition L).rel e.u e.v
+  · have hm := DisjointSet.Partition.numComponents_merge_of_not_rel hrel
+    simp only [true_and]
+    omega
+  · rw [DisjointSet.Partition.merge_of_rel hrel]
+    have hle := numComponents_le_edgePartitionFrom_add_length (Partition.discrete n) L
+    simp only [Partition.numComponents_discrete] at hle
+    change n ≤ (edgePartition L).numComponents + L.length at hle
+    simp only [Bool.true_eq_false, false_and, iff_false]
+    omega
+
+/-- Injective contraction `lift : Fin k → Fin n` preserves connected-component equivalence
+classes on embedded vertices. -/
+theorem edgePartition_contractEdgeList_rel_inj {k n : ℕ}
+    {lift : Fin k → Fin n} (hlift : Function.Injective lift)
+    (L : List (WeightedEdge k ℕ)) (u v : Fin k) :
+    (edgePartition (contractEdgeList lift L)).rel (lift u) (lift v) =
+      (edgePartition L).rel u v := by
+  rw [Bool.eq_iff_iff]
+  exact edgePartitionFrom_contract_rel (Partition.discrete k) lift
+    (fun x y => by simp [hlift.eq_iff]) L u v
+
+/-- A vertex outside the image of `lift` lies in a singleton connected component of
+`contractEdgeList lift L`. -/
+theorem edgePartition_contractEdgeList_rel_of_not_mem {k n : ℕ}
+    (lift : Fin k → Fin n) (L : List (WeightedEdge k ℕ))
+    {u v : Fin n} (hu : ∀ x : Fin k, lift x ≠ u) :
+    (edgePartition (contractEdgeList lift L)).rel u v = decide (u = v) := by
+  rw [Bool.eq_iff_iff, rel_edgePartition_iff_eqvGen, decide_eq_true_eq]
+  refine ⟨fun h => ?_, fun h => h ▸ .refl _⟩
+  have hstay : ∀ a b : Fin n,
+      Relation.EqvGen (fun p q => ∃ e ∈ contractEdgeList lift L, p = e.u ∧ q = e.v) a b →
+      ((∀ x : Fin k, lift x ≠ a) → a = b) ∧ ((∀ x : Fin k, lift x ≠ b) → a = b) := by
+    intro a b hab
+    induction hab with
+    | rel _ _ hr =>
+      obtain ⟨e, he, rfl, rfl⟩ := hr
+      obtain ⟨e', _, rfl⟩ := List.mem_map.mp he
+      exact ⟨fun ha => absurd rfl (ha e'.u), fun hb => absurd rfl (hb e'.v)⟩
+    | refl _ => exact ⟨fun _ => rfl, fun _ => rfl⟩
+    | symm _ _ _ ih => exact ⟨fun ha => (ih.2 ha).symm, fun hb => (ih.1 hb).symm⟩
+    | trans _ _ _ _ _ ih1 ih2 =>
+      refine ⟨fun ha => ?_, fun hc => ?_⟩
+      · have h1 := ih1.1 ha
+        exact h1.trans (ih2.1 fun x hx => ha x (hx.trans h1.symm))
+      · have h2 := ih2.2 hc
+        exact (ih1.2 fun x hx => hc x (hx.trans h2)).trans h2
+  exact (hstay u v h).1 hu
+
+/-- Injective contraction `lift : Fin k → Fin n` preserves acyclicity iff. -/
+theorem isAcyclic_contractEdgeList_iff_of_injective {k n : ℕ}
+    {lift : Fin k → Fin n} (hlift : Function.Injective lift)
+    (L : List (WeightedEdge k ℕ)) :
+    IsAcyclic (contractEdgeList lift L) ↔ IsAcyclic L := by
+  induction L with
+  | nil => simp only [contractEdgeList, List.map_nil, isAcyclic_nil]
+  | cons e rest ih =>
+    change IsAcyclic (contractEdge lift e :: contractEdgeList lift rest) ↔ IsAcyclic (e :: rest)
+    rw [isAcyclic_cons_iff, isAcyclic_cons_iff, ih]
+    simp only [contractEdge, edgePartition_contractEdgeList_rel_inj hlift rest e.u e.v]
+
+/-- Any acyclic edge list supported on a vertex subset `S : Finset (Fin n)` has length at most
+`S.card - 1`. -/
+theorem isAcyclic_length_le_finset_sub_one {n : ℕ} (S : Finset (Fin n))
+    (F : List (WeightedEdge n ℕ)) (hF : IsAcyclic F)
+    (hmem : ∀ e ∈ F, e.u ∈ S ∧ e.v ∈ S) : F.length ≤ S.card - 1 := by
+  by_cases hS : S.card = 0
+  · have hnil : F = [] := by
+      rw [List.eq_nil_iff_forall_not_mem]
+      intro e he
+      have hu := (hmem e he).1
+      rw [Finset.card_eq_zero.mp hS] at hu
+      simp at hu
+    simp [hnil]
+  · have hpos : 0 < S.card := Nat.pos_of_ne_zero hS
+    let eS := S.equivFin
+    let ι : Fin S.card → Fin n := fun i => (eS.symm i).1
+    have hι : Function.Injective ι := fun a b hab =>
+      eS.symm.injective (Subtype.ext hab)
+    let F' : List (WeightedEdge S.card ℕ) := F.pmap
+      (fun e he => ⟨eS ⟨e.u, (hmem e he).1⟩, eS ⟨e.v, (hmem e he).2⟩, e.weight⟩)
+      (fun _ he => he)
+    have hmk : ∀ (u1 : Fin n) (v1 : Fin n) (w1 : ℕ) (e : WeightedEdge n ℕ),
+        u1 = e.u → v1 = e.v → w1 = e.weight →
+        (⟨u1, v1, w1⟩ : WeightedEdge n ℕ) = e := by
+      rintro u1 v1 w1 ⟨u, v, w⟩ rfl rfl rfl; rfl
+    have hcon : contractEdgeList ι F' = F := by
+      apply List.ext_getElem
+      · simp [contractEdgeList, F']
+      · intro i hi1 hi2
+        simp only [contractEdgeList, F', List.getElem_map, List.getElem_pmap, contractEdge, ι]
+        exact hmk _ _ _ F[i] (by simp [eS]) (by simp [eS]) rfl
+    have hF' : IsAcyclic F' :=
+      (isAcyclic_contractEdgeList_iff_of_injective hι F').mp (hcon ▸ hF)
+    have hlen := IsAcyclic.length_le_pred hpos hF'
+    have hF_len : F'.length = F.length := by simp [F']
+    omega
 
 end Cslib.Query.MinimumSpanningForest

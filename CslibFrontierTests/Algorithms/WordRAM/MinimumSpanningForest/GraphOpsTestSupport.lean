@@ -21,6 +21,7 @@ public section
 namespace CslibFrontierTests.Algorithms.WordRAM.MinimumSpanningForest.GraphOpsTestSupport
 
 open Cslib.WordRAM Cslib.WordRAM.Realization Cslib.DataStructure Cslib.DataStructure.Memory
+open Cslib.Algorithms.Lean.Kruskal
 open Cslib.Algorithms.WordRAM.MinimumSpanningForest
 
 /-- Flatten `es : List (IndexedEdge n)` into stride-4 words `[u, v, weight, id, ...]`. -/
@@ -56,7 +57,9 @@ theorem initFromWordsProg_spec {w : ℕ} {words : List ℕ} {s : Memory.State}
     fun _ ha => ha.1).mono (by omega : words.length + 0 + 1 ≤ words.length + 1)
     fun _ _ h => h
 
-private theorem holdsIndexedEdges_of_holdsList {n : ℕ} (base : ℕ) (es : List (IndexedEdge n))
+/-- Convert `Block.HoldsList base (encodeIndexedEdges es) mem` into
+`HoldsIndexedEdges base es mem`. -/
+theorem holdsIndexedEdges_of_holdsList {n : ℕ} (base : ℕ) (es : List (IndexedEdge n))
     {mem : ℕ → ℕ} (h : Block.HoldsList base (encodeIndexedEdges es) mem) :
     HoldsIndexedEdges base es mem := by
   induction es generalizing base with
@@ -137,5 +140,11 @@ theorem mkInitState_spec {w n : ℕ} (es : List (IndexedEdge n))
 @[expose] def execWordRAM {α : Type} (s : Memory.State) (prog : Memory.Prog α) :
     α × Memory.State × ℕ :=
   ((Memory.spec 0).clientResult s prog, (Memory.spec 0).clientState s prog, memoryCost prog s)
+
+/-- The empty edge set is a minimum spanning forest of an empty graph. -/
+theorem isMinSpanningForest_nil {n : ℕ} :
+    IsMinSpanningForest (n := n) ([] : List (WeightedEdge n ℕ)) [] :=
+  ⟨⟨List.Subperm.refl _, isAcyclic_nil, rfl⟩, fun _ hF' => by
+    rw [List.length_eq_zero_iff.mp (Nat.eq_zero_of_le_zero hF'.1.length_le)]⟩
 
 end CslibFrontierTests.Algorithms.WordRAM.MinimumSpanningForest.GraphOpsTestSupport

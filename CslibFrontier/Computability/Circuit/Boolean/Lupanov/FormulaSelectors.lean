@@ -34,20 +34,6 @@ open Boolean Finset
 
 variable {n : ℕ}
 
-/-- The conjunction testing an entire assignment. For zero inputs it is constant true. -/
-def minterm (z : BitString n) : Formula signature n :=
-  andList ((List.finRange n).map (literal z))
-
-/-- A minterm evaluates to true exactly on its assignment. -/
-@[simp] theorem eval_minterm (z x : BitString n) :
-    (minterm z).eval interpretation x = decide (x = z) := by
-  apply Bool.eq_iff_iff.mpr
-  simp [minterm, List.all_eq_true, funext_iff]
-
-/-- A minterm has exactly one literal occurrence per input. -/
-@[simp] theorem leafSize_minterm (z : BitString n) : (minterm z).leafSize = n := by
-  simp [minterm, List.map_map, Function.comp_def]
-
 /-- The disjunction of the minterms of a finite set of assignments. -/
 noncomputable def indicator (S : Finset (BitString n)) : Formula signature n :=
   orList (S.toList.map minterm)

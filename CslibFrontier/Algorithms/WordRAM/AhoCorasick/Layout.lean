@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.AhoCorasick.Input
 public import CslibFrontier.Computability.WordRAM.PreservesMask
 public import CslibFrontier.Computability.WordRAM.Structured
+import CslibFrontier.Foundations.Data.Nat.Div
 
 /-!
 # Word-RAM Memory and Register Layout for Aho–Corasick
@@ -105,6 +106,33 @@ theorem layout_order (inp : Input) :
 theorem fits_of_le_outBase {inp : Input} {w v : ℕ} (hw : Fits w inp.wordBound)
     (hv : v ≤ inp.outBase) : Fits w v :=
   hw.of_le (by have := wordBound_eq_outBase inp; omega)
+
+private theorem fits_matrix_cell {inp : Input} {w base u c : ℕ} (hw : Fits w inp.wordBound)
+    (hu : u < inp.maxS) (hc : c < inp.alphabetSize)
+    (hbase : base + inp.maxS * inp.alphabetSize ≤ inp.outBase) :
+    Fits w (u * inp.alphabetSize) ∧ Fits w (u * inp.alphabetSize + c) ∧
+      Fits w (base + (u * inp.alphabetSize + c)) := by
+  have hoff_lt : u * inp.alphabetSize + c < inp.maxS * inp.alphabetSize :=
+    Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
+  have hcell := fits_of_le_outBase hw ((Nat.add_lt_add_left hoff_lt base).le.trans hbase)
+  have hoff : Fits w (u * inp.alphabetSize + c) := hcell.of_le (Nat.le_add_left _ _)
+  exact ⟨hoff.of_le (Nat.le_add_right _ _), hoff, hcell⟩
+
+private theorem read_update_array_cell {mem f : ℕ → ℕ} {base i j val : ℕ}
+    (hread : mem (base + i) = f i) :
+    Function.update mem (base + j) val (base + i) = Function.update f j val i := by
+  rw [Function.update_apply_of_injective mem (f := fun k => base + k)
+    (fun _ _ h => Nat.add_left_cancel h)]
+  simp only [Function.update_apply, hread]
+
+private theorem read_update_matrix_cell {mem : ℕ → ℕ} {base cols u v c a val old : ℕ}
+    (hc : c < cols) (ha : a < cols) (hread : mem (base + u * cols + c) = old) :
+    Function.update mem (base + (v * cols + a)) val (base + u * cols + c) =
+      if u = v ∧ c = a then val else old := by
+  have haddr : base + u * cols + c = base + (v * cols + a) ↔ u = v ∧ c = a :=
+    ⟨fun h => (Nat.eq_of_add_mul_eq hc ha (by lia)).symm,
+      fun ⟨rfl, rfl⟩ => Nat.add_assoc _ _ _⟩
+  simp only [Function.update_apply, haddr, hread]
 
 namespace Reg
 
