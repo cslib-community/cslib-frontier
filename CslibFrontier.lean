@@ -8152,6 +8152,7 @@ public import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson.AmpGeneratorCir
 public import CslibFrontier.Computability.Distributed.VectorClock.Clocks
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Diagram.Word.PlanarDrawing
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelNormalForm
+public import CslibFrontier.Crypto.Protocols.MPC.OTMultiplication
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 public import CslibFrontier.Computability.Complexity.Reduction.TruthTable.Composition
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Programming
