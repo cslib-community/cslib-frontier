@@ -34,6 +34,8 @@ of idempotent gates is another.
   line condition only at the given input, permitting interpretations with fixed context.
 * `Cslib.Circuits.Program.cost_mapLines`: transforming lines with matching operation costs
   preserves total program cost.
+* `Cslib.Circuits.Program.arity_lines_mapLines_le`: transforming lines of bounded arity bounds the
+  arity of every gate.
 * `Cslib.Circuits.Program.depths_mapLines_le`, `Cslib.Circuits.Circuit.depth_mapLines_le`:
   transforming lines that get no deeper keeps the depth bounded.
 * `Cslib.Circuits.Program.depths_mapLines`, `Cslib.Circuits.Circuit.depth_mapLines`: transforming
@@ -91,6 +93,22 @@ theorem Program.cost_mapLines {cost : σ.Op → ℕ} {cost' : τ.Op → ℕ}
   induction p with
   | empty => rfl
   | gate p line ih => rw [mapLines_gate, cost_gate, cost_gate, ih, hf]
+
+/-- Transforming lines whose arity is at most `B (n + g)` on `n` inputs and `g` earlier gates, for a
+monotone `B`, gives gates of arity at most `B (n + g)`. -/
+theorem Program.arity_lines_mapLines_le {B : ℕ → ℕ} (hB : Monotone B)
+    (hf : ∀ {g : ℕ} (line : Line σ n g), τ.Arity (f line).op ≤ B (n + g))
+    (p : Program σ n g) (k : Fin g) : τ.Arity ((p.mapLines f).lines k).op ≤ B (n + g) := by
+  induction p with
+  | empty => exact k.elim0
+  | @gate g p line ih =>
+    induction k using Fin.lastCases with
+    | last =>
+      rw [mapLines_gate, lines_gate_last, Line.mapWires_op]
+      exact (hf line).trans (hB (Nat.le_succ _))
+    | cast k =>
+      rw [mapLines_gate, lines_gate_castSucc, Line.mapWires_op]
+      exact (ih k).trans (hB (Nat.le_succ _))
 
 section eval
 
