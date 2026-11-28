@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Communication.Functions
 public import CslibFrontier.GameTheory.Cooperative.MoulinCostSharing
 public import CslibFrontier.GameTheory.Cooperative.ShapleyValue
 public import Mathlib.NumberTheory.Harmonic.Defs
+import CslibFrontier.Foundations.Data.Nat.Radix.Unique
 import CslibFrontier.Foundations.NumberTheory.Harmonic
 import Mathlib.Data.Finset.Max
 import Mathlib.Tactic.FieldSimp
@@ -19,7 +20,6 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
-import CslibFrontier.Foundations.Data.Nat.Radix
 
 /-!
 # Multicast Cost Sharing: Shapley (`SH`) vs. Marginal Cost (`MC`), Welfare Loss, and Communication
@@ -2110,20 +2110,6 @@ noncomputable def pathBidProfile (k : ℕ) (x y : Cslib.BitString k) : Fin k ⊕
     if x t = true then 1 + ∑ v : Fin (k + 2), (pathMulticast k).edgeCost v else 0
   | Sum.inr () => pathBottomShare k y
 
-private theorem digits_eq_of_sum_eq {B : ℕ} (hB : 1 ≤ B) (f g : ℕ → ℕ)
-    (m : ℕ) (hf : ∀ i < m, f i < B) (hg : ∀ i < m, g i < B)
-    (hsum : ∑ i ∈ Finset.range m, f i * B ^ i = ∑ i ∈ Finset.range m, g i * B ^ i)
-    (i : ℕ) (hi : i < m) : f i = g i := by
-  rcases eq_or_lt_of_le hB with rfl | hB
-  · exact (Nat.lt_one_iff.mp (hf i hi)).trans (Nat.lt_one_iff.mp (hg i hi)).symm
-  have hd : (fun j : Fin m => f j) = (fun j : Fin m => g j) :=
-    Nat.ofDigits_ofFn_inj hB (fun j => hf j j.isLt) (fun j => hg j j.isLt) (by
-      rw [Nat.ofDigits_ofFn_eq_sum, Nat.ofDigits_ofFn_eq_sum,
-        Fin.sum_univ_eq_sum_range (fun j => f j * B ^ j),
-        Fin.sum_univ_eq_sum_range (fun j => g j * B ^ j)]
-      exact hsum)
-  exact congrFun hd (⟨i, hi⟩ : Fin m)
-
 /-- `pathBottomShare k` is injective on `BitString k`: distinct active receiver subsets along the
 spine induce distinct Shapley shares at the bottom node. -/
 theorem pathBottomShare_injective (k : ℕ) : Function.Injective (pathBottomShare k) := by
@@ -2219,10 +2205,12 @@ theorem pathBottomShare_injective (k : ℕ) : Function.Injective (pathBottomShar
       exact_mod_cast Nat.div_mul_cancel (hcnt_dvd z ⟨n, hnk⟩)
     rw [← hcast]; ring
   rw [heval x, heval x'] at heq
-  have hdig_eq := digits_eq_of_sum_eq (Nat.le_add_left 1 L) (dig x) (dig x') k
-    (hdig_lt x) (hdig_lt x') (Nat.cast_injective heq)
+  have hdig_eq : ∀ i ∈ Finset.range k, dig x i = dig x' i :=
+    Nat.eq_of_sum_mul_pow_eq (e := id) Function.injective_id.injOn
+      (fun i hi => hdig_lt x i (Finset.mem_range.mp hi))
+      (fun i hi => hdig_lt x' i (Finset.mem_range.mp hi)) (Nat.cast_injective heq)
   have hcnt_eq : ∀ t : Fin k, cnt x t = cnt x' t := fun t => by
-    have hd := hdig_eq t.val t.isLt
+    have hd := hdig_eq t.val (Finset.mem_range.mpr t.isLt)
     simp only [dig, t.isLt, ↓reduceDIte] at hd
     have h1 := Nat.div_mul_cancel (hcnt_dvd x t)
     rw [hd] at h1
