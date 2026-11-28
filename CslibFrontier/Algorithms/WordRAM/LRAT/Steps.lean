@@ -162,8 +162,7 @@ theorem assumeLoop_spec (ls : List (Literal ℕ)) (trail : List (Literal ℕ)) (
         (Function.update x.mem (acell T (litCode (Std.Sat.Literal.negate l))) s) :=
       OnlyAsg.update T _ s x.mem
     refine WP.exists_execWithin (WP.loop_iter hc ?_)
-    unfold assumeBody
-    wram_exec [hlit, hone, litCodeBy_xor_one, hT, hst]
+    wram_exec [assumeBody, hlit, hone, litCodeBy_xor_one, hT, hst]
     · wram_call (ih (Std.Sat.Literal.negate l :: trail) _)
         [hone, hT, hst, hle, htr.update _] with z ⟨hzp, hzoa, hztr, hz1, hzT, hzs, hze⟩
       · wram_simp at hzp hzoa hze
@@ -201,8 +200,7 @@ theorem rupStep_spec (db : List (ℕ × Clause ℕ)) (i : ℕ) (c : Clause ℕ) 
   obtain ⟨hli, hlen, hlits, hl⟩ := hl
   simp only [List.length_map] at hl
   refine WP.exists_execWithin ?_
-  unfold rupStep
-  wram_exec [hli, hone, hlen]
+  wram_exec [rupStep, hli, hone, hlen]
   wram_call (assumeLoop_spec (w := w) c [] _ M T s) [hone, hT, hst, hlits, hfr.trailAt, hcM, hw]
     with y ⟨hyp, hyoa, hytr, hy1, hyT, hys, hye⟩
   wram_simp at hyp hyoa hye
@@ -220,8 +218,7 @@ theorem rupStep_spec (db : List (ℕ × Clause ℕ)) (i : ℕ) (c : Clause ℕ) 
   wram_simp at hzp hzoa
   cases hpr : CNF.propagateHints db (c.map Std.Sat.Literal.negate) hints
   · have hre : z.regs res = z.regs zero := by simp [hzres, hpr, hz0]
-    unfold reject
-    wram_exec [hre]
+    wram_exec [reject, hre]
     simp only [Bool.false_eq_true, ↓reduceIte]
     wram_simp
     exact ⟨hz0, hz1, by regs_frame, hzT, by regs_frame⟩
@@ -270,8 +267,7 @@ theorem delLoop_spec (db : List (ℕ × Clause ℕ)) (ids : List ℕ) (x : Data 
     obtain ⟨hlit, hrest⟩ := holdsList_cons_iff.mp hl
     have hhM := hM h (by simp)
     refine WP.exists_execWithin (WP.loop_iter hc ?_)
-    unfold delBody
-    wram_exec [hlit, hT, hzero, hone]
+    wram_exec [delBody, hlit, hT, hzero, hone]
     wram_call (ih (db.filter fun e => !(e.1 == h)) _)
       [hzero, hone, hT, hhe, htab.erase h, hfr.of_tcell h 0]
       with z ⟨hzp, hztab, hzfr, hz0, hz1, hzT, hzm⟩
@@ -295,8 +291,7 @@ theorem delStep_spec (db : List (ℕ × Clause ℕ)) (ids : List ℕ) (x : Data 
       y.regs zero = 0 ∧ y.regs one = 1 ∧ y.regs tbase = T ∧ ∀ a < T, y.mem a = x.mem a := by
   obtain ⟨hlen, hrest⟩ := holdsList_cons_iff.mp hl
   refine WP.exists_execWithin ?_
-  unfold delStep
-  wram_exec [hlen, hone]
+  wram_exec [delStep, hlen, hone]
   wram_call (delLoop_spec (w := w) db ids _ M T s) [hzero, hone, hT, hrest, htab, hfr, hM, hw]
     with y ⟨hyp, hytab, hyfr, hy0, hy1, hyT, hym⟩
   wram_simp at hyp hym
@@ -425,8 +420,7 @@ theorem stepLoop_spec (rest : List LRAT.IntAction) (db : List (ℕ × Clause ℕ
     | addRat i c p hints rh =>
       simp only [encodeAction] at hla hMa hpT
       obtain ⟨htag, -⟩ := holdsList_cons_iff.mp hla
-      unfold reject
-      wram_exec [htag, hinv.zero, hinv.one, hinv.three, hinv.endp]
+      wram_exec [reject, htag, hinv.zero, hinv.one, hinv.three, hinv.endp]
       refine WP.loop_exit (by wram_simp [Cond.holds_lt, hinv.endp]) ?_
       wram_simp
       exact ⟨by simp [stepsWork, encodeAction]; omega, by simp [CNF.checkLRATAux]⟩

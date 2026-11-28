@@ -51,8 +51,7 @@ theorem exec_lowAddend {w : ℕ} {a b : ℤ} (x : Data registers)
       y.regs Signed.right = Signed.encode (a * b) ∧ y.mem = x.mem by
     obtain ⟨y, he, hr, hm⟩ := this
     exact ⟨y, he, hr, hm, fun i hi => he.regs_eq (by unfold LeafLocal at hi; decide +revert)⟩
-  unfold lowAddend lowProduct
-  wram_exec
+  wram_exec [lowAddend, lowProduct]
   wram_call (BoxTable.exec_leafProduct ha hb hab _
     (by wram_simp; exact hleft) (by wram_simp; exact hright)
     (by wram_simp; exact hp) (by wram_simp; exact hq)) with v ⟨hprod, hmem, _⟩
@@ -73,8 +72,7 @@ theorem exec_boxAddend {w D V T c e r : ℕ} {a : ℤ} (x : Data registers)
       y.mem = x.mem by
     obtain ⟨y, hy, hr, hm⟩ := this
     exact ⟨y, hy, hr, hm, fun i hi => hy.regs_eq (by unfold LeafLocal at hi; decide +revert)⟩
-  unfold boxAddend
-  wram_exec * [hrank, hvalue]
+  wram_exec * [boxAddend, hrank, hvalue]
   exact ⟨by wram_simp, rfl⟩
 
 /-- Canonical signed addition and delivery preserve all memory and every nonlocal register. -/
@@ -89,8 +87,7 @@ theorem exec_addAnswer {w : ℕ} {a b : ℤ} (x : Data registers)
       y.regs Reg.answer = Signed.encode (a + b) ∧ y.mem = x.mem by
     obtain ⟨y, he, hr, hm⟩ := this
     exact ⟨y, he, hr, hm, fun i hi => he.regs_eq (by unfold LeafLocal at hi; decide +revert)⟩
-  unfold addAnswer
-  wram_exec [*]
+  wram_exec [addAnswer, *]
   wram_call (Signed.exec_add (r := 55) ha hb _ (by wram_simp) (by wram_simp [hadd]))
     with v ⟨hsum, hframe⟩
   wram_exec [hsum]

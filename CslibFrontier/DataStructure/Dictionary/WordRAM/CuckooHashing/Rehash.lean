@@ -249,8 +249,8 @@ private theorem replayIterSetupCode_exec {w base c_exp n_max U idx : ℕ}
   have ⟨_, _, _, _, hm4, _, _, _, hm9, _⟩ := hhdr
   have hle_sp := le_space c_exp n_max
   have hle_hp := le_hashPairSpace c_exp n_max
-  unfold replayIterSetupCode loadHeaderCode storeHeaderConstCode storeHeaderCode
-  wram_exec [h0, hm17, hm9, hm4, hmem_keys idx hlt]
+  wram_exec [replayIterSetupCode, loadHeaderCode, storeHeaderConstCode, storeHeaderCode,
+    h0, hm17, hm9, hm4, hmem_keys idx hlt]
   exact ⟨by regs_frame, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
     by mem_frame⟩
 
@@ -430,8 +430,7 @@ private theorem syncRehashCondCode_exec {w base c_exp n_max act : ℕ} {x : Data
       y.regs 18 = 0 ∧
       y.mem = x.mem := by
   have hle_sp := le_space c_exp n_max
-  unfold syncRehashCondCode loadHeaderCode
-  wram_exec [h0, hm16]
+  wram_exec [syncRehashCondCode, loadHeaderCode, h0, hm16]
   exact ⟨by regs_frame, by wram_simp, by wram_simp, rfl⟩
 
 private def rehashAttemptCode (c_exp n_max : ℕ) : Code .exact 19 :=
@@ -886,8 +885,7 @@ private theorem insertOverwriteBranchCode_exec {w base c_exp n_max idx v : ℕ} 
       (∀ a, a ≠ valsBase base c_exp n_max + idx → y.mem a = x.mem a) := by
   have hle_sp := le_space c_exp n_max
   have hle_hp := le_hashPairSpace c_exp n_max
-  unfold insertOverwriteBranchCode loadHeaderCode
-  wram_exec [h0, hm10, hm14, hm18]
+  wram_exec [insertOverwriteBranchCode, loadHeaderCode, h0, hm10, hm14, hm18]
   exact ⟨by regs_frame, by wram_simp, by wram_simp, by mem_frame⟩
 
 private def insertNewKeySetupCode : Code .exact 19 :=
@@ -932,8 +930,8 @@ private theorem insertNewKeySetupCode_exec {w base c_exp n_max U idx u_val v : �
   have ⟨_, _, _, _, hm4, _, _, _, hm9, hm10⟩ := hhdr
   have hle_sp := le_space c_exp n_max
   have hle_hp := le_hashPairSpace c_exp n_max
-  unfold insertNewKeySetupCode loadHeaderCode storeHeaderConstCode storeHeaderCode
-  wram_exec [h0, hm5, hm9, hm11, hm10, hm18, hm4]
+  wram_exec [insertNewKeySetupCode, loadHeaderCode, storeHeaderConstCode, storeHeaderCode,
+    h0, hm5, hm9, hm11, hm10, hm18, hm4]
   exact ⟨by regs_frame, by mem_frame, by mem_frame, by mem_frame, by mem_frame, by mem_frame,
     by mem_frame, by mem_frame, by mem_frame⟩
 

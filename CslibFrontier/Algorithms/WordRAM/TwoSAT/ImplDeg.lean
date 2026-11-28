@@ -131,8 +131,7 @@ theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
             (x := st_v) (by wram_simp [st_v, st_pre, hc1]) (by wram_simp [st_v, st_pre, hcur])
             (by wram_simp [st_v, hxor_a]) hdeg
         have hlen_1 : x.mem p = 1 := by simpa using hlen_p
-        unfold implDegBody
-        wram_exec [hc1, hpR, hi, hlen_1, hmem_a, hf_na]
+        wram_exec [implDegBody, hc1, hpR, hi, hlen_1, hmem_a, hf_na]
         refine WP.of_execWithin hy₁_ex ?_
         wram_exec [hy₁_fr, st_v, st_pre, hc1, hi, hf_p_next, hf_i1]
         refine ⟨fun u => ?_, fun addr_a ha => ?_, by wram_simp, by wram_simp; omega,
@@ -176,8 +175,7 @@ theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
             (x := st_v2) (by wram_simp [st_v2, hy₁_fr, st_v1, hc1])
             (by wram_simp [st_v2, hy₁_fr, st_v1, hcur]) (by wram_simp [st_v2, hxor_b]) hy₁_deg'
         have hlen_2 : x.mem p = 2 := by simpa using hlen_p
-        unfold implDegBody
-        wram_exec [hc1, hpR, hi, hlen_2, hmem_a, hmem_b, hf_na]
+        wram_exec [implDegBody, hc1, hpR, hi, hlen_2, hmem_a, hmem_b, hf_na]
         refine WP.of_execWithin hy₁_ex ?_
         wram_exec [hy₁_fr, st_v1, hc1, hf_nb]
         refine WP.of_execWithin hy₂_ex ?_

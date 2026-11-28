@@ -79,8 +79,7 @@ theorem exec_prefix {w L m N Q : ℕ} (key : ℕ → ℕ)
     omega)
   have hlast : Nat.count (fun k => key k < numBands L m N ^ 2) Q = Q := Nat.count_of_forall hkey
   refine WP.exists_execWithin ?_
-  unfold prefixCode
-  wram_exec
+  wram_exec [prefixCode]
   wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.tileCount) hb (Nat.zero_le _)
     ⟨by regs_frame, by wram_simp; simp, by wram_simp; simp, hcounts, fun _ _ => rfl⟩)
     with y ⟨⟨hyp, hsum, hyoff, _, hyframe⟩, _⟩

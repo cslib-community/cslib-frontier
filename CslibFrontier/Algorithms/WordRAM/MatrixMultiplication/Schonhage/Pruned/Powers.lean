@@ -57,8 +57,7 @@ theorem exec_powers {w L Q : ℕ} (x : Data registers) (hL : x.regs inputDepth =
   have h10 : Fits w 10 := hbase.of_le (by omega)
   have hfit_pow : Fits w (10 ^ L + L + 2) := hbase.of_le (by omega)
   refine WP.exists_execWithin ?_
-  unfold powers powerSetup
-  wram_exec [h10]
+  wram_exec [powers, powerSetup, h10]
   wram_call (Power.exec_rename powerRegisters powerRegisters_injective 10 L (by decide) _
     (by change Data.regs _ ten = 10; wram_simp)
     (by change Data.regs _ inputDepth = L; wram_simp [hL]) hfit_pow)

@@ -36,8 +36,7 @@ theorem exec_setup {w : ℕ} (x : Data 416) (h1 : Fits w 1) :
       y.regs FixedPrime.Reg.one = 1 ∧
       ∀ j : Fin 416, j.val < 400 → y.regs j = x.regs j := by
   refine WP.exists_execWithin_preserves (fun j hj => setup_preserves j hj) ?_
-  unfold setup
-  wram_exec
+  wram_exec [setup]
   intro hpres
   exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp,
     by wram_simp, by wram_simp, hpres⟩

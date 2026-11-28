@@ -105,8 +105,7 @@ private theorem exec_test {w m : ℕ} (x : Data 15) (htwo : x.regs two = 2)
     ∃ y, ExecWithin w test x y (7 * m + 9) ∧
       y.regs flag = (if (x.regs cursor).Prime then 1 else 0) ∧ y.mem = x.mem ∧
       ∀ i, 6 ≤ i.val → y.regs i = x.regs i := by
-  unfold test
-  wram_exec [htwo]
+  wram_exec [test, htwo]
   · have hnp : ¬(x.regs cursor).Prime := fun h => by have := h.two_le; omega
     wram_simp [hnp]
     intro i hi
@@ -136,8 +135,7 @@ theorem exec {w : ℕ} (x : Data 15)
       y.regs count = #(Nat.primesLE (x.regs limit)) ∧
       y.regs limit = x.regs limit ∧ y.regs base = x.regs base := by
   let m := x.regs limit
-  unfold program
-  wram_exec
+  wram_exec [program]
   let P (j : ℕ) (y : Data 15) : Prop := y.regs limit = m ∧ y.regs base = x.regs base ∧
     y.regs stop = m + 1 ∧ y.regs one = 1 ∧ y.regs zero = 0 ∧ y.regs two = 2 ∧
     y.regs count = Nat.primeCounting' j ∧ y.mem = memory x.mem (x.regs base) j

@@ -96,8 +96,7 @@ theorem memberLoop_spec {d w base query : ℕ} {tree : Tree d} {s : Data 32}
       cases tree <;> simp_all [Tree.bounds, Tree.member]
     apply memberLoop_finish hs
     apply WP.exists_execWithin
-    unfold memberBody
-    wram_exec [hp, hz, he]
+    wram_exec [memberBody, hp, hz, he]
     exact ⟨by wram_simp [hz], by wram_simp,
       by wram_simp [hout0, hmem_f, Bool.false_eq_true, ↓reduceIte], by wram_simp⟩
   obtain ⟨he_raw, ⟨hm, hM⟩, hq, hspan⟩ := hheader
@@ -107,16 +106,14 @@ theorem memberLoop_spec {d w base query : ℕ} {tree : Tree d} {s : Data 32}
       cases tree <;> simp_all [Tree.bounds, Tree.member]
     apply memberLoop_finish hs
     apply WP.exists_execWithin
-    unfold memberBody readAt
-    wram_exec [hp, hx, hz, ho, he, hm, heq]
+    wram_exec [memberBody, readAt, hp, hx, hz, ho, he, hm, heq]
     exact ⟨by wram_simp [hz], by wram_simp, by wram_simp [hmem_t, ↓reduceIte], by wram_simp⟩
   by_cases heq' : query = M
   · have hneM : M ≠ m := by simpa only [heq'] using heq
     have hmem_t : tree.member query = true := heq' ▸ member_maximum ht hb
     apply memberLoop_finish hs
     apply WP.exists_execWithin
-    unfold memberBody readAt
-    wram_exec [hp, hx, hz, ho, htwo, he, hm, hM, heq, heq', hneM]
+    wram_exec [memberBody, readAt, hp, hx, hz, ho, htwo, he, hm, hM, heq, heq', hneM]
     exact ⟨by wram_simp [hz], by wram_simp, by wram_simp [hmem_t, ↓reduceIte], by wram_simp⟩
   by_cases hlt : query < M
   · cases tree with
@@ -126,8 +123,8 @@ theorem memberLoop_spec {d w base query : ℕ} {tree : Tree d} {s : Data 32}
         simp [Tree.member, heq, heq']
       apply memberLoop_finish hs
       apply WP.exists_execWithin
-      unfold memberBody readAt
-      wram_exec [hp, hx, hz, ho, htwo, hthree, he, hm, hM, hq, splitSize, heq, heq', hlt]
+      wram_exec [memberBody, readAt,
+        hp, hx, hz, ho, htwo, hthree, he, hm, hM, hq, splitSize, heq, heq', hlt]
       exact ⟨by wram_simp [hz], by wram_simp,
         by wram_simp [hout0, hmem_f, Bool.false_eq_true, ↓reduceIte], by wram_simp⟩
     | @node d b summary cluster =>
@@ -148,8 +145,8 @@ theorem memberLoop_spec {d w base query : ℕ} {tree : Tree d} {s : Data 32}
           MemberEntry (base + clusterOffset d i.val) (query % universeSize d) s₁ ∧
           s₁.mem = s.mem := by
         apply WP.exists_execWithin
-        unfold memberBody readAt coordinates
-        wram_exec [hp, hx, hz, ho, htwo, hthree, hfour, hfive, he, hm, hM, hq, hspan,
+        wram_exec [memberBody, readAt, coordinates,
+          hp, hx, hz, ho, htwo, hthree, hfour, hfive, he, hm, hM, hq, hspan,
           splitSize, childSpan, heq, heq', hlt, hqne]
         exact ⟨⟨by wram_simp [hz], by wram_simp [ho], by wram_simp [htwo],
           by wram_simp [hthree], by wram_simp [hfour], by wram_simp [hfive],
@@ -168,8 +165,7 @@ theorem memberLoop_spec {d w base query : ℕ} {tree : Tree d} {s : Data 32}
   · have hmem_f := member_eq_false_of_max_lt (query := query) ht hb (by omega)
     apply memberLoop_finish hs
     apply WP.exists_execWithin
-    unfold memberBody readAt
-    wram_exec [hp, hx, hz, ho, htwo, he, hm, hM, heq, heq', hlt]
+    wram_exec [memberBody, readAt, hp, hx, hz, ho, htwo, he, hm, hM, heq, heq', hlt]
     exact ⟨by wram_simp [hz], by wram_simp,
       by wram_simp [hout0, hmem_f, Bool.false_eq_true, ↓reduceIte], by wram_simp⟩
 

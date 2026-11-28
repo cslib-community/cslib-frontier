@@ -72,8 +72,7 @@ theorem exec_receive {w i limit S performed flag : ℕ} (x : Data 416)
       ∀ j : Fin 416, j.val < 400 ∨ j = Reg.one →
         y.regs j = x.regs j := by
   refine WP.exists_execWithin_preserves (fun j hj => receive_preserves j hj) ?_
-  unfold receive
-  wram_exec [hi, hl, hs, hp, hf, h1] <;>
+  wram_exec [receive, hi, hl, hs, hp, hf, h1] <;>
   · intro hpres
     exact ⟨rfl, by wram_simp, by wram_simp [hc], by wram_simp, by wram_simp, hpres⟩
 

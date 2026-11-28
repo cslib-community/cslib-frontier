@@ -241,8 +241,7 @@ private theorem exec_driver {w T : ℕ} (x : Data 64) (A : ℕ → Prop) [Decida
       · wram_simp; exact hsome.2.2.2.1
       · wram_simp; exact hsome.2.2.2.2
   have hm1 : Fits w (m + 1) := hfit.of_le (by change m + 1 ≤ m + 3; omega)
-  unfold program
-  wram_exec [hm1]
+  wram_exec [program, hm1]
   refine WP.name fun x₀ hx₀ => ?_
   have hi : P (x₀.regs cursor) x₀ := by
     subst hx₀
@@ -322,8 +321,7 @@ theorem exec {w : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ)
       exact (encode_fits hMf).mono (by omega)
     have hraw : Fits (w + 2) M := hencoded.of_le (by omega)
     have hyf : y.regs factor = x.regs factor := hy.1 _ (by decide)
-    unfold query
-    wram_exec [hyf, htwo, hraw, hencoded, Nat.mul_comm]
+    wram_exec [query, hyf, htwo, hraw, hencoded, Nat.mul_comm]
     refine WP.name fun u hu => ?_
     have huc (i : Fin 64) (hi : Control i) : u.regs i = y.regs i := by
       subst hu; dsimp only [Control] at hi
