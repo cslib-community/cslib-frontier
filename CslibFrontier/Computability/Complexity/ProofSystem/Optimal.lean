@@ -182,21 +182,8 @@ by `P`, a proof `true :: π` is evaluated by `Q`, and the empty word defaults to
 order `A ≤ B` by `B.PSimulates A` (or `B.Simulates A`), which reverses the ordering of
 [KrajicekPudlak1989, §0, p. 1063], `P.join Q` is a least upper bound (join) of `P` and `Q`,
 corresponding to the source's common lower bound. -/
-def join (P Q : ProofSystem enc L) : ProofSystem enc L where
-  toFun π := if π.headD false then Q (π.drop 1) else P (π.drop 1)
-  computable :=
-    (headD (encA := encBool) (encL := encBits) false).ite'
-      (Q.computable.comp (bitsDropWithInput id' (const 1)))
-      (P.computable.comp (bitsDropWithInput id' (const 1)))
-  range_eq := by
-    refine Set.Subset.antisymm ?_ fun a ha => ?_
-    · rintro _ ⟨π, rfl⟩
-      dsimp only
-      split_ifs
-      · exact Q.mem _
-      · exact P.mem _
-    · obtain ⟨π, rfl⟩ := P.exists_eq ha
-      exact ⟨false :: π, rfl⟩
+def join (P Q : ProofSystem enc L) : ProofSystem enc L :=
+  joinSubset P Set.Subset.rfl Q
 
 @[simp]
 theorem join_false_cons (P Q : ProofSystem enc L) (π : List Bool) :
