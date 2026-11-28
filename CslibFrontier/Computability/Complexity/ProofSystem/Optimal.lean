@@ -9,7 +9,12 @@ module
 
 public import CslibFrontier.Computability.Complexity.ProofSystem
 public import CslibFrontier.Computability.Complexity.Classes.P
+public import CslibFrontier.Computability.Complexity.Reduction.Isomorphism.Paddable
 import Cslib.Foundations.Data.Polynomial.Monotone
+import CslibFrontier.Computability.Complexity.Classes.NP.Witness
+import CslibFrontier.Computability.Complexity.Problems.SAT.Paddable
+import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 
@@ -33,7 +38,12 @@ for `UNSAT`, if and only if `NP = coNP`
 
 An optimal proof system `P` for `L` proves every `NP` subset `X ⊆ L` with proofs of length
 polynomial in the encoded instance length
-(`Cslib.Complexity.ProofSystem.IsOptimal.polyBounded_on_NP_subset`).
+(`Cslib.Complexity.ProofSystem.IsOptimal.polyBounded_on_NP_subset`). For any paddable decodable
+language `L` (`Cslib.Complexity.Paddable`), the converse also holds
+(`Cslib.Complexity.ProofSystem.exists_isOptimal_iff_of_paddable`), specializing via
+`Cslib.Complexity.UNSAT_paddable` to the full `(2) ↔ (3)` equivalence of
+[KrajicekPudlak1989, Theorem 2.1(i)] for `UNSAT`
+(`Cslib.Complexity.ProofSystem.exists_isOptimal_UNSAT_iff`).
 
 ## Source-to-Lean mapping
 
@@ -45,19 +55,22 @@ polynomial in the encoded instance length
   the reversed order `P ≤ Q` by `Q.Simulates P` (respectively `Q.PSimulates P`), which reverses the
   source's ordering `≤`.
 * **`UNSAT` vs. `TAUT`:** [KrajicekPudlak1989] states propositional proof systems for `TAUT`.
-  `Cslib.Complexity.ProofSystem.IsOptimal.polynomiallyBounded_UNSAT_iff_NP_eq_coNP` and
-  `Cslib.Complexity.ProofSystem.exists_isOptimal_UNSAT_of_NP_eq_coNP` state the `UNSAT` (`encCNF`)
-  refutation analogue via the library's existing polynomial-bound equivalence
-  `Cslib.Complexity.ProofSystem.NP_eq_coNP_iff_exists_polynomiallyBounded`, without transporting a
-  proof system between `TAUT` and `UNSAT`.
+  `Cslib.Complexity.ProofSystem.IsOptimal.polynomiallyBounded_UNSAT_iff_NP_eq_coNP`,
+  `Cslib.Complexity.ProofSystem.exists_isOptimal_UNSAT_of_NP_eq_coNP`, and
+  `Cslib.Complexity.ProofSystem.exists_isOptimal_UNSAT_iff` state the `UNSAT` (`encCNF`) refutation
+  analogues, using `Cslib.Complexity.ProofSystem.NP_eq_coNP_iff_exists_polynomiallyBounded` and
+  `Cslib.Complexity.UNSAT_paddable` without transporting a proof system between `TAUT` and `UNSAT`.
 * **Direct source content vs. derived library facts:** Common-bound existence (`join` with
-  `join_simulates_left`, `join_simulates_right`), the forward direction `(2) → (3)` of Theorem
-  2.1(i) (`IsOptimal.polyBounded_on_NP_subset`, §2, pp. 1066–1067), and the `UNSAT` analogue of
-  §0's `NP = coNP` observation reflect statements in [KrajicekPudlak1989]; the converse `(3) → (2)`
-  via CNF padding is not formalized here. Universal join properties (`pSimulates_join_iff`,
-  `simulates_join_iff`), fixed-system consequences (`IsPOptimal.isOptimal`,
-  `PolynomiallyBounded.isOptimal`, closure under simulation), and the `NP` / `P` existence facts
-  (`exists_isPOptimal_of_mem_P`, etc.) are derived library facts built on the existing API.
+  `join_simulates_left`, `join_simulates_right`), the `(2) ↔ (3)` equivalence of Theorem 2.1(i)
+  (`IsOptimal.polyBounded_on_NP_subset`, `exists_isOptimal_iff_of_paddable`, and
+  `exists_isOptimal_UNSAT_iff`, §2, pp. 1066–1067; proved in the paper via first-order arithmetic
+  consistency statements `(3) → (5) → (4) → (1) → (2)` on pp. 1070–1071, and proved directly here
+  for any paddable decodable language by padding proof systems into `NP` subsets), and the `UNSAT`
+  analogue of §0's `NP = coNP` observation reflect statements in [KrajicekPudlak1989]. Universal
+  join properties (`pSimulates_join_iff`, `simulates_join_iff`), fixed-system consequences
+  (`IsPOptimal.isOptimal`, `PolynomiallyBounded.isOptimal`, closure under simulation), and the
+  `NP` / `P` existence facts (`exists_isPOptimal_of_mem_P`, etc.) are derived library facts built
+  on the existing API.
 * **Existence boundary:** Unconditional existence of an optimal or p-optimal proof system for
   `UNSAT` is an open problem ([KrajicekPudlak1989, §0, p. 1063]) and is not claimed.
 
@@ -83,6 +96,9 @@ polynomial in the encoded instance length
   refutation system for `UNSAT` is polynomially bounded iff `NP = coNP`.
 * `Cslib.Complexity.ProofSystem.IsOptimal.polyBounded_on_NP_subset`: forward `(2) → (3)` direction
   of [KrajicekPudlak1989, Theorem 2.1(i)].
+* `Cslib.Complexity.ProofSystem.exists_isOptimal_iff_of_paddable`,
+  `Cslib.Complexity.ProofSystem.exists_isOptimal_UNSAT_iff`: full `(2) ↔ (3)` equivalence of
+  [KrajicekPudlak1989, Theorem 2.1(i)] for paddable decodable languages and for `UNSAT`.
 * `Cslib.Complexity.ProofSystem.exists_isOptimal_of_mem_NP`,
   `Cslib.Complexity.ProofSystem.exists_isOptimal_UNSAT_of_NP_eq_coNP`,
   `Cslib.Complexity.ProofSystem.exists_isPOptimal_of_mem_P`: conditional existence results.
@@ -293,9 +309,10 @@ theorem IsOptimal.polynomiallyBounded_UNSAT_iff_NP_eq_coNP {P : ProofSystem encC
 system `P` for `L` proves every `NP` subset `X ⊆ L` with proofs of length polynomial in the
 encoded instance length.
 
-This formalizes one direction of `(2) ↔ (3)` in [KrajicekPudlak1989, §2, pp. 1066–1067] (stated
-there for `TAUT`); the converse `(3) → (2)` requires padding proof systems into `NP` subsets and
-is not proved here. -/
+For any paddable decodable language (and in particular for `UNSAT`), the converse `(3) → (2)` also
+holds, giving the full `(2) ↔ (3)` equivalence in
+`Cslib.Complexity.ProofSystem.exists_isOptimal_iff_of_paddable` and
+`Cslib.Complexity.ProofSystem.exists_isOptimal_UNSAT_iff`. -/
 theorem IsOptimal.polyBounded_on_NP_subset {P : ProofSystem enc L} (hP : P.IsOptimal)
     (D : Decoder enc) {X : Set α} (hXL : X ⊆ L) (hX : X ∈ NP enc) :
     ∃ p : Polynomial ℕ, ∀ a ∈ X, ∃ π, P π = a ∧ π.length ≤ p.eval (enc a).length := by
@@ -314,6 +331,95 @@ theorem IsOptimal.polyBounded_on_NP_subset {P : ProofSystem enc L} (hP : P.IsOpt
       have hsucc : (true :: π).length ≤ r.eval (enc a).length + 1 := by
         simpa [List.length_cons] using Nat.add_le_add_right hlen 1
       exact hlen'.trans (s.eval_mono hsucc)
+
+/-- **Equivalence `(2) ↔ (3)` of [KrajicekPudlak1989, Theorem 2.1(i)] for paddable decodable
+languages**: a paddable language `L` (`Cslib.Complexity.Paddable`) with a total polynomial-time
+decoder has an optimal proof system if and only if some proof system for `L` proves every `NP`
+subset of `L` with proofs of length polynomial in the encoded instance length.
+
+In [KrajicekPudlak1989, §2–§3, pp. 1066–1067, 1070–1071], `(3) → (2)` is established for `TAUT` via
+first-order arithmetic consistency statements `(3) → (5) → (4) → (1) → (2)`. Here we prove the
+converse directly from `Paddable`: unpadding `P` yields an optimal system because every proof
+system `Q` embeds its pairs `(Q w, w)` into the `NP` subset
+`{pad (Q w) (frame (enc (Q w)) ++ w) | w}`. -/
+theorem exists_isOptimal_iff_of_paddable (D : Decoder enc) (hL : Paddable enc L) :
+    (∃ P : ProofSystem enc L, P.IsOptimal) ↔
+      ∃ P : ProofSystem enc L,
+        ∀ X : Set α, X ⊆ L → X ∈ NP enc →
+          ∃ p : Polynomial ℕ, ∀ a ∈ X, ∃ π, P π = a ∧ π.length ≤ p.eval (enc a).length := by
+  refine ⟨fun ⟨P, hP⟩ => ⟨P, fun _ hX hNP => hP.polyBounded_on_NP_subset D hX hNP⟩, ?_⟩
+  rintro ⟨P, hP⟩
+  classical
+  obtain ⟨pad, unpad, hpad, hunpad, hdec, hmem⟩ := hL
+  obtain ⟨a₀, ha₀⟩ := P.nonempty
+  obtain ⟨_, _, hD⟩ := D.computable
+  have hDpoly : ComputableInPolyTime D.decode encBits enc := hD.computableInPolyTime
+  let unpadInst : α → α := fun b =>
+    let y := unpad b
+    let a := D.decode (unframe y)
+    if decide (pad a y = b) then a else a₀
+  have hunpadInst_poly : ComputableInPolyTime unpadInst enc enc := by
+    have ha : ComputableInPolyTime (fun b => D.decode (unframe (unpad b))) enc enc :=
+      hDpoly.comp (unframe.comp hunpad)
+    exact (decide_eq' (hpad.comp (ha.prod hunpad)) id').ite' ha (const a₀)
+  have hunpadInst_pad : ∀ a w, unpadInst (pad a (frame (enc a) ++ w)) = a := by
+    intro a w
+    simp [unpadInst, hdec, unframe_frame_append, D.decode_enc]
+  have hunpadInst_mem : ∀ {b}, b ∈ L → unpadInst b ∈ L := by
+    intro b hb
+    dsimp only [unpadInst]
+    split_ifs with h
+    · exact (hmem _ _).1 ((decide_eq_true_eq.mp h).symm ▸ hb)
+    · exact ha₀
+  let P' : ProofSystem enc L := {
+    toFun := fun π => unpadInst (P π)
+    computable := hunpadInst_poly.comp P.computable
+    range_eq := by
+      refine Set.Subset.antisymm ?_ fun a ha => ?_
+      · rintro _ ⟨π, rfl⟩
+        exact hunpadInst_mem (P.mem π)
+      · obtain ⟨π, hπ⟩ := P.exists_eq ((hmem a (frame (enc a) ++ [])).2 ha)
+        exact ⟨π, by dsimp only; rw [hπ, hunpadInst_pad a []]⟩
+  }
+  refine ⟨P', fun Q => ?_⟩
+  let embed : List Bool → α := fun w => pad (Q w) (frame (enc (Q w)) ++ w)
+  have hembed : ComputableInPolyTime embed encBits enc :=
+    hpad.comp (Q.computable.prod (bitsAppend ((bitsFrame enc).comp Q.computable) id'))
+  let X : Set α := {b | ∃ w : List Bool, embed w = b}
+  have hX_sub : X ⊆ L := by
+    rintro _ ⟨w, rfl⟩
+    exact (hmem _ _).2 (Q.mem w)
+  obtain ⟨cu, du, hcu⟩ := hunpad.polyBounded_length.exists_le
+  have hcheck : ComputableInPolyTime (fun x : α × List Bool => decide (embed x.2 = x.1))
+      (encPair enc encBits) encBool :=
+    decide_eq' (hembed.comp (snd enc encBits)) (fst enc encBits)
+  have hX_NP : X ∈ NP enc :=
+    mem_NP_of_witness (p := .C cu * (.X + 1) ^ du) Decoder.bits hcheck
+      (fun _ _ => decide_eq_true_iff) (by
+        rintro b w rfl
+        refine ⟨w, rfl, ?_⟩
+        have hw : w.length ≤ (unpad (embed w)).length := by
+          simp [embed, hdec]
+        exact hw.trans (by simpa using hcu (embed w)))
+  obtain ⟨p, hp⟩ := hP X hX_sub hX_NP
+  obtain ⟨ce, de, hce⟩ := hembed.polyBounded_length.exists_le
+  refine ⟨p.comp (.C ce * (.X + 1) ^ de), fun w => ?_⟩
+  obtain ⟨π, hPπ, hlen⟩ := hp (embed w) ⟨w, rfl⟩
+  refine ⟨π, ?_, ?_⟩
+  · change unpadInst (P π) = Q w
+    rw [hPπ, hunpadInst_pad]
+  · rw [Polynomial.eval_comp]
+    exact hlen.trans (p.eval_mono (by simpa using hce w))
+
+/-- **Equivalence `(2) ↔ (3)` of [KrajicekPudlak1989, Theorem 2.1(i)] for `UNSAT`**: `UNSAT` has an
+optimal refutation system if and only if some refutation system for `UNSAT` has polynomial-length
+refutations on every `NP` subset of `UNSAT`. -/
+theorem exists_isOptimal_UNSAT_iff :
+    (∃ P : ProofSystem encCNF UNSAT, P.IsOptimal) ↔
+      ∃ P : ProofSystem encCNF UNSAT,
+        ∀ X : Set (Cslib.Logic.PL.CNF ℕ), X ⊆ UNSAT → X ∈ NP encCNF →
+          ∃ p : Polynomial ℕ, ∀ φ ∈ X, ∃ π, P π = φ ∧ π.length ≤ p.eval (encCNF φ).length :=
+  exists_isOptimal_iff_of_paddable cnfDecoder UNSAT_paddable
 
 /-! ### Conditional existence of optimal and p-optimal proof systems -/
 

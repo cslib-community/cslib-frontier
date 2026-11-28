@@ -13,16 +13,17 @@ import CslibFrontier.Computability.Complexity.ProofSystem.Optimal
 -/
 
 register_result "krajicek-pudlak-optimal-proof-system-np-subsets" where
-  title := "Optimal proof systems simulate all proof systems and have polynomial proofs on every \
-    NP subset"
+  title := "Optimal proof systems exist for UNSAT iff some system is polynomially bounded on \
+    every NP subset"
   topic := "proof complexity"
   sources := [
     { paper := KrajicekPudlak1989,
-      theorem := "§0 (common lower bound, optimality, NP = coNP) and Theorem 2.1(i), (2) → (3)",
+      theorem := "§0 (common lower bound, optimality, NP = coNP) and Theorem 2.1(i), (2) ↔ (3)",
       locator := "Journal of Symbolic Logic 54(3), 1989, §0 printed p. 1063, §1 pp. 1065–1066, \
         §2 Statements (2), (3), (7), Theorem 2.1(i), and implication diagram printed \
-        pp. 1066–1067; Part 2 opening paragraph noting (2) → (3) printed p. 1070 (author scan \
-        https://karlin.mff.cuni.cz/~krajicek/scan10.pdf, PDF pp. 1, 3–5, 8)" }
+        pp. 1066–1067; Part 2 proofs of (2) → (3) and (3) → (5) → (4) → (1) → (2) printed \
+        pp. 1070–1071 (author scan https://karlin.mff.cuni.cz/~krajicek/scan10.pdf, PDF pp. 1, \
+        3–5, 8–9)" }
   ]
   theorems := [
     Cslib.Complexity.ProofSystem.join_simulates_left,
@@ -33,6 +34,8 @@ register_result "krajicek-pudlak-optimal-proof-system-np-subsets" where
     Cslib.Complexity.ProofSystem.PolynomiallyBounded.isOptimal,
     Cslib.Complexity.ProofSystem.IsOptimal.polynomiallyBounded_UNSAT_iff_NP_eq_coNP,
     Cslib.Complexity.ProofSystem.IsOptimal.polyBounded_on_NP_subset,
+    Cslib.Complexity.ProofSystem.exists_isOptimal_iff_of_paddable,
+    Cslib.Complexity.ProofSystem.exists_isOptimal_UNSAT_iff,
     Cslib.Complexity.ProofSystem.exists_isOptimal_UNSAT_of_NP_eq_coNP
   ]
   scope := "Direct source correspondences and analogues vs. derived library facts for optimal \
@@ -42,10 +45,14 @@ register_result "krajicek-pudlak-optimal-proof-system-np-subsets" where
     P ≤ Q for 'P simulates Q' (common lower bound, optimal = least element), and Lean likewise \
     places the simulator on the left of Simulates / PSimulates; under the reversed order \
     A ≤ B := B.Simulates A (or B.PSimulates A), P.join Q is a binary join and optimal systems \
-    are greatest elements; (2) IsOptimal.polyBounded_on_NP_subset formalizes only the forward \
-    direction (2) → (3) of Theorem 2.1(i) (every NP subset X ⊆ L has polynomially bounded \
-    P-proofs, assuming a Decoder enc), with the CNF-padding converse (3) → (2) left out of this \
-    entry; (3) IsOptimal.polynomiallyBounded_UNSAT_iff_NP_eq_coNP and \
+    are greatest elements; (2) IsOptimal.polyBounded_on_NP_subset, \
+    exists_isOptimal_iff_of_paddable, and exists_isOptimal_UNSAT_iff formalize the full (2) ↔ (3) \
+    equivalence of Theorem 2.1(i) for paddable decodable languages and in particular UNSAT \
+    (encCNF): an optimal refutation system exists iff some refutation system has polynomially \
+    bounded proofs on every NP subset X ⊆ UNSAT (proved in the paper for TAUT via first-order \
+    arithmetic consistency statements (3) → (5) → (4) → (1) → (2), and proved directly here from \
+    Cslib.Complexity.Paddable / UNSAT_paddable); (3) \
+    IsOptimal.polynomiallyBounded_UNSAT_iff_NP_eq_coNP and \
     exists_isOptimal_UNSAT_of_NP_eq_coNP state the UNSAT (encCNF) refutation analogue of the §0 \
     TAUT / NP = coNP observation, proved via the existing library equivalence \
     ProofSystem.NP_eq_coNP_iff_exists_polynomiallyBounded without transporting a specific proof \
