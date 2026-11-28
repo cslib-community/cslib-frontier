@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Foundations.Data.List.CommonPrefix
+public import CslibFrontier.Foundations.Data.Array.CommonPrefix
 
 /-!
 # The Z-algorithm
@@ -76,38 +76,6 @@ theorem getElem_zFunction_zero (s : List α) (hs : 0 < (zFunction s).length) :
 
 /-! ## The algorithm -/
 
-/-- Starting from a known common prefix length `h`, extend the common prefix of the suffixes of
-`s` at positions `j` and `i` one character at a time. -/
-private def extend (s : Array α) (j i h : ℕ) : ℕ :=
-  if hlt : j + h < s.size ∧ i + h < s.size then
-    if s[j + h]'hlt.1 = s[i + h]'hlt.2 then
-      extend s j i (h + 1)
-    else
-      h
-  else
-    h
-termination_by s.size - (i + h)
-
-private theorem extend_eq_add_lcpLen (s : Array α) (j i h : ℕ) :
-    extend s j i h = h + List.lcpLen (s.toList.drop (j + h)) (s.toList.drop (i + h)) := by
-  fun_induction extend s j i h with
-  | case1 h hlt heq ih =>
-    rw [ih, List.drop_eq_getElem_cons (i := j + h) (l := s.toList) (by simpa using hlt.1),
-      List.drop_eq_getElem_cons (i := i + h) (l := s.toList) (by simpa using hlt.2),
-      Array.getElem_toList, Array.getElem_toList, heq, List.lcpLen_cons_cons_self,
-      show j + (h + 1) = j + h + 1 by omega, show i + (h + 1) = i + h + 1 by omega]
-    omega
-  | case2 h hlt hne =>
-    rw [List.drop_eq_getElem_cons (i := j + h) (l := s.toList) (by simpa using hlt.1),
-      List.drop_eq_getElem_cons (i := i + h) (l := s.toList) (by simpa using hlt.2),
-      Array.getElem_toList, Array.getElem_toList, List.lcpLen_cons_cons]
-    simp only [hne, ↓reduceIte, Nat.add_zero]
-  | case3 h hlt =>
-    have h1 := List.lcpLen_le_length_left (s.toList.drop (j + h)) (s.toList.drop (i + h))
-    have h2 := List.lcpLen_le_length_right (s.toList.drop (j + h)) (s.toList.drop (i + h))
-    simp only [List.length_drop, Array.length_toList] at h1 h2
-    omega
-
 /-- The main loop of the Z-algorithm at position `i`, with box `[l, r)` and the values `z` at
 the positions before `i`. If `z[i - l] < r - i` then `z[i] = z[i - l]`; otherwise extend the
 common prefix of `s` and `s.drop i` from `r - i`. When `i ≥ r` the test fails because `r - i = 0`,
@@ -117,7 +85,7 @@ private def zLoop (s : Array α) (i l r : ℕ) (z : Array ℕ) : Array ℕ :=
     if z.getD (i - l) 0 < r - i then
       zLoop s (i + 1) l r (z.push (z.getD (i - l) 0))
     else
-      let k := extend s 0 i (r - i)
+      let k := s.extendLcp 0 i (r - i)
       zLoop s (i + 1) i (i + k) (z.push k)
   else
     z
@@ -197,8 +165,7 @@ private theorem zLoop_spec (s : Array α) (i l r : ℕ) (z : Array ℕ) (hi1 : 1
         grind
       · simp [Nat.sub_eq_zero_of_le (Nat.not_lt.mp hir)]
     have hext : k = List.lcpLen s.toList (s.toList.drop i) := by
-      dsimp only [k]
-      rw [extend_eq_add_lcpLen, List.lcpLen_eq_add_lcpLen_drop hh, List.drop_drop, Nat.zero_add]
+      simp [k, Array.extendLcp_eq_lcpLen, hh]
     have hlen := List.lcpLen_le_length_right s.toList (s.toList.drop i)
     simp only [List.length_drop, Array.length_toList] at hlen
     exact ih (by omega) (by omega) (by rw [Array.size_push, hz]) (z_push_getElem hz hzs hext)

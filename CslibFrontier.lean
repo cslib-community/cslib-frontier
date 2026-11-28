@@ -5395,6 +5395,7 @@ public import CslibFrontier.Computability.Automata.MPDA.HoleDerivation
 public import CslibFrontier.Foundations.Data.List.IdxOfInjective
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ConcreteSupplier
 public import CslibFrontier.MachineLearning.OnlineLearning.Blackwell
+public import CslibFrontier.Foundations.Data.Array.CommonPrefix
 public import CslibFrontier.Computability.Circuit.Boolean.NonlinearCost
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Lists
 public import CslibFrontier.Computability.Machines.Turing.TM2.SingleTapeSpace
