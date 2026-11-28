@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.ParamsCompute.Primitives
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
+import CslibFrontier.Tactic.UpdateSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -111,39 +113,44 @@ theorem writeRootHdrSubProg_spec
     rw [hhdr.hdr_keyBits]; exact hw_fit.of_le (Nat.clog_le_of_le_pow hU.le)
   have hm4 : Fits w (s.mem (srcHdrBase + 4)) := by
     rw [hhdr.hdr_valBits]; exact hw_fit.of_le (Nat.clog_le_of_le_pow hV)
-  refine ⟨⟨hsrc_fr, hdst_fr, hm0, hm1, hm2, hm3, hm4, hN_fit, hnc_fit, hni_fit, h7⟩,
-    ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · rcases s with ⟨mem, fr⟩
-    dsimp only [prog, d, writeRootHdrSubProg] at hsrc_fr hdst_fr hm0 hm1 hm2 hm3 hm4 ⊢
-    iterate 5 refine validHistory_read_step (by omega) ?_
-    iterate 7 refine validHistory_write_step (by omega) (by assumption) ?_
-    exact ⟨⟨show dstMetaBase + 7 < fr by omega, hni_fit⟩, trivial⟩
-  · dsimp only [prog, d, writeRootHdrSubProg]
-    simp only [prog_clientResult_bind, prog_clientResult_read, prog_runClient_state_read,
-      prog_runClient_state_write, prog_clientResult_pure,
-      hhdr.hdr_w, hhdr.hdr_keyBits, hhdr.hdr_valBits]
-  · dsimp only [s', prog, d, writeRootHdrSubProg]
-    simp only [StateTransitionSpec.clientState, prog_runClient_state_bind,
-      prog_clientResult_read, prog_runClient_state_read, prog_runClient_state_write,
-      prog_runClient_state_pure]
-  · dsimp only [s', prog, d, writeRootHdrSubProg, StateTransitionSpec.clientState]
-    simp only [prog_runClient_state_bind,
-      prog_clientResult_read, prog_runClient_state_read, prog_runClient_state_write,
-      prog_runClient_state_pure, hhdr.hdr_U, hhdr.hdr_V, hhdr.hdr_w, hhdr.hdr_keyBits,
-      hhdr.hdr_valBits]
-    refine ⟨hU, hhdr.pos_U, hhdr.pos_V, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-      (simp only [Function.update_apply]; split_ifs <;> omega)
-  · intro a ha
-    dsimp only [s', prog, d, writeRootHdrSubProg, StateTransitionSpec.clientState]
-    simp only [prog_runClient_state_bind, prog_clientResult_read, prog_runClient_state_read,
-      prog_runClient_state_write, prog_runClient_state_pure, Function.update_apply]
-    split_ifs <;> omega
-  · dsimp only [prog, d, writeRootHdrSubProg]
-    simp only [Realization.memoryCost_bind', prog_memoryCost_read, prog_runClient_state_read,
-      prog_memoryCost_write, prog_runClient_state_write, memoryCost_pure]
-    omega
+  obtain ⟨hv, hc, hfr, hS, hres, hhdr'⟩ := FramedTriple.realization_of_frontier_eq (w := w)
+    (s := s) (c := 13) (p := prog) (S := Set.Ico dstMetaBase (dstMetaBase + 8))
+    (Q := fun r t => r = (w, (keyBits U, valBits V)) ∧
+      RootHeaderValid U V w N n_cur n_init_new dstMetaBase t.mem) (by
+    dsimp only [prog, d, writeRootHdrSubProg]
+    framed_triple
+    rw [hhdr.hdr_U, hhdr.hdr_V, hhdr.hdr_w, hhdr.hdr_keyBits, hhdr.hdr_valBits]
+    refine ⟨rfl, rfl, hU, hhdr.pos_U, hhdr.pos_V, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> update_simp)
+  exact ⟨⟨hsrc_fr, hdst_fr, hm0, hm1, hm2, hm3, hm4, hN_fit, hnc_fit, hni_fit, h7⟩, hv, hres, hfr,
+    hhdr', fun a ha => by_contra fun h => ha (hS a h), hc⟩
 
 /-! ## Logarithmic Scales (`computeLogScalesProg`) -/
+
+-- FramedLoop candidate (`Primitives`): `subSatProg` as a framed triple fixing its result, so that
+-- `framed_triple` calls it.
+private theorem subSat_ft {w r : ℕ} {s : Memory.State} (a b : ℕ) (h : a - b = r) :
+    FramedTriple w s (subSatProg (a, b)) 0 ∅ fun r' t => r' = r ∧ t = s :=
+  .of_readOnly (validHistory_subSatProg _ _) (clientState_subSatProg _ _)
+    (by rw [clientResult_subSatProg, h]) (memoryCost_subSatProg _ _).le
+
+-- FramedLoop candidate (`Primitives`)
+private theorem maxNat_ft {w : ℕ} {s : Memory.State} (a b : ℕ) :
+    FramedTriple w s (maxNatProg (a, b)) 0 ∅ fun r' t => r' = max a b ∧ t = s :=
+  .of_readOnly (validHistory_maxNatProg _ _) (clientState_maxNatProg _ _)
+    (clientResult_maxNatProg _ _ _) (memoryCost_maxNatProg _ _).le
+
+-- FramedLoop candidate (`Primitives`)
+private theorem minNat_ft {w r : ℕ} {s : Memory.State} (a b : ℕ) (h : min a b = r) :
+    FramedTriple w s (minNatProg (a, b)) 0 ∅ fun r' t => r' = r ∧ t = s :=
+  .of_readOnly (validHistory_minNatProg _ _) (clientState_minNatProg _ _)
+    (by rw [clientResult_minNatProg, h]) (memoryCost_minNatProg _ _).le
+
+-- FramedLoop candidate (`Primitives`)
+private theorem ifEqZero_ft {w r : ℕ} {s : Memory.State} (x t f : ℕ)
+    (h : (if x = 0 then t else f) = r) :
+    FramedTriple w s (ifEqZeroProg (x, (t, f))) 0 ∅ fun r' t => r' = r ∧ t = s :=
+  .of_readOnly (validHistory_ifEqZeroProg _ _) (clientState_ifEqZeroProg _ _)
+    (by rw [clientResult_ifEqZeroProg, h]) (memoryCost_ifEqZeroProg _ _).le
 
 /-- Branching formula for `globalMetaLen N` from `gmSlabMetaBase N + maxFullSlabs N * 4`. -/
 theorem globalMetaLen_cond_eq (N : ℕ) :
@@ -227,6 +234,8 @@ theorem computeLogScalesProg_exec {w U dstMetaBase N : ℕ} {s : Memory.State}
   have hN_fit : Fits w N := hU.of_le hNU
   obtain ⟨hlogN_lt, hmaxN4_fit, _, hclog1_le_w, hclog1_eq, hllf_eq, _⟩ :=
     computeLogScales_arith hN hNU hU h225
+  rw [← hclog1_eq, Nat.add_sub_cancel] at hllf_eq
+  have := Nat.log_le_self 2 (max N 4 - 1)
   obtain ⟨_, hv1, hc1, hst1, hres1⟩ :=
     log2CapProg_spec (K := N) (x₀ := N) hdst_lt hN_fit
       (hw_fit.of_le (by have := Nat.min_le_right N (Nat.log 2 N); omega))
@@ -237,65 +246,28 @@ theorem computeLogScalesProg_exec {w U dstMetaBase N : ℕ} {s : Memory.State}
       (hw_fit.of_le (by have := Nat.min_le_right (max N 4 - 1) (Nat.log 2 (max N 4 - 1)); omega))
   rw [Nat.min_eq_right (Nat.log_le_self 2 _)] at hres2
   obtain ⟨_, hv3, hc3, hst3, hres3⟩ :=
-    log2CapProg_spec (K := Nat.clog 2 (max N 4) - 1) (x₀ := Nat.clog 2 (max N 4) - 1) hdst_lt
-      (hw_fit.of_le (by omega))
-      (hw_fit.of_le (by
-        have := Nat.min_le_right (Nat.clog 2 (max N 4) - 1)
-          (Nat.log 2 (Nat.clog 2 (max N 4) - 1)); omega))
+    log2CapProg_spec (K := Nat.log 2 (max N 4 - 1)) (x₀ := Nat.log 2 (max N 4 - 1)) hdst_lt
+      (hw_fit.of_le (by omega)) (hw_fit.of_le (by
+        have := Nat.min_le_right (Nat.log 2 (max N 4 - 1)) (Nat.log 2 (Nat.log 2 (max N 4 - 1)))
+        omega))
   rw [Nat.min_eq_right (Nat.log_le_self 2 _)] at hres3
-  have hclog_le_N3 : Nat.clog 2 (max N 4) - 1 ≤ N + 3 := by
-    have := Nat.log_le_self 2 (max N 4 - 1); omega
-  have h3llf_comm : Dynamic.logLogFactor N * 3 = 3 * Dynamic.logLogFactor N := by ring
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · dsimp only [d, computeLogScalesProg]
-    rw [validHistory_bind', hst1, hres1]; refine ⟨hv1, ?_⟩
-    rw [validHistory_bind', clientState_maxNatProg, clientResult_maxNatProg]
-    refine ⟨validHistory_maxNatProg _ _, ?_⟩
-    rw [validHistory_bind', clientState_subSatProg, clientResult_subSatProg]
-    refine ⟨validHistory_subSatProg _ _, ?_⟩
-    rw [validHistory_bind', hst2, hres2, hclog1_eq]; refine ⟨hv2, ?_⟩
-    rw [validHistory_bind', clientState_subSatProg, clientResult_subSatProg]
-    refine ⟨validHistory_subSatProg _ _, ?_⟩
-    rw [validHistory_bind', hst3, hres3]; refine ⟨hv3, ?_⟩
-    rw [hllf_eq, validHistory_bind', clientState_subSatProg, clientResult_subSatProg]
-    refine ⟨validHistory_subSatProg _ _, ?_⟩
-    rw [validHistory_bind', clientState_subSatProg]
-    exact ⟨validHistory_subSatProg _ _, trivial⟩
-  · dsimp only [d, computeLogScalesProg]
-    rw [StateTransitionSpec.clientState_bind, hst1, hres1,
-      StateTransitionSpec.clientState_bind, clientState_maxNatProg, clientResult_maxNatProg,
-      StateTransitionSpec.clientState_bind, clientState_subSatProg, clientResult_subSatProg,
-      StateTransitionSpec.clientState_bind, hst2, hres2, hclog1_eq,
-      StateTransitionSpec.clientState_bind, clientState_subSatProg, clientResult_subSatProg,
-      StateTransitionSpec.clientState_bind, hst3, hres3,
-      StateTransitionSpec.clientState_bind, clientState_subSatProg,
-      StateTransitionSpec.clientState_bind, clientState_subSatProg,
-      StateTransitionSpec.clientState_pure]
-  · dsimp only [d, computeLogScalesProg]
-    rw [prog_clientResult_bind, hst1, hres1,
-      prog_clientResult_bind, clientState_maxNatProg, clientResult_maxNatProg,
-      prog_clientResult_bind, clientState_subSatProg, clientResult_subSatProg,
-      prog_clientResult_bind, hst2, hres2, hclog1_eq,
-      prog_clientResult_bind, clientState_subSatProg, clientResult_subSatProg,
-      prog_clientResult_bind, hst3, hres3,
-      hllf_eq, h3llf_comm, prog_clientResult_bind, clientState_subSatProg,
-      clientResult_subSatProg, prog_clientResult_bind, clientState_subSatProg,
-      clientResult_subSatProg, prog_clientResult_pure]
-    rfl
-  · dsimp only [d, computeLogScalesProg]
-    rw [Realization.memoryCost_bind', hst1, hres1,
-      Realization.memoryCost_bind', memoryCost_maxNatProg, clientState_maxNatProg,
-      clientResult_maxNatProg,
-      Realization.memoryCost_bind', memoryCost_subSatProg, clientState_subSatProg,
-      clientResult_subSatProg,
-      Realization.memoryCost_bind', hst2, hres2, hclog1_eq,
-      Realization.memoryCost_bind', memoryCost_subSatProg, clientState_subSatProg,
-      clientResult_subSatProg,
-      Realization.memoryCost_bind', hst3, hres3,
-      Realization.memoryCost_bind', memoryCost_subSatProg, clientState_subSatProg,
-      Realization.memoryCost_bind', memoryCost_subSatProg, clientState_subSatProg,
-      memoryCost_pure]
-    omega
+  have h1 := FramedTriple.of_readOnly hv1 hst1 hres1 hc1
+  have h2 := FramedTriple.of_readOnly hv2 hst2 hres2 hc2
+  have h3 := FramedTriple.of_readOnly hv3 hst3 hres3 hc3
+  have hm := maxNat_ft (w := w) (s := s) N 4
+  have hs1 := subSat_ft (w := w) (s := s) (max N 4) 1 rfl
+  have hs2 := subSat_ft (w := w) (s := s) (Nat.log 2 (max N 4 - 1) + 1) 1 (Nat.add_sub_cancel ..)
+  have hs3 := subSat_ft (w := w) (s := s) (Nat.log 2 N)
+    ((Nat.log 2 (Nat.log 2 (max N 4 - 1)) + 1) * 3) (r := bucketBits N)
+    (by rw [hllf_eq, Nat.mul_comm]; rfl)
+  have hs4 := subSat_ft (w := w) (s := s) (keyBits U) (bucketBits N) rfl
+  obtain ⟨hv, hc, -, hres, hst⟩ := framedTriple_iff_realization.mp (show
+    FramedTriple w s (computeLogScalesProg d) (3 * N + 6) ∅ fun r t =>
+      r = (Nat.log 2 N, (quotientBits U N, Dynamic.logLogFactor N)) ∧ t = s by
+    dsimp only [d, computeLogScalesProg]
+    framed_triple
+    exact ⟨by rw [hllf_eq]; rfl, rfl⟩)
+  exact ⟨hv, hst, hres, hc⟩
 
 /-- `computeLogScalesProg` compiles via `RealizesBounded .exact`. -/
 theorem realizesBounded_computeLogScales :
@@ -537,71 +509,39 @@ theorem computeCompScalesProg_exec {w U dstMetaBase N : ℕ} {s : Memory.State}
       (hw_fit.of_le (by have := Nat.min_le_right minCap (Nat.log 2 minCap); omega))
   rw [Nat.min_eq_right (Nat.log_le_self 2 minCap)] at hres_mc
   have h3llf_eq : Dynamic.logLogFactor N * 3 = 3 * Dynamic.logLogFactor N := by ring
-  have hmBits_def : min (Nat.log 2 N) (3 * Dynamic.logLogFactor N) = microBits N := rfl
   have hnumMicro_eq : (1 <<< microBits N) = numMicroPerBucket N := by
     rw [Nat.shiftLeft_eq, one_mul]; rfl
-  have hbBits_def : Nat.log 2 N - 3 * Dynamic.logLogFactor N = bucketBits N := rfl
   have hsBits_eq : (if bucketBits N = 0 then 0
       else Dynamic.logLogFactor N + Dynamic.logLogFactor N) = slabBits N := by
     dsimp only [slabBits]; rw [two_mul]
   have hsSize_eq : (1 <<< slabBits N) = slabSize N := by
     rw [Nat.shiftLeft_eq, one_mul]; rfl
-  have htwoSSize_eq : slabSize N + slabSize N = 2 * slabSize N := by ring
   have hmin_le : minCap ≤ N := min_le_left _ _
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · dsimp only [d, computeCompScalesProg]
-    rw [h3llf_eq, validHistory_bind', clientState_subSatProg, clientResult_subSatProg, hbBits_def]
-    refine ⟨validHistory_subSatProg _ _, ?_⟩
-    rw [validHistory_bind', clientState_minNatProg, clientResult_minNatProg, hmBits_def]
-    refine ⟨validHistory_minNatProg _ _, ?_⟩
-    rw [hnumMicro_eq, validHistory_bind', clientState_minEffCapProg, clientResult_minEffCapProg]
-    refine ⟨validHistory_minEffCapProg _ _, ?_⟩
-    rw [validHistory_bind', hst_mc, hres_mc]; refine ⟨hv_mc, ?_⟩
-    rw [hlmBits_eq, validHistory_bind', clientState_ifEqZeroProg,
-      clientResult_ifEqZeroProg, hsBits_eq]
-    refine ⟨validHistory_ifEqZeroProg _ _, ?_⟩
-    rw [hsSize_eq, htwoSSize_eq, validHistory_bind', clientState_dirSlabsProg,
-      clientResult_dirSlabsProg]
-    refine ⟨validHistory_dirSlabsProg _ _, ?_⟩
-    rw [validHistory_bind', clientState_ifEqZeroProg]
-    exact ⟨validHistory_ifEqZeroProg _ _, trivial⟩
-  · dsimp only [d, computeCompScalesProg]
-    rw [h3llf_eq, StateTransitionSpec.clientState_bind, clientState_subSatProg,
-      clientResult_subSatProg, hbBits_def,
-      StateTransitionSpec.clientState_bind, clientState_minNatProg, clientResult_minNatProg,
-      hmBits_def, hnumMicro_eq, StateTransitionSpec.clientState_bind, clientState_minEffCapProg,
-      clientResult_minEffCapProg,
-      StateTransitionSpec.clientState_bind, hst_mc, hres_mc,
-      StateTransitionSpec.clientState_bind, clientState_ifEqZeroProg,
-      clientResult_ifEqZeroProg, hsBits_eq,
-      StateTransitionSpec.clientState_bind, clientState_dirSlabsProg,
-      StateTransitionSpec.clientState_bind, clientState_ifEqZeroProg,
-      StateTransitionSpec.clientState_pure]
-  · dsimp only [d, computeCompScalesProg]
-    rw [h3llf_eq, prog_clientResult_bind, clientState_subSatProg, clientResult_subSatProg,
-      hbBits_def, prog_clientResult_bind, clientState_minNatProg, clientResult_minNatProg,
-      hmBits_def, hnumMicro_eq, prog_clientResult_bind, clientState_minEffCapProg,
-      clientResult_minEffCapProg, prog_clientResult_bind, hst_mc, hres_mc,
-      hlmBits_eq, prog_clientResult_bind, clientState_ifEqZeroProg, clientResult_ifEqZeroProg,
-      hsBits_eq, hsSize_eq, htwoSSize_eq, prog_clientResult_bind, clientState_dirSlabsProg,
-      clientResult_dirSlabsProg, prog_clientResult_bind, clientState_ifEqZeroProg,
-      clientResult_ifEqZeroProg, prog_clientResult_pure]
-    rfl
-  · dsimp only [d, computeCompScalesProg]
-    rw [h3llf_eq, Realization.memoryCost_bind', memoryCost_subSatProg, clientState_subSatProg,
-      clientResult_subSatProg, hbBits_def,
-      Realization.memoryCost_bind', memoryCost_minNatProg, clientState_minNatProg,
-      clientResult_minNatProg, hmBits_def,
-      hnumMicro_eq, Realization.memoryCost_bind', memoryCost_minEffCapProg,
-      clientState_minEffCapProg, clientResult_minEffCapProg,
-      Realization.memoryCost_bind', hst_mc, hres_mc,
-      Realization.memoryCost_bind', memoryCost_ifEqZeroProg, clientState_ifEqZeroProg,
-      clientResult_ifEqZeroProg, hsBits_eq,
-      Realization.memoryCost_bind', memoryCost_dirSlabsProg, clientState_dirSlabsProg,
-      Realization.memoryCost_bind', memoryCost_ifEqZeroProg, clientState_ifEqZeroProg,
-      memoryCost_pure]
-    dsimp only [minCap] at hc_mc hmin_le ⊢
-    omega
+  have hb := subSat_ft (w := w) (s := s) (Nat.log 2 N) (Dynamic.logLogFactor N * 3)
+    (r := bucketBits N) (by rw [h3llf_eq]; rfl)
+  have hmb := minNat_ft (w := w) (s := s) (Nat.log 2 N) (Dynamic.logLogFactor N * 3)
+    (r := microBits N) (by rw [h3llf_eq]; rfl)
+  have hmc : FramedTriple w s (minEffCapProg (N, 1 <<< microBits N)) 0 ∅
+      fun r t => r = minCap ∧ t = s := by
+    rw [hnumMicro_eq]; exact .of_readOnly (validHistory_minEffCapProg _ _)
+      (clientState_minEffCapProg _ _) (clientResult_minEffCapProg _ _) (by simp)
+  have hlg := FramedTriple.of_readOnly hv_mc hst_mc hres_mc hc_mc
+  have hsb := ifEqZero_ft (w := w) (s := s) (bucketBits N) 0
+    (Dynamic.logLogFactor N + Dynamic.logLogFactor N) hsBits_eq
+  have hds : FramedTriple w s (dirSlabsProg (bucketBits N, Dynamic.logLogFactor N)) 0 ∅
+      fun r t => r = dirSlabsPerBucket N ∧ t = s := .of_readOnly (validHistory_dirSlabsProg _ _)
+    (clientState_dirSlabsProg _ _) (clientResult_dirSlabsProg _ _) (by simp)
+  have htc := ifEqZero_ft (w := w) (s := s) (bucketBits N) 0
+    ((1 <<< slabBits N) + (1 <<< slabBits N)) (r := tailCapPerBucket N)
+    (by rw [hsSize_eq, ← two_mul]; rfl)
+  obtain ⟨hv, hc, -, hres, hst⟩ := framedTriple_iff_realization.mp (show
+    FramedTriple w s (computeCompScalesProg d) N ∅ fun r t =>
+      r = ((bucketBits N, effBucketPosBits N), ((numMicroPerBucket N, minCap),
+        (slabSize N, (dirSlabsPerBucket N, tailCapPerBucket N)))) ∧ t = s by
+    dsimp only [d, computeCompScalesProg]
+    framed_triple
+    exact ⟨by rw [hlmBits_eq, hnumMicro_eq, hsSize_eq], rfl⟩)
+  exact ⟨hv, hst, hres, hc⟩
 
 /-- `computeCompScalesProg` compiles via `RealizesBounded .exact`. -/
 theorem realizesBounded_computeCompScales :

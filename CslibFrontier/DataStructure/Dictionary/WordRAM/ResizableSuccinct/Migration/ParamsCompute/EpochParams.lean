@@ -12,6 +12,7 @@ import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migratio
 import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.ParamsCompute.HashParams
 import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.ParamsCompute.Scales
 import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.ParamsCompute.CompParams
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 
 /-!
 # Top-Level 63-Word Active Epoch Parameter Writer (`writeEpochParamsGenProg`)
@@ -118,23 +119,17 @@ theorem writeEpochParamsGenProg_spec
     (writeCompParamsSubProg ((dstMetaBase, (w, N)),
       ((quotientBits U N, valBits V),
         (Nat.log 2 N, (Dynamic.logLogFactor N, epochHashSpace U w N)))))
-  have hrun : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s prog) ∧ s' = s3 ∧
-      (Memory.spec 0).clientResult s prog = (offCompItems U w N, epochHashSpace U w N) ∧
-      memoryCost prog s ≤ 11 * N + 100 := by
-    dsimp only [s', prog, d, writeEpochParamsGenProg]
-    rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
-      Realization.memoryCost_bind', hres_r]
-    dsimp only
-    rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
-      Realization.memoryCost_bind', hst_ls, hres_ls]
-    dsimp only
-    rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
-      Realization.memoryCost_bind', hres_hp, validHistory_bind',
-      StateTransitionSpec.clientState_bind, prog_clientResult_bind, Realization.memoryCost_bind',
-      hres_cp, StateTransitionSpec.clientState_pure, prog_clientResult_pure, memoryCost_pure]
-    refine ⟨⟨hv_r, hv_ls, hv_hp, hv_cp, trivial⟩, rfl, rfl, ?_⟩
-    dsimp only [s1, s2] at hc_ls hc_hp hc_cp ⊢; omega
-  obtain ⟨hv, hs'_eq, hres, hc⟩ := hrun
+  have h1 := FramedTriple.of_realization (S := Set.univ) hv_r hfr_r fun _ _ => trivial
+  have h3 := FramedTriple.of_realization (S := Set.univ) hv_hp hfr_hp fun _ _ => trivial
+  have h4 := FramedTriple.of_realization (S := Set.univ) hv_cp hfr_cp fun _ _ => trivial
+  rw [hres_r] at h1; rw [hres_hp] at h3; rw [hres_cp] at h4
+  have h2 := FramedTriple.of_readOnly hv_ls hst_ls hres_ls hc_ls
+  obtain ⟨hv, hc, -, hres, hs'_eq⟩ := framedTriple_iff_realization.mp (show
+    FramedTriple w s prog (11 * N + 100) Set.univ fun r t =>
+      r = (offCompItems U w N, epochHashSpace U w N) ∧ t = s3 by
+    dsimp only [prog, d, writeEpochParamsGenProg]
+    framed_triple)
+  change s' = s3 at hs'_eq
   refine ⟨⟨U, V, N_old, n_old, n_init_old, hw, hN, hNU, hV, hfit_ncur, hfit_ninit, hhdr,
       hsrc_fr, hdst_fr, hfit_dst⟩, hv, hres, ?_, ?_, ?_, ?_, hc⟩
   · rw [hs'_eq, hfr_cp, hfr_hp, hfr_r]

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.ParamsCompute.Primitives
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.KWise
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -46,22 +47,6 @@ private def trinomStepProg : ℕ × (ℕ × ℕ) → Memory.Prog (ℕ × ℕ)
     let _ ← Memory.read hdrAddr
     if 2 < rem then pure ((rem + 2) / 3, acc + 1) else pure (rem, acc)
 
-private theorem clientState_trinomStepProg (x : ℕ × (ℕ × ℕ)) (s : Memory.State) :
-    (Memory.spec 0).clientState s (trinomStepProg x) = s := by
-  rcases x with ⟨hdrAddr, ⟨rem, acc⟩⟩
-  dsimp only [trinomStepProg]
-  rw [StateTransitionSpec.clientState_bind]
-  split_ifs <;> rfl
-
-private theorem validHistory_trinomStepProg {w hdrAddr rem acc : ℕ} {s : Memory.State}
-    (hfr : hdrAddr < s.frontier) :
-    (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (trinomStepProg (hdrAddr, (rem, acc)))) := by
-  dsimp only [trinomStepProg]
-  rw [validHistory_bind']; refine ⟨⟨hfr, trivial⟩, ?_⟩
-  simp only [StateTransitionSpec.clientState, prog_runClient_state_read]
-  split_ifs <;> trivial
-
 private def TrinomStepPre (w : ℕ) : ℕ × (ℕ × ℕ) → Memory.State → Prop
   | (hdrAddr, (rem, acc)), s =>
     hdrAddr < s.frontier ∧ Fits w (rem + 2) ∧ Fits w (acc + 1) ∧ Fits w 3
@@ -85,14 +70,6 @@ private theorem memoryCost_trinomStep_ge_one (x : ℕ × (ℕ × ℕ)) (s : Memo
   rw [Realization.memoryCost_bind', prog_memoryCost_read]
   split_ifs <;> omega
 
-private theorem memoryCost_trinomStep_le_one (x : ℕ × (ℕ × ℕ)) (s : Memory.State) :
-    memoryCost (trinomStepProg x) s ≤ 1 := by
-  rcases x with ⟨hdrAddr, ⟨rem, acc⟩⟩
-  dsimp only [trinomStepProg]
-  simp only [Realization.memoryCost_bind', prog_memoryCost_read, StateTransitionSpec.clientState,
-    prog_runClient_state_read]
-  split_ifs <;> exact le_rfl
-
 private theorem trinomLoop_spec {w hdrAddr B : ℕ} {s₀ : Memory.State}
     (hfr : hdrAddr < s₀.frontier) (hB2 : Fits w (B + 2)) (h3 : Fits w 3) :
     let prog := iterate trinomStepProg hdrAddr B (B, 0)
@@ -104,36 +81,23 @@ private theorem trinomLoop_spec {w hdrAddr B : ℕ} {s₀ : Memory.State}
   intro prog
   have ht_le : trinomialStepAux B ≤ B :=
     Cslib.DataStructure.HashFamily.WordRAM.KWise.trinomialStepAux_le B
-  let inv (k : ℕ) (st : ℕ × ℕ) (s : Memory.State) : Prop :=
-    s = s₀ ∧ st.1 ≤ B ∧ st.1 ≤ B - k + 2 ∧
-    st.2 + trinomialStepAux st.1 = trinomialStepAux B
-  obtain ⟨hsafe, hv, hcost, _, _, hs_eq, _, hrem_end, hsum_end⟩ :=
-    iterate_spec trinomStepProg TrinomStepPre w hdrAddr 1 B inv (fun _ => False)
-      (fun k hk st s ⟨hs_eq, hle_B, hrem_bd, hsum⟩ => by
-        subst hs_eq
-        rcases st with ⟨rem, acc⟩
-        dsimp only at hle_B hrem_bd hsum
-        have hs' := clientState_trinomStepProg (hdrAddr, (rem, acc)) s
-        have hres : (Memory.spec 0).clientResult s (trinomStepProg (hdrAddr, (rem, acc))) =
-            if 2 < rem then ((rem + 2) / 3, acc + 1) else (rem, acc) := by
-          simp only [trinomStepProg, prog_clientResult_bind, StateTransitionSpec.clientState,
-            prog_runClient_state_read]
-          split_ifs <;> rfl
-        refine ⟨⟨hfr, hB2.of_le (by omega), hB2.of_le (by omega), h3⟩,
-          validHistory_trinomStepProg hfr,
-          memoryCost_trinomStep_le_one _ _,
-          congrArg Memory.State.frontier hs',
-          (fun _ _ => by rw [hs']),
-          hs', ?_⟩
-        rw [hres]
-        split_ifs with h2 <;> dsimp only
-        · rw [trinomialStepAux, ite_eq_right (by omega)] at hsum
-          exact ⟨by omega, by omega, by omega⟩
-        · exact ⟨hle_B, by omega, hsum⟩)
-      (B, 0) s₀ ⟨rfl, le_rfl, by omega, Nat.zero_add _⟩
-  refine ⟨hsafe, hv, by simpa only [one_mul] using hcost, hs_eq, ?_⟩
-  dsimp only [prog] at *
-  rw [trinomialStepAux, ite_eq_left (by omega)] at hsum_end; omega
+  obtain ⟨hsafe, h⟩ := FramedTriple.iterate (w := w) (s := s₀) (c := 1) (S := ∅)
+    (body := trinomStepProg) (safe := TrinomStepPre) (d := hdrAddr) (n := B) (a₀ := (B, 0))
+    (Q := fun r t => r.2 = trinomialStepAux B ∧ t = s₀)
+    (fun k st t => t = s₀ ∧ st.1 ≤ B ∧ st.1 ≤ B - k + 2 ∧
+      st.2 + trinomialStepAux st.1 = trinomialStepAux B) ⟨rfl, le_rfl, by omega, Nat.zero_add _⟩
+    (fun k hk ⟨rem, acc⟩ t ⟨ht, hle_B, hrem_bd, hsum⟩ _ => by
+      subst ht
+      refine ⟨⟨hfr, hB2.of_le (by omega), hB2.of_le (by omega), h3⟩, ?_⟩
+      dsimp only [trinomStepProg] at hle_B hrem_bd hsum ⊢
+      framed_triple
+      dsimp only
+      rw [trinomialStepAux, ite_eq_right (by omega)] at hsum
+      exact ⟨rfl, by omega, by omega, by omega⟩)
+    (fun ⟨rem, acc⟩ t ⟨ht, _, hrem_end, hsum_end⟩ _ => ⟨by
+      rw [trinomialStepAux, ite_eq_left (by omega)] at hsum_end; omega, ht⟩)
+  obtain ⟨hv, hc, -, hres, hst⟩ := framedTriple_iff_realization.mp h
+  exact ⟨hsafe, hv, by simpa only [one_mul] using hc, hst, hres⟩
 
 private def trinomProg : ℕ × ℕ → Memory.Prog ℕ
   | (hdrAddr, B) => do
@@ -205,20 +169,20 @@ private theorem pow3Loop_spec {w hdrAddr e : ℕ} {s₀ : Memory.State}
     (Memory.spec 0).clientState s₀ prog = s₀ ∧
     (Memory.spec 0).clientResult s₀ prog = 3 ^ e := by
   intro prog
-  let inv (k : ℕ) (acc : ℕ) (s : Memory.State) : Prop := s = s₀ ∧ acc = 3 ^ k
-  obtain ⟨hsafe, hv, hcost, _, _, hs_eq, hres_eq⟩ :=
-    iterate_spec pow3StepProg Pow3StepPre w hdrAddr 1 e inv (fun _ => False)
-      (fun k hk acc s ⟨hs_eq, hacc⟩ => by
-        subst hs_eq hacc
-        have hle : 3 * 3 ^ k ≤ 3 ^ e := by
-          calc 3 * 3 ^ k = 3 ^ (k + 1) := by rw [pow_succ']
-            _ ≤ 3 ^ e := Nat.pow_le_pow_right (by decide) hk
-        refine ⟨⟨hfr, hfit.of_le hle⟩, ⟨hfr, trivial⟩, le_rfl, rfl, (fun _ _ => rfl),
-          rfl, ?_⟩
-        simp only [pow3StepProg, prog_clientResult_bind, prog_clientResult_pure]
-        rw [pow_succ]; ring)
-      1 s₀ ⟨rfl, rfl⟩
-  exact ⟨hsafe, hv, by simpa only [one_mul] using hcost, hs_eq, hres_eq⟩
+  obtain ⟨hsafe, h⟩ := FramedTriple.iterate (w := w) (s := s₀) (c := 1) (S := ∅)
+    (body := pow3StepProg) (safe := Pow3StepPre) (d := hdrAddr) (n := e) (a₀ := 1)
+    (Q := fun r t => t = s₀ ∧ r = 3 ^ e) (fun k acc t => t = s₀ ∧ acc = 3 ^ k) ⟨rfl, rfl⟩
+    (fun k hk acc t ⟨ht, hacc⟩ _ => by
+      subst ht hacc
+      have hle : 3 * 3 ^ k ≤ 3 ^ e := by
+        calc 3 * 3 ^ k = 3 ^ (k + 1) := by rw [pow_succ']
+          _ ≤ 3 ^ e := Nat.pow_le_pow_right (by decide) hk
+      refine ⟨⟨hfr, hfit.of_le hle⟩, ?_⟩
+      dsimp only [pow3StepProg]
+      framed_triple)
+    (fun _ _ h _ => h)
+  obtain ⟨hv, hc, -, hst, hres⟩ := framedTriple_iff_realization.mp h
+  exact ⟨hsafe, hv, by simpa only [one_mul] using hc, hst, hres⟩
 
 private def pow3Prog : ℕ × ℕ → Memory.Prog ℕ
   | (hdrAddr, e) => do
