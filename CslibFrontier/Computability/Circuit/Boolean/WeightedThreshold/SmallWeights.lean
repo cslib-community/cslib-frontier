@@ -14,7 +14,6 @@ import CslibFrontier.Foundations.LinearAlgebra.Matrix.Cramer
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Vertex
 import Mathlib.LinearAlgebra.Matrix.Determinant.Basic
 import Mathlib.LinearAlgebra.Matrix.Adjugate
-import Mathlib.LinearAlgebra.Matrix.AbsoluteValue
 import Mathlib.LinearAlgebra.Matrix.NonsingularInverse
 import Mathlib.LinearAlgebra.Dual.Lemmas
 import Mathlib.LinearAlgebra.FiniteDimensional.Lemmas
@@ -24,7 +23,7 @@ import Mathlib.Basic.Real.Basic
 # Small integer weights for threshold functions
 
 A natural-weight threshold on Boolean inputs has an equivalent strict integer threshold with all
-weights and its bias bounded by `(N + 1) · (N + 1)!`. This is the small-weight step needed to
+weights and its bias bounded by `(N + 1)!`. This is the small-weight step needed to
 simulate a majority gate that reads repeated wires.
 
 A full-rank set of tight inequalities determines a separating vertex. Cramer's rule clears its
@@ -186,12 +185,12 @@ private theorem toReal_dotProduct (x y : Fin m → ℤ) :
 omit [Finite ι] in
 /-- **Integer weights from a vertex, by Cramer's rule**: if the integer rows `R` with entries in
 `[-1, 1]` have a feasible point at which `m` linearly independent rows `R ∘ σ` are tight, there is
-an integer point with every row at least `1` and every coordinate at most `m · m!` in absolute
+an integer point with every row at least `1` and every coordinate at most `m!` in absolute
 value. -/
 private theorem exists_int_point (R : ι → Fin m → ℤ) (hR : ∀ j i, |R j i| ≤ 1) (σ : Fin m → ι)
     (v : Fin m → ℝ) (hv : ∀ j, 1 ≤ toReal (R j) ⬝ᵥ v) (htight : ∀ k, toReal (R (σ k)) ⬝ᵥ v = 1)
     (hli : LinearIndependent ℝ (fun k => toReal (R (σ k)))) :
-    ∃ u : Fin m → ℤ, (∀ j, 1 ≤ R j ⬝ᵥ u) ∧ ∀ i, |u i| ≤ m * m.factorial := by
+    ∃ u : Fin m → ℤ, (∀ j, 1 ≤ R j ⬝ᵥ u) ∧ ∀ i, |u i| ≤ m.factorial := by
   classical
   let A : Matrix (Fin m) (Fin m) ℤ := Matrix.of fun k i => R (σ k) i
   let AR : Matrix (Fin m) (Fin m) ℝ := (Int.castRingHom ℝ).mapMatrix A
@@ -203,12 +202,11 @@ private theorem exists_int_point (R : ι → Fin m → ℤ) (hR : ∀ j i, |R j 
     intro h
     apply hdetR
     rw [show AR.det = ((Int.castRingHom ℝ) A.det) from (RingHom.map_det _ _).symm, h, map_zero]
-  let w : Fin m → ℤ := A.adjugate *ᵥ fun _ => 1
+  let w : Fin m → ℤ := A.cramer fun _ => 1
   have hw : toReal w = (A.det : ℝ) • v := by
     have hcast : A.map (Int.cast : ℤ → ℝ) *ᵥ v = fun _ => (1 : ℝ) := funext fun k => htight k
-    have hcramer := Matrix.intCast_cramer_eq_det_smul (c := fun _ => (1 : ℤ))
-      (by simpa only [Int.cast_one] using hcast)
-    simpa only [Matrix.cramer_eq_adjugate_mulVec, toReal, w] using hcramer
+    exact Matrix.map_cramer_eq_det_smul (Int.castRingHom ℝ) (b := fun _ => (1 : ℤ))
+      (by simpa only [eq_intCast, Int.coe_castRingHom, Int.cast_one] using hcast)
   refine ⟨A.det.sign • w, fun j => ?_, fun i => ?_⟩
   · have hreal : ((R j ⬝ᵥ (A.det.sign • w) : ℤ) : ℝ) =
         ((|A.det| : ℤ) : ℝ) * (toReal (R j) ⬝ᵥ v) := by
@@ -221,26 +219,11 @@ private theorem exists_int_point (R : ι → Fin m → ℤ) (hR : ∀ j i, |R j 
       rw [hreal]
       nlinarith [hv j]
     exact_mod_cast this
-  · -- each adjugate entry is a determinant of a matrix with entries in `[-1, 1]`
-    have hentry (k : Fin m) : |A.adjugate i k| ≤ m.factorial := by
-      rw [Matrix.adjugate_apply]
-      have := Matrix.det_le (abv := AbsoluteValue.abs) (x := (1 : ℤ))
-        (A := A.updateRow k (Pi.single i 1)) fun a b => by
-          by_cases hak : a = k
-          · subst hak
-            simp only [Matrix.updateRow_self, Pi.single_apply]
-            split_ifs <;> simp
-          · rw [Matrix.updateRow_ne hak]
-            exact hR _ _
-      simpa [Fintype.card_fin] using this
-    have hsign : |A.det.sign| ≤ 1 := by
-      rcases Int.sign_trichotomy A.det with h | h | h <;> simp [h]
-    calc |(A.det.sign • w) i| = |A.det.sign| * |w i| := by simp [abs_mul]
-      _ ≤ 1 * |w i| := mul_le_mul_of_nonneg_right hsign (abs_nonneg _)
-      _ = |∑ k, A.adjugate i k| := by simp [w, Matrix.mulVec, dotProduct]
-      _ ≤ ∑ k, |A.adjugate i k| := Finset.abs_sum_le_sum_abs _ _
-      _ ≤ ∑ _k : Fin m, (m.factorial : ℤ) := Finset.sum_le_sum fun k _ => hentry k
-      _ = m * m.factorial := by simp
+  · have hcoord : |w i| ≤ m.factorial := by
+      simpa only [Fintype.card_fin, one_pow, mul_one] using Matrix.abs_cramer_le
+        (A := A) (b := fun _ => (1 : ℤ)) (H := 1) (fun k l => hR (σ k) l) (by simp) i
+    simpa only [Pi.smul_apply, smul_eq_mul, abs_mul, Int.abs_sign_of_ne_zero hdet, one_mul]
+      using hcoord
 
 /-- The dot product with an appended last coordinate. -/
 private theorem snoc_dotProduct_snoc {R : Type*} [CommSemiring R] {N : ℕ} (x y : Fin N → R)
@@ -248,13 +231,13 @@ private theorem snoc_dotProduct_snoc {R : Type*} [CommSemiring R] {N : ℕ} (x y
     (Fin.snoc x a : Fin (N + 1) → R) ⬝ᵥ Fin.snoc y b = x ⬝ᵥ y + a * b := by
   simp [dotProduct, Fin.sum_univ_castSucc]
 
-/-- The weight bound `(N + 1) · (N + 1)!` of `N`-input threshold functions. -/
-@[expose] def weightBound (N : ℕ) : ℕ := (N + 1) * (N + 1).factorial
+/-- The weight bound `(N + 1)!` of `N`-input threshold functions. -/
+@[expose] def weightBound (N : ℕ) : ℕ := (N + 1).factorial
 
 /-- Small-weight step for a majority gate with repeated wires. A threshold
 function with nonnegative integer weights `c` and threshold `t` on `N` inputs is also a strict
 threshold function with integer weights and threshold of absolute value at most
-`(N + 1) · (N + 1)!`. The non-strict natural cutoff includes ties, while the signed realization
+`(N + 1)!`. The non-strict natural cutoff includes ties, while the signed realization
 uses a strict cutoff. Håstad’s signed-input Theorem 3.2 [Hastad1994] gives a sharper bound. -/
 theorem exists_small_threshold {N : ℕ} (c : Fin N → ℕ) (t : ℕ) :
     ∃ (u : Fin N → ℤ) (θ : ℤ), (∀ i, |u i| ≤ weightBound N) ∧ |θ| ≤ weightBound N ∧

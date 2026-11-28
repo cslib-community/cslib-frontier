@@ -62,21 +62,19 @@ private theorem width_smallMajority_le {N K : ℕ} (mult : Fin N → ℕ) (hK : 
     (smallMajority mult).width ≤ (K + 2) ^ 2 := by
   obtain ⟨hw, hb, _⟩ := smallMajority_spec mult
   have hB : SmallWeights.weightBound N ≤ SmallWeights.weightBound K :=
-    Nat.mul_le_mul (by omega) (Nat.factorial_le (by omega))
+    Nat.factorial_le (Nat.succ_le_succ hK)
   refine ((smallMajority mult).width_le (B := SmallWeights.weightBound K)
     (fun i => (hw i).trans (by exact_mod_cast hB)) (hb.trans (by exact_mod_cast hB))).trans ?_
   rw [Nat.size_le]
-  -- `(2 K + 2) ((K + 1) (K + 1)! + 1) < 2 ^ ((K + 2) ^ 2)`
+  -- `(2 K + 2) ((K + 1)! + 1) < 2 ^ ((K + 2) ^ 2)`
   have hfact : (K + 1).factorial ≤ (K + 1) ^ (K + 1) := Nat.factorial_le_pow _
   have hpow : K + 1 < 2 ^ (K + 1) := Nat.lt_two_pow_self
   have h1 : (K + 1) ^ (K + 1) ≤ 2 ^ ((K + 1) * (K + 1)) := by
     rw [pow_mul]
     exact Nat.pow_le_pow_left hpow.le _
-  have h2 : SmallWeights.weightBound K + 1 ≤ 2 ^ (K + 1 + (K + 1) * (K + 1)) := by
-    have : (K + 1) * (K + 1).factorial < 2 ^ (K + 1) * 2 ^ ((K + 1) * (K + 1)) :=
-      Nat.mul_lt_mul_of_lt_of_le hpow (hfact.trans h1) (by positivity)
-    rw [pow_add]
-    simp only [SmallWeights.weightBound]
+  have h2 : SmallWeights.weightBound K + 1 ≤ 2 ^ (1 + (K + 1) * (K + 1)) := by
+    have hpos : 0 < 2 ^ ((K + 1) * (K + 1)) := by positivity
+    rw [SmallWeights.weightBound, pow_add, pow_one]
     omega
   have h4 : 2 * K + 2 ≤ 2 ^ (K + 1) := by
     have : K < 2 ^ K := Nat.lt_two_pow_self
@@ -85,8 +83,8 @@ private theorem width_smallMajority_le {N K : ℕ} (mult : Fin N → ℕ) (hK : 
   refine lt_of_le_of_lt (Nat.mul_le_mul_right _
     (show 2 * N + 2 ≤ 2 * K + 2 by omega)) ?_
   calc (2 * K + 2) * (SmallWeights.weightBound K + 1)
-      ≤ 2 ^ (K + 1) * 2 ^ (K + 1 + (K + 1) * (K + 1)) := Nat.mul_le_mul h4 h2
-    _ = 2 ^ (K + 1 + (K + 1 + (K + 1) * (K + 1))) := by rw [← pow_add]
+      ≤ 2 ^ (K + 1) * 2 ^ (1 + (K + 1) * (K + 1)) := Nat.mul_le_mul h4 h2
+    _ = 2 ^ (K + 1 + (1 + (K + 1) * (K + 1))) := by rw [← pow_add]
     _ < 2 ^ ((K + 2) ^ 2) := Nat.pow_lt_pow_right (by norm_num) (by nlinarith)
 
 /-- Simulate an ordinary gate with its balanced formula and a multiplicity gate with a
