@@ -42,7 +42,10 @@ AUTHORING_WORKER = re.compile(
 def worker_id(body: str) -> str | None:
     """Read a public worker ID from a field, self-claim, signature, or author credit."""
     body = re.sub(r"(?s)<!--.*?(?:-->|\Z)", "", body.replace("\r\n", "\n"))
-    body = re.sub(r"(?ms)^[ \t]*(`{3,}|~{3,})[^\n]*\n.*?(?:^[ \t]*\1[ \t]*$|\Z)", "", body)
+    body = re.sub(
+        r"(?ms)^[ \t]*(?P<fence>(?P<mark>[`~])(?P=mark){2,})[^\n]*\n"
+        r".*?(?:^[ \t]*(?P=fence)(?P=mark)*[ \t]*$|\Z)", "", body,
+    )
     fields = WORKER_FIELD.findall(body)
     if fields:
         ids = {value.lower() for value in fields}

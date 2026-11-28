@@ -51,6 +51,13 @@ class Disclosures(unittest.TestCase):
             "Addressed source-check items from `source-checker-9046-b373d02a` at revision "
             "`3d97442668` (by `worker-11-nrtv-b373d02a`):"), "worker-11-nrtv-b373d02a")
 
+    def test_worker_id_after_longer_fence_closer(self):
+        self.assertEqual(activity.worker_id(
+            "~~~md\nWorker ID: example-worker\n~~~~\nWorker ID: actual-worker"),
+            "actual-worker")
+        self.assertIsNone(activity.worker_id(
+            "~~~~md\n~~~\nWorker ID: example-worker\n~~~~"))
+
     def test_excludes_session_ids_aliases_and_ambiguous_worker_ids(self):
         cases = [
             "Codex session 62875d29 claims the next batch.",
