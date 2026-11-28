@@ -304,8 +304,7 @@ private theorem extractPopItem_spec {rt w itemBase nodeBase id r ck : ℕ}
     repeat (rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read])
     rw [hhead, hsz, hit0, hnxt_eq, memoryCost_bind', memoryCost_write, clientState_write]
     by_cases hnxt : nxt = 0 <;>
-      simp only [hnxt, ↓reduceIte, memoryCost_bind', memoryCost_write, memoryCost_pure,
-        add_zero] <;> decide
+      simp only [hnxt, ↓reduceIte, client_simps, add_zero] <;> decide
   have hres : (Memory.spec 0).clientResult s
       (extractPopItem ![itemBase, nodeBase, id]) = (it₀.val, ck) := by
     dsimp only [extractPopItem]
@@ -434,8 +433,7 @@ private theorem unlinkLinks_spec {w nodeBase : ℕ} {s : Memory.State}
                                     Matrix.cons_val]
         repeat (rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read])
         rw [hx9', hx10']
-        simp only [ne_eq, hr0_ne0, not_false_eq_true, ↓reduceIte, not_true_eq_false,
-          memoryCost_bind', memoryCost_write, memoryCost_pure]
+        simp only [ne_eq, hr0_ne0, not_false_eq_true, ↓reduceIte, not_true_eq_false, client_simps]
         decide
       have hres : (Memory.spec 0).clientResult s
           (unlinkLinks ![nodeBase, x.rootId, x.rootId]) = (r0.rootId, 0) := by
@@ -511,8 +509,7 @@ private theorem unlinkLinks_spec {w nodeBase : ℕ} {s : Memory.State}
                                     Matrix.cons_val]
         repeat (rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read])
         rw [hx9', hx10']
-        simp only [ne_eq, not_true_eq_false, ↓reduceIte, hu_ne0, not_false_eq_true,
-          memoryCost_bind', memoryCost_write, memoryCost_pure]
+        simp only [ne_eq, not_true_eq_false, ↓reduceIte, hu_ne0, not_false_eq_true, client_simps]
         decide
       have hres : (Memory.spec 0).clientResult s
           (unlinkLinks ![nodeBase, ((pre' ++ [u]) ++ [x] ++ []).head?.elim 0 SHTree.rootId,
@@ -580,8 +577,7 @@ private theorem unlinkLinks_spec {w nodeBase : ℕ} {s : Memory.State}
                                     Matrix.cons_val]
         repeat (rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read])
         rw [hx9', hx10']
-        simp only [ne_eq, hr0_ne0, hu_ne0, not_false_eq_true, ↓reduceIte,
-          memoryCost_bind', memoryCost_write, memoryCost_pure]
+        simp only [ne_eq, hr0_ne0, hu_ne0, not_false_eq_true, ↓reduceIte, client_simps]
         decide
       have hres : (Memory.spec 0).clientResult s
           (unlinkLinks ![nodeBase,
@@ -1587,8 +1583,7 @@ private theorem extractFixup_spec {w ic₀ nc₀ maxItems maxNodes fuel xId xRan
                                      Matrix.cons_val]
         repeat (rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read])
         rw [hxl_eq, hxr_eq, hsz_eq, htgt_eq]
-        simp only [hnl_rw, hlt_tgt, ↓reduceIte, memoryCost_bind', ← hs_def_eq,
-          memoryCost_pure, add_zero]
+        simp only [hnl_rw, hlt_tgt, ↓reduceIte, client_simps, ← hs_def_eq, add_zero]
         omega
       have hres : (Memory.spec 0).clientResult s₁
           (extractFixup ![h.itemBase, h.nodeBase, h.firstRoot, xId, fuel]) = h.firstRoot := by

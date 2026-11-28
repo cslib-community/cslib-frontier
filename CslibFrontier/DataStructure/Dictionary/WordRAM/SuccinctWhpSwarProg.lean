@@ -1017,9 +1017,9 @@ theorem clientResult_splitFullNodeGenProg {c U V w n_max : ℕ} (hth : whpThresh
   simp only [wp_large_tMin hth, wp_large_wKey hth, wp_large_wVal hth, pure_bind]
   rw [clientResult_bind, clientState_laneGetGenProg, clientResult_laneGetGenProg]
   cases h : metaIsLeaf nd.metaWord <;>
-    simp only [hmod, h, Bool.false_eq_true, ↓reduceIte, clientResult_bind,
-      clientResult_wordTakeLowGenProg, clientResult_wordDropLowGenProg,
-      StateTransitionSpec.clientResult_pure, mkNodeMeta, Nat.zero_add, keyLaneBitsWhp]
+    simp only [hmod, h, Bool.false_eq_true, ↓reduceIte, client_simps,
+      clientResult_wordTakeLowGenProg, clientResult_wordDropLowGenProg, mkNodeMeta, Nat.zero_add,
+      keyLaneBitsWhp]
 
 theorem clientState_splitFullNodeGenProg (d : WhpCoreParams × (ℕ × (ℕ × ℕ))) (s : Memory.State) :
     (Memory.spec 0).clientState s (splitFullNodeGenProg d) = s := by

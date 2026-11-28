@@ -346,8 +346,8 @@ theorem childPassProg_spec {w : ℕ} (args : ChildPassArgs) {inst : MWISInstance
     have hc_step : memoryCost (childPassStep (args, curC)) st ≤ stepCost := by
       have hr_s (x : ℕ) : (Memory.spec 0).clientState st (Memory.read x) = st := rfl
       have hr_r (x : ℕ) : (Memory.spec 0).clientResult st (Memory.read x) = st.mem x := rfl
-      simp only [childPassStep, memoryCost_bind', memoryCost_read, hr_s, hr_r, hst_ind, hr_ind,
-        hst_key, hr_key, hst_fw, hr_fw, memoryCost_write, memoryCost_pure, stepCost]
+      simp only [childPassStep, client_simps, hr_s, hr_r, hst_ind, hr_ind, hst_key, hr_key, hst_fw,
+        hr_fw, stepCost]
       omega
     obtain ⟨hv_rem, hfr_rem, hp_rem, hbest_rem, hc_rem⟩ :=
       ih (curC + 1) st₁ (by omega) hfr

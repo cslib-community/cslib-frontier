@@ -263,7 +263,7 @@ private theorem collectItemsStep_spec {w itemBase ck outBase hd tail curOut : 鈩
   路 repeat (rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read])
     rw [hkey]
     split_ifs
-    路 simp only [memoryCost_bind', memoryCost_write, memoryCost_pure]; decide
+    路 simp only [client_simps]; decide
     路 simp only [memoryCost_pure]; decide
   路 repeat rw [clientResult_bind_read]
     rw [hkey]
@@ -595,7 +595,7 @@ private theorem collectNodeStep_spec
         dsimp only [collectNodeStep, collectNodeItemBase, collectNodeBase,
       collectNodeOutBase, collectNodeFuel, collectNodeIdx, collectNodeOutCount]
         repeat (rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read])
-        simp only [hhd_ne, 鈫搑educeIte, memoryCost_bind', memoryCost_pure, add_zero]
+        simp only [hhd_ne, 鈫搑educeIte, client_simps, add_zero]
         rw [hck_eq]
         omega
       have hres_step : (Memory.spec 0).clientResult s

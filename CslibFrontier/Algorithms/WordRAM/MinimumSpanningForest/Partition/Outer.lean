@@ -976,7 +976,7 @@ private theorem partRunRemLoop_spec {w n : ℕ} (L : PartLayout w n) (edgeState 
         have hcost_s : memoryCost (partEmitRemStep (d, a)) s ≤ 9 := by
           rw [hprog_step, memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
             hst_agree, hed0]
-          simp only [↓reduceIte, memoryCost_bind', memoryCost_pure]; omega
+          simp only [↓reduceIte, client_simps]; omega
         have hmod_step : ∀ x, x ∉ modRem → s'.mem x = s.mem x := fun x hx =>
           hmod_cp x fun h => hx (show L.bufBase + 14 * n + 10 * m ≤ x ∧
             x < L.bufBase + 14 * n + 14 * m by omega)

@@ -320,7 +320,7 @@ private theorem defillPickChild_spec {rt w itemBase nodeBase : ℕ} {s : Memory.
         refine ⟨validHistory_write_bind (by omega) hcr_fit
           (validHistory_write_bind (by dsimp only; omega) h0_fit (validHistory_pure w _ _)),
           ?_, ?_, ?_, cr, none, Or.inr ⟨rfl, rfl⟩, ?_, ?_, ?_, fun _ h => by cases h⟩
-        · simp only [memoryCost_bind', memoryCost_write, hmc_pure]; decide
+        · simp only [client_simps, hmc_pure]; decide
         · rw [hs_eq]
         · intro a ha6 ha7
           rw [hs_eq]; dsimp only
@@ -386,7 +386,7 @@ private theorem defillPickChild_spec {rt w itemBase nodeBase : ℕ} {s : Memory.
             simp only [choose, hcmp, ↓reduceIte]
             exact validHistory_write_bind (by lia) hcr_fit
               (validHistory_write_bind (by dsimp only; lia) hcl_fit (validHistory_pure w _ _))
-          · simp only [memoryCost_bind', memoryCost_write, hmc_pure]
+          · simp only [client_simps, hmc_pure]
             decide
           · intro a ha6 ha7
             change Function.update (Function.update s.mem _ _) _ _ a = s.mem a
@@ -497,7 +497,7 @@ private theorem defillSplice_spec {rt w itemBase nodeBase : ℕ} {s : Memory.Sta
           simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
           repeat (rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read])
           rw [hc0, hc3, hcur4]
-          simp only [↓reduceIte, memoryCost_bind', memoryCost_write]
+          simp only [↓reduceIte, client_simps]
           decide
         have hs_nil : (Memory.spec 0).clientState s
             (defillSplice ![itemBase, nodeBase, id₁, id₂, ([] : List SHItem).length]) =
@@ -612,7 +612,7 @@ private theorem defillSplice_spec {rt w itemBase nodeBase : ℕ} {s : Memory.Sta
           simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
           repeat (rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read])
           rw [hc0, hc3]
-          simp only [hcur4_ne, ↓reduceIte, memoryCost_bind', memoryCost_read, memoryCost_write]
+          simp only [hcur4_ne, ↓reduceIte, client_simps]
           decide
         have hs_cons : (Memory.spec 0).clientState s
             (defillSplice ![itemBase, nodeBase, id₁, id₂, items₁.length]) =
@@ -743,7 +743,7 @@ private theorem defillFinish_spec {w nodeBase : ℕ} {s : Memory.State}
       rw [hnr]
       exact validHistory_write_bind (by lia) hnr_fit
         (validHistory_write_bind (by dsimp only; lia) h0_fit (validHistory_pure w _ _))
-    · simp only [memoryCost_bind', memoryCost_read, memoryCost_write, hpure]
+    · simp only [client_simps, hpure]
       decide
     · change Function.update (Function.update s.mem _ _) _ _ _ = _
       rw [Function.update_of_ne (by lia), Function.update_self]
@@ -757,7 +757,7 @@ private theorem defillFinish_spec {w nodeBase : ℕ} {s : Memory.State}
     · rw [h6, h7]
       simp only [finish, eq_false hleaf, ↓reduceIte]
       exact validHistory_write_bind (by lia) hcur_fit (validHistory_pure w _ _)
-    · simp only [memoryCost_bind', memoryCost_write, hpure]
+    · simp only [client_simps, hpure]
       decide
     · change Function.update s.mem _ _ _ = _
       rw [Function.update_self]

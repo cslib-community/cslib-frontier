@@ -483,7 +483,7 @@ private theorem ftPhaseBody_spec {w n K mRef selLen0 : ℕ} {ctx : FTCtx}
         exact validHistory_write_bind (by rw [htfr]; have := hs.auxFr; omega)
           (by rw [hcn]; exact hs.hn) (validHistory_pure w _ _)
       have hc : memoryCost (ftInitTrStep (⟨ctx.auxBase, ctx.n⟩, acc)) t ≤ 1 := by
-        simp only [ftInitTrStep, memoryCost_bind', memoryCost_write, memoryCost_pure]; omega
+        simp only [ftInitTrStep, client_simps]; omega
       have hst : (Memory.spec 0).clientState t (ftInitTrStep (⟨ctx.auxBase, ctx.n⟩, acc)) =
           ⟨Function.update t.mem (ctx.auxBase + acc) ctx.n, t.frontier⟩ := rfl
       have hres : (Memory.spec 0).clientResult t (ftInitTrStep (⟨ctx.auxBase, ctx.n⟩, acc)) =
@@ -612,8 +612,7 @@ private theorem ftPhaseBody_spec {w n K mRef selLen0 : ℕ} {ctx : FTCtx}
             (validHistory_write_bind (by rw [htfr, hfr₂, hfr₁, hcn]; have := hs.auxFr; omega)
               (htwf.mem_fits _) (validHistory_pure w _ _)))
       have hc : memoryCost (ftWriteCompStep (⟨ctx.auxBase, ctx.n⟩, acc)) t ≤ 3 := by
-        simp only [ftWriteCompStep, memoryCost_bind', memoryCost_read, memoryCost_write,
-          memoryCost_pure]; omega
+        simp only [ftWriteCompStep, client_simps]; omega
       have hsup_eq : t.mem (ctx.auxBase + 2 * ctx.n + t.mem (ctx.auxBase + acc)) =
           s₂.mem (ctx.auxBase + 2 * n + s₂.mem (ctx.auxBase + acc)) := by
         have := htr_lt_n acc hk_n

@@ -61,9 +61,8 @@ private theorem natLog2_loop_spec (w fuel a b : ℕ) (hfuel : Nat.log 2 a ≤ fu
       have hpos : 0 < Nat.log 2 a := Nat.log_pos (by decide) hlt
       omega
     have hlog : Nat.log 2 a = 0 := Nat.log_eq_zero_iff.mpr (Or.inl (by omega))
-    simp only [boundedWhile, StateTransitionSpec.clientResult_pure, memoryCost_pure, hlog,
-      Nat.add_zero]
-    exact ⟨trivial, trivial, rfl, trivial⟩
+    simp only [boundedWhile, client_simps, hlog, Nat.add_zero, StateTransitionSpec.validHistory_nil,
+      and_self]
   | succ fuel ih =>
     by_cases ha : 1 < a
     · have hdiv : a >>> 1 = a / 2 := by rw [Nat.shiftRight_eq_div_pow]
@@ -81,9 +80,8 @@ private theorem natLog2_loop_spec (w fuel a b : ℕ) (hfuel : Nat.log 2 a ≤ fu
       rw [hrec.2.1, hlog]
       omega
     · have hlog : Nat.log 2 a = 0 := Nat.log_eq_zero_iff.mpr (Or.inl (by omega))
-      simp only [boundedWhile, ha, ↓reduceIte, StateTransitionSpec.clientResult_pure,
-        memoryCost_pure, hlog, Nat.add_zero]
-      exact ⟨trivial, trivial, rfl, trivial⟩
+      simp only [boundedWhile, ha, ↓reduceIte, client_simps, hlog, Nat.add_zero,
+        StateTransitionSpec.validHistory_nil, and_self]
 
 /-- Framed specification for `natLog2Prog`: returns `Nat.log 2 x` in `memoryCost = 0` and leaves
 memory unchanged (`s' = s`). -/

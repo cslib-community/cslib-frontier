@@ -241,9 +241,8 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
         (((st.owner j₀).toList ++ rest).length, afterBid) := by
     simp only [StateTransitionSpec.clientState] at hs_b hs_s
     simp only [pBranch, rowBase, sec, dSec, StateTransitionSpec.clientState] at hs_p hres_p
-    simp only [bidStepProg, StateTransitionSpec.clientState, clientResult_bind,
-      StateTransitionSpec.fst_snd_runClient_bind, runClient_read, runClient_write,
-      clientResult_read, hcurI, hs_b, hbj, hs_s, hs_p, hres_p, hold_s_mid]
+    simp only [bidStepProg, StateTransitionSpec.clientState, client_simps, runClient_read,
+      runClient_write, hcurI, hs_b, hbj, hs_s, hs_p, hres_p, hold_s_mid]
     dsimp only [afterBid, s_mid]
     cases st.owner j₀ with
     | none =>

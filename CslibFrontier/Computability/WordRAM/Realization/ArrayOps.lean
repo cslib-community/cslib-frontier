@@ -120,7 +120,7 @@ private theorem fillConst_loop_spec {w base val count : ℕ} {s : Memory.State}
       exact validHistory_write_bind (by rw [htfr]; omega) hval (validHistory_pure w _ _)
     have hcost : memoryCost (fillConstStep ((base, val), k)) t ≤ 1 := by
       dsimp only [fillConstStep]
-      simp only [memoryCost_bind', memoryCost_write, memoryCost_pure]
+      simp only [client_simps]
       decide
     have hres : (Memory.spec 0).clientResult t (fillConstStep ((base, val), k)) = k + 1 := by
       simp only [fillConstStep, clientResult_bind_write, StateTransitionSpec.clientResult_pure]
@@ -279,7 +279,7 @@ private theorem copySlice_iterationSafe {w src dst count : ℕ} {s : Memory.Stat
             (validHistory_pure w _ _))
       have hcost : memoryCost (copySliceStep ((src, dst), k)) t ≤ 2 := by
         dsimp only [copySliceStep]
-        simp only [memoryCost_bind', memoryCost_read, memoryCost_write, memoryCost_pure]
+        simp only [client_simps]
         decide
       have hres : (Memory.spec 0).clientResult t (copySliceStep ((src, dst), k)) = k + 1 := by
         dsimp only [copySliceStep]
@@ -411,7 +411,7 @@ private theorem prefixSum_loop_spec {w base count : ℕ} {s : Memory.State}
         (validHistory_write_bind (by rw [htfr]; omega) hfit_acc (validHistory_pure w _ _))
     have hcost : memoryCost (prefixSumStep (base, (k, acc))) t ≤ 2 := by
       dsimp only [prefixSumStep]
-      simp only [memoryCost_bind', memoryCost_read, memoryCost_write, memoryCost_pure]
+      simp only [client_simps]
       decide
     have hres : (Memory.spec 0).clientResult t (prefixSumStep (base, (k, acc))) =
         (k + 1, acc + t.mem (base + k)) := by
