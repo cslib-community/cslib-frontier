@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Universal.FirstOrder
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.QueryBounds
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Partial
 public import CslibFrontier.Computability.Probabilistic.Oracle.Time
 public import CslibFrontier.Languages.Probabilistic.Oracle.Codec
 public import CslibFrontier.Languages.Probabilistic.Iteration
@@ -990,37 +990,12 @@ request words are not source queries; a word oracle answers them with `[]` witho
 def wordCodec (r : ℕ) : OracleCodec (Fin r) (Fin r × List ℕ) fun _ => List ℕ where
   encodeQuery query := (query.1, encList encUnary query.2)
   decodeQuery request :=
-    let decoded := unaryListDecoder.decode request.2
-    if encList encUnary decoded = request.2 then some (request.1, decoded) else none
+    ((PartialDecoder.ofDecoder unaryListDecoder).decode request.2).map (request.1, ·)
   decodeQuery_eq_some_iff request query := by
-    let decoded := unaryListDecoder.decode request.2
-    change (if encList encUnary decoded = request.2 then some (request.1, decoded) else none) =
-        some query ↔ (query.1, encList encUnary query.2) = request
-    by_cases hcode : encList encUnary decoded = request.2
-    · simp only [hcode, ↓reduceIte]
-      constructor
-      · intro h
-        have hp : (request.1, decoded) = query := Option.some.inj h
-        rw [← hp]
-        exact Prod.ext rfl hcode
-      · intro h
-        have hop : query.1 = request.1 := congrArg Prod.fst h
-        have hword : encList encUnary query.2 = request.2 := congrArg Prod.snd h
-        have hdecoded : decoded = query.2 :=
-          (encList encUnary).injective (hcode.trans hword.symm)
-        exact congrArg some (Prod.ext hop.symm hdecoded)
-    · simp only [hcode, ↓reduceIte]
-      constructor
-      · intro h
-        cases h
-      · intro h
-        exfalso
-        apply hcode
-        have hword : encList encUnary query.2 = request.2 := congrArg Prod.snd h
-        have hdecoded : decoded = query.2 := by
-          dsimp only [decoded]
-          rw [← hword, Turing.MultiTapeTM.Decoder.decode_enc]
-        rw [hdecoded, hword]
+    obtain ⟨op, word⟩ := request
+    obtain ⟨tag, value⟩ := query
+    simp only [Option.map_eq_some_iff, PartialDecoder.decode_eq_some_iff, Prod.mk.injEq]
+    aesop
   encodeReply _ := encList encUnary
 
 /-- A stateful source handler's replies fit the Boolean prefix copied by the interpreter. The

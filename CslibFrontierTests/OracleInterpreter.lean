@@ -109,7 +109,8 @@ theorem run_zero (log : List (List ℕ)) :
 def malformedRequest : Fin 1 × List Bool := (0, [true])
 
 theorem decode_malformedRequest : (wordCodec 1).decodeQuery malformedRequest = none := by
-  simp [wordCodec, malformedRequest, unaryListDecoder, Decoder.list, Decoder.unary,
+  simp [wordCodec, malformedRequest, PartialDecoder.ofDecoder, PartialDecoder.checked,
+    unaryListDecoder, Decoder.list, Decoder.unary,
     frames_of_ne_nil, unframe, dropFrame, encList_cons, encList_nil, encUnary_apply, frame]
 
 /-- The malformed request is answered by `[]` without changing the typed handler state. -/
