@@ -11,11 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.Refuter4n.PackedState
 public import CslibFrontier.Computability.Circuit.Encoding.Basic
 public import CslibFrontier.Computability.WordRAM.Realization.RecordOps
 public import CslibFrontier.Computability.WordRAM.Structured
--- `import all` for the private one-pass builder of `ofCircuitBinary` and its lemmas:
--- `programGateLit`, `programWireLit`, `programBinaryGates`,
--- `programBinaryGate`, `lineBinaryLit`, `lineBinaryGate`, `programWireLit_gate_last`,
--- `programWireLit_gate_castSucc`, `mem_programBinaryGates_bounds`, `reads_programWireLit`.
-import all CslibFrontier.Computability.Circuit.Boolean.SemiCircuit.OfCircuit
+import CslibFrontier.Computability.Circuit.Boolean.SemiCircuit.OfCircuit
 import Mathlib.Data.List.GetD
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.Notation
@@ -275,30 +271,22 @@ private theorem decodeLines_progWords : ∀ {g : ℕ} (p : Program (fullSignatur
     have hlen : (decodeLines n (progWords p)).length = g := by rw [ih, List.length_ofFn]
     rw [progWords_gate, decodeLines_append_singleton, hlen, List.ofFn_succ_last, ih]
     have hne : ∀ j : Fin g, n + (j : ℕ) ≠ n + g := fun j => by have := j.isLt; omega
-    have hmem : ∀ j : Fin g, n + (j : ℕ) ∈ programBinaryGates (p.gate line) ↔
-        n + (j : ℕ) ∈ programBinaryGates p := fun j => by
-      simp only [programBinaryGates]
-      have : (j : ℕ) ≠ g := by have := j.isLt; omega
-      split_ifs <;> simp [this]
-    have hlast : n + g ∈ programBinaryGates (p.gate line) ↔ binaryB2Cost line.op = 1 := by
-      simp only [programBinaryGates]
-      split_ifs with h
-      · simp [h]
-      · exact ⟨fun h' => absurd (mem_programBinaryGates_bounds h').2 (by omega),
-          fun h' => absurd h' h⟩
     congr 1
     · refine List.ofFn_inj.2 (funext fun j => ?_)
       rw [Fin.val_castSucc]
-      have hgl : programGateLit (p.gate line) j.castSucc = programGateLit p j :=
-        programWireLit_gate_castSucc p line j
-      simp only [hgl, hmem j, programBinaryGate, hne j, ↓reduceIte]
-    · rw [lineOut_lineWords (programWireLit p) _ (fun _ => rfl) (fun k => by
-          rw [List.getD_eq_getElem _ _ (by simp)]
-          simp [programWireLit])]
+      have hgl : programGateLit (p.gate line) j.castSucc = programGateLit p j := by
+        rw [← programWireLit_gate, ← programWireLit_gate, programWireLit_gate_castSucc]
+      have hj : n + (j : ℕ) < n + g := by have := j.isLt; omega
+      simp only [hgl, mem_programBinaryGates_gate_of_lt p line hj,
+        programBinaryGate_gate_of_ne p line (hne j)]
+    · rw [lineOut_lineWords (programWireLit p) _ (programWireLit_input p) (fun k => by
+          rw [List.getD_eq_getElem _ _ (by simp), List.getElem_map, List.getElem_ofFn,
+            programWireLit_gate])]
       have hgl : programGateLit (p.gate line) (Fin.last g) =
-          lineBinaryLit (programWireLit p) line :=
-        programWireLit_gate_last p line
-      simp only [Fin.val_last, hgl, hlast, programBinaryGate, ↓reduceIte]
+          lineBinaryLit (programWireLit p) line := by
+        rw [← programWireLit_gate, programWireLit_gate_last]
+      simp only [Fin.val_last, hgl, mem_programBinaryGates_gate_last,
+        programBinaryGate_gate_last]
 
 /-! ### Validity of the encoding -/
 
@@ -418,7 +406,9 @@ private theorem getD_outs (C : Circuit (fullSignature 2 Bool) n 1) {j : ℕ} (hj
         some (rowOf ((initialState C).gate (n + j))) else none⟩ := by
   rw [outs, decodeLines_progWords, List.getD_eq_getElem _ _ (by simpa using hj),
     List.getElem_ofFn]
-  rfl
+  change _ = DecodedLine.mk _ (if n + j ∈ (ofCircuitBinary C).gates then
+    some (rowOf ((ofCircuitBinary C).gate (n + j))) else none)
+  rw [ofCircuitBinary_gates, ofCircuitBinary_gate]
 
 private theorem length_outs (C : Circuit (fullSignature 2 Bool) n 1) :
     (outs C).length = C.size := by
@@ -426,18 +416,20 @@ private theorem length_outs (C : Circuit (fullSignature 2 Bool) n 1) :
 
 private theorem code_lt (C : Circuit (fullSignature 2 Bool) n 1) {j : ℕ} (hj : j < C.size) :
     ((outs C).getD j ⟨0, none⟩).lit < 2 * nameBound C + 4 := by
-  rw [getD_outs C hj]
+  rw [getD_outs C hj, ← programWireLit_gate]
   exact litCode_lt fun t ht => (reads_programWireLit C.program (.gate ⟨j, hj⟩) ht).2
 
 private theorem out_eq (C : Circuit (fullSignature 2 Bool) n 1) :
     litCode (initialState C).out =
       wireLit n ((outs C).map DecodedLine.lit) ((C.outputs 0).toNat) := by
-  refine (wireLit_toNat (programWireLit C.program) _ (fun _ => rfl) (fun k => ?_) _).symm
+  change litCode (ofCircuitBinary C).out = _
+  rw [ofCircuitBinary_out]
+  refine (wireLit_toNat (programWireLit C.program) _ (programWireLit_input _)
+    (fun k => ?_) _).symm
   rw [List.getD_eq_getElem _ _ (by simp [length_outs]), List.getElem_map]
   have := getD_outs C k.isLt
   rw [List.getD_eq_getElem _ _ (by simp [length_outs])] at this
-  rw [this]
-  rfl
+  rw [this, programWireLit_gate]
 
 private theorem maskOf_gates (C : Circuit (fullSignature 2 Bool) n 1) :
     maskOf (initialState C).gates = ∑ j ∈ Finset.range C.size,

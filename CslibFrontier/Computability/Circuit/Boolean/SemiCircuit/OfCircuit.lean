@@ -32,8 +32,25 @@ circuit's output on every consistent assignment (`SemiCircuit.out_eval_ofCircuit
   gates and `0` on constants and unary operations.
 * `Cslib.Circuits.Boolean.SemiCircuit.ofCircuitBinary`: the binary-gate semi-circuit folding
   constants and unary lines into literals.
+* `Cslib.Circuits.Boolean.SemiCircuit.lineBinaryLit`, `lineBinaryGate`: the literal and gate of
+  one line, on the literals of the earlier wires.
+* `Cslib.Circuits.Boolean.SemiCircuit.programGateLit`, `programWireLit`, `programBinaryGates`,
+  `programBinaryGate`: the folded literals, binary gates and gate map of a program, built in one
+  pass in program order.
 
 ## Main results
+
+* `Cslib.Circuits.Boolean.SemiCircuit.programWireLit_input`, `programWireLit_gate`,
+  `programWireLit_gate_castSucc`, `programWireLit_gate_last`, `mem_programBinaryGates_gate_of_lt`,
+  `mem_programBinaryGates_gate_last`, `programBinaryGate_gate_of_ne`,
+  `programBinaryGate_gate_last`: appending a line keeps the earlier literals, gates and gate map,
+  gives the new gate the literal of its line, and makes the new name a binary gate, with the gate
+  of its line, exactly when the line has binary cost `1`.
+* `Cslib.Circuits.Boolean.SemiCircuit.mem_programBinaryGates_bounds`, `reads_programWireLit`:
+  binary gates are named `n + k` for earlier lines, and literals read only parameters and earlier
+  binary gates.
+* `Cslib.Circuits.Boolean.SemiCircuit.ofCircuitBinary_gates`, `ofCircuitBinary_gate`,
+  `ofCircuitBinary_out`: `ofCircuitBinary` in terms of the builder.
 
 * `Cslib.Circuits.Boolean.SemiCircuit.cost_binaryB2Cost_le_size`,
   `Cslib.Circuits.Boolean.SemiCircuit.size_ofCircuitBinary`,
@@ -84,7 +101,7 @@ theorem cost_binaryB2Cost_le_size {m : ℕ} (C : Circuit (fullSignature 2 Bool) 
 
 /-- Binary gate for a `fullSignature 2 Bool` line given the literals carried by earlier wires:
 negations on input literals are absorbed into the gate's operation. -/
-private def lineBinaryGate {g : ℕ} (wLit : Wire n g → Lit) :
+@[expose] def lineBinaryGate {g : ℕ} (wLit : Wire n g → Lit) :
     Line (fullSignature 2 Bool) n g → Gate
   | ⟨.fn op, w⟩ =>
     let ℓ₀ := wLit (w ⟨0, by simp [fullSignature]⟩)
@@ -94,7 +111,7 @@ private def lineBinaryGate {g : ℕ} (wLit : Wire n g → Lit) :
 
 /-- The literal computed by `line` when constant and unary lines fold into `wLit` and genuinely
 binary lines introduce gate `n + g`. -/
-private def lineBinaryLit {g : ℕ} (wLit : Wire n g → Lit) :
+@[expose] def lineBinaryLit {g : ℕ} (wLit : Wire n g → Lit) :
     Line (fullSignature 2 Bool) n g → Lit
   | ⟨.con c, _⟩ => Lit.const c
   | ⟨.fn op, w⟩ =>
@@ -119,28 +136,39 @@ private def programGateLitVector {g : ℕ} (p : Program (fullSignature 2 Bool) n
     let prior := programGateLitVector p
     prior.push (lineBinaryLit (Wire.elim (fun i => Lit.node i false) prior.get) line)
 
-/-- The folded literal of each gate of `p`, read from `programGateLitVector p`. Separate calls
-may rebuild the vector; each rebuild is one pass over the program. This module does not certify a
-running-time bound. -/
-private def programGateLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Fin g → Lit :=
+/-- The folded literal of each gate of `p`, read from a vector built in one pass over the program
+(private). Separate calls may rebuild the vector. This module does not certify a running-time
+bound. -/
+def programGateLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Fin g → Lit :=
   (programGateLitVector p).get
 
 /-- The literal carried by any wire of `p` when constant and unary lines are folded. -/
-private def programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Wire n g → Lit :=
+def programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Wire n g → Lit :=
   Wire.elim (fun i => Lit.node i false) (programGateLit p)
 
-private theorem programWireLit_gate_last {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
+/-- An input wire carries the literal of its parameter. -/
+theorem programWireLit_input {g : ℕ} (p : Program (fullSignature 2 Bool) n g) (i : Fin n) :
+    programWireLit p (.input i) = Lit.node i false := by rfl
+
+/-- A gate wire carries the folded literal of its gate. -/
+theorem programWireLit_gate {g : ℕ} (p : Program (fullSignature 2 Bool) n g) (j : Fin g) :
+    programWireLit p (.gate j) = programGateLit p j := by rfl
+
+/-- **Last line.** The new gate carries the literal of its line, on the literals of the earlier
+wires. -/
+theorem programWireLit_gate_last {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
     (line : Line (fullSignature 2 Bool) n g) :
     programWireLit (p.gate line) (.gate (Fin.last g)) = lineBinaryLit (programWireLit p) line := by
   exact Vector.getElem_push_last
 
-private theorem programWireLit_gate_castSucc {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
+/-- **Prefix.** Appending a line keeps the literals of the earlier gates. -/
+theorem programWireLit_gate_castSucc {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
     (line : Line (fullSignature 2 Bool) n g) (j : Fin g) :
     programWireLit (p.gate line) (.gate j.castSucc) = programWireLit p (.gate j) := by
   exact Vector.getElem_push_lt j.isLt
 
 /-- The indices `n + k` of genuinely binary gates in `p`. -/
-private def programBinaryGates {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Finset ℕ :=
+def programBinaryGates {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Finset ℕ :=
   match p with
   | .empty => ∅
   | @Program.gate _ _ g p line =>
@@ -148,13 +176,14 @@ private def programBinaryGates {g : ℕ} (p : Program (fullSignature 2 Bool) n g
     else programBinaryGates p
 
 /-- The gate map of `p` on `programBinaryGates p`. -/
-private def programBinaryGate {g : ℕ} (p : Program (fullSignature 2 Bool) n g) (i : ℕ) : Gate :=
+def programBinaryGate {g : ℕ} (p : Program (fullSignature 2 Bool) n g) (i : ℕ) : Gate :=
   match p with
   | .empty => ⟨fun _ _ => false, .const false, .const false⟩
   | @Program.gate _ _ g p line =>
     if i = n + g then lineBinaryGate (programWireLit p) line else programBinaryGate p i
 
-private theorem mem_programBinaryGates_bounds {g : ℕ} {p : Program (fullSignature 2 Bool) n g}
+/-- Every binary gate of `p` is named `n + k` for a line `k < g`. -/
+theorem mem_programBinaryGates_bounds {g : ℕ} {p : Program (fullSignature 2 Bool) n g}
     {J : ℕ} (hJ : J ∈ programBinaryGates p) : n ≤ J ∧ J < n + g := by
   induction p with
   | empty => simp [programBinaryGates] at hJ
@@ -164,6 +193,39 @@ private theorem mem_programBinaryGates_bounds {g : ℕ} {p : Program (fullSignat
     · rcases Finset.mem_insert.1 hJ with rfl | hJ
       exacts [by omega, by have := ih hJ; omega]
     · have := ih hJ; omega
+
+/-- **Prefix.** Appending a line keeps the binary gates below `n + g`. -/
+theorem mem_programBinaryGates_gate_of_lt {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
+    (line : Line (fullSignature 2 Bool) n g) {J : ℕ} (hJ : J < n + g) :
+    J ∈ programBinaryGates (p.gate line) ↔ J ∈ programBinaryGates p := by
+  dsimp only [programBinaryGates]
+  split_ifs
+  · simp [Finset.mem_insert, hJ.ne]
+  · rfl
+
+/-- **Last line.** The new name `n + g` is a binary gate exactly when the line has binary cost
+`1`. -/
+theorem mem_programBinaryGates_gate_last {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
+    (line : Line (fullSignature 2 Bool) n g) :
+    n + g ∈ programBinaryGates (p.gate line) ↔ binaryB2Cost line.op = 1 := by
+  dsimp only [programBinaryGates]
+  split_ifs with h
+  · simp [h]
+  · exact ⟨fun h' => absurd (mem_programBinaryGates_bounds h').2 (by omega),
+      fun h' => absurd h' h⟩
+
+/-- **Prefix.** Appending a line keeps the gate map away from the new name. -/
+theorem programBinaryGate_gate_of_ne {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
+    (line : Line (fullSignature 2 Bool) n g) {J : ℕ} (hJ : J ≠ n + g) :
+    programBinaryGate (p.gate line) J = programBinaryGate p J := by
+  simp only [programBinaryGate, hJ, ↓reduceIte]
+
+/-- **Last line.** The gate of the new name is the gate of its line, on the literals of the
+earlier wires. -/
+theorem programBinaryGate_gate_last {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
+    (line : Line (fullSignature 2 Bool) n g) :
+    programBinaryGate (p.gate line) (n + g) = lineBinaryGate (programWireLit p) line := by
+  simp only [programBinaryGate, ↓reduceIte]
 
 private theorem card_programBinaryGates {g : ℕ} (p : Program (fullSignature 2 Bool) n g) :
     (programBinaryGates p).card = p.cost binaryB2Cost := by
@@ -186,7 +248,8 @@ private theorem subset_programBinaryGates_gate {g : ℕ} (p : Program (fullSigna
   split_ifs
   exacts [Finset.subset_insert _ _, subset_rfl]
 
-private theorem reads_programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) :
+/-- A wire's literal reads only parameters and binary gates of `p`, all below `n + g`. -/
+theorem reads_programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) :
     ∀ (w : Wire n g) {t : ℕ}, (programWireLit p w).Reads t →
       (t < n ∨ t ∈ programBinaryGates p) ∧ t < n + g := by
   induction p with
@@ -314,6 +377,18 @@ def ofCircuitBinary (C : Circuit (fullSignature 2 Bool) n 1) : SemiCircuit where
   eqns := ∅
   eqn _ := ⟨∅, false⟩
   out := programWireLit C.program (C.outputs 0)
+
+/-- The gates of `ofCircuitBinary C` are the binary gates of its program. -/
+theorem ofCircuitBinary_gates (C : Circuit (fullSignature 2 Bool) n 1) :
+    (ofCircuitBinary C).gates = programBinaryGates C.program := by rfl
+
+/-- The gate map of `ofCircuitBinary C` is the gate map of its program. -/
+theorem ofCircuitBinary_gate (C : Circuit (fullSignature 2 Bool) n 1) :
+    (ofCircuitBinary C).gate = programBinaryGate C.program := by rfl
+
+/-- The output of `ofCircuitBinary C` is the literal of its output wire. -/
+theorem ofCircuitBinary_out (C : Circuit (fullSignature 2 Bool) n 1) :
+    (ofCircuitBinary C).out = programWireLit C.program (C.outputs 0) := by rfl
 
 /-- The parameters of `ofCircuitBinary C` are `Finset.range n`. -/
 @[simp] theorem ofCircuitBinary_params (C : Circuit (fullSignature 2 Bool) n 1) :
