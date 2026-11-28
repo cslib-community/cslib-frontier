@@ -1234,7 +1234,7 @@ theorem time_handlerLoopArtifact [Inhabited HandlerState] (r : ℕ)
 /-! ### Runtime preparation and final projection -/
 
 /-- Actual retained compiler for runtime source initialization and private-state capture. -/
-noncomputable def initialHandlerStateCompiler [Inhabited HandlerState] (r : ℕ)
+noncomputable def initialHandlerStateCompiler (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool) :
     NativeCompiler (initialHandlerState r)
       (eHandlerRunInput encHandlerState) (eQueryResult encHandlerState) := by

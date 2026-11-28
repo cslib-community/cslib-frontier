@@ -52,6 +52,11 @@ private noncomputable def falseHandlerArtifact :
   NativeOracleProgram.ofCompiler (r := 0)
     (ClassifiedCompiler.inPhase .localStep falseHandlerCompiler)
 
+/-- Initialization captures the supplied private state for any encoded type. -/
+noncomputable example {α : Type} (enc : α ↪ List Bool) (r : ℕ) :
+    NativeCompiler (initialHandlerState r) (eHandlerRunInput enc) (eQueryResult enc) :=
+  initialHandlerStateCompiler r enc
+
 /-- Public handler-run encodings retain their documented source/state and output/state layouts. -/
 example (input : HandlerRunInput Bool) (output : HandlerRunOutput Bool) :
     eHandlerRunInput encBool input = encPair eRunInput encBool (input.source, input.handlerState) ∧
