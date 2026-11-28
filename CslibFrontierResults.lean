@@ -11,6 +11,7 @@ import CslibFrontierResults.Entries.CombinatorialAuction
 import CslibFrontierResults.Entries.PermanentXorGadget
 import CslibFrontierResults.Entries.GraphicalMarkovCE
 import CslibFrontierResults.Entries.KellyMechanism
+import CslibFrontierResults.Entries.ODonnellMajorityStability
 import CslibFrontierResults.Entries.DictionaryLowerBound
 import CslibFrontierResults.Entries.VeriPBSubgraphIso
 import CslibFrontierResults.Entries.SergeevAdditiveMultiplicative
