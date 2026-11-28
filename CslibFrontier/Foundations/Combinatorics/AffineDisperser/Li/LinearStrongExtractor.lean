@@ -447,10 +447,11 @@ private theorem length_rrvFunctionsImpl (t d : ℕ) (hd : 0 < d) (m : ℕ) :
   rw [← rrvFunctions_eq_rrvFunctionsImpl, length_rrvFunctions]
 
 private theorem getElem_rrvFunctionsImpl_succ {t d m : ℕ} (hd : 0 < d) (i : Fin m) :
-    (rrvFunctionsImpl t d hd (i.1 + 1))[i.1]'(by rw [length_rrvFunctionsImpl]; omega) =
-      (rrvFunctions t d hd m)[i.1]'(by rw [length_rrvFunctions]; exact i.2) := by
+    (rrvFunctionsImpl t d hd (i.val + 1))[i.val]'(by rw [length_rrvFunctionsImpl]; omega) =
+      (rrvFunctions t d hd m)[i.val]'(by rw [length_rrvFunctions]; exact i.isLt) := by
   simp only [← rrvFunctions_eq_rrvFunctionsImpl]
-  exact (getElem_rrvFunctions_prefix hd (Nat.succ_le_of_lt i.2) i.1 (Nat.lt_succ_self i.1)).symm
+  exact (getElem_rrvFunctions_prefix hd (Nat.succ_le_of_lt i.isLt) i.val
+    (Nat.lt_succ_self i.val)).symm
 
 /-- The graph of `f : Fin t → Fin d` embedded in `Fin (t * d)`. -/
 private def graphBlock {t d : ℕ} (f : Fin t → Fin d) : Finset (Fin (t * d)) :=
