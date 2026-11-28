@@ -25,7 +25,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Poly
 import CslibFrontier.Tactic.EncLen
 
 /-!
-# The strong exponential time hypothesis implies the orthogonal vectors hypothesis
+# Williams's split-and-list transfer from Orthogonal Vectors to SAT
 
 The split-and-list reduction of Williams [Williams2005] (`Cslib.Complexity.toOV`) splits the `n`
 distinct variables of a formula with `m` clauses into halves of `⌊n / 2⌋` and `⌈n / 2⌉` variables.
@@ -43,18 +43,17 @@ polynomial in the length of the encoded formula
 at a time (`Turing.MultiTapeTM.ComputableInTimeAndSpace.iterate_unary_stream_sum`);
 accumulating them in a list would cost time quadratic in the number of vectors. Then a decider
 for `OV` within time `N ^ (2 - ε)` times a polynomial in the dimension, on `N` vectors, decides
-`SAT` within time `2 ^ ((1 - ε / 2) n)` times a polynomial, for `0 < ε ≤ 1`
-(`Cslib.Complexity.DecidableInTimeO.decidableInExpTime_SAT`), and the strong exponential time
-hypothesis implies the orthogonal vectors hypothesis (`Cslib.Complexity.OVH_of_SETH`).
+unrestricted `SAT` within time `2 ^ ((1 - min ε 1 / 2) n)` times a polynomial, for `ε > 0`
+(`Cslib.Complexity.DecidableInTimeO.decidableInExpTime_SAT`). Contrapositively, if unrestricted
+`SAT` is not decidable at any exponential rate below `1`, the orthogonal vectors hypothesis holds
+(`Cslib.Complexity.OVH_of_not_decidableInExpTime_SAT`).
 
 The orthogonal vectors hypothesis is stated with a polynomial factor in the dimension. Its form for
-dimension `c log N`, which follows from the strong exponential time hypothesis with the
-sparsification lemma, is not proved here.
-
-**The hypothesis is refuted.** `Cslib.Complexity.CountingNativeEndpoint.not_SETH` proves that
-`SETH` is false, so `Cslib.Complexity.OVH_of_SETH` holds vacuously and gives no evidence for `OVH`,
-which this library neither proves nor refutes. The reduction from a fast `OV` decider to a fast
-`SAT` decider is unconditional.
+dimension `c log N` is not proved here. Williams derives `OVH` from the strong exponential time
+hypothesis, which concerns `k`-SAT for fixed widths `k`.
+`Cslib.Complexity.CountingNativeEndpoint.not_SETH` refutes that hypothesis, so this module does
+not state the implication from it. The premise of `OVH_of_not_decidableInExpTime_SAT`, about
+unrestricted `SAT`, is not refuted, and the library neither proves nor refutes `OVH`.
 
 ## Main definitions
 
@@ -69,7 +68,8 @@ which this library neither proves nor refutes. The reduction from a fast `OV` de
   `2 ^ ⌈n / 2⌉` times a polynomial.
 * `Cslib.Complexity.DecidableInTimeO.decidableInExpTime_SAT`: a fast `OV` decider gives a fast
   `SAT` decider.
-* `Cslib.Complexity.OVH_of_SETH`: `SETH → OVH`.
+* `Cslib.Complexity.OVH_of_not_decidableInExpTime_SAT`: if unrestricted `SAT` is not decidable at
+  any exponential rate `< 1`, then `OVH` holds.
 
 ## References
 
@@ -584,17 +584,14 @@ theorem DecidableInTimeO.decidableInExpTime_SAT {ε : ℝ} (hε : 0 < ε) {e : �
   rw [Nat.cast_add, show ((3 + 9 * c : ℕ) : ℝ) = 3 + 9 * (c : ℝ) by push_cast; ring]
   nlinarith
 
-/-- **The strong exponential time hypothesis implies the orthogonal vectors hypothesis**
-[Williams2005]. -/
-theorem OVH_of_SETH (h : SETH) : OVH := by
+/-- If unrestricted `SAT` is not decidable at any exponential rate strictly below `1`, then the
+orthogonal vectors hypothesis `OVH` holds [Williams2005]. -/
+theorem OVH_of_not_decidableInExpTime_SAT
+    (hSAT : ∀ δ : ℝ, δ < 1 → ¬DecidableInExpTime SAT encCNF CNF.numVars δ) : OVH := by
   intro ε hε e hOV
-  have hSAT := hOV.decidableInExpTime_SAT hε
-  have hδ : 0 < min ε 1 / 2 := half_pos (lt_min hε one_pos)
-  obtain ⟨k, hk⟩ := h _ hδ
-  refine hk ?_
-  rw [KSAT_eq_inter k (KSAT_subset_SAT k) le_rfl]
-  refine hSAT.inter (computableInPolyTime_all_length_le k) ?_
-  have : min ε 1 / 2 ≤ 1 / 2 := div_le_div_of_nonneg_right (min_le_right ε 1) zero_le_two
-  linarith
+  have hδ : 1 - min ε 1 / 2 < 1 := by
+    have : 0 < min ε 1 / 2 := half_pos (lt_min hε one_pos)
+    linarith
+  exact hSAT (1 - min ε 1 / 2) hδ (hOV.decidableInExpTime_SAT hε)
 
 end Cslib.Complexity

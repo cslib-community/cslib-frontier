@@ -93,7 +93,9 @@ cost, and leaves the postcondition of the step.
 
 * `region_omega`: closes address, region and word-size side conditions; `region_prune` clears the
   hypotheses that are not plain arithmetic before it calls the arithmetic closers.
-* `framed_triple_step`, `framed_triple`: one structural step, and the walk of a `do` block.
+* `framed_triple_step`, `framed_triple`, `framed_walk`, `framed_close`: one structural step, the
+  walk of a `do` block, the walk that leaves every postcondition to the author, and the closer of
+  the goals the walk leaves.
 
 The rules and tactics are original infrastructure over the existing memory clients.
 -/
@@ -352,16 +354,43 @@ macro (name := framedTripleStep) "framed_triple_step" : tactic => `(tactic|
   | (eapply Cslib.DataStructure.Memory.FramedTriple.dite_max <;> intro)
   | framed_triple_prim)
 
+/-- Close a goal left by `framed_triple`, all or nothing: by reducible `rfl`, by `omega` (after
+`dsimp only` if needed, which reduces structure projections), by `True.intro` up to unfolding, by an
+assumption, by `rfl`, or by splitting a conjunction and closing each part the same way. Unlike
+`trivial` it never tries `decide` or `contradiction`, which are slow to fail on large invariants. -/
+syntax (name := framedClose) "framed_close" : tactic
+
+macro_rules
+  | `(tactic| framed_close) => `(tactic|
+    first
+    | with_reducible rfl
+    | omega
+    | (dsimp only; omega)
+    | exact True.intro
+    | assumption
+    | rfl
+    | (apply And.intro <;> framed_close))
+
 /-- Walk the `do` block of a `Memory.FramedTriple` goal with `framed_triple_step`. The cost is
 synthesized and compared with the stated bound at the end by `omega`; side conditions are tried
-with `region_omega`, trivial postconditions are closed, and the remaining goals are left to the
-author in the order of the program. A sub-program call is taken through a triple for it in the
-local context; a call whose continuation needs the sub-program's postcondition at an arbitrary
+with `region_omega`; postconditions are tried with `framed_close`, and the remaining goals are left
+to the author in the order of the program. A sub-program call is taken through a triple for it in
+the local context; a call whose continuation needs the sub-program's postcondition at an arbitrary
 result is composed with `FramedTriple.call` by hand. -/
 macro (name := framedTriple) "framed_triple" : tactic => `(tactic|
   focus
     eapply Cslib.DataStructure.Memory.FramedTriple.mono (hQ := fun _ _ => id)
     on_goal 1 => (try dsimp only); repeat' framed_triple_step
-    all_goals try first | omega | trivial)
+    all_goals try framed_close)
+
+/-- `framed_triple` without its attempts on the postconditions: walk the `do` block with
+`framed_triple_step`, compare the synthesized cost with the stated bound by `omega`, and leave every
+postcondition to the author. Use it when the postconditions are large invariants, on which even
+failing closers cost time. -/
+macro (name := framedWalk) "framed_walk" : tactic => `(tactic|
+  focus
+    eapply Cslib.DataStructure.Memory.FramedTriple.mono (hQ := fun _ _ => id)
+    on_goal 1 => (try dsimp only); repeat' framed_triple_step
+    on_goal -1 => omega)
 
 end Cslib.WordRAM.Realization.FramedLoop

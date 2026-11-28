@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 import CslibFrontier.Computability.Complexity.FineGrained.GraphProblems
 
 /-!
-# Tests: exponential lower bounds for graph problems
+# Tests: linear-size reductions from 3SAT to graph problems
 
 The reduction with variable edges on concrete formulas: its target and size against the linear
 bound, its edges against those of Karp's reduction on a formula with many complementary
@@ -16,8 +16,8 @@ with no clauses and one with an empty clause; the sparse diamond reduction: its 
 Sipser's construction on a formula with many occurrences of one variable, and its correctness for
 directed paths, directed cycles and undirected cycles on satisfiable and unsatisfiable formulas,
 including the formula with no clauses and the empty clause; the size of the 3-coloring reduction;
-the non-vacuity of the subexponential time predicate; the lower bound for the number of distinct
-vertices of a clique instance, by changing the measure; and the axioms of the headline theorems.
+the subexponential-time predicate on the empty language, the SH lower bounds at exponent `1/2`,
+and the axioms of the reductions.
 -/
 
 namespace CslibFrontierTests.FineGrained.GraphProblems
@@ -126,17 +126,6 @@ example : DecidableInSubexpTime (∅ : Set Graph) encGraph fun G =>
     have h₀ : (0 : ℝ) ≤ (encGraph G).length := Nat.cast_nonneg _
     simp only [Nat.cast_one, pow_one, one_mul]
     nlinarith
-
-/-- Under `ETH`, clique is not decidable in time `2 ^ o(n)` for `n` distinct vertices either, and
-3SAT is not decidable in subexponential time in the number of clauses. -/
-example (h : ETH) :
-    ¬DecidableInSubexpTime Clique encCliqueInstance (fun x => x.graph.vertices.toFinset.card) ∧
-    ¬DecidableInSubexpTime ThreeSAT encCNF List.length :=
-  ⟨fun h' => h.not_decidableInSubexpTime_Clique (h'.mono_measure (c := 1) fun x => by
-    have := x.graph.vertices.toFinset_card_le
-    omega),
-   h.not_decidableInSubexpTime_of_reduction (f := id) ComputableInPolyTime.id'
-    (fun φ hφ => ⟨fun h => h.2, fun h' => ⟨hφ, h'⟩⟩) (k := 1) fun φ _ => by simp⟩
 
 /-- The SH transfer specializes to a square-root exponent with polynomial input overhead. -/
 example (h : SH) :

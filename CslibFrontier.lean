@@ -2461,6 +2461,7 @@ public import CslibFrontier.Computability.Complexity.Problems.SAT.Planar.Crossov
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable.DigitScan
 public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Products
 public import CslibFrontier.Crypto.Computational.GenericGroup.Power
+public import CslibFrontier.Crypto.Computational.MLDSA.SparseDigestChallenges
 public import CslibFrontier.Languages.Probabilistic.Forking
 public import CslibFrontier.Probability.SmallBias.Code
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.ScalarActivity
@@ -3608,6 +3609,7 @@ public import CslibFrontier.Crypto.Negligible.InversePolynomial
 public import CslibFrontier.Foundations.Analysis.ODE.LaplaceTransferFunction
 public import CslibFrontier.Crypto.Computational.DiffieHellman.GapCDH.Assumption
 public import CslibFrontier.Computability.Circuit.Boolean.Broadcast
+public import CslibFrontier.Algorithms.WordRAM.Refuter4n.Evaluator
 public import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
 public import CslibFrontier.Computability.PolyTime.ZMod.ModulusSwitch
 public import CslibFrontier.Computability.Probabilistic.IntBox
