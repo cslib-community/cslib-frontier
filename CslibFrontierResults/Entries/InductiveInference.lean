@@ -44,7 +44,10 @@ register_result "gold-informant-identifiable" where
   title := "Every countable class of languages is identifiable in the limit from informant"
   topic := "inductive inference"
   sources := [
-    { paper := Gold1967, theorem := unverified, locator := unverified }
+    { paper := Gold1967,
+      theorem := "§8, Language identifiability (informant): any countable class is \
+        ineffectively identifiable by identification by enumeration",
+      locator := "Information and Control 10 (1967), printed p. 460" }
   ]
   theorems := [Cslib.MachineLearning.InductiveInference.identifiableFromInformant_of_countable]
   scope := "Ineffective learners conjecturing languages, by identification by enumeration. Any \

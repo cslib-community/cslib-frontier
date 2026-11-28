@@ -37,8 +37,8 @@ the obstruction to learning from text is the lack of negative data, not the size
 ## Implementation notes
 
 As for texts, learners are arbitrary functions conjecturing languages (the ineffective model).
-Classically, informants present the words over a finite alphabet with their bits; here the
-strings form an arbitrary type, and the result needs no countability of it (a type with an
+Gold's informants present the words over a finite alphabet with their bits [Gold1967, §2]; here
+the strings form an arbitrary type, and the result needs no countability of it (a type with an
 informant is countable anyway, since an informant enumerates it).
 
 ## References
@@ -76,14 +76,17 @@ identifies each of its languages from informant. -/
 def IdentifiableFromInformant (𝓛 : Set (Set α)) : Prop :=
   ∃ φ : InformantLearner α, ∀ L ∈ 𝓛, IdentifiesFromInformant φ L
 
-/-- Every countable class of languages is identifiable in the limit from informant [Gold1967]
-(locator not verified), by identification by enumeration: conjecture the first language of an
-enumeration of the class that agrees with every labelled string presented so far.
+/-- Every countable class of languages is identifiable in the limit from informant
+[Gold1967, §8, "Language identifiability", p. 460], by identification by enumeration: conjecture
+the first language of an enumeration of the class that agrees with every labelled string
+presented so far. Gold: "If information presentation is by informant, then [...] any countable
+class of languages is ineffectively identifiable in the limit using identification by
+enumeration."
 
-Relative to the classical formulation (the model in the source has not been checked against this
-statement): learners are arbitrary functions conjecturing languages rather than names, strings
-form an arbitrary type, and the class is any countable class, with no effective enumeration or
-effective learner required. -/
+Deviations from the source: learners conjecture languages rather than names (§2, pp. 450–451),
+and strings form an arbitrary type rather than the words over a finite alphabet. The informant is
+Gold's arbitrary informant (§2, p. 450), which presents every string, with its membership, at
+least once. -/
 theorem identifiableFromInformant_of_countable {𝓛 : Set (Set α)} (hc : 𝓛.Countable) :
     IdentifiableFromInformant 𝓛 := by
   classical
