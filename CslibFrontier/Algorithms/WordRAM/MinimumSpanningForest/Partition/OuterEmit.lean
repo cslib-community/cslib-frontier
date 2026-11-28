@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.Partition.OuterOps
 public import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.Partition.DjpLoop
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Computability.WordRAM.Realization.LoopFrame
 import CslibFrontier.DataStructure.PriorityQueue.WordRAM.SoftHeap.Collect
 import CslibFrontier.DataStructure.Memory.Frame
@@ -119,7 +120,7 @@ private theorem partWriteLocalEdge_spec {w n size edgeBase localBase dstBase eId
     let prog := partWriteLocalEdge d
     partWriteLocalEdgeSafe w d s ∧
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s prog) ∧
-    memoryCost prog s = 10 ∧
+    memoryCost prog s ≤ 10 ∧
     (Memory.spec 0).clientResult s prog = cEdgeLen + 1 ∧
     ((Memory.spec 0).clientState s prog).frontier = s.frontier ∧
     Memory.WellFormed w ((Memory.spec 0).clientState s prog) ∧
@@ -130,54 +131,32 @@ private theorem partWriteLocalEdge_spec {w n size edgeBase localBase dstBase eId
       HoldsIndexedEdges (dstBase + 4 * cEdgeLen) [le]
         ((Memory.spec 0).clientState s prog).mem := by
   obtain ⟨lu, hlu_eq, hlu_lift⟩ := hlu; obtain ⟨lv, hlv_eq, hlv_lift⟩ := hlv
-  obtain ⟨hu, hv, hw, hid⟩ := hin eIdx he_lt; have hfront := hwf.frontier_fits
-  rcases partWriteStride4_spec (dst := dstBase) (idx := cEdgeLen) h16 hwf
-    (hlu_eq ▸ hwf.mem_fits _) (hlv_eq ▸ hwf.mem_fits _) (hw ▸ hwf.mem_fits _)
-    (hid ▸ hwf.mem_fits _) hd_mem with
-    ⟨_, hvh_w, hcost_w, hfr_w, hwf_w, hmod_w, hw0, hw1, hw2, hw3⟩
-  have hprog : partWriteLocalEdge ⟨edgeBase, localBase, dstBase, eIdx, cEdgeLen⟩ =
-      (Memory.read (edgeBase + 4 * eIdx) >>= fun u' =>
-        Memory.read (edgeBase + 4 * eIdx + 1) >>= fun v' =>
-          Memory.read (localBase + u') >>= fun lu' =>
-            Memory.read (localBase + v') >>= fun lv' =>
-              Memory.read (edgeBase + 4 * eIdx + 2) >>= fun wt' =>
-                Memory.read (edgeBase + 4 * eIdx + 3) >>= fun eid' =>
-                  partWriteStride4 ⟨dstBase, cEdgeLen, lu', lv', wt', eid'⟩ >>= fun _ =>
-                    pure (cEdgeLen + 1)) := partWriteLocalEdge_def _
-  have hvh : (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s
-        (partWriteLocalEdge ⟨edgeBase, localBase, dstBase, eIdx, cEdgeLen⟩)) := by
-    rw [hprog]; refine validHistory_read_bind (by omega) (validHistory_read_bind (by omega) ?_)
-    rw [hu, hv]; refine validHistory_read_bind hlu_lt (validHistory_read_bind hlv_lt ?_)
-    rw [hlu_eq, hlv_eq]
-    refine validHistory_read_bind (by omega) (validHistory_read_bind (by omega) ?_)
-    rw [hw, hid]; exact validHistory_bind_step hvh_w (validHistory_pure w _ _)
-  have hres : (Memory.spec 0).clientResult s
-      (partWriteLocalEdge ⟨edgeBase, localBase, dstBase, eIdx, cEdgeLen⟩) = cEdgeLen + 1 := by
-    rw [hprog, clientResult_bind_read, clientResult_bind_read, hu, hv, clientResult_bind_read,
-      clientResult_bind_read, hlu_eq, hlv_eq, clientResult_bind_read, clientResult_bind_read,
-      StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure]
-  have hst : (Memory.spec 0).clientState s
-      (partWriteLocalEdge ⟨edgeBase, localBase, dstBase, eIdx, cEdgeLen⟩) =
-      (Memory.spec 0).clientState s (partWriteStride4 ⟨dstBase, cEdgeLen, lu.val, lv.val,
-        (es[eIdx]).weight, (es[eIdx]).id⟩) := by
-    rw [hprog, clientState_bind_read, clientState_bind_read, hu, hv, clientState_bind_read,
-      clientState_bind_read, hlu_eq, hlv_eq, clientState_bind_read, clientState_bind_read, hw, hid,
-      StateTransitionSpec.clientState_bind]; rfl
-  have hcost : memoryCost (partWriteLocalEdge ⟨edgeBase, localBase, dstBase, eIdx, cEdgeLen⟩) s =
-      10 := by
-    rw [hprog, memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-      memoryCost_bind', memoryCost_read, clientResult_read, clientState_read, hu, hv,
-      memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-      memoryCost_bind', memoryCost_read, clientResult_read, clientState_read, hlu_eq, hlv_eq,
-      memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-      memoryCost_bind', memoryCost_read, clientResult_read, clientState_read, hw, hid,
-      memoryCost_bind', hcost_w, memoryCost_pure]
-  refine ⟨(by rw [partWriteLocalEdgeSafe_def]; exact ⟨h16, hc_fit, he_mem, hu ▸ hlu_lt,
-      hv ▸ hlv_lt, hd_mem⟩), hvh, hcost, hres, hst ▸ hfr_w, hst ▸ hwf_w,
-    fun x hx => hst ▸ hmod_w x hx, ⟨lu, lv, (es[eIdx]).weight, (es[eIdx]).id⟩,
-    by simp [hlu_lift, hlv_lift], fun i hi => by
-      have hi0 : i = 0 := Nat.lt_one_iff.mp hi; subst hi0; simpa [hst] using ⟨hw0, hw1, hw2, hw3⟩⟩
+  obtain ⟨hu, hv, hw, hid⟩ := hin eIdx he_lt
+  obtain ⟨-, hvh_w, hc_w, hfr_w, -, hmod_w, hw0, hw1, hw2, hw3⟩ := partWriteStride4_spec
+    (dst := dstBase) (idx := cEdgeLen) h16 hwf
+    (hwf.mem_fits (localBase + s.mem (edgeBase + 4 * eIdx)))
+    (hwf.mem_fits (localBase + s.mem (edgeBase + 4 * eIdx + 1)))
+    (hwf.mem_fits (edgeBase + 4 * eIdx + 2)) (hwf.mem_fits (edgeBase + 4 * eIdx + 3)) hd_mem
+  have hft_w := FramedTriple.of_realization
+    (S := {x | dstBase + 4 * cEdgeLen ≤ x ∧ x < dstBase + 4 * cEdgeLen + 4}) hvh_w hfr_w
+    fun x hx => by_contra fun h => hx (hmod_w x h)
+  obtain ⟨hvh, hc, hfr', hS, hres, h0, h1, h2, h3⟩ :=
+    FramedTriple.realization_of_frontier_eq (w := w) (s := s) (c := 10)
+    (p := partWriteLocalEdge ⟨edgeBase, localBase, dstBase, eIdx, cEdgeLen⟩)
+    (S := {x | dstBase + 4 * cEdgeLen ≤ x ∧ x < dstBase + 4 * cEdgeLen + 4})
+    (Q := fun r t => r = cEdgeLen + 1 ∧ t.mem (dstBase + 4 * cEdgeLen) = lu.val ∧
+      t.mem (dstBase + 4 * cEdgeLen + 1) = lv.val ∧
+      t.mem (dstBase + 4 * cEdgeLen + 2) = (es[eIdx]).weight ∧
+      t.mem (dstBase + 4 * cEdgeLen + 3) = (es[eIdx]).id) (by
+    rw [partWriteLocalEdge_def]; framed_triple
+    · exact ⟨hfr_w, rfl, hw0.trans (by rw [hu, hlu_eq]), hw1.trans (by rw [hv, hlv_eq]),
+        hw2.trans hw, hw3.trans hid⟩)
+  refine ⟨by rw [partWriteLocalEdgeSafe_def]; exact ⟨h16, hc_fit, he_mem, hu ▸ hlu_lt,
+      hv ▸ hlv_lt, hd_mem⟩, hvh, hc, hres, hfr', wellFormed_clientState hwf hvh,
+    fun x hx => by_contra fun h => hx (hS x h), ⟨lu, lv, (es[eIdx]).weight, (es[eIdx]).id⟩,
+    by simp [hlu_lift, hlv_lift], fun i hi => ?_⟩
+  obtain rfl : i = 0 := Nat.lt_one_iff.mp hi
+  simpa using ⟨h0, h1, h2, h3⟩
 
 private theorem partMaybeEmitLocal_spec {w n size : ℕ} (L : PartLayout w n)
     {lift : Fin size → Fin n} {s t : Memory.State} (cid nb eIdx cEdgeLen : ℕ)
@@ -1000,15 +979,10 @@ private theorem partEmitCorrLoop_spec {w n : ℕ} (L : PartLayout w n)
       fun _ h => by simp at h, fun _ h => (by cases h), fun _ _ hr => by omega,
       fun i hi => by simp [hest1 i hi], ?_⟩
     convert hclaim using 2; ext i; simp [hest1 i.val i.isLt]
-  have hstep : ∀ t < numCorr, ∀ a st, Inv t a st →
+  have hstep : ∀ t < numCorr, ∀ a st, Inv t a st → Memory.Modifies S s st →
       partEmitCorrStepSafe w (stepD, a) st ∧
-      (Memory.spec w).ValidHistory st
-        ((Memory.spec w).clientHistory st (partEmitCorrStep (stepD, a))) ∧
-      let a' := (Memory.spec 0).clientResult st (partEmitCorrStep (stepD, a))
-      let st' := (Memory.spec 0).clientState st (partEmitCorrStep (stepD, a))
-      memoryCost (partEmitCorrStep (stepD, a)) st + 0 ≤ 0 + 11 ∧
-      Memory.Modifies S st st' ∧ Inv (t + 1) a' st' := by
-    intro t ht a st hinv
+      Memory.FramedTriple w st (partEmitCorrStep (stepD, a)) 11 S (Inv (t + 1)) := by
+    intro t ht a st hinv _
     rcases hinv with ⟨ha1, ha2_ge, ha2_le, hst_fr, hst_wf, hst_mod, corrEmitted, hnd_ce, hlen_ce,
       hhold_ce, hce_sub, hce_cov, hst_es, hclaim_st⟩
     let eFin : Fin m := corrIds[t]'(hcorr_len.symm ▸ ht)
@@ -1031,18 +1005,6 @@ private theorem partEmitCorrLoop_spec {w n : ℕ} (L : PartLayout w n)
                 partCopyIndexedEdge ⟨L.edgeBase, L.bufBase + 14 * n + 6 * m, eIdx, a.count⟩ >>=
                   fun _ => pure ⟨a.idx + 1, a.count + 1⟩
             else pure ⟨a.idx + 1, a.count⟩) := partEmitCorrStep_def _
-    have hvh_prefix :
-        (Memory.spec w).ValidHistory st ((Memory.spec w).clientHistory st
-          (if st.mem (L.bufBase + 14 * n + eFin.val) = 0 then
-            Memory.write (L.bufBase + 14 * n + eFin.val) 2 >>= fun _ =>
-              partCopyIndexedEdge
-                ⟨L.edgeBase, L.bufBase + 14 * n + 6 * m, eFin.val, a.count⟩ >>= fun _ =>
-                pure (⟨a.idx + 1, a.count + 1⟩ : PartCursor)
-          else pure (⟨a.idx + 1, a.count⟩ : PartCursor))) →
-        (Memory.spec w).ValidHistory st
-          ((Memory.spec w).clientHistory st (partEmitCorrStep (stepD, a))) := fun htail => by
-      rw [hprog_s]; refine validHistory_read_bind hcb_lt ?_; rw [hst_agree_corr]
-      exact validHistory_read_bind hst_lt htail
     by_cases hst0 : st.mem (L.bufBase + 14 * n + eFin.val) = 0
     · have hfilt_lt : (Finset.univ.filter (fun i : Fin m =>
           st.mem (L.bufBase + 14 * n + i.val) ≠ 0)).card < m :=
@@ -1066,31 +1028,6 @@ private theorem partEmitCorrLoop_spec {w n : ℕ} (L : PartLayout w n)
         refine ⟨h16, ht1_fit, hmc1_fit, hbuf_fit, hcb_lt,
           by simpa [stepD, hst_agree_corr] using hst_lt, fun _ => ?_⟩
         simpa [stepD, hst_agree_corr] using hsafe_cp
-      have hvh_s : (Memory.spec w).ValidHistory st
-          ((Memory.spec w).clientHistory st (partEmitCorrStep (stepD, a))) :=
-        hvh_prefix (by
-          simp only [hst0, ↓reduceIte]
-          exact validHistory_write_bind hst_lt (h16.of_le (by omega))
-            (validHistory_bind_step hvh_cp (validHistory_pure w _ _)))
-      have hres_s : (Memory.spec 0).clientResult st (partEmitCorrStep (stepD, a)) =
-          ⟨a.idx + 1, a.count + 1⟩ := by
-        rw [hprog_s, clientResult_bind_read, hst_agree_corr, clientResult_bind_read]
-        simp only [hst0, ↓reduceIte]
-        rw [clientResult_bind_write, StateTransitionSpec.clientResult_bind,
-          StateTransitionSpec.clientResult_pure]
-      have hst_s : (Memory.spec 0).clientState st (partEmitCorrStep (stepD, a)) = st₂ := by
-        rw [hprog_s, clientState_bind_read, hst_agree_corr, clientState_bind_read]
-        simp only [hst0, ↓reduceIte]
-        rw [clientState_bind_write, StateTransitionSpec.clientState_bind,
-          StateTransitionSpec.clientState_pure]
-      have hcost_s : memoryCost (partEmitCorrStep (stepD, a)) st ≤ 11 := by
-        rw [hprog_s, memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-          hst_agree_corr, memoryCost_bind', memoryCost_read, clientResult_read, clientState_read]
-        simp only [hst0, ↓reduceIte]
-        rw [memoryCost_bind', memoryCost_write, clientState_write, memoryCost_bind',
-          memoryCost_pure]
-        change 1 + (1 + (1 + (memoryCost _ st₁ + 0))) ≤ 11
-        dsimp only [m] at hcost_cp ⊢; omega
       have hin_st1 : HoldsIndexedEdges L.edgeBase L.es st₁.mem :=
         (partCongrEdges_of_agree_buf L fun x hx => by
           dsimp only [st₁]; rw [Function.update_of_ne (by omega)]; exact hst_mod x (by omega)).1 hin
@@ -1122,10 +1059,19 @@ private theorem partEmitCorrLoop_spec {w n : ℕ} (L : PartLayout w n)
             4 * (a.count - mcLen0) + 4 * 0 =
             L.bufBase + 14 * n + 6 * L.es.length + 4 * a.count by omega]
         exact ⟨hv0.trans hu, hv1.trans hv, hv2.trans hw, hv3.trans hid⟩
-      refine ⟨hsafe_s, hvh_s, by omega, ⟨le_of_eq (hst_s ▸ hfr_cp).symm, fun x _ hx => ?_⟩, ?_⟩
-      · rw [hst_s]; exact hmod_step x fun h => hx (by
-          rcases h with h | ⟨h1, h2⟩ <;> [left; right] <;> exact ⟨by omega, by omega⟩)
-      · rw [hres_s, hst_s]; dsimp only [Inv, m] at *
+      have hft_cp := FramedTriple.of_realization (S := S) hvh_cp hfr_cp fun x hx =>
+        by_contra fun hxS => hx (hmod_cp x fun h => hxS (by
+          simp only [S, Set.mem_union, Set.mem_Ico]; omega))
+      refine ⟨hsafe_s, ?_⟩
+      rw [hprog_s]
+      refine FramedTriple.read_bind (c := 10) hcb_lt ?_
+      rw [hst_agree_corr]
+      refine FramedTriple.read_bind (c := 9) hst_lt ?_
+      simp only [hst0, ↓reduceIte]
+      framed_triple
+      · have := eFin.isLt; simp only [S, Set.mem_union, Set.mem_Ico]; omega
+      · show Inv (t + 1) ⟨a.idx + 1, a.count + 1⟩ st₂
+        dsimp only [Inv, m] at *
         refine ⟨by omega, by omega, by omega, hfr_cp.trans hst_fr, hwf_cp, fun x hx => ?_,
           corrEmitted ++ [eFin],
           List.nodup_append.mpr ⟨hnd_ce, List.nodup_singleton _, fun _ ha _ hb heq => by
@@ -1167,22 +1113,13 @@ private theorem partEmitCorrLoop_spec {w n : ℕ} (L : PartLayout w n)
         exact ⟨h16, ht1_fit, hmc1_fit, hbuf_fit, hcb_lt,
           by simpa [stepD, hst_agree_corr] using hst_lt,
           fun h0 => absurd h0 (by simpa [stepD, hst_agree_corr] using hst0)⟩
-      have hvh_s : (Memory.spec w).ValidHistory st
-          ((Memory.spec w).clientHistory st (partEmitCorrStep (stepD, a))) :=
-        hvh_prefix (by simp only [hst0, ↓reduceIte]; exact validHistory_pure w _ _)
-      have hres_s : (Memory.spec 0).clientResult st (partEmitCorrStep (stepD, a)) =
-          ⟨a.idx + 1, a.count⟩ := by
-        rw [hprog_s, clientResult_bind_read, hst_agree_corr, clientResult_bind_read]
-        simp only [hst0, ↓reduceIte]; exact StateTransitionSpec.clientResult_pure _ _
-      have hst_s : (Memory.spec 0).clientState st (partEmitCorrStep (stepD, a)) = st := by
-        rw [hprog_s, clientState_bind_read, hst_agree_corr, clientState_bind_read]
-        simp only [hst0, ↓reduceIte]; exact StateTransitionSpec.clientState_pure _ _
-      have hcost_s : memoryCost (partEmitCorrStep (stepD, a)) st ≤ 11 := by
-        rw [hprog_s, memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-          hst_agree_corr, memoryCost_bind', memoryCost_read, clientResult_read, clientState_read]
-        simp only [hst0, ↓reduceIte, memoryCost_pure]; omega
-      refine ⟨hsafe_s, hvh_s, by omega, ⟨by rw [hst_s], fun _ _ _ => by rw [hst_s]⟩, ?_⟩
-      rw [hres_s, hst_s]
+      refine ⟨hsafe_s, ?_⟩
+      rw [hprog_s]
+      refine FramedTriple.read_bind (c := 10) hcb_lt ?_
+      rw [hst_agree_corr]
+      refine FramedTriple.read_bind (c := 9) hst_lt ?_
+      simp only [hst0, ↓reduceIte]
+      refine FramedTriple.pure ?_
       refine ⟨by dsimp only; omega, ha2_ge, by dsimp only; omega, hst_fr, hst_wf, hst_mod,
         corrEmitted, hnd_ce, hlen_ce, hhold_ce, hce_sub, fun r hr hrt he0 => ?_, hst_es, hclaim_st⟩
       by_cases hrt' : r < t
@@ -1194,10 +1131,12 @@ private theorem partEmitCorrLoop_spec {w n : ℕ} (L : PartLayout w n)
         split_ifs at h1 with hm
         · exact he_eq ▸ hm.choose_spec
         · exact absurd (h1.trans he0) hst0
-  obtain ⟨hsafe_it, hvh_it, hcost_it, _, _, hmc_ge, hmc_le, hfr', hwf',
-    hmod', corrEmitted, hnd_ce, hlen_ce, hhold_ce, hce_sub, hce_cov, hest', hclaim'⟩ :=
-    iterate_potential_spec partEmitCorrStep partEmitCorrStepSafe w stepD 11 numCorr
-      Inv (fun _ _ _ => 0) S hstep ⟨0, mcLen0⟩ s hinv0
+  obtain ⟨hsafe_it, hft⟩ := FramedTriple.iterate
+    (Q := fun a t => t.frontier = s.frontier ∧ Inv numCorr a t) Inv hinv0 hstep
+    fun _ _ h _ => ⟨h.2.2.2.1, h⟩
+  obtain ⟨hvh_it, hcost_it, -, -, -, hmc_ge, hmc_le, hfr', hwf', hmod', corrEmitted, hnd_ce,
+    hlen_ce, hhold_ce, hce_sub, hce_cov, hest', hclaim'⟩ :=
+    FramedTriple.realization_of_frontier_eq hft
   let d : PartEmitCorrLoopArgs := ⟨stepD, numCorr, mcLen0⟩
   have hprog : partEmitCorrLoop d = iterate partEmitCorrStep stepD numCorr ⟨0, mcLen0⟩ :=
     partEmitCorrLoop_def d
@@ -1205,8 +1144,7 @@ private theorem partEmitCorrLoop_spec {w n : ℕ} (L : PartLayout w n)
   refine ⟨by rw [partEmitCorrLoopSafe_def]; exact ⟨h16, hsafe_it⟩, by rw [hprog]; exact hvh_it,
     by rw [hprog]; exact hfr', by rw [hprog]; exact hwf', fun x hx => by
       rw [hprog] at hx ⊢; by_contra hnot; exact hx (hmod' x hnot),
-    by rw [hprog]; exact hmc_ge, by rw [hprog]; exact hmc_le,
-    by rw [hprog]; simpa only [add_zero, zero_add] using hcost_it,
+    by rw [hprog]; exact hmc_ge, by rw [hprog]; exact hmc_le, by rw [hprog]; exact hcost_it,
     corrEmitted, hnd_ce, by rw [hprog]; exact hlen_ce, by rw [hprog]; exact hhold_ce,
     fun eIdx => ⟨fun hm => hce_sub eIdx hm, fun ⟨hm, he0⟩ => by
       obtain ⟨r, hr, hget⟩ := List.getElem_of_mem hm
@@ -1235,110 +1173,51 @@ theorem partMarkDeadLoop_spec {w n : ℕ} (L : PartLayout w n)
     (∀ k : Fin size, s'.mem (L.bufBase + 4 * n + cLiftLen0 + k.val) = (lift k).val) ∧
     (∀ x : Fin n, s'.mem (L.bufBase + x.val) =
       if ∃ k : Fin size, lift k = x then 1 else dead0 x.val) := by
-  let stepD : PartMarkDeadEnv := ⟨L.bufBase, n⟩; have h16 := L.h16
-  let S : Set ℕ :=
-    Set.Ico L.bufBase (L.bufBase + n) ∪ Set.Ico (L.bufBase + 4 * n) (L.bufBase + 6 * n)
-  let Inv (t : ℕ) (a : PartCursor) (st : Memory.State) : Prop :=
-    a.idx = t ∧ a.count = cLiftLen0 + t ∧ st.frontier = s.frontier ∧ Memory.WellFormed w st ∧
-    (∀ x, ¬((L.bufBase ≤ x ∧ x < L.bufBase + n) ∨
-      (L.bufBase + 4 * n + cLiftLen0 ≤ x ∧ x < L.bufBase + 4 * n + (cLiftLen0 + t))) →
-      st.mem x = s.mem x) ∧
-    (∀ k : Fin size, k.val < t → st.mem (L.bufBase + 4 * n + cLiftLen0 + k.val) = (lift k).val) ∧
-    (∀ x : Fin n, st.mem (L.bufBase + x.val) =
-      if ∃ k : Fin size, k.val < t ∧ lift k = x then 1 else dead0 x.val)
-  have hinv0 : Inv 0 ⟨0, cLiftLen0⟩ s :=
-    ⟨rfl, rfl, rfl, hwf, fun _ _ => rfl, fun _ h => by omega, fun x => by simp [hdead x.val x.isLt]⟩
-  have hstep : ∀ t < size, ∀ a st, Inv t a st →
-      partMarkDeadStepSafe w (stepD, a) st ∧
-      (Memory.spec w).ValidHistory st
-        ((Memory.spec w).clientHistory st (partMarkDeadStep (stepD, a))) ∧
-      let a' := (Memory.spec 0).clientResult st (partMarkDeadStep (stepD, a))
-      let st' := (Memory.spec 0).clientState st (partMarkDeadStep (stepD, a))
-      memoryCost (partMarkDeadStep (stepD, a)) st + 0 ≤ 0 + 3 ∧
-      Memory.Modifies S st st' ∧ Inv (t + 1) a' st' := by
-    intro t ht a st hinv
-    rcases hinv with ⟨ha1, ha2, hst_fr, hst_wf, hst_mod, hcl_vals, hdead_vals⟩
-    let kFin : Fin size := ⟨t, ht⟩; let vk : Fin n := lift kFin
-    have hfront := hst_wf.frontier_fits
-    have hv_eq : st.mem (L.bufBase + 3 * n + a.idx) = vk.val :=
-      (hst_mod _ (by omega)).trans (ha1 ▸ hverts kFin)
-    have hcv_lt : L.bufBase + 3 * n + a.idx < st.frontier := by rw [hst_fr, hfr]; omega
-    have hcl_lt : L.bufBase + 4 * n + a.count < st.frontier := by rw [hst_fr, hfr]; omega
-    have hd_lt : L.bufBase + st.mem (L.bufBase + 3 * n + a.idx) < st.frontier := by
-      rw [hv_eq, hst_fr, hfr]; omega
-    have hprog : partMarkDeadStep (stepD, a) =
-        (Memory.read (L.bufBase + 3 * n + a.idx) >>= fun v =>
-          Memory.write (L.bufBase + 4 * n + a.count) v >>= fun _ =>
-            Memory.write (L.bufBase + v) 1 >>= fun _ => pure ⟨a.idx + 1, a.count + 1⟩) :=
-      partMarkDeadStep_def _
-    have hvh : (Memory.spec w).ValidHistory st
-        ((Memory.spec w).clientHistory st (partMarkDeadStep (stepD, a))) := by
-      rw [hprog]; refine validHistory_read_bind hcv_lt ?_; rw [hv_eq]
-      exact validHistory_write_bind hcl_lt (L.hfit_end.of_le (by omega))
-        (validHistory_write_bind (by rw [← hv_eq]; exact hd_lt) (h16.of_le (by omega))
-          (validHistory_pure w _ _))
-    have hres : (Memory.spec 0).clientResult st (partMarkDeadStep (stepD, a)) =
-        ⟨t + 1, cLiftLen0 + (t + 1)⟩ := by
-      rw [hprog, clientResult_bind_read, clientResult_bind_write, clientResult_bind_write,
-        StateTransitionSpec.clientResult_pure, ha1, ha2]; simp [Nat.add_assoc]
-    set st' := (Memory.spec 0).clientState st (partMarkDeadStep (stepD, a))
-    have hst' : st' = ⟨Function.update (Function.update st.mem
-        (L.bufBase + 4 * n + (cLiftLen0 + t)) vk.val) (L.bufBase + vk.val) 1, st.frontier⟩ := by
-      dsimp only [st']; rw [hprog, clientState_bind_read, hv_eq, clientState_bind_write,
-        clientState_bind_write, ha2]; rfl
-    have hcost : memoryCost (partMarkDeadStep (stepD, a)) st = 3 := by
-      rw [hprog, memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-        memoryCost_bind', memoryCost_write, clientState_write,
-        memoryCost_bind', memoryCost_write, clientState_write, memoryCost_pure]
-    have hwf' : Memory.WellFormed w st' := wellFormed_clientState hst_wf hvh
-    have hmod_step : ∀ x, ¬((L.bufBase + vk.val = x) ∨ x = L.bufBase + 4 * n + (cLiftLen0 + t)) →
-        st'.mem x = st.mem x := fun x hx => by
-      rw [hst']; dsimp only
-      rw [Function.update_of_ne (fun h => hx (.inl h.symm)),
-        Function.update_of_ne (fun h => hx (.inr h))]
-    refine ⟨(by rw [partMarkDeadStepSafe_def]; dsimp only [stepD]; exact ⟨h16,
-        L.hfit_end.of_le (by omega), L.hfit_end.of_le (by omega), hcv_lt, hcl_lt, hd_lt⟩),
-      hvh, by omega, ⟨by rw [hst'], fun x _ hx => hmod_step x fun h => hx (by
-        rcases h with rfl | rfl <;> [left; right] <;> exact ⟨by omega, by omega⟩)⟩, ?_⟩
-    rw [hres]
-    refine ⟨rfl, rfl, by rw [hst']; exact hst_fr, hwf', fun x hx => ?_, fun k hk => ?_, fun x => ?_⟩
-    · exact (hmod_step x fun h =>
-          hx (by rcases h with rfl | rfl; exacts [.inl (by omega), .inr (by omega)])).trans
-        (hst_mod x fun h => hx (by rcases h with h | h; exacts [.inl h, .inr (by omega)]))
-    · by_cases hkt : k.val = t
-      · have hk_eq : k = kFin := Fin.ext hkt; subst hk_eq; rw [hst']; dsimp only
-        rw [show L.bufBase + 4 * n + cLiftLen0 + kFin.val = L.bufBase + 4 * n + (cLiftLen0 + t) by
-            dsimp only [kFin]; omega,
-          Function.update_of_ne (by omega), Function.update_self]
-      · rw [hmod_step _ (by omega)]; exact hcl_vals k (by omega)
-    · by_cases hxv : x = vk
-      · subst hxv; rw [hst']; dsimp only; rw [Function.update_self]
-        have hm : ∃ k : Fin size, k.val < t + 1 ∧ lift k = vk := ⟨kFin, by simp [kFin], rfl⟩
-        simp only [hm, ↓reduceIte]
-      · rw [hmod_step _ (fun h => h.elim (fun h1 => hxv (Fin.ext (by omega))) (fun h1 => by omega)),
-          hdead_vals x]
-        have hiff : (∃ k : Fin size, k.val < t + 1 ∧ lift k = x) ↔
-            (∃ k : Fin size, k.val < t ∧ lift k = x) :=
-          ⟨fun ⟨k, hk1, hkx⟩ =>
-            if hkt : k.val = t then absurd ((congrArg lift (Fin.ext hkt)).symm.trans hkx)
-              (Ne.symm hxv)
-            else ⟨k, by omega, hkx⟩, fun ⟨k, hk1, hkx⟩ => ⟨k, by omega, hkx⟩⟩
-        exact if_congr hiff.symm rfl rfl
-  obtain ⟨hsafe_it, hvh_it, hcost_it, _, _, ha2', hfr', hwf', hmod', hcl', hdead'⟩ :=
-    iterate_potential_spec partMarkDeadStep partMarkDeadStepSafe w stepD 3 size
-      Inv (fun _ _ _ => 0) S hstep ⟨0, cLiftLen0⟩ s hinv0
-  let d : PartMarkDeadLoopArgs := ⟨stepD, size, cLiftLen0⟩
-  have hprog : partMarkDeadLoop d = iterate partMarkDeadStep stepD size ⟨0, cLiftLen0⟩ :=
-    partMarkDeadLoop_def d
-  refine ⟨by rw [partMarkDeadLoopSafe_def]; exact ⟨h16, hsafe_it⟩, by rw [hprog]; exact hvh_it,
-    by rw [hprog]; exact hfr', by rw [hprog]; exact hwf', fun x hx => by
-      rw [hprog] at hx; by_contra hnot
-      have hnot' : ¬((L.bufBase ≤ x ∧ x < L.bufBase + n) ∨
-          (L.bufBase + 4 * n + cLiftLen0 ≤ x ∧ x < L.bufBase + 4 * n + (cLiftLen0 + size))) := by
-        rwa [← ha2', ← hprog]
-      exact hx (hmod' x hnot'),
-    by rw [hprog]; exact ha2', by rw [hprog]; simpa only [add_zero, zero_add] using hcost_it,
-    fun k => by rw [hprog]; exact hcl' k k.isLt, fun x => by rw [hprog]; simpa using hdead' x⟩
+  have h16 := L.h16; have hfit := L.hfit_end
+  obtain ⟨hsafe, hft⟩ := Memory.FramedTriple.iterate (w := w) (s := s) (body := partMarkDeadStep)
+    (safe := partMarkDeadStepSafe) (d := ⟨L.bufBase, n⟩) (n := size) (a₀ := ⟨0, cLiftLen0⟩) (c := 3)
+    (S := {x | (L.bufBase ≤ x ∧ x < L.bufBase + n) ∨
+      (L.bufBase + 4 * n + cLiftLen0 ≤ x ∧ x < L.bufBase + 4 * n + (cLiftLen0 + size))})
+    (Q := fun a t => t.frontier = s.frontier ∧ a.count = cLiftLen0 + size ∧
+      (∀ k : Fin size, t.mem (L.bufBase + 4 * n + cLiftLen0 + k.val) = (lift k).val) ∧
+      ∀ x : Fin n, t.mem (L.bufBase + x.val) =
+        if ∃ k : Fin size, lift k = x then 1 else dead0 x.val)
+    (fun t a st => a.idx = t ∧ a.count = cLiftLen0 + t ∧ st.frontier = s.frontier ∧
+      (∀ k : Fin size, k.val < t → st.mem (L.bufBase + 4 * n + cLiftLen0 + k.val) = (lift k).val) ∧
+      ∀ x : Fin n, st.mem (L.bufBase + x.val) =
+        if ∃ k : Fin size, k.val < t ∧ lift k = x then 1 else dead0 x.val)
+    ⟨rfl, rfl, rfl, fun _ h => by omega, fun x => by simp [hdead x.val x.isLt]⟩
+    (fun t ht a st ⟨ha1, ha2, hst_fr, hcl_vals, hdead_vals⟩ ⟨_, hframe⟩ => by
+      let kFin : Fin size := ⟨t, ht⟩; let vk : Fin n := lift kFin; have hvk := vk.isLt
+      have hv_eq : st.mem (L.bufBase + 3 * n + a.idx) = vk.val :=
+        (hframe _ (by omega) (by region_omega)).trans (ha1 ▸ hverts kFin)
+      have hvfit : Fits w (st.mem (L.bufBase + 3 * n + a.idx)) := hv_eq ▸ hfit.of_le (by omega)
+      refine ⟨by rw [partMarkDeadStepSafe_def]; dsimp only; exact ⟨h16, by fits, by fits, by omega,
+        by omega, by omega⟩, ?_⟩
+      rw [partMarkDeadStep_def]; framed_triple
+      simp only [hv_eq]
+      refine ⟨by omega, by omega, hst_fr, fun k hk => ?_, fun x => ?_⟩
+      · by_cases hkt : k.val = t
+        · simp (disch := omega) only [Function.update_apply, ite_eq_left, ite_eq_right]
+          exact congrArg (fun k => (lift k).val) (Fin.ext hkt.symm : kFin = k)
+        · simp (disch := omega) only [Function.update_apply, ite_eq_right]
+          exact hcl_vals k (by omega)
+      · by_cases hxv : x = vk
+        · subst hxv
+          simp only [Function.update_apply, ↓reduceIte]
+          rw [ite_eq_left ⟨kFin, by simp [kFin], rfl⟩]
+        · simp (disch := (have := Fin.val_ne_of_ne hxv; omega)) only [Function.update_apply,
+            ite_eq_right]
+          rw [hdead_vals x]
+          refine if_congr ⟨fun ⟨k, hk1, hkx⟩ => ⟨k, by omega, hkx⟩, fun ⟨k, hk1, hkx⟩ =>
+            ⟨k, Nat.lt_of_le_of_ne (Nat.le_of_lt_succ hk1) fun hkt => hxv ?_, hkx⟩⟩ rfl rfl
+          exact hkx.symm.trans (congrArg lift (Fin.ext hkt)))
+    fun a t h _ => ⟨h.2.2.1, h.2.1, fun k => h.2.2.2.1 k k.isLt, fun x => by
+      simpa using h.2.2.2.2 x⟩
+  rw [← partMarkDeadLoop_def ⟨⟨L.bufBase, n⟩, size, cLiftLen0⟩] at hft
+  obtain ⟨hv, hc, hfr', hS, hcnt, hcl', hdead'⟩ := FramedTriple.realization_of_frontier_eq hft
+  exact ⟨by rw [partMarkDeadLoopSafe_def]; exact ⟨h16, hsafe⟩, hv, hfr',
+    wellFormed_clientState hwf hv, fun x hx => by rw [hcnt]; exact hS x hx, hcnt, hc, hcl', hdead'⟩
 
 /-- Specification of round metadata writes (`partWriteRoundMeta`). -/
 theorem partWriteRoundMeta_spec {w n : ℕ} (L : PartLayout w n)
@@ -1360,42 +1239,23 @@ theorem partWriteRoundMeta_spec {w n : ℕ} (L : PartLayout w n)
     s'.mem (L.bufBase + 6 * n + 3 * numComps + 1) = cLen ∧
     s'.mem (L.bufBase + 6 * n + 3 * numComps + 2) = cEdgeBase ∧
     s'.mem (L.bufBase + 9 * n + numComps) = cLiftBase := by
-  have h16 := L.h16; have hfront := hwf.frontier_fits
-  have ha0 : L.bufBase + 6 * n + 3 * numComps < s.frontier := by rw [hfr]; omega
-  have ha1 : L.bufBase + 6 * n + 3 * numComps + 1 < s.frontier := by rw [hfr]; omega
-  have ha2 : L.bufBase + 6 * n + 3 * numComps + 2 < s.frontier := by rw [hfr]; omega
-  have ha3 : L.bufBase + 9 * n + numComps < s.frontier := by rw [hfr]; omega
-  let d : PartWriteRoundMetaArgs := ⟨L.bufBase, n, numComps, size, cLen, cEdgeBase, cLiftBase⟩
-  have hprog : partWriteRoundMeta d =
-      (Memory.write (L.bufBase + 6 * n + 3 * numComps) size >>= fun _ =>
-        Memory.write (L.bufBase + 6 * n + 3 * numComps + 1) cLen >>= fun _ =>
-          Memory.write (L.bufBase + 6 * n + 3 * numComps + 2) cEdgeBase >>= fun _ =>
-            Memory.write (L.bufBase + 9 * n + numComps) cLiftBase) := partWriteRoundMeta_def _
-  have hvh : (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (partWriteRoundMeta d)) := by
-    rw [hprog]; exact validHistory_write_bind ha0 hsz_fit (validHistory_write_bind ha1 hcl_fit
-      (validHistory_write_bind ha2 hce_fit (validHistory_write ha3 hclf_fit)))
-  have hst : (Memory.spec 0).clientState s (partWriteRoundMeta d) =
-      ⟨Function.update (Function.update (Function.update (Function.update s.mem
-        (L.bufBase + 6 * n + 3 * numComps) size) (L.bufBase + 6 * n + 3 * numComps + 1) cLen)
-        (L.bufBase + 6 * n + 3 * numComps + 2) cEdgeBase)
-        (L.bufBase + 9 * n + numComps) cLiftBase, s.frontier⟩ := by
-    rw [hprog, clientState_bind_write, clientState_bind_write, clientState_bind_write]; rfl
-  have hcost : memoryCost (partWriteRoundMeta d) s = 4 := by
-    rw [hprog, memoryCost_bind', memoryCost_write, clientState_write,
-      memoryCost_bind', memoryCost_write, clientState_write,
-      memoryCost_bind', memoryCost_write, clientState_write, memoryCost_write]
-  refine ⟨by rw [partWriteRoundMetaSafe_def]; exact ⟨h16, ha2, ha3⟩, hvh, by rw [hst],
-    wellFormed_clientState hwf hvh, fun x hx => ?_, hcost, ?_, ?_, ?_, ?_⟩
-  · rw [hst] at hx; dsimp only at hx; by_contra hnot
-    rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-      Function.update_of_ne (by omega), Function.update_of_ne (by omega)] at hx; exact hx rfl
-  · rw [hst]; dsimp only; rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-      Function.update_of_ne (by omega), Function.update_self]
-  · rw [hst]; dsimp only; rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-      Function.update_self]
-  · rw [hst]; dsimp only; rw [Function.update_of_ne (by omega), Function.update_self]
-  · rw [hst]; dsimp only; rw [Function.update_self]
+  have h16 := L.h16
+  obtain ⟨hv, -, hfr', hS, h0, h1, h2, h3⟩ :=
+    FramedTriple.realization_of_frontier_eq (w := w) (s := s) (c := 4)
+    (p := partWriteRoundMeta ⟨L.bufBase, n, numComps, size, cLen, cEdgeBase, cLiftBase⟩)
+    (S := {x | (L.bufBase + 6 * n + 3 * numComps ≤ x ∧ x < L.bufBase + 6 * n + 3 * (numComps + 1)) ∨
+      x = L.bufBase + 9 * n + numComps})
+    (Q := fun _ t => t.mem (L.bufBase + 6 * n + 3 * numComps) = size ∧
+      t.mem (L.bufBase + 6 * n + 3 * numComps + 1) = cLen ∧
+      t.mem (L.bufBase + 6 * n + 3 * numComps + 2) = cEdgeBase ∧
+      t.mem (L.bufBase + 9 * n + numComps) = cLiftBase) (by
+    rw [partWriteRoundMeta_def]; framed_triple
+    · exact .inr rfl
+    refine ⟨rfl, ?_, ?_, ?_, ?_⟩ <;>
+      simp (disch := omega) only [Function.update_apply, ite_eq_right, ↓reduceIte])
+  refine ⟨by rw [partWriteRoundMetaSafe_def]; dsimp only; exact ⟨h16, by omega, by omega⟩, hv, hfr',
+    wellFormed_clientState hwf hv, hS, ?_, h0, h1, h2, h3⟩
+  simp [partWriteRoundMeta_def, memoryCost_bind', memoryCost_write, client_simps]
 
 /-- Specification of corrupted-item collection and `M_C` edge emission in `partRoundFinish`. -/
 theorem partRoundFinish_corr_spec {w n : ℕ} (L : PartLayout w n)
