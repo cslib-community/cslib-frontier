@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Probability.MinEntropy
 public import CslibFrontier.Probability.UniversalHash
+import CslibFrontier.Probability.PMF.SupportTsum
 
 /-!
 # Leftover hashing from weak random sources
@@ -112,12 +113,9 @@ theorem IsTwoUniversal.leftover_hash_conditional_of_isSource {Side : Type*} [Fin
       ε + Real.sqrt (Fintype.card Output * 2 ^ (-k)) / 2 := by
   rw [dist_bind_pair]
   calc
-    _ ≤ ∑ info, (side info).toReal * (ε + Real.sqrt (Fintype.card Output * 2 ^ (-k)) / 2) := by
-      refine Finset.sum_le_sum fun info _ => ?_
-      by_cases hinfo : info ∈ side.support
-      · exact mul_le_mul_of_nonneg_left
-          (hhash.leftover_hash_of_isSource (hsource info hinfo)) ENNReal.toReal_nonneg
-      · rw [(side.apply_eq_zero_iff info).mpr hinfo, ENNReal.toReal_zero, zero_mul, zero_mul]
+    _ ≤ ∑ info, (side info).toReal * (ε + Real.sqrt (Fintype.card Output * 2 ^ (-k)) / 2) :=
+      sum_toReal_mul_mono_support side fun info hinfo =>
+        hhash.leftover_hash_of_isSource (hsource info hinfo)
     _ = ε + Real.sqrt (Fintype.card Output * 2 ^ (-k)) / 2 := by
       rw [← Finset.sum_mul, sum_toReal, one_mul]
 

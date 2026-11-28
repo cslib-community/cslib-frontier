@@ -255,7 +255,7 @@ private theorem genP_zero [Fintype X] (h : ι → X → X) (δ : ℕ → S → X
     { toFun := fun x _ => x
       invFun := fun u => u ⟨0, Nat.one_pos⟩
       left_inv := fun _ => rfl
-      right_inv := fun u => funext fun j => congrArg u (Fin.ext (Nat.lt_one_iff.1 j.2).symm) }
+      right_inv := fun u => funext fun j => congrArg u (Fin.ext (Nat.lt_one_iff.1 j.isLt).symm) }
   rw [genP, uniP, prob_eq_expect, prob_eq_expect]
   exact Fintype.expect_equiv e _ _ fun _ => rfl
 

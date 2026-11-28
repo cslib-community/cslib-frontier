@@ -94,7 +94,8 @@ variable [Finite V] {x y : MetricGraph W} {γ : ℝ → MetricGraph W}
 
 theorem isometry (h : IsGeodesic x y γ) :
     Isometry (fun t : Set.Icc 0 (dist x y) => γ t) :=
-  Isometry.of_dist_eq fun s t => by rw [Subtype.dist_eq, Real.dist_eq, h.dist_eq s.2 t.2]
+  Isometry.of_dist_eq fun s t => by
+    rw [Subtype.dist_eq, Real.dist_eq, h.dist_eq s.property t.property]
 
 theorem continuousOn (h : IsGeodesic x y γ) : ContinuousOn γ (Set.Icc 0 (dist x y)) :=
   continuousOn_iff_continuous_domRestrict.mpr h.isometry.continuous
@@ -105,9 +106,9 @@ noncomputable def toPath (h : IsGeodesic x y γ) : _root_.Path x y where
   continuous_toFun := by
     have hcont : Continuous (fun t : unitInterval =>
         (⟨(t : ℝ) * dist x y,
-          mul_nonneg t.2.1 dist_nonneg,
-          mul_le_of_le_one_left dist_nonneg t.2.2⟩ : Set.Icc 0 (dist x y))) :=
-      Continuous.subtype_mk (continuous_subtype_val.mul continuous_const) _
+          mul_nonneg t.property.1 dist_nonneg,
+          mul_le_of_le_one_left dist_nonneg t.property.2⟩ : Set.Icc 0 (dist x y))) :=
+      Continuous.subtype_mk (continuous_subtypeVal.mul continuous_const) _
     exact h.isometry.continuous.comp hcont
   source' := by simp [h.map_zero]
   target' := by simp [h.map_dist]
@@ -293,7 +294,7 @@ private theorem endOffset_nonneg (W : WeightedGraph V) (d : W.graph.Dart)
     (t : unitInterval) (b : Bool) :
     0 ≤ if b then (1 - (t : ℝ)) * W.weight d.edge else (t : ℝ) * W.weight d.edge := by
   cases b <;> simp only [Bool.false_eq_true, ↓reduceIte]
-  · exact mul_nonneg t.2.1 (W.dart_weight_nonneg d)
+  · exact mul_nonneg t.property.1 (W.dart_weight_nonneg d)
   · exact mul_nonneg (unitInterval.one_sub_nonneg t) (W.dart_weight_nonneg d)
 
 private theorem dartToEndCurve_end (W : WeightedGraph V) (d : W.graph.Dart)
@@ -556,7 +557,8 @@ theorem dist_edgePoint_edgePoint_of_abs_sub_le_half [Finite V] (d : W.graph.Dart
   have hw := W.dart_weight_nonneg d
   have h₁ := vertexDist_nonneg W.weight_nonneg (G := W.graph) d.fst d.snd
   have h₂ := vertexDist_nonneg W.weight_nonneg (G := W.graph) d.snd d.fst
-  have hs0 := s.2.1; have hs1 := s.2.2; have ht0 := t.2.1; have ht1 := t.2.2
+  have hs0 := s.property.1; have hs1 := s.property.2
+  have ht0 := t.property.1; have ht1 := t.property.2
   obtain ⟨hlo, hhi⟩ := abs_le.mp hst
   have key : ∀ k : ℝ, |(s : ℝ) - t| ≤ k →
       |(s : ℝ) - t| * W.weight d.edge ≤ k * W.weight d.edge :=
@@ -595,7 +597,7 @@ theorem edgePoint_mem_interval_of_fst [Finite V] {x : MetricGraph W} {d : W.grap
     gcongr
     rw [← edgePoint_zero d]
     refine (dist_edgePoint_self_le d 0 s).trans_eq ?_
-    rw [Set.Icc.coe_zero, zero_sub, abs_neg, abs_of_nonneg s.2.1, mul_comm]
+    rw [Set.Icc.coe_zero, zero_sub, abs_neg, abs_of_nonneg s.property.1, mul_comm]
   have h2 : dist (edgePoint d s) (edgePoint d t) ≤ ((t : ℝ) - s) * W.weight d.edge := by
     refine (dist_edgePoint_self_le d s t).trans_eq ?_
     rw [abs_sub_comm, abs_of_nonneg (sub_nonneg.mpr hst), mul_comm]

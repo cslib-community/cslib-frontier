@@ -305,8 +305,8 @@ variable (G) in
 @[expose]
 def subgraph (K : Set V) (F : Set E) (hF : ∀ ⦃e⦄, e ∈ F → G.src e ∈ K ∧ G.tgt e ∈ K) :
     Multigraph K F where
-  src e := ⟨G.src e.1, (hF e.2).1⟩
-  tgt e := ⟨G.tgt e.1, (hF e.2).2⟩
+  src e := ⟨G.src e.val, (hF e.property).1⟩
+  tgt e := ⟨G.tgt e.val, (hF e.property).2⟩
 
 variable (G) in
 /-- A sub-multigraph `(K, F)` is a *simple forest* when it has no self-loops, no parallel edges,
@@ -356,22 +356,22 @@ private theorem exists_netFlow_shift_adj [Finite E] {K : Set V} {F : Set E}
     (hF : ∀ ⦃e⦄, e ∈ F → G.src e ∈ K ∧ G.tgt e ∈ K) {u w : K}
     (hadj : (G.subgraph K F hF).toSimpleGraph.Adj u w) (α : E → A) (δ : A) :
     ∃ α' : E → A, EqOn α' α Fᶜ ∧ ∀ z : V,
-      G.netFlow F α' z = G.netFlow F α z + (if z = u.1 then δ else 0) -
-        (if z = w.1 then δ else 0) := by
+      G.netFlow F α' z = G.netFlow F α z + (if z = u.val then δ else 0) -
+        (if z = w.val then δ else 0) := by
   obtain ⟨hne, ⟨e, heF⟩, hends⟩ := toSimpleGraph_adj.mp hadj
-  have hval : u.1 ≠ w.1 := Subtype.coe_ne_coe.mpr hne
-  have hpair : s(G.src e, G.tgt e) = s(u.1, w.1) := by
+  have hval : u.val ≠ w.val := Subtype.coe_ne_coe.mpr hne
+  have hpair : s(G.src e, G.tgt e) = s(u.val, w.val) := by
     simpa [ends, subgraph, Sym2.map_mk] using congrArg (Sym2.map Subtype.val) hends
   rcases Sym2.eq_iff.mp hpair with ⟨hs, ht⟩ | ⟨hs, ht⟩
   · refine ⟨Function.update α e (α e + δ),
       fun f hf => Function.update_of_ne (fun hfe : f = e => hf (hfe.symm ▸ heF)) _ _, fun z => ?_⟩
     rw [G.netFlow_update_edge heF α δ z, hs, ht]
-    by_cases hzu : z = u.1 <;> by_cases hzw : z = w.1 <;>
+    by_cases hzu : z = u.val <;> by_cases hzw : z = w.val <;>
       simp only [hzu, hzw, hval, hval.symm, eq_comm, ↓reduceIte] <;> abel
   · refine ⟨Function.update α e (α e + -δ),
       fun f hf => Function.update_of_ne (fun hfe : f = e => hf (hfe.symm ▸ heF)) _ _, fun z => ?_⟩
     rw [G.netFlow_update_edge heF α (-δ) z, hs, ht]
-    by_cases hzu : z = u.1 <;> by_cases hzw : z = w.1 <;>
+    by_cases hzu : z = u.val <;> by_cases hzw : z = w.val <;>
       simp only [hzu, hzw, hval, hval.symm, eq_comm, ↓reduceIte] <;> abel
 
 open Classical in
@@ -379,8 +379,8 @@ private theorem exists_netFlow_shift_walk [Finite E] {K : Set V} {F : Set E}
     (hF : ∀ ⦃e⦄, e ∈ F → G.src e ∈ K ∧ G.tgt e ∈ K) {u r : K}
     (p : (G.subgraph K F hF).toSimpleGraph.Walk u r) (α : E → A) (δ : A) :
     ∃ α' : E → A, EqOn α' α Fᶜ ∧ ∀ z : V,
-      G.netFlow F α' z = G.netFlow F α z + (if z = u.1 then δ else 0) -
-        (if z = r.1 then δ else 0) := by
+      G.netFlow F α' z = G.netFlow F α z + (if z = u.val then δ else 0) -
+        (if z = r.val then δ else 0) := by
   induction p generalizing α with
   | nil =>
     exact ⟨α, eqOn_refl α Fᶜ, fun z => by abel⟩
@@ -416,7 +416,7 @@ theorem exists_netFlow_eq_iff [Finite V] [Finite E] {K : Set V} {F : Set E}
     -- Push each demand `b u` (`u ∈ K \ {r}`) along a walk in `(K, F)` to the root `r`.
     let S : Finset K := Finset.univ.erase r
     have hpush : ∀ T : Finset K, T ⊆ S → ∃ w : E → A, EqOn w α₀ Fᶜ ∧
-        ∀ u : K, u ≠ r → G.netFlow F w u.1 = if u ∈ T then b u.1 else 0 := by
+        ∀ u : K, u ≠ r → G.netFlow F w u.val = if u ∈ T then b u.val else 0 := by
       intro T hTS
       induction T using Finset.induction_on with
       | empty =>
@@ -426,25 +426,25 @@ theorem exists_netFlow_eq_iff [Finite V] [Finite E] {K : Set V} {F : Set E}
         obtain ⟨w₀, hw₀_compl, hw₀_flow⟩ := ih (Finset.Subset.trans (Finset.subset_insert _ _) hTS)
         have hu₀_ne : u₀ ≠ r := Finset.ne_of_mem_erase (hTS (Finset.mem_insert_self u₀ T))
         obtain ⟨p⟩ := hconn.preconnected u₀ r
-        obtain ⟨w₁, hw₁_compl, hw₁_flow⟩ := G.exists_netFlow_shift_walk hF p w₀ (b u₀.1)
+        obtain ⟨w₁, hw₁_compl, hw₁_flow⟩ := G.exists_netFlow_shift_walk hF p w₀ (b u₀.val)
         refine ⟨w₁, hw₁_compl.trans hw₀_compl, fun u hur => ?_⟩
-        have hur_val : u.1 ≠ r.1 := Subtype.coe_ne_coe.mpr hur
-        rw [hw₁_flow u.1, hw₀_flow u hur, ite_eq_right hur_val, sub_zero]
+        have hur_val : u.val ≠ r.val := Subtype.coe_ne_coe.mpr hur
+        rw [hw₁_flow u.val, hw₀_flow u hur, ite_eq_right hur_val, sub_zero]
         rcases eq_or_ne u u₀ with rfl | hu
         · simp [hu₀]
         · simp [hu, Subtype.coe_ne_coe.mpr hu]
     obtain ⟨w, hw_compl, hw_nonroot⟩ := hpush S Finset.Subset.rfl
     refine ⟨w, hw_compl, fun v hvK => ?_⟩
     by_cases hvr : (⟨v, hvK⟩ : K) = r
-    · obtain rfl : v = r.1 := congrArg Subtype.val hvr
-      have hK_erase : ∀ z ∈ ((toFinite K).toFinset).erase r.1, G.netFlow F w z = b z := by
+    · obtain rfl : v = r.val := congrArg Subtype.val hvr
+      have hK_erase : ∀ z ∈ ((toFinite K).toFinset).erase r.val, G.netFlow F w z = b z := by
         intro z hz
-        have hz_ne : z ≠ r.1 := Finset.ne_of_mem_erase hz
+        have hz_ne : z ≠ r.val := Finset.ne_of_mem_erase hz
         have hzK : z ∈ K := (toFinite K).mem_toFinset.mp (Finset.mem_of_mem_erase hz)
         have hsub_ne : (⟨z, hzK⟩ : K) ≠ r := fun h => hz_ne (congrArg Subtype.val h)
         have hmemS : (⟨z, hzK⟩ : K) ∈ S := Finset.mem_erase.mpr ⟨hsub_ne, Finset.mem_univ _⟩
         simpa [hmemS] using hw_nonroot ⟨z, hzK⟩ hsub_ne
-      have hr_mem : r.1 ∈ (toFinite K).toFinset := (toFinite K).mem_toFinset.mpr r.2
+      have hr_mem : r.val ∈ (toFinite K).toFinset := (toFinite K).mem_toFinset.mpr r.property
       have h0 := G.sum_netFlow_eq_zero_of_endpoints hF w
       rw [← Finset.add_sum_erase _ _ hr_mem] at h0 hsum
       rw [Finset.sum_congr rfl hK_erase] at h0
@@ -1278,29 +1278,29 @@ private theorem ncard_edges_le [Finite V] [Finite ι] [Finite A] [Finite ιC] [F
   have hvP : v ∉ P := by simp [P, v, Layout.mem_initial]
   let f : (D.branchingProgram π).edges t →
       (D.CutSymbol P → A) × (↥(N.incidenceSet v) → A) × (↥(N.readAt v) → A) := fun e =>
-    let h := e.2
+    let h := e.property
     let x := h.choose
     let α := h.choose_spec.choose
     (D.cutMessage P α, (N.incidenceSet v).domRestrict α, (N.readAt v).domRestrict x)
   have hinj : Function.Injective f := by
     intro e₁ e₂ hfeq
-    have h₁ := e₁.2.choose_spec.choose_spec
-    have h₂ := e₂.2.choose_spec.choose_spec
-    set x₁ := e₁.2.choose
-    set α₁ := e₁.2.choose_spec.choose
-    set x₂ := e₂.2.choose
-    set α₂ := e₂.2.choose_spec.choose
+    have h₁ := e₁.property.choose_spec.choose_spec
+    have h₂ := e₂.property.choose_spec.choose_spec
+    set x₁ := e₁.property.choose
+    set α₁ := e₁.property.choose_spec.choose
+    set x₂ := e₂.property.choose
+    set α₂ := e₂.property.choose_spec.choose
     have hinc' : EqOn α₁ α₂ (N.incidenceSet v) :=
       domRestrict_eq_domRestrict_iff.mp (congrArg (Prod.fst ∘ Prod.snd) hfeq)
     have hread' : EqOn x₁ x₂ (N.readAt v) :=
       domRestrict_eq_domRestrict_iff.mp (congrArg (Prod.snd ∘ Prod.snd) hfeq)
     have hstP : D.state P α₁ = D.state P α₂ := D.state_eq_iff.mpr (congrArg Prod.fst hfeq)
-    have hm_eq : e₁.1.1 = e₂.1.1 := h₁.2.1.trans (hstP.trans h₂.2.1.symm)
-    have ha_eq : e₁.1.2.1 = e₂.1.2.1 := by
+    have hm_eq : e₁.val.1 = e₂.val.1 := h₁.2.1.trans (hstP.trans h₂.2.1.symm)
+    have ha_eq : e₁.val.2.1 = e₂.val.2.1 := by
       rw [← h₁.2.2.2, ← h₂.2.2.2]
       exact domRestrict_eq_domRestrict_iff.mpr (hread'.mono (N.revealedBy_succ_diff_subset π ht))
     -- `m'` at `π.initial (t + 1) = insert v P` is uniquely determined by `hstP` and `hinc'`.
-    have hm'_eq : e₁.1.2.2 = e₂.1.2.2 := by
+    have hm'_eq : e₁.val.2.2 = e₂.val.2.2 := by
       rw [h₁.2.2.1, h₂.2.2.1, π.initial_succ ht, D.state_eq_iff]
       funext s
       have hnonAdd {e : E} (heC : e ∈ N.edgeCut (insert v P)) (henotA : e ∉ D.allAddEdges) :
@@ -1338,14 +1338,14 @@ private theorem ncard_edges_last_le [Finite ι] [Finite A] :
     simp [ReadOnceNBP.newly, branchingProgram, Network.revealedBy, Network.read,
       π.initial_of_card_le le_rfl, compl_eq_univ_sdiff]
   let f : (D.branchingProgram π).edges (Nat.card V) →
-      ((D.branchingProgram π).newly (Nat.card V) → A) := fun e => e.1.2.1
+      ((D.branchingProgram π).newly (Nat.card V) → A) := fun e => e.val.2.1
   have hinj : Function.Injective f := by
     intro e₁ e₂ h
-    obtain ⟨x₁, α₁, -, hm₁, hm₁', _⟩ := e₁.2
-    obtain ⟨x₂, α₂, -, hm₂, hm₂', _⟩ := e₂.2
-    have h₁_eq : e₁.1.1 = e₂.1.1 :=
+    obtain ⟨x₁, α₁, -, hm₁, hm₁', _⟩ := e₁.property
+    obtain ⟨x₂, α₂, -, hm₂, hm₂', _⟩ := e₂.property
+    have h₁_eq : e₁.val.1 = e₂.val.1 :=
       (hm₁.trans (hempty _ le_rfl α₁)).trans (hm₂.trans (hempty _ le_rfl α₂)).symm
-    have h₂_eq : e₁.1.2.2 = e₂.1.2.2 :=
+    have h₂_eq : e₁.val.2.2 = e₂.val.2.2 :=
       (hm₁'.trans (hempty _ (Nat.le_succ _) α₁)).trans
         (hm₂'.trans (hempty _ (Nat.le_succ _) α₂)).symm
     exact Subtype.ext (Prod.ext h₁_eq (Prod.ext h h₂_eq))

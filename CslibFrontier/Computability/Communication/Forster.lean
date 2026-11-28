@@ -327,8 +327,9 @@ theorem card_le_signRank_sq_of_isHadamard [DecidableEq X] {f : X → X → Bool}
 /-- **Forster's bound for the inner product** [Forster, 2002][Forster2002]: the inner product on
 `n` bits, whose sign matrix is the `2ⁿ × 2ⁿ` Sylvester–Hadamard matrix
 (`isHadamard_signMatrix_dotProduct`), has sign-rank at least `2^{n/2}`. -/
-theorem two_pow_card_le_signRank_dotProduct_sq {ι : Type*} [Fintype ι] [DecidableEq ι] :
+theorem two_pow_card_le_signRank_dotProduct_sq {ι : Type*} [Fintype ι] :
     2 ^ Fintype.card ι ≤ signRank (fun x y : ι → Bool => x ⬝ᵥ y) ^ 2 := by
+  classical
   simpa using card_le_signRank_sq_of_isHadamard (isHadamard_signMatrix_dotProduct ℝ (ι := ι))
 
 /-- **Unbounded-error complexity of the inner product**: computing the inner product on `n` bits

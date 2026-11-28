@@ -356,7 +356,7 @@ theorem exists_refutableInWidth_le_of_refutableInSize {k s N : ℕ} (hk : ∀ c 
     have hx1 : 1 - (d : ℝ) / (2 * N) ≤ Real.exp (-(d / (2 * N))) := by
       linarith [Real.add_one_le_exp (-((d : ℝ) / (2 * N)))]
     have hexp : ((2 * N - d : ℕ) : ℝ) ^ b ≤ (2 * N) ^ b * Real.exp (b * -(d / (2 * N))) := by
-      rw [h1, mul_pow, Real.exp_nat_mul]
+      rw [h1, mul_pow, Real.exp_natCast_mul]
       exact mul_le_mul_of_nonneg_left (pow_le_pow_left₀ hx0 hx1 b) (by positivity)
     have hlt : (s : ℝ) * Real.exp (b * -(d / (2 * N))) < 1 := by
       rw [← Real.exp_log (by positivity : (0 : ℝ) < s), ← Real.exp_add, Real.exp_lt_one_iff]

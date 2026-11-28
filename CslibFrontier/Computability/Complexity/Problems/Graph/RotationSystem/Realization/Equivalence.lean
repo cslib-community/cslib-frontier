@@ -43,7 +43,7 @@ namespace Cslib.Complexity.Graph.RotationSystem
 /-- A supplied rotation has componentwise numerical genus zero exactly when an actual
 polygonal embedding realizes its literal clockwise order. -/
 theorem numericalGenusZero_iff_exists_polygonalDrawing {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) :
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) :
     r.NumericalGenusZero ↔ ∃ D : PolygonalDrawing G, D.IsEmbedding ∧ D.Realizes r := by
   constructor
   · exact r.exists_polygonalDrawing hG
@@ -54,7 +54,7 @@ theorem numericalGenusZero_iff_exists_polygonalDrawing {G : Graph} (r : Rotation
 finite polygonal embedding. The rotation in the reverse implication is read from the drawing
 itself, rather than supplied with it. -/
 theorem exists_numericalGenusZero_iff_exists_polygonalDrawing {G : Graph}
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) :
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) :
     (∃ r : RotationSystem G, r.NumericalGenusZero) ↔
       ∃ D : PolygonalDrawing G, D.IsEmbedding := by
   constructor

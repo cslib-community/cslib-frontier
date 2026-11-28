@@ -44,9 +44,9 @@ theorem paths_filter_length_le_one {φ : CNF ℕ}
   have ht : 2 ≤ ((paths φ).filter fun r => r.contains p).length := by omega
   obtain ⟨i, j, hi, hj, hij, hpi, hpj⟩ :=
     (List.two_le_filter_contains_iff (paths φ) p).1 ht
-  have hi' : i < (SAT.incidenceGraph φ).2.length := by
+  have hi' : i < (SAT.incidenceGraph φ).edges.length := by
     simpa only [paths_eq_unitPaths, Graph.unitPaths_length] using hi
-  have hj' : j < (SAT.incidenceGraph φ).2.length := by
+  have hj' : j < (SAT.incidenceGraph φ).edges.length := by
     simpa only [paths_eq_unitPaths, Graph.unitPaths_length] using hj
   have hpi' : p ∈ (SAT.incidenceGraph φ).unitPath i := by
     change p ∈ (paths φ).getD i []

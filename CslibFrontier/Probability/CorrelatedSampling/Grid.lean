@@ -116,13 +116,11 @@ private theorem card_first_eq (S : Finset β) (hS : S.Nonempty) {a b : β} (ha :
   have hτ : ∀ y, Equiv.swap b a y ∈ S ↔ y ∈ S := fun y => by
     rw [Equiv.swap_apply_def]
     split_ifs with h₁ h₂ <;> simp_all
-  have hinv : ∀ σ : Enumeration β, (σ.trans (Equiv.swap b a)).trans (Equiv.swap b a) = σ :=
-    fun σ => Equiv.ext fun x => by simp
-  refine card_nbij' (fun σ => σ.trans (Equiv.swap b a)) (fun σ => σ.trans (Equiv.swap b a))
-    (fun σ hσ => ?_) (fun σ hσ => ?_) (fun σ _ => hinv σ) (fun σ _ => hinv σ)
-  all_goals
-    simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at hσ ⊢
-    simp [first_trans σ hS _ hτ, hσ]
+  refine card_equiv (Equiv.equivCongr (Equiv.refl _) (Equiv.swap b a)) fun σ => ?_
+  change σ ∈ _ ↔ σ.trans (Equiv.swap b a) ∈ _
+  simp only [mem_filter, mem_univ, true_and, first_trans σ hS _ hτ]
+  rw [← (Equiv.swap b a).eq_symm_apply]
+  simp
 
 /-- **The first element is uniform.** Under a uniformly random enumeration, the first element of
 `S` lies in `R` with probability `#(S ∩ R) / #S`. -/

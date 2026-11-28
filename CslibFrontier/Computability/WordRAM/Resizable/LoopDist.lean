@@ -233,7 +233,7 @@ theorem loopExitRPMF_of_not_holds {cond : Cond r} {μ_body : RData r → PMF (RD
         (loopIterRPMF cond μ_body K x) y = PMF.pure x y by simp [this]
     intro K; rw [loopIterRPMF_of_not_holds hc]
     by_cases hyx : y = x <;> simp [hyx, hc, PMF.pure_apply]
-  ext y; rw [loopExitRPMF_apply_of_hasSum (hfun ▸ (PMF.pure x).2), congrFun hfun y]
+  ext y; rw [loopExitRPMF_apply_of_hasSum (hfun ▸ (PMF.pure x).property), congrFun hfun y]
 
 theorem loopExitRPMF_of_holds {cond : Cond r} {I Q : RData r → Prop}
     {μ_body : RData r → PMF (RData r)} {p_exit : ℝ≥0∞}

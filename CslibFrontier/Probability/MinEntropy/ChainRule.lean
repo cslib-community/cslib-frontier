@@ -16,6 +16,7 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Probability.PMF.SupportTsum
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -153,17 +154,14 @@ theorem dist_bind_pair_le_of_compl_le [Fintype L] [Fintype β] (μ : PMF L) (p q
   classical
   rw [dist_bind_pair]
   calc ∑ ℓ, (μ ℓ).toReal * dist (p ℓ) (q ℓ)
-      ≤ ∑ ℓ, ((if ℓ ∈ Gᶜ then (μ ℓ).toReal else 0) + (μ ℓ).toReal * ε) := by
-        refine Finset.sum_le_sum fun ℓ _ => ?_
-        have h0 : 0 ≤ (μ ℓ).toReal := ENNReal.toReal_nonneg
+      ≤ ∑ ℓ, (μ ℓ).toReal * ((if ℓ ∈ Gᶜ then 1 else 0) + ε) := by
+        refine sum_toReal_mul_mono_support μ fun ℓ hsupp => ?_
         by_cases hG : ℓ ∈ G
-        · rw [ite_eq_right (Set.notMem_compl_iff.mpr hG), zero_add]
-          by_cases hsupp : ℓ ∈ μ.support
-          · exact mul_le_mul_of_nonneg_left (hgood ℓ hG hsupp) h0
-          · simp [(μ.apply_eq_zero_iff ℓ).mpr hsupp]
+        · simpa only [ite_eq_right (Set.notMem_compl_iff.mpr hG), zero_add] using hgood ℓ hG hsupp
         · rw [ite_eq_left (Set.mem_compl hG)]
-          nlinarith [dist_le_one (p ℓ) (q ℓ), mul_nonneg h0 hε]
+          linarith [dist_le_one (p ℓ) (q ℓ)]
     _ = (μ.toOuterMeasure Gᶜ).toReal + ε := by
+        simp_rw [mul_add, mul_ite, mul_one, mul_zero]
         rw [Finset.sum_add_distrib, ← Finset.sum_mul, sum_toReal, one_mul,
           toOuterMeasure_apply_toReal]
         exact congrArg (· + ε) (Finset.sum_congr rfl fun ℓ _ => by by_cases h : ℓ ∈ Gᶜ <;> simp [h])

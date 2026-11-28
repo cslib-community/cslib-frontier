@@ -63,14 +63,14 @@ private theorem inner_hyperUnitRow_nonneg (r : ℕ) {θ : ℝ} (hθ : 0 ≤ θ) 
 private theorem stepWeight_mul_stepWeight {r : ℕ} (hr : 2 ≤ r) (θ : ℝ) (e : PrunedEdge c K₀)
     (u v : HyperNode c) :
     stepWeight c K₀ r θ (.inl u) (.inr e) * stepWeight c K₀ r θ (.inr e) (.inl v) =
-      θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1)) := by
+      θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1)) := by
   have hr0 : (0 : ℝ) ≤ r := Nat.cast_nonneg r
-  have hk2 : 2 ≤ (hyperEdge c e.1).card := e.2.1
-  have hk1 : ((hyperEdge c e.1).card - 1 : ℕ) = ((hyperEdge c e.1).card : ℝ) - 1 := by
+  have hk2 : 2 ≤ (hyperEdge c e.val).card := e.property.1
+  have hk1 : ((hyperEdge c e.val).card - 1 : ℕ) = ((hyperEdge c e.val).card : ℝ) - 1 := by
     rw [Nat.cast_sub (by omega), Nat.cast_one]
   have _ := hr
   dsimp only [stepWeight, bipBranch]
-  rw [hk1, mul_comm (√(((hyperEdge c e.1).card : ℝ) - 1)) (√(r : ℝ)), div_mul_div_comm,
+  rw [hk1, mul_comm (√(((hyperEdge c e.val).card : ℝ) - 1)) (√(r : ℝ)), div_mul_div_comm,
     mul_self_sqrt (mul_nonneg (sqrt_nonneg _) (sqrt_nonneg _)), ← sqrt_mul hr0, ← pow_two]
 
 /-- Shared final step of the correlation bounds: if the nonnegative rows `a, b` dominate `q` times
@@ -115,22 +115,22 @@ private theorem two_mul_div_sub_le_inner_normalize {ι : Type*} [Fintype ι] {q 
 `q₂' = θ² / √(r (k - 1))`. -/
 private theorem twoStep_le_inner_hyperUnitRow {r : ℕ} (hr : 2 ≤ r) (hfan : c.FanInAtMost r)
     {θ : ℝ} (hθ0 : 0 < θ) (hθ1 : θ ≤ 1) {S : ℕ} (hS : 1 ≤ S) (e : PrunedEdge c K₀)
-    {u v : HyperNode c} (hu : u ∈ hyperEdge c e.1) (hv : v ∈ hyperEdge c e.1) :
-    let q₂' := θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1))
+    {u v : HyperNode c} (hu : u ∈ hyperEdge c e.val) (hv : v ∈ hyperEdge c e.val) :
+    let q₂' := θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1))
     2 * q₂' / (1 + q₂' ^ 2) - 4 * (max (r + 1) K₀ : ℝ) * θ ^ (4 * S - 2) ≤
       ⟪hyperUnitRow c K₀ r θ S u, hyperUnitRow c K₀ r θ S v⟫ := by
   classical
   intro q₂'
   have hq₂'_nn : 0 ≤ q₂' := div_nonneg (sq_nonneg θ) (sqrt_nonneg _)
   have hq₂'_le : q₂' ≤ 1 := by
-    have hk2 : (2 : ℝ) ≤ (hyperEdge c e.1).card := by exact_mod_cast e.2.1
+    have hk2 : (2 : ℝ) ≤ (hyperEdge c e.val).card := by exact_mod_cast e.property.1
     have hr2 : (2 : ℝ) ≤ r := by exact_mod_cast hr
-    have h1 : (1 : ℝ) ≤ √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1)) :=
+    have h1 : (1 : ℝ) ≤ √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1)) :=
       (le_sqrt zero_le_one (by nlinarith)).mpr (by nlinarith)
     exact (div_le_self (sq_nonneg θ) h1).trans (pow_le_one₀ hθ0.le hθ1)
   set m := 2 * S - 2
   have hm2 : m + 2 = 2 * S := by omega
-  have hstep {x y : HyperNode c} (hx : x ∈ hyperEdge c e.1) (hy : y ∈ hyperEdge c e.1)
+  have hstep {x y : HyperNode c} (hx : x ∈ hyperEdge c e.val) (hy : y ∈ hyperEdge c e.val)
       (z : HyperNode c) :
       q₂' * walkMax c K₀ r θ m (.inl y) z ≤ walkMax c K₀ r θ (2 * S) (.inl x) z := by
     rw [← hm2, show q₂' = stepWeight c K₀ r θ (.inl x) (.inr e) *
@@ -159,15 +159,15 @@ private theorem twoStep_le_inner_hyperUnitRow {r : ℕ} (hr : 2 ≤ r) (hfan : c
 private theorem oneStep_le_inner_hyperUnitRow_center {r : ℕ} (hr : 2 ≤ r) (hfan : c.FanInAtMost r)
     {θ : ℝ} (hθ0 : 0 < θ) (hθ1 : θ ≤ 1) {S : ℕ} (hS : 1 ≤ S) (e : PrunedEdge c K₀) :
     let q₁' := stepWeight c K₀ r θ (.inr e) (.inl (Classical.choose
-      (Finset.card_pos.mp (Nat.zero_lt_of_lt e.2.1))))
+      (Finset.card_pos.mp (Nat.zero_lt_of_lt e.property.1))))
     ∃ w_e : EuclideanSpace ℝ (HyperNode c), ‖w_e‖ = 1 ∧
-      ∀ v ∈ hyperEdge c e.1,
+      ∀ v ∈ hyperEdge c e.val,
         2 * q₁' / (1 + q₁' ^ 2) - 2 * (max (r + 1) K₀ : ℝ) * θ ^ (4 * S) / q₁' ≤
           ⟪hyperUnitRow c K₀ r θ S v, w_e⟫ := by
   classical
-  set v₀ := Classical.choose (Finset.card_pos.mp (Nat.zero_lt_of_lt e.2.1))
-  have hv₀ : v₀ ∈ hyperEdge c e.1 :=
-    Classical.choose_spec (Finset.card_pos.mp (Nat.zero_lt_of_lt e.2.1))
+  set v₀ := Classical.choose (Finset.card_pos.mp (Nat.zero_lt_of_lt e.property.1))
+  have hv₀ : v₀ ∈ hyperEdge c e.val :=
+    Classical.choose_spec (Finset.card_pos.mp (Nat.zero_lt_of_lt e.property.1))
   intro q₁'
   have hq₁'_eq_all (v : HyperNode c) : stepWeight c K₀ r θ (.inr e) (.inl v) = q₁' ∧
       stepWeight c K₀ r θ (.inl v) (.inr e) = q₁' := by
@@ -175,8 +175,8 @@ private theorem oneStep_le_inner_hyperUnitRow_center {r : ℕ} (hr : 2 ≤ r) (h
     exact ⟨rfl, by rw [mul_comm]⟩
   have hq₁'_pos : 0 < q₁' := by
     have hr_pos : (0 : ℝ) < r := by exact_mod_cast Nat.zero_lt_of_lt hr
-    have hk_pos : (0 : ℝ) < ((hyperEdge c e.1).card - 1 : ℕ) := by
-      exact_mod_cast (show 0 < (hyperEdge c e.1).card - 1 by have := e.2.1; omega)
+    have hk_pos : (0 : ℝ) < ((hyperEdge c e.val).card - 1 : ℕ) := by
+      exact_mod_cast (show 0 < (hyperEdge c e.val).card - 1 by have := e.property.1; omega)
     dsimp only [q₁', stepWeight, bipBranch]
     exact div_pos hθ0 (sqrt_pos.mpr (mul_pos (sqrt_pos.mpr hk_pos) (sqrt_pos.mpr hr_pos)))
   have hq₁'_le : q₁' ≤ 1 := (stepWeight_le c K₀ hr hθ0.le _ _).trans hθ1
@@ -222,20 +222,20 @@ cone tangent hypotheses hold at `q₂' = θ² / √(r (k - 1))`, the off-diagona
 `(2 q₂' + (k - 2) q₂'²) / (1 + (k - 1) q₂'²) - 8 √D θ ^ (2S - 1)`. -/
 private theorem starCone_le_sum_offDiag_inner_hyperUnitRow {r : ℕ} (hr : 2 ≤ r)
     (hfan : c.FanInAtMost r) {θ : ℝ} (hθ0 : 0 < θ) (hθ1 : θ ≤ 1) {S : ℕ} (hS : 1 ≤ S)
-    (e : PrunedEdge c K₀) (hk : 3 ≤ (hyperEdge c e.1).card)
-    (htan_lo : θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1)) ≤
-      (1 + (((hyperEdge c e.1).card : ℝ) - 1) *
-        (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1))) ^ 2) /
-        (hyperEdge c e.1).card)
-    (htan_hi : (1 + (((hyperEdge c e.1).card : ℝ) - 1) *
-        (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1))) ^ 2) /
-        (hyperEdge c e.1).card -
-        θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1)) ≤
-      2 * (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1))) *
-        √((1 + (((hyperEdge c e.1).card : ℝ) - 1) *
-          (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1))) ^ 2) /
-          (hyperEdge c e.1).card)) :
-    let s := hyperEdge c e.1
+    (e : PrunedEdge c K₀) (hk : 3 ≤ (hyperEdge c e.val).card)
+    (htan_lo : θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1)) ≤
+      (1 + (((hyperEdge c e.val).card : ℝ) - 1) *
+        (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1))) ^ 2) /
+        (hyperEdge c e.val).card)
+    (htan_hi : (1 + (((hyperEdge c e.val).card : ℝ) - 1) *
+        (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1))) ^ 2) /
+        (hyperEdge c e.val).card -
+        θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1)) ≤
+      2 * (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1))) *
+        √((1 + (((hyperEdge c e.val).card : ℝ) - 1) *
+          (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1))) ^ 2) /
+          (hyperEdge c e.val).card)) :
+    let s := hyperEdge c e.val
     let q₂' := θ ^ 2 / √((r : ℝ) * ((s.card : ℝ) - 1))
     (s.card : ℝ) * ((s.card : ℝ) - 1) *
         ((2 * q₂' + ((s.card : ℝ) - 2) * q₂' ^ 2) / (1 + ((s.card : ℝ) - 1) * q₂' ^ 2) -

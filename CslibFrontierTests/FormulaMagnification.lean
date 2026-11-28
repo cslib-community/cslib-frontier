@@ -44,7 +44,7 @@ example :
 
 private theorem eq_proj_of_mem_computableFunctions_zero {g : BooleanFunction 1}
     (hg : g ∈ computableFunctions 1 0) : g = fun x : BitString 1 => x 0 := by
-  rw [mem_computableFunctions] at hg
+  rw [Boolean.mem_computableFunctions] at hg
   obtain ⟨c, hc, hsize⟩ := hg
   have h0 : c.size = 0 := Nat.le_zero.mp hsize
   funext x
@@ -57,10 +57,10 @@ private theorem eq_proj_of_mem_computableFunctions_zero {g : BooleanFunction 1}
     exact (Fin.cast h0 k).elim0
 
 private theorem card_computableFunctions_one_zero_le :
-    (computableFunctions 1 0).card ≤ 2 ^ 1 := by
+    (computableFunctions 1 0).ncard ≤ 2 ^ 1 := by
   have hsub : computableFunctions 1 0 ⊆ {fun x : BitString 1 => x 0} := fun g hg =>
-    Finset.mem_singleton.mpr (eq_proj_of_mem_computableFunctions_zero hg)
-  exact (Finset.card_le_card hsub).trans (by decide)
+    Set.mem_singleton_iff.mpr (eq_proj_of_mem_computableFunctions_zero hg)
+  exact (Set.ncard_le_ncard hsub (Set.finite_singleton _)).trans (by simp)
 
 -- Concrete check of `ApproxMCSP.noSet`: the 1-input constant `true` truth table `![true, true]`
 -- belongs to `ApproxMCSP.noSet (fun _ => 0) (fun _ => 2)` because the sole 0-gate function

@@ -231,7 +231,7 @@ private theorem integrable_of_summable_discreteGaussian [MeasurableSpace E] [Bor
 theorem memLp_sub_discreteGaussian [MeasurableSpace E] [BorelSpace E]
     (L : Submodule ℤ E) [DiscreteTopology L] (s : ℝ) (hs : 0 < s) (c : E) :
     MemLp (fun x : L ↦ (x : E) - c) 2 (discreteGaussian L s hs c).toMeasure := by
-  have hcont : Continuous (fun x : L ↦ (x : E) - c) := continuous_subtype_val.sub continuous_const
+  have hcont : Continuous (fun x : L ↦ (x : E) - c) := continuous_subtypeVal.sub continuous_const
   rw [memLp_two_iff_integrable_sq_norm hcont.measurable.aestronglyMeasurable]
   refine integrable_of_summable_discreteGaussian L s hs c ((hcont.norm).pow 2) ?_
   simpa only [Real.norm_of_nonneg (sq_nonneg _)] using
@@ -256,7 +256,7 @@ theorem integral_norm_sub_sq_discreteGaussian_eq_tsum [MeasurableSpace E] [Borel
   have hint :
       Integrable (fun x : L ↦ ‖(x : E) - c‖ ^ 2) (discreteGaussian L s hs c).toMeasure := by
     have hcont : Continuous (fun x : L ↦ (x : E) - c) :=
-      continuous_subtype_val.sub continuous_const
+      continuous_subtypeVal.sub continuous_const
     exact (memLp_two_iff_integrable_sq_norm hcont.measurable.aestronglyMeasurable).mp
       (memLp_sub_discreteGaussian L s hs c)
   simpa only [smul_eq_mul] using PMF.integral_eq_tsum (discreteGaussian L s hs c) _ hint

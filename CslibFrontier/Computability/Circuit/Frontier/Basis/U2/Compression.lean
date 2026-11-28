@@ -681,7 +681,7 @@ private theorem clean_binary_gate_singleton {c : Circuit σ m_in m_out} {I : Int
     have hdel := Edge.deliver.inj h
     have hcon := (junctionEquiv c).symm.injective hdel
     have hsl := Sum.inl.inj hcon
-    have hfin : (a0 : ℕ) = (a1 : ℕ) := congrArg (fun s : Slot c => (s.1.2 : ℕ)) hsl
+    have hfin : (a0 : ℕ) = (a1 : ℕ) := congrArg (fun s : Slot c => (s.val.2 : ℕ)) hsl
     dsimp [a0, a1] at hfin; omega
   have h02 : e0 ≠ e_out := fun h => nomatch h
   have h12 : e1 ≠ e_out := fun h => nomatch h
@@ -985,7 +985,7 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
   -- 2 & 3. Exact vertex/edge/dirty accounting on `Compiler.graph c`.
   have hsum_ext : 3 * Nat.card st.cmp.blocks = 2 * Nat.card st.cmp.external := by
     have hsum := st.cmp.sum_ncard_edgeCut
-    have h3_each (B : st.cmp.blocks) : ((graph c).edgeCut {v | v ∈ B.1}).ncard = 3 := by
+    have h3_each (B : st.cmp.blocks) : ((graph c).edgeCut {v | v ∈ B.val}).ncard = 3 := by
       rw [← st.cmp.ncard_incidenceSet_quotient B]
       exact hsat.ncard_incidenceSet_quotient hconn htwo B
     simp only [h3_each, Finset.sum_const, Finset.card_univ, smul_eq_mul,
@@ -1001,19 +1001,19 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
   let isConst1 (g : Fin c.size) : Prop :=
     ∃ b : Bool, ∀ x, I (c.program.lines g).op x = b
   let InpFin : Finset (Signal c) := Finset.univ.filter fun w =>
-    match w.1 with | .input _ => true | .gate _ => false
+    match w.val with | .input _ => true | .gate _ => false
   let G0Fin : Finset (Signal c) := Finset.univ.filter fun w =>
-    match w.1 with | .input _ => false | .gate g => decide (σ.Arity (c.program.lines g).op = 0)
+    match w.val with | .input _ => false | .gate g => decide (σ.Arity (c.program.lines g).op = 0)
   let G1cFin : Finset (Signal c) := Finset.univ.filter fun w =>
-    match w.1 with
+    match w.val with
     | .input _ => false
     | .gate g => decide (σ.Arity (c.program.lines g).op = 1 ∧ isConst1 g)
   let G1wFin : Finset (Signal c) := Finset.univ.filter fun w =>
-    match w.1 with
+    match w.val with
     | .input _ => false
     | .gate g => decide (σ.Arity (c.program.lines g).op = 1 ∧ ¬isConst1 g)
   let G2Fin : Finset (Signal c) := Finset.univ.filter fun w =>
-    match w.1 with | .input _ => false | .gate g => decide (σ.Arity (c.program.lines g).op = 2)
+    match w.val with | .input _ => false | .gate g => decide (σ.Arity (c.program.lines g).op = 2)
   have hcard_sum (S : Finset (Signal c)) : S.card = ∑ w : Signal c, if w ∈ S then 1 else 0 := by
     rw [← Finset.card_filter, Finset.filter_univ_mem]
   have hsig_sum : Nat.card (Signal c) =
@@ -1033,7 +1033,7 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
     simp only [hpart, Finset.sum_const, smul_eq_mul, mul_one]
   -- Count `Slot c` by grouping over `Signal c`.
   have hslot_sum : Nat.card (Slot c) = G1cFin.card + G1wFin.card + 2 * G2Fin.card := by
-    let slotOwner (s : Slot c) : Signal c := ⟨.gate s.1.1, s.2⟩
+    let slotOwner (s : Slot c) : Signal c := ⟨.gate s.val.1, s.property⟩
     have := Fintype.ofFinite (Slot c)
     have hu : (Finset.univ : Finset (Slot c)) = Finset.univ.biUnion fun w : Signal c =>
         Finset.univ.filter fun s : Slot c => slotOwner s = w := by
@@ -1056,11 +1056,11 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
             (fun a _ => by simp [slotOwner])
             (fun a₁ _ a₂ _ h => by
               have hval : (a₁ : ℕ) = (a₂ : ℕ) :=
-                congrArg (fun s : Slot c => (s.1.2 : ℕ)) h
+                congrArg (fun s : Slot c => (s.val.2 : ℕ)) h
               exact Fin.ext hval)
             (fun s hs => by
               have hsw : slotOwner s = ⟨.gate g, hw⟩ := (Finset.mem_filter.mp hs).2
-              have hg_eq : s.1.1 = g := Wire.gate.inj (congrArg Subtype.val hsw)
+              have hg_eq : s.val.1 = g := Wire.gate.inj (congrArg Subtype.val hsw)
               rcases s with ⟨⟨g', a⟩, hg'⟩
               dsimp at hg_eq
               subst hg_eq
@@ -1090,7 +1090,7 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
       Circuit.innerSize]
     by_cases hcs : 0 < c.size
     · refine Finset.card_le_card_of_injOn
-        (fun w => match w.1 with | .input _ => ⟨0, hcs⟩ | .gate g => g)
+        (fun w => match w.val with | .input _ => ⟨0, hcs⟩ | .gate g => g)
         (fun w hw => ?_) (fun w₁ hw₁ w₂ hw₂ heq => ?_)
       · rcases w with ⟨i | g, hreach⟩
         · simp [G1cFin, G1wFin, G2Fin] at hw
@@ -1145,13 +1145,13 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
     rw [← Nat.card_coe_set_eq]
     have hinj : Function.Injective
         (fun i : (hiddenNetwork c I Acc).read =>
-          (⟨⟨Wire.input (finSumFinEquiv (.inl i.1)), by
-            obtain ⟨v, _, hsite⟩ := i.2
-            change site c (finSumFinEquiv (.inl i.1)) = some v at hsite
+          (⟨⟨Wire.input (finSumFinEquiv (.inl i.val)), by
+            obtain ⟨v, _, hsite⟩ := i.property
+            change site c (finSumFinEquiv (.inl i.val)) = some v at hsite
             exact (site_eq_some hsite).1⟩, by simp [InpFin]⟩ :
             {w : Signal c // w ∈ InpFin})) := by
       intro i₁ i₂ h
-      have hw := Wire.input.inj (congrArg (fun x => x.1.1) h)
+      have hw := Wire.input.inj (congrArg (fun x => x.val.val) h)
       exact Subtype.ext (Sum.inl.inj (finSumFinEquiv.injective hw))
     have hle := Nat.card_le_card_of_injective _ hinj
     rwa [Nat.card_eq_fintype_card (α := {w : Signal c // w ∈ InpFin}), Fintype.card_coe] at hle

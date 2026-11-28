@@ -242,7 +242,7 @@ private theorem hashQueryVerifier_eq_true_iff (Q : HashQuery α) (e : List Bool)
     hashZero_eq_true_iff, witnessSet, mem_filter, mem_univ, true_and]
   refine and_congr ⟨fun h i => ?_, fun h i hi => ?_⟩ Iff.rfl
   · rw [← listRow_eq_ofFn]
-    exact h i i.2
+    exact h i i.isLt
   · rw [listRow_eq_ofFn (count := Q.copies) _ ⟨i, hi⟩]
     exact h ⟨i, hi⟩
 
@@ -312,7 +312,7 @@ private theorem sieveVerifier_eq_true_iff (Q : HashQuery α) (e : List Bool) :
     List.nodup_ofFn]
   refine and_congr ⟨fun h i => ?_, fun h i hi => ?_⟩
     (Function.Injective.of_comp_iff List.ofFn_injective _)
-  · have := h i i.2
+  · have := h i i.isLt
     rwa [listRow_eq_ofFn (count := Q.copies), hashZero_eq_true_iff, ofList_ofFn] at this
   · rw [listRow_eq_ofFn (count := Q.copies) _ ⟨i, hi⟩, hashZero_eq_true_iff, ofList_ofFn]
     exact h ⟨i, hi⟩
@@ -343,7 +343,7 @@ theorem mem_sieveQuery_language_iff (Q : HashQuery α) :
       exact Nat.add_sub_cancel' (R.copies_mul_le Q)
     · refine (R.sieveVerifier_eq_true_iff Q _).2 ?_
       rw [ofList_ofFn_append, ← blocksEquiv_apply, Equiv.apply_symm_apply]
-      exact ⟨fun i => (F.equivFin.symm (Fin.castLE hcard i)).2, hx⟩
+      exact ⟨fun i => (F.equivFin.symm (Fin.castLE hcard i)).property, hx⟩
 
 end NPRelation
 
@@ -513,9 +513,9 @@ private theorem estimator_ofFn (a : α) (r : BitString (randomLength R q (enc a)
       intro i
       have hidx : i.val + trials R q (enc a).length * j <
           (tupleLength R q (enc a).length + 1) * trials R q (enc a).length :=
-        (finProdFinEquiv ((⟨j, hj⟩ : Fin (_ + 1)), i)).2
+        (finProdFinEquiv ((⟨j, hj⟩ : Fin (_ + 1)), i)).isLt
       have hdiv : (i.val + trials R q (enc a).length * j) / trials R q (enc a).length = j := by
-        rw [Nat.add_mul_div_left _ _ hT, Nat.div_eq_of_lt i.2, zero_add]
+        rw [Nat.add_mul_div_left _ _ hT, Nat.div_eq_of_lt i.isLt, zero_add]
       have hseed : List.ofFn (seeds R q (enc a).length r ⟨j, hj⟩ i) =
           listRow (seedLength R q (enc a).length) (i.val + trials R q (enc a).length * j)
             (List.ofFn r) := by

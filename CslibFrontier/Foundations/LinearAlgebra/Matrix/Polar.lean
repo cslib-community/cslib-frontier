@@ -113,26 +113,26 @@ theorem exists_polar {m n : Type*} [Fintype m] [Fintype n] [DecidableEq m] [Deci
     simpa using (sum_eq_zero_iff_of_nonneg fun i _ => sq_nonneg ‖Y i k‖).mp h0 i (mem_univ i)
   -- The normalized nonzero columns form an isometry.
   let P := {k : n // μ k ≠ 0}
-  let W : Matrix m P ℂ := Matrix.of fun i k => Y i k.1 / (s k.1 : ℂ)
-  have hs0 : ∀ k : P, (s k.1 : ℂ) ≠ 0 := fun k => by
+  let W : Matrix m P ℂ := Matrix.of fun i k => Y i k.val / (s k.val : ℂ)
+  have hs0 : ∀ k : P, (s k.val : ℂ) ≠ 0 := fun k => by
     rw [Complex.ofReal_ne_zero]
-    exact (Real.sqrt_pos.mpr (lt_of_le_of_ne (hμ0 k.1) (Ne.symm k.2))).ne'
+    exact (Real.sqrt_pos.mpr (lt_of_le_of_ne (hμ0 k.val) (Ne.symm k.property))).ne'
   have hW : Wᴴ * W = 1 := by
     ext k l
     simp only [Matrix.mul_apply, conjTranspose_apply, W, Matrix.of_apply, Matrix.one_apply]
-    have : ∀ i, star (Y i k.1 / (s k.1 : ℂ)) * (Y i l.1 / (s l.1 : ℂ)) =
-        (star (Y i k.1) * Y i l.1) / ((s k.1 : ℂ) * (s l.1 : ℂ)) := fun i => by
+    have : ∀ i, star (Y i k.val / (s k.val : ℂ)) * (Y i l.val / (s l.val : ℂ)) =
+        (star (Y i k.val) * Y i l.val) / ((s k.val : ℂ) * (s l.val : ℂ)) := fun i => by
       rw [star_div₀, Complex.star_def, Complex.conj_ofReal]; ring
     simp only [this, ← sum_div, hcol]
     by_cases hkl : k = l
     · subst hkl
       rw [ite_eq_left rfl, ite_eq_left rfl, ← Complex.ofReal_mul, hss, div_self]
-      exact_mod_cast k.2
+      exact_mod_cast k.property
     · rw [ite_eq_right (fun h => absurd (Subtype.ext h) hkl), ite_eq_right (absurd · hkl), zero_div]
   -- Extend to a unitary and reindex.
   let σ : n ≃ m := Fintype.equivOfCardEq hmn.symm
   obtain ⟨U', hU', hU'W⟩ := exists_unitary_extension W hW
-    (j := fun k : P => σ k.1) (fun a b hab => Subtype.ext (σ.injective hab))
+    (j := fun k : P => σ k.val) (fun a b hab => Subtype.ext (σ.injective hab))
   have hU'1 : U'ᴴ * U' = 1 := by
     rw [← star_eq_conjTranspose]; exact (mem_unitaryGroup_iff'.mp hU')
   have hU'2 : U' * U'ᴴ = 1 := by
@@ -222,9 +222,9 @@ theorem IsHermitian.exists_isometry_of_mul_self {n : Type*} [Fintype n] [Decidab
     rcases mul_eq_zero.mp this with h | h
     · exact h
     · exact absurd (by linarith) hk
-  refine ⟨univ.filter fun k => lam k = 1, Matrix.of fun i k => U i k.1, ?_, ?_⟩
+  refine ⟨univ.filter fun k => lam k = 1, Matrix.of fun i k => U i k.val, ?_, ?_⟩
   · ext k k'
-    have := congrFun (congrFun hU1 k.1) k'.1
+    have := congrFun (congrFun hU1 k.val) k'.val
     simp only [Matrix.mul_apply, conjTranspose_apply, Matrix.of_apply, Matrix.one_apply] at this ⊢
     rw [this]
     exact if_congr Subtype.ext_iff.symm rfl rfl

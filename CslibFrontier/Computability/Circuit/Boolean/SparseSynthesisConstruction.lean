@@ -396,7 +396,7 @@ private theorem exists_eqOn_complexity_le_partialTableBound {k l : ℕ}
       complexity interpretation (single φ) ≤ partialTableBound k l J #D := by
   obtain ⟨bank, hbank_card, hbank⟩ := exists_extension_bank (2 ^ k) J
   let pattern (β : Fin (2 ^ k + 1) × Fin (2 ^ k + 1) × bank) : Finset (Fin (2 ^ k)) :=
-    {c | β.1 ≤ c.castSucc ∧ c.castSucc < β.2.1 ∧ β.2.2.1 c = true}
+    {c | β.1 ≤ c.castSucc ∧ c.castSucc < β.2.1 ∧ β.2.2.val c = true}
   have hext (r : BitString l) (b : ℕ) :
       ∃ e ∈ bank, ∀ c ∈ rankBlock (rowSupport D r) J b, e c = u (entry r c) :=
     hbank _ (card_rankBlock_le _ _ _) _

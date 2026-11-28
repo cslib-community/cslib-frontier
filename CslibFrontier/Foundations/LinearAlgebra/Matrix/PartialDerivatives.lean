@@ -130,7 +130,7 @@ private theorem exists_perm_mem_iff {R C : Finset (Fin n)} (h : R.card = C.card)
   refine ⟨Equiv.subtypeCongr e f, fun i => ?_⟩
   by_cases hi : i ∈ C
   · simp [Equiv.subtypeCongr, hi]
-  · simpa [Equiv.subtypeCongr, hi] using (f ⟨i, hi⟩).2
+  · simpa [Equiv.subtypeCongr, hi] using (f ⟨i, hi⟩).property
 
 /-- If a permutation agrees with `τ` on `C` and with `τ'` off `C`, avoiding `C'`, then the
 pairs of rows and columns of `τ` and `τ'` coincide. -/
@@ -152,29 +152,30 @@ private theorem choose_sq_le_rank_partialDerivatives_permSum (w : Perm (Fin n) �
   classical
   -- Pairs of `k`-sets of rows and of columns.
   let s := powersetCard k (univ : Finset (Fin n)) ×ˢ powersetCard k (univ : Finset (Fin n))
-  have hcard (ρ : s) : ρ.1.1.card = k ∧ ρ.1.2.card = k :=
-    ⟨(mem_powersetCard.1 (mem_product.1 ρ.2).1).2, (mem_powersetCard.1 (mem_product.1 ρ.2).2).2⟩
+  have hcard (ρ : s) : ρ.val.1.card = k ∧ ρ.val.2.card = k :=
+    ⟨(mem_powersetCard.1 (mem_product.1 ρ.property).1).2,
+      (mem_powersetCard.1 (mem_product.1 ρ.property).2).2⟩
   choose τ hτ using fun ρ : s => exists_perm_mem_iff ((hcard ρ).1.trans (hcard ρ).2.symm)
   -- The columns of each pair, enumerated, and the entries of `τ ρ` there.
-  let e (ρ : s) : Fin k → Fin n := ρ.1.2.orderEmbOfFin (hcard ρ).2
-  have hrange (ρ : s) : univ.image (e ρ) = ρ.1.2 := image_orderEmbOfFin_univ _ _
+  let e (ρ : s) : Fin k → Fin n := ρ.val.2.orderEmbOfFin (hcard ρ).2
+  have hrange (ρ : s) : univ.image (e ρ) = ρ.val.2 := image_orderEmbOfFin_univ _ _
   let α (ρ : s) (t : Fin k) : Fin n × Fin n := (τ ρ (e ρ t), e ρ t)
   -- The `0`/`1` point of the entries of `τ ρ` off its columns.
-  let point (ρ : s) (x : Fin n × Fin n) : K := if x.2 ∉ ρ.1.2 ∧ τ ρ x.2 = x.1 then 1 else 0
+  let point (ρ : s) (x : Fin n × Fin n) : K := if x.2 ∉ ρ.val.2 ∧ τ ρ x.2 = x.1 then 1 else 0
   let E : MvPolynomial (Fin n × Fin n) K →ₗ[K] s → K :=
     LinearMap.pi fun ρ => (aeval (point ρ)).toLinearMap
   have key (ρ ρ' : s) :
       E (iteratedPDeriv (α ρ) (permSum w)) ρ' = if ρ = ρ' then w (τ ρ) else 0 := by
     have hagree (σ : Perm (Fin n)) : ((∀ t, σ (e ρ t) = τ ρ (e ρ t)) ∧
-        ∀ i ∈ univ \ univ.image (e ρ), i ∉ ρ'.1.2 ∧ τ ρ' i = σ i) ↔ ρ = ρ' ∧ σ = τ ρ := by
-      have hcols : (∀ t, σ (e ρ t) = τ ρ (e ρ t)) ↔ ∀ i ∈ ρ.1.2, σ i = τ ρ i := by
+        ∀ i ∈ univ \ univ.image (e ρ), i ∉ ρ'.val.2 ∧ τ ρ' i = σ i) ↔ ρ = ρ' ∧ σ = τ ρ := by
+      have hcols : (∀ t, σ (e ρ t) = τ ρ (e ρ t)) ↔ ∀ i ∈ ρ.val.2, σ i = τ ρ i := by
         simp [← hrange ρ]
       simp only [hrange, hcols, mem_sdiff, mem_univ, true_and]
       refine ⟨fun ⟨hon, hoff⟩ => ?_, fun ⟨hρ, hσ⟩ => ?_⟩
       · obtain ⟨hR, hC⟩ := eq_of_agree ((hcard ρ).1.trans (hcard ρ').1.symm)
           ((hcard ρ).2.trans (hcard ρ').2.symm) (hτ ρ) (hτ ρ') hon hoff
         obtain rfl : ρ = ρ' := Subtype.ext (Prod.ext hR.symm hC.symm)
-        exact ⟨rfl, Equiv.ext fun i => if hi : i ∈ ρ.1.2 then hon i hi else (hoff i hi).2.symm⟩
+        exact ⟨rfl, Equiv.ext fun i => if hi : i ∈ ρ.val.2 then hon i hi else (hoff i hi).2.symm⟩
       · subst hρ hσ
         exact ⟨fun _ _ => rfl, fun _ hi => ⟨hi, rfl⟩⟩
     have hterm (σ : Perm (Fin n)) : eval (point ρ') (w σ •
@@ -184,7 +185,7 @@ private theorem choose_sq_le_rank_partialDerivatives_permSum (w : Perm (Fin n) �
       simp only [eval_X, point, prod_boole, ← hagree σ]
       split_ifs <;> simp_all
     change eval (point ρ') (iteratedPDeriv (α ρ) (permSum w)) = _
-    rw [iteratedPDeriv_permSum w (τ ρ) (e ρ) (ρ.1.2.orderEmbOfFin (hcard ρ).2).injective,
+    rw [iteratedPDeriv_permSum w (τ ρ) (e ρ) (ρ.val.2.orderEmbOfFin (hcard ρ).2).injective,
       map_sum]
     simp only [hterm]
     by_cases h : ρ = ρ' <;> simp [h]

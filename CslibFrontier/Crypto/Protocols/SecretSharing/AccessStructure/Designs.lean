@@ -150,9 +150,9 @@ theorem pullback_eq {Party Party' : Type*} [DecidableEq Party']
 /-- Reinterpret a coalition view on `s.biUnion assign` as the composed view on `s`. -/
 @[expose] def projectView {Party Party' : Type*} {Share' : Party' → Type*}
     [DecidableEq Party'] (assign : Party → Finset Party') (s : Finset Party)
-    (v' : (j : s.biUnion assign) → Share' j.1) :
-    (i : s) → (j : assign i.1) → Share' j.1 :=
-  fun i j => v' ⟨j.1, Finset.mem_biUnion.mpr ⟨i.1, i.2, j.2⟩⟩
+    (v' : (j : s.biUnion assign) → Share' j.val) :
+    (i : s) → (j : assign i.val) → Share' j.val :=
+  fun i j => v' ⟨j.val, Finset.mem_biUnion.mpr ⟨i.val, i.property, j.property⟩⟩
 
 end DistributionDesign
 
@@ -165,16 +165,16 @@ class (checked for threshold designs in [Aggarwal2026], Section 5 and generalize
     (scheme' : AccessScheme Secret Key Party' Share')
     {A : AccessStructure Party} [DecidableEq Party']
     (d : DistributionDesign A scheme'.access) :
-    AccessScheme Secret Key Party (fun i => (j : d.assign i) → Share' j.1) where
+    AccessScheme Secret Key Party (fun i => (j : d.assign i) → Share' j.val) where
   access := A
   sources := scheme'.sources
-  share k secret _ j := scheme'.share k secret j.1
+  share k secret _ j := scheme'.share k secret j.val
   reconstruct s v :=
     scheme'.reconstruct (s.biUnion d.assign) fun j =>
-      let h := Finset.mem_biUnion.mp j.2
+      let h := Finset.mem_biUnion.mp j.property
       let i := Classical.choose h
       let hi := Classical.choose_spec h
-      v ⟨i, hi.1⟩ ⟨j.1, hi.2⟩
+      v ⟨i, hi.1⟩ ⟨j.val, hi.2⟩
   correct k secret s hs :=
     scheme'.correct k secret (s.biUnion d.assign) ((d.authorized_iff s).mp hs)
   view_indist P hP s hs secret₀ secret₁ := by
@@ -182,7 +182,7 @@ class (checked for threshold designs in [Aggarwal2026], Section 5 and generalize
       mt (d.authorized_iff s).mpr hs
     have hmap (secret : Secret) :
         AccessStructure.viewDistOf P
-            (fun k secret' (i : Party) (j : d.assign i) => scheme'.share k secret' j.1) s secret =
+            (fun k secret' (i : Party) (j : d.assign i) => scheme'.share k secret' j.val) s secret =
           (scheme'.viewDist P (s.biUnion d.assign) secret).map
             (DistributionDesign.projectView d.assign s) := by
       simp only [AccessStructure.viewDistOf, AccessScheme.viewDist, PMF.map_comp]
@@ -220,13 +220,13 @@ theorem StatisticallyPrivate.composeDesign
     (d : DistributionDesign A A')
     (h : StatisticallyPrivate A' sources share' δ) :
     StatisticallyPrivate A sources
-      (fun k secret (i : Party) (j : d.assign i) => share' k secret j.1) δ := by
+      (fun k secret (i : Party) (j : d.assign i) => share' k secret j.val) δ := by
   intro P hP s hs m₀ m₁
   have hnot : ¬ A'.authorized (s.biUnion d.assign) :=
     mt (d.authorized_iff s).mpr hs
   have hmap (m : Secret) :
       AccessStructure.viewDistOf P
-          (fun k secret' (i : Party) (j : d.assign i) => share' k secret' j.1) s m =
+          (fun k secret' (i : Party) (j : d.assign i) => share' k secret' j.val) s m =
         (AccessStructure.viewDistOf P share' (s.biUnion d.assign) m).map
           (DistributionDesign.projectView d.assign s) := by
     simp only [AccessStructure.viewDistOf, PMF.map_comp]
@@ -440,7 +440,7 @@ theorem no_thresholdDesign_two_two {t n : ℕ} (ht : 2 ≤ t) (htn : t ≤ n) (h
       by_contra hne
       have hpair : 2 ≤ (({i, j} : Finset (Fin n)).biUnion d.assign).card :=
         d.le_card_of_card_eq (Finset.card_pair hne)
-      rw [Finset.biUnion_insert, Finset.singleton_biUnion, hij, Finset.union_idempotent, heq1 j]
+      rw [Finset.biUnion_insert, Finset.singleton_biUnion, hij, Finset.union_self, heq1 j]
         at hpair
       omega
     have hex : ∀ i : Fin n, ∃ x : Fin 2, d.assign i = {x} := fun i =>

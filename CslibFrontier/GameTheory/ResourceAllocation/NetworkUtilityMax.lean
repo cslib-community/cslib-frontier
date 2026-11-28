@@ -271,11 +271,11 @@ private theorem uniform_modulus_of_strictAntiOn {f : ℝ → ℝ} (hf : StrictAn
       push_cast
       nlinarith
     have huniv : (Finset.univ : Finset (Fin N)).Nonempty := ⟨⟨0, hN_pos⟩, Finset.mem_univ _⟩
-    let η : ℝ := Finset.univ.inf' huniv fun k : Fin N => f (grid k.1) - f (grid (k.1 + 1))
+    let η : ℝ := Finset.univ.inf' huniv fun k : Fin N => f (grid k.val) - f (grid (k.val + 1))
     have hη_pos : 0 < η := by
       rw [Finset.lt_inf'_iff]
       intro k _
-      exact sub_pos.mpr (hf (hgrid_nonneg k.1) (hgrid_nonneg (k.1 + 1)) (hgrid_lt k.1))
+      exact sub_pos.mpr (hf (hgrid_nonneg k.val) (hgrid_nonneg (k.val + 1)) (hgrid_lt k.val))
     have hordered : ∀ a ∈ Icc 0 X, ∀ b ∈ Icc 0 X, a ≤ b → ε ≤ b - a → η ≤ |f a - f b| := by
       intro a ha b hb _ hba
       have hNr : (0 : ℝ) < (N : ℝ) := Nat.cast_pos.mpr hN_pos
@@ -312,7 +312,7 @@ private theorem uniform_modulus_of_strictAntiOn {f : ℝ → ℝ} (hf : StrictAn
         have h3 : k + 1 < N := Nat.cast_lt.mp h2
         omega
       have hη_le : η ≤ f (grid k) - f (grid (k + 1)) :=
-        Finset.inf'_le (f := fun j : Fin N => f (grid j.1) - f (grid (j.1 + 1)))
+        Finset.inf'_le (f := fun j : Fin N => f (grid j.val) - f (grid (j.val + 1)))
           (Finset.mem_univ ⟨k, hk_lt_N⟩)
       have hf1 : f (grid k) < f a := hf ha.1 (hgrid_nonneg k) ha_lt
       have hf2 : f b < f (grid (k + 1)) := hf (hgrid_nonneg (k + 1)) hb.1 hgk1_lt

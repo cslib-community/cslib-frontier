@@ -120,7 +120,7 @@ noncomputable def selectRowBasis {m col K : Type*} [Field K] [Finite m] [Fintype
   have : Finite κ := Finite.of_injective a ha
   letI : Fintype κ := Fintype.ofFinite κ
   have hcard : Fintype.card κ = M.rank := by
-    rw [rank_eq_finrank_span_row, ← hspan, finrank_span_eq_card hli]
+    rw [← finrank_span_range_row, ← hspan, finrank_span_eq_card hli]
   let e : Fin M.rank ≃ κ := (Fintype.equivFinOfCardEq hcard).symm
   let idx : Fin M.rank → m := a ∘ e
   have hli_idx : LinearIndependent K (fun k => M.row (idx k)) :=
@@ -409,16 +409,11 @@ theorem sum_filter_mulVec_eq_sum_ker {m col R M₀ : Type*} [Ring R] [Fintype co
     [Fintype (col → R)] [DecidableEq (m → R)] [AddCommMonoid M₀]
     (M : Matrix m col R) (x₀ : col → R) (w : (col → R) → M₀) :
     ∑ x ∈ univ.filter (fun x : col → R => M *ᵥ x = M *ᵥ x₀), w x =
-      ∑ z ∈ univ.filter (fun z : col → R => M *ᵥ z = 0), w (z + x₀) :=
-  sum_bij' (fun x _ => x - x₀) (fun z _ => z + x₀)
-    (fun x hx => by
-      simp only [mem_filter, mem_univ, true_and] at hx ⊢
-      rw [mulVec_sub, hx, sub_self])
-    (fun z hz => by
-      simp only [mem_filter, mem_univ, true_and] at hz ⊢
-      rw [mulVec_add, hz, zero_add])
-    (fun x _ => sub_add_cancel x x₀) (fun z _ => add_sub_cancel_right z x₀)
-    (fun x _ => by rw [sub_add_cancel])
+      ∑ z ∈ univ.filter (fun z : col → R => M *ᵥ z = 0), w (z + x₀) := by
+  refine sum_equiv (Equiv.addRight x₀).symm (fun x => ?_) fun x _ => ?_
+  · simp only [mem_filter, mem_univ, true_and, Equiv.addRight_symm_apply, ← sub_eq_add_neg,
+      mulVec_sub, sub_eq_zero]
+  · simp only [Equiv.addRight_symm_apply, ← sub_eq_add_neg, sub_add_cancel]
 
 /-- Every nonempty full-space fibre `{x : col → R | M *ᵥ x = M *ᵥ x₀}` has the same cardinality as
 the kernel `{z : col → R | M *ᵥ z = 0}`. -/

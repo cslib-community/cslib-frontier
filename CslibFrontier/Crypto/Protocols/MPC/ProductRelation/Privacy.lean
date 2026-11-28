@@ -90,7 +90,7 @@ private noncomputable def basisZeroAt (q m : ℕ) [Fact (Nat.Prime q)] (r : ZMod
   (Lagrange.basis Finset.univ (natNodes q (m + 1)) 0).eval r
 
 private theorem basisZeroAt_ne_zero {q m : ℕ} [Fact (Nat.Prime q)] (hm : m + 1 ≤ q)
-    {r : ZMod q} (hr : ∀ k : Fin (m + 1), r ≠ (k.1 : ZMod q)) : basisZeroAt q m r ≠ 0 :=
+    {r : ZMod q} (hr : ∀ k : Fin (m + 1), r ≠ (k.val : ZMod q)) : basisZeroAt q m r ≠ 0 :=
   Lagrange.eval_basis_ne_zero (injOn_natNodes q (m + 1) hm) (Finset.mem_univ 0)
     (fun j _ _ => hr j)
 
@@ -114,7 +114,7 @@ private theorem eval_interpPoly_decompose {q m : ℕ} [Fact (Nat.Prime q)]
 `(α₂, β₂)` and `γ₂` determined by `(23.9)`. -/
 theorem bind_honestOpening_eq_bind_uniform {q m : ℕ} [Fact (Nat.Prime q)] (hm : 2 * m < q)
     {t₁ t₂ : Fin m → TripleShare (ZMod q)} (hrel : ProductRelations t₁ t₂)
-    (e₁ : DealerExtra q m) {r : ZMod q} (hr : ∀ k : Fin (m + 1), r ≠ (k.1 : ZMod q))
+    (e₁ : DealerExtra q m) {r : ZMod q} (hr : ∀ k : Fin (m + 1), r ≠ (k.val : ZMod q))
     {β : Type} (g : ZMod q × ZMod q × ZMod q → PMF β) :
     (PMF.uniformOfFintype (ZMod q)).bind (fun a02 =>
       (PMF.uniformOfFintype (ZMod q)).bind (fun b02 =>
@@ -179,7 +179,7 @@ noncomputable def experiment0P1 (q m : ℕ) [Fact (Nat.Prime q)] {σ : Type}
   let (t₁, t₂, st) ← A.chooseInputs
   let (d₁, d₂) ← deal t₁ t₂
   let (r, st) ← A.chooseChallenge st d₁
-  if ∀ k : Fin (m + 1), r ≠ (k.1 : ZMod q) then
+  if ∀ k : Fin (m + 1), r ≠ (k.val : ZMod q) then
     let α₂ := d₂.polyA.eval r
     let β₂ := d₂.polyB.eval r
     let γ₂ := d₂.polyC.eval r
@@ -205,7 +205,7 @@ claim. -/
 @[expose]
 noncomputable def sim1Eval (q m : ℕ) [Fact (Nat.Prime q)]
     (d₁ : PartyDeal q m) (r : ZMod q) : ProbComp (Option (ZMod q × ZMod q × ZMod q)) :=
-  if ∀ k : Fin (m + 1), r ≠ (k.1 : ZMod q) then do
+  if ∀ k : Fin (m + 1), r ≠ (k.val : ZMod q) then do
     let α₂ ← ProbComp.uniform (ZMod q)
     let β₂ ← ProbComp.uniform (ZMod q)
     let γ₂ := (d₁.polyA.eval r + α₂) * (d₁.polyB.eval r + β₂) - d₁.polyC.eval r
@@ -256,7 +256,7 @@ theorem eval_experiment0P1_eq_experiment1P1 {q m : ℕ} [Fact (Nat.Prime q)] (hm
   congr 1 with e₁ : 1
   rw [bind_uniform_uniform_bind_comm]
   congr 1 with ⟨r, st'⟩ : 1
-  by_cases hr : ∀ k : Fin (m + 1), r ≠ (k.1 : ZMod q)
+  by_cases hr : ∀ k : Fin (m + 1), r ≠ (k.val : ZMod q)
   · simp_rw [eq_true hr, ite_true]
     simp only [pmf_norm, ProbComp.eval_uniform]
     exact bind_honestOpening_eq_bind_uniform hm (hrel t₁ t₂ st hx) e₁ hr fun (α₂, β₂, γ₂) =>
@@ -325,10 +325,10 @@ noncomputable def experiment0P2 (q m : ℕ) [Fact (Nat.Prime q)] (hm : 2 * m < q
     let (t₁, t₂, st) ← A.chooseInputs
     let (d₁, d₂) ← deal t₁ t₂
     let r ← ProbComp.uniform (Challenge q m)
-    let α₁ := d₁.polyA.eval r.1
-    let β₁ := d₁.polyB.eval r.1
-    let γ₁ := d₁.polyC.eval r.1
-    let ((α₂, β₂, γ₂), st) ← A.sendOpening st d₂ r.1 (α₁, β₁, γ₁)
+    let α₁ := d₁.polyA.eval r.val
+    let β₁ := d₁.polyB.eval r.val
+    let γ₁ := d₁.polyC.eval r.val
+    let ((α₂, β₂, γ₂), st) ← A.sendOpening st d₂ r.val (α₁, β₁, γ₁)
     let acc := decide ((α₁ + α₂) * (β₁ + β₂) = γ₁ + γ₂)
     A.finish st acc
 
@@ -343,8 +343,8 @@ noncomputable def sim2Eval (q m : ℕ) [Fact (Nat.Prime q)] (hm : 2 * m < q)
     let r ← ProbComp.uniform (Challenge q m)
     let α₁ ← ProbComp.uniform (ZMod q)
     let β₁ ← ProbComp.uniform (ZMod q)
-    let γ₁ := (α₁ + d₂.polyA.eval r.1) * (β₁ + d₂.polyB.eval r.1) - d₂.polyC.eval r.1
-    return (r.1, α₁, β₁, γ₁)
+    let γ₁ := (α₁ + d₂.polyA.eval r.val) * (β₁ + d₂.polyB.eval r.val) - d₂.polyC.eval r.val
+    return (r.val, α₁, β₁, γ₁)
 
 /-- Simulated privacy experiment against corrupt `P₂` using `S_D^(2)` (`t₁` is unused by the
 simulator). `noncomputable`, with no running-time claim. -/
@@ -375,9 +375,10 @@ theorem eval_experiment0P2_eq_experiment1P2 {q m : ℕ} [Fact (Nat.Prime q)] (hm
   rw [bind_uniform_uniform_bind_comm]
   congr 1 with r : 1
   simpa only [add_comm] using
-    bind_honestOpening_eq_bind_uniform hm (productRelations_comm.mp (hrel t₁ t₂ st hx)) e₂ r.2
+    bind_honestOpening_eq_bind_uniform hm
+      (productRelations_comm.mp (hrel t₁ t₂ st hx)) e₂ r.property
       fun (α₁, β₁, γ₁) =>
-        (ProbComp.eval (A.sendOpening st (e₂.toDeal t₂) r.1 (α₁, β₁, γ₁))).bind
+        (ProbComp.eval (A.sendOpening st (e₂.toDeal t₂) r.val (α₁, β₁, γ₁))).bind
           fun ((α₂, β₂, γ₂), st') =>
             ProbComp.eval (A.finish st' (decide ((α₁ + α₂) * (β₁ + β₂) = γ₁ + γ₂)))
 

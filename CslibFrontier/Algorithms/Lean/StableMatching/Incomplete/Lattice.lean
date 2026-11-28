@@ -256,29 +256,31 @@ namespace Stable
 /-- The proposers' ranks of their outcomes, in the order dual to `ℕ` (so that a better partner is
 larger). Pulls back a `DistribLattice` structure injectively via individual rationality. -/
 @[expose] def propRanks (μ : I.Stable) : Fin m → ℕᵒᵈ :=
-  fun p => OrderDual.toDual (I.propRank p (μ.1 p))
+  fun p => OrderDual.toDual (I.propRank p (μ.val p))
 
 theorem propRanks_injective : Function.Injective (propRanks (I := I)) := by
   intro μ ν h
   refine Subtype.ext (PEquiv.ext fun p => ?_)
-  exact I.eq_of_propRank_eq_of_isIndividuallyRational μ.2.1 ν.2.1
+  exact I.eq_of_propRank_eq_of_isIndividuallyRational μ.property.1 ν.property.1
     (OrderDual.toDual.injective (congrFun h p))
 
 instance : LE I.Stable := ⟨fun μ ν => μ.propRanks ≤ ν.propRanks⟩
 
 instance : LT I.Stable := ⟨fun μ ν => μ.propRanks < ν.propRanks⟩
 
-instance : Max I.Stable := ⟨fun μ ν => ⟨I.propJoin μ.2 ν.2, isStable_propJoin μ.2 ν.2⟩⟩
+instance : Max I.Stable :=
+  ⟨fun μ ν => ⟨I.propJoin μ.property ν.property, isStable_propJoin μ.property ν.property⟩⟩
 
-instance : Min I.Stable := ⟨fun μ ν => ⟨I.propMeet μ.2 ν.2, isStable_propMeet μ.2 ν.2⟩⟩
+instance : Min I.Stable :=
+  ⟨fun μ ν => ⟨I.propMeet μ.property ν.property, isStable_propMeet μ.property ν.property⟩⟩
 
-@[simp] theorem coe_sup (μ ν : I.Stable) : (μ ⊔ ν).1 = I.propJoin μ.2 ν.2 := rfl
+@[simp] theorem coe_sup (μ ν : I.Stable) : (μ ⊔ ν).val = I.propJoin μ.property ν.property := rfl
 
-@[simp] theorem coe_inf (μ ν : I.Stable) : (μ ⊓ ν).1 = I.propMeet μ.2 ν.2 := rfl
+@[simp] theorem coe_inf (μ ν : I.Stable) : (μ ⊓ ν).val = I.propMeet μ.property ν.property := rfl
 
 /-- `μ ≤ ν` exactly when every proposer weakly prefers its outcome in `ν`. -/
 theorem le_iff {μ ν : I.Stable} :
-    μ ≤ ν ↔ ∀ p, I.propRank p (ν.1 p) ≤ I.propRank p (μ.1 p) :=
+    μ ≤ ν ↔ ∀ p, I.propRank p (ν.val p) ≤ I.propRank p (μ.val p) :=
   Pi.le_def
 
 /-- **Conway–Knuth theorem for incomplete lists**: the set of stable partial matchings of
@@ -294,15 +296,15 @@ instance : DistribLattice I.Stable :=
 
 instance : BoundedOrder I.Stable where
   top := ⟨I.deferredAcceptance, I.isStable_deferredAcceptance⟩
-  le_top μ := le_iff.2 fun p => I.propRank_deferredAcceptance_le_of_isStable μ.2 p
+  le_top μ := le_iff.2 fun p => I.propRank_deferredAcceptance_le_of_isStable μ.property p
   bot := ⟨I.receiverDeferredAcceptance, I.isStable_receiverDeferredAcceptance⟩
-  bot_le μ := le_iff.2 fun p => I.isProposerPessimal_receiverDeferredAcceptance.2 μ.1 μ.2 p
+  bot_le μ := le_iff.2 fun p => I.isProposerPessimal_receiverDeferredAcceptance.2 μ.val μ.property p
 
 /-- The top stable matching is proposer-proposing deferred acceptance. -/
-@[simp] theorem coe_top : (⊤ : I.Stable).1 = I.deferredAcceptance := rfl
+@[simp] theorem coe_top : (⊤ : I.Stable).val = I.deferredAcceptance := rfl
 
 /-- The bottom stable matching is receiver-proposing deferred acceptance. -/
-@[simp] theorem coe_bot : (⊥ : I.Stable).1 = I.receiverDeferredAcceptance := rfl
+@[simp] theorem coe_bot : (⊥ : I.Stable).val = I.receiverDeferredAcceptance := rfl
 
 end Stable
 

@@ -207,7 +207,7 @@ theorem exists_nine_div_sq_mul_one_ninth_rpow_le_influence (f : (ι → Bool) �
           refine sum_le_sum fun S _ => ?_
           split_ifs with h
           · exact le_mul_of_one_le_left (by positivity)
-              (Nat.one_le_cast.2 (card_pos.2 (nonempty_iff_ne_empty.2 h)))
+              (Nat.one_le_cast.2 (card_pos.2 (ne_empty_iff_nonempty.1 h)))
           · positivity
       _ = ∑ j, ∑ S with j ∈ S, (1 / 3 : ℝ) ^ #S * fourierCoeff F S ^ 2 :=
           (sum_sum_filter_mem _).symm
@@ -338,7 +338,7 @@ theorem exists_exp_neg_le_fourierCoeff_singleton_sq_of_monotone {f : (ι → Boo
   obtain ⟨i, hi⟩ := exists_nine_div_sq_mul_one_ninth_rpow_le_influence f hV
   refine ⟨i, ?_⟩
   have h : exp (-(10 * I / V)) = exp (-(5 * (I / V))) ^ 2 := by
-    rw [← exp_nat_mul]
+    rw [← exp_natCast_mul]
     congr 1
     push_cast
     ring
@@ -354,7 +354,7 @@ private theorem sum_sum_filter_mem_fourierCoeff_sq_div_card (f : (ι → Bool) �
   rw [expect_sub_expect_sq_eq_sum_fourierCoeff_sq, sum_sum_filter_mem, sum_filter]
   refine sum_congr rfl fun S _ => ?_
   split_ifs with hS
-  · rw [mul_div_cancel₀ _ (Nat.cast_ne_zero.2 (card_ne_zero.2 (nonempty_iff_ne_empty.2 hS)))]
+  · rw [mul_div_cancel₀ _ (Nat.cast_ne_zero.2 (card_ne_zero.2 (ne_empty_iff_nonempty.1 hS)))]
   · simp [not_not.1 hS]
 
 /-- The weight `∑_{S ∋ i} f̂(S) ^ 2 / |S|` is at most the influence of `i`. -/

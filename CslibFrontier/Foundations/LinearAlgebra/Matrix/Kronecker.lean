@@ -82,8 +82,10 @@ end MulVec
 variable {K : Type*} [Field K] {l m n p : Type*}
 
 /-- **The rank of a Kronecker product** is at most the product of the ranks. -/
-theorem rank_kronecker_le [Fintype m] [Fintype p] (A : Matrix l m K) (B : Matrix n p K) :
+theorem rank_kronecker_le [Finite m] [Finite p] (A : Matrix l m K) (B : Matrix n p K) :
     (A ⊗ₖ B).rank ≤ A.rank * B.rank := by
+  have := Fintype.ofFinite m
+  have := Fintype.ofFinite p
   obtain ⟨C, D, hA⟩ := A.exists_eq_mul_rank
   obtain ⟨E, F, hB⟩ := B.exists_eq_mul_rank
   calc (A ⊗ₖ B).rank = (C ⊗ₖ E * D ⊗ₖ F).rank := by rw [← mul_kronecker_mul, ← hA, ← hB]

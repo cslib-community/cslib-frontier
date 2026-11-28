@@ -214,7 +214,7 @@ private theorem verifier_ofFn_append {N c m T : Polynomial ℕ} {ℓ : α → �
   rw [List.drop_left' List.length_ofFn, hdrop', List.take_left' List.length_ofFn,
     List.take_left' List.length_ofFn, BitString.LinearHash.hashZero_ofFn, and_assoc]
   refine and_congr ⟨fun h i => ?_, fun h i hi => ?_⟩ Iff.rfl
-  · simpa only [BitString.listRow_eq_ofFn (count := 5) _ i, BitString.ofList_ofFn] using h i i.2
+  · simpa only [BitString.listRow_eq_ofFn (count := 5) _ i, BitString.ofList_ofFn] using h i i.isLt
   · simpa only [BitString.listRow_eq_ofFn (count := 5) _ ⟨i, hi⟩, BitString.ofList_ofFn] using
       h ⟨i, hi⟩
 
@@ -441,9 +441,9 @@ theorem exists_perfectlyComplete_verifier_of_card_certifiedSet {N c : Polynomial
   -- the inputs outside the middle band, where membership is `K a ≤ #(S a)`
   let β := {a : α // K a ≤ #(certifiedSet enc N c R a) ∨ 2 * #(certifiedSet enc N c R a) ≤ K a}
   let encβ : β ↪ List Bool := (Function.Embedding.subtype _).trans enc
-  have hβ : IsArthurMerlinVerifier encβ p q (fun x => V (x.1.1, x.2))
-      {b : β | K b.1 ≤ #(certifiedSet enc N c R b.1)} := fun b =>
-    ⟨(h b.1).1, fun hb => (h b.1).2 (b.2.resolve_left hb)⟩
+  have hβ : IsArthurMerlinVerifier encβ p q (fun x => V (x.1.val, x.2))
+      {b : β | K b.val ≤ #(certifiedSet enc N c R b.val)} := fun b =>
+    ⟨(h b.val).1, fun hb => (h b.val).2 (b.property.resolve_left hb)⟩
   have hOne := ArthurMerlin.isArthurMerlinOneVerifier_piTwoVerifier (hβ.repeatMajority _)
     (ArthurMerlin.eval_lt_mul p) fun _ => Nat.lt_two_pow_self
   refine ⟨2 * 1 * ((12 * p + 1) * (12 * (12 * p + 1) * p)),

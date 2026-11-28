@@ -534,7 +534,9 @@ private theorem eventually_sturmReducedVariations_of_eval_eq_zero {p : ℝ[X]} (
     have hvar : (tail.map (eval y)).signVariations = (tail.map (eval x)).signVariations :=
       signVariations_eval_eq_of_isSturmChainAt htail_chain (fun f hf => by
         rw [htail_def, head?_sturmSeq hB0] at hf; cases hf; exact hdne) hy
-    rw [hvar, sturmReducedVariations, show p / EuclideanDomain.gcd p (derivative p) = A from rfl,
+    rw [hvar]
+    dsimp only [sturmReducedVariations]
+    rw [show p / EuclideanDomain.gcd p (derivative p) = A from rfl,
       show derivative p / EuclideanDomain.gcd p (derivative p) = B from rfl,
       hseq_eq, List.map_cons, hAx, List.signVariations_zero_cons]
   obtain ⟨rest, hrest⟩ : ∃ rest, tail = B :: rest := by
@@ -550,7 +552,9 @@ private theorem eventually_sturmReducedVariations_of_eval_eq_zero {p : ℝ[X]} (
     have hBy_ne : B.eval y ≠ 0 := sign_ne_zero.mp (hB_y ▸ sign_ne_zero.mpr hdne)
     have htail_y' : (B.eval y :: rest.map (eval y)).signVariations =
         sturmReducedVariations p x := by simpa only [hrest, List.map_cons] using htail_y
-    rw [sturmReducedVariations, show p / EuclideanDomain.gcd p (derivative p) = A from rfl,
+    rw [sturmReducedVariations]
+    dsimp only
+    rw [show p / EuclideanDomain.gcd p (derivative p) = A from rfl,
       show derivative p / EuclideanDomain.gcd p (derivative p) = B from rfl,
       hseq_eq, hrest, List.map_cons, List.map_cons,
       List.signVariations_cons_cons_of_ne_zero _ hAy_ne hBy_ne, htail_y', add_comm]

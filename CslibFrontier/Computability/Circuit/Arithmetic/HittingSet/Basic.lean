@@ -188,7 +188,7 @@ theorem isHittingSet_sum_pow (s d : ℕ) :
       simp only [hb, Derivation.leibniz_pow, hpd]
       refine V.smul_of_tower_mem _ ?_
       rw [smul_eq_mul, mul_comm, ← MvPolynomial.smul_eq_C_mul]
-      exact V.smul_mem _ (hmem k _ (by have := e.2; omega))
+      exact V.smul_mem _ (hmem k _ (by have := e.isLt; omega))
     · simp
     · intro x y _ _ hx hy; rw [map_add]; exact V.add_mem hx hy
     · intro r x _ hx; rw [Derivation.map_smul]; exact V.smul_mem _ hx

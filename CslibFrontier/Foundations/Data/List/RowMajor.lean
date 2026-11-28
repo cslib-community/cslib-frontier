@@ -100,7 +100,7 @@ theorem mul_add_lt_sq {n a b : ℕ} (ha : a < n) (hb : b < n) : a * n + b < n * 
 
 /-- Row-major flat-index injectivity for `Fin M × Fin N`. -/
 theorem fin_mul_add_inj {M N : ℕ} {x₁ x₂ : Fin M} {y₁ y₂ : Fin N}
-    (h : x₁.1 * N + y₁.1 = x₂.1 * N + y₂.1) : x₁ = x₂ ∧ y₁ = y₂ :=
+    (h : x₁.val * N + y₁.val = x₂.val * N + y₂.val) : x₁ = x₂ ∧ y₁ = y₂ :=
   Prod.mk.inj <| finProdFinEquiv.injective <| Fin.ext <| by
     simpa [finProdFinEquiv, Nat.mul_comm, Nat.add_comm] using h
 

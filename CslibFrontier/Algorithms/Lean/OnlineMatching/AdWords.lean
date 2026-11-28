@@ -385,15 +385,13 @@ theorem argmaxOver_eq_some_iff {ι : Type*} [LinearOrder ι] {S : Finset ι} {sc
   refine ⟨fun h => ⟨argmaxOver_mem h, fun _ hk => le_of_argmaxOver_eq_some h hk,
     fun k hk hkj => ?_⟩, fun ⟨hj, hmax, htie⟩ => ?_⟩
   · by_contra hnot
-    have hidx := List.index_of_argmax (by simpa [argmaxOver, l] using h)
-      ((Finset.mem_sort (· ≤ ·)).mpr hk) (le_of_not_gt hnot)
+    have hidx := List.index_of_argmax (by simpa [argmaxOver, l] using h) (le_of_not_gt hnot)
     exact hidx.lt_or_eq.elim (fun hlt => (hlt_of_idx (argmaxOver_mem h) hk hlt).not_gt hkj)
       fun heq => hkj.ne' (heq_of_idx (argmaxOver_mem h) hk heq)
   · obtain ⟨m, hm⟩ := Option.ne_none_iff_exists'.mp
       (mt (argmaxOver_eq_none_iff S score).mp (Finset.Nonempty.ne_empty ⟨j, hj⟩))
     have hmS := argmaxOver_mem hm
-    have hidx := List.index_of_argmax (by simpa [argmaxOver, l] using hm)
-      ((Finset.mem_sort (· ≤ ·)).mpr hj) (hmax m hmS)
+    have hidx := List.index_of_argmax (by simpa [argmaxOver, l] using hm) (hmax m hmS)
     exact hidx.lt_or_eq.elim
       (fun hlt => absurd (htie m hmS (hlt_of_idx hmS hj hlt)) (not_lt_of_ge
         (le_of_argmaxOver_eq_some hm hj)))
@@ -1726,12 +1724,9 @@ theorem discretePhi_tradeoff {k : ℕ} (hk : 0 < k) {s w : Fin (k + 1) → ℝ}
     refine Finset.sum_congr rfl fun j _ => ?_
     rw [← Finset.sum_filter, ← Finset.sum_mul]
     congr 1
-    exact Finset.sum_bij (fun i _ => i.val)
-      (fun i hi => Finset.mem_range.mpr (Nat.lt_succ_of_le (mem_filter.mp hi).2))
-      (fun _ _ _ _ => Fin.ext)
-      (fun n hn => ⟨⟨n, lt_of_le_of_lt (Nat.lt_succ_iff.mp (Finset.mem_range.mp hn)) j.isLt⟩,
-        mem_filter.mpr ⟨mem_univ _, Nat.lt_succ_iff.mp (Finset.mem_range.mp hn)⟩, rfl⟩)
-      (fun _ _ => rfl)
+    rw [Nat.range_succ_eq_Iic, ← Fin.map_valEmbedding_Iic, Finset.sum_map,
+      ← Finset.filter_ge_eq_Iic]
+    rfl
   have hcalc : (1 / (k : ℝ)) * ∑ j : Fin (k + 1),
         (∑ i ∈ Finset.range (j.val + 1), discretePhi k i) * s j =
       ∑ j : Fin (k + 1), ((j.val : ℝ) / k + discretePhi k j.val -
@@ -1789,12 +1784,13 @@ theorem discretePhi_tradeoff_zero {k : ℕ} (hk : 0 < k) {s w : Fin (k + 1) → 
     refine Finset.sum_congr rfl fun j _ => ?_
     rw [← Finset.sum_filter, Finset.filter_filter, ← Finset.sum_mul]
     congr 1
-    exact Finset.sum_bij (fun i _ => i.val)
-      (fun _ hi => Finset.mem_Icc.mpr ⟨(mem_filter.mp hi).2.1, (mem_filter.mp hi).2.2⟩)
-      (fun _ _ _ _ => Fin.ext)
-      (fun n hn => ⟨⟨n, lt_of_le_of_lt (Finset.mem_Icc.mp hn).2 j.isLt⟩,
-        mem_filter.mpr ⟨mem_univ _, (Finset.mem_Icc.mp hn).1, (Finset.mem_Icc.mp hn).2⟩, rfl⟩)
-      (fun _ _ => rfl)
+    let one : Fin (k + 1) := ⟨1, by omega⟩
+    change _ = ∑ i ∈ Finset.Icc one.val j.val, discretePhi k i
+    rw [← Fin.map_valEmbedding_Icc, Finset.sum_map]
+    refine Finset.sum_congr ?_ fun _ _ => rfl
+    ext i
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_Icc, Fin.le_def, one]
+    omega
   have hcalc : (1 / (k : ℝ)) * ∑ j : Fin (k + 1),
         (∑ i ∈ Finset.Icc 1 j.val, discretePhi k i) * s j =
       ∑ j : Fin (k + 1),

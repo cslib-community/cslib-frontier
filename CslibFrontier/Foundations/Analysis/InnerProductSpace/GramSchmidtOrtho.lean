@@ -197,7 +197,7 @@ theorem exists_norm_gramSchmidt_le_of_mem_span_int [Finite ι] {f : ι → E} {x
   have := Fintype.ofFinite ι
   obtain ⟨c, rfl⟩ := (mem_span_range_iff_exists_fun ℤ).1 hx
   have hne : (Finset.univ.filter fun j => c j ≠ 0).Nonempty :=
-    Finset.nonempty_iff_ne_empty.2 fun h => hx0 <| Finset.sum_eq_zero fun j _ => by
+    Finset.ne_empty_iff_nonempty.1 fun h => hx0 <| Finset.sum_eq_zero fun j _ => by
       simp [not_not.1 (Finset.filter_eq_empty_iff.1 h (Finset.mem_univ j))]
   exact ⟨_, norm_gramSchmidt_le_norm_sum_zsmul f c
     (Finset.mem_filter.1 (Finset.max'_mem _ hne)).2 fun j hij => by_contra fun hcj =>

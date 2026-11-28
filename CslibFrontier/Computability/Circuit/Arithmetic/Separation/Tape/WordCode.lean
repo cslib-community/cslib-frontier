@@ -62,7 +62,7 @@ structure IsWordCode (x : Fin N × Option Γ → Bool) : Prop where
 theorem isWordCode_iff (x : Fin N × Option Γ → Bool) : IsWordCode x ↔
     (∀ p y y', x (p, y) = true → x (p, y') = true → y = y') ∧
       ∀ p, (∃ y, x (p, y) = true) ∨ ∃ p' < p, x (p', none) = true :=
-  ⟨fun h => ⟨h.1, h.2⟩, fun h => ⟨h.1, h.2⟩⟩
+  ⟨fun h => ⟨h.unique, h.exists_of_le⟩, fun h => ⟨h.1, h.2⟩⟩
 
 instance [Fintype Γ] [DecidableEq Γ] : DecidablePred (IsWordCode (Γ := Γ) (N := N)) :=
   fun x => decidable_of_iff _ (isWordCode_iff x).symm
@@ -70,11 +70,11 @@ instance [Fintype Γ] [DecidableEq Γ] : DecidablePred (IsWordCode (Γ := Γ) (N
 variable [DecidableEq Γ]
 
 private theorem wordCode_eq {u : List Γ} {p : Fin N} {y : Option Γ}
-    (h : wordCode N u (p, y) = true) : (u.map some ++ [none])[p.1]? = some y := by
+    (h : wordCode N u (p, y) = true) : (u.map some ++ [none])[p.val]? = some y := by
   simpa [wordCode] using h
 
 private theorem le_length_of_wordCode {u : List Γ} {p : Fin N} {y : Option Γ}
-    (h : wordCode N u (p, y) = true) : p.1 ≤ u.length := by
+    (h : wordCode N u (p, y) = true) : p.val ≤ u.length := by
   have := (List.getElem?_eq_some_iff.1 (wordCode_eq h)).1
   simp only [List.length_append, List.length_map, List.length_singleton] at this
   omega
@@ -85,10 +85,10 @@ private theorem wordCode_unique {u : List Γ} {p : Fin N} {y y' : Option Γ}
 
 theorem isWordCode_wordCode (u : List Γ) : IsWordCode (wordCode N u) := by
   refine ⟨fun _ _ _ => wordCode_unique, fun p => ?_⟩
-  by_cases hp : p.1 ≤ u.length
-  · have hlt : p.1 < (u.map some ++ [none]).length := by simp; omega
-    exact Or.inl ⟨(u.map some ++ [none])[p.1], by simp [wordCode, List.getElem?_eq_getElem hlt]⟩
-  · exact Or.inr ⟨⟨u.length, by omega⟩, show u.length < p.1 by omega, by simp [wordCode]⟩
+  by_cases hp : p.val ≤ u.length
+  · have hlt : p.val < (u.map some ++ [none]).length := by simp; omega
+    exact Or.inl ⟨(u.map some ++ [none])[p.val], by simp [wordCode, List.getElem?_eq_getElem hlt]⟩
+  · exact Or.inr ⟨⟨u.length, by omega⟩, show u.length < p.val by omega, by simp [wordCode]⟩
 
 /-- Below the code of a word only this code is a code. -/
 theorem eq_wordCode {x : Fin N × Option Γ → Bool} (hx : IsWordCode x) {u : List Γ}
@@ -125,16 +125,16 @@ theorem card_ones_wordCode (u : List Γ) (hu : u.length + 1 ≤ N) :
   symm
   simpa using card_bij (s := univ (α := Fin (u.length + 1)))
     (t := {b : Fin N × Option Γ | wordCode N u b = true})
-    (fun k _ => (⟨k.1, by omega⟩, (u.map some ++ [none])[k.1]'(by simp)))
+    (fun k _ => (⟨k.val, by omega⟩, (u.map some ++ [none])[k.val]'(by simp)))
     (fun k _ => by simp [wordCode])
-    (fun k _ k' _ e => Fin.ext (congrArg (fun b => b.1.1) e))
+    (fun k _ k' _ e => Fin.ext (congrArg (fun b => b.1.val) e))
     fun ⟨p, y⟩ h => by
       simp only [mem_filter, mem_univ, true_and] at h
       have h2 := le_length_of_wordCode h
-      have hlt : p.1 < (u.map some ++ [none]).length := by simp; omega
+      have hlt : p.val < (u.map some ++ [none]).length := by simp; omega
       have h1 := wordCode_eq h
       rw [List.getElem?_eq_getElem hlt] at h1
-      exact ⟨⟨p.1, by omega⟩, mem_univ _, by simp [Option.some.inj h1]⟩
+      exact ⟨⟨p.val, by omega⟩, mem_univ _, by simp [Option.some.inj h1]⟩
 
 end Code
 

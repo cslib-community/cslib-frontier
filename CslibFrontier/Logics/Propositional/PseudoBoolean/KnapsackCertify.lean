@@ -168,14 +168,6 @@ end
 
 /-! ### The constraint numbered `2` and the last layer -/
 
-private theorem vars_fromLinear {L : List (ℕ × ℤ)} {D : ℤ} {x : ℕ}
-    (h : x ∈ (fromLinear L D).vars) : x ∈ L.map Prod.fst := by
-  simp only [PBConstr.vars, fromLinear, List.mem_map, List.mem_filterMap] at h
-  obtain ⟨t, ⟨e, he, ht⟩, rfl⟩ := h
-  refine List.mem_map.2 ⟨e, he, ?_⟩
-  unfold entryTerm at ht
-  split_ifs at ht <;> cases ht <;> rfl
-
 section
 
 variable (w p : Fin n → ℕ) (B : ℕ)
@@ -192,7 +184,7 @@ private theorem impr_eq : impr w p B =
   · ring
 
 private theorem vars_impr {x : ℕ} (h : x ∈ (impr w p B).normalize.vars) : x < n := by
-  have := vars_fromLinear (impr_eq w p B ▸ mem_vars_of_mem_vars_normalize h)
+  have := mem_vars_fromLinear (impr_eq w p B ▸ mem_vars_of_mem_vars_normalize h)
   simp only [List.map_map, List.mem_map, List.mem_finRange, true_and] at this
   obtain ⟨i, rfl⟩ := this
   exact i.isLt

@@ -68,6 +68,7 @@ import CslibFrontierResults.Entries.InternalRegret
 import CslibFrontierResults.Entries.NCLBandwidth
 import CslibFrontierResults.Entries.LocalConnection
 import CslibFrontierResults.Entries.SpreadFamilies
+import CslibFrontierResults.Entries.OptimalProofSystems
 import CslibFrontierResults.Entries.SturmReduced
 import CslibFrontierResults.Entries.DominanceSymmetric
 import CslibFrontierResults.Entries.PredictionMarketNoTradeMatching
@@ -104,6 +105,7 @@ import CslibFrontierResults.Entries.CBCMAC
 import CslibFrontierResults.Entries.BiddingLanguage
 import CslibFrontierResults.Entries.LogspaceUniformNC
 import CslibFrontierResults.Entries.ODonnellHammingBall
+import CslibFrontierResults.Entries.AlmostSynchronous
 import CslibFrontierResults.Entries.StringTableConversions
 import CslibFrontierResults.Entries.ExternalRegret
 import CslibFrontierResults.Entries.UtilityGame

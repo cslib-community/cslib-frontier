@@ -109,7 +109,7 @@ intervals and the schedule of `σ`, with its `numBlocks t * (3 * k + 2)` row ver
 
 /-- An interval of a clock `t` has at most `2 (t + 2)` choice strings. -/
 theorem two_pow_blockLength_le (t : ℕ) : 2 ^ blockLength t ≤ 2 * (t + 2) := by
-  have h := Nat.pow_pred_clog_lt_self one_lt_two (by omega : 1 < t + 2)
+  have h := Nat.pow_pred_clog_lt_self 2 (by omega : 1 < t + 2)
   have hpos := Nat.clog_pos one_lt_two (by omega : 1 < t + 2)
   unfold blockLength
   rw [← Nat.succ_pred_eq_of_pos hpos, pow_succ]

@@ -139,6 +139,7 @@ theorem dartReindex_involutive (c : RotationCertificate) :
     Function.Involutive (dartReindex c) := by
   intro a
   rw [dartReindex, dartReindex_row, dartReindex_port, dartReindex_side]
+  dsimp only
   have hp : a / 2 % 3 < 3 := Nat.mod_lt _ (by decide)
   have hs : a % 2 < 2 := Nat.mod_lt _ (by decide)
   split_ifs <;> omega

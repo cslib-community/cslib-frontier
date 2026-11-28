@@ -200,7 +200,7 @@ theorem card_isStrongLiar_le_card {n : ℕ} [NeZero n] (h1 : 1 < n) {H : Subgrou
     (Finset.univ.filter (IsStrongLiar n)).card ≤ Nat.card H := by
   classical
   let f : {a // IsStrongLiar n a} → H := fun a =>
-    ⟨(a.2.isUnit h1).unit, hsub _ (by simpa using a.2)⟩
+    ⟨(a.property.isUnit h1).unit, hsub _ (by simpa using a.property)⟩
   have hf : Function.Injective f := fun a b h => Subtype.ext (by
     simpa [f] using congrArg (fun x : H => ((x : (ZMod n)ˣ) : ZMod n)) h)
   have hle := Nat.card_le_card_of_injective f hf

@@ -89,7 +89,7 @@ private theorem kills_of_eq_add (hp : CoeffPattern n d a) (hkd : k < d) {τ : Fi
     push_cast
     ring
   rw [this]
-  exact coeffPattern_neg_eq_zero hp (by omega) (by have := m.2; omega)
+  exact coeffPattern_neg_eq_zero hp (by omega) (by have := m.isLt; omega)
 
 /-- The choice `(b, n - d + 1, …, n - d + k - 1)` [BenSassonKopparty2012, Claim 6.2, first
 case]. -/
@@ -110,7 +110,7 @@ private theorem exists_tau_one (hp : CoeffPattern n d a) (hk : 2 ≤ k) (hkd : k
     have hl : (l : ℕ) ≠ 0 := by omega
     simp only [hl, ↓reduceIte]
     rw [← Nat.cast_sub (by omega), show n - d + l - m = n - d + (l - m) by omega]
-    exact hp.canonical _ (by omega) (by have := l.2; omega)
+    exact hp.canonical _ (by omega) (by have := l.isLt; omega)
   · refine kills_of_eq_add hp hkd ⟨0, by omega⟩ hc1 hc ?_
     simp
   · refine kills_of_eq_add hp hkd ⟨min (k - 1) (ρ - (n - d) - 1), by omega⟩
@@ -179,7 +179,7 @@ private theorem exists_tau_window (hp : CoeffPattern n d a) (hk : 2 ≤ k) (hkd 
       exact hgap _ (by omega) (by omega)
     · simp only [hl0, hls, ↓reduceIte]
       rw [← Nat.cast_sub (by omega), show n - d + l - m = n - d + (l - m) by omega]
-      exact hp.canonical _ (by omega) (by have := l.2; omega)
+      exact hp.canonical _ (by omega) (by have := l.isLt; omega)
   · by_cases hρs : ρ ≤ jh + s + (d - k)
     · -- a row placed in the gap
       refine kills_of_eq_add hp hkd ⟨min s (ρ - jh - 1), by omega⟩
@@ -214,7 +214,7 @@ private theorem exists_tau {ι : Type*} [Fintype ι] (a : ι → ZMod n → F) (
   have hℓT : ℓ T = ∑ i, δ i := by
     simp only [ℓ]
     rw [← Fin.sum_univ_eq_sum_range δ' T]
-    have : ∀ q : Fin T, δ' q = if e q ≠ i₁ then δ (e q) else 0 := fun q => by simp [δ', q.2]
+    have : ∀ q : Fin T, δ' q = if e q ≠ i₁ then δ (e q) else 0 := fun q => by simp [δ', q.isLt]
     simp_rw [this]
     rw [Equiv.sum_comp e (fun i => if i ≠ i₁ then δ i else 0), ← Finset.sum_filter,
       Finset.filter_ne', Finset.add_sum_erase _ _ (Finset.mem_univ i₁)]

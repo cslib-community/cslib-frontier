@@ -267,7 +267,7 @@ theorem le_weight_of_exp_mul_le (d : ℕ) {p : ℝ} (hp : Real.exp 1 * p * (d + 
           rw [add_comm]
           exact Real.add_one_le_exp _
       _ = Real.exp 1 := by
-          rw [← Real.exp_nat_mul]
+          rw [← Real.exp_natCast_mul]
           congr 1
           push_cast
           field_simp

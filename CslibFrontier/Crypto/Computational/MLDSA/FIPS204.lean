@@ -1015,7 +1015,8 @@ theorem sigDecode_encodeSignature (s : Level) (σ : Signature s)
     rw [unpack_packCoeffs _ fun i j => (Int.toNat_lt (bounds i j).1).mpr (bounds i j).2,
       hcast, sub_sub_cancel]
   dsimp only [w, signatureBytes] at len tail coeff
-  rw [sigDecode, len, tail, unpackHint_encodeHint σ.h hh, encodeSignature]
+  dsimp only [sigDecode]
+  rw [len, tail, unpackHint_encodeHint σ.h hh, encodeSignature]
   simp only [BEq.rfl, guard, ↓reduceIte, Option.pure_def, Option.bind_eq_bind, Option.bind_some,
     List.append_assoc, List.take_left' hd, List.drop_left' hd, Vector.getElem_ofFn,
     Option.some.injEq]

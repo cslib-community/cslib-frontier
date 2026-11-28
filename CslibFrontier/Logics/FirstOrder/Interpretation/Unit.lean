@@ -65,7 +65,7 @@ interpreted structure is isomorphic to `M` with the relations defined by the int
 def unitModelEquiv (hdom : ∀ x : M, I.domain.Realize fun _ => x) :
     @Language.Equiv L' (I.Model M) M _ (I.unitStructure M) :=
   letI := I.unitStructure M
-  { toFun x := x.1 ()
+  { toFun x := x.val ()
     invFun x := ⟨fun _ => x, hdom x⟩
     left_inv _ := Model.ext rfl
     right_inv _ := rfl
@@ -75,7 +75,7 @@ def unitModelEquiv (hdom : ∀ x : M, I.domain.Realize fun _ => x) :
 /-- `I.unitModelEquiv M hdom` maps a 1-dimensional interpreted element `x` to `x.1 ()`. -/
 @[simp]
 theorem unitModelEquiv_apply (hdom : ∀ x : M, I.domain.Realize fun _ => x) (x : I.Model M) :
-    I.unitModelEquiv M hdom x = x.1 () :=
+    I.unitModelEquiv M hdom x = x.val () :=
   rfl
 
 end Cslib.Logic.FO.Interpretation

@@ -206,7 +206,7 @@ theorem buildOutEntries_spec {w : ℕ} {args : BuildOutArgs} {outScope : List �
     let entryFn : ℕ → ℕ := fun idx =>
       ∑ a : Fin args.dom,
         (bucket.map fun f => f.evalAt args.dom fun v =>
-          if v = args.x then a.1
+          if v = args.x then a.val
           else assignScope outScope (lsbDecode args.dom outScope.length idx) v).prod
     have hloop : ∀ (rem curIdx : ℕ) (t : Memory.State),
         curIdx + rem = numEntries →

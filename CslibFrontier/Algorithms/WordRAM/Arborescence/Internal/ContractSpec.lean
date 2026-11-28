@@ -38,22 +38,23 @@ private theorem contractCostCellProg_eval {w n ws k B_k : ℕ} (r x0 u col : Fin
     (hk : k < n) (hws : WsFits w ws n) (hf : ws + wsSize n ≤ s.frontier)
     (hfit_diff : Fits w (4 * B_k + 2))
     (ha : ∀ x y : Fin n,
-      s.mem (curAdjBase ws n + x.1 * n + y.1) = if a[x.1][y.1] then 1 else 0)
-    (hc : ∀ x y : Fin n, s.mem (curCostBase ws n + x.1 * n + y.1) = Signed.encode c[x.1][y.1])
-    (hm : ∀ y : Fin n, s.mem (frameMaskBase ws n k + y.1) = if inCycle[y.1] then 1 else 0)
-    (hfp : ∀ x : Fin n, s.mem (frameParentBase ws n k + x.1) = (f[x.1]).1)
-    (hbe : ∀ x : Fin n, s.mem (frameBEntryBase ws n k + x.1) = optFinIdx bEntry[x.1])
-    (hbx : ∀ y : Fin n, s.mem (frameBExitBase ws n k + y.1) = optFinIdx bExit[y.1])
-    (hB : ∀ x y : Fin n, (c[x.1][y.1]).natAbs ≤ B_k) :
-    let q : ContractRowArgs × ℕ := (⟨n, r.1, x0.1, u.1, ws, k⟩, col.1)
+      s.mem (curAdjBase ws n + x.val * n + y.val) = if a[x.val][y.val] then 1 else 0)
+    (hc : ∀ x y : Fin n,
+      s.mem (curCostBase ws n + x.val * n + y.val) = Signed.encode c[x.val][y.val])
+    (hm : ∀ y : Fin n, s.mem (frameMaskBase ws n k + y.val) = if inCycle[y.val] then 1 else 0)
+    (hfp : ∀ x : Fin n, s.mem (frameParentBase ws n k + x.val) = (f[x.val]).val)
+    (hbe : ∀ x : Fin n, s.mem (frameBEntryBase ws n k + x.val) = optFinIdx bEntry[x.val])
+    (hbx : ∀ y : Fin n, s.mem (frameBExitBase ws n k + y.val) = optFinIdx bExit[y.val])
+    (hB : ∀ x y : Fin n, (c[x.val][y.val]).natAbs ≤ B_k) :
+    let q : ContractRowArgs × ℕ := (⟨n, r.val, x0.val, u.val, ws, k⟩, col.val)
     let c' := contractReducedCostTable a c f inCycle bEntry bExit x0
     ContractRowStepSafe w q s ∧
       (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (contractCostCellProg q)) ∧
       memoryCost (contractCostCellProg q) s ≤ 10 ∧
       (Memory.spec 0).clientState s (contractCostCellProg q) =
-        ⟨Function.update s.mem (nextCostBase ws n + u.1 * n + col.1)
-          (Signed.encode c'[u.1][col.1]), s.frontier⟩ := by
-  let q : ContractRowArgs × ℕ := (⟨n, r.1, x0.1, u.1, ws, k⟩, col.1)
+        ⟨Function.update s.mem (nextCostBase ws n + u.val * n + col.val)
+          (Signed.encode c'[u.val][col.val]), s.frontier⟩ := by
+  let q : ContractRowArgs × ℕ := (⟨n, r.val, x0.val, u.val, ws, k⟩, col.val)
   have hu_lt := u.isLt
   have hc_lt := col.isLt
   have hcell_uc := List.mul_add_lt_sq hu_lt hc_lt
@@ -65,7 +66,7 @@ private theorem contractCostCellProg_eval {w n ws k B_k : ℕ} (r x0 u col : Fin
   have hbe_u := hbe u
   have hbx_c := hbx col
   have hfit_c' : Fits w (Signed.encode
-      (contractReducedCostTable a c f inCycle bEntry bExit x0)[u.1][col.1]) := by
+      (contractReducedCostTable a c f inCycle bEntry bExit x0)[u.val][col.val]) := by
     have habs := contractReducedCostTable_natAbs_le a c f inCycle bEntry bExit x0 hB u col
     unfold Signed.encode
     exact hfit_diff.of_le (by split_ifs <;> linarith only [habs])
@@ -73,14 +74,14 @@ private theorem contractCostCellProg_eval {w n ws k B_k : ℕ} (r x0 u col : Fin
     dsimp only [ContractRowStepSafe, q]
     refine ⟨hu_lt, hc_lt, hk, hws, fun _ _ _ hbx_lt => ?_⟩
     rw [hbx_c] at hbx_lt ⊢
-    cases hb_case : bExit[col.1] with
+    cases hb_case : bExit[col.val] with
     | none => simp [hb_case, optFinIdx] at hbx_lt
     | some xs =>
       simp only [optFinIdx]
-      rw [hfp xs, hc xs col, hc xs f[xs.1], Signed.encode_div_two, Signed.encode_div_two]
+      rw [hfp xs, hc xs col, hc xs f[xs.val], Signed.encode_div_two, Signed.encode_div_two]
       have h1b := hB xs col
-      have h2b := hB xs f[xs.1]
-      refine ⟨(f[xs.1]).isLt, ?_, hfit_diff.of_le (by linarith only [h1b, h2b])⟩
+      have h2b := hB xs f[xs.val]
+      refine ⟨(f[xs.val]).isLt, ?_, hfit_diff.of_le (by linarith only [h1b, h2b])⟩
       unfold Signed.encode
       exact hfit_diff.of_le (by split_ifs <;> linarith only [h2b])
   refine ⟨hsafe, ?_, ?_, ?_⟩
@@ -99,18 +100,18 @@ private theorem contractCostCellProg_eval {w n ws k B_k : ℕ} (r x0 u col : Fin
               (validHistory_read_bind
                 (by dsimp only [wsSize, frameBExitBase, frameBase] at hf ⊢; omega) ?_)))))
     rw [hm_u, hm_c, ha_uc, hc_uc, hbe_u, hbx_c]
-    by_cases huC : inCycle[u.1] = true
+    by_cases huC : inCycle[u.val] = true
     · simp only [huC, ↓reduceIte]
       by_cases hux : u = x0
       · subst hux
         simp only [↓reduceIte]
-        by_cases hwC : inCycle[col.1] = true
+        by_cases hwC : inCycle[col.val] = true
         · simp only [hwC, ↓reduceIte, Nat.one_ne_zero, false_and]
           exact validHistory_write_bind
             (by dsimp only [wsSize, nextCostBase] at hf ⊢; omega) (fits_zero w)
             (validHistory_pure w _ _)
         · simp only [hwC, Bool.false_eq_true, ↓reduceIte, true_and]
-          cases hb_case : bExit[col.1] with
+          cases hb_case : bExit[col.val] with
           | none =>
             simp only [optFinIdx, lt_irrefl, ↓reduceIte]
             exact validHistory_write_bind
@@ -118,7 +119,7 @@ private theorem contractCostCellProg_eval {w n ws k B_k : ℕ} (r x0 u col : Fin
               (validHistory_pure w _ _)
           | some xs =>
             have hcell_xc := List.mul_add_lt_sq xs.isLt hc_lt
-            have hcell_xf := List.mul_add_lt_sq xs.isLt (f[xs.1]).isLt
+            have hcell_xf := List.mul_add_lt_sq xs.isLt (f[xs.val]).isLt
             have hxs_lt := xs.isLt
             simp only [optFinIdx, hxs_lt, ↓reduceIte]
             refine validHistory_read_bind
@@ -129,23 +130,23 @@ private theorem contractCostCellProg_eval {w n ws k B_k : ℕ} (r x0 u col : Fin
             refine validHistory_read_bind
               (by dsimp only [wsSize, curCostBase] at hf ⊢; omega) ?_
             refine validHistory_bind_step (validHistory_signedSubProg w _ _) ?_
-            rw [clientState_signedSubProg, hc xs col, hc xs f[xs.1], clientResult_signedSubProg]
+            rw [clientState_signedSubProg, hc xs col, hc xs f[xs.val], clientResult_signedSubProg]
             refine validHistory_write_bind
               (by dsimp only [wsSize, nextCostBase] at hf ⊢; omega) ?_
               (validHistory_pure w _ _)
             simpa [getElem_contractReducedCostTable, huC, hwC, hb_case] using hfit_c'
-      · have hux_v : u.1 ≠ x0.1 := fun h => hux (Fin.ext h)
+      · have hux_v : u.val ≠ x0.val := fun h => hux (Fin.ext h)
         simp only [hux_v, ↓reduceIte]
         exact validHistory_write_bind
           (by dsimp only [wsSize, nextCostBase] at hf ⊢; omega) (fits_zero w)
           (validHistory_pure w _ _)
     · simp only [huC, Bool.false_eq_true, ↓reduceIte, Nat.zero_ne_one]
-      by_cases hwC : inCycle[col.1] = true
+      by_cases hwC : inCycle[col.val] = true
       · simp only [hwC, ↓reduceIte]
         by_cases hcx : col = x0
         · subst hcx
           simp only [true_and]
-          cases hbe_case : bEntry[u.1] with
+          cases hbe_case : bEntry[u.val] with
           | none =>
             simp only [optFinIdx, lt_irrefl, ↓reduceIte]
             exact validHistory_write_bind
@@ -161,13 +162,13 @@ private theorem contractCostCellProg_eval {w n ws k B_k : ℕ} (r x0 u col : Fin
               (by dsimp only [wsSize, nextCostBase] at hf ⊢; omega) ?_
               (validHistory_pure w _ _)
             simpa [getElem_contractReducedCostTable, huC, hwC, hbe_case] using hfit_c'
-        · have hcx_v : col.1 ≠ x0.1 := fun h => hcx (Fin.ext h)
+        · have hcx_v : col.val ≠ x0.val := fun h => hcx (Fin.ext h)
           simp only [hcx_v, false_and, ↓reduceIte]
           exact validHistory_write_bind
             (by dsimp only [wsSize, nextCostBase] at hf ⊢; omega) (fits_zero w)
             (validHistory_pure w _ _)
       · simp only [hwC, Bool.false_eq_true, ↓reduceIte, Nat.zero_ne_one]
-        by_cases ha_b : a[u.1][col.1] = true
+        by_cases ha_b : a[u.val][col.val] = true
         · simp only [ha_b, ↓reduceIte]
           refine validHistory_write_bind
             (by dsimp only [wsSize, nextCostBase] at hf ⊢; omega) ?_
@@ -191,36 +192,36 @@ private theorem contractCostCellProg_eval {w n ws k B_k : ℕ} (r x0 u col : Fin
     dsimp only [q]
     simp only [client_simps, hm_u, hm_c, ha_uc, hc_uc, hbe_u, hbx_c]
     rw [getElem_contractReducedCostTable]
-    by_cases huC : inCycle[u.1] = true
+    by_cases huC : inCycle[u.val] = true
     · simp only [huC, ↓reduceIte]
       by_cases hux : u = x0
       · subst hux
         simp only [beq_self_eq_true, ↓reduceIte]
-        by_cases hwC : inCycle[col.1] = true
+        by_cases hwC : inCycle[col.val] = true
         · simp [hwC, Signed.encode, client_simps]
         · simp only [hwC, Bool.false_eq_true, ↓reduceIte, Bool.not_false, true_and]
-          cases hb_case : bExit[col.1] with
+          cases hb_case : bExit[col.val] with
           | none => simp [optFinIdx, Signed.encode, client_simps]
           | some xs =>
-            simp [optFinIdx, xs.isLt, hc xs col, hfp xs, hc xs f[xs.1],
+            simp [optFinIdx, xs.isLt, hc xs col, hfp xs, hc xs f[xs.val],
               clientResult_signedSubProg, client_simps]
-      · have hux_v : u.1 ≠ x0.1 := fun h => hux (Fin.ext h)
+      · have hux_v : u.val ≠ x0.val := fun h => hux (Fin.ext h)
         have hux_b : (u == x0) = false := beq_false_of_ne hux
         simp [hux_v, hux_b, Signed.encode, client_simps]
     · simp only [huC, Bool.false_eq_true, ↓reduceIte, Nat.zero_ne_one]
-      by_cases hwC : inCycle[col.1] = true
+      by_cases hwC : inCycle[col.val] = true
       · simp only [hwC, ↓reduceIte]
         by_cases hcx : col = x0
         · subst hcx
           simp only [beq_self_eq_true, ↓reduceIte, true_and]
-          cases hbe_case : bEntry[u.1] with
+          cases hbe_case : bEntry[u.val] with
           | none => simp [optFinIdx, Signed.encode, client_simps]
           | some ys => simp [optFinIdx, ys.isLt, hc u ys, client_simps]
-        · have hcx_v : col.1 ≠ x0.1 := fun h => hcx (Fin.ext h)
+        · have hcx_v : col.val ≠ x0.val := fun h => hcx (Fin.ext h)
           have hcx_b : (col == x0) = false := beq_false_of_ne hcx
           simp [hcx_v, hcx_b, Signed.encode, client_simps]
       · simp only [hwC, Bool.false_eq_true, ↓reduceIte, Nat.zero_ne_one]
-        by_cases ha_b : a[u.1][col.1] = true
+        by_cases ha_b : a[u.val][col.val] = true
         · simp [ha_b, client_simps]
         · simp [ha_b, Signed.encode, client_simps]
 
@@ -228,18 +229,18 @@ private theorem contractAdjCellProg_eval {w n ws k : ℕ} (r x0 u col : Fin n)
     (a : AdjTable n) (inCycle : Vector Bool n) (bEntry bExit : Vector (Option (Fin n)) n)
     (s : Memory.State) (hk : k < n) (hws : WsFits w ws n) (hf : ws + wsSize n ≤ s.frontier)
     (ha : ∀ x y : Fin n,
-      s.mem (curAdjBase ws n + x.1 * n + y.1) = if a[x.1][y.1] then 1 else 0)
-    (hm : ∀ y : Fin n, s.mem (frameMaskBase ws n k + y.1) = if inCycle[y.1] then 1 else 0)
-    (hbe : ∀ x : Fin n, s.mem (frameBEntryBase ws n k + x.1) = optFinIdx bEntry[x.1])
-    (hbx : ∀ y : Fin n, s.mem (frameBExitBase ws n k + y.1) = optFinIdx bExit[y.1]) :
-    let q : ContractRowArgs × ℕ := (⟨n, r.1, x0.1, u.1, ws, k⟩, col.1)
+      s.mem (curAdjBase ws n + x.val * n + y.val) = if a[x.val][y.val] then 1 else 0)
+    (hm : ∀ y : Fin n, s.mem (frameMaskBase ws n k + y.val) = if inCycle[y.val] then 1 else 0)
+    (hbe : ∀ x : Fin n, s.mem (frameBEntryBase ws n k + x.val) = optFinIdx bEntry[x.val])
+    (hbx : ∀ y : Fin n, s.mem (frameBExitBase ws n k + y.val) = optFinIdx bExit[y.val]) :
+    let q : ContractRowArgs × ℕ := (⟨n, r.val, x0.val, u.val, ws, k⟩, col.val)
     let a' := contractAdjTable a inCycle bEntry bExit x0 r
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (contractAdjCellProg q)) ∧
       memoryCost (contractAdjCellProg q) s ≤ 6 ∧
       (Memory.spec 0).clientState s (contractAdjCellProg q) =
-        ⟨Function.update s.mem (nextAdjBase ws n + u.1 * n + col.1)
-          (if a'[u.1][col.1] then 1 else 0), s.frontier⟩ := by
-  let q : ContractRowArgs × ℕ := (⟨n, r.1, x0.1, u.1, ws, k⟩, col.1)
+        ⟨Function.update s.mem (nextAdjBase ws n + u.val * n + col.val)
+          (if a'[u.val][col.val] then 1 else 0), s.frontier⟩ := by
+  let q : ContractRowArgs × ℕ := (⟨n, r.val, x0.val, u.val, ws, k⟩, col.val)
   have h1 : Fits w 1 := hws.of_le (by dsimp only [wsSize]; omega)
   have hu_lt := u.isLt
   have hc_lt := col.isLt
@@ -280,32 +281,33 @@ private theorem contractAdjCellProg_eval {w n ws k : ℕ} (r x0 u col : Fin n)
     dsimp only [q]
     simp only [client_simps, hm_u, hm_c, ha_uc, hbe_u, hbx_c, getElem_contractAdjTable]
     apply congrArg (fun v =>
-      (⟨Function.update s.mem (nextAdjBase ws n + u.1 * n + col.1) v, s.frontier⟩ : Memory.State))
-    cases hu_b : inCycle[u.1] <;> cases hc_b : inCycle[col.1]
-    · cases a[u.1][col.1] <;> simp
+      (⟨Function.update s.mem (nextAdjBase ws n + u.val * n + col.val) v,
+        s.frontier⟩ : Memory.State))
+    cases hu_b : inCycle[u.val] <;> cases hc_b : inCycle[col.val]
+    · cases a[u.val][col.val] <;> simp
     · by_cases hcx : col = x0
       · subst hcx
-        cases bEntry[u.1] with
+        cases bEntry[u.val] with
         | none => simp [optFinIdx]
         | some ys => simp [optFinIdx, ys.isLt]
-      · have hcx_v : col.1 ≠ x0.1 := fun h => hcx (Fin.ext h)
+      · have hcx_v : col.val ≠ x0.val := fun h => hcx (Fin.ext h)
         simp [hcx, hcx_v]
     · by_cases hux : u = x0
       · subst hux
-        cases bExit[col.1] with
+        cases bExit[col.val] with
         | none => simp [optFinIdx]
         | some xs => simp [optFinIdx, xs.isLt]
-      · have hux_v : u.1 ≠ x0.1 := fun h => hux (Fin.ext h)
+      · have hux_v : u.val ≠ x0.val := fun h => hux (Fin.ext h)
         by_cases hcr : col = r
         · subst hcr; simp [hux, hux_v]
-        · have hcr_v : col.1 ≠ r.1 := fun h => hcr (Fin.ext h)
+        · have hcr_v : col.val ≠ r.val := fun h => hcr (Fin.ext h)
           simp [hux, hux_v, hcr, hcr_v]
     · by_cases hux : u = x0
       · subst hux; simp
-      · have hux_v : u.1 ≠ x0.1 := fun h => hux (Fin.ext h)
+      · have hux_v : u.val ≠ x0.val := fun h => hux (Fin.ext h)
         by_cases hcr : col = r
         · subst hcr; simp [hux, hux_v]
-        · have hcr_v : col.1 ≠ r.1 := fun h => hcr (Fin.ext h)
+        · have hcr_v : col.val ≠ r.val := fun h => hcr (Fin.ext h)
           simp [hux, hux_v, hcr, hcr_v]
 
 private theorem fillContractRowProg_spec {w n ws k B_k : ℕ} (r x0 uFin : Fin n)
@@ -314,49 +316,51 @@ private theorem fillContractRowProg_spec {w n ws k B_k : ℕ} (r x0 uFin : Fin n
     (hk : k < n) (hws : WsFits w ws n) (hf : ws + wsSize n ≤ s.frontier)
     (hfit_diff : Fits w (4 * B_k + 2))
     (ha_s : ∀ u col : Fin n,
-      s.mem (curAdjBase ws n + u.1 * n + col.1) = if a[u.1][col.1] then 1 else 0)
+      s.mem (curAdjBase ws n + u.val * n + col.val) = if a[u.val][col.val] then 1 else 0)
     (hc_s : ∀ u col : Fin n,
-      s.mem (curCostBase ws n + u.1 * n + col.1) = Signed.encode c[u.1][col.1])
-    (hm_s : ∀ y : Fin n, s.mem (frameMaskBase ws n k + y.1) = if inCycle[y.1] then 1 else 0)
-    (hfp_s : ∀ x : Fin n, s.mem (frameParentBase ws n k + x.1) = (f[x.1]).1)
-    (hbe_s : ∀ u : Fin n, s.mem (frameBEntryBase ws n k + u.1) = optFinIdx bEntry[u.1])
-    (hbx_s : ∀ col : Fin n, s.mem (frameBExitBase ws n k + col.1) = optFinIdx bExit[col.1])
-    (hB : ∀ u col : Fin n, (c[u.1][col.1]).natAbs ≤ B_k) :
-    let ra : ContractRowArgs := ⟨n, r.1, x0.1, uFin.1, ws, k⟩
+      s.mem (curCostBase ws n + u.val * n + col.val) = Signed.encode c[u.val][col.val])
+    (hm_s : ∀ y : Fin n, s.mem (frameMaskBase ws n k + y.val) = if inCycle[y.val] then 1 else 0)
+    (hfp_s : ∀ x : Fin n, s.mem (frameParentBase ws n k + x.val) = (f[x.val]).val)
+    (hbe_s : ∀ u : Fin n, s.mem (frameBEntryBase ws n k + u.val) = optFinIdx bEntry[u.val])
+    (hbx_s : ∀ col : Fin n, s.mem (frameBExitBase ws n k + col.val) = optFinIdx bExit[col.val])
+    (hB : ∀ u col : Fin n, (c[u.val][col.val]).natAbs ≤ B_k) :
+    let ra : ContractRowArgs := ⟨n, r.val, x0.val, uFin.val, ws, k⟩
     let sr' := (Memory.spec 0).clientState s (fillContractRowProg ra)
     iterationSafe contractRowStep ContractRowStepSafe w ra n 0 s ∧
       (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (fillContractRowProg ra)) ∧
       memoryCost (fillContractRowProg ra) s ≤ 16 * n ∧
       sr'.frontier = s.frontier ∧
-      (∀ addr, ¬(nextAdjBase ws n + uFin.1 * n ≤ addr ∧ addr < nextAdjBase ws n + uFin.1 * n + n ∨
-        nextCostBase ws n + uFin.1 * n ≤ addr ∧ addr < nextCostBase ws n + uFin.1 * n + n) →
+      (∀ addr, ¬(nextAdjBase ws n + uFin.val * n ≤ addr ∧
+        addr < nextAdjBase ws n + uFin.val * n + n ∨
+        nextCostBase ws n + uFin.val * n ≤ addr ∧ addr < nextCostBase ws n + uFin.val * n + n) →
         sr'.mem addr = s.mem addr) ∧
       (∀ col : Fin n,
-        sr'.mem (nextAdjBase ws n + uFin.1 * n + col.1) =
-          (if (contractAdjTable a inCycle bEntry bExit x0 r)[uFin.1][col.1] then 1 else 0) ∧
-        sr'.mem (nextCostBase ws n + uFin.1 * n + col.1) =
+        sr'.mem (nextAdjBase ws n + uFin.val * n + col.val) =
+          (if (contractAdjTable a inCycle bEntry bExit x0 r)[uFin.val][col.val] then 1 else 0) ∧
+        sr'.mem (nextCostBase ws n + uFin.val * n + col.val) =
           Signed.encode
-            (contractReducedCostTable a c f inCycle bEntry bExit x0)[uFin.1][col.1]) := by
-  let ra : ContractRowArgs := ⟨n, r.1, x0.1, uFin.1, ws, k⟩
+            (contractReducedCostTable a c f inCycle bEntry bExit x0)[uFin.val][col.val]) := by
+  let ra : ContractRowArgs := ⟨n, r.val, x0.val, uFin.val, ws, k⟩
   have hrow := iterate_spec contractRowStep ContractRowStepSafe w ra 16 n
     (fun col idxR sr =>
       idxR = col ∧ sr.frontier = s.frontier ∧
         (∀ u c0 : Fin n,
-          sr.mem (curAdjBase ws n + u.1 * n + c0.1) = if a[u.1][c0.1] then 1 else 0) ∧
+          sr.mem (curAdjBase ws n + u.val * n + c0.val) = if a[u.val][c0.val] then 1 else 0) ∧
         (∀ u c0 : Fin n,
-          sr.mem (curCostBase ws n + u.1 * n + c0.1) = Signed.encode c[u.1][c0.1]) ∧
-        (∀ y : Fin n, sr.mem (frameMaskBase ws n k + y.1) = if inCycle[y.1] then 1 else 0) ∧
-        (∀ x : Fin n, sr.mem (frameParentBase ws n k + x.1) = (f[x.1]).1) ∧
-        (∀ u : Fin n, sr.mem (frameBEntryBase ws n k + u.1) = optFinIdx bEntry[u.1]) ∧
-        (∀ c0 : Fin n, sr.mem (frameBExitBase ws n k + c0.1) = optFinIdx bExit[c0.1]) ∧
-        (∀ c0 : Fin n, c0.1 < col →
-          sr.mem (nextAdjBase ws n + uFin.1 * n + c0.1) =
-            (if (contractAdjTable a inCycle bEntry bExit x0 r)[uFin.1][c0.1] then 1 else 0) ∧
-          sr.mem (nextCostBase ws n + uFin.1 * n + c0.1) =
+          sr.mem (curCostBase ws n + u.val * n + c0.val) = Signed.encode c[u.val][c0.val]) ∧
+        (∀ y : Fin n, sr.mem (frameMaskBase ws n k + y.val) = if inCycle[y.val] then 1 else 0) ∧
+        (∀ x : Fin n, sr.mem (frameParentBase ws n k + x.val) = (f[x.val]).val) ∧
+        (∀ u : Fin n, sr.mem (frameBEntryBase ws n k + u.val) = optFinIdx bEntry[u.val]) ∧
+        (∀ c0 : Fin n, sr.mem (frameBExitBase ws n k + c0.val) = optFinIdx bExit[c0.val]) ∧
+        (∀ c0 : Fin n, c0.val < col →
+          sr.mem (nextAdjBase ws n + uFin.val * n + c0.val) =
+            (if (contractAdjTable a inCycle bEntry bExit x0 r)[uFin.val][c0.val] then 1 else 0) ∧
+          sr.mem (nextCostBase ws n + uFin.val * n + c0.val) =
             Signed.encode
-              (contractReducedCostTable a c f inCycle bEntry bExit x0)[uFin.1][c0.1]))
-    (fun addr => nextAdjBase ws n + uFin.1 * n ≤ addr ∧ addr < nextAdjBase ws n + uFin.1 * n + n ∨
-      nextCostBase ws n + uFin.1 * n ≤ addr ∧ addr < nextCostBase ws n + uFin.1 * n + n)
+              (contractReducedCostTable a c f inCycle bEntry bExit x0)[uFin.val][c0.val]))
+    (fun addr => nextAdjBase ws n + uFin.val * n ≤ addr ∧
+      addr < nextAdjBase ws n + uFin.val * n + n ∨
+      nextCostBase ws n + uFin.val * n ≤ addr ∧ addr < nextCostBase ws n + uFin.val * n + n)
     (fun col hcol idxR sr ⟨hidxR, hfr_r, ha_r, hc_r, hm_r, hfp_r, hbe_r, hbx_r, hcur⟩ => by
       subst idxR
       set colFin : Fin n := ⟨col, hcol⟩
@@ -365,10 +369,10 @@ private theorem fillContractRowProg_spec {w n ws k B_k : ℕ} (r x0 uFin : Fin n
       have hcost_ev := contractCostCellProg_eval r x0 uFin colFin a c f inCycle bEntry bExit
         sr hk hws (by rw [hfr_r]; exact hf) hfit_diff ha_r hc_r hm_r hfp_r hbe_r hbx_r hB
       set sr1 : Memory.State :=
-        ⟨Function.update sr.mem (nextCostBase ws n + uFin.1 * n + col)
-          (Signed.encode (contractReducedCostTable a c f inCycle bEntry bExit x0)[uFin.1][col]),
+        ⟨Function.update sr.mem (nextCostBase ws n + uFin.val * n + col)
+          (Signed.encode (contractReducedCostTable a c f inCycle bEntry bExit x0)[uFin.val][col]),
           sr.frontier⟩
-      have hsr1 (addr : ℕ) (h : addr ≠ nextCostBase ws n + uFin.1 * n + col) :
+      have hsr1 (addr : ℕ) (h : addr ≠ nextCostBase ws n + uFin.val * n + col) :
           sr1.mem addr = sr.mem addr := Function.update_of_ne h _ _
       have hadj_ev := contractAdjCellProg_eval r x0 uFin colFin a inCycle bEntry bExit
         sr1 hk hws (by dsimp only [sr1]; rw [hfr_r]; exact hf)
@@ -387,11 +391,11 @@ private theorem fillContractRowProg_spec {w n ws k B_k : ℕ} (r x0 uFin : Fin n
       have hcost_s := hcost_ev.2.2.2
       have hadj_s := hadj_ev.2.2
       dsimp only [ra, colFin] at hcost_s hadj_s
-      have hrow_le : uFin.1 * n + n ≤ n * n := by
+      have hrow_le : uFin.val * n + n ≤ n * n := by
         simpa [Nat.succ_mul] using Nat.mul_le_mul_right n hu_lt
-      have hout : ∀ addr, ¬(nextAdjBase ws n + uFin.1 * n ≤ addr ∧
-            addr < nextAdjBase ws n + uFin.1 * n + n ∨
-          nextCostBase ws n + uFin.1 * n ≤ addr ∧ addr < nextCostBase ws n + uFin.1 * n + n) →
+      have hout : ∀ addr, ¬(nextAdjBase ws n + uFin.val * n ≤ addr ∧
+            addr < nextAdjBase ws n + uFin.val * n + n ∨
+          nextCostBase ws n + uFin.val * n ≤ addr ∧ addr < nextCostBase ws n + uFin.val * n + n) →
           ((Memory.spec 0).clientState sr (contractRowStep (ra, col))).mem addr = sr.mem addr := by
         intro addr haddr
         unfold contractRowStep
@@ -447,7 +451,7 @@ private theorem fillContractRowProg_spec {w n ws k B_k : ℕ} (r x0 uFin : Fin n
         unfold contractRowStep
         dsimp only [ra, colFin]
         simp only [client_simps, hcost_s, hadj_s, sr1]
-        by_cases heq : c0.1 = col
+        by_cases heq : c0.val = col
         · have hc0_eq : c0 = colFin := Fin.ext heq
           subst hc0_eq
           simp only [Function.update_self, colFin]
@@ -470,15 +474,15 @@ public theorem contractTablesProg_spec {w n ws k B_k : ℕ} (r x0 : Fin n)
     (hk : k < n) (hws : WsFits w ws n) (hf : ws + wsSize n ≤ s₀.frontier)
     (hfit_diff : Fits w (4 * B_k + 2))
     (ha : ∀ u col : Fin n,
-      s₀.mem (curAdjBase ws n + u.1 * n + col.1) = if a[u.1][col.1] then 1 else 0)
+      s₀.mem (curAdjBase ws n + u.val * n + col.val) = if a[u.val][col.val] then 1 else 0)
     (hc : ∀ u col : Fin n,
-      s₀.mem (curCostBase ws n + u.1 * n + col.1) = Signed.encode c[u.1][col.1])
-    (hm : ∀ y : Fin n, s₀.mem (frameMaskBase ws n k + y.1) = if inCycle[y.1] then 1 else 0)
-    (hfp : ∀ x : Fin n, s₀.mem (frameParentBase ws n k + x.1) = (f[x.1]).1)
-    (hbe : ∀ u : Fin n, s₀.mem (frameBEntryBase ws n k + u.1) = optFinIdx bEntry[u.1])
-    (hbx : ∀ col : Fin n, s₀.mem (frameBExitBase ws n k + col.1) = optFinIdx bExit[col.1])
-    (hB : ∀ u col : Fin n, (c[u.1][col.1]).natAbs ≤ B_k) :
-    let ca : ContractArgs := ⟨n, r.1, x0.1, ws, k⟩
+      s₀.mem (curCostBase ws n + u.val * n + col.val) = Signed.encode c[u.val][col.val])
+    (hm : ∀ y : Fin n, s₀.mem (frameMaskBase ws n k + y.val) = if inCycle[y.val] then 1 else 0)
+    (hfp : ∀ x : Fin n, s₀.mem (frameParentBase ws n k + x.val) = (f[x.val]).val)
+    (hbe : ∀ u : Fin n, s₀.mem (frameBEntryBase ws n k + u.val) = optFinIdx bEntry[u.val])
+    (hbx : ∀ col : Fin n, s₀.mem (frameBExitBase ws n k + col.val) = optFinIdx bExit[col.val])
+    (hB : ∀ u col : Fin n, (c[u.val][col.val]).natAbs ≤ B_k) :
+    let ca : ContractArgs := ⟨n, r.val, x0.val, ws, k⟩
     let s1 := (Memory.spec 0).clientState s₀ (contractLoopProg ca)
     let cp : CopyArgs := ⟨nextAdjBase ws n, curAdjBase ws n, 2 * (n * n)⟩
     let s' := (Memory.spec 0).clientState s₀ (contractTablesProg ca)
@@ -491,15 +495,15 @@ public theorem contractTablesProg_spec {w n ws k B_k : ℕ} (r x0 : Fin n)
       s'.frontier = s₀.frontier ∧
       (∀ addr, ¬(ws ≤ addr ∧ addr < ws + 4 * (n * n)) → s'.mem addr = s₀.mem addr) ∧
       (∀ u col : Fin n,
-        s'.mem (curAdjBase ws n + u.1 * n + col.1) = if a'[u.1][col.1] then 1 else 0) ∧
+        s'.mem (curAdjBase ws n + u.val * n + col.val) = if a'[u.val][col.val] then 1 else 0) ∧
       (∀ u col : Fin n,
-        s'.mem (curCostBase ws n + u.1 * n + col.1) = Signed.encode c'[u.1][col.1]) := by
-  let ca : ContractArgs := ⟨n, r.1, x0.1, ws, k⟩
+        s'.mem (curCostBase ws n + u.val * n + col.val) = Signed.encode c'[u.val][col.val]) := by
+  let ca : ContractArgs := ⟨n, r.val, x0.val, ws, k⟩
   have hf_pos : 0 < s₀.frontier := by have := r.pos; dsimp only [wsSize] at hf; nlinarith
   have h1 : Fits w 1 := hws.of_le (by dsimp only [wsSize]; omega)
   have hfit_c' : ∀ u col : Fin n,
       Fits w (Signed.encode
-        (contractReducedCostTable a c f inCycle bEntry bExit x0)[u.1][col.1]) := by
+        (contractReducedCostTable a c f inCycle bEntry bExit x0)[u.val][col.val]) := by
     intro u col
     have habs := contractReducedCostTable_natAbs_le a c f inCycle bEntry bExit x0 hB u col
     unfold Signed.encode
@@ -508,24 +512,24 @@ public theorem contractTablesProg_spec {w n ws k B_k : ℕ} (r x0 : Fin n)
     (fun m idx s =>
       idx = m ∧ s.frontier = s₀.frontier ∧
         (∀ u col : Fin n,
-          s.mem (curAdjBase ws n + u.1 * n + col.1) = if a[u.1][col.1] then 1 else 0) ∧
+          s.mem (curAdjBase ws n + u.val * n + col.val) = if a[u.val][col.val] then 1 else 0) ∧
         (∀ u col : Fin n,
-          s.mem (curCostBase ws n + u.1 * n + col.1) = Signed.encode c[u.1][col.1]) ∧
-        (∀ y : Fin n, s.mem (frameMaskBase ws n k + y.1) = if inCycle[y.1] then 1 else 0) ∧
-        (∀ x : Fin n, s.mem (frameParentBase ws n k + x.1) = (f[x.1]).1) ∧
-        (∀ u : Fin n, s.mem (frameBEntryBase ws n k + u.1) = optFinIdx bEntry[u.1]) ∧
-        (∀ col : Fin n, s.mem (frameBExitBase ws n k + col.1) = optFinIdx bExit[col.1]) ∧
-        (∀ u col : Fin n, u.1 < m →
-          s.mem (nextAdjBase ws n + u.1 * n + col.1) =
-            (if (contractAdjTable a inCycle bEntry bExit x0 r)[u.1][col.1] then 1 else 0) ∧
-          s.mem (nextCostBase ws n + u.1 * n + col.1) =
+          s.mem (curCostBase ws n + u.val * n + col.val) = Signed.encode c[u.val][col.val]) ∧
+        (∀ y : Fin n, s.mem (frameMaskBase ws n k + y.val) = if inCycle[y.val] then 1 else 0) ∧
+        (∀ x : Fin n, s.mem (frameParentBase ws n k + x.val) = (f[x.val]).val) ∧
+        (∀ u : Fin n, s.mem (frameBEntryBase ws n k + u.val) = optFinIdx bEntry[u.val]) ∧
+        (∀ col : Fin n, s.mem (frameBExitBase ws n k + col.val) = optFinIdx bExit[col.val]) ∧
+        (∀ u col : Fin n, u.val < m →
+          s.mem (nextAdjBase ws n + u.val * n + col.val) =
+            (if (contractAdjTable a inCycle bEntry bExit x0 r)[u.val][col.val] then 1 else 0) ∧
+          s.mem (nextCostBase ws n + u.val * n + col.val) =
             Signed.encode
-              (contractReducedCostTable a c f inCycle bEntry bExit x0)[u.1][col.1]))
+              (contractReducedCostTable a c f inCycle bEntry bExit x0)[u.val][col.val]))
     (fun addr => nextAdjBase ws n ≤ addr ∧ addr < nextCostBase ws n + n * n)
     (fun m hm idx s ⟨hidx, hfr, ha_s, hc_s, hm_s, hfp_s, hbe_s, hbx_s, hdone_o⟩ => by
       subst idx
       set uFin : Fin n := ⟨m, hm⟩
-      let ra : ContractRowArgs := ⟨n, r.1, x0.1, m, ws, k⟩
+      let ra : ContractRowArgs := ⟨n, r.val, x0.val, m, ws, k⟩
       have hrow := fillContractRowProg_spec r x0 uFin a c f inCycle bEntry bExit s
         hk hws (by rw [hfr]; exact hf) hfit_diff ha_s hc_s hm_s hfp_s hbe_s hbx_s hB
       have hdisj_row : ∀ addr, addr < nextAdjBase ws n + m * n ∨
@@ -597,10 +601,10 @@ public theorem contractTablesProg_spec {w n ws k B_k : ℕ} (r x0 : Fin n)
           exact hbx_s c0
         · intro u0 c0 hu0
           rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hu0) with hlt | heq
-          · have hlt_mul : u0.1 * n + c0.1 < m * n := by
+          · have hlt_mul : u0.val * n + c0.val < m * n := by
               have hc_lt := c0.isLt
-              have hu_le : (u0.1 + 1) * n ≤ m * n := Nat.mul_le_mul_right n hlt
-              linarith [Nat.succ_mul u0.1 n]
+              have hu_le : (u0.val + 1) * n ≤ m * n := Nat.mul_le_mul_right n hlt
+              linarith [Nat.succ_mul u0.val n]
             rw [hdisj_row _ (Or.inl (by dsimp only [nextAdjBase]; omega)),
               hdisj_row _ (Or.inr (Or.inl (by dsimp only [nextAdjBase, nextCostBase]; omega)))]
             exact hdone_o u0 c0 hlt
@@ -624,7 +628,7 @@ public theorem contractTablesProg_spec {w n ws k B_k : ℕ} (r x0 : Fin n)
       by_cases hlt : i < n * n
       · set u0 : Fin n := ⟨i / n, Nat.div_lt_of_lt_mul hlt⟩
         set c0 : Fin n := ⟨i % n, Nat.mod_lt i r.pos⟩
-        rw [show nextAdjBase ws n + i = nextAdjBase ws n + u0.1 * n + c0.1 by
+        rw [show nextAdjBase ws n + i = nextAdjBase ws n + u0.val * n + c0.val by
           have := Nat.div_add_mod' i n; dsimp only [u0, c0]; omega]
         dsimp only [s1, contractLoopProg]
         rw [(hs1_cells u0 c0 u0.isLt).1]
@@ -633,7 +637,7 @@ public theorem contractTablesProg_spec {w n ws k B_k : ℕ} (r x0 : Fin n)
         have hj : j < n * n := by omega
         set u0 : Fin n := ⟨j / n, Nat.div_lt_of_lt_mul hj⟩
         set c0 : Fin n := ⟨j % n, Nat.mod_lt j r.pos⟩
-        rw [show nextAdjBase ws n + i = nextCostBase ws n + u0.1 * n + c0.1 by
+        rw [show nextAdjBase ws n + i = nextCostBase ws n + u0.val * n + c0.val by
           have hdm : (j / n) * n + j % n = j := Nat.div_add_mod' j n
           dsimp only [u0, c0, nextAdjBase, nextCostBase]
           omega]
@@ -657,22 +661,22 @@ public theorem contractTablesProg_spec {w n ws k B_k : ℕ} (r x0 : Fin n)
       exact hmod_l addr (by dsimp only [nextAdjBase, nextCostBase]; omega),
     fun u col => by
       rw [StateTransitionSpec.clientState_bind]
-      have hidx_lt : u.1 * n + col.1 < 2 * (n * n) := by
+      have hidx_lt : u.val * n + col.val < 2 * (n * n) := by
         have := List.mul_add_lt_sq u.isLt col.isLt; omega
-      rw [show curAdjBase ws n + u.1 * n + col.1 = cp.dst + (u.1 * n + col.1) by
+      rw [show curAdjBase ws n + u.val * n + col.val = cp.dst + (u.val * n + col.val) by
           dsimp only [cp, curAdjBase]; omega,
         hcopy.2.2.2.2.2 _ hidx_lt,
-        show cp.src + (u.1 * n + col.1) = nextAdjBase ws n + u.1 * n + col.1 by
+        show cp.src + (u.val * n + col.val) = nextAdjBase ws n + u.val * n + col.val by
           dsimp only [cp, nextAdjBase]; omega]
       exact (hs1_cells u col u.isLt).1,
     fun u col => by
       rw [StateTransitionSpec.clientState_bind]
-      have hidx_lt : n * n + (u.1 * n + col.1) < 2 * (n * n) := by
+      have hidx_lt : n * n + (u.val * n + col.val) < 2 * (n * n) := by
         have := List.mul_add_lt_sq u.isLt col.isLt; omega
-      rw [show curCostBase ws n + u.1 * n + col.1 = cp.dst + (n * n + (u.1 * n + col.1)) by
+      rw [show curCostBase ws n + u.val * n + col.val = cp.dst + (n * n + (u.val * n + col.val)) by
           dsimp only [cp, curAdjBase, curCostBase]; omega,
         hcopy.2.2.2.2.2 _ hidx_lt,
-        show cp.src + (n * n + (u.1 * n + col.1)) = nextCostBase ws n + u.1 * n + col.1 by
+        show cp.src + (n * n + (u.val * n + col.val)) = nextCostBase ws n + u.val * n + col.val by
           dsimp only [cp, nextAdjBase, nextCostBase]; omega]
       exact (hs1_cells u col u.isLt).2⟩
 

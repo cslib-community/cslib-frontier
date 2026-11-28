@@ -142,7 +142,7 @@ structure OperatorSolution (𝒜 : Type*) [Ring 𝒜] [StarRing 𝒜] [Algebra �
   mul_self : ∀ v, op v * op v = 1
   commute : ∀ e, ∀ u ∈ L.support e, ∀ w ∈ L.support e, Commute (op u) (op w)
   prod_eq : ∀ e, jointProd (fun v : L.support e => op v)
-    (fun u w => commute e u u.2 w w.2) = (signVal (L.parity e) : ℂ) • 1
+    (fun u w => commute e u u.property w w.property) = (signVal (L.parity e) : ℂ) • 1
 
 namespace OperatorSolution
 
@@ -155,7 +155,7 @@ def eqOp (e : E) : L.support e → 𝒜 :=
 
 omit [PartialOrder 𝒜] [StarOrderedRing 𝒜] [StarModule ℂ 𝒜] in
 theorem eqOp_commute (e : E) (u w : L.support e) : Commute (X.eqOp e u) (X.eqOp e w) :=
-  X.commute e u u.2 w w.2
+  X.commute e u u.property w w.property
 
 omit [PartialOrder 𝒜] [StarOrderedRing 𝒜] [StarModule ℂ 𝒜] in
 theorem eqOp_isSelfAdjoint (e : E) (u : L.support e) : IsSelfAdjoint (X.eqOp e u) :=
@@ -218,7 +218,7 @@ theorem apply_effect_mul_effect_eq_zero (Y : V → 𝒜) (φ : AlgState 𝒜)
       jointProj_mul_signProj_of_ne (X.eqOp e) (X.eqOp_commute e) (X.eqOp_mul_self e)
         (j := ⟨v, hv⟩) (by rw [hval]; exact hne)
     rw [← AlgState.apply_mul_signProj_eq_of_approx_zero (hagree v), hz, map_zero]
-  · have hval' : ∀ i : L.support e, a' i = a i := fun i => hval i i.2
+  · have hval' : ∀ i : L.support e, a' i = a i := fun i => hval i i.property
     have hprod : ∏ i, (signVal (a' i) : ℂ) = (signVal (parityOn (L.support e) a) : ℂ) :=
       calc ∏ i, (signVal (a' i) : ℂ) = ∏ i : L.support e, (signVal (a i) : ℂ) :=
             Finset.prod_congr rfl fun i _ => by rw [hval' i]
@@ -285,7 +285,8 @@ noncomputable def map {𝒜 ℬ : Type*} [Ring 𝒜] [StarRing 𝒜] [Algebra �
   mul_self v := by rw [← map_mul, X.mul_self, map_one]
   commute e u hu w hw := (X.commute e u hu w hw).map f
   prod_eq e := by
-    rw [← map_jointProd (fun v : L.support e => X.op v) (fun u w => X.commute e u u.2 w w.2),
+    rw [← map_jointProd (fun v : L.support e => X.op v)
+        (fun u w => X.commute e u u.property w w.property),
       X.prod_eq e, map_smul, map_one]
 
 section MaxEntangled

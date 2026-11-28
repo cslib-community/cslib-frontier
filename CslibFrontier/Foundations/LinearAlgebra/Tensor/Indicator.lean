@@ -124,8 +124,8 @@ theorem card_rank_indicatorThreeTensor_le (K : Type*) [Field K]
       grw [MvPolynomial.totalDegree_mul, MvPolynomial.totalDegree_mul]
       simp [MvPolynomial.totalDegree_X]
   have hex_z (S : Good) : ∃ z : Idx → K, ∀ p : P3,
-      MvPolynomial.eval z (entryPoly p) = if p ∈ S.1 then 1 else 0 := by
-    obtain ⟨α, β, γ, hres⟩ := (Finset.mem_filter.mp S.2).2
+      MvPolynomial.eval z (entryPoly p) = if p ∈ S.val then 1 else 0 := by
+    obtain ⟨α, β, γ, hres⟩ := (Finset.mem_filter.mp S.property).2
     refine ⟨Sum.elim (fun kx => α kx.1 kx.2)
       (Sum.elim (fun ky => β ky.1 ky.2) (fun kz => γ kz.2 kz.1)), fun p => ?_⟩
     have hval := congrFun (congrFun (congrFun hres p.1) p.2.1) p.2.2
@@ -135,18 +135,18 @@ theorem card_rank_indicatorThreeTensor_le (K : Type*) [Field K]
   choose z hz using hex_z
   -- multilinear Lagrange interpolation: `Q S` is `1` at `z S` and `0` at every other `z S'`
   let Q (S : Good) : MvPolynomial Idx K :=
-    ∏ p : P3, if p ∈ S.1 then entryPoly p else (1 - entryPoly p)
+    ∏ p : P3, if p ∈ S.val then entryPoly p else (1 - entryPoly p)
   have hQ_eval (S S' : Good) :
       MvPolynomial.eval (z S') (Q S) = if S = S' then 1 else 0 := by
     simp only [Q, map_prod]
     split_ifs with heq
     · subst heq
       exact Finset.prod_eq_one fun p _ => by split_ifs with hp <;> simp [hz S p, hp]
-    · obtain ⟨p₀, hp₀⟩ : ∃ p : P3, ¬(p ∈ S.1 ↔ p ∈ S'.1) := by
+    · obtain ⟨p₀, hp₀⟩ : ∃ p : P3, ¬(p ∈ S.val ↔ p ∈ S'.val) := by
         by_contra! h
         exact heq (Subtype.ext (Finset.ext h))
       refine Finset.prod_eq_zero (Finset.mem_univ p₀) ?_
-      by_cases hpS : p₀ ∈ S.1 <;> simp_all [hz S' p₀]
+      by_cases hpS : p₀ ∈ S.val <;> simp_all [hz S' p₀]
   have hQ_deg (S : Good) : (Q S).totalDegree ≤ 3 * N := by
     refine (MvPolynomial.totalDegree_finsetProd _ _).trans <|
       (Finset.sum_le_card_nsmul _ _ 3 fun p _ => ?_).trans <| Nat.le_of_eq <| by

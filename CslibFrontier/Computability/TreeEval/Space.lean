@@ -59,7 +59,7 @@ def encNontrivialInstance : NontrivialInstance ↪ List Bool :=
   (Function.Embedding.subtype _).trans encInstance
 
 @[simp] theorem encNontrivialInstance_apply (I : NontrivialInstance) :
-    encNontrivialInstance I = encInstance I.1 := rfl
+    encNontrivialInstance I = encInstance I.val := rfl
 
 /-- **Tree Evaluation in small space** (Cook–Mertz): the value of the tree of an instance of value
 length `ℓ` and height `H` is computable from its encoding in space
@@ -131,16 +131,17 @@ theorem spaceBound_add_length_le_log_mul_log_log {I : Instance}
 `O(|n| · ||n||)`, where `n` is the length of the encoded instance and `|m| = (encNat m).length`;
 the value is not charged to the space bound. -/
 theorem computableInSpace_eval_log_mul_log_log : ∃ t, ComputableInBigO
-    (fun I : NontrivialInstance => List.ofFn I.1.tree.eval) encNontrivialInstance encBits t
+    (fun I : NontrivialInstance => List.ofFn I.val.tree.eval) encNontrivialInstance encBits t
     fun I => (encNat (encNontrivialInstance I).length).length *
       (encNat (encNat (encNontrivialInstance I).length).length).length := by
   obtain ⟨t, c, k, State, hfinite, tm, htm⟩ := computableInSpace_eval
-  have hN : ComputableInBigO (fun I : NontrivialInstance => List.ofFn I.1.tree.eval)
-      encNontrivialInstance encBits (fun I => t I.1)
-      (fun I => spaceBound I.1.ell I.1.height + (encNat ((encInstance I.1).length + 1)).length) :=
-    ⟨c, k, State, hfinite, tm, fun I => htm I.1⟩
-  exact ⟨fun I => t I.1, hN.weaken (.refl _) (.of_le_linear 6 0 fun I => by
+  have hN : ComputableInBigO (fun I : NontrivialInstance => List.ofFn I.val.tree.eval)
+      encNontrivialInstance encBits (fun I => t I.val)
+      (fun I => spaceBound I.val.ell I.val.height +
+        (encNat ((encInstance I.val).length + 1)).length) :=
+    ⟨c, k, State, hfinite, tm, fun I => htm I.val⟩
+  exact ⟨fun I => t I.val, hN.weaken (.refl _) (.of_le_linear 6 0 fun I => by
     simpa only [encNontrivialInstance_apply, Nat.add_zero] using
-      spaceBound_add_length_le_log_mul_log_log I.2.1 I.2.2)⟩
+      spaceBound_add_length_le_log_mul_log_log I.property.1 I.property.2)⟩
 
 end Cslib.TreeEval

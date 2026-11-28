@@ -56,16 +56,17 @@ variable {p : Params} [NeZero p.n]
 
 /-- The first trace is at least the sum of the squared path coefficients. -/
 theorem sum_coeff_le_trace (hcard : (Finset.univ.filter fun t => p.isV t).card = p.k) :
-    ∑ P : Path p.n, ∑ M : Slice p (p.a, p.b), (P.coeff p M.1 : ℝ) ≤
+    ∑ P : Path p.n, ∑ M : Slice p (p.a, p.b), (P.coeff p M.val : ℝ) ≤
       ((pathMatrix p)ᵀ * pathMatrix p).trace := by
   rw [Finset.sum_comm]
   simp only [Matrix.trace, Matrix.diag_apply, Matrix.mul_apply, Matrix.transpose_apply,
     pathMatrix, Matrix.of_apply, pathEntry]
   refine Finset.sum_le_sum fun M _ => ?_
   have hsq (N : Slice p (p.a - p.k, p.b + p.m)) :
-      ∑ P : Path p.n, (if N.1 + P.vPart p = M.1 + P.uPart p then (P.coeff p M.1 : ℝ) else 0) ≤
-        (∑ P : Path p.n, if N.1 + P.vPart p = M.1 + P.uPart p then √(P.coeff p M.1) else 0) *
-          ∑ P : Path p.n, if N.1 + P.vPart p = M.1 + P.uPart p then √(P.coeff p M.1) else 0 := by
+      ∑ P : Path p.n, (if N.val + P.vPart p = M.val + P.uPart p then (P.coeff p M.val : ℝ) else 0) ≤
+        (∑ P : Path p.n, if N.val + P.vPart p = M.val + P.uPart p then √(P.coeff p M.val) else 0) *
+          ∑ P : Path p.n,
+            if N.val + P.vPart p = M.val + P.uPart p then √(P.coeff p M.val) else 0 := by
     rw [← sq]
     refine le_trans (le_of_eq (Finset.sum_congr rfl fun P _ => ?_))
       (Finset.sum_sq_le_sq_sum_of_nonneg fun P _ => by split_ifs <;> positivity)
@@ -75,16 +76,16 @@ theorem sum_coeff_le_trace (hcard : (Finset.univ.filter fun t => p.isV t).card =
   refine le_trans ?_ (Finset.sum_le_sum fun N _ => hsq N)
   rw [Finset.sum_comm]
   refine Finset.sum_le_sum fun P _ => ?_
-  by_cases h0 : P.coeff p M.1 = 0
+  by_cases h0 : P.coeff p M.val = 0
   · rw [h0, Nat.cast_zero]
     exact Finset.sum_nonneg fun N _ => by split_ifs <;> rfl
-  have hle := P.vPart_le (left_ne_zero_of_mul (P.coeff_eq_mul M.1 ▸ h0))
-  have hN : M.1 - P.vPart p + P.uPart p + P.vPart p = M.1 + P.uPart p := by
+  have hle := P.vPart_le (left_ne_zero_of_mul (P.coeff_eq_mul M.val ▸ h0))
+  have hN : M.val - P.vPart p + P.uPart p + P.vPart p = M.val + P.uPart p := by
     rw [add_right_comm, tsub_add_cancel_of_le hle]
   refine le_trans (le_of_eq ?_) (Finset.single_le_sum (f := fun N : Slice p _ =>
-      if N.1 + P.vPart p = M.1 + P.uPart p then (P.coeff p M.1 : ℝ) else 0)
+      if N.val + P.vPart p = M.val + P.uPart p then (P.coeff p M.val : ℝ) else 0)
     (fun N _ => by split_ifs <;> positivity)
-    (Finset.mem_univ ⟨_, P.weight_of_add_vPart_eq hcard hN M.2⟩))
+    (Finset.mem_univ ⟨_, P.weight_of_add_vPart_eq hcard hN M.property⟩))
   exact (ite_eq_left hN).symm
 
 /-- The lower comparison for the product of the exponents, shifted by `ε`, of the edges of a path
@@ -182,7 +183,7 @@ theorem first_trace_ge (hp : p.Good)
           (p.v.multichoose p.a * ((p.a : ℝ) / p.v) ^ p.k) *
         (Real.exp (-((p.m : ℝ) ^ 2 / p.b) - (p.m : ℝ) ^ 2 / (2 * p.u)) *
           (p.u.multichoose p.b * ((p.b : ℝ) / p.u + 1) ^ p.m)) ≤
-        ∑ M : Slice p (p.a, p.b), (P.coeff p M.1 : ℝ) := by
+        ∑ M : Slice p (p.a, p.b), (P.coeff p M.val : ℝ) := by
     have hV := le_sum_prod_edge P (fun t => p.isV t) p.varV rfl hSV 0 p.a
       (by rw [hcard]; have := hp.four_n_le_a; omega)
     have hU := le_sum_prod_edge P (fun t => ¬ p.isV t) p.varU rfl hSU 1 p.b

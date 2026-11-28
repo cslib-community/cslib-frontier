@@ -315,22 +315,22 @@ private noncomputable def induced (r₀ : Ranking A) : SocialWelfareFunction V (
   fun P =>
   { AtLeast := fun a b => f ((extendProfile r₀ P).toTopSet {(a : A), (b : A)}) = a
     total := fun a b => by
-      rcases hf.apply_toTopSet_pair (extendProfile r₀ P) (b := (b : A)) a.2 with h | h
+      rcases hf.apply_toTopSet_pair (extendProfile r₀ P) (b := (b : A)) a.property with h | h
       · exact Or.inl h
       · right
         rw [Set.pair_comm]
         exact h
-    trans := fun a _ _ hab hbc => hf.apply_toTopSet_pair_trans _ a.2 hab hbc }
+    trans := fun a _ _ hab hbc => hf.apply_toTopSet_pair_trans _ a.property hab hbc }
 
 /-- The induced social welfare function is weakly Pareto ([Nisan2007], proof of Lemma 9.11). -/
 private theorem isPareto_induced [Nonempty V] (r₀ : Ranking A) : (induced hf r₀).IsPareto := by
   intro P a b h hba
   obtain ⟨i⟩ := ‹Nonempty V›
   have hab : (a : A) ≠ b := fun he => (P i).ne_of_prefers (h i) (Subtype.ext he)
-  refine hf.apply_ne a.2 hab (P := (extendProfile r₀ P).toTopSet {(b : A), (a : A)})
+  refine hf.apply_ne a.property hab (P := (extendProfile r₀ P).toTopSet {(b : A), (a : A)})
     (fun j => ?_) hba
   exact ((r₀.extend (P j)).toTopSet_prefers_iff_of_mem (Set.mem_insert_of_mem _ rfl)
-    (Set.mem_insert _ _)).2 ((r₀.extend_prefers_of_mem (P j) a.2 b.2).2 (h j))
+    (Set.mem_insert _ _)).2 ((r₀.extend_prefers_of_mem (P j) a.property b.property).2 (h j))
 
 /-- The induced social welfare function satisfies independence of irrelevant alternatives
 ([Nisan2007], proof of Lemma 9.11). -/
@@ -338,10 +338,11 @@ private theorem isIIA_induced (r₀ : Ranking A) : (induced hf r₀).IsIIA := by
   intro P Q a b h
   change f ((extendProfile r₀ P).toTopSet {(a : A), (b : A)}) = a ↔
     f ((extendProfile r₀ Q).toTopSet {(a : A), (b : A)}) = a
-  rw [hf.apply_toTopSet_congr (Set.mem_insert (a : A) _) a.2 (P := extendProfile r₀ P)
+  rw [hf.apply_toTopSet_congr (Set.mem_insert (a : A) _) a.property (P := extendProfile r₀ P)
     (Q := extendProfile r₀ Q) fun i x y hx hy => ?_]
   have hab : (r₀.extend (P i)).Prefers a b ↔ (r₀.extend (Q i)).Prefers a b := by
-    rw [r₀.extend_prefers_of_mem _ a.2 b.2, r₀.extend_prefers_of_mem _ a.2 b.2]
+    rw [r₀.extend_prefers_of_mem _ a.property b.property,
+      r₀.extend_prefers_of_mem _ a.property b.property]
     exact h i
   simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hx hy
   rcases hx with rfl | rfl <;> rcases hy with rfl | rfl

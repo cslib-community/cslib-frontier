@@ -252,10 +252,10 @@ theorem exists_multidigraph_arcDisjoint_eq_outArcs [Finite V] [DecidableEq V] [F
     Finset.univ.filter fun i => (u, v) ∈ (P i).zip (P i).tail
   let A (u v : V) : Finset E := Finset.univ.filter fun e => src e = u ∧ tgt e = v
   let pick (u v : V) i (hi : i ∈ I u v) : E :=
-    ((A u v).equivFin.symm (Fin.castLE (hcap u v) ((I u v).equivFin ⟨i, hi⟩))).1
+    ((A u v).equivFin.symm (Fin.castLE (hcap u v) ((I u v).equivFin ⟨i, hi⟩))).val
   have hpick_st : ∀ u v i (hi : i ∈ I u v), src (pick u v i hi) = u ∧ tgt (pick u v i hi) = v :=
     fun u v i hi => (Finset.mem_filter.mp
-      ((A u v).equivFin.symm (Fin.castLE (hcap u v) ((I u v).equivFin ⟨i, hi⟩))).2).2
+      ((A u v).equivFin.symm (Fin.castLE (hcap u v) ((I u v).equivFin ⟨i, hi⟩))).property).2
   have hpick_inj : ∀ u₁ v₁ i₁ hi₁ u₂ v₂ i₂ hi₂,
       pick u₁ v₁ i₁ hi₁ = pick u₂ v₂ i₂ hi₂ → i₁ = i₂ := by
     intro u₁ v₁ i₁ hi₁ u₂ v₂ i₂ hi₂ heq
@@ -401,7 +401,7 @@ theorem exists_arcDisjoint_iff_forall_isArcCut [Finite V] (G : Digraph V) (s t :
               (fun _ _ => ⟨rfl, rfl⟩) hp.1 hp.2.1 hp.2.2.1
               (Digraph.isChain_iff_forall_mem_zip_tail.mp hp.2.2.2)
             obtain ⟨a, ha, haC'⟩ := hC' _ hq
-            exact ⟨a.1, hzip ▸ List.mem_map_of_mem ha, Finset.mem_map_of_mem _ haC'⟩
+            exact ⟨a.val, hzip ▸ List.mem_map_of_mem ha, Finset.mem_map_of_mem _ haC'⟩
           simpa using h _ hCut
     refine ⟨fun i => s :: (Q i).map (Multidigraph.arcTgt G), fun i => ?_,
       fun i j hij e hei hej => ?_⟩

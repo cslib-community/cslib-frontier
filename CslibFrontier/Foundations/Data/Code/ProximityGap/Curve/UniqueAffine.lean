@@ -58,7 +58,7 @@ private theorem card_zero_affine_le
       ha₀ <| by simpa [hall0] using (mem_filter.1 hz).2
     simp [hemp]
   · push Not at hall0; obtain ⟨j₀, hj₀⟩ := hall0
-    let proj : (Fin ℓ → F) → ({j : Fin ℓ // j ≠ j₀} → F) := fun z j => z j.1
+    let proj : (Fin ℓ → F) → ({j : Fin ℓ // j ≠ j₀} → F) := fun z j => z j.val
     have hinj : Set.InjOn proj (S : Set (Fin ℓ → F)) := fun z₁ hz₁ z₂ hz₂ hproj => by
       have hne_eq : ∀ j : Fin ℓ, j ≠ j₀ → z₁ j = z₂ j := fun j hj => congrFun hproj ⟨j, hj⟩
       have h1 := (mem_filter.1 hz₁).2; have h2 := (mem_filter.1 hz₂).2

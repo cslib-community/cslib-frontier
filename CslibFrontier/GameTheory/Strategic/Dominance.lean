@@ -426,7 +426,7 @@ private noncomputable def liftMixed (A : ∀ i, Set (S i)) (q : ∀ i, A i → �
 
 private theorem restrict_cost_update [DecidableEq ι] (G : CostGame ι S) {A : ∀ i, Set (S i)}
     (s : ∀ i, A i) (i : ι) (a : A i) :
-    (G.restrict A).cost i (update s i a) = G.cost i (update (fun j => (s j : S j)) i a.1) :=
+    (G.restrict A).cost i (update s i a) = G.cost i (update (fun j => (s j : S j)) i a.val) :=
   congrArg (G.cost i) (funext (apply_update (fun j => ((↑) : A j → S j)) s i a))
 
 section PureRestriction
@@ -447,7 +447,7 @@ theorem isPureNash_iff_restrict
       exact hs.not_isStrictlyDominated i ⟨b, hb⟩
     refine ⟨hmem, fun i a => ?_⟩
     rw [restrict_cost_update]
-    exact hs i a.1
+    exact hs i a.val
   · rintro ⟨hmem, hs⟩ i a
     by_cases ha : a ∈ A i
     · have h := hs i ⟨a, ha⟩
@@ -476,11 +476,11 @@ private theorem sum_subtype_eq_sum_liftMixed [∀ i, Fintype (A i)] (q : ∀ i, 
     have ha : a ∉ A i := by simpa only [mem_filter, mem_univ, true_and] using hnot
     simp only [ha, dite_false]
   rw [hfilter]
-  exact Finset.sum_bij (fun (a : A i) _ => a.1)
-    (fun a _ => mem_filter.2 ⟨mem_univ _, a.2⟩)
+  exact Finset.sum_bij (fun (a : A i) _ => a.val)
+    (fun a _ => mem_filter.2 ⟨mem_univ _, a.property⟩)
     (fun a₁ _ a₂ _ h => Subtype.ext h)
     (fun b hb => ⟨⟨b, (mem_filter.1 hb).2⟩, mem_univ _, rfl⟩)
-    (fun a _ => by simp only [a.2, dite_true])
+    (fun a _ => by simp only [a.property, dite_true])
 
 omit [Fintype ι] [DecidableEq ι] in
 private theorem isMixedStrategy_liftMixed_iff [∀ i, Fintype (A i)] (q : ∀ i, A i → ℝ) (i : ι) :
@@ -488,8 +488,8 @@ private theorem isMixedStrategy_liftMixed_iff [∀ i, Fintype (A i)] (q : ∀ i,
   constructor
   · intro h
     refine isMixedStrategy_iff.2 ⟨fun a => ?_, ?_⟩
-    · have ha := h.nonneg a.1
-      simpa only [liftMixed, a.2, dite_true] using ha
+    · have ha := h.nonneg a.val
+      simpa only [liftMixed, a.property, dite_true] using ha
     · rw [sum_subtype_eq_sum_liftMixed]
       exact h.sum_eq_one
   · intro h
@@ -537,11 +537,11 @@ private theorem sum_productWeight_liftMixed_mul [∀ i, Fintype (A i)] (q : ∀ 
   rw [hfilter]
   symm
   exact Finset.sum_bij (fun (s : ∀ i, A i) _ i => (s i : S i))
-    (fun s _ => mem_filter.2 ⟨mem_univ _, fun i => (s i).2⟩)
+    (fun s _ => mem_filter.2 ⟨mem_univ _, fun i => (s i).property⟩)
     (fun s₁ _ s₂ _ h => funext fun i => Subtype.ext (congrFun h i))
     (fun s hs => ⟨fun i => ⟨s i, (mem_filter.1 hs).2 i⟩, mem_univ _, rfl⟩)
     (fun s _ => by
-      have hs : ∀ i, ((s i : A i) : S i) ∈ A i := fun i => (s i).2
+      have hs : ∀ i, ((s i : A i) : S i) ∈ A i := fun i => (s i).property
       rw [dite_eq_left_of_eq_true (eq_true hs)])
 
 private theorem expectedCost_restrict_eq [∀ i, Fintype (A i)] (q : ∀ i, A i → ℝ) (i : ι) :
@@ -551,14 +551,14 @@ private theorem expectedCost_restrict_eq [∀ i, Fintype (A i)] (q : ∀ i, A i 
 
 private theorem deviationCost_restrict_eq [∀ i, Fintype (A i)] (q : ∀ i, A i → ℝ) (i : ι)
     (a : A i) :
-    (G.restrict A).deviationCost q i a = G.deviationCost (liftMixed A q) i a.1 := by
+    (G.restrict A).deviationCost q i a = G.deviationCost (liftMixed A q) i a.val := by
   rw [deviationCost_def, deviationCost_def, sum_productWeight_liftMixed_mul]
   exact sum_congr rfl fun s _ => by rw [restrict_cost_update]
 
 omit [Fintype ι] [DecidableEq ι] [∀ i, Fintype (S i)] in
 private theorem liftMixed_restrict_eq_self {p : ∀ i, S i → ℝ}
     (hp : ∀ i a, a ∉ A i → p i a = 0) :
-    liftMixed A (fun i (a : A i) => p i a.1) = p := by
+    liftMixed A (fun i (a : A i) => p i a.val) = p := by
   funext i a
   dsimp only [liftMixed]
   split_ifs with ha
@@ -568,7 +568,7 @@ private theorem liftMixed_restrict_eq_self {p : ∀ i, S i → ℝ}
 /-- Characterization of `IsMixedNash` on `G.restrict A` for a full-space strategy profile `p`
 supported on `A`. -/
 private theorem isMixedNash_restrict_iff_supported [∀ i, Fintype (A i)] {p : ∀ i, S i → ℝ} :
-    ((∀ i a, a ∉ A i → p i a = 0) ∧ (G.restrict A).IsMixedNash fun i a => p i a.1) ↔
+    ((∀ i a, a ∉ A i → p i a = 0) ∧ (G.restrict A).IsMixedNash fun i a => p i a.val) ↔
       (∀ i, IsMixedStrategy (p i)) ∧ (∀ i a, a ∉ A i → p i a = 0) ∧
         ∀ i, ∀ a ∈ A i, G.expectedCost p i ≤ G.deviationCost p i a := by
   constructor
@@ -582,10 +582,10 @@ private theorem isMixedNash_restrict_iff_supported [∀ i, Fintype (A i)] {p : �
   · rintro ⟨hp, hzero, hle⟩
     have hlift := liftMixed_restrict_eq_self hzero
     refine ⟨hzero, fun i => ?_, fun i a => ?_⟩
-    · exact (isMixedStrategy_liftMixed_iff (fun j (b : A j) => p j b.1) i).1
+    · exact (isMixedStrategy_liftMixed_iff (fun j (b : A j) => p j b.val) i).1
         (hlift.symm ▸ hp i)
     · rw [expectedCost_restrict_eq, deviationCost_restrict_eq, hlift]
-      exact hle i a.1 a.2
+      exact hle i a.val a.property
 
 /-- Eliminating strategies strictly dominated by remaining strategies preserves mixed Nash
 equilibria in both directions: every equilibrium of `G` puts zero weight outside `A` and restricts
@@ -595,7 +595,7 @@ theorem isMixedNash_iff_restrict [∀ i, Fintype (A i)]
     (hA : ∀ i (a : S i), a ∉ A i → ∃ b ∈ A i, G.IsStrictlyDominatedBy i a b)
     (p : ∀ i, S i → ℝ) :
     G.IsMixedNash p ↔
-      (∀ i a, a ∉ A i → p i a = 0) ∧ (G.restrict A).IsMixedNash fun i a => p i a.1 := by
+      (∀ i a, a ∉ A i → p i a = 0) ∧ (G.restrict A).IsMixedNash fun i a => p i a.val := by
   rw [isMixedNash_restrict_iff_supported]
   constructor
   · intro hp
@@ -763,7 +763,7 @@ theorem not_isWeaklyDominated_idowdsLimit [Finite ι] [∀ j, Finite (S j)] (G :
   obtain ⟨K, hK⟩ := G.exists_idowdsSeq_eq_idowdsLimit
   have hK0 : G.idowdsSeq K = G.idowdsLimit := hK K le_rfl
   have hK1 : G.idowdsSeq (K + 1) = G.idowdsLimit := hK (K + 1) (Nat.le_succ K)
-  have ha1 : a.1 ∈ G.idowdsSeq (K + 1) i := hK1.symm ▸ a.2
+  have ha1 : a.val ∈ G.idowdsSeq (K + 1) i := hK1.symm ▸ a.property
   rw [idowdsSeq_succ] at ha1
   obtain ⟨haK, hnd⟩ := ha1
   generalize hL : G.idowdsSeq K = L at haK hnd hK0
@@ -824,7 +824,7 @@ theorem idosdsStep_simultaneous (A : ∀ i, Set (S i)) [∀ i, Finite (A i)] [�
       · exact mem_filter.2 ⟨mem_univ _, hbc⟩
     exact (Finset.card_lt_card hsub).not_ge
       (hbMin_min c (mem_filter.2 ⟨mem_univ _, habMin.trans hbc⟩))
-  exact ⟨bMin.1, bMin.2, ⟨bMin.2, hndMin⟩, habMin⟩
+  exact ⟨bMin.val, bMin.property, ⟨bMin.property, hndMin⟩, habMin⟩
 
 private theorem IDoSDSStep.isPureNash_restrict_iff {A B : ∀ i, Set (S i)}
     (hstep : G.IDoSDSStep A B) (s : ∀ i, S i) :
@@ -837,17 +837,17 @@ private theorem IDoSDSStep.isPureNash_restrict_iff {A B : ∀ i, Set (S i)}
       obtain ⟨b, hbA, -, hdom⟩ := hstep.2 i (s i) (hsA i) hni
       exact hpA.not_isStrictlyDominated i ⟨⟨b, hbA⟩, hdom⟩
     refine ⟨hsB, fun i b => ?_⟩
-    have h := hpA i ⟨b.1, hstep.1 i b.2⟩
+    have h := hpA i ⟨b.val, hstep.1 i b.property⟩
     rw [restrict_cost_update] at h ⊢
     exact h
   · rintro ⟨hsB, hpB⟩
     have hsA : ∀ i, s i ∈ A i := fun i => hstep.1 i (hsB i)
     refine ⟨hsA, fun i a => ?_⟩
-    by_cases haB : a.1 ∈ B i
-    · have h := hpB i ⟨a.1, haB⟩
+    by_cases haB : a.val ∈ B i
+    · have h := hpB i ⟨a.val, haB⟩
       rw [restrict_cost_update] at h ⊢
       exact h
-    · obtain ⟨b, hbA, hbB, hdom⟩ := hstep.2 i a.1 a.2 haB
+    · obtain ⟨b, hbA, hbB, hdom⟩ := hstep.2 i a.val a.property haB
       have h := hpB i ⟨b, hbB⟩
       have hlt := hdom fun j => ⟨s j, hsA j⟩
       simp only [restrict_cost_update] at h hlt ⊢
@@ -878,7 +878,7 @@ theorem IDoSDS.isPureNash_iff_eq_of_singleton {sStar : ∀ i, S i}
     exact hs i
   · rintro rfl
     refine ⟨fun _ => rfl, fun i a => ?_⟩
-    have ha : a = ⟨s i, rfl⟩ := Subtype.ext a.2
+    have ha : a = ⟨s i, rfl⟩ := Subtype.ext a.property
     rw [ha, update_eq_self]
 
 section MixedIDoSDS
@@ -949,7 +949,7 @@ its restriction is a mixed Nash equilibrium of `G.restrict A`. -/
 theorem IDoSDS.isMixedNash_iff_restrict {A : ∀ i, Set (S i)} [∀ i, Fintype (A i)]
     (h : G.IDoSDS (fun _ => Set.univ) A) (p : ∀ i, S i → ℝ) :
     G.IsMixedNash p ↔
-      (∀ i a, a ∉ A i → p i a = 0) ∧ (G.restrict A).IsMixedNash fun i a => p i a.1 := by
+      (∀ i a, a ∉ A i → p i a = 0) ∧ (G.restrict A).IsMixedNash fun i a => p i a.val := by
   rw [isMixedNash_restrict_iff_supported]
   have huniv : G.IsMixedNash p ↔
       (∀ i, IsMixedStrategy (p i)) ∧

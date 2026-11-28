@@ -28,10 +28,8 @@ the disjoint sparse-leaf sum over the original declared variables. The certifica
 the encoded input, including the unary declared size, and the supplied leaf computation.
 Its round factor uses the power saving from [MITHardnessGroup2026SH, Lemma 2.2, §2.2].
 A size-based power saving transfers to the occurring variable count for both counting
-and decision after polynomial-time dense relabeling. In the randomized decision case,
-a solver on declared formulas follows from leaf verifiers with sufficiently small error.
-Deriving those verifiers by amplification and the randomized hypothesis equivalences remain
-open in #8457.
+and decision after polynomial-time dense relabeling. For bounded-error decision, majority
+amplification supplies sufficiently accurate leaf verifiers for a shared-seed search.
 
 ## Main results
 
@@ -46,6 +44,8 @@ open in #8457.
   to a power saving in occurring variables.
 * `DecidableInPowerExpTime.KSAT_numVars_of_size`: the decision transfer using positive
   answers from the same sparse-leaf traversal.
+* `SolvesWithErrorInPowerExpTime.KSAT_numVars_of_size`: the bounded-error decision transfer
+  using amplified leaf verifiers and a single shared seed.
 
 ## References
 
@@ -633,6 +633,19 @@ private theorem exists_budget_power_lt_one {p : ℝ} (hp1 : p < 1) (k : ℕ) :
   rw [add_mul, one_mul, div_mul_eq_mul_div]
   linarith
 
+private theorem sparseLeaf_size_le {ψ : CNF ℕ} {declared A : ℕ} {b : ℝ}
+    (hb : 1 ≤ b) (hsupport : ψ.vars.toFinset ⊆ Finset.range declared)
+    (hclauses : (ψ.length : ℝ) ≤ A * (declared + 1 : ℝ) ^ b) :
+    (ψ.numVars + ψ.length + 1 : ℝ) ≤ (A + 1 : ℝ) * (declared + 1 : ℝ) ^ b := by
+  have hvars : ψ.numVars ≤ declared := by
+    simpa only [CNF.numVars, Finset.card_range] using Finset.card_le_card hsupport
+  have hbase : (1 : ℝ) ≤ declared + 1 := le_add_of_nonneg_left (Nat.cast_nonneg _)
+  have hn : (declared + 1 : ℝ) ≤ (declared + 1 : ℝ) ^ b := by
+    simpa only [Real.rpow_one] using Real.rpow_le_rpow_of_exponent_le hbase hb
+  have hn' : (ψ.numVars + 1 : ℝ) ≤ (declared + 1 : ℝ) :=
+    add_le_add_left (Nat.cast_le.mpr hvars) 1
+  linarith [hn'.trans hn]
+
 private theorem computableInPowerExpTime_declaredSearch_of_size {k : ℕ} (hk : 2 ≤ k)
     {p : ℝ} (hp : 0 < p) (hp1 : p < 1) {g : CNF ℕ → ℕ}
     (hcap : ∀ φ, g φ ≤ 2 ^ φ.numVars)
@@ -689,16 +702,8 @@ private theorem computableInPowerExpTime_declaredSearch_of_size {k : ℕ} (hk : 
       hclock (fun _ ψ _ _ _ _ => hcap ψ) (by
         rintro ⟨context, declared, formula⟩ ψ _ _ hsupport hclauses hbits
         let x : Unit × ℕ × CNF ℕ := (context, declared, formula)
-        have hvars : ψ.numVars ≤ declared := by
-          simpa only [CNF.numVars, Finset.card_range] using Finset.card_le_card hsupport
-        have hclauses' : (ψ.length : ℝ) ≤ A * (X x) ^ b :=
-          (Nat.cast_le.mpr hclauses).trans (hA hd declared)
-        have hn : X x ≤ (X x) ^ b := by
-          simpa only [Real.rpow_one] using Real.rpow_le_rpow_of_exponent_le (hX x) hb
-        have hvars' : (ψ.numVars : ℝ) + 1 ≤ X x :=
-          add_le_add (Nat.cast_le.mpr hvars) le_rfl
-        have hsize : (ψ.numVars + ψ.length + 1 : ℝ) ≤ (A + 1 : ℝ) * (X x) ^ b := by
-          linarith [hvars'.trans hn]
+        have hsize : (ψ.numVars + ψ.length + 1 : ℝ) ≤ (A + 1 : ℝ) * (X x) ^ b :=
+          sparseLeaf_size_le hb hsupport ((Nat.cast_le.mpr hclauses).trans (hA hd declared))
         have hpow := Real.rpow_le_rpow (by positivity) hsize hp.le
         rw [Real.mul_rpow (by positivity) (by positivity),
           ← Real.rpow_mul (zero_le_one.trans (hX x))] at hpow
@@ -872,6 +877,196 @@ private theorem decidableInPowerExpTime_declaredSat_of_size {k : ℕ} (hk : 2 �
   rw [hset] at hdec
   exact ⟨q, hq, hq1, D, f', hdec⟩
 
+private theorem solvesWithErrorInPowerExpTime_declaredSat_of_size {k : ℕ} (hk : 2 ≤ k)
+    {p : ℝ} (hp : 0 < p) (hp₁ : p < 1)
+    (h : SolvesWithErrorInPowerExpTime (PromiseProblem.ofSet (KSAT k)) encCNF ErrorModel.bounded
+      (fun φ => φ.numVars + φ.length) p) :
+    ∃ q : ℝ, 0 < q ∧ q < 1 ∧ SolvesWithErrorInPowerExpTime
+      (PromiseProblem.ofSet {a : DeclaredCNF |
+        validDeclaredInput k a.numVars a.formula = true ∧ a.formula.Satisfiable})
+      encDeclaredCNF ErrorModel.bounded DeclaredCNF.numVars q := by
+  let μ (a : DeclaredCNF) := a.formula.numVars + a.formula.length
+  let Q := PromiseProblem.ofSet {a : DeclaredCNF | a.formula ∈ KSAT k}
+  have hformula : ComputableInPolyTime DeclaredCNF.formula encDeclaredCNF encCNF :=
+    encDeclaredCNF_formula_polyTime ComputableInPolyTime.id'
+  have hbase : SolvesWithErrorInPowerExpTime Q encDeclaredCNF ErrorModel.bounded μ p := by
+    have hsize (a : DeclaredCNF) : (μ a + 1 : ℝ) ≤
+        (↑(0 : ℕ) + 1 : ℝ) * (μ a + 1 : ℝ) ^ (1 : ℝ) := by
+      simp only [Nat.cast_zero, zero_add, one_mul, Real.rpow_one, le_refl]
+    simpa only [one_mul] using h.of_polyTime_promiseReduction (A := Q) hformula
+      (fun _ ha => ha) (fun _ ha => ha) (K := 0) hsize zero_le_one hp.le
+  have htarget : ComputableInPolyTime (fun a : DeclaredCNF => a.numVars + 1)
+      encDeclaredCNF encUnary :=
+    ComputableInPolyTime.unary_add' (encDeclaredCNF_numVars_polyTime ComputableInPolyTime.id')
+      (ComputableInPolyTime.const 1)
+  obtain ⟨width, V, ⟨Cw, ew, hw⟩, ⟨Cv, ev, hv⟩, hyes, hno⟩ :=
+    hbase.exists_amplifiedVerifier htarget
+  obtain ⟨Tw, cw, hw, htw⟩ := hw.exists_computableInO
+  obtain ⟨Tv, cv, hv, htv⟩ := hv.exists_computableInO
+  obtain ⟨cl, hlenWidth⟩ := hw.length_le_time
+  obtain ⟨d, hd, hdensity⟩ := exists_budget_power_lt_one hp₁ k
+  obtain ⟨J, hJ⟩ := exists_countingPowerBudget_clauseBound_le hk
+  let b : ℝ := 1 + (2 * k : ℝ) / d
+  let D : ℕ := ⌈((max Cw Cv : ℕ) : ℝ) * (J + 1 : ℝ) ^ p⌉₊
+  let X (a : DeclaredCNF) : ℝ := (2 : ℝ) ^ (D * (a.numVars + 1 : ℝ) ^ (b * p))
+  have hX (a : DeclaredCNF) : 1 ≤ X a := Real.one_le_rpow one_le_two (by positivity)
+  have hb : 1 ≤ b := le_add_of_nonneg_right (by positivity)
+  let encSeeded := encPair encDeclaredCNF encBits
+  let L (x : DeclaredCNF × List Bool) := (encSeeded x).length
+  let N (a : DeclaredCNF) :=
+    nodeBound k (countingDepthCoeff k (countingThresholdBase k (countingPowerBudget d a.numVars)))
+      a.formula
+  let B (x : DeclaredCNF × List Bool) := 2 * N x.1 + 5 * L x + 3
+  obtain ⟨K, e, hN⟩ := (polyBounded_nodeBound_powerBudget encBits hk d).exists_le
+  have hB : PolyBounded L B := by
+    have hnode : PolyBounded L (fun x => N x.1) := by
+      refine ((PolyBounded.const K).mul
+        ((((PolyBounded.const 2).mul (PolyBounded.self (size := L))).add (.const 1)).pow e)).mono
+        (fun x => ?_)
+      refine (hN (x.2, x.1.numVars, x.1.formula)).trans (Nat.mul_le_mul_left K
+        (Nat.pow_le_pow_left (Nat.add_le_add_right ?_ 1) e))
+      have he : encDeclaredCNF x.1 = encPair encUnary encCNF (x.1.numVars, x.1.formula) := rfl
+      simp only [L, encSeeded, he, length_encPair, encBits_apply]
+      omega
+    exact (((PolyBounded.const 2).mul hnode).add ((PolyBounded.const 5).mul .self)).add (.const 3)
+  let E := max ew ev
+  let P (x : DeclaredCNF × List Bool) := 20 * B x + (cw + cv) * (B x + 1) ^ E + (cw + cv) + 1
+  have hP : PolyBounded L P := (((((PolyBounded.const 20).mul hB).add
+    ((PolyBounded.const (cw + cv)).mul ((hB.add (.const 1)).pow E))).add (.const (cw + cv))).add
+      (.const 1))
+  obtain ⟨M, f, hM⟩ := ((PolyBounded.const (2 * cl + 1)).mul hP).exists_le
+  let A := D + M * 2 ^ f
+  have habsorb (a : DeclaredCNF) : X a * (M * 2 ^ f : ℕ) ≤
+      (2 : ℝ) ^ (A * (a.numVars + 1 : ℝ) ^ (b * p)) := by
+    have hpow : (1 : ℝ) ≤ (a.numVars + 1 : ℝ) ^ (b * p) :=
+      Real.one_le_rpow (le_add_of_nonneg_left (Nat.cast_nonneg _))
+        (mul_nonneg (zero_le_one.trans hb) hp.le)
+    calc
+      _ ≤ X a * (2 : ℝ) ^ (M * 2 ^ f : ℕ) := by
+        apply mul_le_mul_of_nonneg_left _ (by dsimp only [X]; positivity)
+        exact_mod_cast (Nat.lt_two_pow_self (n := M * 2 ^ f)).le
+      _ ≤ _ := by
+        rw [← Real.rpow_natCast, show X a = 2 ^ (D * (a.numVars + 1 : ℝ) ^ (b * p)) from rfl,
+          ← Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
+        apply Real.rpow_le_rpow_of_exponent_le one_le_two
+        dsimp only [A]
+        push_cast
+        nlinarith [mul_le_mul_of_nonneg_left hpow
+          (show 0 ≤ (M : ℝ) * 2 ^ f by positivity)]
+  have hcharge (a : DeclaredCNF) (ψ : CNF ℕ) (seed : List Bool)
+      (hsupport : ψ.vars.toFinset ⊆ Finset.range a.numVars)
+      (hclauses : ψ.length ≤ occBound k
+        (countingThresholdBase k (countingPowerBudget d a.numVars)) * a.numVars + 1)
+      (hlen : (encCNF ψ).length ≤ N a) :
+      let leaf : DeclaredCNF := ⟨a.numVars, ψ⟩
+      ((20 * (encSeeded (leaf, seed)).length + Tw leaf +
+        Tv (leaf, seed.take (width leaf)) : ℕ) : ℝ) ≤ X a * P (a, seed) := by
+    intro leaf
+    have hsize : (μ leaf + 1 : ℝ) ≤ (J + 1 : ℝ) * (a.numVars + 1 : ℝ) ^ b := by
+      simp only [μ, leaf, Nat.cast_add]
+      exact sparseLeaf_size_le hb hsupport ((Nat.cast_le.mpr hclauses).trans (hJ hd a.numVars))
+    have hrate (C : ℕ) (hC : C ≤ max Cw Cv) :
+        (2 : ℝ) ^ (C * (μ leaf + 1 : ℝ) ^ p) ≤ X a := by
+      refine (two_rpow_mul_rpow_le_of_le_mul_rpow (C := C)
+        (by positivity) (by positivity) (by positivity) hsize hp.le).trans ?_
+      apply Real.rpow_le_rpow_of_exponent_le one_le_two
+      apply mul_le_mul_of_nonneg_right _ (by positivity)
+      exact (mul_le_mul_of_nonneg_right (Nat.cast_le.mpr hC) (by positivity)).trans (Nat.le_ceil _)
+    have hlenSeed : (encSeeded (leaf, seed)).length ≤ B (a, seed) := by
+      have hroot : encDeclaredCNF a = encPair encUnary encCNF (a.numVars, a.formula) := rfl
+      have hleaf : encDeclaredCNF leaf = encPair encUnary encCNF (a.numVars, ψ) := rfl
+      simp only [B, L, encSeeded, hroot, hleaf, length_encPair, encBits_apply,
+        encUnary_apply, List.length_replicate]
+      omega
+    have hlenLeaf := (length_le_encPair_left encDeclaredCNF encBits (leaf, seed)).trans hlenSeed
+    have hlenQuery : (encSeeded (leaf, seed.take (width leaf))).length ≤ B (a, seed) := by
+      refine le_trans ?_ hlenSeed
+      simp only [encSeeded, length_encPair, encBits_apply]
+      exact Nat.add_le_add_left (List.length_take_le' ..) _
+    have hpoly (l j : ℕ) (hl : l ≤ B (a, seed)) (hj : j ≤ E) :
+        (l + 1 : ℝ) ^ j ≤ (B (a, seed) + 1 : ℝ) ^ E :=
+      (pow_le_pow_left₀ (by positivity) (by exact_mod_cast (Nat.add_le_add_right hl 1)) _).trans
+        (pow_le_pow_right₀ (le_add_of_nonneg_left (Nat.cast_nonneg _)) hj)
+    have hwidth' : (Tw leaf : ℝ) ≤ cw * (X a * (B (a, seed) + 1 : ℝ) ^ E) + cw :=
+      (htw leaf).trans (add_le_add_left (mul_le_mul_of_nonneg_left
+        (mul_le_mul (hrate Cw (le_max_left _ _)) (hpoly _ _ hlenLeaf (le_max_left _ _))
+          (by positivity) (zero_le_one.trans (hX a))) (Nat.cast_nonneg cw)) _)
+    have hverify' : (Tv (leaf, seed.take (width leaf)) : ℝ) ≤
+        cv * (X a * (B (a, seed) + 1 : ℝ) ^ E) + cv :=
+      (htv (leaf, seed.take (width leaf))).trans (add_le_add_left (mul_le_mul_of_nonneg_left
+        (mul_le_mul (hrate Cv (le_max_right _ _)) (hpoly _ _ hlenQuery (le_max_right _ _))
+          (by positivity) (zero_le_one.trans (hX a))) (Nat.cast_nonneg cv)) _)
+    have hseedReal : ((encSeeded (leaf, seed)).length : ℝ) ≤ B (a, seed) :=
+      Nat.cast_le.mpr hlenSeed
+    dsimp only [P]
+    push_cast
+    nlinarith [mul_le_mul_of_nonneg_right (hX a)
+      (show 0 ≤ 20 * (B (a, seed) : ℝ) + cw + cv + 1 by positivity)]
+  have hmajor (a : DeclaredCNF) (seed : List Bool) :
+      ((2 * cl + 1) * P (a, seed) : ℝ) ≤ M * (L (a, seed) + 1 : ℝ) ^ f := by
+    exact_mod_cast hM (a, seed)
+  have hframe (a : DeclaredCNF) : (L (a, []) : ℝ) + 1 =
+      2 * ((encDeclaredCNF a).length + 1 : ℝ) := by
+    simp only [L, encSeeded, length_encPair, encBits_apply, List.length_nil, Nat.add_zero,
+      Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat, Nat.cast_one]
+    ring
+  apply solvesWithErrorInPowerExpTime_of_powerBudgetLeaves hk hd hw hv hdensity A f
+  · intro a ψ seed ha
+    have h := hcharge a ψ seed ha.2.2.1 ha.2.2.2.1 ha.2.2.2.2
+    have hP' : (P (a, seed) : ℝ) ≤ M * (L (a, seed) + 1 : ℝ) ^ f := by
+      exact (le_mul_of_one_le_left (Nat.cast_nonneg _)
+        (le_add_of_nonneg_left (by positivity) : (1 : ℝ) ≤ 2 * cl + 1)).trans (hmajor a seed)
+    have hM' : (M : ℝ) ≤ (M * 2 ^ f : ℕ) := by
+      exact_mod_cast Nat.le_mul_of_pos_right _ (Nat.two_pow_pos f)
+    have htotal := h.trans (mul_le_mul_of_nonneg_left hP' (zero_le_one.trans (hX a)))
+    rw [← mul_assoc] at htotal
+    have hcomp := (mul_le_mul_of_nonneg_left hM' (zero_le_one.trans (hX a))).trans (habsorb a)
+    exact ⟨htotal.trans (mul_le_mul_of_nonneg_right hcomp (by positivity)),
+      htotal.trans (mul_le_mul_of_nonneg_right hcomp (by positivity))⟩
+  · intro a ψ _ ha
+    let leaf : DeclaredCNF := ⟨a.numVars, ψ⟩
+    refine ⟨?_, ?_⟩
+    · have hwork := hcharge a ψ [] ha.2.2.1 ha.2.2.2.1 ha.2.2.2.2
+      have ht : (Tw leaf : ℝ) ≤ X a * P (a, []) := by
+        dsimp only at hwork
+        push_cast at hwork
+        linarith [Nat.cast_nonneg (α := ℝ) (Tv (leaf, [].take (width leaf))),
+          Nat.cast_nonneg (α := ℝ) ((encSeeded (leaf, [])).length)]
+      have hP₁ : 1 ≤ P (a, []) := by dsimp only [P]; omega
+      have hU : 1 ≤ X a * P (a, []) := one_le_mul_of_one_le_of_one_le (hX a) (by exact_mod_cast hP₁)
+      have hwidth' : (width leaf : ℝ) ≤ cl * ((Tw leaf : ℝ) + 1) := by
+        have hf' := hlenWidth leaf
+        rw [encUnary_apply, List.length_replicate] at hf'
+        exact_mod_cast hf'
+      have hW : (width leaf : ℝ) ≤ X a * ((2 * (cl : ℝ) + 1) * P (a, [])) := by
+        have h := mul_le_mul_of_nonneg_left (show (Tw leaf : ℝ) + 1 ≤ 2 * (X a * P (a, [])) by
+          linarith) (Nat.cast_nonneg cl)
+        linarith [hwidth'.trans h]
+      calc
+        _ ≤ X a * (M * (L (a, []) + 1 : ℝ) ^ f) :=
+          hW.trans (mul_le_mul_of_nonneg_left (hmajor a []) (zero_le_one.trans (hX a)))
+        _ = (X a * (M * 2 ^ f : ℕ)) * ((encDeclaredCNF a).length + 1 : ℝ) ^ f := by
+          rw [hframe, mul_pow]
+          push_cast
+          ring
+        _ ≤ _ := mul_le_mul_of_nonneg_right (habsorb a) (by positivity)
+    · have herr : (acceptCount (fun x => V x != decide (0 < x.1.formula.modelCount))
+          leaf (width leaf) : ℝ) ≤ ((1 / 3 : ℝ) / 2 ^ (a.numVars + 1)) * 2 ^ width leaf := by
+        by_cases ht : 0 < ψ.modelCount
+        · have htruth : decide (0 < leaf.formula.modelCount) = true := decide_eq_true ht
+          rw [acceptCount_congr (W := fun x => !V x) (fun w => by
+            simpa only [Bool.bne_true] using congrArg (fun z => V (leaf, w) != z) htruth) _]
+          exact hyes leaf ⟨ha.1, CNF.modelCount_pos_iff.mp ht⟩
+        · have htruth : decide (0 < leaf.formula.modelCount) = false := decide_eq_false ht
+          rw [acceptCount_congr (W := V) (fun w => by
+            simpa only [Bool.bne_false] using congrArg (fun z => V (leaf, w) != z) htruth) _]
+          exact hno leaf (fun hyes => ht (CNF.modelCount_pos_iff.mpr hyes.2))
+      have hpow : (2 : ℝ) ^ (a.numVars / countingPowerBudget d a.numVars + 1) ≤
+          2 ^ (a.numVars + 1) :=
+        pow_le_pow_right₀ one_le_two (Nat.succ_le_succ (Nat.div_le_self ..))
+      exact herr.trans (mul_le_mul_of_nonneg_right
+        (div_le_div_of_nonneg_left (by norm_num) (by positivity) hpow) (by positivity))
+
 end Cslib.Complexity.CountingSparsify
 
 namespace Cslib.Complexity
@@ -940,5 +1135,35 @@ theorem DecidableInPowerExpTime.KSAT_numVars_of_size {k : ℕ} (hk : 2 ≤ k) {p
   simpa only [one_mul] using DecidableInPowerExpTime.of_polyTime_reduction
     (μA := CNF.numVars) computableInPolyTime_prepareDense hmem (K := 0) (b := 1)
     (fun _ => by simp) zero_le_one hq.le hdec
+
+
+/-- The randomized size-to-variable decision transfer in
+[MITHardnessGroup2026SH, v2, §7, Theorem 7.1(a)] for fixed widths `k ≥ 2`.
+Dense relabeling preserves satisfiability and width. On the sparse leaves, amplification uses
+a number of repetitions linear in the declared variable count, which preserves the power
+saving. Every leaf reads a prefix of a single shared seed, and a union bound controls the
+total error. The time bound charges the original encoded length. -/
+theorem SolvesWithErrorInPowerExpTime.KSAT_numVars_of_size {k : ℕ} (hk : 2 ≤ k)
+    {p : ℝ} (hp : 0 < p) (hp₁ : p < 1)
+    (h : SolvesWithErrorInPowerExpTime (PromiseProblem.ofSet (KSAT k)) encCNF ErrorModel.bounded
+      (fun φ => φ.numVars + φ.length) p) :
+    ∃ q : ℝ, 0 < q ∧ q < 1 ∧ SolvesWithErrorInPowerExpTime
+      (PromiseProblem.ofSet (KSAT k)) encCNF ErrorModel.bounded CNF.numVars q := by
+  obtain ⟨q, hq, hq₁, hsolver⟩ := CountingSparsify.solvesWithErrorInPowerExpTime_declaredSat_of_size
+    hk hp hp₁ h
+  let prepare (φ : CNF ℕ) : DeclaredCNF := ⟨φ.numVars, φ.denseRelabel⟩
+  have hprepare : ComputableInPolyTime prepare encCNF encDeclaredCNF :=
+    encDeclaredCNF_mk_polyTime SAT.computableInPolyTime_numVars
+      SAT.computableInPolyTime_denseRelabel
+  have hmem (φ : CNF ℕ) : φ ∈ KSAT k ↔ CNF.validDeclaredInput k (prepare φ).numVars
+      (prepare φ).formula = true ∧ (prepare φ).formula.Satisfiable := by
+    change ((∀ c ∈ φ, c.length ≤ k) ∧ φ.Satisfiable) ↔
+      (CNF.validDeclaredInput k φ.numVars φ.denseRelabel = true ∧ φ.denseRelabel.Satisfiable)
+    rw [valid_dense_iff_width, CNF.satisfiable_denseRelabel]
+  refine ⟨q, hq, hq₁, ?_⟩
+  simpa only [one_mul] using hsolver.of_polyTime_promiseReduction
+    (A := PromiseProblem.ofSet (KSAT k)) (μ := CNF.numVars) hprepare
+    (fun φ hφ => (hmem φ).mp hφ) (fun φ hφ hmem' => hφ ((hmem φ).mpr hmem'))
+    (K := 0) (b := 1) (fun _ => by simp [prepare]) zero_le_one hq.le
 
 end Cslib.Complexity

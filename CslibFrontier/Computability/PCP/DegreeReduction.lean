@@ -105,7 +105,7 @@ def cloudGraph (H : ∀ v, RotationMap (G.Cloud v) D) : RotationMap (E × Bool) 
   rot p := Prod.map Subtype.val id ((H (G.endpoint p.1)).rot (⟨p.1, rfl⟩, p.2))
   rot_involutive := by
     have key (v : V) (x : G.Cloud v) (i : D) :
-        Prod.map Subtype.val id ((H (G.endpoint x.1)).rot (⟨x.1, rfl⟩, i)) =
+        Prod.map Subtype.val id ((H (G.endpoint x.val)).rot (⟨x.val, rfl⟩, i)) =
           Prod.map Subtype.val id ((H v).rot (x, i)) := by
       obtain ⟨x, rfl⟩ := x
       rfl
@@ -119,7 +119,7 @@ variable {G} (H : ∀ v, RotationMap (G.Cloud v) D)
 /-- The neighbors of a half-edge in the cloud graph are its neighbors in the multigraph on its
 cloud. -/
 private theorem neighbor_cloudGraph {v : V} (x : G.Cloud v) (i : D) :
-    (G.cloudGraph H).neighbor x.1 i = ((H v).neighbor x i).1 := by
+    (G.cloudGraph H).neighbor x.val i = ((H v).neighbor x i).val := by
   obtain ⟨_, rfl⟩ := x
   rfl
 
@@ -128,7 +128,7 @@ private theorem neighbor_cloudGraph {v : V} (x : G.Cloud v) (i : D) :
 theorem endpoint_neighbor_cloudGraph (p : E × Bool) (i : D) :
     G.endpoint ((G.cloudGraph H).neighbor p i) = G.endpoint p := by
   rw [neighbor_cloudGraph H (⟨p, rfl⟩ : G.Cloud (G.endpoint p))]
-  exact ((H _).neighbor _ i).2
+  exact ((H _).neighbor _ i).property
 
 /-! ### The degree-reduced constraint graph -/
 
@@ -276,8 +276,8 @@ variable [Fintype E] [DecidableEq V] [Fintype D]
 private theorem exists_forall_card_filter_le_card_filter [Nonempty α] [DecidableEq α]
     (A : E × Bool → α)
     (v : V) :
-    ∃ a : α, ∀ b, #{x : G.Cloud v | A x.1 = b} ≤ #{x : G.Cloud v | A x.1 = a} :=
-  Fintype.exists_forall_card_filter_le_card_filter fun x : G.Cloud v ↦ A x.1
+    ∃ a : α, ∀ b, #{x : G.Cloud v | A x.val = b} ≤ #{x : G.Cloud v | A x.val = a} :=
+  Fintype.exists_forall_card_filter_le_card_filter fun x : G.Cloud v ↦ A x.val
 
 variable {μ : ℝ}
 
@@ -286,14 +286,14 @@ open Classical in
 /-- The disagreeing half-edges are counted cloud by cloud over `univ.image G.endpoint`. -/
 private theorem card_filter_ne_endpoint_eq_sum [DecidableEq α] (A : E × Bool → α) (σ : V → α) :
     (#{p | A p ≠ σ (G.endpoint p)} : ℝ) =
-      ∑ v ∈ univ.image G.endpoint, (#{x : G.Cloud v | A x.1 ≠ σ v} : ℝ) := by
+      ∑ v ∈ univ.image G.endpoint, (#{x : G.Cloud v | A x.val ≠ σ v} : ℝ) := by
   rw [card_eq_sum_card_fiberwise (f := G.endpoint) (t := univ.image G.endpoint)
     fun p _ ↦ mem_image_of_mem _ (mem_univ p)]
   push_cast
-  refine sum_congr rfl fun v _ ↦ mod_cast (card_bij (fun x _ ↦ x.1)
+  refine sum_congr rfl fun v _ ↦ mod_cast (card_bij (fun x _ ↦ x.val)
     (fun x hx ↦ by
       simp only [mem_filter, mem_univ, true_and] at hx ⊢
-      rw [x.2]
+      rw [x.property]
       exact ⟨hx, rfl⟩)
     (fun _ _ _ _ ↦ Subtype.ext) fun p hp ↦ ?_).symm
   simp only [mem_filter, mem_univ, true_and] at hp
@@ -305,21 +305,22 @@ private theorem card_filter_ne_endpoint_eq_sum [DecidableEq α] (A : E × Bool �
 vertex. -/
 private theorem mul_card_filter_ne_le_card_filter_isRight [DecidableEq α]
     (hH : ∀ v, (H v).spectralExpansion ≤ μ) (A : E × Bool → α) (σ : V → α)
-    (hσ : ∀ v b, #{x : G.Cloud v | A x.1 = b} ≤ #{x : G.Cloud v | A x.1 = σ v}) :
+    (hσ : ∀ v b, #{x : G.Cloud v | A x.val = b} ≤ #{x : G.Cloud v | A x.val = σ v}) :
     (1 - μ) * Fintype.card D * #{p | A p ≠ σ (G.endpoint p)} ≤
       #{q ∈ (G.degreeReduce H).toConstraintGraph.unsatEdges A | q.2.isRight} := by
   classical
   set T : Finset V := univ.image G.endpoint
   /- The darts of the multigraph on the cloud of `v` joining differently labelled half-edges, and
   their embedding into the cloud-links. -/
-  set Dis : ∀ v, Finset (G.Cloud v × D) := fun v ↦ {r | A r.1.1 ≠ A ((H v).neighbor r.1 r.2).1}
-  set f : ∀ v, G.Cloud v × D → (E × Bool) × (Unit ⊕ D) := fun _ r ↦ (r.1.1, .inr r.2)
+  set Dis : ∀ v, Finset (G.Cloud v × D) := fun v ↦ {r | A r.1.val ≠ A ((H v).neighbor r.1 r.2).val}
+  set f : ∀ v, G.Cloud v × D → (E × Bool) × (Unit ⊕ D) := fun _ r ↦ (r.1.val, .inr r.2)
   have hf (v : V) : Function.Injective (f v) := fun _ _ h ↦ by
     simp only [f, Prod.mk.injEq, Sum.inr.injEq] at h
     exact Prod.ext (Subtype.ext h.1) h.2
   /- In each cloud, the disagreeing darts are many. -/
-  have hcloud (v : V) : (1 - μ) * Fintype.card D * #{x : G.Cloud v | A x.1 ≠ σ v} ≤ #(Dis v) := by
-    refine le_trans ?_ ((H v).mul_card_filter_ne_le_card_filter_ne_neighbor (fun x ↦ A x.1) (hσ v))
+  have hcloud (v : V) : (1 - μ) * Fintype.card D * #{x : G.Cloud v | A x.val ≠ σ v} ≤ #(Dis v) := by
+    refine le_trans ?_
+      ((H v).mul_card_filter_ne_le_card_filter_ne_neighbor (fun x ↦ A x.val) (hσ v))
     gcongr
     linarith [hH v]
   /- The disagreeing darts of different clouds give different violated cloud-links. -/
@@ -327,14 +328,15 @@ private theorem mul_card_filter_ne_le_card_filter_isRight [DecidableEq α]
     fun _ _ _ _ hvw ↦ disjoint_left.2 fun q hq hq' ↦ by
       obtain ⟨r, -, rfl⟩ := mem_image.1 hq
       obtain ⟨r', -, h⟩ := mem_image.1 hq'
-      exact hvw (r.1.2.symm.trans ((congrArg (fun q ↦ G.endpoint q.1) h).symm.trans r'.1.2))
+      exact hvw (r.1.property.symm.trans
+        ((congrArg (fun q ↦ G.endpoint q.1) h).symm.trans r'.1.property))
   have hsub : T.biUnion (fun v ↦ (Dis v).image (f v)) ⊆
       {q ∈ (G.degreeReduce H).toConstraintGraph.unsatEdges A | q.2.isRight} := fun q hq ↦ by
     obtain ⟨v, -, r, hr, rfl⟩ := by simpa only [mem_biUnion, mem_image] using hq
     rw [mem_filter, mem_unsatEdges, satisfies_degreeReduce_inr, neighbor_cloudGraph H r.1]
     exact ⟨by simpa [Dis] using hr, rfl⟩
   calc (1 - μ) * Fintype.card D * #{p | A p ≠ σ (G.endpoint p)}
-      = ∑ v ∈ T, (1 - μ) * Fintype.card D * #{x : G.Cloud v | A x.1 ≠ σ v} := by
+      = ∑ v ∈ T, (1 - μ) * Fintype.card D * #{x : G.Cloud v | A x.val ≠ σ v} := by
         rw [G.card_filter_ne_endpoint_eq_sum A σ, mul_sum]
     _ ≤ ∑ v ∈ T, (#((Dis v).image (f v)) : ℝ) := by
         refine sum_le_sum fun v _ ↦ ?_

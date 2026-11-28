@@ -12,6 +12,7 @@ public import CslibFrontier.Algorithms.Lean.Submodular.Basic
 public import Cslib.Foundations.Control.Monad.IsMonadHom
 public import Mathlib.Analysis.Complex.Exponential
 import CslibFrontier.Foundations.Data.List.EraseDups
+import Mathlib.Data.Fintype.Fin
 import Mathlib.Data.Nat.Cast.Order.Field
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -525,7 +526,7 @@ theorem one_sub_exp_neg_div_mul_le_submodularGreedy
     calc
       (1 - 1 / (k : ℝ)) ^ m ≤ (Real.exp (-(1 / (k : ℝ)))) ^ m :=
         pow_le_pow_left₀ hfactor_nonneg (Real.one_sub_le_exp_neg (1 / (k : ℝ))) m
-      _ = Real.exp ((m : ℝ) * (-(1 / (k : ℝ)))) := (Real.exp_nat_mul _ m).symm
+      _ = Real.exp ((m : ℝ) * (-(1 / (k : ℝ)))) := (Real.exp_natCast_mul m _).symm
       _ = Real.exp (-(m : ℝ) / (k : ℝ)) := by ring_nf
   have hOPT_nonneg : 0 ≤ f OPT := nonneg_of_empty_nonneg_of_monotone hf0 hmono OPT
   have hcoef : 1 - Real.exp (-(m : ℝ) / (k : ℝ)) ≤ 1 - (1 - 1 / (k : ℝ)) ^ m := by linarith
@@ -690,9 +691,7 @@ private theorem leftCount_leftPrefix {k t : ℕ} (ht : t ≤ k) :
       Finset.univ.filter (fun i : Fin k => i.val < t) := by
     ext i
     simp [mem_leftPrefix]
-  rw [hfilt, ← Finset.card_range t]
-  exact Finset.card_bij (fun i _ => i.val) (by simp) (fun _ _ _ _ => Fin.ext)
-    fun m hm => ⟨⟨m, (Finset.mem_range.mp hm).trans_le ht⟩, by simpa using hm, rfl⟩
+  rw [hfilt, Fin.card_filter_val_lt, min_eq_right ht]
 
 private theorem filter_tightCandidates_leftPrefix {k t : ℕ} (ht : t < k) :
     ∃ cs, (tightCandidates k).filter (· ∉ leftPrefix k t) = Sum.inl ⟨t, ht⟩ :: cs := by

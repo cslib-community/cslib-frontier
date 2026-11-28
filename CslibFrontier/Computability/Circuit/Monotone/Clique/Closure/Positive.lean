@@ -112,8 +112,8 @@ theorem card_exceptions_le (hr : 2 ≤ r) (hlk : l ≤ k) (op : Op)
 /-- Away from its exceptions, a gate is positively correct on complete graphs. -/
 theorem gate_correct (op : Op) (A : Fin (signature.Arity op) → Approximator n r l)
     (c : CliqueSet n k) (hc : c ∉ exceptions n k op A) :
-    Monotone.interpretation op (fun i => (A i).decode (ofFinset c.1)) ≤
-      (Approximator.interpretation op A).decode (ofFinset c.1) := by
+    Monotone.interpretation op (fun i => (A i).decode (ofFinset c.val)) ≤
+      (Approximator.interpretation op A).decode (ofFinset c.val) := by
   rw [Bool.le_iff_imp]
   intro h
   rw [decode_eq_true, terms_interpretation]
@@ -122,7 +122,7 @@ theorem gate_correct (op : Op) (A : Fin (signature.Arity op) → Approximator n 
   | const b =>
     rw [interpretation_const] at h
     subst h
-    exact ⟨∅, by simp [Approximator.gateTerms], (contains_ofFinset c.1).mono (empty_subset _)⟩
+    exact ⟨∅, by simp [Approximator.gateTerms], (contains_ofFinset c.val).mono (empty_subset _)⟩
   | or =>
     rw [interpretation_or, Bool.or_eq_true, decode_eq_true, decode_eq_true] at h
     rcases h with ⟨s, hs, hcs⟩ | ⟨s, hs, hcs⟩
@@ -137,7 +137,7 @@ theorem gate_correct (op : Op) (A : Fin (signature.Arity op) → Approximator n 
     have hXc := hXX₀.trans hX₀c
     have hYc := hYY₀.trans hY₀c
     by_cases hXY : (X ∪ Y).card ≤ l
-    · refine ⟨X ∪ Y, mem_inter.2 ⟨?_, ?_⟩, (contains_ofFinset c.1).mono (union_subset hXc hYc)⟩
+    · refine ⟨X ∪ Y, mem_inter.2 ⟨?_, ?_⟩, (contains_ofFinset c.val).mono (union_subset hXc hYc)⟩
       · exact (A 0).isClosed.mem_of_subset (mem_filter.1 hX).1 subset_union_left hXY
       · exact (A 1).isClosed.mem_of_subset (mem_filter.1 hY).1 subset_union_right hXY
     · refine absurd ?_ hc
@@ -154,8 +154,8 @@ variable [Fact (2 ≤ r)]
 approximate value is at least the exact one away from the exceptions of the conjunctions. -/
 def scheme (hl : 2 ≤ l) (hlk : l ≤ k) :
     Approximation.Scheme Monotone.interpretation (Approximator.interpretation (n := n) (r := r))
-      (fun (A : Approximator n r l) (c : CliqueSet n k) => A.decode (ofFinset c.1))
-      (fun c => ofFinset c.1) Approximator.input where
+      (fun (A : Approximator n r l) (c : CliqueSet n k) => A.decode (ofFinset c.val))
+      (fun c => ofFinset c.val) Approximator.input where
   relation := (· ≤ ·)
   relation_trans := le_trans
   map_relation op _ _ h := interpretation_mono op h

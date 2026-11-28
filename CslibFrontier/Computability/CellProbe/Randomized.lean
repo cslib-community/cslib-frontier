@@ -234,13 +234,13 @@ theorem expectedProbes_pure (a : α) (m : Mem S w) :
 @[simp]
 theorem expectedProbes_read (i : Fin S) (m : Mem S w) :
     (read i : RandProbeTree S w _).expectedProbes m = 1 := by
-  rw [expectedProbes, run_read, RandomizedCost.tsum_pure_snd_natCast]
+  rw [expectedProbes, run_read, Probability.PMF.tsum_pure_mul]
   simp
 
 @[simp]
 theorem expectedProbes_write (i : Fin S) (v : Fin (2 ^ w)) (m : Mem S w) :
     (write i v).expectedProbes m = 1 := by
-  rw [expectedProbes, run_write, RandomizedCost.tsum_pure_snd_natCast]
+  rw [expectedProbes, run_write, Probability.PMF.tsum_pure_mul]
   simp
 
 @[simp]
@@ -252,7 +252,7 @@ theorem expectedProbes_sample (p : ProbComp α) (m : Mem S w) :
 @[simp]
 theorem expectedProbes_ofProbeTree (t : ProbeTree S w α) (m : Mem S w) :
     (ofProbeTree t).expectedProbes m = (t.probes m : ℝ≥0∞) := by
-  rw [expectedProbes, run_ofProbeTree, RandomizedCost.tsum_pure_snd_natCast]
+  rw [expectedProbes, run_ofProbeTree, Probability.PMF.tsum_pure_mul]
 
 @[simp]
 theorem expectedProbes_map (f : α → β) (t : RandProbeTree S w α) (m : Mem S w) :
@@ -392,7 +392,7 @@ theorem run_eq_pure_of_isCoinFree (t : RandProbeTree S w α) (ht : t.IsCoinFree)
 theorem expectedProbes_eq_of_isCoinFree (t : RandProbeTree S w α) (ht : t.IsCoinFree)
     (m : Mem S w) :
     t.expectedProbes m = ((toProbeTree t ht).probes m : ℝ≥0∞) := by
-  rw [expectedProbes, run_eq_pure_of_isCoinFree t ht m, RandomizedCost.tsum_pure_snd_natCast]
+  rw [expectedProbes, run_eq_pure_of_isCoinFree t ht m, Probability.PMF.tsum_pure_mul]
 
 /-- Lift a `RandProbeTree S w α` to `S'` cells (`S ≤ S'`) via `Fin.castLE`. -/
 @[expose] def padCells (h : S ≤ S') : RandProbeTree S w α → RandProbeTree S' w α
@@ -554,7 +554,7 @@ outside `horizon` or outside `opsAlphabet`). -/
 @[expose] def fixIndexedScheme [DecidableEq Op] [∀ o, Inhabited (Result o)]
     (P : Scheme Op Result cells w) (horizon : ℕ) (opsAlphabet : Finset Op)
     (m₀ : Mem cells w)
-    (Ω : ∀ idx : Fin horizon × ↥opsAlphabet, ProbOracleComp.Coins (P.step idx.2.1)) :
+    (Ω : ∀ idx : Fin horizon × ↥opsAlphabet, ProbOracleComp.Coins (P.step idx.2.val)) :
     IndexedScheme Op Result cells w where
   init := m₀
   step t o :=
@@ -574,17 +574,17 @@ and independent private coins `ProbOracleComp.coinLaw (P.step o)` for each `(t, 
     PMF (IndexedScheme Op Result cells w) :=
   P.init.bind fun m₀ =>
     (Probability.PMF.pi fun idx : Fin horizon × ↥opsAlphabet =>
-      ProbOracleComp.coinLaw (P.step idx.2.1)).map
+      ProbOracleComp.coinLaw (P.step idx.2.val)).map
       (P.fixIndexedScheme horizon opsAlphabet m₀)
 
 private theorem runFrom_eq_pi_bind_runInterval [DecidableEq Op] [∀ o, Inhabited (Result o)]
     (P : Scheme Op Result cells w) (horizon : ℕ) (opsAlphabet : Finset Op)
     (m₀ m : Mem cells w) (t₀ : ℕ) (ops : List Op)
-    (p : ∀ idx : Fin horizon × ↥opsAlphabet, PMF (ProbOracleComp.Coins (P.step idx.2.1)))
+    (p : ∀ idx : Fin horizon × ↥opsAlphabet, PMF (ProbOracleComp.Coins (P.step idx.2.val)))
     (hlen : t₀ + ops.length ≤ horizon)
     (halph : ∀ o ∈ ops, o ∈ opsAlphabet)
     (hfresh : ∀ (t : Fin horizon) (o : ↥opsAlphabet),
-      t₀ ≤ t.1 → p (t, o) = ProbOracleComp.coinLaw (P.step o.1)) :
+      t₀ ≤ t.val → p (t, o) = ProbOracleComp.coinLaw (P.step o.val)) :
     (Probability.PMF.pi p).bind (fun Ω =>
       let D := P.fixIndexedScheme horizon opsAlphabet m₀ Ω
       PMF.pure (D.runInterval t₀ m ops, D.probesInterval t₀ m ops)) =
@@ -637,7 +637,7 @@ private theorem runFrom_eq_pi_bind_runInterval [DecidableEq Op] [∀ o, Inhabite
       intro t o' ht
       have hne : (t, o') ≠ idx₀ := by
         intro heq
-        have hval : t.1 = t₀ := congrArg (fun x => x.1.1) heq
+        have hval : t.val = t₀ := congrArg (fun x => x.1.val) heq
         omega
       simp only [p', Function.update_of_ne hne]
       exact hfresh t o' (by omega)
@@ -658,7 +658,7 @@ theorem runSeq_eq_indexedSchemeLaw_bind [DecidableEq Op] [∀ o, Inhabited (Resu
   simp only [runSeq, indexedSchemeLaw, PMF.bind_bind, PMF.bind_map, Function.comp_def]
   refine congrArg (PMF.bind P.init) (funext fun m₀ => ?_)
   have hpi := P.runFrom_eq_pi_bind_runInterval horizon opsAlphabet m₀ m₀ 0 ops
-    (fun idx => ProbOracleComp.coinLaw (P.step idx.2.1))
+    (fun idx => ProbOracleComp.coinLaw (P.step idx.2.val))
     (by omega) halph (fun _ _ _ => rfl)
   rw [← hpi, PMF.map_bind]
   congr 1 with Ω : 1

@@ -125,7 +125,7 @@ theorem length_distinctValues_le_ncard {f : ℕ → Option β} (hf : {b | ∃ n,
 theorem exists_length_distinctValues_eq_ncard {f : ℕ → Option β}
     (hf : {b | ∃ n, f n = some b}.Finite) :
     ∃ N, (distinctValues f N).length = {b | ∃ n, f n = some b}.ncard := by
-  choose g hg using fun x : hf.toFinset => hf.mem_toFinset.mp x.2
+  choose g hg using fun x : hf.toFinset => hf.mem_toFinset.mp x.property
   let N := Finset.univ.sup g + 1
   refine ⟨N, le_antisymm (length_distinctValues_le_ncard hf N) ?_⟩
   rw [← List.toFinset_card_of_nodup (nodup_distinctValues f N), Set.ncard_eq_toFinset_card _ hf]

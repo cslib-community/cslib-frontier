@@ -870,8 +870,9 @@ private theorem sum_eq_of_iso (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
     have hsum_F : ∑ w : {w : Fin m // w ≠ v},
         σ ⟨s(v, w.val), Sym2.mk_isDiag_iff.not.2 w.property.symm⟩ = ∑ w : Fin m, F v w := by
       rw [← Fintype.sum_subtype_add_sum_subtype (fun w => w ≠ v) (F v),
-        Fintype.sum_eq_zero (fun w : {w // ¬w ≠ v} => F v w) fun w => dite_eq_right w.2, add_zero]
-      exact Fintype.sum_congr _ _ fun w => by simp only [F, dite_eq_left w.2]
+        Fintype.sum_eq_zero (fun w : {w // ¬w ≠ v} => F v w) fun w => dite_eq_right w.property,
+        add_zero]
+      exact Fintype.sum_congr _ _ fun w => by simp only [F, dite_eq_left w.property]
     rw [← hβ, ← eDir.sum_comp β]
     simp only [hβ_apply, Finset.sum_add_distrib, hα₀, hsum_F]
   rw [← π.sum_comp g]

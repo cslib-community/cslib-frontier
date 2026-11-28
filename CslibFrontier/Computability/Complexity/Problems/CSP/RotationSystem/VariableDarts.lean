@@ -42,7 +42,7 @@ theorem vertex_relabelDartEquiv (F : CSP Rel V) (f : V → W)
     simpa only [incidenceGraph_edges, List.length_map] using incidenceEdgeIndex_lt o
   have hidx : F.occurrences.idxOf o.record < F.occurrences.length :=
     List.idxOf_lt_length_of_mem (CSP.mem_occurrences.mpr ⟨o, rfl⟩)
-  have he : (incidenceGraph (F.relabel f)).2.getD (incidenceEdgeIndex o) (0, 0) =
+  have he : (incidenceGraph (F.relabel f)).edges.getD (incidenceEdgeIndex o) (0, 0) =
       ((F.relabel f).distinctVars.idxOf (f o.var), (F.relabel f).numVars + o.1) := by
     rw [incidenceGraph_edges, CSP.occurrences_relabel, List.map_map]
     rw [List.getD_eq_getElem _ _ (by simpa only [List.length_map] using hi), List.getElem_map]
@@ -51,8 +51,8 @@ theorem vertex_relabelDartEquiv (F : CSP Rel V) (f : V → W)
         (F.relabel f).numVars + (F.occurrences[F.occurrences.idxOf o.record]'hidx).1) = _
     rw [List.getElem_idxOf (List.idxOf_lt_length_of_mem (CSP.mem_occurrences.mpr ⟨o, rfl⟩))]
     rfl
-  change (if side then ((incidenceGraph (F.relabel f)).2.getD
-    (incidenceEdgeIndex o) (0, 0)).2 else ((incidenceGraph (F.relabel f)).2.getD
+  change (if side then ((incidenceGraph (F.relabel f)).edges.getD
+    (incidenceEdgeIndex o) (0, 0)).2 else ((incidenceGraph (F.relabel f)).edges.getD
       (incidenceEdgeIndex o) (0, 0)).1) = _
   rw [he]
 

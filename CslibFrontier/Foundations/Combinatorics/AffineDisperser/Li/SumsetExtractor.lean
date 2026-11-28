@@ -189,23 +189,23 @@ theorem isSumsetExtractor_iff_flat :
     obtain ⟨mixA, rfl⟩ := exists_eq_bind_uniformOfFinset_of_le_minEntropy A hA
     obtain ⟨mixB, rfl⟩ := exists_eq_bind_uniformOfFinset_of_le_minEntropy B hB
     have hrew :
-        (((mixA.bind fun S₁ => PMF.uniformOfFinset S₁.1
-            (card_ne_zero.mp (S₁.2.trans_ne (pow_ne_zero k₁ two_ne_zero)))).bind
-          fun a => (mixB.bind fun S₂ => PMF.uniformOfFinset S₂.1
-            (card_ne_zero.mp (S₂.2.trans_ne (pow_ne_zero k₂ two_ne_zero)))).map
+        (((mixA.bind fun S₁ => PMF.uniformOfFinset S₁.val
+            (card_ne_zero.mp (S₁.property.trans_ne (pow_ne_zero k₁ two_ne_zero)))).bind
+          fun a => (mixB.bind fun S₂ => PMF.uniformOfFinset S₂.val
+            (card_ne_zero.mp (S₂.property.trans_ne (pow_ne_zero k₂ two_ne_zero)))).map
             fun b => a + b).map ext) =
         mixA.bind fun S₁ => mixB.bind fun S₂ =>
-          ((PMF.uniformOfFinset S₁.1
-              (card_ne_zero.mp (S₁.2.trans_ne (pow_ne_zero k₁ two_ne_zero)))).bind
-            fun a => (PMF.uniformOfFinset S₂.1
-              (card_ne_zero.mp (S₂.2.trans_ne (pow_ne_zero k₂ two_ne_zero)))).map
+          ((PMF.uniformOfFinset S₁.val
+              (card_ne_zero.mp (S₁.property.trans_ne (pow_ne_zero k₁ two_ne_zero)))).bind
+            fun a => (PMF.uniformOfFinset S₂.val
+              (card_ne_zero.mp (S₂.property.trans_ne (pow_ne_zero k₂ two_ne_zero)))).map
               fun b => a + b).map ext := by
       simp only [PMF.bind_bind, PMF.map_bind]
       refine congrArg (mixA.bind ·) (funext fun S₁ => ?_)
       rw [PMF.bind_comm]
     rw [hrew]
     refine dist_bind_left_le_of_le mixA _ _ fun S₁ _ =>
-      dist_bind_left_le_of_le mixB _ _ fun S₂ _ => hflat S₁.1 S₂.1 S₁.2 S₂.2
+      dist_bind_left_le_of_le mixB _ _ fun S₂ _ => hflat S₁.val S₂.val S₁.property S₂.property
 
 /-- Adding an independent source on `BitString n` never decreases min-entropy. -/
 theorem max_le_minEntropy_sumset (A B : PMF (BitString n)) :
@@ -331,37 +331,37 @@ section SplitDotProduct
 inner product `∑ i : Fin r, x i * x (r + i)` of the two halves; on odd length `n = 2 * r + 1`, the
 same inner product XORed with the final bit `x (2 * r)`. -/
 @[expose] def splitDotProduct (n : ℕ) (x : BitString n) : Bool :=
-  (∑ i : Fin (n / 2), x ⟨i.1, by omega⟩ * x ⟨n / 2 + i.1, by omega⟩) +
+  (∑ i : Fin (n / 2), x ⟨i.val, by omega⟩ * x ⟨n / 2 + i.val, by omega⟩) +
     if h : n % 2 = 1 then x ⟨2 * (n / 2), by omega⟩ else false
 
 /-- Split `Fin n` into `Fin (n / 2) ⊕ Fin (n / 2) ⊕ Fin (n % 2)`. -/
 private def splitFinEquiv (n : ℕ) :
     Fin n ≃ (Fin (n / 2) ⊕ Fin (n / 2)) ⊕ Fin (n % 2) where
   toFun i :=
-    if h1 : i.1 < n / 2 then Sum.inl (Sum.inl ⟨i.1, h1⟩)
-    else if h2 : i.1 < 2 * (n / 2) then Sum.inl (Sum.inr ⟨i.1 - n / 2, by omega⟩)
-    else Sum.inr ⟨i.1 - 2 * (n / 2), by omega⟩
+    if h1 : i.val < n / 2 then Sum.inl (Sum.inl ⟨i.val, h1⟩)
+    else if h2 : i.val < 2 * (n / 2) then Sum.inl (Sum.inr ⟨i.val - n / 2, by omega⟩)
+    else Sum.inr ⟨i.val - 2 * (n / 2), by omega⟩
   invFun
-    | Sum.inl (Sum.inl j) => ⟨j.1, by omega⟩
-    | Sum.inl (Sum.inr j) => ⟨n / 2 + j.1, by omega⟩
-    | Sum.inr k => ⟨2 * (n / 2) + k.1, by omega⟩
+    | Sum.inl (Sum.inl j) => ⟨j.val, by omega⟩
+    | Sum.inl (Sum.inr j) => ⟨n / 2 + j.val, by omega⟩
+    | Sum.inr k => ⟨2 * (n / 2) + k.val, by omega⟩
   left_inv i := by
-    by_cases h1 : i.1 < n / 2
+    by_cases h1 : i.val < n / 2
     · simp only [h1, ↓reduceDIte]
-    · by_cases h2 : i.1 < 2 * (n / 2)
+    · by_cases h2 : i.val < 2 * (n / 2)
       · simp only [h1, h2, ↓reduceDIte]
         ext; dsimp only; omega
       · simp only [h1, h2, ↓reduceDIte]
         ext; dsimp only; omega
   right_inv x := by
     rcases x with (j | j) | k
-    · simp [j.2]
-    · have h1 : ¬ n / 2 + j.1 < n / 2 := by omega
-      have h2 : n / 2 + j.1 < 2 * (n / 2) := by have := j.2; omega
+    · simp [j.isLt]
+    · have h1 : ¬ n / 2 + j.val < n / 2 := by omega
+      have h2 : n / 2 + j.val < 2 * (n / 2) := by have := j.isLt; omega
       simp only [h1, h2, ↓reduceDIte]
       congr 2; ext; dsimp only; omega
-    · have h1 : ¬ 2 * (n / 2) + k.1 < n / 2 := by omega
-      have h2 : ¬ 2 * (n / 2) + k.1 < 2 * (n / 2) := by omega
+    · have h1 : ¬ 2 * (n / 2) + k.val < n / 2 := by omega
+      have h2 : ¬ 2 * (n / 2) + k.val < 2 * (n / 2) := by omega
       simp only [h1, h2, ↓reduceDIte]
       congr 1; ext; dsimp only; omega
 
@@ -374,23 +374,23 @@ private def splitBitEquiv (n : ℕ) :
 
 private theorem splitBitEquiv_symm_left (n : ℕ)
     (a b : BitString (n / 2)) (c : BitString (n % 2)) (i : Fin (n / 2)) :
-    (splitBitEquiv n).symm ((a, b), c) ⟨i.1, by omega⟩ = a i := by
-  have heq : (⟨i.1, by omega⟩ : Fin n) = (splitFinEquiv n).symm (Sum.inl (Sum.inl i)) := rfl
+    (splitBitEquiv n).symm ((a, b), c) ⟨i.val, by omega⟩ = a i := by
+  have heq : (⟨i.val, by omega⟩ : Fin n) = (splitFinEquiv n).symm (Sum.inl (Sum.inl i)) := rfl
   rw [heq]
   simp [splitBitEquiv]
 
 private theorem splitBitEquiv_symm_right (n : ℕ)
     (a b : BitString (n / 2)) (c : BitString (n % 2)) (i : Fin (n / 2)) :
-    (splitBitEquiv n).symm ((a, b), c) ⟨n / 2 + i.1, by omega⟩ = b i := by
+    (splitBitEquiv n).symm ((a, b), c) ⟨n / 2 + i.val, by omega⟩ = b i := by
   have heq :
-      (⟨n / 2 + i.1, by omega⟩ : Fin n) = (splitFinEquiv n).symm (Sum.inl (Sum.inr i)) := rfl
+      (⟨n / 2 + i.val, by omega⟩ : Fin n) = (splitFinEquiv n).symm (Sum.inl (Sum.inr i)) := rfl
   rw [heq]
   simp [splitBitEquiv]
 
 private theorem splitBitEquiv_symm_rem (n : ℕ)
     (a b : BitString (n / 2)) (c : BitString (n % 2)) (k : Fin (n % 2)) :
-    (splitBitEquiv n).symm ((a, b), c) ⟨2 * (n / 2) + k.1, by omega⟩ = c k := by
-  have heq : (⟨2 * (n / 2) + k.1, by omega⟩ : Fin n) = (splitFinEquiv n).symm (Sum.inr k) := rfl
+    (splitBitEquiv n).symm ((a, b), c) ⟨2 * (n / 2) + k.val, by omega⟩ = c k := by
+  have heq : (⟨2 * (n / 2) + k.val, by omega⟩ : Fin n) = (splitFinEquiv n).symm (Sum.inr k) := rfl
   rw [heq]
   simp [splitBitEquiv]
 
@@ -452,11 +452,11 @@ private theorem abs_sum_signVal_dotProduct_mul_chi (r : ℕ) (S₁ S₂ : Finset
 bent function). -/
 theorem abs_fourierCoeff_splitDotProduct_le (n : ℕ) (S : Finset (Fin n)) :
     |fourierCoeff (fun x => signVal (splitDotProduct n x)) S| ≤ (2⁻¹ : ℝ) ^ (n / 2) := by
-  let S₁ : Finset (Fin (n / 2)) := Finset.univ.filter fun j => (⟨j.1, by omega⟩ : Fin n) ∈ S
+  let S₁ : Finset (Fin (n / 2)) := Finset.univ.filter fun j => (⟨j.val, by omega⟩ : Fin n) ∈ S
   let S₂ : Finset (Fin (n / 2)) :=
-    Finset.univ.filter fun j => (⟨n / 2 + j.1, by omega⟩ : Fin n) ∈ S
+    Finset.univ.filter fun j => (⟨n / 2 + j.val, by omega⟩ : Fin n) ∈ S
   let S₃ : Finset (Fin (n % 2)) :=
-    Finset.univ.filter fun k => (⟨2 * (n / 2) + k.1, by omega⟩ : Fin n) ∈ S
+    Finset.univ.filter fun k => (⟨2 * (n / 2) + k.val, by omega⟩ : Fin n) ∈ S
   have hchi (a b : BitString (n / 2)) (c : BitString (n % 2)) :
       chi ℝ S ((splitBitEquiv n).symm ((a, b), c)) =
         (chi ℝ S₁ a * chi ℝ S₂ b) * chi ℝ S₃ c := by
@@ -565,10 +565,10 @@ theorem not_isSumsetExtractor_splitDotProduct_half (r : ℕ) {ε : ℝ} (hε : �
       r r ε := by
   intro hext
   let pad : BitString r → BitString (2 * r) := fun u i =>
-    if h : i.1 < r then u ⟨i.1, h⟩ else false
+    if h : i.val < r then u ⟨i.val, h⟩ else false
   have hpad_inj : Function.Injective pad := fun u₁ u₂ h => funext fun j => by
-    have := congrFun h ⟨j.1, by omega⟩
-    simpa only [pad, j.2, ↓reduceDIte] using this
+    have := congrFun h ⟨j.val, by omega⟩
+    simpa only [pad, j.isLt, ↓reduceDIte] using this
   let A : PMF (BitString (2 * r)) := (PMF.uniformOfFintype (BitString r)).map pad
   have hminA : (r : ℝ) ≤ minEntropy A := le_minEntropy_map_of_injOn _ hpad_inj.injOn
     (minEntropy_uniformOfFintype.trans (BitString.logb_card r)).ge
@@ -577,7 +577,7 @@ theorem not_isSumsetExtractor_splitDotProduct_half (r : ℕ) {ε : ℝ} (hε : �
     have hmod : ¬ (2 * r) % 2 = 1 := by omega
     rw [dite_eq_right hmod, ← Bool.zero_eq_false, add_zero]
     refine Finset.sum_eq_zero fun i _ => ?_
-    have hge : ¬ (2 * r) / 2 + i.1 < r := by omega
+    have hge : ¬ (2 * r) / 2 + i.val < r := by omega
     simp only [Pi.add_apply, pad, dite_eq_right hge, ← Bool.zero_eq_false, add_zero, mul_zero]
   have hconst : ((A.bind fun a => A.map fun b => a + b).map
       fun x : BitString (2 * r) => fun _ : Fin 1 => splitDotProduct (2 * r) x) =

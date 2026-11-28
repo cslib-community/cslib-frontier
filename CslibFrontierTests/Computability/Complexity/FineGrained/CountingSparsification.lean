@@ -72,10 +72,11 @@ word is `[]`, witnessing `CountingTreeBound M 1 B L_coeff` unconditionally. -/
 theorem countingTreeBound_one {M : ℕ} (hM : 1 ≤ M) (B L_coeff : ℕ) :
     CountingSparsify.CountingTreeBound M 1 B L_coeff hM le_rfl := by
   intro ψ declared _
-  have hsparse : ClauseSet.Sparsification.Sparse (countingThreshold M) ψ.1.toClauseSet := by
+  have hsparse : ClauseSet.Sparsification.Sparse (countingThreshold M) ψ.val.toClauseSet := by
     intro c H hH
     obtain ⟨D, hD⟩ := hH.flower_nonempty (one_le_countingThreshold hM)
-    have hDcard : D.card ≤ 1 := ψ.2.card_le D (ClauseSet.Sparsification.flower_subset _ _ _ hD)
+    have hDcard : D.card ≤ 1 :=
+        ψ.property.card_le D (ClauseSet.Sparsification.flower_subset _ _ _ hD)
     have hDc : D.card = c := (ClauseSet.Sparsification.mem_flower.mp hD).2.1
     have := hH.1
     have := hH.2.1

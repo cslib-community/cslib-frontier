@@ -66,13 +66,12 @@ theorem ncard_externalNeighbors_le_cutRank_mul (S : Set V) (d : ℕ)
       _ ≤ d := hdegree i i.property
   have hcols : #{j : ↥(Sᶜ) | ∃ i : S, B i j ≠ 0} =
       #{v : V | v ∉ S ∧ ∃ u ∈ S, G.Adj u v} := by
-    refine card_bij (fun j _ ↦ (j : V)) (fun j hj => ?_) (fun _ _ _ _ => Subtype.ext) fun v hv => ?_
-    · obtain ⟨i, hi⟩ := (mem_filter.mp hj).2
-      exact mem_filter.mpr ⟨mem_univ _, j.property, i, i.property,
-        by simpa [B, adjMatrix_apply] using hi⟩
-    · obtain ⟨hvS, u, huS, huv⟩ := (mem_filter.mp hv).2
-      exact ⟨⟨v, hvS⟩, mem_filter.mpr ⟨mem_univ _,
-        ⟨⟨u, huS⟩, by simp [B, adjMatrix_apply, huv]⟩⟩, rfl⟩
+    rw [← Fintype.card_subtype, ← Fintype.card_subtype]
+    refine Fintype.card_congr ((Equiv.subtypeSubtypeEquivSubtypeExists
+      (fun v => v ∈ Sᶜ) (fun j => ∃ i : S, B i j ≠ 0)).trans
+      (Equiv.subtypeEquivRight fun v => ?_))
+    simp only [B, Matrix.submatrix_apply, adjMatrix_apply, ne_eq, ite_eq_right_iff, one_ne_zero,
+      imp_false, not_not, Subtype.exists, Set.mem_compl_iff, exists_prop]
   have h := B.card_nonzero_columns_le_rank_mul d hrow
   rw [hcols, show B.rank = (G.adjMatrix K).cutRank S from
     ((G.adjMatrix K).cutRank_eq_rank S).symm] at h

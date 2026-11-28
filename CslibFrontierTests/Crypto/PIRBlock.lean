@@ -197,9 +197,9 @@ private theorem eval_coalitionQuery_threeServerXor {ι : Type} [Fintype ι] [Dec
   rw [Scheme.eval_coalitionQuery, threeServerXor, ProbComp.eval_bind]
   simp only [ProbComp.eval_pure, ProbComp.eval_uniform, PMF.map_bind, PMF.pure_map]
   change (PMF.uniformOfFintype ((ι → Bool) × (ι → Bool))).map
-    (fun u (s : T) => threeServerQuery u (Pi.single i true) s.1) = _
+    (fun u (s : T) => threeServerQuery u (Pi.single i true) s.val) = _
   let linHom : ((ι → Bool) × (ι → Bool)) →+ (T → ι → Bool) :=
-    { toFun := fun u s => threeServerQuery u 0 s.1
+    { toFun := fun u s => threeServerQuery u 0 s.val
       map_zero' := by
         ext ⟨s, _⟩ j
         fin_cases s <;> rfl
@@ -248,8 +248,8 @@ private theorem eval_coalitionQuery_threeServerXor {ι : Type} [Fintype ι] [Dec
     refine ⟨u, funext fun ⟨s, hs⟩ => ?_⟩
     exact (hu s fun h => hmiss (h ▸ hs)).trans (dite_eq_left hs)
   have hshift :
-      (fun (u : (ι → Bool) × (ι → Bool)) (s : T) => threeServerQuery u (Pi.single i true) s.1) =
-        (Equiv.addRight (fun (s : T) => threeServerQuery 0 (Pi.single i true) s.1)) ∘ linHom := by
+      (fun (u : (ι → Bool) × (ι → Bool)) (s : T) => threeServerQuery u (Pi.single i true) s.val) =
+        (Equiv.addRight (fun (s : T) => threeServerQuery 0 (Pi.single i true) s.val)) ∘ linHom := by
     ext u ⟨s, _⟩ j
     fin_cases s <;> simp [linHom, threeServerQuery]
   rw [hshift, ← PMF.map_comp,

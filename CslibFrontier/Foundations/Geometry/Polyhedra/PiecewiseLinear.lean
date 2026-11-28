@@ -190,8 +190,8 @@ theorem isPiecewiseOn_continuousOn {PropCell : (E → F) → Set E → Prop}
   rw [PolytopalComplex.space, Set.biUnion_eq_iUnion]
   have : Finite C.cells := C.finite_cells.to_subtype
   exact (locallyFinite_of_finite fun Q : C.cells => (Q : Set E)).continuousOn_iUnion
-    (fun Q => (C.isPolytope_of_mem Q.2).isClosed)
-    (fun Q => hcont (hprop Q Q.2))
+    (fun Q => (C.isPolytope_of_mem Q.property).isClosed)
+    (fun Q => hcont (hprop Q Q.property))
 
 /-- A map `f : E → F` is **piecewise-linear on `P`** (`IsPLOn P f`) if `P` is a compact
 polyhedron admitted as the space of a finite polytopal complex on whose cells `f` is affine. -/
@@ -475,9 +475,10 @@ theorem IsPLOn.min {P : Set E} {f g : E → ℝ} (hf : IsPLOn P f) (hg : IsPLOn 
     simp only [Set.mem_iUnion, PolytopalComplex.mem_space_iff, Subtype.exists,
       Set.Finite.mem_toFinset, exists_prop]
   refine IsPLOn.of_finiteCover hcov fun Q => ?_
-  have hQpoly : IsPolytope (Q : Set E) := C.isPolytope_of_mem (C.finite_cells.mem_toFinset.1 Q.2)
-  rcases haff_f (Q : Set E) (C.finite_cells.mem_toFinset.1 Q.2) with ⟨a, ha⟩
-  rcases haff_g (Q : Set E) (C.finite_cells.mem_toFinset.1 Q.2) with ⟨b, hb⟩
+  have hQpoly : IsPolytope (Q : Set E) :=
+    C.isPolytope_of_mem (C.finite_cells.mem_toFinset.1 Q.property)
+  rcases haff_f (Q : Set E) (C.finite_cells.mem_toFinset.1 Q.property) with ⟨a, ha⟩
+  rcases haff_g (Q : Set E) (C.finite_cells.mem_toFinset.1 Q.property) with ⟨b, hb⟩
   let Q₁ := (Q : Set E) ∩ {x | ∀ m ∈ ({a - b} : Set (E →ᵃ[ℝ] ℝ)), m x ≤ 0}
   let Q₂ := (Q : Set E) ∩ {x | ∀ m ∈ ({b - a} : Set (E →ᵃ[ℝ] ℝ)), m x ≤ 0}
   have hQ₁ : IsPolytope Q₁ := hQpoly.inter_setOf_le (finite_singleton _)

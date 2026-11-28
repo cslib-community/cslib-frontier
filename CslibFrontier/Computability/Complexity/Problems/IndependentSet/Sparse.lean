@@ -186,12 +186,12 @@ theorem mem_conflictEdges {e : ℕ × ℕ} : e ∈ conflictEdges φ ↔ ∃ (i :
       mem_zipIdx_iff.2 ⟨hj, rfl⟩, rfl⟩
 
 private theorem adj_of_mem {u v : ℕ} (huv : u ≠ v) (h : (u, v) ∈ edges φ) :
-    (toSparseIndependentSet φ).1.toSimpleGraph.Adj u v := by
+    (toSparseIndependentSet φ).graph.toSimpleGraph.Adj u v := by
   simp only [toSparseIndependentSet, Graph.toSimpleGraph_adj]
   exact ⟨huv, Or.inl h⟩
 
 private theorem mem_edges_of_adj {u v : ℕ}
-    (h : (toSparseIndependentSet φ).1.toSimpleGraph.Adj u v) :
+    (h : (toSparseIndependentSet φ).graph.toSimpleGraph.Adj u v) :
     (u, v) ∈ edges φ ∨ (v, u) ∈ edges φ := by
   simp only [toSparseIndependentSet, Graph.toSimpleGraph_adj] at h
   exact h.2
@@ -307,7 +307,7 @@ private theorem mem_of_satisfiable (h : φ.Satisfiable) :
   have hcl : ∀ i : Fin φ.length, ∃ j : Fin φ[i].length, σ φ[i][j].1 = φ[i][j].2 := by
     intro i
     obtain ⟨l, hl, hσl⟩ := (Clause.eval_eq_true_iff _ _).1
-      ((CNF.eval_eq_true_iff _ _).1 hσ φ[i] (List.getElem_mem i.2))
+      ((CNF.eval_eq_true_iff _ _).1 hσ φ[i] (List.getElem_mem i.isLt))
     obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hl
     exact ⟨⟨j, hj⟩, hσl⟩
   choose J hJ using hcl
@@ -337,7 +337,7 @@ private theorem mem_of_satisfiable (h : φ.Satisfiable) :
     · obtain ⟨x, hx, rfl⟩ := hL.1 hv
       exact mem_vertices.2 (Or.inl ⟨x, hx, σ x, rfl⟩)
     · obtain ⟨i, rfl⟩ := hO.1 hv
-      exact mem_vertices.2 (Or.inr ⟨i, i.2, J i, (J i).2, rfl⟩)
+      exact mem_vertices.2 (Or.inr ⟨i, i.isLt, J i, (J i).isLt, rfl⟩)
   · -- no edge joins two vertices of the set
     have key : ∀ u ∈ L ∪ O, ∀ v ∈ L ∪ O, u ≠ v → (u, v) ∉ edges φ := by
       intro u hu v hv huv he

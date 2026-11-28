@@ -343,7 +343,7 @@ theorem empiricalMiscount_adaBoost_le_prod {T : ℕ} (hlt : ∀ t < T, (rounds S
 `4 ε (1 - ε) = 1 - 4 (1/2 - ε)²`. -/
 theorem two_mul_sqrt_le_exp (ε : ℝ) : 2 * √(ε * (1 - ε)) ≤ exp (-(2 * (1 / 2 - ε) ^ 2)) := by
   have hsq : exp (-(2 * (1 / 2 - ε) ^ 2)) ^ 2 = exp (-(4 * (1 / 2 - ε) ^ 2)) := by
-    rw [← exp_nat_mul]
+    rw [← exp_natCast_mul]
     exact congrArg exp (by push_cast; ring)
   have hsqrt : √(ε * (1 - ε)) ≤ exp (-(2 * (1 / 2 - ε) ^ 2)) / 2 := by
     rw [sqrt_le_left (by positivity), div_pow, hsq]

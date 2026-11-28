@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.SupportTsum
 
 /-!
 # Markov's inequality for discrete distributions
@@ -76,12 +77,9 @@ theorem toOuterMeasure_bind_le_tsum_nat {β : Type*} (p : PMF ι) (step : ι →
     (hzero : ∀ a ∈ p.support, f a = 0 → ∀ b ∈ (step a).support, b ∉ bad) :
     (p.bind step).toOuterMeasure bad ≤ ∑' a, p a * (f a : ℝ≥0∞) := by
   rw [PMF.toOuterMeasure_bind_apply]
-  refine tsum_le_tsum fun a => ?_
-  by_cases ha : a ∈ p.support
-  · rcases Nat.eq_zero_or_pos (f a) with h0 | hpos
-    · simp [h0, (PMF.toOuterMeasure_apply_eq_zero_iff _ _).2 (Set.disjoint_left.2 (hzero a ha h0))]
-    · gcongr
-      exact (toOuterMeasure_le_one _ _).trans (Nat.one_le_cast.2 hpos)
-  · simp [(PMF.apply_eq_zero_iff p a).2 ha]
+  refine tsum_mul_mono_support p fun a ha => ?_
+  rcases Nat.eq_zero_or_pos (f a) with h0 | hpos
+  · simp [h0, (PMF.toOuterMeasure_apply_eq_zero_iff _ _).2 (Set.disjoint_left.2 (hzero a ha h0))]
+  · exact (toOuterMeasure_le_one _ _).trans (Nat.one_le_cast.2 hpos)
 
 end Cslib.Probability.PMF

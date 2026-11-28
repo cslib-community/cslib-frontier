@@ -141,7 +141,7 @@ theorem prefixParity_eq_sum_range {n : ℕ} (A : Fin n → ZMod 2) (i : Fin n) :
   · exact mem_range.mpr (Nat.lt_succ_of_le (Fin.le_def.mp (mem_Iic.mp hk)))
   · have hk' : k < i + 1 := mem_range.mp hk
     exact ⟨⟨k, by omega⟩, mem_Iic.mpr (Fin.le_def.mpr (by simp only; omega)), rfl⟩
-  · rw [dite_eq_left k.2]
+  · rw [dite_eq_left k.isLt]
 
 /-- A bit vector is determined by its prefix parities. -/
 theorem prefixParity_injective {n : ℕ} : Function.Injective (prefixParity (n := n)) := by
@@ -339,7 +339,7 @@ variable {β L n : ℕ} (hn : L * β ^ L ≤ n)
 def hardSeg (X : HardInput β L) (j : ℕ) : List (Op n) :=
   if hj : j < L then
     List.ofFn fun k : Fin (β ^ (L - j)) =>
-      Op.update ⟨hardPos β L j k, hardPos_lt hn hj k.2⟩ (X ⟨j, hj⟩ k)
+      Op.update ⟨hardPos β L j k, hardPos_lt hn hj k.isLt⟩ (X ⟨j, hj⟩ k)
   else []
 
 /-- The hard update sequence: epochs `0, …, L - 1` in order. -/
@@ -348,7 +348,7 @@ def hardUpdates (X : HardInput β L) : List (Op n) :=
 
 /-- The position asked by query `q < β ^ L`. -/
 def hardQueryIdx (hL : 0 < L) (q : Fin (β ^ L)) : Fin n :=
-  ⟨hardQueryPos L q, hardQueryPos_lt hn hL q.2⟩
+  ⟨hardQueryPos L q, hardQueryPos_lt hn hL q.isLt⟩
 
 /-- The number of updates of the hard sequence. -/
 @[expose] def hardTime (β L : ℕ) : ℕ := ∑ k ∈ range L, β ^ (L - k)
@@ -360,7 +360,7 @@ theorem hardBlock_lt {q j : ℕ} (hj : j < L) (hq : q < β ^ L) : q / β ^ j < �
 /-- The answer of query `q` on the hard input `X`: the sum over epochs `j` of the prefix parity of
 `X j` up to `q / β ^ j`. -/
 @[expose] def hardAnswer (X : HardInput β L) (q : Fin (β ^ L)) : ZMod 2 :=
-  ∑ j : Fin L, prefixParity (X j) ⟨q / β ^ (j : ℕ), hardBlock_lt j.2 q.2⟩
+  ∑ j : Fin L, prefixParity (X j) ⟨q / β ^ (j : ℕ), hardBlock_lt j.isLt q.isLt⟩
 
 /-- The hard update sequence consists of updates only. -/
 theorem mem_hardSeg {X : HardInput β L} {j : ℕ} {o : Op n} (ho : o ∈ hardSeg hn X j) :
@@ -390,23 +390,23 @@ theorem update_mem_hardUpdates {X : HardInput β L} {i : Fin n} {b : ZMod 2}
   exact ⟨⟨j, hjL⟩, k, by rw [← hi], hb.symm⟩
 
 theorem hardPos_mem_hardUpdates (X : HardInput β L) (j : Fin L) (k : Fin (β ^ (L - (j : ℕ)))) :
-    Op.update ⟨hardPos β L j k, hardPos_lt hn j.2 k.2⟩ (X j k) ∈ hardUpdates hn X := by
+    Op.update ⟨hardPos β L j k, hardPos_lt hn j.isLt k.isLt⟩ (X j k) ∈ hardUpdates hn X := by
   unfold hardUpdates
-  refine List.mem_flatMap.mpr ⟨j, List.mem_range.mpr j.2, ?_⟩
+  refine List.mem_flatMap.mpr ⟨j, List.mem_range.mpr j.isLt, ?_⟩
   unfold hardSeg
-  rw [dite_eq_left j.2]
+  rw [dite_eq_left j.isLt]
   exact List.mem_ofFn.mpr ⟨k, rfl⟩
 
 /-- After the hard updates, bit `k` of epoch `j` holds `X j k`. -/
 theorem arrayOf_hardUpdates_hardPos (hβ : 0 < β) (X : HardInput β L) (j : Fin L)
     (k : Fin (β ^ (L - (j : ℕ)))) :
-    arrayOf (hardUpdates hn X) ⟨hardPos β L j k, hardPos_lt hn j.2 k.2⟩ = X j k := by
+    arrayOf (hardUpdates hn X) ⟨hardPos β L j k, hardPos_lt hn j.isLt k.isLt⟩ = X j k := by
   unfold arrayOf
   rw [foldl_applyOp_apply _ _ _ (X j k)]
   · rw [ite_eq_left ⟨_, hardPos_mem_hardUpdates hn X j k⟩]
   · intro b hb
     obtain ⟨j', k', hpos, rfl⟩ := update_mem_hardUpdates hn hb
-    obtain ⟨hjj, hkk⟩ := hardPos_inj hβ j.2 j'.2 hpos
+    obtain ⟨hjj, hkk⟩ := hardPos_inj hβ j.isLt j'.isLt hpos
     obtain rfl : j = j' := Fin.ext hjj
     obtain rfl : k = k' := Fin.ext hkk
     rfl
@@ -431,16 +431,16 @@ theorem prefixParity_hardUpdates (hβ : 0 < β) (hL : 0 < L) (X : HardInput β L
   rw [sum_sigma']
   symm
   refine sum_bij_ne_zero
-    (fun x hx _ => ⟨hardPos β L x.1 x.2, hardPos_lt hn x.1.2 (by
+    (fun x hx _ => ⟨hardPos β L x.1 x.2, hardPos_lt hn x.1.isLt (by
       have h1 : x.2 < q / β ^ (x.1 : ℕ) + 1 := mem_range.mp (mem_sigma.mp hx).2
-      have h2 := hardBlock_lt x.1.2 q.2
+      have h2 := hardBlock_lt x.1.isLt q.isLt
       omega)⟩) ?_ ?_ ?_ ?_
   · intro x hx _
     have h1 : x.2 < q / β ^ (x.1 : ℕ) + 1 := mem_range.mp (mem_sigma.mp hx).2
-    refine mem_Iic.mpr (Fin.mk_le_mk.mpr ((hardPos_le_hardQueryPos_iff x.1.2).mpr ?_))
+    refine mem_Iic.mpr (Fin.mk_le_mk.mpr ((hardPos_le_hardQueryPos_iff x.1.isLt).mpr ?_))
     exact (Nat.le_div_iff_mul_le (pow_pos hβ _)).mp (by omega)
   · intro x hx _ y hy _ hxy
-    obtain ⟨hj, hk⟩ := hardPos_inj hβ x.1.2 y.1.2 (Fin.mk.inj hxy)
+    obtain ⟨hj, hk⟩ := hardPos_inj hβ x.1.isLt y.1.isLt (Fin.mk.inj hxy)
     exact Sigma.ext (Fin.ext hj) (heq_of_eq hk)
   · intro i hi hne
     have hex : ∃ (j : Fin L) (k : Fin (β ^ (L - (j : ℕ)))), i.val = hardPos β L j k := by
@@ -450,17 +450,17 @@ theorem prefixParity_hardUpdates (hβ : 0 < β) (hL : 0 < L) (X : HardInput β L
     obtain ⟨j, k, hpos⟩ := hex
     have hle : hardPos β L j k ≤ hardQueryPos L q := by
       rw [← hpos]; exact Fin.le_iff_val_le_val.mp (mem_Iic.mp hi)
-    have hkq := (hardPos_le_hardQueryPos_iff j.2).mp hle
+    have hkq := (hardPos_le_hardQueryPos_iff j.isLt).mp hle
     have hkr : (k : ℕ) < q / β ^ (j : ℕ) + 1 :=
       Nat.lt_succ_of_le ((Nat.le_div_iff_mul_le (pow_pos hβ _)).mpr hkq)
-    have hik : (⟨hardPos β L j k, hardPos_lt hn j.2 k.2⟩ : Fin n) = i := Fin.ext hpos.symm
+    have hik : (⟨hardPos β L j k, hardPos_lt hn j.isLt k.isLt⟩ : Fin n) = i := Fin.ext hpos.symm
     refine ⟨⟨j, k⟩, mem_sigma.mpr ⟨mem_univ _, mem_range.mpr hkr⟩, ?_, hik⟩
-    rw [dite_eq_left k.2]
+    rw [dite_eq_left k.isLt]
     rw [← hik, arrayOf_hardUpdates_hardPos hn hβ X j k] at hne
     exact hne
   · intro x hx _
     have h1 : x.2 < q / β ^ (x.1 : ℕ) + 1 := mem_range.mp (mem_sigma.mp hx).2
-    have h2 := hardBlock_lt x.1.2 q.2
+    have h2 := hardBlock_lt x.1.isLt q.isLt
     have hk : x.2 < β ^ (L - x.1) := by omega
     rw [dite_eq_left hk]
     exact (arrayOf_hardUpdates_hardPos hn hβ X x.1 ⟨x.2, hk⟩).symm
@@ -494,11 +494,11 @@ theorem hardSeg_update_of_ne (X : HardInput β L) {j : Fin L}
 theorem hardAnswer_update (X : HardInput β L) (j : Fin L)
     (x : Fin (β ^ (L - (j : ℕ))) → ZMod 2) (q : Fin (β ^ L)) :
     hardAnswer (Function.update X j x) q =
-      prefixParity x ⟨q / β ^ (j : ℕ), hardBlock_lt j.2 q.2⟩ +
-        ∑ k ∈ univ.erase j, prefixParity (X k) ⟨q / β ^ (k : ℕ), hardBlock_lt k.2 q.2⟩ :=
+      prefixParity x ⟨q / β ^ (j : ℕ), hardBlock_lt j.isLt q.isLt⟩ +
+        ∑ k ∈ univ.erase j, prefixParity (X k) ⟨q / β ^ (k : ℕ), hardBlock_lt k.isLt q.isLt⟩ :=
   sum_apply_update_of_mem (mem_univ j)
     (fun k (y : Fin (β ^ (L - (k : ℕ))) → ZMod 2) =>
-      prefixParity y ⟨q / β ^ (k : ℕ), hardBlock_lt k.2 q.2⟩) X x
+      prefixParity y ⟨q / β ^ (k : ℕ), hardBlock_lt k.isLt q.isLt⟩) X x
 
 /-! ### The encoding argument -/
 
@@ -558,10 +558,10 @@ private theorem prefixParity_eq_of_hardOverlay_eq (hD : AnswersQueries D) (hβ :
       hardOverlay hn D (Function.update X j x') j)
     {q : Fin (β ^ L)} (hq : q ∉ badSet hn D hL (Function.update X j x) j)
     (hq' : q ∉ badSet hn D hL (Function.update X j x') j) :
-    prefixParity x ⟨q / β ^ (j : ℕ), hardBlock_lt j.2 q.2⟩ =
-      prefixParity x' ⟨q / β ^ (j : ℕ), hardBlock_lt j.2 q.2⟩ := by
-  have h := run_hardOverlay hn D hD hβ hL _ j.2 hq
-  have h' := run_hardOverlay hn D hD hβ hL _ j.2 hq'
+    prefixParity x ⟨q / β ^ (j : ℕ), hardBlock_lt j.isLt q.isLt⟩ =
+      prefixParity x' ⟨q / β ^ (j : ℕ), hardBlock_lt j.isLt q.isLt⟩ := by
+  have h := run_hardOverlay hn D hD hβ hL _ j.isLt hq
+  have h' := run_hardOverlay hn D hD hβ hL _ j.isLt hq'
   rw [hov, h', hardAnswer_update, hardAnswer_update] at h
   exact (add_right_cancel h).symm
 
@@ -584,9 +584,9 @@ private theorem hammingDist_mul_le (hD : AnswersQueries D) (hβ : 0 < β) (hL : 
   have hpos : 0 < β ^ (j : ℕ) := pow_pos hβ _
   have hdiv : ∀ (r : Fin (β ^ (L - (j : ℕ)))) (s : Fin (β ^ (j : ℕ))),
       (r * β ^ (j : ℕ) + s) / β ^ (j : ℕ) = r := fun r s => by
-    rw [add_comm, Nat.add_mul_div_right _ _ hpos, Nat.div_eq_of_lt s.2, zero_add]
+    rw [add_comm, Nat.add_mul_div_right _ _ hpos, Nat.div_eq_of_lt s.isLt, zero_add]
   let f : Fin (β ^ (L - (j : ℕ))) × Fin (β ^ (j : ℕ)) → Fin (β ^ L) := fun p =>
-    ⟨p.1 * β ^ (j : ℕ) + p.2, mul_pow_add_lt j.2.le p.1.2 p.2.2⟩
+    ⟨p.1 * β ^ (j : ℕ) + p.2, mul_pow_add_lt j.isLt.le p.1.isLt p.2.isLt⟩
   calc hammingDist (prefixParity x) (prefixParity x') * β ^ (j : ℕ)
       = #(({r | prefixParity x r ≠ prefixParity x' r} : Finset (Fin (β ^ (L - (j : ℕ))))) ×ˢ
           (univ : Finset (Fin (β ^ (j : ℕ))))) := by
@@ -601,7 +601,7 @@ private theorem hammingDist_mul_le (hD : AnswersQueries D) (hβ : 0 < β) (hL : 
           rw [coe_union, Set.mem_union, not_or] at hq
           apply hne
           have h := prefixParity_eq_of_hardOverlay_eq hn D hD hβ hL X j hov hq.1 hq.2
-          have hp1 : (⟨(f p : ℕ) / β ^ (j : ℕ), hardBlock_lt j.2 (f p).2⟩ :
+          have hp1 : (⟨(f p : ℕ) / β ^ (j : ℕ), hardBlock_lt j.isLt (f p).isLt⟩ :
               Fin (β ^ (L - (j : ℕ)))) = p.1 := Fin.ext (hdiv p.1 p.2)
           rwa [hp1] at h
         · have h := congrArg Fin.val hpp
@@ -622,7 +622,7 @@ private theorem two_mul_card_good_le (hD : AnswersQueries D) (hβ : 4 ≤ β) (h
       32 * #(badSet hn D hL (Function.update X j x) j) < β ^ L} ≤ 2 ^ β ^ (L - (j : ℕ)) := by
   have hβ0 : 0 < β := by omega
   have hβj : β ^ L = β ^ (L - (j : ℕ)) * β ^ (j : ℕ) := by
-    rw [← pow_add, Nat.sub_add_cancel j.2.le]
+    rw [← pow_add, Nat.sub_add_cancel j.isLt.le]
   have hK : β ^ (L - (j : ℕ)) = β ^ (L - (j : ℕ) - 1) * β := by
     rw [← pow_succ]; congr 1; omega
   have hK4 : 4 ≤ β ^ (L - (j : ℕ)) :=
@@ -656,7 +656,7 @@ private theorem two_mul_card_good_le (hD : AnswersQueries D) (hβ : 4 ≤ β) (h
       · obtain ⟨i, b, rfl⟩ := mem_hardSeg hn ho
         exact htu t i b
       · refine Nat.mul_le_mul_left _ ((sum_le_sum fun k hk => ?_).trans
-          (sum_Ioo_pow_sub_le' (by omega) j.2))
+          (sum_Ioo_pow_sub_le' (by omega) j.isLt))
         rw [length_hardSeg, ite_eq_left (mem_Ioo.mp hk).2]
     refine (card_le_card hsub).trans ((card_filter_hammingDist_le_le_pow _ R).trans ?_)
     exact Nat.pow_le_pow_left (by have := Nat.sub_le (2 ^ w) 1; nlinarith) R

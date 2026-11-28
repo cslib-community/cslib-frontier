@@ -244,7 +244,7 @@ theorem abs_sum_mul_chi_le (s : Finset (Finset ι)) (c : Finset ι → ℝ) (x :
   classical
   refine ⟨fun h => ?_, ?_⟩
   · by_contra hS
-    obtain ⟨i, hi⟩ := nonempty_iff_ne_empty.2 hS
+    obtain ⟨i, hi⟩ := ne_empty_iff_nonempty.1 hS
     have h' := DFunLike.congr_fun h (Function.update (0 : ι → Bool) i true)
     rw [coe_chiChar, chi_update_of_mem hi, chi_zero, AddChar.zero_apply] at h'
     norm_num at h'

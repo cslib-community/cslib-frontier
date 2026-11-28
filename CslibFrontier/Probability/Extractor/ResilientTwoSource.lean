@@ -17,6 +17,7 @@ import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Probability.Product
 import CslibFrontier.Probability.StatisticalDistance
 import CslibFrontier.Probability.StatisticalDistance.Event
@@ -147,11 +148,10 @@ theorem isAdviceNonMalleableExtractor_zero_iff {X Seed Adv : Type*} [Fintype See
 /-- An expectation of a score bounded by `C` on the support has absolute value at most `C`. -/
 private theorem abs_sum_toReal_mul_le {α : Type*} [Fintype α] (ν : PMF α) {F : α → ℝ} {C : ℝ}
     (hF : ∀ a ∈ ν.support, |F a| ≤ C) : |∑ a, (ν a).toReal * F a| ≤ C := by
-  calc _ ≤ ∑ a, (ν a).toReal * C := (abs_sum_le_sum_abs _ _).trans <| sum_le_sum fun a _ => by
-          rw [abs_mul, abs_of_nonneg ENNReal.toReal_nonneg]
-          by_cases ha : a ∈ ν.support
-          · exact mul_le_mul_of_nonneg_left (hF a ha) ENNReal.toReal_nonneg
-          · simp [(ν.apply_eq_zero_iff a).mpr ha]
+  calc |∑ a, (ν a).toReal * F a| ≤ ∑ a, (ν a).toReal * |F a| := by
+        simpa only [abs_mul, abs_of_nonneg ENNReal.toReal_nonneg] using
+          abs_sum_le_sum_abs (fun a => (ν a).toReal * F a) univ
+    _ ≤ ∑ a, (ν a).toReal * C := sum_toReal_mul_mono_support ν hF
     _ = C := by rw [← sum_mul, sum_toReal, one_mul]
 
 private theorem sum_abs_signVal_mul_prod_le {X Seed Adv : Type*} [Fintype X] [Fintype Seed]
@@ -341,7 +341,7 @@ theorem isKWiseSmallBias_map_restrict_of_condenser
           else 0| ≤ 2 ^ (Δ + 1) * ε_nm := by
     let f : Fin m → Seed₂ → Seed₂ × Fin D := fun j r => (cond (g r) (e j : Fin D), (e j : Fin D))
     have hf : ∀ j r, f j r ≠ (r, a₀) := fun j r h =>
-      (ne_of_mem_erase (e j).2) (congrArg Prod.snd h)
+      (ne_of_mem_erase (e j).property) (congrArg Prod.snd h)
     have hχ (x : X) {r : Seed₂} (hr : r ∈ R.support) :
         chi ℝ S' (fun i => nmExt x (cond (g r) i) i) =
           BitString.signVal (nmExt x r a₀) *
@@ -354,7 +354,7 @@ theorem isKWiseSmallBias_map_restrict_of_condenser
       congr 1
       rw [← prod_coe_sort T]
       exact (Fintype.prod_equiv e (fun j => BitString.signVal (nmExt x (f j r).1 (f j r).2))
-        (fun i : T => BitString.signVal (nmExt x (cond (g r) i.1) i.1)) fun j => rfl).symm
+        (fun i : T => BitString.signVal (nmExt x (cond (g r) i.val) i.val)) fun j => rfl).symm
     have hR'_mass (r : Seed₂) : (R' r).toReal ≤ 2 ^ Δ / (Fintype.card Seed₂ : ℝ) := by
       have hle := (le_minEntropy_iff R').mp hR'_ent r
       have hpow : (2 : ℝ) ^ (-(Real.logb 2 (Fintype.card Seed₂) - Δ)) =

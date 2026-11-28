@@ -83,7 +83,7 @@ def HasExtension (M : Type*) [Language.graph.Structure M] (k : ℕ) (s : Fin k �
 witnesses the extension by `s`. -/
 private noncomputable def extensionBody {k : ℕ} (s : Fin k → Bool) :
     Language.graph.Formula (Fin k) :=
-  (Formula.iInf fun p : {p : Fin k × Fin k // p.1 ≠ p.2} => ∼(varEq p.1.1 p.1.2)) ⟹
+  (Formula.iInf fun p : {p : Fin k × Fin k // p.1 ≠ p.2} => ∼(varEq p.val.1 p.val.2)) ⟹
     Formula.iExs (Fin 1)
       (Formula.iInf fun i : Fin k =>
         ∼(varEq (Sum.inr 0) (Sum.inl i)) ⊓
@@ -104,7 +104,7 @@ theorem realize_extensionAxiom {k : ℕ} (s : Fin k → Bool) :
     realize_varEq, Formula.realize_iExs, Formula.realize_inf]
   constructor
   · intro h hx
-    obtain ⟨z, hz⟩ := h fun p hp => p.2 (hx hp)
+    obtain ⟨z, hz⟩ := h fun p hp => p.property (hx hp)
     refine ⟨z 0, fun i => (hz i).1, fun i => ?_⟩
     have := (hz i).2
     cases hs : s i <;> simp only [hs, Bool.false_eq_true, iff_false, ↓reduceIte,
@@ -227,9 +227,9 @@ theorem isExtensionPair_of_hasExtension {N : Type*} [Language.graph.Structure N]
   let g : U → N := fun u => if h : (u : M) ∈ S then f ⟨u, h⟩ else z
   have hg_of_mem : ∀ (u : U) (h : (u : M) ∈ S), g u = f ⟨u, h⟩ := fun u h => dite_eq_left h
   have hm_of_not_mem : ∀ u : U, (u : M) ∉ S → (u : M) = m := fun u h =>
-    ((hU u).1 u.2).resolve_right h
+    ((hU u).1 u.property).resolve_right h
   refine ⟨embeddingOfAdj g ?_ ?_,
-    Embedding.ext fun a => (hg_of_mem (Substructure.inclusion le_sup_right a) a.2).symm⟩
+    Embedding.ext fun a => (hg_of_mem (Substructure.inclusion le_sup_right a) a.property).symm⟩
   · intro u v huv
     apply Subtype.ext
     by_cases hu : (u : M) ∈ S <;> by_cases hv : (v : M) ∈ S <;>

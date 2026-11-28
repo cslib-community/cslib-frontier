@@ -410,7 +410,7 @@ private theorem idealJoint_ddhOTProb_empty (n : ℕ) (d : F.Desc)
           (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d))) x raw₀ bBits),
         otOutputs x) =
         ((fun i : (∅ : Finset (Fin 2)) => isEmptyElim i), otOutputs x) :=
-    Prod.ext (funext fun i => nomatch i.2) rfl
+    Prod.ext (funext fun i => nomatch i.property) rfl
   simp only [hconst, PMF.bind_const]
 
 /-- Parties `0` and `1` as members of `Finset.univ`. -/
@@ -455,14 +455,14 @@ private def ddhOTFullSimWords (d : F.Desc) (m : F.Carrier d × F.Carrier d) (σ 
       F.encode d w₀, F.encode d w₁⟩
     (fun _ => ⟨σ, bBits, F.encode d u, F.encode d e₀, F.encode d c₀, F.encode d e₁,
       F.encode d c₁⟩)
-    i.1
+    i.val
 
 /-- `ddhOTFullSimProb` is uniform strict PPT for `ddhOTEncoding`. -/
 private theorem isPPT_ddhOTFullSimProb : F.ddhOTFullSimProb.IsPPT F.ddhOTEncoding := by
   let E := F.ddhOTEncoding
   refine F.isPPTOn_sampleExpBits_six
     (W := fun x aBits r₀Bits s₀Bits r₁Bits s₁Bits bBits =>
-      encDPi (fun i : (Finset.univ : Finset (Fin 2)) => E.view.enc i.1)
+      encDPi (fun i : (Finset.univ : Finset (Fin 2)) => E.view.enc i.val)
         (F.ddhOTFullSimWords x.desc (x.inputs senderUniv) (x.inputs receiverUniv)
           aBits r₀Bits s₀Bits r₁Bits s₁Bits bBits))
     (fun {γ encγ x aBits r₀Bits s₀Bits r₁Bits s₁Bits bBits}
@@ -481,8 +481,8 @@ private theorem isPPT_ddhOTFullSimProb : F.ddhOTFullSimProb.IsPPT F.ddhOTEncodin
     · refine encDDHOTReceiverViewWords_mk_polyTime hσ ?_ ?_ ?_
         (computableInPolyTime_encode_add hd ?_ hm.fst') ?_
         (computableInPolyTime_encode_add hd ?_ hm.snd') <;> fun_prop
-  · change encDPi (fun i : (Finset.univ : Finset (Fin 2)) => E.view.enc i.1) _ =
-      encDPi (fun i : (Finset.univ : Finset (Fin 2)) => E.view.enc i.1) _
+  · change encDPi (fun i : (Finset.univ : Finset (Fin 2)) => E.view.enc i.val) _ =
+      encDPi (fun i : (Finset.univ : Finset (Fin 2)) => E.view.enc i.val) _
     refine congrArg (encDPi _) (funext fun ⟨j, hj⟩ => ?_)
     obtain ⟨n, d, xs, ys⟩ := x
     let q := F.order d

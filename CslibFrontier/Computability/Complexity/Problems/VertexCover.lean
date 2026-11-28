@@ -117,7 +117,7 @@ theorem mem_VertexCover_iff {x : VertexCoverInstance} :
   constructor
   · rintro ⟨S, hS, hcard⟩
     refine ⟨S.map (.subtype _),
-      fun v hv => by obtain ⟨u, _, rfl⟩ := Finset.mem_map.1 hv; exact u.2,
+      fun v hv => by obtain ⟨u, _, rfl⟩ := Finset.mem_map.1 hv; exact u.property,
       fun u hu v hv huv =>
         (@hS ⟨u, hu⟩ ⟨v, hv⟩ huv).imp (Finset.mem_map_of_mem _) (Finset.mem_map_of_mem _),
       (Finset.card_map _).trans hcard⟩
@@ -126,7 +126,7 @@ theorem mem_VertexCover_iff {x : VertexCoverInstance} :
       (Finset.subtype_map _).trans (Finset.filter_eq_self.mpr hSV)
     refine ⟨S.subtype (· ∈ x.graph.vertices), fun u v huv => ?_,
       by rw [← Finset.card_map (.subtype _), hmap, hcard]⟩
-    simpa [Finset.mem_subtype] using hS u.1 u.2 v.1 v.2 huv
+    simpa [Finset.mem_subtype] using hS u.val u.property v.val v.property huv
 
 @[simp]
 theorem mem_VertexCover_iff_mk {G : Graph} {k : ℕ} :

@@ -73,7 +73,7 @@ example : (#{f : Fin 3 → Bool |
 
 example : Circuits.Boolean.computableFunctionsLogBound 2 3 = 36 := by decide
 
-example (n s : ℕ) : (Circuits.Boolean.computableFunctions n s).card ≤
+example (n s : ℕ) : (Circuits.Boolean.computableFunctions n s).ncard ≤
     2 ^ ((s + 1) * (2 * (n + s + 1) + 3)) :=
   (Circuits.Boolean.card_computableFunctions_le_two_pow n s).trans
     (Nat.pow_le_pow_right (by decide) (Circuits.Boolean.computableFunctionsLogBound_le_poly n s))

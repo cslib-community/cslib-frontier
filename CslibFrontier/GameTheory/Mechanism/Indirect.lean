@@ -226,7 +226,7 @@ theorem IsExPostNash.isDominantStrategyEquilibrium_restrictRange {s : ∀ i, T i
     (G.restrictRange s).IsDominantStrategyEquilibrium
       (fun i => Set.rangeFactorization (s i)) := by
   intro i ti x
-  choose t₀ ht₀ using fun j => (x j).2
+  choose t₀ ht₀ using fun j => (x j).property
   let t : ∀ j, T j := Function.update t₀ i ti
   have h1 : (fun j => (x j : X j)) =
       Function.update (fun j => s j (t j)) i (x i : X i) := by
@@ -397,8 +397,8 @@ restricted to valuation domains `V : ι → Set (Ω → ℝ)` is an ex-post Nash
 `M.toMechanism s : Mechanism ι Ω` is DSIC on `V` (`IsDSICOn V`). -/
 theorem toMechanism_isDSICOn_of_isExPostNash {M : IndirectMechanism ι X Ω}
     {V : ι → Set (Ω → ℝ)} {s : ∀ i, (Ω → ℝ) → X i}
-    (hs : (M.toIncompleteInfoGame (T := fun i => V i) (fun _ v => v.1)).IsExPostNash
-      (fun i v => s i v.1)) :
+    (hs : (M.toIncompleteInfoGame (T := fun i => V i) (fun _ v => v.val)).IsExPostNash
+      (fun i v => s i v.val)) :
     (M.toMechanism s).IsDSICOn V := by
   have hD := revelation_isTruthful_of_isExPostNash hs
   intro i b v hb hv
@@ -592,31 +592,32 @@ theorem isBayesNash_iff_toBayesianGame [Fintype ι] [DecidableEq ι]
   have hinterim : ∀ (hβ : ∀ j, ∀ v ∈ Icc 0 (h j), 0 ≤ β j v) (i : ι) (v : ℝ)
       (z : Set.Ici (0 : ℝ)),
       (M.toBayesianGame μ).interimUtility s i v z =
-        v * M.interimAllocation μ β i z.1 - M.interimPayment μ β i z.1 := by
+        v * M.interimAllocation μ β i z.val - M.interimPayment μ β i z.val := by
     intro hβ i v z
     have hcoe : ∀ t : ι → ℝ,
         (fun j => ((Function.update (fun k => s k (t k)) i z j : Set.Ici (0 : ℝ)) : ℝ)) =
-          Function.update (fun j => max 0 (β j (t j))) i z.1 := by
+          Function.update (fun j => max 0 (β j (t j))) i z.val := by
       intro t
       funext j
       rcases eq_or_ne j i with rfl | hj
       · simp only [Function.update_self]
       · simp only [s, Function.update_of_ne hj]
     have hae_eq : ∀ᵐ t ∂Measure.pi μ,
-        Function.update (fun j => max 0 (β j (t j))) i z.1 =
-          Function.update (fun j => β j (t j)) i z.1 := by
+        Function.update (fun j => max 0 (β j (t j))) i z.val =
+          Function.update (fun j => β j (t j)) i z.val := by
       filter_upwards [hbox] with t ht
       funext j
       rcases eq_or_ne j i with rfl | hj
       · simp only [Function.update_self]
       · simp only [Function.update_of_ne hj, max_eq_right (hβ j (t j) (ht j))]
     simp only [BayesianGame.interimUtility, toBayesianGame, Mechanism.utility, hcoe]
-    rw [integral_sub ((hintA i z.1 z.2).const_mul v) (hintP i z.1 z.2), integral_const_mul]
-    have hA : ∫ t, M.allocation (Function.update (fun j => max 0 (β j (t j))) i z.1) i
-        ∂Measure.pi μ = M.interimAllocation μ β i z.1 :=
+    rw [integral_sub ((hintA i z.val z.property).const_mul v) (hintP i z.val z.property),
+        integral_const_mul]
+    have hA : ∫ t, M.allocation (Function.update (fun j => max 0 (β j (t j))) i z.val) i
+        ∂Measure.pi μ = M.interimAllocation μ β i z.val :=
       integral_congr_ae (hae_eq.mono fun t ht => by dsimp only; rw [ht])
-    have hP : ∫ t, M.payment (Function.update (fun j => max 0 (β j (t j))) i z.1) i
-        ∂Measure.pi μ = M.interimPayment μ β i z.1 :=
+    have hP : ∫ t, M.payment (Function.update (fun j => max 0 (β j (t j))) i z.val) i
+        ∂Measure.pi μ = M.interimPayment μ β i z.val :=
       integral_congr_ae (hae_eq.mono fun t ht => by dsimp only; rw [ht])
     rw [hA, hP]
   constructor
@@ -625,7 +626,7 @@ theorem isBayesNash_iff_toBayesianGame [Fintype ι] [DecidableEq ι]
     refine ⟨hβ, fun i v hv z => ?_⟩
     rw [hinterim hβ i v z, hinterim hβ i v (s i v)]
     simp only [s, max_eq_right (hβ i v hv)]
-    exact (hM i v hv).2 z.1 z.2
+    exact (hM i v hv).2 z.val z.property
   · rintro ⟨hβ, hB⟩ i v hv
     refine ⟨hβ i v hv, fun z hz => ?_⟩
     have := hB i v hv ⟨z, hz⟩

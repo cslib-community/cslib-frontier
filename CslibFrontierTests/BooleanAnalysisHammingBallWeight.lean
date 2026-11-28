@@ -63,7 +63,7 @@ example : Tendsto (fun n : ℕ => levelWeight 1 fun x : Fin n → Bool =>
   convert tendsto_levelWeight_one_hammingBall 1 using 2
   rw [gaussianPDFReal_def]
   simp only [sub_zero, one_pow, NNReal.coe_one, mul_one, mul_pow, inv_pow,
-    Real.sq_sqrt (by positivity : (0 : ℝ) ≤ 2 * π), ← Real.exp_nat_mul]
+    Real.sq_sqrt (by positivity : (0 : ℝ) ≤ 2 * π), ← Real.exp_natCast_mul]
   rw [div_eq_inv_mul]
   norm_num
 

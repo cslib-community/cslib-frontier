@@ -56,16 +56,16 @@ variable {K : Type*} [Field K] [Fintype K] [DecidableEq K] {ℓ k : ℕ}
 are `y`. -/
 private def outsidePoints (occupied : Finset (Fin ℓ → K)) (targets : Fin k → Fin ℓ → K)
     (S : Finset (Fin k)) (y : {j // j ∉ S} → {v : Fin ℓ → K // v ≠ 0}) : Finset (Fin ℓ → K) :=
-  occupied ∪ univ.biUnion fun j => puncturedLine (targets j.1) (y j).1
+  occupied ∪ univ.biUnion fun j => puncturedLine (targets j.val) (y j).val
 
 private theorem card_outsidePoints_le (occupied : Finset (Fin ℓ → K))
     (targets : Fin k → Fin ℓ → K) (S : Finset (Fin k))
     (y : {j // j ∉ S} → {v : Fin ℓ → K // v ≠ 0}) :
     #(outsidePoints occupied targets S y) ≤ #occupied + k * (Fintype.card K - 1) := by
   calc #(outsidePoints occupied targets S y)
-      ≤ #occupied + #(univ.biUnion fun j => puncturedLine (targets j.1) (y j).1) :=
+      ≤ #occupied + #(univ.biUnion fun j => puncturedLine (targets j.val) (y j).val) :=
         card_union_le _ _
-    _ ≤ #occupied + ∑ j, #(puncturedLine (targets j.1) (y j).1) :=
+    _ ≤ #occupied + ∑ j, #(puncturedLine (targets j.val) (y j).val) :=
         Nat.add_le_add_left card_biUnion_le _
     _ ≤ #occupied + ∑ _j : {j // j ∉ S}, (Fintype.card K - 1) :=
         Nat.add_le_add_left (sum_le_sum fun j _ => card_puncturedLine_le _ _) _
@@ -76,7 +76,7 @@ private theorem card_outsidePoints_le (occupied : Finset (Fin ℓ → K))
           ((Fintype.card_subtype_le _).trans_eq (Fintype.card_fin k))) _
 
 private theorem card_filter_subtype_nonzero (p : (Fin ℓ → K) → Prop) [DecidablePred p] :
-    #{v : {v : Fin ℓ → K // v ≠ 0} | p v.1} = #{v ∈ univ.erase 0 | p v} := by
+    #{v : {v : Fin ℓ → K // v ≠ 0} | p v.val} = #{v ∈ univ.erase 0 | p v} := by
   rw [← card_map (Function.Embedding.subtype _)]
   congr 1
   ext v
@@ -86,17 +86,17 @@ private theorem card_filter_subtype_nonzero (p : (Fin ℓ → K) → Prop) [Deci
 meeting the occupied points or the lines of the requests outside them. -/
 private theorem exists_cut (occupied : Finset (Fin ℓ → K)) (targets : Fin k → Fin ℓ → K)
     (d : Fin k → {v : Fin ℓ → K // v ≠ 0})
-    (hd : 2 * #{i | IsClean occupied targets (fun j => (d j).1) i} < k) :
+    (hd : 2 * #{i | IsClean occupied targets (fun j => (d j).val) i} < k) :
     ∃ S ∈ powersetCard ((k + 3) / 4) univ, ∀ i ∈ S,
-      ¬Disjoint (puncturedLine (targets i) (d i).1)
+      ¬Disjoint (puncturedLine (targets i) (d i).val)
         (outsidePoints occupied targets S fun j => d j) := by
-  let L : Fin k → Finset (Fin ℓ → K) := fun i => puncturedLine (targets i) (d i).1
+  let L : Fin k → Finset (Fin ℓ → K) := fun i => puncturedLine (targets i) (d i).val
   let G : SimpleGraph (Fin k) :=
     { Adj := fun i j => i ≠ j ∧ ¬Disjoint (L i) (L j)
       symm := ⟨fun _ _ h => ⟨h.1.symm, fun h' => h.2 h'.symm⟩⟩
       loopless := ⟨fun _ h => h.1 rfl⟩ }
-  set bad : Finset (Fin k) := {i | ¬IsClean occupied targets (fun j => (d j).1) i}
-  have hcard : #{i | IsClean occupied targets (fun j => (d j).1) i} + #bad = k := by
+  set bad : Finset (Fin k) := {i | ¬IsClean occupied targets (fun j => (d j).val) i}
+  have hcard : #{i | IsClean occupied targets (fun j => (d j).val) i} + #bad = k := by
     rw [card_filter_add_card_filter_not, card_univ, Fintype.card_fin]
   have hnon : ∀ i ∈ bad, ¬Disjoint (L i) occupied ∨ ∃ j, G.Adj i j := by
     intro i hi
@@ -112,7 +112,7 @@ private theorem exists_cut (occupied : Finset (Fin ℓ → K)) (targets : Fin k 
   · exact ho (hdisj.mono_right subset_union_left)
   · have hjS : j ∉ S := fun h => hj (hSS₀ h)
     refine hij.2 (hdisj.mono_right (subset_union_right.trans' ?_))
-    exact subset_biUnion_of_mem (fun j : {j // j ∉ S} => puncturedLine (targets j) (d j).1)
+    exact subset_biUnion_of_mem (fun j : {j // j ∉ S} => puncturedLine (targets j) (d j).val)
       (mem_univ ⟨j, hjS⟩)
 
 /-- For a fixed set `S` of requests, at most `(q ^ ℓ - 1) ^ (k - #S) * M ^ #S` direction tuples
@@ -121,13 +121,13 @@ make every line of `S` meet the occupied points or the lines outside `S`, where
 private theorem card_cutFailures_le (occupied : Finset (Fin ℓ → K))
     (targets : Fin k → Fin ℓ → K) (S : Finset (Fin k)) :
     #{d : Fin k → {v : Fin ℓ → K // v ≠ 0} | ∀ i ∈ S,
-        ¬Disjoint (puncturedLine (targets i) (d i).1)
+        ¬Disjoint (puncturedLine (targets i) (d i).val)
           (outsidePoints occupied targets S fun j => d j)} ≤
       (Fintype.card K ^ ℓ - 1) ^ (k - #S) *
         ((#occupied + k * (Fintype.card K - 1)) * (Fintype.card K - 1)) ^ #S := by
   let A : ({j // j ∉ S} → {v : Fin ℓ → K // v ≠ 0}) → Fin k →
       Finset {v : Fin ℓ → K // v ≠ 0} := fun y i =>
-    {v | ¬Disjoint (puncturedLine (targets i) v.1) (outsidePoints occupied targets S y)}
+    {v | ¬Disjoint (puncturedLine (targets i) v.val) (outsidePoints occupied targets S y)}
   have hA : ∀ y, ∀ i ∈ S,
       #(A y i) ≤ (#occupied + k * (Fintype.card K - 1)) * (Fintype.card K - 1) := by
     intro y i _
@@ -157,23 +157,23 @@ theorem card_filter_two_mul_card_isClean_lt_mul_two_pow_le (occupied : Finset (F
     (hbudget : 256 * ((#occupied + k * (Fintype.card K - 1)) * (Fintype.card K - 1)) ≤
       Fintype.card K ^ ℓ - 1) :
     #{d : Fin k → {v : Fin ℓ → K // v ≠ 0} |
-        2 * #{i | IsClean occupied targets (fun j => (d j).1) i} < k} * 2 ^ k ≤
+        2 * #{i | IsClean occupied targets (fun j => (d j).val) i} < k} * 2 ^ k ≤
       (Fintype.card K ^ ℓ - 1) ^ k := by
   set n := Fintype.card K ^ ℓ - 1
   set M := (#occupied + k * (Fintype.card K - 1)) * (Fintype.card K - 1)
   set s := (k + 3) / 4 with hs
   have hfail : #{d : Fin k → {v : Fin ℓ → K // v ≠ 0} |
-      2 * #{i | IsClean occupied targets (fun j => (d j).1) i} < k} ≤
+      2 * #{i | IsClean occupied targets (fun j => (d j).val) i} < k} ≤
         2 ^ k * (n ^ (k - s) * M ^ s) := by
     calc _ ≤ #((powersetCard s univ).biUnion fun S =>
             ({d : Fin k → {v : Fin ℓ → K // v ≠ 0} | ∀ i ∈ S,
-              ¬Disjoint (puncturedLine (targets i) (d i).1)
+              ¬Disjoint (puncturedLine (targets i) (d i).val)
                 (outsidePoints occupied targets S fun j => d j)} : Finset _)) := by
           refine card_le_card fun d hd => ?_
           obtain ⟨S, hS, hdS⟩ := exists_cut occupied targets d (mem_filter.mp hd).2
           exact mem_biUnion.mpr ⟨S, hS, mem_filter.mpr ⟨mem_univ _, hdS⟩⟩
       _ ≤ ∑ S ∈ powersetCard s univ, #({d : Fin k → {v : Fin ℓ → K // v ≠ 0} | ∀ i ∈ S,
-            ¬Disjoint (puncturedLine (targets i) (d i).1)
+            ¬Disjoint (puncturedLine (targets i) (d i).val)
               (outsidePoints occupied targets S fun j => d j)} : Finset _) := card_biUnion_le
       _ ≤ ∑ _S ∈ powersetCard s univ, n ^ (k - s) * M ^ s := by
           refine sum_le_sum fun S hS => ?_

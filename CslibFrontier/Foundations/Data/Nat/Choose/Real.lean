@@ -109,7 +109,7 @@ theorem sum_choose_le_exp_mul_pow (q e : ℕ) (T : ℝ) (hT : 1 ≤ T) :
         gcongr
         linarith [Real.add_one_le_exp t]
     _ = Real.exp (q / T) * T ^ e := by
-        rw [← Real.exp_nat_mul, ht]
+        rw [← Real.exp_natCast_mul, ht]
         ring_nf
 
 /-- The standard bound `(exp 1 * q / e) ^ e` holds throughout `e ≤ q`, not just for
@@ -126,7 +126,7 @@ theorem sum_choose_le_exp_one_mul_div_pow {q e : ℕ} (heq : e ≤ q) :
   calc (∑ j ∈ range (e + 1), (q.choose j : ℝ)) ≤ Real.exp e * ((q : ℝ) / e) ^ e := by
         simpa only [hqe] using sum_choose_le_exp_mul_pow q e ((q : ℝ) / e) hT
     _ = (Real.exp 1 * q / e) ^ e := by
-        rw [mul_div_assoc, mul_pow, ← Real.exp_nat_mul]
+        rw [mul_div_assoc, mul_pow, ← Real.exp_natCast_mul]
         simp
 
 end Cslib

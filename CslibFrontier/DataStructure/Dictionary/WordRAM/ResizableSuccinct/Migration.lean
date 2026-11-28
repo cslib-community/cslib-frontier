@@ -1110,10 +1110,6 @@ private theorem execRCodeDist_of_demonic_outcome {U : ℕ} {α : Type*} {w L_pea
     ExecRCodeDist w c x ((PMF.pure q_out).map StepROutcome.data) steps L_peak :=
   (ExecRCodeDist.of_demonicExec h).congr_dist (by simp) le_rfl
 
-private theorem tsum_pmf_pure_mul {α : Type*} (a : α) (f : α → ℝ≥0∞) :
-    ∑' x, PMF.pure a x * f x = f a := by
-  rw [tsum_eq_single a fun b hb => by simp [PMF.pure_apply, hb], PMF.pure_apply_self, one_mul]
-
 private theorem epochRep_of_empty_step {U V w base : ℕ} {st' : EpochState U}
     {ls : LatentSeed U} {z : RData rResize}
     (hdict : st'.dict = Dictionary.empty U) (hcap : st'.cap = 0) (hinit : st'.initCount = 0)
@@ -1133,7 +1129,7 @@ private theorem pure_empty_step_cost_le {U w base : ℕ} {α : Type*}
         (resizablePotential U w st'.cap (Dictionary.dom st'.dict).card st'.initCount base
           q.data : ℝ≥0∞)) ≤
       P₀ + ((resizableBaseCharge : ℝ≥0∞) + extra) := by
-  rw [tsum_pmf_pure_mul, hdict, Dictionary.dom_empty, Finset.card_empty, hcap, hinit,
+  rw [Probability.PMF.tsum_pure_mul, hdict, Dictionary.dom_empty, Finset.card_empty, hcap, hinit,
     resizablePotential_zero, Nat.cast_zero, add_zero]
   exact ((Nat.cast_le.mpr hsteps).trans le_self_add).trans le_add_self
 
@@ -1189,7 +1185,8 @@ private theorem package_active_inEpoch_step {U V w base overhead stepsOp : ℕ}
   · rw [PMF.support_pure, Set.mem_singleton_iff] at hq; subst hq
     exact ⟨hqrep, hqres, hqdec, hqbel⟩
   · rw [ite_eq_left hcap_same]; exact ⟨hn_pos, by simp [hqls]⟩
-  · rw [ite_eq_left (show 0 < (Dictionary.dom st.dict).card from hn_pos), tsum_pmf_pure_mul]
+  · rw [ite_eq_left (show 0 < (Dictionary.dom st.dict).card from hn_pos),
+      Probability.PMF.tsum_pure_mul]
     have hc := (Nat.cast_le (α := ℝ≥0∞)).mpr hqcost
     simp only [Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat] at hc
     calc ((overhead + stepsOp : ℕ) : ℝ≥0∞) +
@@ -1634,7 +1631,7 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
               exact hsplit_z
           · rw [ite_eq_left hcap_same]
             exact ⟨hn_pos, PMF.pure_map _ _⟩
-          · rw [ite_eq_left (show 0 < n from hn_pos), tsum_pmf_pure_mul]
+          · rw [ite_eq_left (show 0 < n from hn_pos), Probability.PMF.tsum_pure_mul]
             have hpot_full : resizablePotential U w st'.cap n' st'.initCount base q_out.data =
                 resizablePotential U w st.cap n st.initCount base x := by
               simp only [resizablePotential, hcap_same, hinit_same, hn'1, hn1, q_out, hpot_eq]

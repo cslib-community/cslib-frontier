@@ -201,7 +201,7 @@ theorem OpenVars.erase {φ : CNF ℕ} {π : List (Literal ℕ)} {vs : List ℕ}
 theorem OpenVars.fresh {φ : CNF ℕ} {π : List (Literal ℕ)} {x : ℕ} {xs : List ℕ}
     (h : OpenVars φ π (x :: xs)) {v : ℕ} {b : Bool} (hl : (branchLiteral φ π x xs).val = (v, b)) :
     (v, true) ∉ π ∧ (v, false) ∉ π := by
-  have := (branchLiteral φ π x xs).2
+  have := (branchLiteral φ π x xs).property
   rw [hl] at this
   exact h.unassigned v this
 

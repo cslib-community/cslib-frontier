@@ -119,7 +119,7 @@ theorem IsEmbedding.exists_horizontal_vertex_transport {G : Graph} {D : Polygona
     exact hflat x.vertex (declared_dart hG x)
   have hd (x : Dart G) : (D.plateauShear (D.vertex v).im r d).direction x = D.direction x := by
     obtain ⟨c, hc, heq⟩ := hg x
-    simp only [direction, heq, Complex.real_smul, Complex.arg_real_mul _ hc]
+    simp only [direction, heq, Complex.real_smul, Complex.arg_ofReal_mul hc _]
   refine ⟨shear_embedding hD _ hr d, fun w hw => ?_, hg,
     fun x y z _ _ _ _ _ => by rw [hd x, hd y, hd z],
     fun e => (Route.segments_plateauShear (D.route e) _ r d).2,

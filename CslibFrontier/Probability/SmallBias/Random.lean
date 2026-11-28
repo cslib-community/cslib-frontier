@@ -113,16 +113,9 @@ theorem card_biased_le {S : Finset ι} (hS : S.Nonempty) {ε : ℝ} (hε : 0 ≤
   have hR : #R = d := by simp [R]
   have hcount : ∀ s : Fin d → ι → Bool, #{j | parityOn S (s j) = true} =
       #{k ∈ R | shear S i₀ (Function.uncurry s) k = true} := fun s => by
-    refine Finset.card_bij (fun j _ => (j, i₀)) (fun j hj => ?_) (fun _ _ _ _ h => ?_)
-      (fun k hk => ?_)
-    · simp only [mem_filter, mem_univ, true_and] at hj
-      simp [R, shear_apply_self, hj, Function.uncurry]
-    · simpa using h
-    · obtain ⟨j, i⟩ := k
-      simp only [R, mem_filter, mem_product, mem_univ, mem_singleton, true_and] at hk
-      obtain ⟨rfl, hk⟩ := hk
-      refine ⟨j, ?_, rfl⟩
-      simpa [shear_apply_self, Function.uncurry] using hk
+    change _ = #((univ ×ˢ {i₀}).filter fun k => shear S i₀ (Function.uncurry s) k = true)
+    rw [Finset.product_singleton, Finset.filter_map, Finset.card_map]
+    simp [shear_apply_self, Function.uncurry]
   set e : (Fin d → ι → Bool) ≃ (Fin d × ι → Bool) :=
     (Equiv.curry (Fin d) ι Bool).symm.trans
       ⟨shear S i₀, shear S i₀, shear_shear hi₀, shear_shear hi₀⟩
@@ -199,7 +192,7 @@ theorem exp_neg_lt_of_ceil_le {ε : ℝ} (hε : 0 < ε)
         linarith [pow_pos (two_pos : (0 : ℝ) < 2) (Fintype.card ι)]
     _ ≤ exp 2 ^ (Fintype.card ι + 1) := by rw [← pow_succ']; gcongr
     _ ≤ exp (ε ^ 2 * d / 2) := by
-        rw [← Real.exp_nat_mul]
+        rw [← Real.exp_natCast_mul]
         exact exp_le_exp.mpr (by push_cast; linarith)
 
 /-- **Short `ε`-biased lists of size `⌈4 (|ι| + 1) / ε²⌉`**: for `ε > 0` and

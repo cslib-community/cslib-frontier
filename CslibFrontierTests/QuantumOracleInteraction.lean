@@ -283,7 +283,7 @@ abbrev baseWord (key memory : Bool) : Fin 8 → Bool :=
 noncomputable def queriedWord (H : QuantumOracleDecapsulation.Hash)
     (key memory : Bool) : Fin 8 → Bool :=
   (queryRegisters (a := 1) (b := 1) (Fin.castLEEmb (by decide : 2 ≤ 8))).symm
-    (fun _ => false, H (fun _ => false), fun j => baseWord key memory j.1)
+    (fun _ => false, H (fun _ => false), fun j => baseWord key memory j.val)
 
 theorem queriedWord_response (H : QuantumOracleDecapsulation.Hash) (key memory : Bool) :
     queriedWord H key memory 1 = H (fun _ => false) 0 :=
@@ -312,14 +312,15 @@ theorem query_baseWord (H : QuantumOracleDecapsulation.Hash) (key memory : Bool)
     (xorQuery H (Fin.castLEEmb (by decide : 2 ≤ 8))).eval (ket (baseWord key memory)) =
       ket (queriedWord H key memory) := by
   have hs : (queryRegisters (a := 1) (b := 1) (Fin.castLEEmb (by decide : 2 ≤ 8))).symm
-      (fun _ => false, fun _ => false, fun j => baseWord key memory j.1) = baseWord key memory := by
+      (fun _ => false, fun _ => false, fun j => baseWord key memory j.val) =
+          baseWord key memory := by
     apply (queryRegisters (a := 1) (b := 1) (Fin.castLEEmb (by decide : 2 ≤ 8))).injective
     simp only [Equiv.apply_symm_apply, queryRegisters_apply]
     apply Prod.ext (by funext i; fin_cases i; rfl)
     exact Prod.ext (by funext i; fin_cases i; rfl) rfl
   rw [← hs, xorQuery_eval_ket]
   change ket ((queryRegisters (Fin.castLEEmb (by decide : 2 ≤ 8))).symm
-    ((fun _ => false), 0 + H (fun _ => false), (fun j => baseWord key memory j.1))) = _
+    ((fun _ => false), 0 + H (fun _ => false), (fun j => baseWord key memory j.val))) = _
   rw [zero_add]
   rfl
 

@@ -201,7 +201,7 @@ theorem abs_integral_comp_sub_le_of_lipschitzWith [IsProbabilityMeasure P]
     refine (key _ ht).trans ?_
     rw [zero_pow (by omega), mul_zero, add_zero, mul_zero, zero_add, mul_div_assoc',
       div_le_iff₀ (by positivity)]
-    nlinarith [K.2]
+    nlinarith [K.property]
   · refine (key τ hτ).trans_eq ?_
     field_simp
     ring

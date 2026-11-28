@@ -161,10 +161,10 @@ private theorem exists_toDigraph_eq {T : Digraph V} (hT : T.IsInArborescence r) 
 /-- Parent functions that reach `r` are equivalent to in-arborescences rooted at `r`. -/
 private noncomputable def parentEquiv :
     {f : {v // v ≠ r} → V // Acyclic f} ≃ {T : Digraph V // T.IsInArborescence r} :=
-  Equiv.ofBijective (fun f => ⟨toDigraph f.1, isInArborescence_toDigraph f.2⟩)
+  Equiv.ofBijective (fun f => ⟨toDigraph f.val, isInArborescence_toDigraph f.property⟩)
     ⟨fun _ _ h => Subtype.ext (toDigraph_injective (congrArg Subtype.val h)),
       fun T => by
-        obtain ⟨f, hf, hfT⟩ := exists_toDigraph_eq T.2
+        obtain ⟨f, hf, hfT⟩ := exists_toDigraph_eq T.property
         exact ⟨⟨f, hf⟩, Subtype.ext hfT⟩⟩
 
 end Parent
@@ -187,16 +187,16 @@ private theorem det_parentMatrix_of_not_acyclic {f : {v // v ≠ r} → V} (hf :
     exact hf h
   let C (v : V) : Prop := ∀ n, (withRoot f)^[n] v ≠ r
   have hC (i : {v // v ≠ r}) : C i ↔ C (f i) :=
-    ⟨fun h n => by simpa [Function.iterate_succ_apply, withRoot_of_ne f i.2] using h (n + 1),
-      fun h n => Nat.casesOn n i.2 fun n => by
-        simpa [Function.iterate_succ_apply, withRoot_of_ne f i.2] using h n⟩
+    ⟨fun h n => by simpa [Function.iterate_succ_apply, withRoot_of_ne f i.property] using h (n + 1),
+      fun h n => Nat.casesOn n i.property fun n => by
+        simpa [Function.iterate_succ_apply, withRoot_of_ne f i.property] using h n⟩
   let c (j : {v // v ≠ r}) : R := if C j then 1 else 0
   have hker (i : {v // v ≠ r}) : ∑ j, c j • (parentMatrix f : Matrix _ _ R) i j = 0 := by
     simp only [smul_eq_mul, mul_comm (c _), parentMatrix, Matrix.of_apply, sub_mul, ite_mul,
       one_mul, zero_mul, Finset.sum_sub_distrib, Finset.sum_ite_eq, Finset.mem_univ, ite_true]
     by_cases hfi : f i = r
     · rw [Finset.sum_eq_zero fun j _ =>
-          ite_eq_right_iff.mpr fun h => absurd (h.symm.trans hfi) j.2, sub_zero]
+          ite_eq_right_iff.mpr fun h => absurd (h.symm.trans hfi) j.property, sub_zero]
       exact ite_eq_right fun h => (hC i).1 h 0 hfi
     · rw [Finset.sum_eq_single ⟨f i, hfi⟩
         (fun j _ hj => ite_eq_right_iff.mpr fun h => absurd (Subtype.ext h.symm) hj) (by simp)]
@@ -213,8 +213,8 @@ private theorem det_parentMatrix_of_acyclic {f : {v // v ≠ r} → V} (hf : Acy
   have hd (i : {v // v ≠ r}) : d (f i) < d i := by
     have h1 : (withRoot f)^[d i] i = r := Nat.find_spec (hf i)
     obtain ⟨m, hm⟩ := Nat.exists_eq_succ_of_ne_zero fun h0 : d i = 0 =>
-      i.2 (by rwa [h0, Function.iterate_zero_apply] at h1)
-    rw [hm, Function.iterate_succ_apply, withRoot_of_ne f i.2] at h1
+      i.property (by rwa [h0, Function.iterate_zero_apply] at h1)
+    rw [hm, Function.iterate_succ_apply, withRoot_of_ne f i.property] at h1
     exact hm ▸ Nat.lt_succ_of_le (Nat.find_min' (hf (f i)) h1)
   rw [← det_transpose]
   refine (det_eq_prod_diag_of_weight (parentMatrix f : Matrix _ _ R)ᵀ (fun i => d i)
@@ -277,7 +277,7 @@ theorem det_laplacian_submatrix_eq_finsum_isInArborescence (A : Matrix V V R) (r
   rw [← Finset.sum_filter, Finset.sum_subtype (p := Acyclic) _ (fun f => by simp),
     ← finsum_subtype_eq_finsum_cond, ← finsum_comp_equiv parentEquiv, finsum_eq_sum_of_fintype]
   refine Finset.sum_congr rfl fun f _ => ?_
-  change _ = ∏ᶠ (p : V × V) (_ : p ∈ {p : V × V | (toDigraph f.1).Adj p.1 p.2}), A p.1 p.2
+  change _ = ∏ᶠ (p : V × V) (_ : p ∈ {p : V × V | (toDigraph f.val).Adj p.1 p.2}), A p.1 p.2
   rw [setOf_adj_toDigraph, finprod_mem_range (fun a b h => Subtype.ext (congrArg Prod.fst h)),
     finprod_eq_prod_of_fintype]
 

@@ -71,7 +71,7 @@ instance : Quiver I.Vertex where
 
 /-- The weight of an arrow. -/
 def arrowWeight {u v : I.Vertex} (e : u ⟶ v) : ℕ∞ :=
-  (show {c : ℕ // I.weight u v = some c} from e).1
+  (show {c : ℕ // I.weight u v = some c} from e).val
 
 /-- The **shortest-path distance** from `u` to `v`: the infimum of the weights of the paths from
 `u` to `v`, and `⊤` when there is none. -/

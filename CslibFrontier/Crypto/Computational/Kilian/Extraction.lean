@@ -1310,7 +1310,7 @@ theorem HashFamily.kilianTableExtraction {H : List Bool → List Bool → List B
       push_cast
       field_simp
     have hstep2 : (Real.exp (-θ)) ^ T n = (Real.exp (-1)) ^ n := by
-      rw [← Real.exp_nat_mul, mul_comm, hprod, Real.exp_nat_mul]
+      rw [← Real.exp_natCast_mul, mul_comm, hprod, Real.exp_natCast_mul]
     have hstep3 : (Real.exp (-1)) ^ n ≤ (1 / 2 : ℝ) ^ n :=
       pow_le_pow_left₀ (Real.exp_pos (-1)).le Real.exp_neg_one_lt_half.le n
     exact hstep1.trans (hstep2 ▸ hstep3)

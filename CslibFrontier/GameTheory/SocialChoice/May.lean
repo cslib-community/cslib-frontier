@@ -184,17 +184,17 @@ private theorem exists_perm_swap_disjoint [Finite V] {s₁ t₁ s₂ t₂ : Fins
   have hmem_t₁ (i : V) : f i ∈ t₁ ↔ i ∈ s₂ := by
     dsimp only [f]
     split_ifs with hs ht
-    · exact iff_of_true (e₂ ⟨i, hs⟩).2 hs
-    · exact iff_of_false (Finset.disjoint_left.1 hd₁ (e₁ ⟨i, ht⟩).2) hs
-    · exact iff_of_false (fun h => (Finset.mem_sdiff.1 (e₃ ⟨i, hmem_c₂ hs ht⟩).2).2
+    · exact iff_of_true (e₂ ⟨i, hs⟩).property hs
+    · exact iff_of_false (Finset.disjoint_left.1 hd₁ (e₁ ⟨i, ht⟩).property) hs
+    · exact iff_of_false (fun h => (Finset.mem_sdiff.1 (e₃ ⟨i, hmem_c₂ hs ht⟩).property).2
         (Finset.mem_union_right _ h)) hs
   have hmem_s₁ (i : V) : f i ∈ s₁ ↔ i ∈ t₂ := by
     dsimp only [f]
     split_ifs with hs ht
-    · exact iff_of_false (Finset.disjoint_right.1 hd₁ (e₂ ⟨i, hs⟩).2)
+    · exact iff_of_false (Finset.disjoint_right.1 hd₁ (e₂ ⟨i, hs⟩).property)
         (Finset.disjoint_left.1 hd₂ hs)
-    · exact iff_of_true (e₁ ⟨i, ht⟩).2 ht
-    · exact iff_of_false (fun h => (Finset.mem_sdiff.1 (e₃ ⟨i, hmem_c₂ hs ht⟩).2).2
+    · exact iff_of_true (e₁ ⟨i, ht⟩).property ht
+    · exact iff_of_false (fun h => (Finset.mem_sdiff.1 (e₃ ⟨i, hmem_c₂ hs ht⟩).property).2
         (Finset.mem_union_left _ h)) ht
   have hinj : Function.Injective f := fun i j hij => by
     by_cases hsi : i ∈ s₂

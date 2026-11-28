@@ -773,31 +773,31 @@ theorem bimatrixLeontiefMarket_existsUnique_equilibriumPrice_of_isNash [Nonempty
   have : Nonempty S := hS_ne.coe_sort
   have : Nonempty T := hT_ne.coe_sort
   -- Define strictly positive column-stochastic matrices `P : Matrix S T ℝ`, `Q : Matrix T S ℝ`.
-  let P : Matrix S T ℝ := Matrix.of fun i j => U i.1 * G.B i.1 j.1
-  let Q : Matrix T S ℝ := Matrix.of fun j i => V j.1 * G.A i.1 j.1
+  let P : Matrix S T ℝ := Matrix.of fun i j => U i.val * G.B i.val j.val
+  let Q : Matrix T S ℝ := Matrix.of fun j i => V j.val * G.A i.val j.val
   have hP_pos : ∀ i j, 0 < P i j := fun i j =>
-    mul_pos (mul_pos (inv_pos.2 hv₂) (mem_filter.1 i.2).2) (hB i.1 j.1)
+    mul_pos (mul_pos (inv_pos.2 hv₂) (mem_filter.1 i.property).2) (hB i.val j.val)
   have hQ_pos : ∀ j i, 0 < Q j i := fun j i =>
-    mul_pos (mul_pos (inv_pos.2 hv₁) (mem_filter.1 j.2).2) (hA i.1 j.1)
+    mul_pos (mul_pos (inv_pos.2 hv₁) (mem_filter.1 j.property).2) (hA i.val j.val)
   have hP_col : ∀ j : T, ∑ i : S, P i j = 1 := fun j => by
-    calc ∑ i : S, U i.1 * G.B i.1 j.1
-        = ∑ i ∈ S, U i * G.B i j.1 := sum_coe_sort S fun i => U i * G.B i j.1
-      _ = ∑ i : M, U i * G.B i j.1 := sum_subset (subset_univ S) fun i _ hi => by
+    calc ∑ i : S, U i.val * G.B i.val j.val
+        = ∑ i ∈ S, U i * G.B i j.val := sum_coe_sort S fun i => U i * G.B i j.val
+      _ = ∑ i : M, U i * G.B i j.val := sum_subset (subset_univ S) fun i _ hi => by
             have hx0 : x i = 0 := le_antisymm (not_lt.1 fun h => hi (mem_filter.2 ⟨mem_univ i, h⟩))
               (hx_ms.nonneg i)
             simp [U, hx0]
-      _ = (U ᵥ* G.B) j.1 := rfl
-      _ = 1 := hUB_eq j.1 (mem_filter.1 j.2).2
+      _ = (U ᵥ* G.B) j.val := rfl
+      _ = 1 := hUB_eq j.val (mem_filter.1 j.property).2
   have hQ_col : ∀ i : S, ∑ j : T, Q j i = 1 := fun i => by
-    calc ∑ j : T, V j.1 * G.A i.1 j.1
-        = ∑ j ∈ T, V j * G.A i.1 j := sum_coe_sort T fun j => V j * G.A i.1 j
-      _ = ∑ j : N, V j * G.A i.1 j := sum_subset (subset_univ T) fun j _ hj => by
+    calc ∑ j : T, V j.val * G.A i.val j.val
+        = ∑ j ∈ T, V j * G.A i.val j := sum_coe_sort T fun j => V j * G.A i.val j
+      _ = ∑ j : N, V j * G.A i.val j := sum_subset (subset_univ T) fun j _ hj => by
             have hy0 : y j = 0 := le_antisymm (not_lt.1 fun h => hj (mem_filter.2 ⟨mem_univ j, h⟩))
               (hy_ms.nonneg j)
             simp [V, hy0]
-      _ = (G.A *ᵥ V) i.1 := by
+      _ = (G.A *ᵥ V) i.val := by
             simp only [mulVec, dotProduct]; exact sum_congr rfl fun j _ => mul_comm _ _
-      _ = 1 := hAV_eq i.1 (mem_filter.1 i.2).2
+      _ = 1 := hAV_eq i.val (mem_filter.1 i.property).2
   let K : Matrix T T ℝ := Q * P
   have hK_pos : ∀ j₁ j₂ : T, 0 < K j₁ j₂ := fun j₁ j₂ =>
     sum_pos (fun i _ => mul_pos (hQ_pos j₁ i) (hP_pos i j₂)) univ_nonempty
@@ -841,13 +841,13 @@ theorem bimatrixLeontiefMarket_existsUnique_equilibriumPrice_of_isNash [Nonempty
     calc ∑ i : M, p i = ∑ i ∈ S, p i :=
             (sum_subset (subset_univ S) fun i _ hi => by simp [p, hi]).symm
       _ = ∑ i : S, (1 / 2) * pS i := by
-            rw [← sum_coe_sort S p]; exact sum_congr rfl fun i _ => by simp [p, i.2]
+            rw [← sum_coe_sort S p]; exact sum_congr rfl fun i _ => by simp [p, i.property]
       _ = 1 / 2 := by rw [← mul_sum, hpS_sum, mul_one]
   have hsum_q : ∑ j : N, q j = 1 / 2 := by
     calc ∑ j : N, q j = ∑ j ∈ T, q j :=
             (sum_subset (subset_univ T) fun j _ hj => by simp [q, hj]).symm
       _ = ∑ j : T, (1 / 2) * qT j := by
-            rw [← sum_coe_sort T q]; exact sum_congr rfl fun j _ => by simp [q, j.2]
+            rw [← sum_coe_sort T q]; exact sum_congr rfl fun j _ => by simp [q, j.property]
       _ = 1 / 2 := by rw [← mul_sum, hqT_sum, mul_one]
   have hπ_sum : ∑ g : M ⊕ N, π g = 1 := by
     rw [Fintype.sum_sum_type]
@@ -873,12 +873,12 @@ theorem bimatrixLeontiefMarket_existsUnique_equilibriumPrice_of_isNash [Nonempty
     by_cases hi : i ∈ S
     · simp only [p, hi, ↓reduceDIte, pS, mulVec, dotProduct]
       calc (1 / 2 : ℝ) * ∑ j : T, P ⟨i, hi⟩ j * qT j
-          = ∑ j : T, U i * G.B i j.1 * ((1 / 2 : ℝ) * qT j) := by
+          = ∑ j : T, U i * G.B i j.val * ((1 / 2 : ℝ) * qT j) := by
               rw [mul_sum]
               exact sum_congr rfl fun j _ => by dsimp only [P, Matrix.of_apply]; ring
         _ = ∑ j ∈ T, U i * G.B i j * q j := by
               rw [← sum_coe_sort T fun j => U i * G.B i j * q j]
-              exact sum_congr rfl fun j _ => by simp [q, j.2]
+              exact sum_congr rfl fun j _ => by simp [q, j.property]
         _ = ∑ j : N, U i * G.B i j * q j := sum_subset (subset_univ T) fun j _ hj => by
               simp [q, hj]
         _ = U i * ∑ j : N, G.B i j * q j := by
@@ -891,12 +891,12 @@ theorem bimatrixLeontiefMarket_existsUnique_equilibriumPrice_of_isNash [Nonempty
     · have hqj_eq := congrFun hQpS ⟨j, hj⟩
       simp only [q, hj, ↓reduceDIte, ← hqj_eq, mulVec, dotProduct]
       calc (1 / 2 : ℝ) * ∑ i : S, Q ⟨j, hj⟩ i * pS i
-          = ∑ i : S, V j * ((1 / 2 : ℝ) * pS i * G.A i.1 j) := by
+          = ∑ i : S, V j * ((1 / 2 : ℝ) * pS i * G.A i.val j) := by
               rw [mul_sum]
               exact sum_congr rfl fun i _ => by dsimp only [Q, Matrix.of_apply]; ring
         _ = ∑ i ∈ S, V j * (p i * G.A i j) := by
               rw [← sum_coe_sort S fun i => V j * (p i * G.A i j)]
-              exact sum_congr rfl fun i _ => by simp [p, i.2]
+              exact sum_congr rfl fun i _ => by simp [p, i.property]
         _ = ∑ i : M, V j * (p i * G.A i j) := sum_subset (subset_univ S) fun i _ hi => by
               simp [p, hi]
         _ = V j * ∑ i : M, p i * G.A i j := (mul_sum _ _ _).symm
@@ -1089,22 +1089,22 @@ theorem bimatrixLeontiefMarket_existsUnique_equilibriumPrice_of_isNash [Nonempty
     have hy0 : y j = 0 := le_antisymm (not_lt.1 fun h => hj (mem_filter.2 ⟨mem_univ j, h⟩))
       (hy_ms.nonneg j)
     simp [hq'_eq j, V, hy0]
-  let qT' : T → ℝ := fun j => 2 * q' j.1
-  have hqT'_nn : ∀ j : T, 0 ≤ qT' j := fun j => mul_nonneg (by norm_num) (hq'_nn j.1)
+  let qT' : T → ℝ := fun j => 2 * q' j.val
+  have hqT'_nn : ∀ j : T, 0 ≤ qT' j := fun j => mul_nonneg (by norm_num) (hq'_nn j.val)
   have hqT'_sum : ∑ j : T, qT' j = 1 := by
-    calc ∑ j : T, 2 * q' j.1 = 2 * ∑ j ∈ T, q' j := by
+    calc ∑ j : T, 2 * q' j.val = 2 * ∑ j ∈ T, q' j := by
             rw [← mul_sum, sum_coe_sort T q']
       _ = 2 * ∑ j : N, q' j := by
             rw [sum_subset (subset_univ T) fun j _ hj => hq'_zero_off j hj]
       _ = 1 := by rw [hsum_q'_half]; norm_num
-  have hpS'_eq : ∀ i : S, (P *ᵥ qT') i = 2 * p' i.1 := fun i => by
-    rw [hp'_eq i.1]
+  have hpS'_eq : ∀ i : S, (P *ᵥ qT') i = 2 * p' i.val := fun i => by
+    rw [hp'_eq i.val]
     simp only [mulVec, dotProduct, P, Matrix.of_apply, qT']
-    calc ∑ j : T, U i.1 * G.B i.1 j.1 * (2 * q' j.1)
-        = 2 * (U i.1 * ∑ j ∈ T, G.B i.1 j * q' j) := by
-            rw [mul_sum, mul_sum, ← sum_coe_sort T fun j => 2 * (U i.1 * (G.B i.1 j * q' j))]
+    calc ∑ j : T, U i.val * G.B i.val j.val * (2 * q' j.val)
+        = 2 * (U i.val * ∑ j ∈ T, G.B i.val j * q' j) := by
+            rw [mul_sum, mul_sum, ← sum_coe_sort T fun j => 2 * (U i.val * (G.B i.val j * q' j))]
             exact sum_congr rfl fun j _ => by ring
-      _ = 2 * (U i.1 * ∑ j : N, G.B i.1 j * q' j) := by
+      _ = 2 * (U i.val * ∑ j : N, G.B i.val j * q' j) := by
             congr 2
             exact sum_subset (subset_univ T) fun j _ hj => by simp [hq'_zero_off j hj]
   have hqT'_fix : K *ᵥ qT' = qT' := by
@@ -1114,12 +1114,12 @@ theorem bimatrixLeontiefMarket_existsUnique_equilibriumPrice_of_isNash [Nonempty
     change ∑ i : S, Q j i * (P *ᵥ qT') i = qT' j
     rw [sum_congr rfl fun i _ => by rw [hpS'_eq i]]
     dsimp only [Q, Matrix.of_apply, qT']
-    rw [hq'_eq j.1]
-    calc ∑ i : S, V j.1 * G.A i.1 j.1 * (2 * p' i.1)
-        = 2 * (V j.1 * ∑ i ∈ S, p' i * G.A i j.1) := by
-            rw [mul_sum, mul_sum, ← sum_coe_sort S fun i => 2 * (V j.1 * (p' i * G.A i j.1))]
+    rw [hq'_eq j.val]
+    calc ∑ i : S, V j.val * G.A i.val j.val * (2 * p' i.val)
+        = 2 * (V j.val * ∑ i ∈ S, p' i * G.A i j.val) := by
+            rw [mul_sum, mul_sum, ← sum_coe_sort S fun i => 2 * (V j.val * (p' i * G.A i j.val))]
             exact sum_congr rfl fun i _ => by ring
-      _ = 2 * (V j.1 * ∑ i : M, p' i * G.A i j.1) := by
+      _ = 2 * (V j.val * ∑ i : M, p' i * G.A i j.val) := by
             congr 2
             exact sum_subset (subset_univ S) fun i _ hi => by simp [hp'_zero_off i hi]
   have hqT'_eq_qT : qT' = qT := hqT_uniq qT' ⟨hqT'_nn, hqT'_sum, hqT'_fix⟩
@@ -1172,8 +1172,8 @@ noncomputable def bimatrixLeontiefNashEquivEquilibriumPrice [Nonempty M] [Nonemp
     [Nonempty M] [Nonempty N] (G : BimatrixGame M N)
     (hA : ∀ i j, 0 < G.A i j) (hB : ∀ i j, 0 < G.B i j)
     (π : {π : M ⊕ N → ℝ // IsBimatrixLeontiefEquilibriumPrice G hA hB π}) :
-    ((bimatrixLeontiefNashEquivEquilibriumPrice G hA hB).symm π).1 =
-      bimatrixLeontiefToStrategy G π.1 := by rfl
+    ((bimatrixLeontiefNashEquivEquilibriumPrice G hA hB).symm π).val =
+      bimatrixLeontiefToStrategy G π.val := by rfl
 
 end BimatrixCorrespondence
 

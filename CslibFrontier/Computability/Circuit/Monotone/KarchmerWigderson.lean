@@ -162,8 +162,8 @@ private theorem eval_monotoneKWFormula (p : KWProtocol (Fin n)) {A B : Set (BitS
     · simp [monotoneKWFormula, hA]
     by_cases hB : B = ∅
     · simp [monotoneKWFormula, hA, hB]
-    obtain ⟨x₀, hx₀⟩ := Set.nonempty_iff_ne_empty.2 hA
-    obtain ⟨y₀, hy₀⟩ := Set.nonempty_iff_ne_empty.2 hB
+    obtain ⟨x₀, hx₀⟩ := Set.ne_empty_iff_nonempty.1 hA
+    obtain ⟨y₀, hy₀⟩ := Set.ne_empty_iff_nonempty.1 hB
     simp only [monotoneKWFormula, hA, hB, ↓reduceIte, Formula.eval_input]
     exact ⟨fun x hx => (hp x hx y₀ hy₀).1, fun y hy => (hp x₀ hx₀ y hy).2⟩
   | alice send p₀ p₁ ih₀ ih₁ =>

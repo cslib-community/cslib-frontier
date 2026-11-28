@@ -887,7 +887,7 @@ theorem prob_totalEffort_le_of_subset_of_isPureNash [DecidableEq ι]
       (((R.restrict T).isPureNash_totalEffortGame_iff hConc (fun i => hVal i)
         (fun i => hOpt i) xT).mp hxT).1]
     exact Finset.sup_le fun i _ =>
-      Finset.le_sup (f := fun j : T => xBar j.1) (mem_univ ⟨i.1, hST i.2⟩)
+      Finset.le_sup (f := fun j : T => xBar j.val) (mem_univ ⟨i.val, hST i.property⟩)
   exact hMono (totalEffort xS).coe_nonneg (totalEffort xT).coe_nonneg (NNReal.coe_le_coe.mpr hle)
 
 private theorem weakestLink_le_inf_of_isPureNash [Fintype ι] [DecidableEq ι] [Nonempty ι]
@@ -930,13 +930,13 @@ theorem prob_weakestLink_le_of_subset_of_isPureNash [DecidableEq ι]
   intro xS
   refine ⟨(R.restrict S).isPureNash_weakestLinkGame_const_inf hConc (fun i => hVal i)
     (fun i => hCost i) (fun i => hOpt i), ?_⟩
-  have hwT : weakestLink xT ≤ univ.inf' univ_nonempty (fun j : T => xBar j.1) :=
+  have hwT : weakestLink xT ≤ univ.inf' univ_nonempty (fun j : T => xBar j.val) :=
     (R.restrict T).weakestLink_le_inf_of_isPureNash hConc (fun j => hVal j) (fun j => hCost j)
       (fun j => hOpt j) hxT
-  have hinf_le : univ.inf' univ_nonempty (fun j : T => xBar j.1) ≤
-      univ.inf' univ_nonempty (fun i : S => xBar i.1) :=
+  have hinf_le : univ.inf' univ_nonempty (fun j : T => xBar j.val) ≤
+      univ.inf' univ_nonempty (fun i : S => xBar i.val) :=
     le_inf' univ_nonempty _ fun i _ =>
-      inf'_le (fun j : T => xBar j.1) (mem_univ ⟨i.1, hST i.2⟩)
+      inf'_le (fun j : T => xBar j.val) (mem_univ ⟨i.val, hST i.property⟩)
   simpa only [xS, weakestLink_const] using hMono (weakestLink xT).coe_nonneg
     (NNReal.coe_nonneg _) (NNReal.coe_le_coe.mpr (hwT.trans hinf_le))
 

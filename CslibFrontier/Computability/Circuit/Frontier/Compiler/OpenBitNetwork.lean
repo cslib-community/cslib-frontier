@@ -111,7 +111,7 @@ private theorem openNetwork_contraction (x : Fin n → Bool) :
        _ = _ := by
          rw [Network.contraction_toTensorNetwork]
          have h : {α | N.Satisfies x α} =
-             if c.eval I x 0 then {fun e => c.program.trace I x e.signal.1} else ∅ := by
+             if c.eval I x 0 then {fun e => c.program.trace I x e.signal.val} else ∅ := by
            ext α
            cases hb : c.eval I x 0 <;>
              simp [N, satisfies_iff, Subsingleton.elim (α := Fin 1) _ 0, hb]

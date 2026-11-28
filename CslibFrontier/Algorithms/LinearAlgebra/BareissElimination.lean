@@ -584,7 +584,7 @@ private theorem span_row_rowScaled {m n : ℕ} {d : Fin m → ℚ} (hd : ∀ i, 
 private theorem rank_rowScaled {m n : ℕ} {d : Fin m → ℚ} (hd : ∀ i, d i ≠ 0)
     (A : Matrix (Fin m) (Fin n) ℚ) :
     (rowScaled d A).rank = A.rank := by
-  rw [rank_eq_finrank_span_row, rank_eq_finrank_span_row]
+  rw [← finrank_span_range_row, ← finrank_span_range_row]
   change Module.finrank ℚ (Submodule.span ℚ (Set.range (rowScaled d A))) =
     Module.finrank ℚ (Submodule.span ℚ (Set.range A))
   rw [span_row_rowScaled hd A]
@@ -824,25 +824,25 @@ theorem rationalElim_spec (M : RatTable) :
   let kerEquiv : Fin res.kernelBasis.length ≃ { j : Fin M.numCols // ∀ a, C a ≠ j } :=
     ((finCongr hker_len_np).trans (List.Nodup.getEquiv res.nonPivotCols
       (List.nodup_range.filter _))).trans
-      { toFun := fun c => ⟨⟨c.1, (mem_computeNonPivotCols.1 c.2).1⟩,
-          forall_finSel_ne_iff.2 (mem_computeNonPivotCols.1 c.2).2⟩
+      { toFun := fun c => ⟨⟨c.val, (mem_computeNonPivotCols.1 c.property).1⟩,
+          forall_finSel_ne_iff.2 (mem_computeNonPivotCols.1 c.property).2⟩
         invFun := fun j =>
-          ⟨j.1.val, mem_computeNonPivotCols.2 ⟨j.1.isLt, forall_finSel_ne_iff.1 j.2⟩⟩
+          ⟨j.val.val, mem_computeNonPivotCols.2 ⟨j.val.isLt, forall_finSel_ne_iff.1 j.property⟩⟩
         left_inv := fun _ => rfl
         right_inv := fun _ => rfl }
   have hker_vec : (fun idx : Fin res.kernelBasis.length =>
       (fun j : Fin M.numCols => res.kernelBasis[idx.val].getD j.val 0)) =
-      (fun j : { j : Fin M.numCols // ∀ a, C a ≠ j } => Matrix.kernelBasisVec M' S C j.1) ∘
+      (fun j : { j : Fin M.numCols // ∀ a, C a ≠ j } => Matrix.kernelBasisVec M' S C j.val) ∘
         kerEquiv := by
     ext idx c
     simp only [Function.comp_apply]
     have hidx : idx.val < res.nonPivotCols.length := hker_len_np ▸ idx.isLt
-    have hker_val : (kerEquiv idx).1.val = res.nonPivotCols[idx.val]'hidx := List.get_eq_getElem
+    have hker_val : (kerEquiv idx).val.val = res.nonPivotCols[idx.val]'hidx := List.get_eq_getElem
     rw [show res.kernelBasis[idx.val] = buildKernelVec st (res.nonPivotCols[idx.val]'hidx) from
       List.getElem_map _, buildKernelVec, List.getD_map_range _ 0 (hinv.dims.2.symm ▸ c.isLt),
       ← hker_val]
     simpa only [neg_one_mul] using
-      bareissInv_find?_pivot_eq hinv hΔ_eq hBM_eq (C' := C) (j := (kerEquiv idx).1) c (-1)
+      bareissInv_find?_pivot_eq hinv hΔ_eq hBM_eq (C' := C) (j := (kerEquiv idx).val) c (-1)
         (fun a ha => by
           subst ha
           simp only [Int.cast_neg, Int.cast_one, neg_one_mul]

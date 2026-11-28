@@ -233,13 +233,7 @@ noncomputable def stepOp : MarkovChain S →* Module.End ℝ (S → ℝ) where
       map_smul' c f := funext fun x => by
         simp only [Pi.smul_apply, smul_eq_mul, RingHom.id_apply, mul_sum]
         exact sum_congr rfl fun y _ => by ring }
-  map_one' := LinearMap.ext fun f => funext fun x => by
-    classical
-    change ∑ y, ((PMF.pure x) y).toReal * f y = f x
-    rw [← add_sum_erase _ _ (mem_univ x), PMF.pure_apply_self, ENNReal.toReal_one, one_mul,
-      sum_eq_zero fun y hy => by
-        rw [PMF.pure_apply_of_ne _ _ (ne_of_mem_erase hy), ENNReal.toReal_zero, zero_mul],
-      add_zero]
+  map_one' := LinearMap.ext fun f => funext fun x => sum_pure_toReal_mul (mem_univ x) f
   map_mul' P Q := LinearMap.ext fun f => funext fun x => sum_bind_mul (P x) Q f
 
 theorem stepOp_apply (P : MarkovChain S) (f : S → ℝ) (x : S) :
@@ -508,7 +502,7 @@ private theorem nonempty_meanZeroPos [Nontrivial S] {π : PMF S} (hπ : ∀ x, �
 second moment, or `0` when no such function exists. -/
 noncomputable def spectralContraction (P : MarkovChain S) (π : PMF S) : ℝ :=
   ⨆ f : {f : S → ℝ // ∑ x, (π x).toReal * f x = 0 ∧ 0 < ∑ x, (π x).toReal * f x ^ 2},
-    Real.sqrt ((∑ x, (π x).toReal * P.stepOp f.1 x ^ 2) / ∑ x, (π x).toReal * f.1 x ^ 2)
+    Real.sqrt ((∑ x, (π x).toReal * P.stepOp f.val x ^ 2) / ∑ x, (π x).toReal * f.val x ^ 2)
 
 /-- The **absolute spectral gap** `γ_* := 1 - λ_*` ([LevinPeres2017], Section 12.2, p. 163). -/
 noncomputable def absSpectralGap (P : MarkovChain S) (π : PMF S) : ℝ :=
@@ -519,7 +513,7 @@ noncomputable def absSpectralGap (P : MarkovChain S) (π : PMF S) : ℝ :=
 `ℓ²(π)` second moment, or `0` when no such function exists. -/
 noncomputable def spectralGap (P : MarkovChain S) (π : PMF S) : ℝ :=
   ⨅ f : {f : S → ℝ // ∑ x, (π x).toReal * f x = 0 ∧ 0 < ∑ x, (π x).toReal * f x ^ 2},
-    P.dirichletForm π f.1 / ∑ x, (π x).toReal * f.1 x ^ 2
+    P.dirichletForm π f.val / ∑ x, (π x).toReal * f.val x ^ 2
 
 theorem spectralContraction_nonneg (P : MarkovChain S) (π : PMF S) :
     0 ≤ P.spectralContraction π :=
@@ -536,7 +530,7 @@ theorem one_sub_absSpectralGap (P : MarkovChain S) (π : PMF S) :
   ring
 
 theorem spectralGap_nonneg (P : MarkovChain S) (π : PMF S) : 0 ≤ P.spectralGap π :=
-  Real.iInf_nonneg fun f => div_nonneg (P.dirichletForm_nonneg π f.1) f.2.2.le
+  Real.iInf_nonneg fun f => div_nonneg (P.dirichletForm_nonneg π f.val) f.property.2.le
 
 private theorem isEmpty_meanZeroPos_of_subsingleton [Subsingleton S] (π : PMF S) :
     IsEmpty {f : S → ℝ //
@@ -565,16 +559,17 @@ private theorem IsStationary.bddAbove_spectralContraction {P : MarkovChain S} {�
     (hπ : P.IsStationary π) :
     BddAbove (Set.range fun f : {f : S → ℝ //
         ∑ x, (π x).toReal * f x = 0 ∧ 0 < ∑ x, (π x).toReal * f x ^ 2} =>
-      Real.sqrt ((∑ x, (π x).toReal * P.stepOp f.1 x ^ 2) / ∑ x, (π x).toReal * f.1 x ^ 2)) := by
+      Real.sqrt ((∑ x, (π x).toReal * P.stepOp f.val x ^ 2) /
+        ∑ x, (π x).toReal * f.val x ^ 2)) := by
   refine ⟨1, ?_⟩
   rintro _ ⟨f, rfl⟩
   rw [Real.sqrt_le_one]
-  exact (div_le_one f.2.2).mpr (hπ.sum_mul_stepOp_sq_le f.1)
+  exact (div_le_one f.property.2).mpr (hπ.sum_mul_stepOp_sq_le f.val)
 
 theorem IsStationary.spectralContraction_le_one {P : MarkovChain S} {π : PMF S}
     (hπ : P.IsStationary π) : P.spectralContraction π ≤ 1 :=
-  Real.iSup_le (fun f => Real.sqrt_le_one.mpr ((div_le_one f.2.2).mpr
-    (hπ.sum_mul_stepOp_sq_le f.1))) zero_le_one
+  Real.iSup_le (fun f => Real.sqrt_le_one.mpr ((div_le_one f.property.2).mpr
+    (hπ.sum_mul_stepOp_sq_le f.val))) zero_le_one
 
 theorem IsStationary.absSpectralGap_nonneg {P : MarkovChain S} {π : PMF S}
     (hπ : P.IsStationary π) : 0 ≤ P.absSpectralGap π :=
@@ -611,7 +606,7 @@ theorem IsStationary.spectralContraction_le_iff {P : MarkovChain S} {π : PMF S}
       (sum_nonneg fun _ _ => mul_nonneg ENNReal.toReal_nonneg (sq_nonneg _))
   · refine Real.iSup_le (fun f => ?_) hc
     rw [← Real.sqrt_sq hc]
-    exact Real.sqrt_le_sqrt ((div_le_iff₀ f.2.2).mpr (h f.1 f.2.1))
+    exact Real.sqrt_le_sqrt ((div_le_iff₀ f.property.2).mpr (h f.val f.property.1))
 
 /-- **`t`-step `ℓ²(π)` contraction** on `π`-mean-zero functions. -/
 theorem IsStationary.sum_mul_stepOp_pow_sq_le {P : MarkovChain S} {π : PMF S}
@@ -737,15 +732,16 @@ theorem IsReversible.spectralContraction_eq_ciSup_abs {P : MarkovChain S} {π : 
     (hrev : P.IsReversible π) :
     P.spectralContraction π =
       ⨆ f : {f : S → ℝ // ∑ x, (π x).toReal * f x = 0 ∧ 0 < ∑ x, (π x).toReal * f x ^ 2},
-        |∑ x, (π x).toReal * f.1 x * P.stepOp f.1 x| / ∑ x, (π x).toReal * f.1 x ^ 2 := by
+        |∑ x, (π x).toReal * f.val x * P.stepOp f.val x| / ∑ x, (π x).toReal * f.val x ^ 2 := by
   have hle (f : {f : S → ℝ //
       ∑ x, (π x).toReal * f x = 0 ∧ 0 < ∑ x, (π x).toReal * f x ^ 2}) :
-      |∑ x, (π x).toReal * f.1 x * P.stepOp f.1 x| / ∑ x, (π x).toReal * f.1 x ^ 2 ≤
+      |∑ x, (π x).toReal * f.val x * P.stepOp f.val x| / ∑ x, (π x).toReal * f.val x ^ 2 ≤
         P.spectralContraction π :=
-    (div_le_iff₀ f.2.2).mpr (hrev.isStationary.abs_sum_mul_stepOp_le_spectralContraction f.2.1)
+    (div_le_iff₀ f.property.2).mpr
+      (hrev.isStationary.abs_sum_mul_stepOp_le_spectralContraction f.property.1)
   refine le_antisymm ?_ (Real.iSup_le hle (P.spectralContraction_nonneg π))
   refine hrev.spectralContraction_le_of_abs_sum_mul_stepOp_le
-    (Real.iSup_nonneg fun f => div_nonneg (abs_nonneg _) f.2.2.le) fun f hf => ?_
+    (Real.iSup_nonneg fun f => div_nonneg (abs_nonneg _) f.property.2.le) fun f hf => ?_
   have hnn : 0 ≤ ∑ x, (π x).toReal * f x ^ 2 :=
     sum_nonneg fun _ _ => mul_nonneg ENNReal.toReal_nonneg (sq_nonneg _)
   rcases hnn.eq_or_lt with hzero | hpos
@@ -760,8 +756,8 @@ theorem IsReversible.spectralContraction_eq_ciSup_abs {P : MarkovChain S} {π : 
 private theorem bddBelow_spectralGap (P : MarkovChain S) (π : PMF S) :
     BddBelow (Set.range fun u : {f : S → ℝ //
         ∑ x, (π x).toReal * f x = 0 ∧ 0 < ∑ x, (π x).toReal * f x ^ 2} =>
-      P.dirichletForm π u.1 / ∑ x, (π x).toReal * u.1 x ^ 2) :=
-  ⟨0, by rintro _ ⟨u, rfl⟩; exact div_nonneg (P.dirichletForm_nonneg π u.1) u.2.2.le⟩
+      P.dirichletForm π u.val / ∑ x, (π x).toReal * u.val x ^ 2) :=
+  ⟨0, by rintro _ ⟨u, rfl⟩; exact div_nonneg (P.dirichletForm_nonneg π u.val) u.property.2.le⟩
 
 /-- **Poincaré inequality** (`γ Var_π(f) ≤ 𝓔(f)`, [LevinPeres2017], Lemma 13.7 and Remark 13.8,
 p. 182), valid without any support or reversibility assumption. -/
@@ -787,7 +783,8 @@ theorem le_spectralGap_iff [Nontrivial S] {P : MarkovChain S} {π : PMF S}
       ∀ f : S → ℝ, ∑ x, (π x).toReal * f x = 0 →
         c * ∑ x, (π x).toReal * f x ^ 2 ≤ P.dirichletForm π f := by
   have := nonempty_meanZeroPos hπ
-  refine ⟨fun hle f hf => ?_, fun h => le_ciInf fun f => (le_div_iff₀ f.2.2).mpr (h f.1 f.2.1)⟩
+  refine ⟨fun hle f hf => ?_,
+    fun h => le_ciInf fun f => (le_div_iff₀ f.property.2).mpr (h f.val f.property.1)⟩
   have hsq : 0 ≤ ∑ x, (π x).toReal * f x ^ 2 :=
     sum_nonneg fun _ _ => mul_nonneg ENNReal.toReal_nonneg (sq_nonneg _)
   have hpoinc := P.spectralGap_mul_le_dirichletForm π f
@@ -801,7 +798,7 @@ theorem IsReversible.spectralGap_le_two {P : MarkovChain S} {π : PMF S}
       ∑ x, (π x).toReal * f x = 0 ∧ 0 < ∑ x, (π x).toReal * f x ^ 2}
   · obtain ⟨f⟩ := hne
     exact (ciInf_le (P.bddBelow_spectralGap π) f).trans
-      ((div_le_iff₀ f.2.2).mpr (hrev.dirichletForm_le_two_mul f.1))
+      ((div_le_iff₀ f.property.2).mpr (hrev.dirichletForm_le_two_mul f.val))
   · have : IsEmpty {f : S → ℝ //
         ∑ x, (π x).toReal * f x = 0 ∧ 0 < ∑ x, (π x).toReal * f x ^ 2} :=
       not_nonempty_iff.mp hne
@@ -821,16 +818,17 @@ theorem IsReversible.absSpectralGap_le_spectralGap [Nontrivial S] {P : MarkovCha
     P.absSpectralGap π ≤ P.spectralGap π := by
   have := nonempty_meanZeroPos hπ
   refine le_ciInf fun f => ?_
-  have hle : |∑ x, (π x).toReal * f.1 x * P.stepOp f.1 x| / ∑ x, (π x).toReal * f.1 x ^ 2 ≤
+  have hle : |∑ x, (π x).toReal * f.val x * P.stepOp f.val x| / ∑ x, (π x).toReal * f.val x ^ 2 ≤
       P.spectralContraction π :=
-    (div_le_iff₀ f.2.2).mpr (hrev.isStationary.abs_sum_mul_stepOp_le_spectralContraction f.2.1)
-  have hdir : P.dirichletForm π f.1 / ∑ x, (π x).toReal * f.1 x ^ 2 =
-      1 - (∑ x, (π x).toReal * f.1 x * P.stepOp f.1 x) / ∑ x, (π x).toReal * f.1 x ^ 2 := by
-    rw [hrev.dirichletForm_eq_sub, sub_div, div_self f.2.2.ne']
+    (div_le_iff₀ f.property.2).mpr
+      (hrev.isStationary.abs_sum_mul_stepOp_le_spectralContraction f.property.1)
+  have hdir : P.dirichletForm π f.val / ∑ x, (π x).toReal * f.val x ^ 2 =
+      1 - (∑ x, (π x).toReal * f.val x * P.stepOp f.val x) / ∑ x, (π x).toReal * f.val x ^ 2 := by
+    rw [hrev.dirichletForm_eq_sub, sub_div, div_self f.property.2.ne']
   rw [absSpectralGap, hdir]
-  have habs : (∑ x, (π x).toReal * f.1 x * P.stepOp f.1 x) / ∑ x, (π x).toReal * f.1 x ^ 2 ≤
-      |∑ x, (π x).toReal * f.1 x * P.stepOp f.1 x| / ∑ x, (π x).toReal * f.1 x ^ 2 :=
-    div_le_div_of_nonneg_right (le_abs_self _) f.2.2.le
+  have habs : (∑ x, (π x).toReal * f.val x * P.stepOp f.val x) / ∑ x, (π x).toReal * f.val x ^ 2 ≤
+      |∑ x, (π x).toReal * f.val x * P.stepOp f.val x| / ∑ x, (π x).toReal * f.val x ^ 2 :=
+    div_le_div_of_nonneg_right (le_abs_self _) f.property.2.le
   linarith
 
 /-- For every reversible chain, `λ_*(P.lazy) ≤ 1 - γ(P) / 2`. -/
@@ -840,18 +838,18 @@ theorem IsReversible.spectralContraction_lazy_le {P : MarkovChain S} {π : PMF S
   have hc : 0 ≤ 1 - P.spectralGap π / 2 := by linarith [hrev.spectralGap_le_two]
   rw [hrev.lazy.spectralContraction_eq_ciSup_abs]
   refine Real.iSup_le (fun f => ?_) hc
-  have hpsd := hrev.isStationary.sum_mul_stepOp_lazy_nonneg f.1
+  have hpsd := hrev.isStationary.sum_mul_stepOp_lazy_nonneg f.val
   rw [abs_of_nonneg hpsd]
-  have hdir : (∑ x, (π x).toReal * f.1 x * P.lazy.stepOp f.1 x) /
-      ∑ x, (π x).toReal * f.1 x ^ 2 =
-      1 - (P.dirichletForm π f.1 / ∑ x, (π x).toReal * f.1 x ^ 2) / 2 := by
-    have hsub := hrev.lazy.dirichletForm_eq_sub f.1
+  have hdir : (∑ x, (π x).toReal * f.val x * P.lazy.stepOp f.val x) /
+      ∑ x, (π x).toReal * f.val x ^ 2 =
+      1 - (P.dirichletForm π f.val / ∑ x, (π x).toReal * f.val x ^ 2) / 2 := by
+    have hsub := hrev.lazy.dirichletForm_eq_sub f.val
     rw [dirichletForm_lazy] at hsub
-    have hnum : ∑ x, (π x).toReal * f.1 x * P.lazy.stepOp f.1 x =
-        (∑ x, (π x).toReal * f.1 x ^ 2) - P.dirichletForm π f.1 / 2 := by linarith
-    rw [hnum, sub_div, div_self f.2.2.ne', div_right_comm]
+    have hnum : ∑ x, (π x).toReal * f.val x * P.lazy.stepOp f.val x =
+        (∑ x, (π x).toReal * f.val x ^ 2) - P.dirichletForm π f.val / 2 := by linarith
+    rw [hnum, sub_div, div_self f.property.2.ne', div_right_comm]
   rw [hdir]
-  have hgap : P.spectralGap π ≤ P.dirichletForm π f.1 / ∑ x, (π x).toReal * f.1 x ^ 2 :=
+  have hgap : P.spectralGap π ≤ P.dirichletForm π f.val / ∑ x, (π x).toReal * f.val x ^ 2 :=
     ciInf_le (P.bddBelow_spectralGap π) f
   linarith
 
@@ -974,7 +972,7 @@ private noncomputable def meanZeroEnd {P : MarkovChain S} {π : PMF S}
 private theorem isSymmetric_meanZeroEnd {P : MarkovChain S} {π : PMF S}
     (hrev : P.IsReversible π) (hπ : ∀ x, π x ≠ 0) :
     (meanZeroEnd hrev hπ).IsSymmetric :=
-  fun u v => isSymmetric_symmEnd hrev hπ u.1 v.1
+  fun u v => isSymmetric_symmEnd hrev hπ u.val v.val
 
 private theorem nontrivial_meanZeroSubmodule [Nontrivial S] {π : PMF S} (hπ : ∀ x, π x ≠ 0) :
     Nontrivial (meanZeroSubmodule π) := by
@@ -1016,12 +1014,12 @@ private theorem eigenfunction_of_eigenvectorBasis {P : MarkovChain S} {π : PMF 
     (i : Fin (Module.finrank ℝ (meanZeroSubmodule π))) :
     let hT := isSymmetric_meanZeroEnd hrev hπ
     let b := hT.eigenvectorBasis rfl
-    let f : S → ℝ := fun x => (b i).1.ofLp x / Real.sqrt (π x).toReal
+    let f : S → ℝ := fun x => (b i).val.ofLp x / Real.sqrt (π x).toReal
     f ≠ 0 ∧ (∑ x, (π x).toReal * f x = 0) ∧ (0 < ∑ x, (π x).toReal * f x ^ 2) ∧
       P.stepOp f = (hT.eigenvalues rfl i) • f := by
   set hT := isSymmetric_meanZeroEnd hrev hπ
   set b := hT.eigenvectorBasis rfl
-  set f : S → ℝ := fun x => (b i).1.ofLp x / Real.sqrt (π x).toReal
+  set f : S → ℝ := fun x => (b i).val.ofLp x / Real.sqrt (π x).toReal
   have hsqrt_pos (x : S) : 0 < Real.sqrt (π x).toReal :=
     Real.sqrt_pos.mpr (ENNReal.toReal_pos (hπ x) (π.apply_ne_top x))
   have hf_ne : f ≠ 0 := by
@@ -1032,29 +1030,30 @@ private theorem eigenfunction_of_eigenvectorBasis {P : MarkovChain S} {π : PMF 
     simp only [f, Pi.zero_apply, div_eq_zero_iff] at hx
     exact hx.resolve_right (hsqrt_pos x).ne'
   have hf_mean : ∑ x, (π x).toReal * f x = 0 := by
-    have hpt (x : S) : (π x).toReal * f x = Real.sqrt (π x).toReal * (b i).1.ofLp x := by
+    have hpt (x : S) : (π x).toReal * f x = Real.sqrt (π x).toReal * (b i).val.ofLp x := by
       simp only [f]
-      calc (π x).toReal * ((b i).1.ofLp x / Real.sqrt (π x).toReal)
-          = (Real.sqrt (π x).toReal ^ 2) * ((b i).1.ofLp x / Real.sqrt (π x).toReal) := by
+      calc (π x).toReal * ((b i).val.ofLp x / Real.sqrt (π x).toReal)
+          = (Real.sqrt (π x).toReal ^ 2) * ((b i).val.ofLp x / Real.sqrt (π x).toReal) := by
             rw [Real.sq_sqrt ENNReal.toReal_nonneg]
-        _ = Real.sqrt (π x).toReal * (b i).1.ofLp x := by field_simp [(hsqrt_pos x).ne']
-    simpa only [hpt] using (mem_meanZeroSubmodule_iff π (b i).1).mp (b i).2
+        _ = Real.sqrt (π x).toReal * (b i).val.ofLp x := by field_simp [(hsqrt_pos x).ne']
+    simpa only [hpt] using (mem_meanZeroSubmodule_iff π (b i).val).mp (b i).property
   have hf_pos : 0 < ∑ x, (π x).toReal * f x ^ 2 := by
     obtain ⟨x₀, hx₀⟩ := Function.ne_iff.mp hf_ne
     exact sum_pos' (fun _ _ => mul_nonneg ENNReal.toReal_nonneg (sq_nonneg _))
       ⟨x₀, mem_univ x₀, mul_pos (ENNReal.toReal_pos (hπ x₀) (π.apply_ne_top x₀))
         (sq_pos_iff.mpr hx₀)⟩
   have hf_eig : P.stepOp f = (hT.eigenvalues rfl i) • f := by
-    have hbi := congrArg (fun w : meanZeroSubmodule π => w.1.ofLp) (hT.apply_eigenvectorBasis rfl i)
+    have hbi :=
+      congrArg (fun w : meanZeroSubmodule π => w.val.ofLp) (hT.apply_eigenvectorBasis rfl i)
     ext x
-    have hx : Real.sqrt (π x).toReal * P.stepOp f x = hT.eigenvalues rfl i * (b i).1.ofLp x :=
+    have hx : Real.sqrt (π x).toReal * P.stepOp f x = hT.eigenvalues rfl i * (b i).val.ofLp x :=
       congrFun hbi x
     simp only [f, Pi.smul_apply, smul_eq_mul]
     calc P.stepOp f x
         = (Real.sqrt (π x).toReal * P.stepOp f x) / Real.sqrt (π x).toReal := by
           field_simp [(hsqrt_pos x).ne']
-      _ = (hT.eigenvalues rfl i * (b i).1.ofLp x) / Real.sqrt (π x).toReal := by rw [hx]
-      _ = hT.eigenvalues rfl i * ((b i).1.ofLp x / Real.sqrt (π x).toReal) := mul_div_assoc _ _ _
+      _ = (hT.eigenvalues rfl i * (b i).val.ofLp x) / Real.sqrt (π x).toReal := by rw [hx]
+      _ = hT.eigenvalues rfl i * ((b i).val.ofLp x / Real.sqrt (π x).toReal) := mul_div_assoc _ _ _
   exact ⟨hf_ne, hf_mean, hf_pos, hf_eig⟩
 
 /-- **Existence of a mean-zero eigenfunction achieving `|μ| = λ_*`** ([LevinPeres2017], Lemma 12.2
@@ -1073,7 +1072,7 @@ theorem IsReversible.exists_eigenfunction_abs_eq_spectralContraction [Nontrivial
   obtain ⟨hf_ne, hf_mean, hf_pos, hf_eig⟩ := eigenfunction_of_eigenvectorBasis hrev hπ i
   set b := hT.eigenvectorBasis rfl
   set μ := hT.eigenvalues rfl i
-  set f : S → ℝ := fun x => (b i).1.ofLp x / Real.sqrt (π x).toReal
+  set f : S → ℝ := fun x => (b i).val.ofLp x / Real.sqrt (π x).toReal
   refine ⟨f, μ, hf_ne, hf_mean, hf_eig, le_antisymm ?_ ?_⟩
   · have habs := hrev.isStationary.abs_sum_mul_stepOp_le_spectralContraction hf_mean
     have hray : ∑ x, (π x).toReal * f x * P.stepOp f x = μ * ∑ x, (π x).toReal * f x ^ 2 := by
@@ -1084,10 +1083,10 @@ theorem IsReversible.exists_eigenfunction_abs_eq_spectralContraction [Nontrivial
   · refine (hrev.isStationary.spectralContraction_le_iff (abs_nonneg μ)).mpr fun g hg => ?_
     let w := toMeanZeroSubmodule hg
     have hTw_norm : ‖meanZeroEnd hrev hπ w‖ ^ 2 = ∑ x, (π x).toReal * P.stepOp g x ^ 2 := by
-      change ‖symmEnd P π w.1‖ ^ 2 = _
+      change ‖symmEnd P π w.val‖ ^ 2 = _
       rw [EuclideanSpace.real_norm_sq_eq]
       refine sum_congr rfl fun x _ => ?_
-      have hdiv : (fun y => w.1.ofLp y / Real.sqrt (π y).toReal) = g :=
+      have hdiv : (fun y => w.val.ofLp y / Real.sqrt (π y).toReal) = g :=
         funext fun y => mul_div_cancel_left₀ (g y)
           (Real.sqrt_pos.mpr (ENNReal.toReal_pos (hπ y) (π.apply_ne_top y))).ne'
       simp only [symmEnd, LinearMap.coe_mk, AddHom.coe_mk, WithLp.ofLp_toLp, hdiv, mul_pow,
@@ -1116,7 +1115,7 @@ theorem IsReversible.exists_eigenfunction_eq_one_sub_spectralGap [Nontrivial S]
   obtain ⟨hf_ne, hf_mean, hf_pos, hf_eig⟩ := eigenfunction_of_eigenvectorBasis hrev hπ i₀
   set b := hT.eigenvectorBasis rfl
   set μ₀ := hT.eigenvalues rfl i₀
-  set f : S → ℝ := fun x => (b i₀).1.ofLp x / Real.sqrt (π x).toReal
+  set f : S → ℝ := fun x => (b i₀).val.ofLp x / Real.sqrt (π x).toReal
   have hgap_eq : 1 - P.spectralGap π = μ₀ := by
     have hle_gap : P.spectralGap π ≤ 1 - μ₀ := by
       refine (ciInf_le (P.bddBelow_spectralGap π) ⟨f, hf_mean, hf_pos⟩).trans_eq ?_
@@ -1130,23 +1129,25 @@ theorem IsReversible.exists_eigenfunction_eq_one_sub_spectralGap [Nontrivial S]
           ∑ x, (π x).toReal * g x = 0 ∧ 0 < ∑ x, (π x).toReal * g x ^ 2} :=
         ⟨⟨f, hf_mean, hf_pos⟩⟩
       refine le_ciInf fun g => ?_
-      rw [le_div_iff₀ g.2.2, hrev.dirichletForm_eq_sub]
-      suffices ∑ x, (π x).toReal * g.1 x * P.stepOp g.1 x ≤
-          μ₀ * ∑ x, (π x).toReal * g.1 x ^ 2 by linarith
-      let w := toMeanZeroSubmodule g.2.1
-      have hinner : ⟪w, meanZeroEnd hrev hπ w⟫ = ∑ x, (π x).toReal * g.1 x * P.stepOp g.1 x := by
-        change ⟪w.1, symmEnd P π w.1⟫ = _
+      rw [le_div_iff₀ g.property.2, hrev.dirichletForm_eq_sub]
+      suffices ∑ x, (π x).toReal * g.val x * P.stepOp g.val x ≤
+          μ₀ * ∑ x, (π x).toReal * g.val x ^ 2 by linarith
+      let w := toMeanZeroSubmodule g.property.1
+      have hinner : ⟪w, meanZeroEnd hrev hπ w⟫ =
+          ∑ x, (π x).toReal * g.val x * P.stepOp g.val x := by
+        change ⟪w.val, symmEnd P π w.val⟫ = _
         rw [EuclideanSpace.inner_eq_star_dotProduct, star_trivial, dotProduct]
         refine sum_congr rfl fun x _ => ?_
-        have hdiv : (fun y => w.1.ofLp y / Real.sqrt (π y).toReal) = g.1 :=
-          funext fun y => mul_div_cancel_left₀ (g.1 y)
+        have hdiv : (fun y => w.val.ofLp y / Real.sqrt (π y).toReal) = g.val :=
+          funext fun y => mul_div_cancel_left₀ (g.val y)
             (Real.sqrt_pos.mpr (ENNReal.toReal_pos (hπ y) (π.apply_ne_top y))).ne'
         simp only [symmEnd, LinearMap.coe_mk, AddHom.coe_mk, WithLp.ofLp_toLp, hdiv]
         simp only [w, toMeanZeroSubmodule]
-        calc (Real.sqrt (π x).toReal * P.stepOp g.1 x) * (Real.sqrt (π x).toReal * g.1 x)
-            = (Real.sqrt (π x).toReal ^ 2) * g.1 x * P.stepOp g.1 x := by ring
-          _ = (π x).toReal * g.1 x * P.stepOp g.1 x := by rw [Real.sq_sqrt ENNReal.toReal_nonneg]
-      rw [← hinner, ← norm_sq_toMeanZeroSubmodule g.2.1,
+        calc (Real.sqrt (π x).toReal * P.stepOp g.val x) * (Real.sqrt (π x).toReal * g.val x)
+            = (Real.sqrt (π x).toReal ^ 2) * g.val x * P.stepOp g.val x := by ring
+          _ = (π x).toReal * g.val x * P.stepOp g.val x := by
+            rw [Real.sq_sqrt ENNReal.toReal_nonneg]
+      rw [← hinner, ← norm_sq_toMeanZeroSubmodule g.property.1,
         ← b.repr.inner_map_map w (meanZeroEnd hrev hπ w), ← b.repr.norm_map w,
         EuclideanSpace.inner_eq_star_dotProduct, star_trivial, dotProduct,
         EuclideanSpace.real_norm_sq_eq, mul_sum]
@@ -1157,7 +1158,7 @@ theorem IsReversible.exists_eigenfunction_eq_one_sub_spectralGap [Nontrivial S]
         μ₀ * ((b.repr w).ofLp j) ^ 2
       rw [hj, mul_assoc, ← sq]
       exact mul_le_mul_of_nonneg_right
-        (hT.eigenvalues_antitone rfl (show i₀ ≤ j from Nat.zero_le j.1)) (sq_nonneg _)
+        (hT.eigenvalues_antitone rfl (show i₀ ≤ j from Nat.zero_le j.val)) (sq_nonneg _)
     linarith
   exact ⟨f, hf_ne, hf_mean, hgap_eq ▸ hf_eig⟩
 
@@ -1235,9 +1236,7 @@ theorem IsReversible.abs_toReal_div_sub_one_le {P : MarkovChain S} {π : PMF S}
       ((P ^ t) x y).toReal / (π y).toReal - 1 := by
     simp only [δ, stepOp_pow_relDensity hrev hπ (PMF.pure x) t, PMF.pure_bind,
       toReal_mul_div_sub_one hπ, sub_mul, sum_sub_distrib, sum_toReal, sub_self, sub_zero]
-    rw [Fintype.sum_eq_single y fun z hz => by
-        rw [PMF.pure_apply_of_ne _ _ hz, ENNReal.toReal_zero, zero_mul],
-      PMF.pure_apply_self, ENNReal.toReal_one, one_mul]
+    rw [sum_pure_toReal_mul (mem_univ y)]
   have hx : 0 < (π x).toReal := ENNReal.toReal_pos (hπ x) (π.apply_ne_top x)
   have hy : 0 < (π y).toReal := ENNReal.toReal_pos (hπ y) (π.apply_ne_top y)
   have hrhs_nn : 0 ≤ P.spectralContraction π ^ t / Real.sqrt ((π x).toReal * (π y).toReal) :=
@@ -1323,7 +1322,7 @@ theorem IsReversible.distToStationary_le_exp {P : MarkovChain S} {π : PMF S}
       _ = 1 / Real.sqrt π_min := by rw [Real.sqrt_div zero_le_one, Real.sqrt_one]
   have hpow : P.spectralContraction π ^ t ≤ Real.exp (-(P.absSpectralGap π * t)) := by
     rw [← one_sub_absSpectralGap, show -(P.absSpectralGap π * t) = t * -P.absSpectralGap π by ring,
-      Real.exp_nat_mul]
+      Real.exp_natCast_mul]
     exact pow_le_pow_left₀
       (by linarith [P.spectralContraction_nonneg π, one_sub_absSpectralGap P π])
       (by linarith [Real.add_one_le_exp (-P.absSpectralGap π)]) t

@@ -69,15 +69,15 @@ to `target`, setting the last coordinate to `target - ∑ j : Fin (m - 1), init 
 def completeShares (m : ℕ) {G : Type*} [AddCommGroup G]
     (target : G) (init : Fin (m - 1) → G) : Fin m → G :=
   fun i =>
-    if h : i.1 < m - 1 then
-      init ⟨i.1, h⟩
+    if h : i.val < m - 1 then
+      init ⟨i.val, h⟩
     else
       target - ∑ j : Fin (m - 1), init j
 
 @[simp] theorem completeShares_castLE (m : ℕ) {G : Type*} [AddCommGroup G]
     (target : G) (init : Fin (m - 1) → G) (k : Fin (m - 1)) :
     completeShares m target init (Fin.castLE (Nat.sub_le m 1) k) = init k := by
-  simp [completeShares, k.2]
+  simp [completeShares, k.isLt]
 
 @[simp] theorem initOfShares_completeShares (m : ℕ) {G : Type*} [AddCommGroup G]
     (target : G) (init : Fin (m - 1) → G) :
@@ -97,12 +97,13 @@ private theorem sum_univ_eq_add_top (m : ℕ) [NeZero m] {G : Type*} [AddCommMon
   rw [← Finset.sum_erase_add _ _ (Finset.mem_univ (⊤ : Fin m))]
   refine congrArg (· + _) (Finset.sum_bij (fun (k : Fin (m - 1)) _ => Fin.castLE (Nat.sub_le m 1) k)
     ?_ ?_ ?_ fun _ _ => rfl).symm
-  · exact fun k _ => Finset.mem_erase.mpr ⟨fun h => k.2.ne (congrArg Fin.val h), Finset.mem_univ _⟩
+  · exact fun k _ =>
+      Finset.mem_erase.mpr ⟨fun h => k.isLt.ne (congrArg Fin.val h), Finset.mem_univ _⟩
   · exact fun _ _ _ _ h => Fin.castLE_injective _ h
   · intro i hi
-    have hlt : i.1 < m - 1 := Nat.lt_of_le_of_ne (Nat.le_sub_one_of_lt i.2)
+    have hlt : i.val < m - 1 := Nat.lt_of_le_of_ne (Nat.le_sub_one_of_lt i.isLt)
       fun h => (Finset.mem_erase.mp hi).1 (Fin.ext h)
-    exact ⟨⟨i.1, hlt⟩, Finset.mem_univ _, rfl⟩
+    exact ⟨⟨i.val, hlt⟩, Finset.mem_univ _, rfl⟩
 
 @[simp] theorem sum_completeShares (m : ℕ) [NeZero m] {G : Type*} [AddCommGroup G]
     (target : G) (init : Fin (m - 1) → G) :
@@ -116,7 +117,7 @@ theorem completeShares_initOfShares (m : ℕ) [NeZero m] {G : Type*} [AddCommGro
     {target : G} {s : Fin m → G} (hs : ∑ i : Fin m, s i = target) :
     completeShares m target (initOfShares m s) = s := by
   ext i
-  by_cases h : i.1 < m - 1
+  by_cases h : i.val < m - 1
   · simp [completeShares, h, initOfShares]
   · obtain rfl : i = (⊤ : Fin m) := Fin.ext (by simp only [Fin.val_top]; omega)
     rw [completeShares_top, sub_eq_iff_eq_add', ← hs]
@@ -127,7 +128,7 @@ theorem completeShares_add (m : ℕ) {G : Type*} [AddCommGroup G]
     completeShares m (target₁ + target₂) (init₁ + init₂) =
       completeShares m target₁ init₁ + completeShares m target₂ init₂ := by
   ext i
-  by_cases h : i.1 < m - 1
+  by_cases h : i.val < m - 1
   · simp [completeShares, h]
   · simp [completeShares, h, Finset.sum_add_distrib, add_sub_add_comm]
 
@@ -154,7 +155,7 @@ theorem uniformOfFintype_map_restrict_completeShares {m : ℕ} [NeZero m]
       simp only [Finset.mem_insert, not_or] at hi
       simp [full, hi.1, hi.2]
     rw [← Finset.sum_subset (Finset.subset_univ (insert j₀ I)) hzero, Finset.sum_insert hj₀,
-      ← Finset.sum_attach I, Finset.sum_congr rfl fun k _ => dite_eq_left k.2]
+      ← Finset.sum_attach I, Finset.sum_congr rfl fun k _ => dite_eq_left k.property]
     simp [full, hj₀]
   refine ⟨Equiv.addRight (initOfShares m full), fun init => ?_⟩
   ext ⟨i, hi⟩

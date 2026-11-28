@@ -195,7 +195,7 @@ private theorem pow_two_pow_lt_one_div_two (w : ℕ) : (1 - (2⁻¹ : ℝ) ^ w) 
         gcongr
         exact Real.one_sub_le_exp_neg _
     _ = Real.exp (-1) := by
-        rw [← Real.exp_nat_mul, Nat.cast_pow, Nat.cast_ofNat, mul_neg, ← mul_pow,
+        rw [← Real.exp_natCast_mul, Nat.cast_pow, Nat.cast_ofNat, mul_neg, ← mul_pow,
           mul_inv_cancel₀ two_ne_zero, one_pow]
     _ < 1 / 2 := by
         rw [Real.exp_neg, one_div]

@@ -221,7 +221,7 @@ theorem finrank_submoduleZModIso {ι : Type*} (V : Submodule Bool (ι → Bool))
   (congrArg Cardinal.toNat <|
     rank_eq_of_equiv_equiv (R := Bool) (R' := ZMod 2) (M := V) (M₁ := submoduleZModIso ι V)
       bitEquiv.symm ((toZModSpace ι).submoduleMap V).toAddEquiv bitEquiv.symm.bijective
-      fun c v => Subtype.ext (map_smulₛₗ (toZModSpace ι) c v.1)).symm
+      fun c v => Subtype.ext (map_smulₛₗ (toZModSpace ι) c v.val)).symm
 
 /-- A `Bool`-submodule `V` of a finite coordinate space `ι → Bool` has `2 ^ finrank Bool V`
 elements. -/
@@ -264,7 +264,7 @@ theorem exists_isCompl_submodule_bool {ι : Type*} {K V : Submodule Bool (ι →
     intro w hw
     obtain ⟨k, hk, u, hu, hku⟩ := Submodule.mem_sup.mp
       (hUZ.sup_eq_top ▸ Submodule.mem_top : (⟨w, hw⟩ : VZ) ∈ _)
-    exact Submodule.mem_sup.mpr ⟨k.1, hk, u.1, Submodule.mem_map.mpr ⟨u, hu, rfl⟩,
+    exact Submodule.mem_sup.mpr ⟨k.val, hk, u.val, Submodule.mem_map.mpr ⟨u, hu, rfl⟩,
       congrArg Subtype.val hku⟩
 
 /-- Modular dimension identity for the sum and intersection of two `Bool`-submodules of `ι → Bool`.
@@ -288,8 +288,8 @@ theorem finrank_map_add_finrank_inf_ker_bool {ι₁ ι₂ : Type*} [Finite ι₁
   have hker : submoduleZModIso ι₁ (V ⊓ LinearMap.ker f) = VZ ⊓ LinearMap.ker fZ := by
     rw [map_inf, submoduleZModIso_ker]
   let eK : LinearMap.ker (fZ.domRestrict VZ) ≃ₗ[ZMod 2] ↥(VZ ⊓ LinearMap.ker fZ) :=
-    { toFun := fun v => ⟨v.1.1, v.1.2, LinearMap.mem_ker.mpr v.2⟩
-      invFun := fun w => ⟨⟨w.1, w.2.1⟩, LinearMap.mem_ker.mpr w.2.2⟩
+    { toFun := fun v => ⟨v.val.val, v.val.property, LinearMap.mem_ker.mpr v.property⟩
+      invFun := fun w => ⟨⟨w.val, w.property.1⟩, LinearMap.mem_ker.mpr w.property.2⟩
       left_inv := fun _ => rfl
       right_inv := fun _ => rfl
       map_add' := fun _ _ => rfl
@@ -345,7 +345,7 @@ theorem exists_submodule_finrank_eq_bool {ι : Type*} [Finite ι]
       (submoduleZModIso ι V).subtype (LinearMap.ker_eq_bot.mpr Subtype.val_injective)
   refine ⟨(submoduleZModIso ι).symm UZ, ?_, ?_⟩
   · rw [← (submoduleZModIso ι).le_iff_le, (submoduleZModIso ι).apply_symm_apply]
-    exact Submodule.span_le.mpr (by rintro _ ⟨i, rfl⟩; exact (B0 _).2)
+    exact Submodule.span_le.mpr (by rintro _ ⟨i, rfl⟩; exact (B0 _).property)
   · rw [← finrank_submoduleZModIso, (submoduleZModIso ι).apply_symm_apply, finrank_span_eq_card hli,
       Fintype.card_fin]
 
@@ -394,13 +394,13 @@ theorem finrank_orthogonal_add_finrank {K ι : Type*} [Field K] [Fintype ι]
     (W : Submodule K (ι → K)) :
     finrank K (orthogonal W) + finrank K W = Fintype.card ι := by
   let b := Module.finBasis K W
-  let M : Matrix (Fin (finrank K W)) ι K := Matrix.of fun i j => (b i).1 j
+  let M : Matrix (Fin (finrank K W)) ι K := Matrix.of fun i j => (b i).val j
   have hker : orthogonal W = LinearMap.ker M.mulVecLin := by
     ext y
     simp only [mem_orthogonal, LinearMap.mem_ker, funext_iff, mulVecLin_apply, mulVec, M, of_apply,
       Pi.zero_apply]
-    refine ⟨fun hy i => hy (b i).1 (b i).2, fun hy x hx => ?_⟩
-    have hrepr : x = ∑ i, b.repr ⟨x, hx⟩ i • (b i).1 := by
+    refine ⟨fun hy i => hy (b i).val (b i).property, fun hy x hx => ?_⟩
+    have hrepr : x = ∑ i, b.repr ⟨x, hx⟩ i • (b i).val := by
       simpa only [Submodule.coe_sum, Submodule.coe_smul_of_tower] using
         congrArg Subtype.val (b.sum_repr ⟨x, hx⟩).symm
     rw [hrepr, sum_dotProduct]
@@ -416,9 +416,10 @@ theorem finrank_orthogonal_add_finrank {K ι : Type*} [Field K] [Fintype ι]
       exact funext (Fintype.linearIndependent_iff.mp b.linearIndependent c hsum)
   have hrankT : M.transpose.rank = finrank K W := by
     have h := LinearMap.finrank_range_add_finrank_ker M.transpose.mulVecLin
-    rwa [LinearMap.ker_eq_bot.mpr hinj, finrank_bot, add_zero, Module.finrank_fin_fun] at h
+    rwa [Matrix.finrank_range_mulVecLin, LinearMap.ker_eq_bot.mpr hinj, finrank_bot, add_zero,
+      Module.finrank_fin_fun] at h
   have hnull := LinearMap.finrank_range_add_finrank_ker M.mulVecLin
-  change M.rank + finrank K (LinearMap.ker M.mulVecLin) = _ at hnull
+  rw [Matrix.finrank_range_mulVecLin] at hnull
   rwa [← rank_transpose, hrankT, ← hker, Module.finrank_fintype_fun_eq_card, add_comm] at hnull
 
 /-- Over a field `K`, the double orthogonal complement of a subspace `W` of `ι → K` is `W`. -/

@@ -88,10 +88,10 @@ the parent function leads from every vertex to `r`. -/
 theorem isInArborescence_parentDigraph_iff {r : V} {p : V → V} :
     (parentDigraph r p).IsInArborescence r ↔ ∀ v, ∃ n, p^[n] v = r := by
   have hmulti := Cslib.Multidigraph.isInArborescence_iff_exists_iterate
-    (src := Prod.fst) (tgt := Prod.snd) (r := r) (f := fun v => (v.1, p v.1)) (p := p)
+    (src := Prod.fst) (tgt := Prod.snd) (r := r) (f := fun v => (v.val, p v.val)) (p := p)
     fun _ => rfl
   have hrel : (fun v w => ∃ h : v ≠ r,
-      (((⟨v, h⟩ : {v // v ≠ r}).1, p (⟨v, h⟩ : {v // v ≠ r}).1)).2 = w) =
+      (((⟨v, h⟩ : {v // v ≠ r}).val, p (⟨v, h⟩ : {v // v ≠ r}).val)).2 = w) =
       (parentDigraph r p).Adj := by
     ext u w
     exact ⟨fun ⟨hu, hp⟩ => ⟨hu, hp⟩, fun ⟨hu, hp⟩ => ⟨hu, hp⟩⟩

@@ -60,7 +60,7 @@ abbrev ModCounterResult : ModCounterOp → Type
   | .query => Fin 4
 
 def modCounterStep (s : Fin 4) : (o : ModCounterOp) → Fin 4 × ModCounterResult o
-  | .insert => (⟨(s.1 + 1) % 4, by omega⟩, ())
+  | .insert => (⟨(s.val + 1) % 4, by omega⟩, ())
   | .query => (s, s)
 
 abbrev modCounterSpec : StateTransitionSpec :=
@@ -74,18 +74,18 @@ def binaryCounterScheme : CellProbe.Scheme ModCounterOp ModCounterResult 2 1 whe
   step
     | .insert => do
         let b₀ ← ProbeTree.read 0
-        if b₀.1 == 0 then
+        if b₀.val == 0 then
           let _ ← ProbeTree.write 0 ⟨1, by decide⟩
           return ()
         else
           let _ ← ProbeTree.write 0 ⟨0, by decide⟩
           let b₁ ← ProbeTree.read 1
-          let _ ← ProbeTree.write 1 ⟨1 - b₁.1, by omega⟩
+          let _ ← ProbeTree.write 1 ⟨1 - b₁.val, by omega⟩
           return ()
     | .query => do
         let b₀ ← ProbeTree.read 0
         let b₁ ← ProbeTree.read 1
-        return ⟨b₀.1 + 2 * b₁.1, by omega⟩
+        return ⟨b₀.val + 2 * b₁.val, by omega⟩
 
 -- Non-vacuity of `potential`: on state `s = 1` (`m = ![1, 0]`), `insert` takes `4` actual probes,
 -- strictly exceeding the amortized charge `3`, paid by releasing `1` unit of potential on cell `0`.
@@ -93,7 +93,7 @@ example : (binaryCounterScheme.step .insert).probes ![⟨1, by decide⟩, ⟨0, 
   decide
 
 def binaryCounterRep (s : Fin 4) (m : Mem 2 1) : Prop :=
-  (m 0).1 + 2 * (m 1).1 = s.1
+  (m 0).val + 2 * (m 1).val = s.val
 
 def binaryCounterCharge (_ : Fin 4) : ModCounterOp → ℕ
   | .insert => 3
@@ -105,18 +105,18 @@ def binaryCounterImpl :
     (rep := binaryCounterRep)
     (charge := binaryCounterCharge)
     (init_rep := rfl)
-    (potential := fun m => (m 0).1)
+    (potential := fun m => (m 0).val)
     (initPotential := 0)
     (init_potential := Nat.le_refl 0)
     (step_exec := by
       intro s m o hr _
       dsimp only [binaryCounterRep] at hr
-      have hb0 : (m 0).1 < 2 := (m 0).2
-      have hb1 : (m 1).1 < 2 := (m 1).2
+      have hb0 : (m 0).val < 2 := (m 0).isLt
+      have hb1 : (m 1).val < 2 := (m 1).isLt
       cases o with
       | insert =>
-        by_cases h0 : (m 0).1 = 0
-        · have hcond : ((m 0).1 == 0) = true := by simp [h0]
+        by_cases h0 : (m 0).val = 0
+        · have hcond : ((m 0).val == 0) = true := by simp [h0]
           have hne10 : (1 : Fin 2) ≠ 0 := by decide
           simp only [binaryCounterScheme, ProbeTree.run_bind, ProbeTree.run_read,
             ProbeTree.run_write, ProbeTree.run_pure, ProbeTree.probes_bind, ProbeTree.probes_read,
@@ -124,8 +124,8 @@ def binaryCounterImpl :
             StateTransitionSpec.stepFn, modCounterStep, binaryCounterRep, binaryCounterCharge,
             Function.update_self, Function.update_of_ne hne10]
           exact ⟨trivial, by omega, by omega⟩
-        · have h1 : (m 0).1 = 1 := by omega
-          have hcond : ((m 0).1 == 0) = false := by simp [h1]
+        · have h1 : (m 0).val = 1 := by omega
+          have hcond : ((m 0).val == 0) = false := by simp [h1]
           have hne01 : (0 : Fin 2) ≠ 1 := by decide
           have hne10 : (1 : Fin 2) ≠ 0 := by decide
           simp only [binaryCounterScheme, ProbeTree.run_bind, ProbeTree.run_read,
@@ -167,7 +167,7 @@ example :
       DataStructure.Executes (ExecOp binaryCounterScheme) adaptiveClient binaryCounterScheme.init
         2 m' traces ∧
       binaryCounterRep 2 m' ∧
-      DataStructure.total OperationTrace.probes traces + (m' 0).1 ≤ 10 := by
+      DataStructure.total OperationTrace.probes traces + (m' 0).val ≤ 10 := by
   intro adaptiveClient
   have hv : modCounterSpec.ValidHistory 0 (modCounterSpec.clientHistory 0 adaptiveClient) := by
     trivial
@@ -195,7 +195,7 @@ def directDictScheme : CellProbe.Scheme (Dictionary.Op 4) Dictionary.Op.Result 4
   step
     | .query u => do
         let w ← ProbeTree.read u
-        return if w.1 == 0 then none else some (w.1 - 1)
+        return if w.val == 0 then none else some (w.val - 1)
     | .insert u v => do
         let enc : Fin 4 := if hv : v < 3 then ⟨v + 1, by omega⟩ else ⟨0, by decide⟩
         let _ ← ProbeTree.write u enc
@@ -205,8 +205,8 @@ def directDictRep (s : Dictionary.State 4) (m : Mem 4 2) : Prop :=
   Dictionary.ValuesBounded 3 s ∧
     ∀ u : Fin 4,
       match s u with
-      | none => (m u).1 = 0
-      | some v => (m u).1 = v + 1
+      | none => (m u).val = 0
+      | some v => (m u).val = v + 1
 
 def directDictImpl :
     CellProbe.StateTransitionImpl (Dictionary.spec 4 3 4) directDictScheme (Dictionary.empty 4) :=
@@ -319,13 +319,13 @@ instance (U : ℕ) : ∀ o : Dictionary.Op U, Inhabited o.Result
 
 /-- Slot permutation on `Fin 2` controlled by latent seed `θ : Fin 2`, embedded into `Fin 3`. -/
 def scrambledSlot (θ : Fin 2) (u : Fin 2) : Fin 3 :=
-  if θ.1 == 0 then ⟨u.1, by omega⟩ else ⟨1 - u.1, by omega⟩
+  if θ.val == 0 then ⟨u.val, by omega⟩ else ⟨1 - u.val, by omega⟩
 
 /-- Initial 3-cell 2-bit memory storing `0` in data slots `0, 1` and seed bit `θ` in cell `2`. -/
 def scrambledInitMem (θ : Fin 2) : Mem 3 2
   | 0 => ⟨0, by decide⟩
   | 1 => ⟨0, by decide⟩
-  | 2 => ⟨θ.1, by omega⟩
+  | 2 => ⟨θ.val, by omega⟩
 
 /-- Randomized 2-key dictionary scheme: `init` draws a uniform swap bit `θ ∈ Fin 2` into cell `2`;
 `insert` reads cell `2` and writes `scrambledSlot θ u` (`2` probes); `query` flips a private coin
@@ -337,21 +337,21 @@ noncomputable def scrambledDictScheme :
   step
     | .insert u v => do
         let tag ← RandProbeTree.read 2
-        let slot : Fin 3 := if tag.1 == 0 then ⟨u.1, by omega⟩ else ⟨1 - u.1, by omega⟩
+        let slot : Fin 3 := if tag.val == 0 then ⟨u.val, by omega⟩ else ⟨1 - u.val, by omega⟩
         let enc : Fin 4 := if hv : v < 3 then ⟨v + 1, by omega⟩ else ⟨0, by decide⟩
         let _ ← RandProbeTree.write slot enc
         return ()
     | .query u => do
         let coin ← RandProbeTree.sample (ProbComp.unifFin 1)
         let tag ← RandProbeTree.read 2
-        let slot : Fin 3 := if tag.1 == 0 then ⟨u.1, by omega⟩ else ⟨1 - u.1, by omega⟩
-        if coin.1 == 0 then
+        let slot : Fin 3 := if tag.val == 0 then ⟨u.val, by omega⟩ else ⟨1 - u.val, by omega⟩
+        if coin.val == 0 then
           let w ← RandProbeTree.read slot
-          return if w.1 == 0 then none else some (w.1 - 1)
+          return if w.val == 0 then none else some (w.val - 1)
         else
           let _ ← RandProbeTree.read 0
           let w ← RandProbeTree.read slot
-          return if w.1 == 0 then none else some (w.1 - 1)
+          return if w.val == 0 then none else some (w.val - 1)
 
 -- `scrambledDictScheme.step (.query 0)` genuinely uses private per-operation coins.
 example : ¬ (scrambledDictScheme.step (.query 0)).IsCoinFree :=
@@ -359,11 +359,11 @@ example : ¬ (scrambledDictScheme.step (.query 0)).IsCoinFree :=
 
 def scrambledDictRep (θ : Fin 2) (s : Dictionary.State 2) (m : Mem 3 2) : Prop :=
   Dictionary.ValuesBounded 3 s ∧
-    (m 2).1 = θ.1 ∧
+    (m 2).val = θ.val ∧
     ∀ u : Fin 2,
       match s u with
-      | none => (m (scrambledSlot θ u)).1 = 0
-      | some v => (m (scrambledSlot θ u)).1 = v + 1
+      | none => (m (scrambledSlot θ u)).val = 0
+      | some v => (m (scrambledSlot θ u)).val = v + 1
 
 def scrambledOpCharge : Dictionary.Op 2 → ℕ
   | .insert _ _ => 2
@@ -371,7 +371,7 @@ def scrambledOpCharge : Dictionary.Op 2 → ℕ
 
 private theorem decode_scrambledSlot {θ : Fin 2} {s : Dictionary.State 2} {m : Mem 3 2}
     (hrep : scrambledDictRep θ s m) (u : Fin 2) :
-    (if (m (scrambledSlot θ u)).1 == 0 then none else some ((m (scrambledSlot θ u)).1 - 1)) =
+    (if (m (scrambledSlot θ u)).val == 0 then none else some ((m (scrambledSlot θ u)).val - 1)) =
       s u := by
   have hu := hrep.2.2 u
   cases hsu : s u with
@@ -435,7 +435,7 @@ noncomputable def scrambledDictImpl :
         · rintro ⟨θ, m⟩ hp
           have hrep : scrambledDictRep θ s m := hsupp (θ, m) hp
           have hslot :
-              (if (m 2).1 == 0 then (⟨u.1, by omega⟩ : Fin 3) else ⟨1 - u.1, by omega⟩) =
+              (if (m 2).val == 0 then (⟨u.val, by omega⟩ : Fin 3) else ⟨1 - u.val, by omega⟩) =
                 scrambledSlot θ u := by
             rw [scrambledSlot, hrep.2.1]
           refine ⟨?_, ?_⟩
@@ -447,7 +447,7 @@ noncomputable def scrambledDictImpl :
             subst hq
             refine ⟨Dictionary.valuesBounded_step_of_valid hrep.1 hval, ?_, fun x => ?_⟩
             · have hne2 : (2 : Fin 3) ≠ scrambledSlot θ u := by
-                have hu : u.1 < 2 := u.2
+                have hu : u.val < 2 := u.isLt
                 intro h
                 have hv := congrArg Fin.val h
                 dsimp [scrambledSlot] at hv
@@ -460,8 +460,8 @@ noncomputable def scrambledDictImpl :
               · subst hxu
                 simp [enc]
               · have hslot_ne : scrambledSlot θ x ≠ scrambledSlot θ u := by
-                  have hu : u.1 < 2 := u.2
-                  have hx : x.1 < 2 := x.2
+                  have hu : u.val < 2 := u.isLt
+                  have hx : x.val < 2 := x.isLt
                   intro h
                   have hv := congrArg Fin.val h
                   dsimp [scrambledSlot] at hv
@@ -493,7 +493,7 @@ noncomputable def scrambledDictImpl :
         · rintro ⟨θ, m⟩ hp
           have hrep : scrambledDictRep θ s m := hsupp (θ, m) hp
           have hslot :
-              (if (m 2).1 == 0 then (⟨u.1, by omega⟩ : Fin 3) else ⟨1 - u.1, by omega⟩) =
+              (if (m 2).val == 0 then (⟨u.val, by omega⟩ : Fin 3) else ⟨1 - u.val, by omega⟩) =
                 scrambledSlot θ u := by
             rw [scrambledSlot, hrep.2.1]
           have hdec := decode_scrambledSlot hrep u
@@ -534,8 +534,8 @@ noncomputable def scrambledDictImpl :
                   rw [Probability.PMF.tsum_map_mul, tsum_fintype]
                   have huniv : (Finset.univ : Finset (Fin 2)) = {0, 1} := by decide
                   rw [huniv, Finset.sum_pair (by decide)]
-                  have h0 : ((0 : Fin 2).1 == 0) = true := rfl
-                  have h1 : ((1 : Fin 2).1 == 0) = false := rfl
+                  have h0 : ((0 : Fin 2).val == 0) = true := rfl
+                  have h1 : ((1 : Fin 2).val == 0) = false := rfl
                   simp only [Probability.PMF.uniformOfFintype_apply, Fintype.card_fin,
                     expectedProbes_read_bind, h0, h1, Bool.false_eq_true, ↓reduceIte,
                     RandProbeTree.expectedProbes_pure]

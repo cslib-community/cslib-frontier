@@ -325,7 +325,7 @@ variable {V I S M O : Type*} (P : PortProtocol I S M O)
   | r + 1, u =>
     P.recv r (G.degree u) (state x r u) fun i =>
       let w := (N.port u).symm i
-      P.send r (G.degree w.1) (state x r w.1) (N.port w.1 ⟨u, w.2.symm⟩)
+      P.send r (G.degree w.val) (state x r w.val) (N.port w.val ⟨u, w.property.symm⟩)
 
 /-- Output of node `u` after `r` synchronous rounds on the port-numbered network `N`. -/
 @[expose] def run (x : V → I) (r : ℕ) (u : V) : O :=
@@ -338,7 +338,7 @@ theorem state_succ (x : V → I) (r : ℕ) (u : V) :
     P.state N x (r + 1) u =
       P.recv r (G.degree u) (P.state N x r u) fun i =>
         let w := (N.port u).symm i
-        P.send r (G.degree w.1) (P.state N x r w.1) (N.port w.1 ⟨u, w.2.symm⟩) := rfl
+        P.send r (G.degree w.val) (P.state N x r w.val) (N.port w.val ⟨u, w.property.symm⟩) := rfl
 
 end PortProtocol
 
@@ -377,19 +377,19 @@ theorem toPortProtocol_state {G : SimpleGraph V} [G.LocallyFinite] (N : PortNumb
     rw [huniv, Multiset.map_map]
     have hcomp :
         ((fun i : Fin (G.degree u) =>
-          P.toPortProtocol.send r (G.degree ((N.port u).symm i).1)
-            (P.toPortProtocol.state N x r ((N.port u).symm i).1)
-            (N.port ((N.port u).symm i).1 ⟨u, ((N.port u).symm i).2.symm⟩)) ∘ e) =
-        fun w : G.neighborFinset u => P.send r (P.state G x r w.1) := by
+          P.toPortProtocol.send r (G.degree ((N.port u).symm i).val)
+            (P.toPortProtocol.state N x r ((N.port u).symm i).val)
+            (N.port ((N.port u).symm i).val ⟨u, ((N.port u).symm i).property.symm⟩)) ∘ e) =
+        fun w : G.neighborFinset u => P.send r (P.state G x r w.val) := by
       funext w
       dsimp only [Function.comp_apply]
       rw [hsend]
-      have hw : (N.port u).symm (e w) = ⟨w.1, (G.mem_neighborFinset u w.1).1 w.2⟩ :=
+      have hw : (N.port u).symm (e w) = ⟨w.val, (G.mem_neighborFinset u w.val).1 w.property⟩ :=
         (N.port u).symm_apply_apply _
-      have hw1 : ((N.port u).symm (e w)).1 = w.1 := congrArg Subtype.val hw
-      rw [hw1, ih w.1]
+      have hw1 : ((N.port u).symm (e w)).val = w.val := congrArg Subtype.val hw
+      rw [hw1, ih w.val]
     rw [hcomp, Finset.univ_eq_attach,
-      show (fun w : {x // x ∈ G.neighborFinset u} => P.send r (P.state G x r w.1)) =
+      show (fun w : {x // x ∈ G.neighborFinset u} => P.send r (P.state G x r w.val)) =
         (fun w => P.send r (P.state G x r w)) ∘ Subtype.val from rfl,
       ← Multiset.map_map, Finset.attach_val, Multiset.attach_map_val]
 
@@ -458,7 +458,7 @@ structure PortCovering {V₁ V₂ : Type*} {G₁ : SimpleGraph V₁} {G₂ : Sim
   degree_eq : ∀ u : V₁, G₁.degree u = G₂.degree (φ u)
   /-- `φ` preserves local port indices on all incident edges. -/
   port_val_eq : ∀ (u : V₁) (w : G₁.neighborSet u),
-    (N₂.port (φ u) ⟨φ w.1, adj w.2⟩).val = (N₁.port u w).val
+    (N₂.port (φ u) ⟨φ w.val, adj w.property⟩).val = (N₁.port u w).val
 
 namespace PortCovering
 
@@ -480,8 +480,8 @@ theorem toGraphCovering (hφ : PortCovering N₁ N₂ φ) : GraphCovering G₁ G
     let j : Fin (G₂.degree (φ u)) := N₂.port (φ u) ⟨v', hv'⟩
     let i : Fin (G₁.degree u) := ⟨j.val, (hφ.degree_eq u).symm ▸ j.isLt⟩
     let w := (N₁.port u).symm i
-    refine ⟨w.1, w.2, ?_⟩
-    have hp : (N₂.port (φ u) ⟨φ w.1, hφ.adj w.2⟩).val = j.val := by
+    refine ⟨w.val, w.property, ?_⟩
+    have hp : (N₂.port (φ u) ⟨φ w.val, hφ.adj w.property⟩).val = j.val := by
       rw [hφ.port_val_eq u w]
       simp only [w, Equiv.apply_symm_apply, i]
     exact congrArg Subtype.val ((N₂.port (φ u)).injective (Fin.ext hp))
@@ -550,15 +550,15 @@ theorem PortProtocol.state_eq_of_portCovering {V₁ V₂ I S M O : Type*}
     rw [state_succ, state_succ]
     refine portRecv_congr P.recv (hφ.degree_eq u) (ih u) fun i₁ i₂ hi => ?_
     let w₁ := (N₁.port u).symm i₁
-    have hw₂ : (N₂.port (φ u)).symm i₂ = ⟨φ w₁.1, hφ.adj w₁.2⟩ := by
+    have hw₂ : (N₂.port (φ u)).symm i₂ = ⟨φ w₁.val, hφ.adj w₁.property⟩ := by
       apply (N₂.port (φ u)).injective
       apply Fin.ext
       rw [Equiv.apply_symm_apply, hφ.port_val_eq u w₁]
       simpa only [w₁, Equiv.apply_symm_apply] using hi.symm
     dsimp only
     rw [hw₂]
-    exact portSend_congr P.send (hφ.degree_eq w₁.1) (ih w₁.1)
-      (hφ.port_val_eq w₁.1 ⟨u, w₁.2.symm⟩).symm
+    exact portSend_congr P.send (hφ.degree_eq w₁.val) (ih w₁.val)
+      (hφ.port_val_eq w₁.val ⟨u, w₁.property.symm⟩).symm
 
 /-- Output invariance of `PortProtocol.run` along a `PortCovering`. -/
 theorem PortProtocol.run_eq_of_portCovering {V₁ V₂ I S M O : Type*}
@@ -716,7 +716,7 @@ def PortNumbering.bipartiteDoubleCover {V : Type*} [Fintype V]
         ⟨(N.port u ⟨v, hadj⟩).val, hdeg.symm ▸ (N.port u ⟨v, hadj⟩).isLt⟩
       invFun := fun i =>
         let w := (N.port u).symm ⟨i.val, hdeg ▸ i.isLt⟩
-        ⟨(!b, w.1), ⟨(Bool.not_ne_self b).symm, w.2⟩⟩
+        ⟨(!b, w.val), ⟨(Bool.not_ne_self b).symm, w.property⟩⟩
       left_inv := fun ⟨⟨b', w'⟩, hne, hadj⟩ => by
         apply Subtype.ext
         apply Prod.ext
@@ -812,7 +812,7 @@ theorem graphCovering_cycleGraph_six_three :
       SimpleGraph.cycleGraph_adj.2 (Or.inr (add_sub_cancel_left u 1))
     have hadj_sub : u - 1 ∈ (SimpleGraph.cycleGraph (m + 3)).neighborSet u :=
       SimpleGraph.cycleGraph_adj.2 (Or.inl (sub_sub_cancel u 1))
-    { toFun := fun w => if w.1 = u + 1 then ⟨0, by omega⟩ else ⟨1, by omega⟩
+    { toFun := fun w => if w.val = u + 1 then ⟨0, by omega⟩ else ⟨1, by omega⟩
       invFun := fun i => if i.val = 0 then ⟨u + 1, hadj_add⟩ else ⟨u - 1, hadj_sub⟩
       left_inv := fun ⟨w, hw⟩ => by
         apply Subtype.ext

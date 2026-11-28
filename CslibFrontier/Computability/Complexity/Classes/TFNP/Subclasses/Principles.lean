@@ -93,9 +93,9 @@ private abbrev Vertex (n : ℕ) : Type := {u : List Bool // u.length = n}
 
 /-- Equivalence between bit strings of length `n` and functions `Fin n → Bool`. -/
 private def vertexEquiv (n : ℕ) : Vertex n ≃ (Fin n → Bool) where
-  toFun u i := u.1[i.val]'(i.isLt.trans_eq u.2.symm)
+  toFun u i := u.val[i.val]'(i.isLt.trans_eq u.property.symm)
   invFun f := ⟨List.ofFn f, List.length_ofFn⟩
-  left_inv u := Subtype.ext (List.ext_getElem (by simp [u.2]) fun i _ _ => by simp)
+  left_inv u := Subtype.ext (List.ext_getElem (by simp [u.property]) fun i _ _ => by simp)
   right_inv f := funext fun i => by simp
 
 private instance instFintypeVertex (n : ℕ) : Fintype (Vertex n) :=
@@ -115,9 +115,9 @@ def localOptRel (n : α → ℕ) (N : α × List Bool → List Bool) (C : α × 
 theorem exists_localOpt {n : α → ℕ} {N : α × List Bool → List Bool} {C : α × List Bool → ℕ}
     {a : α} (hN : ∀ u, u.length = n a → (N (a, u)).length = n a) :
     ∃ u, localOptRel n N C a u := by
-  obtain ⟨u, -, hmin⟩ := Finset.exists_min_image Finset.univ (fun u : Vertex (n a) => C (a, u.1))
+  obtain ⟨u, -, hmin⟩ := Finset.exists_min_image Finset.univ (fun u : Vertex (n a) => C (a, u.val))
     ⟨⟨zeroVertex (n a), length_zeroVertex (n a)⟩, Finset.mem_univ _⟩
-  exact ⟨u.1, u.2, hmin ⟨N (a, u.1), hN u.1 u.2⟩ (Finset.mem_univ _)⟩
+  exact ⟨u.val, u.property, hmin ⟨N (a, u.val), hN u.val u.property⟩ (Finset.mem_univ _)⟩
 
 /-- `localOptRel` is total whenever the neighbor map preserves the vertex bit-length. -/
 theorem isTotalSearch_localOptRel {n : α → ℕ} {N : α × List Bool → List Bool}
@@ -140,15 +140,16 @@ hits `0 ^ (n a)` or collides on two distinct strings of length `n a`. -/
 theorem exists_pigeon {n : α → ℕ} {F : α × List Bool → List Bool} {a : α}
     (hF : ∀ u, u.length = n a → (F (a, u)).length = n a) :
     ∃ w, pigeonRel n F a w := by
-  let f : Vertex (n a) → Vertex (n a) := fun u => ⟨F (a, u.1), hF u.1 u.2⟩
+  let f : Vertex (n a) → Vertex (n a) := fun u => ⟨F (a, u.val), hF u.val u.property⟩
   by_cases hinj : Function.Injective f
   · obtain ⟨u, hu⟩ := Finite.surjective_of_injective hinj
       ⟨zeroVertex (n a), length_zeroVertex (n a)⟩
-    exact ⟨u.1 ++ u.1, by simp [u.2, Nat.two_mul],
-      .inl ((congrArg (fun x => F (a, x)) (List.take_left' u.2)).trans (congrArg Subtype.val hu))⟩
+    exact ⟨u.val ++ u.val, by simp [u.property, Nat.two_mul],
+      .inl ((congrArg (fun x => F (a, x)) (List.take_left' u.property)).trans
+        (congrArg Subtype.val hu))⟩
   · obtain ⟨u, v, huv, hne⟩ := Function.not_injective_iff.mp hinj
-    refine ⟨u.1 ++ v.1, by simp [u.2, v.2, Nat.two_mul], .inr ?_⟩
-    rw [List.take_left' u.2, List.drop_left' u.2]
+    refine ⟨u.val ++ v.val, by simp [u.property, v.property, Nat.two_mul], .inr ?_⟩
+    rw [List.take_left' u.property, List.drop_left' u.property]
     exact ⟨fun h => hne (Subtype.ext h), congrArg Subtype.val huv⟩
 
 /-- `pigeonRel` is total whenever `F` preserves the vertex bit-length. -/
@@ -304,19 +305,20 @@ def leafRel (n : α → ℕ) (N₁ N₂ : α × List Bool → List Bool) (a : α
 private theorem sum_undirectedEdge_eq {n : α → ℕ} {N₁ N₂ : α × List Bool → List Bool} {a : α}
     (hN₁ : ∀ u, u.length = n a → (N₁ (a, u)).length = n a)
     (hN₂ : ∀ u, u.length = n a → (N₂ (a, u)).length = n a) (u : Vertex (n a)) :
-    (∑ v : Vertex (n a), (undirectedEdge N₁ N₂ a u.1 v.1).toNat) =
-      (undirectedEdge N₁ N₂ a u.1 (N₁ (a, u.1))).toNat +
-        (undirectedEdge N₁ N₂ a u.1 (N₂ (a, u.1)) && decide (N₂ (a, u.1) ≠ N₁ (a, u.1))).toNat := by
-  let v₁ : Vertex (n a) := ⟨N₁ (a, u.1), hN₁ u.1 u.2⟩
-  let v₂ : Vertex (n a) := ⟨N₂ (a, u.1), hN₂ u.1 u.2⟩
-  have hzero {v : Vertex (n a)} (h₁ : v.1 ≠ N₁ (a, u.1)) (h₂ : v.1 ≠ N₂ (a, u.1)) :
-      (undirectedEdge N₁ N₂ a u.1 v.1).toNat = 0 := by
-    cases he : undirectedEdge N₁ N₂ a u.1 v.1
+    (∑ v : Vertex (n a), (undirectedEdge N₁ N₂ a u.val v.val).toNat) =
+      (undirectedEdge N₁ N₂ a u.val (N₁ (a, u.val))).toNat +
+        (undirectedEdge N₁ N₂ a u.val (N₂ (a, u.val)) &&
+          decide (N₂ (a, u.val) ≠ N₁ (a, u.val))).toNat := by
+  let v₁ : Vertex (n a) := ⟨N₁ (a, u.val), hN₁ u.val u.property⟩
+  let v₂ : Vertex (n a) := ⟨N₂ (a, u.val), hN₂ u.val u.property⟩
+  have hzero {v : Vertex (n a)} (h₁ : v.val ≠ N₁ (a, u.val)) (h₂ : v.val ≠ N₂ (a, u.val)) :
+      (undirectedEdge N₁ N₂ a u.val v.val).toNat = 0 := by
+    cases he : undirectedEdge N₁ N₂ a u.val v.val
     · rfl
     · exact (eq_or_eq_of_undirectedEdge he).elim (False.elim ∘ h₁) (False.elim ∘ h₂)
   rw [← Finset.add_sum_erase _ _ (Finset.mem_univ v₁)]
   by_cases h12 : v₂ = v₁
-  · have h12_val : N₂ (a, u.1) = N₁ (a, u.1) := congrArg Subtype.val h12
+  · have h12_val : N₂ (a, u.val) = N₁ (a, u.val) := congrArg Subtype.val h12
     rw [Finset.sum_eq_zero fun v hv => hzero (fun h => (Finset.mem_erase.1 hv).1 (Subtype.ext h))
       fun h => (Finset.mem_erase.1 hv).1 (Subtype.ext (h.trans h12_val))]
     simp [h12_val, v₁]
@@ -324,23 +326,25 @@ private theorem sum_undirectedEdge_eq {n : α → ℕ} {N₁ N₂ : α × List B
       Finset.sum_eq_zero fun v hv => hzero
         (fun h => (Finset.mem_erase.1 (Finset.mem_erase.1 hv).2).1 (Subtype.ext h))
         fun h => (Finset.mem_erase.1 hv).1 (Subtype.ext h)]
-    simp [show N₂ (a, u.1) ≠ N₁ (a, u.1) from fun h => h12 (Subtype.ext h), v₁, v₂]
+    simp [show N₂ (a, u.val) ≠ N₁ (a, u.val) from fun h => h12 (Subtype.ext h), v₁, v₂]
 
 /-- The double sum of undirected edges over all ordered pairs is even. -/
 private theorem even_sum_undirectedEdge (n : α → ℕ) (N₁ N₂ : α × List Bool → List Bool) (a : α) :
-    (∑ u : Vertex (n a), ∑ v : Vertex (n a), (undirectedEdge N₁ N₂ a u.1 v.1).toNat) % 2 = 0 := by
+    (∑ u : Vertex (n a), ∑ v : Vertex (n a),
+      (undirectedEdge N₁ N₂ a u.val v.val).toNat) % 2 = 0 := by
   let g (u v : Vertex (n a)) : ℕ :=
-    if binaryValue u.1 < binaryValue v.1 then (undirectedEdge N₁ N₂ a u.1 v.1).toNat else 0
+    if binaryValue u.val < binaryValue v.val then (undirectedEdge N₁ N₂ a u.val v.val).toNat else 0
   have hpt (u v : Vertex (n a)) :
-      (undirectedEdge N₁ N₂ a u.1 v.1).toNat = g u v + g v u := by
+      (undirectedEdge N₁ N₂ a u.val v.val).toNat = g u v + g v u := by
     by_cases huv : u = v
     · subst huv
       simp [g]
     · rcases lt_or_gt_of_ne (fun h =>
-          huv (Subtype.ext (binaryValue_injective_of_length_eq (u.2.trans v.2.symm) h))) with
+          huv (Subtype.ext (binaryValue_injective_of_length_eq
+            (u.property.trans v.property.symm) h))) with
         hlt | hgt
       · simp [g, hlt, Nat.not_lt.2 hlt.le]
-      · simp [g, hgt, Nat.not_lt.2 hgt.le, undirectedEdge_comm N₁ N₂ a u.1 v.1]
+      · simp [g, hgt, Nat.not_lt.2 hgt.le, undirectedEdge_comm N₁ N₂ a u.val v.val]
   simp_rw [hpt, Finset.sum_add_distrib]
   rw [Finset.sum_comm (f := fun u v => g v u), ← Nat.two_mul, Nat.mul_mod_right]
 
@@ -361,28 +365,28 @@ theorem exists_leaf {n : α → ℕ} {N₁ N₂ : α × List Bool → List Bool}
   by_contra! hno
   let z : Vertex (n a) := ⟨zeroVertex (n a), length_zeroVertex (n a)⟩
   have hdeg (u : Vertex (n a)) :
-      (∑ v : Vertex (n a), (undirectedEdge N₁ N₂ a u.1 v.1).toNat) % 2 =
+      (∑ v : Vertex (n a), (undirectedEdge N₁ N₂ a u.val v.val).toNat) % 2 =
         if u = z then 1 else 0 := by
-    have hu := hno u.1
+    have hu := hno u.val
     rw [sum_undirectedEdge_eq hN₁ hN₂ u]
     by_cases huz : u = z
     · subst huz
-      have hz_odd : hasOddDegree N₁ N₂ a z.1 = true := by
+      have hz_odd : hasOddDegree N₁ N₂ a z.val = true := by
         simpa [leafRel, z, length_zeroVertex] using hu
       rw [ite_eq_left rfl]
       exact (bne_eq_true_iff_add_mod_two _ _).1 hz_odd
-    · have huz_val : u.1 ≠ zeroVertex (n a) := fun h => huz (Subtype.ext h)
-      have hu_even : hasOddDegree N₁ N₂ a u.1 = false := by
-        simpa [leafRel, u.2, huz_val] using hu
+    · have huz_val : u.val ≠ zeroVertex (n a) := fun h => huz (Subtype.ext h)
+      have hu_even : hasOddDegree N₁ N₂ a u.val = false := by
+        simpa [leafRel, u.property, huz_val] using hu
       rw [ite_eq_right huz]
       exact (bne_eq_false_iff_add_mod_two _ _).1 hu_even
   have heven := even_sum_undirectedEdge n N₁ N₂ a
   rw [← Finset.add_sum_erase _ _ (Finset.mem_univ z)] at heven
   have herase : (∑ u ∈ Finset.univ.erase z,
-      ∑ v : Vertex (n a), (undirectedEdge N₁ N₂ a u.1 v.1).toNat) % 2 = 0 := by
+      ∑ v : Vertex (n a), (undirectedEdge N₁ N₂ a u.val v.val).toNat) % 2 = 0 := by
     refine Nat.dvd_iff_mod_eq_zero.1 (Finset.dvd_sum fun u hu => Nat.dvd_iff_mod_eq_zero.2 ?_)
     rw [hdeg u, ite_eq_right (Finset.mem_erase.1 hu).1]
-  have hz_mod : (∑ v : Vertex (n a), (undirectedEdge N₁ N₂ a z.1 v.1).toNat) % 2 = 1 := by
+  have hz_mod : (∑ v : Vertex (n a), (undirectedEdge N₁ N₂ a z.val v.val).toNat) % 2 = 1 := by
     simpa using hdeg z
   omega
 

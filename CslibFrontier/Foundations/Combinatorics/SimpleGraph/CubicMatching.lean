@@ -51,16 +51,16 @@ theorem exists_isMatching_mul_eight_ge {V : Type*} [Finite V] (H : SimpleGraph V
   have := Fintype.ofFinite OddC
   let Ufin : Finset V := U.toFinset
   have hUcard : Ufin.card = U.ncard := (Set.ncard_eq_toFinset_card' U).symm
-  let S (c : OddC) : Finset V := (Subtype.val '' c.1.supp).toFinset
-  have hScard (c : OddC) : (S c).card = c.1.supp.ncard := by
+  let S (c : OddC) : Finset V := (Subtype.val '' c.val.supp).toFinset
+  have hScard (c : OddC) : (S c).card = c.val.supp.ncard := by
     rw [← Set.ncard_eq_toFinset_card', Set.ncard_image_of_injective _ Subtype.val_injective]
   have hSodd (c : OddC) : Odd (S c).card := by
     rw [hScard]
-    exact c.2
+    exact c.property
   have hS_notU (c : OddC) {v : V} (hv : v ∈ S c) : v ∉ U := by
     simp only [S, Set.mem_toFinset, Set.mem_image] at hv
     obtain ⟨x, -, rfl⟩ := hv
-    exact x.2.2
+    exact x.property.2
   have hS_disj_U (c : OddC) : Disjoint (S c) Ufin :=
     Finset.disjoint_left.mpr fun v hv hvU => hS_notU c hv (Set.mem_toFinset.mp hvU)
   have hS_pairwise : Set.Pairwise (Set.univ : Set OddC) fun c₁ c₂ => Disjoint (S c₁) (S c₂) := by
@@ -79,7 +79,8 @@ theorem exists_isMatching_mul_eight_ge {V : Type*} [Finite V] (H : SimpleGraph V
     rw [ConnectedComponent.mem_supp_iff] at hx ⊢
     rw [← hx]
     exact (ConnectedComponent.connectedComponentMk_eq_of_adj
-      (Subgraph.Adj.coe (Subgraph.deleteVerts_adj.mpr ⟨trivial, x.2.2, trivial, hw, hadj⟩))).symm
+      (Subgraph.Adj.coe
+        (Subgraph.deleteVerts_adj.mpr ⟨trivial, x.property.2, trivial, hw, hadj⟩))).symm
   have h3fin (v : V) : (H.neighborFinset v).card = 3 := by
     have := h3 v
     rwa [← H.coe_neighborFinset v, Set.ncard_coe_finset] at this

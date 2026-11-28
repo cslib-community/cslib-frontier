@@ -201,23 +201,27 @@ theorem exists_isProjective_sum_norm_sub_sq_le (φ : AlgState (Matrix ι ι ℂ)
     rw [e1, e2]
     exact hSw
   -- The square matrix `y` with rows `√λ_{a,k} e_{a,k}ᴴ` over the selection.
-  let y : Matrix S ι ℂ := Matrix.of fun s j => (√(lam s.1.1 s.1.2) : ℂ) * star (U s.1.1 j s.1.2)
-  have hyT : ∀ t : α → ℝ, yᴴ * diagonal (fun s : S => (t s.1.1 : ℂ)) * y =
+  let y : Matrix S ι ℂ :=
+    Matrix.of fun s j => (√(lam s.val.1 s.val.2) : ℂ) * star (U s.val.1 j s.val.2)
+  have hyT : ∀ t : α → ℝ, yᴴ * diagonal (fun s : S => (t s.val.1 : ℂ)) * y =
       ∑ a, (t a : ℂ) • (q a * M.effect a) := fun t => by
     ext j j'
     simp only [Matrix.mul_apply, conjTranspose_apply, diagonal_apply, y, Matrix.of_apply,
       Matrix.sum_apply, Matrix.smul_apply, hqM, conjDiag_apply, smul_eq_mul, mul_sum]
-    have hsq : ∀ s : S, star ((√(lam s.1.1 s.1.2) : ℂ) * star (U s.1.1 j s.1.2)) *
-        (√(lam s.1.1 s.1.2) : ℂ) = (lam s.1.1 s.1.2 : ℂ) * U s.1.1 j s.1.2 := fun s => by
-      have e : (√(lam s.1.1 s.1.2) : ℂ) * (√(lam s.1.1 s.1.2) : ℂ) = lam s.1.1 s.1.2 := by
+    have hsq : ∀ s : S, star ((√(lam s.val.1 s.val.2) : ℂ) * star (U s.val.1 j s.val.2)) *
+        (√(lam s.val.1 s.val.2) : ℂ) =
+          (lam s.val.1 s.val.2 : ℂ) * U s.val.1 j s.val.2 := fun s => by
+      have e :
+          (√(lam s.val.1 s.val.2) : ℂ) * (√(lam s.val.1 s.val.2) : ℂ) = lam s.val.1 s.val.2 := by
         rw [← Complex.ofReal_mul, Real.mul_self_sqrt (hl0 _ _)]
       rw [star_mul', star_star, Complex.star_def, Complex.conj_ofReal]
-      linear_combination (U s.1.1 j s.1.2) * e
+      linear_combination (U s.val.1 j s.val.2) * e
     simp only [mul_ite, mul_zero, sum_ite_eq', mem_univ, ite_true]
     let F : α × ι → ℂ := fun p =>
       (t p.1 : ℂ) * ((lam p.1 p.2 : ℂ) * U p.1 j p.2) * star (U p.1 j' p.2)
-    have hl : ∀ x : S, star ((√(lam x.1.1 x.1.2) : ℂ) * star (U x.1.1 j x.1.2)) * (t x.1.1 : ℂ) *
-        ((√(lam x.1.1 x.1.2) : ℂ) * star (U x.1.1 j' x.1.2)) = F x.1 := fun x => by
+    have hl : ∀ x : S,
+        star ((√(lam x.val.1 x.val.2) : ℂ) * star (U x.val.1 j x.val.2)) * (t x.val.1 : ℂ) *
+        ((√(lam x.val.1 x.val.2) : ℂ) * star (U x.val.1 j' x.val.2)) = F x.val := fun x => by
       simp only [F]
       rw [← hsq x]
       ring
@@ -230,7 +234,7 @@ theorem exists_isProjective_sum_norm_sub_sq_le (φ : AlgState (Matrix ι ι ℂ)
     simpa [show diagonal (fun _ : S => (1 : ℂ)) = 1 from rfl] using hyT 1
   -- Indicator of the outcome `a` on the selection.
   let T : α → Matrix S S ℂ := fun a =>
-    diagonal fun s : S => (((fun a' : α => if a' = a then (1 : ℝ) else 0) s.1.1 : ℝ) : ℂ)
+    diagonal fun s : S => (((fun a' : α => if a' = a then (1 : ℝ) else 0) s.val.1 : ℝ) : ℂ)
   have hyTa : ∀ a, yᴴ * T a * y = q a * M.effect a := fun a => by
     simpa using hyT (fun a' => if a' = a then (1 : ℝ) else 0)
   have hTT : ∀ a, T a * T a = T a := fun a => by

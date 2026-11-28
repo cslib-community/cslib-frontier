@@ -354,24 +354,24 @@ theorem verifier_polyTime {enc : α ↪ List Bool} {p : Polynomial ℕ} {V : α 
 the `j`-th block of the shifted seed `listToSeed m r + listToShifts m u i`. -/
 private theorem trialSeed_append {m : ℕ} {u r : List Bool} (hu : u.length = witnessLen m)
     (i : Fin (shifts m)) (j : Fin (runs m)) :
-    trialSeed m (u ++ r) i.1 j.1 = List.ofFn ((listToSeed m r + listToShifts m u i) j) := by
+    trialSeed m (u ++ r) i.val j.val = List.ofFn ((listToSeed m r + listToShifts m u i) j) := by
   apply List.ext_getElem (by simp [trialSeed])
   intro k hk _
   simp only [trialSeed, List.length_zipWith, BitString.length_listRow, min_self] at hk
-  have hidx : (i.1 * runs m + j.1) * m + k = k + m * j.1 + runs m * m * i.1 := by ring
-  have hlt : (i.1 * runs m + j.1) * m + k < u.length := by
+  have hidx : (i.val * runs m + j.val) * m + k = k + m * j.val + runs m * m * i.val := by ring
+  have hlt : (i.val * runs m + j.val) * m + k < u.length := by
     rw [hu, hidx]
-    exact (finProdFinEquiv (i, finProdFinEquiv (j, ⟨k, hk⟩))).2
-  have hsplit : (shifts m * runs m + j.1) * m + k = u.length + (k + m * j.1) := by
+    exact (finProdFinEquiv (i, finProdFinEquiv (j, ⟨k, hk⟩))).isLt
+  have hsplit : (shifts m * runs m + j.val) * m + k = u.length + (k + m * j.val) := by
     rw [hu, witnessLen, seedLen]
     ring
-  have hleft : (BitString.listRow m (shifts m * runs m + j.1) (u ++ r))[k]'(by simpa using hk) =
-      r.getD (k + m * j.1) false := by
+  have hleft : (BitString.listRow m (shifts m * runs m + j.val) (u ++ r))[k]'(by simpa using hk) =
+      r.getD (k + m * j.val) false := by
     rw [BitString.getElem_listRow hk, hsplit, List.getD_eq_getElem?_getD,
       List.getD_eq_getElem?_getD,
       List.getElem?_append_right (Nat.le_add_right _ _), Nat.add_sub_cancel_left]
-  have hright : (BitString.listRow m (i.1 * runs m + j.1) (u ++ r))[k]'(by simpa using hk) =
-      u.getD (k + m * j.1 + runs m * m * i.1) false := by
+  have hright : (BitString.listRow m (i.val * runs m + j.val) (u ++ r))[k]'(by simpa using hk) =
+      u.getD (k + m * j.val + runs m * m * i.val) false := by
     rw [BitString.getElem_listRow hk, List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD,
       List.getElem?_append_left hlt, hidx]
   simp only [trialSeed, List.getElem_zipWith, hleft, hright, List.getElem_ofFn, Pi.add_apply,
@@ -384,7 +384,7 @@ theorem shiftAccepts_append_iff {enc : α ↪ List Bool} {p : Polynomial ℕ}
     {V : α × List Bool → Bool} {a : α} {u r : List Bool}
     (hu : u.length = witnessLen (p.eval (enc a).length))
     (i : Fin (shifts (p.eval (enc a).length))) :
-    shiftAccepts enc p V a (u ++ r) i.1 = true ↔
+    shiftAccepts enc p V a (u ++ r) i.val = true ↔
       majorityAccepts (fun s => V (a, List.ofFn s))
         (listToSeed (p.eval (enc a).length) r + listToShifts (p.eval (enc a).length) u i) := by
   unfold shiftAccepts majorityAccepts
@@ -406,7 +406,7 @@ theorem verifier_append_iff {enc : α ↪ List Bool} {p : Polynomial ℕ}
   unfold verifier
   simp only [List.any_eq_true, List.mem_range]
   exact ⟨fun ⟨i, hi, h⟩ => ⟨⟨i, hi⟩, (shiftAccepts_append_iff hu ⟨i, hi⟩).1 h⟩,
-    fun ⟨i, h⟩ => ⟨i.1, i.2, (shiftAccepts_append_iff hu i).2 h⟩⟩
+    fun ⟨i, h⟩ => ⟨i.val, i.isLt, (shiftAccepts_append_iff hu i).2 h⟩⟩
 
 /-- On an input where at least two thirds of the trial seeds accept, the Sipser–Lautemann
 quantified-word verifier accepts. This only assumes the probability bound at this input;

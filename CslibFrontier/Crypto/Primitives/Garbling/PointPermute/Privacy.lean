@@ -72,7 +72,7 @@ theorem PseudorandomFunction.negligible_prvSimAdvantage_simWord
     simp only [P]
     polytime
   have hP : ∀ k query state, (query, state) ∈ (ProbComp.eval ((B k).choose ())).support →
-      query.input.length = query.fn.1.n → query.fn.1.n + query.fn.1.q ≤ P k := by
+      query.input.length = query.fn.val.n → query.fn.val.n + query.fn.val.q ≤ P k := by
     intro k query state hmem _
     have h₁ := hlen (k, ()) (query, state) hmem
     have h₂ := n_add_q_le_length_encValidCircuit query.fn
@@ -83,7 +83,7 @@ theorem PseudorandomFunction.negligible_prvSimAdvantage_simWord
       simp only [length_encPair, encUnary_apply, List.length_replicate,
         show (encUnit ()).length = 0 from rfl]
       omega
-    calc query.fn.1.n + query.fn.1.q
+    calc query.fn.val.n + query.fn.val.q
         ≤ c * ((encPair encUnary encUnit (k, ())).length + 1) ^ d := by omega
       _ ≤ P k := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left h₄ _)
   have hW := isOraclePPT_prvSimReduction h.polyTime hB hPpoly

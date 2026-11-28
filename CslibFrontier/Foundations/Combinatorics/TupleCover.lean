@@ -167,7 +167,7 @@ theorem exists_tupleCover (F : (Fin t → α) → β) (Y : Finset β) (hY : #Y <
       simp [hR'e] at this
     obtain ⟨-, g, hg, hag, hgy⟩ := mem_tupleCover.1 hac
     exact ⟨g, hg, hag, by simp [hgy]⟩
-  have hpos : 0 < #R' := Finset.card_pos.2 (Finset.nonempty_iff_ne_empty.2 hR'e)
+  have hpos : 0 < #R' := Finset.card_pos.2 (Finset.ne_empty_iff_nonempty.1 hR'e)
   obtain ⟨S', hS'Y, hS'card, hS'⟩ := ih R' hR'R fun g hg =>
     hFY g fun i => (Finset.mem_sdiff.1 (hg i)).1
   refine ⟨insert y S', Finset.insert_subset hy hS'Y, ?_, fun a ha => ?_⟩

@@ -117,7 +117,7 @@ theorem flatMap_range_pair_append_false (N : ℕ) (f : Fin N → Bool) :
     List.flatMap_map]
   congr 1
   refine List.flatMap_congr fun i _ => ?_
-  simp [i.2]
+  simp [i.isLt]
 
 variable {L' : Language} (v' : Vocabulary L')
 

@@ -137,7 +137,7 @@ theorem rank_hessian_det_mvPolynomialX_le {x : ι × ι → K}
 /-- **Mignon–Ressayre upper bound**: the determinant of an `m × m` matrix of affine polynomials
 has Hessian of rank at most `2 * m` at every zero of the determinant
 [Mignon and Ressayre][MignonRessayre2004]. -/
-theorem rank_hessian_det_le {σ κ : Type*} [Fintype σ] [Fintype κ] [DecidableEq κ]
+theorem rank_hessian_det_le {σ κ : Type*} [Finite σ] [Fintype κ] [DecidableEq κ]
     (A : Matrix κ κ (MvPolynomial σ K)) (hA : ∀ i j, (A i j).totalDegree ≤ 1) {x : σ → K}
     (hx : eval x A.det = 0) : (hessian x A.det).rank ≤ 2 * Fintype.card κ := by
   set L : κ × κ → MvPolynomial σ K := fun p => A p.1 p.2 with hL

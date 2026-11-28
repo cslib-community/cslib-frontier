@@ -342,7 +342,7 @@ private theorem reaches_formulaCodeWith_all (hnB : n ≤ B) (hbase : 0 < base)
     cp_step
   · refine ⟨true, regs, ?_, by cp_step [h0, hn], rfl, fun _ _ => rfl, hB⟩
     simp only [true_iff, BoundedFormula.realize_all]
-    exact fun y => absurd y.2 (by omega)
+    exact fun y => absurd y.isLt (by omega)
 
 end Reaches
 

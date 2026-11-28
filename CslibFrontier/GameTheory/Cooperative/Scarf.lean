@@ -232,9 +232,9 @@ private theorem scarf_payoff_lemma {A : Type*} [Fintype A] [Nonempty A] (G : NTU
     ⟨{i}, Finset.singleton_nonempty i, (hv i _).2 (by dsimp only [base]; linarith)⟩
   have hT_closed (q : A → ℝ) : IsClosed (TSet q) := by
     have hUnion : TSet q = ⋃ S : {S : Finset A // S.Nonempty},
-        {t : ℝ | (fun i => base q i + t) ∈ G.feasible S.1} := Set.ext fun _ => by simp [TSet]
+        {t : ℝ | (fun i => base q i + t) ∈ G.feasible S.val} := Set.ext fun _ => by simp [TSet]
     exact hUnion ▸ isClosed_iUnion_of_finite fun S =>
-      (G.isClosed S.2).preimage (continuous_pi fun _ => continuous_const.add continuous_id)
+      (G.isClosed S.property).preimage (continuous_pi fun _ => continuous_const.add continuous_id)
   have hT_bdd (q : A → ℝ) : BddAbove (TSet q) := by
     let qmax : ℝ := Finset.univ.sup' Finset.univ_nonempty q
     have hqmax (i : A) : M * q i ≤ M * qmax :=

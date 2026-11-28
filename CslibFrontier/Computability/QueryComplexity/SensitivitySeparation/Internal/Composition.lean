@@ -167,21 +167,21 @@ theorem blockSensitivityAt_compose_zero_le (f : (I → Bool) → Bool)
     le_blockSensitivityAt_of_family (compose f g) (fun _ => false)
       (fun p : S × T => p.1.val ×ˢ p.2.val)
       (fun p =>
-        let ⟨i, hi⟩ := (hbS p.1.val p.1.2).1
-        let ⟨j, hj⟩ := (hbT p.2.val p.2.2).1
+        let ⟨i, hi⟩ := (hbS p.1.val p.1.property).1
+        let ⟨j, hj⟩ := (hbT p.2.val p.2.property).1
         ⟨(i, j), Finset.mem_product.mpr ⟨hi, hj⟩⟩)
       (fun p q hpq => Finset.disjoint_left.mpr fun a ha hq => by
         obtain ⟨ha₁, ha₂⟩ := Finset.mem_product.mp ha
         obtain ⟨hq₁, hq₂⟩ := Finset.mem_product.mp hq
         by_cases hs : p.1 = q.1
         · exact Finset.disjoint_left.mp
-            (hdT _ p.2.2 _ q.2.2 fun h => hpq (Prod.ext hs (Subtype.ext h))) ha₂ hq₂
+            (hdT _ p.2.property _ q.2.property fun h => hpq (Prod.ext hs (Subtype.ext h))) ha₂ hq₂
         · exact Finset.disjoint_left.mp
-            (hdS _ p.1.2 _ q.1.2 fun h => hs (Subtype.ext h)) ha₁ hq₁)
+            (hdS _ p.1.property _ q.1.property fun h => hs (Subtype.ext h)) ha₁ hq₁)
       fun p => by
         rw [BitString.flipOn_congr_decidableEq,
-          compose_flip_product_zero f g _ _ hg (hbT p.2.val p.2.2).2, compose_zero f g hg]
-        exact (hbS p.1.val p.1.2).2
+          compose_flip_product_zero f g _ _ hg (hbT p.2.val p.2.property).2, compose_zero f g hg]
+        exact (hbS p.1.val p.1.property).2
 
 end Finite
 end Internal

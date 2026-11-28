@@ -598,7 +598,7 @@ private theorem one_div_le_sum_pathEdges_undirectedBroadcast {k : ℕ} (hk : 0 <
     1 / (k : ℝ) ≤ ∑ e ∈ (undirectedBroadcastNetwork k ε).pathEdges p,
       undirectedBroadcastEdgeCost k ε e := by
   obtain ⟨x, hadj, hmem_rev⟩ :=
-    exists_adj_mem_edges_of_ne p.1.reverse (by rintro ⟨⟩)
+    exists_adj_mem_edges_of_ne p.val.reverse (by rintro ⟨⟩)
   rw [SimpleGraph.Walk.edges_reverse, List.mem_reverse] at hmem_rev
   have hmem : s(.sink, x) ∈ (undirectedBroadcastNetwork k ε).pathEdges p :=
     List.mem_toFinset.2 hmem_rev

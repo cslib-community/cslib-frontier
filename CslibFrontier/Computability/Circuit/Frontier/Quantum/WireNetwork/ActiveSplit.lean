@@ -133,7 +133,8 @@ private noncomputable def placeAct {W : Type} [Fintype W] [DecidableEq W]
         (Equiv.prodCongr
           (Equiv.arrowCongr (Equiv.ofInjective g.2.2 g.2.2.injective).symm (Equiv.refl _))
           (Equiv.refl _))),
-    Matrix.submatrix_equiv_mem_unitary.mpr (Matrix.kronecker_mem_unitary g.2.1.2 (one_mem _))⟩
+    Matrix.submatrix_equiv_mem_unitary.mpr
+      (Matrix.kronecker_mem_unitary g.2.1.property (one_mem _))⟩
 
 private theorem placeAct_apply {W : Type} [Fintype W] [DecidableEq W]
     (g : ActiveGate W) (y x : W → Bool) :
@@ -143,14 +144,14 @@ private theorem placeAct_apply {W : Type} [Fintype W] [DecidableEq W]
       else 0 := by
   have hcomp (z : W → Bool) :
       Equiv.arrowCongr (Equiv.ofInjective g.2.2 g.2.2.injective).symm (Equiv.refl Bool)
-        (fun q : Set.range g.2.2 => z q.1) = z ∘ g.2.2 := by
+        (fun q : Set.range g.2.2 => z q.val) = z ∘ g.2.2 := by
     ext i
     simp [Equiv.ofInjective_apply]
-  change (placeAct g).1 y x = _
+  change (placeAct g).val y x = _
   simp only [placeAct, Matrix.submatrix_apply, Matrix.kroneckerMap_apply, Equiv.trans_apply,
     Equiv.piEquivPiSubtypeProd_apply, Equiv.prodCongr_apply, Prod.map_apply, Equiv.refl_apply,
     Matrix.one_apply, hcomp]
-  have hiff : ((fun a : {q // q ∉ Set.range g.2.2} => y a.1) = fun a => x a.1) ↔
+  have hiff : ((fun a : {q // q ∉ Set.range g.2.2} => y a.val) = fun a => x a.val) ↔
       ∀ q : W, (¬∃ i, g.2.2 i = q) → y q = x q := by
     simp only [funext_iff, Subtype.forall, Set.mem_range]
   rw [if_congr hiff rfl rfl]
@@ -181,19 +182,19 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
       ∀ y x : Fin N → Bool,
         (C.matrix : Matrix (Fin N → Bool) (Fin N → Bool) ℂ) y x =
           (evalAct L : Matrix (↥A → Bool) (↥A → Bool) ℂ) (A.domRestrict y) (A.domRestrict x) *
-            ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.1) (x q.1) := by
+            ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.val) (x q.val) := by
   induction C with
   | nil =>
     refine ⟨[], fun _ => 1, rfl, fun _ g hg => absurd hg (List.not_mem_nil), fun y x => ?_⟩
     simp only [Quantum.Circuit.matrix_nil, evalAct, Submonoid.coe_one, Matrix.one_apply,
       Fintype.prod_boole]
     have hsplit : (y = x) ↔
-        (A.domRestrict y = A.domRestrict x ∧ ∀ q : {q : Fin N // q ∉ A}, y q.1 = x q.1) := by
+        (A.domRestrict y = A.domRestrict x ∧ ∀ q : {q : Fin N // q ∉ A}, y q.val = x q.val) := by
       refine ⟨fun h => h ▸ ⟨rfl, fun _ => rfl⟩, fun ⟨hA, hAc⟩ => funext fun j => ?_⟩
       exact if hj : j ∈ A then congrFun hA ⟨j, hj⟩ else hAc ⟨j, hj⟩
     rw [if_congr hsplit rfl rfl]
     by_cases hA : A.domRestrict y = A.domRestrict x <;>
-      by_cases hAc : ∀ q : {q : Fin N // q ∉ A}, y q.1 = x q.1 <;> simp [hA, hAc]
+      by_cases hAc : ∀ q : {q : Fin N // q ∉ A}, y q.val = x q.val <;> simp [hA, hAc]
   | cons g C ih =>
     have htwo_g : g.arity ≤ 2 := htwo g List.mem_cons_self
     obtain ⟨L, inactU, hlen, hbondL, hmatC⟩ :=
@@ -207,7 +208,7 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
         ∀ z x : Fin N → Bool,
           (g.matrix : Matrix (Fin N → Bool) (Fin N → Bool) ℂ) z x =
             (evalAct Lg : Matrix (↥A → Bool) (↥A → Bool) ℂ) (A.domRestrict z) (A.domRestrict x) *
-              ∏ q : {q : Fin N // q ∉ A}, (inactG q : Matrix Bool Bool ℂ) (z q.1) (x q.1) by
+              ∏ q : {q : Fin N // q ∉ A}, (inactG q : Matrix Bool Bool ℂ) (z q.val) (x q.val) by
       obtain ⟨Lg, inactG, hlenG, hbondG, hmatG⟩ := hstep
       refine ⟨Lg ++ L, fun q => inactU q * inactG q, ?_, ?_, fun y x => ?_⟩
       · rw [List.filter_append, List.length_append, hlenG, hlen, twoQubitCount_cons]
@@ -218,16 +219,16 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
         simp_rw [hmatC, hmatG]
         have hsum_eq : (∑ z : Fin N → Bool,
             ((evalAct L : Matrix _ _ ℂ) (A.domRestrict y) (A.domRestrict z) *
-              ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix _ _ ℂ) (y q.1) (z q.1)) *
+              ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix _ _ ℂ) (y q.val) (z q.val)) *
             ((evalAct Lg : Matrix _ _ ℂ) (A.domRestrict z) (A.domRestrict x) *
-              ∏ q : {q : Fin N // q ∉ A}, (inactG q : Matrix _ _ ℂ) (z q.1) (x q.1))) =
+              ∏ q : {q : Fin N // q ∉ A}, (inactG q : Matrix _ _ ℂ) (z q.val) (x q.val))) =
             (∑ zA : ↥A → Bool,
               (evalAct L : Matrix _ _ ℂ) (A.domRestrict y) zA *
                 (evalAct Lg : Matrix _ _ ℂ) zA (A.domRestrict x)) *
             ∑ zAc : ↥Aᶜ → Bool,
               ∏ q : {q : Fin N // q ∉ A},
-                (inactU q : Matrix _ _ ℂ) (y q.1) (zAc ⟨q.1, q.2⟩) *
-                  (inactG q : Matrix _ _ ℂ) (zAc ⟨q.1, q.2⟩) (x q.1) := by
+                (inactU q : Matrix _ _ ℂ) (y q.val) (zAc ⟨q.val, q.property⟩) *
+                  (inactG q : Matrix _ _ ℂ) (zAc ⟨q.val, q.property⟩) (x q.val) := by
           rw [Finset.sum_mul_sum, ← Fintype.sum_prod_type']
           refine Fintype.sum_equiv (Equiv.piEquivPiSubtypeProd (· ∈ A) fun _ => Bool) _ _
             fun z => ?_
@@ -238,7 +239,7 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
         let eqvAc : (↥Aᶜ → Bool) ≃ ({q : Fin N // q ∉ A} → Bool) :=
           Equiv.arrowCongr (Equiv.subtypeEquivRight fun _ => Iff.rfl) (Equiv.refl Bool)
         let fProd (q : {q : Fin N // q ∉ A}) (b : Bool) : ℂ :=
-          (inactU q : Matrix Bool Bool ℂ) (y q.1) b * (inactG q : Matrix Bool Bool ℂ) b (x q.1)
+          (inactU q : Matrix Bool Bool ℂ) (y q.val) b * (inactG q : Matrix Bool Bool ℂ) b (x q.val)
         refine (Fintype.sum_equiv eqvAc _ (fun w => ∏ q, fProd q (w q)) fun _ => rfl).trans ?_
         refine (Fintype.prod_sum fProd).symm.trans (Finset.prod_congr rfl fun q _ => ?_)
         simp only [fProd, Submonoid.coe_mul, Matrix.mul_apply]
@@ -260,14 +261,14 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
         dsimp only [actG]
         have hoff : (∀ j : Fin N, (¬∃ i, g.wires i = j) → z j = x j) ↔
             ((∀ q : ↥A, (¬∃ i, wA i = q) → A.domRestrict z q = A.domRestrict x q) ∧
-              ∀ q : {q : Fin N // q ∉ A}, z q.1 = x q.1) :=
-          ⟨fun h => ⟨fun q hq => h q.1 fun ⟨i, hi⟩ => hq ⟨i, Subtype.ext hi⟩,
-              fun q => h q.1 fun ⟨i, hi⟩ => q.2 (hi ▸ hallA i)⟩,
+              ∀ q : {q : Fin N // q ∉ A}, z q.val = x q.val) :=
+          ⟨fun h => ⟨fun q hq => h q.val fun ⟨i, hi⟩ => hq ⟨i, Subtype.ext hi⟩,
+              fun q => h q.val fun ⟨i, hi⟩ => q.property (hi ▸ hallA i)⟩,
             fun ⟨hA, hAc⟩ j hj => if hjA : j ∈ A
               then hA ⟨j, hjA⟩ fun ⟨i, hi⟩ => hj ⟨i, congrArg Subtype.val hi⟩ else hAc ⟨j, hjA⟩⟩
         rw [if_congr hoff rfl rfl]
         by_cases hA_cond : ∀ q : ↥A, (¬∃ i, wA i = q) → A.domRestrict z q = A.domRestrict x q
-        · by_cases hAc : ∀ q : {q : Fin N // q ∉ A}, z q.1 = x q.1
+        · by_cases hAc : ∀ q : {q : Fin N // q ∉ A}, z q.val = x q.val
           · rw [ite_eq_left ⟨hA_cond, hAc⟩, ite_eq_left hA_cond, ite_eq_left hAc, mul_one]; rfl
           · rw [ite_eq_right (fun h => hAc h.2), ite_eq_right hAc, mul_zero]
         · rw [ite_eq_right (fun h => hA_cond h.1), ite_eq_right hA_cond, zero_mul]
@@ -285,26 +286,26 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
       let u1 : unitaryGroup Bool ℂ :=
         ⟨(gate : Matrix (Fin 1 → Bool) (Fin 1 → Bool) ℂ).submatrix
             (Equiv.funUnique (Fin 1) Bool).symm (Equiv.funUnique (Fin 1) Bool).symm,
-          Matrix.submatrix_equiv_mem_unitary.mpr gate.2⟩
+          Matrix.submatrix_equiv_mem_unitary.mpr gate.property⟩
       refine ⟨[], fun q => if q = q₀ then u1 else 1, by simp,
         fun _ a ha => absurd ha List.not_mem_nil, fun z x => ?_⟩
       rw [Quantum.PlacedGate.matrix_apply]
       simp only [evalAct, Submonoid.coe_one, Matrix.one_apply]
       have hoff : (∀ j : Fin N, (¬∃ i : Fin 1, wires i = j) → z j = x j) ↔
           (A.domRestrict z = A.domRestrict x ∧
-            ∀ q : {q : Fin N // q ∉ A}, q ≠ q₀ → z q.1 = x q.1) :=
-        ⟨fun h => ⟨funext fun q => h q.1 fun ⟨i, hi⟩ =>
-            hq₀_notA (by rw [← Fin.eq_zero i, hi]; exact q.2),
-            fun q hq => h q.1 fun ⟨i, hi⟩ => hq (Subtype.ext (by rw [← hi, Fin.eq_zero i]))⟩,
+            ∀ q : {q : Fin N // q ∉ A}, q ≠ q₀ → z q.val = x q.val) :=
+        ⟨fun h => ⟨funext fun q => h q.val fun ⟨i, hi⟩ =>
+            hq₀_notA (by rw [← Fin.eq_zero i, hi]; exact q.property),
+            fun q hq => h q.val fun ⟨i, hi⟩ => hq (Subtype.ext (by rw [← hi, Fin.eq_zero i]))⟩,
           fun ⟨hA, hAc⟩ j hj => if hjA : j ∈ A then congrFun hA ⟨j, hjA⟩
             else hAc ⟨j, hjA⟩ fun h => hj ⟨0, congrArg Subtype.val h.symm⟩⟩
       rw [if_congr hoff rfl rfl]
       by_cases hA_eq : A.domRestrict z = A.domRestrict x
       · rw [ite_eq_left hA_eq, one_mul]
-        by_cases hAc_eq : ∀ q : {q : Fin N // q ∉ A}, q ≠ q₀ → z q.1 = x q.1
+        by_cases hAc_eq : ∀ q : {q : Fin N // q ∉ A}, q ≠ q₀ → z q.val = x q.val
         · have hrest : (∏ q ∈ Finset.univ.erase q₀,
               ((if q = q₀ then u1 else 1 : unitaryGroup Bool ℂ) : Matrix Bool Bool ℂ)
-                (z q.1) (x q.1)) = 1 :=
+                (z q.val) (x q.val)) = 1 :=
             Finset.prod_eq_one fun q hq => by
               have hne := (Finset.mem_erase.mp hq).1
               simp [hne, hAc_eq q hne]

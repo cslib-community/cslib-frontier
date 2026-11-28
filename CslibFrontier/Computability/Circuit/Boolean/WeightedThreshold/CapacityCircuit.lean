@@ -224,28 +224,28 @@ theorem evalFrom_eq_eval (p : Program signature n g) {fixed : Finset (Fin g)} {�
 /-- The values of the first `d` gates under `evalFrom`, as functions of the parameter `t`. -/
 private noncomputable def prefixValues (p : Program signature n g) (fixed : Finset (Fin g))
     (η : Fin g → Bool) (slope : Fin g → ℝ) (d : ℕ) (t : ℝ) : Fin g → Bool :=
-  fun gate => if gate.1 < d then evalFrom p fixed η (fun k => slope k * t) gate else false
+  fun gate => if gate.val < d then evalFrom p fixed η (fun k => slope k * t) gate else false
 
 open scoped Classical in
 /-- The number of unfixed gates with a nonzero slope among the first `d` gates. -/
 private noncomputable def activeCount (fixed : Finset (Fin g)) (slope : Fin g → ℝ) (d : ℕ) : ℕ :=
-  (Finset.univ.filter fun gate : Fin g => gate.1 < d ∧ gate ∉ fixed ∧ slope gate ≠ 0).card
+  (Finset.univ.filter fun gate : Fin g => gate.val < d ∧ gate ∉ fixed ∧ slope gate ≠ 0).card
 
 private theorem activeCount_succ (fixed : Finset (Fin g)) (slope : Fin g → ℝ) {d : ℕ}
-    (j₀ : Fin g) (hj₀ : j₀.1 = d) :
+    (j₀ : Fin g) (hj₀ : j₀.val = d) :
     activeCount fixed slope (d + 1) = activeCount fixed slope d +
       if j₀ ∉ fixed ∧ slope j₀ ≠ 0 then 1 else 0 := by
   classical
   unfold activeCount
   split_ifs with hc
   · rw [← Finset.card_insert_of_notMem (s := Finset.univ.filter fun j : Fin g =>
-      j.1 < d ∧ j ∉ fixed ∧ slope j ≠ 0) (a := j₀) (by simp [hj₀])]
+      j.val < d ∧ j ∉ fixed ∧ slope j ≠ 0) (a := j₀) (by simp [hj₀])]
     congr 1
     ext j
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert]
     constructor
     · rintro ⟨h1, h2, h3⟩
-      by_cases hj : j.1 = d
+      by_cases hj : j.val = d
       · left
         exact Fin.ext (hj.trans hj₀.symm)
       · right
@@ -268,7 +268,7 @@ private theorem activeCount_succ (fixed : Finset (Fin g)) (slope : Fin g → ℝ
       exact ⟨by omega, h2, h3⟩
 
 private theorem prefixValues_succ (p : Program signature n g) (fixed : Finset (Fin g))
-    (η : Fin g → Bool) (slope : Fin g → ℝ) {d : ℕ} (j₀ : Fin g) (hj₀ : j₀.1 = d) (t : ℝ) :
+    (η : Fin g → Bool) (slope : Fin g → ℝ) {d : ℕ} (j₀ : Fin g) (hj₀ : j₀.val = d) (t : ℝ) :
     prefixValues p fixed η slope (d + 1) t = Function.update (prefixValues p fixed η slope d t)
       j₀ (evalFrom p fixed η (fun k => slope k * t) j₀) := by
   funext j
@@ -276,14 +276,14 @@ private theorem prefixValues_succ (p : Program signature n g) (fixed : Finset (F
   · subst hj
     simp [prefixValues, hj₀]
   · rw [Function.update_of_ne hj]
-    have hj' : j.1 ≠ d := fun h => hj (Fin.ext (h.trans hj₀.symm))
+    have hj' : j.val ≠ d := fun h => hj (Fin.ext (h.trans hj₀.symm))
     simp only [prefixValues]
-    by_cases hlt : j.1 < d
+    by_cases hlt : j.val < d
     · rw [ite_eq_left hlt, ite_eq_left (by omega)]
     · rw [ite_eq_right hlt, ite_eq_right (by omega)]
 
 private theorem evalFrom_next (p : Program signature n g) (fixed : Finset (Fin g))
-    (η : Fin g → Bool) (slope : Fin g → ℝ) {d : ℕ} (j₀ : Fin g) (hj₀ : j₀.1 = d) (t : ℝ) :
+    (η : Fin g → Bool) (slope : Fin g → ℝ) {d : ℕ} (j₀ : Fin g) (hj₀ : j₀.val = d) (t : ℝ) :
     evalFrom p fixed η (fun k => slope k * t) j₀ =
       if j₀ ∈ fixed then η j₀ else
         decide ((p.lines j₀).op.threshold ≤ slope j₀ * t +
@@ -296,7 +296,7 @@ private theorem evalFrom_next (p : Program signature n g) (fixed : Finset (Fin g
         gateWeight p j₀ k * (prefixValues p fixed η slope d t k).toNat else 0 := by
     refine Finset.sum_congr rfl fun k _ => ?_
     split_ifs with hk
-    · have hk' : k.1 < d := hj₀ ▸ hk
+    · have hk' : k.val < d := hj₀ ▸ hk
       simp [prefixValues, hk']
     · rfl
   rw [hsum]
@@ -335,7 +335,7 @@ private theorem piecesAtMost_prefixValues (p : Program signature n g) (fixed : F
       rw [heq, hcount]
       exact ih
     obtain ⟨π, mono, lt, fac⟩ := ih
-    obtain ⟨j₀, hj₀⟩ : ∃ j₀ : Fin g, j₀.1 = d := ⟨⟨d, hd⟩, rfl⟩
+    obtain ⟨j₀, hj₀⟩ : ∃ j₀ : Fin g, j₀.val = d := ⟨⟨d, hd⟩, rfl⟩
     let F : (Fin g → Bool) → ℝ := fun v => ∑ k : Fin g,
       if k < j₀ then gateWeight p j₀ k * (v k).toNat else 0
     have hsucc := prefixValues_succ p fixed η slope j₀ hj₀
@@ -457,9 +457,9 @@ theorem DirectionRuns.sum_size {p : Program signature n g} {B : ℕ} (R : Direct
 
 /-- The split of the gates into single-gate runs, each along its own input weight vector. -/
 def gateRuns (p : Program signature n g) : DirectionRuns p g where
-  run gate := gate.1
+  run gate := gate.val
   monotone := fun _ _ h => h
-  run_lt gate := gate.2
+  run_lt gate := gate.isLt
   dir i := if h : i < g then inputWeight p ⟨i, h⟩ else 0
   along gate := ⟨1, by simp⟩
 

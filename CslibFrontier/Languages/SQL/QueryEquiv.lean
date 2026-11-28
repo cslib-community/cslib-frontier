@@ -215,7 +215,7 @@ theorem Rel.mapM_evalRow {rs rs' : List (Row n)} (h : ℓ.Rel rs rs') {es es' : 
   rw [Except.toOption_mapM, Except.toOption_mapM]
   refine rel_ite_some_none h hes ?_
   convert h.filterMap (fun r => (Expr.evalRow es r).toOption) using 1
-  exact List.filterMap_congr fun r hr => (hes r ((h.mem_iff r).mpr hr)).symm
+  exact List.filterMap_congr rfl fun r hr => (hes r ((h.mem_iff r).mpr hr)).symm
 
 end EquivLevel
 

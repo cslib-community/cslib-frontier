@@ -118,7 +118,7 @@ theorem toSemanticDerivation (h : LineProof R Γ ls)
     (hsound : ∀ r ∈ R, ∀ w, (∀ p ∈ r.premises, w ∈ models p) → w ∈ models r.concl) :
     IsSemanticDerivation init fun j : Fin ls.reverse.length => models ls.reverse[j] := by
   intro j
-  rcases semLineOK_of_lineProof h hinit harity hsound (List.getElem?_eq_getElem j.2) with
+  rcases semLineOK_of_lineProof h hinit harity hsound (List.getElem?_eq_getElem j.isLt) with
     hmem | huniv | ⟨j₁, j₂, x₁, x₂, h₁, h₂, e₁, e₂, hsub⟩
   · exact Or.inl hmem
   · exact Or.inr (Or.inl huniv)

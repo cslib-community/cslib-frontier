@@ -792,7 +792,7 @@ private theorem log_two_lt_three_fourths : Real.log 2 < 3 / 4 := by
     calc (2 : ℝ) < (23 / 20 : ℝ) ^ 5 := by norm_num
       _ ≤ (Real.exp (3 / 20)) ^ 5 := pow_le_pow_left₀ (by norm_num) h1 5
       _ = Real.exp (3 / 4) := by
-        rw [← Real.exp_nat_mul]
+        rw [← Real.exp_natCast_mul]
         norm_num
   calc Real.log 2
       < Real.log (Real.exp (3 / 4)) := Real.log_lt_log (by norm_num) hpow

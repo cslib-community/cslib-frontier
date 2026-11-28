@@ -135,7 +135,7 @@ theorem eq_of_covering {r : ℕ} (k : Fin r → ℕ) (hk : StrictAnti k) (hk0 : 
   have := hblock v
   rw [hv] at this
   rw [show j = (v.1 : Fin r) from this]
-  exact v.1.2
+  exact v.1.property
 
 /-- **Averaging**: some `t`-element subset `I` of `S` carries at least a `t / |S|` share of
 `∑_{i ∈ S} d i`. -/
@@ -262,7 +262,7 @@ omit [Finite F] in
 private theorem prod_pow_two_pow_sub_one_affine {r : ℕ} {κ : Type*} [Fintype κ]
     (w : κ → Fin r → F) (γ : Fin r → F) (J : Finset (Fin r)) (c : κ → ZMod 2) :
     ∏ j ∈ J, (((∑ q : κ, c q • w q) +ᵥ γ) j) ^ (2 ^ (r + 1 - (j : ℕ)) - 1) =
-      ∏ p : (Σ j : J, Fin (r + 1 - (j.1 : ℕ))), ((γ p.1) ^ 2 ^ (p.2 : ℕ) +
+      ∏ p : (Σ j : J, Fin (r + 1 - (j.val : ℕ))), ((γ p.1) ^ 2 ^ (p.2 : ℕ) +
         ∑ q : κ, c q • (w q p.1 ^ 2 ^ (p.2 : ℕ))) := by
   -- the product of the powers of the coordinates, as a product of affine forms
   rw [← Finset.prod_coe_sort J, Fintype.prod_sigma]
@@ -278,12 +278,12 @@ omit [Finite F] in
 by `I₀` kills every `t`-subset `J ≠ I₀` and evaluates the `I₀` term to the product of Moore
 determinants along the diagonal `u`. -/
 private theorem sum_cube_traceSym_eq {r t : ℕ} (μ : F) {I₀ : Finset (Fin r)} (hI₀card : I₀.card = t)
-    (u : (i : I₀) → Fin (r + 1 - (i.1 : ℕ)) → F)
-    (v : (i : I₀) → Fin (r + 1 - (i.1 : ℕ)) → Fin r → F)
-    (hvlow : ∀ (i : I₀) (l : Fin (r + 1 - (i.1 : ℕ))) (j : Fin r), j < i.1 → v i l j = 0)
-    (hvdiag : ∀ (i : I₀) (l : Fin (r + 1 - (i.1 : ℕ))), v i l i.1 = u i l)
+    (u : (i : I₀) → Fin (r + 1 - (i.val : ℕ)) → F)
+    (v : (i : I₀) → Fin (r + 1 - (i.val : ℕ)) → Fin r → F)
+    (hvlow : ∀ (i : I₀) (l : Fin (r + 1 - (i.val : ℕ))) (j : Fin r), j < i.val → v i l j = 0)
+    (hvdiag : ∀ (i : I₀) (l : Fin (r + 1 - (i.val : ℕ))), v i l i.val = u i l)
     (γ : Fin r → F) :
-    ∑ c : (Σ i : I₀, Fin (r + 1 - (i.1 : ℕ))) → ZMod 2,
+    ∑ c : (Σ i : I₀, Fin (r + 1 - (i.val : ℕ))) → ZMod 2,
       traceSym μ r t ((∑ q, c q • v q.1 q.2) +ᵥ γ) =
         Algebra.trace (ZMod 2) F (μ * ∏ i : I₀, (mooreMatrix (u i)).det) := by
   classical
@@ -291,7 +291,7 @@ private theorem sum_cube_traceSym_eq {r t : ℕ} (μ : F) {I₀ : Finset (Fin r)
   let κ := Σ i : I₀, Fin (k i)
   have hk_anti : StrictAnti k := fun i j hij => by
     simp only [k]
-    have := j.2
+    have := j.isLt
     have : (i : ℕ) < j := hij
     omega
   -- the terms `J ≠ I₀` vanish
@@ -358,9 +358,10 @@ theorem exists_traceSym_ne {n s r t : ℕ} (hn : finrank (ZMod 2) F = n)
   have hI₀ne : I₀.Nonempty := Finset.card_pos.1 (hI₀card ▸ ht)
   obtain ⟨u, huY, hu⟩ := exists_trace_mul_prod_det_mooreMatrix_ne_zero (ι := I₀) hn hs
     (fun i => Y i) (fun i => k i)
-    (fun i => show 2 ≤ r + 1 - ((i : Fin r) : ℕ) by have := (i.1 : Fin r).isLt; omega)
-    (fun i => lt_of_le_of_lt ((Nat.sub_le _ _).trans (le_max_left _ _)) (hI₀big i i.2))
-    (fun i => lt_of_le_of_lt (le_max_right _ _) (hI₀big i i.2)) ⟨hI₀ne.choose, hI₀ne.choose_spec⟩
+    (fun i => show 2 ≤ r + 1 - ((i : Fin r) : ℕ) by have := (i.val : Fin r).isLt; omega)
+    (fun i => lt_of_le_of_lt ((Nat.sub_le _ _).trans (le_max_left _ _)) (hI₀big i i.property))
+    (fun i => lt_of_le_of_lt (le_max_right _ _) (hI₀big i i.property))
+    ⟨hI₀ne.choose, hI₀ne.choose_spec⟩
     (by
       rw [Finset.sum_coe_sort I₀ fun i => d i - k i]
       exact hI₀.trans_le (Nat.le_add_left _ _)) hμ

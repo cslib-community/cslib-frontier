@@ -93,7 +93,7 @@ theorem arcMatrix_arcSrc_arcTgt (R : Type*) [AddMonoidWithOne R] [Fintype V] [De
       ext e
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.notMem_empty, iff_false]
       rintro ⟨rfl, rfl⟩
-      exact huw e.2
+      exact huw e.property
     rw [hempty, Finset.card_empty, Nat.cast_zero]
 
 omit E src tgt in
@@ -107,9 +107,9 @@ noncomputable def arborescenceEquivSubdigraph (G : Digraph V) (r : V) :
       {T : Digraph V // T ≤ G ∧ T.IsInArborescence r} :=
     ⟨{ Adj := fun v w => ∃ hv : v ≠ r, arcTgt G (f ⟨v, hv⟩) = w },
       fun v w ⟨hv, hw⟩ => by
-        have hs : (f ⟨v, hv⟩).1.1 = v := hf.src_eq ⟨v, hv⟩
-        have ht : (f ⟨v, hv⟩).1.2 = w := hw
-        exact hs ▸ ht ▸ (f ⟨v, hv⟩).2,
+        have hs : (f ⟨v, hv⟩).val.1 = v := hf.src_eq ⟨v, hv⟩
+        have ht : (f ⟨v, hv⟩).val.2 = w := hw
+        exact hs ▸ ht ▸ (f ⟨v, hv⟩).property,
       ⟨fun w ⟨hr, _⟩ => hr rfl,
         fun v hv => ⟨arcTgt G (f ⟨v, hv⟩), ⟨hv, rfl⟩, fun w ⟨_, hw⟩ => hw.symm⟩,
         hf.reachable⟩⟩
@@ -123,13 +123,13 @@ noncomputable def arborescenceEquivSubdigraph (G : Digraph V) (r : V) :
   refine
     { toFun := fun ⟨f, hf⟩ => mkSub f hf
       invFun := fun ⟨T, hTG, hT⟩ =>
-        ⟨fun v => ⟨(v.1, (hT.existsUnique_adj v.1 v.2).choose),
-            hTG (hT.existsUnique_adj v.1 v.2).choose_spec.1⟩,
+        ⟨fun v => ⟨(v.val, (hT.existsUnique_adj v.val v.property).choose),
+            hTG (hT.existsUnique_adj v.val v.property).choose_spec.1⟩,
           fun _ => rfl, fun v => hrel T hT ▸ hT.reachable v⟩
       left_inv := fun ⟨f, hf⟩ => Subtype.ext <| funext fun v => by
         apply Subtype.ext
         refine Prod.ext (hf.src_eq v).symm ?_
-        obtain ⟨_, hw⟩ := ((mkSub f hf).2.2.existsUnique_adj v.1 v.2).choose_spec.1
+        obtain ⟨_, hw⟩ := ((mkSub f hf).property.2.existsUnique_adj v.val v.property).choose_spec.1
         exact hw.symm
       right_inv := fun ⟨T, _, hT⟩ => Subtype.ext (Digraph.ext (hrel T hT).symm) }
 
@@ -148,25 +148,26 @@ theorem det_laplacian_arcMatrix_submatrix_eq_natCard_isInArborescence (R : Type*
   let P : ({v // v ≠ r} → V) → Prop := fun g =>
     ∀ v, Relation.ReflTransGen (fun v w => ∃ h : v ≠ r, g ⟨v, h⟩ = w) v r
   let Arb := {f : {v // v ≠ r} → E // IsInArborescence src tgt r f}
-  let φ : Arb → {g // P g} := fun f => ⟨fun v => tgt (f.1 v), f.2.reachable⟩
+  let φ : Arb → {g // P g} := fun f => ⟨fun v => tgt (f.val v), f.property.reachable⟩
   have hfib : ∀ g : {g // P g}, Nat.card {f // φ f = g} =
-      ∏ i : {v // v ≠ r}, (Finset.univ.filter fun e => src e = i ∧ tgt e = g.1 i).card := by
+      ∏ i : {v // v ≠ r}, (Finset.univ.filter fun e => src e = i ∧ tgt e = g.val i).card := by
     intro g
-    let ψ : {f // φ f = g} ≃ ((i : {v // v ≠ r}) → {e // src e = i ∧ tgt e = g.1 i}) :=
-      { toFun := fun f i => ⟨f.1.1 i, f.1.2.src_eq i, congrFun (congrArg Subtype.val f.2) i⟩
-        invFun := fun h => ⟨⟨fun i => (h i).1, fun i => (h i).2.1, by
-            have hg : (fun v => tgt (h v).1) = g.1 := funext fun i => (h i).2.2
-            have := g.2
+    let ψ : {f // φ f = g} ≃ ((i : {v // v ≠ r}) → {e // src e = i ∧ tgt e = g.val i}) :=
+      { toFun := fun f i =>
+          ⟨f.val.val i, f.val.property.src_eq i, congrFun (congrArg Subtype.val f.property) i⟩
+        invFun := fun h => ⟨⟨fun i => (h i).val, fun i => (h i).property.1, by
+            have hg : (fun v => tgt (h v).val) = g.val := funext fun i => (h i).property.2
+            have := g.property
             simp only [P, ← hg] at this
             exact this⟩,
-          Subtype.ext (funext fun i => (h i).2.2)⟩
+          Subtype.ext (funext fun i => (h i).property.2)⟩
         left_inv := fun _ => rfl
         right_inv := fun _ => rfl }
     rw [Nat.card_congr ψ, Nat.card_pi]
     refine Finset.prod_congr rfl fun i _ => ?_
     rw [Nat.card_eq_fintype_card, Fintype.card_subtype]
   have hcard : Nat.card Arb = ∑ g : {g // P g},
-      ∏ i : {v // v ≠ r}, (Finset.univ.filter fun e => src e = i ∧ tgt e = g.1 i).card := by
+      ∏ i : {v // v ≠ r}, (Finset.univ.filter fun e => src e = i ∧ tgt e = g.val i).card := by
     rw [← Nat.card_congr (Equiv.sigmaFiberEquiv φ), Nat.card_sigma]
     exact Finset.sum_congr rfl fun g _ => hfib g
   change _ = ((Nat.card Arb : ℕ) : R)

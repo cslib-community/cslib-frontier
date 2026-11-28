@@ -178,18 +178,18 @@ theorem dpAlgFold_bool (k : ℕ) (g : ℕ → Bool) :
     Array.ofFn fun m : Fin (q ^ LB.length) =>
       let ok := F.all fun c =>
         !(decide (c.scope.toFinset ⊆ LB.toFinset) && decide (v ∈ c.scope)) ||
-          c.eval sem (ofRadixFin q hq LB m.1)
-      if ok then childTbl.getD (m.1 / q) A.zero else A.zero
+          c.eval sem (ofRadixFin q hq LB m.val)
+      if ok then childTbl.getD (m.val / q) A.zero else A.zero
   | .forget v child =>
     let childTbl := dpTree A q hq sem F vars child
     let LB := (bagList child).erase v
     Array.ofFn fun m : Fin (q ^ LB.length) =>
       if v ∈ vars then
         dpAlgFold A.zero A.add q fun d =>
-          let idx := toRadix q (bagList child) (Function.update (ofRadix q LB m.1) v d)
+          let idx := toRadix q (bagList child) (Function.update (ofRadix q LB m.val) v d)
           childTbl.getD idx A.zero
       else
-        let idx := toRadix q (bagList child) (Function.update (ofRadix q LB m.1) v 0)
+        let idx := toRadix q (bagList child) (Function.update (ofRadix q LB m.val) v 0)
         childTbl.getD idx A.zero
   | .join left right =>
     let leftTbl := dpTree A q hq sem F vars left
@@ -197,8 +197,8 @@ theorem dpAlgFold_bool (k : ℕ) (g : ℕ → Bool) :
     let LL := bagList left
     let LR := bagList right
     Array.ofFn fun m : Fin (q ^ LL.length) =>
-      let mr := toRadix q LR (ofRadix q LL m.1)
-      A.mul (leftTbl.getD m.1 A.zero) (rightTbl.getD mr A.zero)
+      let mr := toRadix q LR (ofRadix q LL m.val)
+      A.mul (leftTbl.getD m.val A.zero) (rightTbl.getD mr A.zero)
 
 theorem size_dpTree {β : Type} (A : DPAlg β) (q : ℕ) (hq : 0 < q)
     (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V) (vars : List V) (T : NiceTree V) :
@@ -424,7 +424,7 @@ private theorem dpSpec_dpDecideAlg_eq {q : ℕ} (hq : 0 < q) (sem : Rel → List
         dpAlgFold_bool]
       congr 1
       simp only [eq_iff_iff]
-      refine ⟨fun ⟨d, hd, h⟩ => ⟨⟨d, hd⟩, ?_⟩, fun ⟨d, h⟩ => ⟨d.1, d.isLt, ?_⟩⟩
+      refine ⟨fun ⟨d, hd, h⟩ => ⟨⟨d, hd⟩, ?_⟩, fun ⟨d, h⟩ => ⟨d.val, d.isLt, ?_⟩⟩
       · simpa only [dite_eq_left hd, dpSpec_dpDecideAlg_eq] using h
       · simpa only [dite_eq_left d.isLt, Fin.eta, dpSpec_dpDecideAlg_eq] using h
     · exact dpSpec_dpDecideAlg_eq hq sem F U child _
@@ -627,17 +627,11 @@ theorem modelCount_semFin {q : ℕ} (hq : 0 < q) (sem : Rel → List D → Bool)
   classical
   let _ : Inhabited (Fin q) := ⟨⟨0, hq⟩⟩
   unfold CSP.modelCount CSP.modelCountOn
-  refine Finset.card_bij (fun σ _ v => e.symm (σ v)) ?_ (fun _ _ _ _ h => funext fun v =>
-      e.symm.injective (congrFun h v)) ?_
-  · intro σ hσ
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hσ ⊢
-    rw [eval_semFin] at hσ
-    exact (CSP.eval_congr fun v hv => by simp [List.mem_toFinset.2 hv]).trans hσ
-  · intro τ hτ
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hτ
-    refine ⟨fun v => e (τ v), Finset.mem_filter.2 ⟨Finset.mem_univ _, ?_⟩, funext fun v => by simp⟩
-    rw [eval_semFin]
-    exact (CSP.eval_congr fun v hv => by simp [List.mem_toFinset.2 hv]).trans hτ
+  refine Finset.card_equiv (Equiv.arrowCongr (Equiv.refl _) e.symm) fun σ => ?_
+  simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+  rw [eval_semFin]
+  exact Iff.of_eq (congrArg (· = true) (CSP.eval_congr fun v hv => by
+    simp [List.mem_toFinset.2 hv]))
 
 theorem cspCountNice_equiv (sem : Rel → List D → Bool) {F : CSP Rel V}
     (N : F.primalGraph.NiceTreeDecomposition) (e : D ≃ Fin (Fintype.card D)) :

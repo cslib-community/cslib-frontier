@@ -47,7 +47,7 @@ drops the last bit. -/
 def parityCompleteEquiv (c : Bool) (j : ℕ) :
     BitString j ≃ {b : BitString (j + 1) // b ∈ ({b | parity (j + 1) b = c} : Finset _)} where
   toFun r := ⟨parityComplete c r, by simp [parity_parityComplete]⟩
-  invFun b := Fin.init b.1
+  invFun b := Fin.init b.val
   left_inv r := by simp [parityComplete]
   right_inv b := by
     obtain ⟨b, hb⟩ := b

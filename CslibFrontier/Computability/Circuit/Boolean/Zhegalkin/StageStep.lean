@@ -54,7 +54,7 @@ variable {n M k : ℕ} {f : BooleanFunction n}
 /-- Nonempty block sums of input wires over width-`s` blocks. -/
 @[expose] def xGroupSet (n s : ℕ) : Set (BooleanFunction n) :=
   {g | ∃ (q : ℕ) (T : Finset (Fin n)),
-    T.Nonempty ∧ (∀ j ∈ T, j.1 / s = q) ∧ g = fun x => ∑ j ∈ T, x j}
+    T.Nonempty ∧ (∀ j ∈ T, j.val / s = q) ∧ g = fun x => ∑ j ∈ T, x j}
 
 /-- Section-peer pairs `(u, (r₁, r₂))` having at least one paired `ZhegCol`. -/
 @[expose] def zhegPairIdx (d : PaddedDecomp f M k) (s p : ℕ) :
@@ -69,25 +69,25 @@ variable {n M k : ℕ} {f : BooleanFunction n}
 /-- Wires available before synthesizing conjunction-gate stage `q₀`. -/
 @[expose] def stageSet (d : PaddedDecomp f M k) (s p q₀ : ℕ) : Set (BooleanFunction n) :=
   inputs n ∪ {constZero n, constOne n} ∪ xGroupSet n s ∪
-    {g | ∃ i : Fin M, i.1 / s < q₀ ∧ g = d.gFn i} ∪
-    {g | ∃ cg : Additive.FullCol M s, cg.block.1 < q₀ ∧ g = zhegColVal d (.inr cg)} ∪
-    {g | ∃ up ∈ zhegPairIdx d s p, (up.row₁.1 / 2) / s < q₀ ∧ g = zhegPairVal d s p up}
+    {g | ∃ i : Fin M, i.val / s < q₀ ∧ g = d.gFn i} ∪
+    {g | ∃ cg : Additive.FullCol M s, cg.block.val < q₀ ∧ g = zhegColVal d (.inr cg)} ∪
+    {g | ∃ up ∈ zhegPairIdx d s p, (up.row₁.val / 2) / s < q₀ ∧ g = zhegPairVal d s p up}
 
 /-- Stage wires augmented with stage-`q₀` paired and odd shared sums. -/
 private def midSet (d : PaddedDecomp f M k) (s p q₀ : ℕ) : Set (BooleanFunction n) :=
   stageSet d s p q₀ ∪
-    (⋃ up ∈ (zhegPairIdx d s p).filter (fun up => (up.row₁.1 / 2) / s = q₀),
+    (⋃ up ∈ (zhegPairIdx d s p).filter (fun up => (up.row₁.val / 2) / s = q₀),
       {zhegPairVal d s p up}) ∪
-    (⋃ r ∈ (zhegOddIdx d s p).filter (fun r => (r.1 / 2) / s = q₀),
+    (⋃ r ∈ (zhegOddIdx d s p).filter (fun r => (r.val / 2) / s = q₀),
       {zhegOddVal d s p r})
 
 /-- First `b` conjunction wires already synthesized within stage `q₀`. -/
 private def intraSet (d : PaddedDecomp f M k) (s q₀ b : ℕ) : Set (BooleanFunction n) :=
-  {g | ∃ i : Fin M, i.1 / s = q₀ ∧ i.1 % s < b ∧ g = d.gFn i}
+  {g | ∃ i : Fin M, i.val / s = q₀ ∧ i.val % s < b ∧ g = d.gFn i}
 
 /-- Indices of the first `b` gates within stage `q₀`. -/
 private def stageGates (M s q₀ b : ℕ) : Finset (Fin M) :=
-  univ.filter fun i : Fin M => i.1 / s = q₀ ∧ i.1 % s < b
+  univ.filter fun i : Fin M => i.val / s = q₀ ∧ i.val % s < b
 
 private theorem intraSet_eq_image (d : PaddedDecomp f M k) (s q₀ b : ℕ) :
     intraSet (n := n) d s q₀ b = d.gFn '' ↑(stageGates M s q₀ b) := by
@@ -97,7 +97,7 @@ private theorem intraSet_eq_image (d : PaddedDecomp f M k) (s q₀ b : ℕ) :
     ⟨fun ⟨hd, hm, h⟩ => ⟨⟨hd, hm⟩, h.symm⟩, fun ⟨⟨hd, hm⟩, h⟩ => ⟨hd, hm, h.symm⟩⟩
 
 private theorem synth_row_in_stage (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < s) (hp : 0 < p)
-    (q₀ b : ℕ) (r : Fin (2 * M)) (hr_stage : (r.1 / 2) / s = q₀) (hr_mod : (r.1 / 2) % s = b) :
+    (q₀ b : ℕ) (r : Fin (2 * M)) (hr_stage : (r.val / 2) / s = q₀) (hr_mod : (r.val / 2) % s = b) :
     CostSynthesis interpretation andCost (midSet d s p q₀ ∪ intraSet d s q₀ b)
       {hFn d r} (p + s) 0 := by
   have hzero_mem : constZero n ∈ midSet d s p q₀ ∪ intraSet d s q₀ b := by
@@ -118,29 +118,29 @@ private theorem synth_row_in_stage (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 
       tauto
     · obtain ⟨r', hr', rfl⟩ := mem_map.mp h2
       have hne := (mem_filter.mp hr').2
-      let up : ℕ × (Fin (2 * M) × Fin (2 * M)) := (r.1 / p, (min r r', max r r'))
+      let up : ℕ × (Fin (2 * M) × Fin (2 * M)) := (r.val / p, (min r r', max r r'))
       have hup_mem : up ∈ zhegPairIdx d s p :=
         mem_filter.mpr ⟨mem_product.mpr ⟨mem_range.mpr (div_lt_ceilDiv r.isLt hp),
           mem_univ _⟩, hne⟩
-      have hmin_le : ((min r r').1 / 2) / s ≤ q₀ := by
+      have hmin_le : ((min r r').val / 2) / s ≤ q₀ := by
         rw [← hr_stage]
         exact Nat.div_le_div_right (Nat.div_le_div_right (min_le_left r r'))
       rcases lt_or_eq_of_le hmin_le with hlt_q | heq_q
       · have hp_mem : zhegPartVal d s p r (peerEmb M r') ∈
             {g | ∃ up ∈ zhegPairIdx d s p,
-              (up.2.1.1 / 2) / s < q₀ ∧ g = zhegPairVal d s p up} :=
+              (up.2.1.val / 2) / s < q₀ ∧ g = zhegPairVal d s p up} :=
           ⟨up, hup_mem, hlt_q, rfl⟩
         simp only [midSet, stageSet, Set.mem_union]
         tauto
       · have hp_mem : zhegPartVal d s p r (peerEmb M r') ∈
-            ⋃ up ∈ (zhegPairIdx d s p).filter (fun up => (up.2.1.1 / 2) / s = q₀),
+            ⋃ up ∈ (zhegPairIdx d s p).filter (fun up => (up.2.1.val / 2) / s = q₀),
               {zhegPairVal d s p up} :=
           Set.mem_biUnion (mem_filter.mpr ⟨hup_mem, heq_q⟩) rfl
         simp only [midSet, Set.mem_union]
         tauto
     · obtain ⟨hne, rfl⟩ := hite h3
       have ho_mem : zhegPartVal d s p r .odd ∈
-          ⋃ r ∈ (zhegOddIdx d s p).filter (fun r => (r.1 / 2) / s = q₀),
+          ⋃ r ∈ (zhegOddIdx d s p).filter (fun r => (r.val / 2) / s = q₀),
             {zhegOddVal d s p r} :=
         Set.mem_biUnion (mem_filter.mpr ⟨mem_filter.mpr ⟨mem_univ r, hne⟩, hr_stage⟩) rfl
       simp only [midSet, Set.mem_union]
@@ -152,9 +152,9 @@ private theorem synth_row_in_stage (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 
         zhegPartVal d s p r .xTail ∈ xGroupSet n s)]
     · obtain ⟨ℓ, hℓ, rfl⟩ := mem_map.mp h5
       obtain ⟨_, hdiv, hlt, _⟩ := mem_filter.mp hℓ
-      have hmod_lt : ℓ.1 % s < b := by
-        have h1 := Nat.div_add_mod ℓ.1 s
-        have h2 := Nat.div_add_mod (r.1 / 2) s
+      have hmod_lt : ℓ.val % s < b := by
+        have h1 := Nat.div_add_mod ℓ.val s
+        have h2 := Nat.div_add_mod (r.val / 2) s
         rw [hdiv, hr_stage] at h1
         rw [hr_stage, hr_mod] at h2
         omega
@@ -172,7 +172,7 @@ private theorem synth_intra_loop (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < 
     (q₀ b : ℕ) :
     CostSynthesis interpretation andCost (midSet d s p q₀) (intraSet d s q₀ b)
       (∑ _ ∈ stageGates M s q₀ b, (2 * (p + s) + 1))
-      (∑ i ∈ stageGates M s q₀ b, if i.1 < k then 1 else 0) := by
+      (∑ i ∈ stageGates M s q₀ b, if i.val < k then 1 else 0) := by
   induction b with
   | zero =>
     have hempty_gates : stageGates M s q₀ 0 = ∅ := by
@@ -187,23 +187,23 @@ private theorem synth_intra_loop (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < 
     by_cases hvalid : b < s ∧ q₀ * s + b < M
     · obtain ⟨hbs, hiM⟩ := hvalid
       let i₀ : Fin M := ⟨q₀ * s + b, hiM⟩
-      have hi₀_div : i₀.1 / s = q₀ := by
+      have hi₀_div : i₀.val / s = q₀ := by
         dsimp only [i₀]
         rw [mul_comm, Nat.mul_add_div hs, Nat.div_eq_of_lt hbs, add_zero]
-      have hi₀_mod : i₀.1 % s = b := by
+      have hi₀_mod : i₀.val % s = b := by
         dsimp only [i₀]
         rw [mul_comm, Nat.mul_add_mod, Nat.mod_eq_of_lt hbs]
-      let r₀ : Fin (2 * M) := ⟨2 * i₀.1, by omega⟩
-      let r₁ : Fin (2 * M) := ⟨2 * i₀.1 + 1, by omega⟩
-      have hr₀_half : r₀.1 / 2 = i₀.1 := by dsimp [r₀]; omega
-      have hr₁_half : r₁.1 / 2 = i₀.1 := by dsimp [r₁]; omega
+      let r₀ : Fin (2 * M) := ⟨2 * i₀.val, by omega⟩
+      let r₁ : Fin (2 * M) := ⟨2 * i₀.val + 1, by omega⟩
+      have hr₀_half : r₀.val / 2 = i₀.val := by dsimp [r₀]; omega
+      have hr₁_half : r₁.val / 2 = i₀.val := by dsimp [r₁]; omega
       have hh0 := synth_row_in_stage d hs hp q₀ b r₀ (hr₀_half ▸ hi₀_div) (hr₀_half ▸ hi₀_mod)
       have hh1 := synth_row_in_stage d hs hp q₀ b r₁ (hr₁_half ▸ hi₀_div) (hr₁_half ▸ hi₀_mod)
       have hg_step : CostSynthesis interpretation andCost
           (midSet d s p q₀ ∪ intraSet d s q₀ b) {d.gFn i₀}
-          (2 * (p + s) + 1) (if i₀.1 < k then 1 else 0) := by
-        by_cases hik : i₀.1 < k
-        · let args : Fin 2 → BooleanFunction n := fun t => if t.1 = 0 then hFn d r₀ else hFn d r₁
+          (2 * (p + s) + 1) (if i₀.val < k then 1 else 0) := by
+        by_cases hik : i₀.val < k
+        · let args : Fin 2 → BooleanFunction n := fun t => if t.val = 0 then hFn d r₀ else hFn d r₁
           have hand_raw := CostSynthesis.gate (I := interpretation) (w := andCost)
             (s := (midSet d s p q₀ ∪ intraSet d s q₀ b) ∪ ({hFn d r₀} ∪ {hFn d r₁}))
             Op.and args fun t => by
@@ -218,7 +218,7 @@ private theorem synth_intra_loop (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < 
           rw [hfun_eq] at hand_raw
           have hcomb := (hh0.union hh1).trans hand_raw
           exact hcomb.mono Set.Subset.rfl Set.Subset.rfl (by omega) (by simp [hik])
-        · have hge : k ≤ i₀.1 := Nat.le_of_not_lt hik
+        · have hge : k ≤ i₀.val := Nat.le_of_not_lt hik
           have h0_mem : d.gFn i₀ ∈ midSet d s p q₀ ∪ intraSet d s q₀ b := by
             rw [d.gFn_ge i₀ hge]
             simp only [midSet, stageSet, Set.mem_union]
@@ -235,7 +235,7 @@ private theorem synth_intra_loop (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < 
           rcases Nat.lt_succ_iff_lt_or_eq.mp hm with hlt | heq
           · exact Or.inr ⟨hd, hlt⟩
           · refine Or.inl (Fin.ext ?_)
-            rw [← Nat.div_add_mod i.1 s, hd, heq]
+            rw [← Nat.div_add_mod i.val s, hd, heq]
             dsimp only [i₀]
             ring
         · rintro (rfl | ⟨hd, hlt⟩)
@@ -258,9 +258,9 @@ private theorem synth_intra_loop (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < 
           · exact ⟨hd, hlt⟩
           · exfalso
             apply hvalid
-            refine ⟨heq ▸ Nat.mod_lt i.1 hs, ?_⟩
-            have hi_eq : q₀ * s + b = i.1 := by
-              have hdiv := Nat.div_add_mod' i.1 s
+            refine ⟨heq ▸ Nat.mod_lt i.val hs, ?_⟩
+            have hi_eq : q₀ * s + b = i.val := by
+              have hdiv := Nat.div_add_mod' i.val s
               rwa [hd, heq] at hdiv
             exact hi_eq ▸ i.isLt
         · rintro ⟨hd, hlt⟩
@@ -271,21 +271,21 @@ private theorem synth_intra_loop (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < 
 theorem synth_stage_step (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < s) (hp : 0 < p)
     (q₀ : ℕ) :
     CostSynthesis interpretation andCost (stageSet d s p q₀) (stageSet d s p (q₀ + 1))
-      ((∑ up ∈ (zhegPairIdx d s p).filter (fun up => (up.row₁.1 / 2) / s = q₀),
+      ((∑ up ∈ (zhegPairIdx d s p).filter (fun up => (up.row₁.val / 2) / s = q₀),
           (#(pairedCols (hasZhegCol d s) p up.sec up.row₁ up.row₂) - 1)) +
-        (∑ r ∈ (zhegOddIdx d s p).filter (fun r => (r.1 / 2) / s = q₀),
+        (∑ r ∈ (zhegOddIdx d s p).filter (fun r => (r.val / 2) / s = q₀),
           (#(oddCols (hasZhegCol d s) p r) - 1)) +
-        (∑ _ ∈ (univ : Finset (Fin M)).filter (fun i => i.1 / s = q₀), (2 * (p + s) + 1)) +
+        (∑ _ ∈ (univ : Finset (Fin M)).filter (fun i => i.val / s = q₀), (2 * (p + s) + 1)) +
         (if q₀ < M / s then 2 ^ s - s - 1 else 0))
-      (∑ i ∈ (univ : Finset (Fin M)).filter (fun i => i.1 / s = q₀),
-        if i.1 < k then 1 else 0) := by
+      (∑ i ∈ (univ : Finset (Fin M)).filter (fun i => i.val / s = q₀),
+        if i.val < k then 1 else 0) := by
   have hcol_avail (c : ZhegCol n M s)
-      (hc : match c with | .inl _ => True | .inr cg => cg.1.1 < q₀) :
+      (hc : match c with | .inl _ => True | .inr cg => cg.1.val < q₀) :
       zhegColVal d c ∈ stageSet d s p q₀ := by
     cases c with
     | inl cx =>
       have hx : zhegColVal d (.inl cx) ∈ xGroupSet n s := by
-        refine ⟨cx.1.1, cx.2.1.map (Additive.fullBlockEmb cx.1), cx.2.2.map, ?_, ?_⟩
+        refine ⟨cx.1.val, cx.2.val.map (Additive.fullBlockEmb cx.1), cx.2.property.map, ?_, ?_⟩
         · intro j hj
           obtain ⟨a, _, rfl⟩ := mem_map.mp hj
           exact Additive.fullBlockEmb_div cx.1 a
@@ -296,12 +296,12 @@ theorem synth_stage_step (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < s) (hp :
       tauto
     | inr cg =>
       have hg : zhegColVal d (.inr cg) ∈
-          {g | ∃ cg' : Additive.FullCol M s, cg'.1.1 < q₀ ∧ g = zhegColVal d (.inr cg')} :=
+          {g | ∃ cg' : Additive.FullCol M s, cg'.1.val < q₀ ∧ g = zhegColVal d (.inr cg')} :=
         ⟨cg, hc, rfl⟩
       simp only [stageSet, Set.mem_union]
       tauto
   -- Substep A1: Paired sums first needed at stage `q₀`.
-  let pairQ := (zhegPairIdx d s p).filter fun up => (up.2.1.1 / 2) / s = q₀
+  let pairQ := (zhegPairIdx d s p).filter fun up => (up.2.1.val / 2) / s = q₀
   have hpair_one (up : ℕ × (Fin (2 * M) × Fin (2 * M))) (hup : up ∈ pairQ) :
       CostSynthesis interpretation andCost (stageSet d s p q₀) {zhegPairVal d s p up}
         (#(pairedCols (hasZhegCol d s) p up.1 up.2.1 up.2.2) - 1) 0 := by
@@ -313,12 +313,12 @@ theorem synth_stage_step (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < s) (hp :
     | inl _ => trivial
     | inr cg =>
       have hc₁ := (mem_pairedCols_imp hc).2.2.2.1
-      have hlt : cg.1.1 < (up.2.1.1 / 2) / s := (of_decide_eq_true hc₁).1
+      have hlt : cg.1.val < (up.2.1.val / 2) / s := (of_decide_eq_true hc₁).1
       omega
   have hpairs := CostSynthesis.biUnion pairQ (fun up => {zhegPairVal d s p up})
     (fun up => #(pairedCols (hasZhegCol d s) p up.1 up.2.1 up.2.2) - 1) (fun _ => 0) hpair_one
   -- Substep A2: Odd sums at stage `q₀`.
-  let oddQ := (zhegOddIdx d s p).filter fun r => (r.1 / 2) / s = q₀
+  let oddQ := (zhegOddIdx d s p).filter fun r => (r.val / 2) / s = q₀
   have hodd_one (r : Fin (2 * M)) (hr : r ∈ oddQ) :
       CostSynthesis interpretation andCost (stageSet d s p q₀) {zhegOddVal d s p r}
         (#(oddCols (hasZhegCol d s) p r) - 1) 0 := by
@@ -330,7 +330,7 @@ theorem synth_stage_step (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < s) (hp :
     | inl _ => trivial
     | inr cg =>
       have hc_r := mem_oddCols_imp hc
-      have hlt : cg.1.1 < (r.1 / 2) / s := (of_decide_eq_true hc_r).1
+      have hlt : cg.1.val < (r.val / 2) / s := (of_decide_eq_true hc_r).1
       omega
   have hodds := CostSynthesis.biUnion oddQ (fun r => {zhegOddVal d s p r})
     (fun r => #(oddCols (hasZhegCol d s) p r) - 1) (fun _ => 0) hodd_one
@@ -341,15 +341,15 @@ theorem synth_stage_step (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < s) (hp :
     exact h.mono Set.Subset.rfl Set.Subset.rfl (by omega) (by simp)
   -- Substep B: Sequential conjunction gates in stage `q₀`.
   have hintra := synth_intra_loop d hs hp q₀ s
-  have hgates_s : stageGates M s q₀ s = univ.filter (fun i : Fin M => i.1 / s = q₀) := by
+  have hgates_s : stageGates M s q₀ s = univ.filter (fun i : Fin M => i.val / s = q₀) := by
     ext i
-    simp [stageGates, Nat.mod_lt i.1 hs]
+    simp [stageGates, Nat.mod_lt i.val hs]
   rw [hgates_s] at hintra
   have hmid_intra := hmid.comp
     (hintra.mono Set.subset_union_right Set.Subset.rfl le_rfl le_rfl)
   -- Substep C: Full `g`-block subset sums if `q₀ < M / s`.
   let curGBlockSet : Set (BooleanFunction n) :=
-    {g | ∃ cg : Additive.FullCol M s, cg.1.1 = q₀ ∧ g = zhegColVal d (.inr cg)}
+    {g | ∃ cg : Additive.FullCol M s, cg.1.val = q₀ ∧ g = zhegColVal d (.inr cg)}
   have hgblock_step : CostSynthesis interpretation andCost
       (stageSet d s p q₀ ∪ (midSet d s p q₀ ∪ intraSet d s q₀ s)) curGBlockSet
       (if q₀ < M / s then 2 ^ s - s - 1 else 0) 0 := by
@@ -381,25 +381,25 @@ theorem synth_stage_step (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < s) (hp :
   · simp only [midSet, stageSet, Set.mem_union]; tauto
   · simp only [midSet, stageSet, Set.mem_union]; tauto
   · rcases Nat.lt_succ_iff_lt_or_eq.mp hi with hlt | heq
-    · have h_old : d.gFn i ∈ {g | ∃ i' : Fin M, i'.1 / s < q₀ ∧ g = d.gFn i'} :=
+    · have h_old : d.gFn i ∈ {g | ∃ i' : Fin M, i'.val / s < q₀ ∧ g = d.gFn i'} :=
         ⟨i, hlt, rfl⟩
       simp only [midSet, stageSet, Set.mem_union]; tauto
-    · have h_new : d.gFn i ∈ intraSet d s q₀ s := ⟨i, heq, Nat.mod_lt i.1 hs, rfl⟩
+    · have h_new : d.gFn i ∈ intraSet d s q₀ s := ⟨i, heq, Nat.mod_lt i.val hs, rfl⟩
       simp only [Set.mem_union]; tauto
   · rcases Nat.lt_succ_iff_lt_or_eq.mp hcg with hlt | heq
     · have h_old : zhegColVal d (.inr cg) ∈
-          {g | ∃ cg' : Additive.FullCol M s, cg'.1.1 < q₀ ∧ g = zhegColVal d (.inr cg')} :=
+          {g | ∃ cg' : Additive.FullCol M s, cg'.1.val < q₀ ∧ g = zhegColVal d (.inr cg')} :=
         ⟨cg, hlt, rfl⟩
       simp only [midSet, stageSet, Set.mem_union]; tauto
     · exact Or.inr ⟨cg, heq, rfl⟩
   · rcases Nat.lt_succ_iff_lt_or_eq.mp hq with hlt | heq
     · have h_old : zhegPairVal d s p up ∈
           {g | ∃ up' ∈ zhegPairIdx d s p,
-            (up'.2.1.1 / 2) / s < q₀ ∧ g = zhegPairVal d s p up'} :=
+            (up'.2.1.val / 2) / s < q₀ ∧ g = zhegPairVal d s p up'} :=
         ⟨up, hup, hlt, rfl⟩
       simp only [midSet, stageSet, Set.mem_union]; tauto
     · have h_new : zhegPairVal d s p up ∈
-          ⋃ up' ∈ (zhegPairIdx d s p).filter (fun up' => (up'.2.1.1 / 2) / s = q₀),
+          ⋃ up' ∈ (zhegPairIdx d s p).filter (fun up' => (up'.2.1.val / 2) / s = q₀),
             {zhegPairVal d s p up'} :=
         Set.mem_biUnion (mem_filter.mpr ⟨hup, heq⟩) rfl
       simp only [midSet, Set.mem_union]; tauto

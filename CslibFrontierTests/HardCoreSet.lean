@@ -77,7 +77,7 @@ elements against circuits without gates, with advantage `2 γ = 1 / 4` for `γ =
 example : ∃ H, IsHardCoreSet (parity 13) 0 (1 / 2) (0 + 2 * (1 / 8)) H := by
   refine isHardCoreMeasure_parity.exists_isHardCoreSet (by norm_num) (by norm_num) le_rfl
     (by norm_num) (by norm_num) ?_
-  have hC : (#(Boolean.computableFunctions 13 0) : ℝ) ≤ 13 := by
+  have hC : ((Boolean.computableFunctions 13 0).ncard : ℝ) ≤ 13 := by
     have h := card_computableFunctions_mul_factorial_le 13 0
     norm_num at h
     exact_mod_cast h
@@ -96,7 +96,7 @@ hardness for size `86 s + 15138` and the counting condition give a hard-core set
 example {n s : ℕ} (f : BooleanFunction n)
     (hf : ∀ g : BooleanFunction n, complexity interpretation (single g) ≤ 86 * s + 15138 →
       (#{x | g x = f x} : ℝ) / 2 ^ n ≤ 1 - 1 / 2)
-    (hcount : (#(Boolean.computableFunctions n s) + 1) *
+    (hcount : ((Boolean.computableFunctions n s).ncard + 1) *
       Real.exp (-2 * (1 / 16 * (1 / 2) * (1 - 1 / 2)) ^ 2 * 2 ^ n) < 1) :
     ∃ H, IsHardCoreSet f s (1 / 2) (1 / 8 + 2 * (1 / 16)) H :=
   exists_isHardCoreSet (T := 86) (by norm_num) (by norm_num) (by norm_num) (by norm_num)

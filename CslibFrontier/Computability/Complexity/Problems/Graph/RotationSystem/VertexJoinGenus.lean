@@ -44,7 +44,7 @@ private theorem card_orbitOn_component_union {G : Graph} (h k : Dart G)
 
 /-- Different actual edge components cannot share a face orbit. -/
 theorem not_sameFace_of_not_sameComponent {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (h k : Dart G)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (h k : Dart G)
     (hc : ¬ SameComponent G h.vertex k.vertex) : ¬ r.faceNext.SameCycle h k :=
   fun hf => hc (r.sameComponent_of_sameFace hG hf)
 
@@ -52,7 +52,7 @@ theorem not_sameFace_of_not_sameComponent {G : Graph} (r : RotationSystem G)
 genus-zero predicate for the actual vertex merge. No target Euler or embedding premise is
 required. Unselected closed components and all declared points are retained. -/
 theorem numericalGenusZero_mergeVertices_of_not_sameComponent {G : Graph}
-    (r : RotationSystem G) (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1)
+    (r : RotationSystem G) (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
     (hr : r.NumericalGenusZero) (h k : Dart G) (hk : h.vertex ≠ k.vertex)
     (hc : ¬ SameComponent G h.vertex k.vertex) :
     (r.mergeVertices h k hk).NumericalGenusZero := by

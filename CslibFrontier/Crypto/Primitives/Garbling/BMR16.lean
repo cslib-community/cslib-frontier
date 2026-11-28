@@ -132,7 +132,7 @@ zero label of colour `τ`, the rows `u (c - τ) - u (-τ)` of the non-zero colou
 `-u (-τ)` added to every row, which makes the row of colour `0` zero. -/
 def reduceRows {m : ℕ} {L : Type} [AddCommGroup L] (u : ZMod m → L) (τ : ZMod m) :
     ({c : ZMod m // c ≠ 0} → L) × L :=
-  (fun c => u (c.1 - τ) - u (-τ), -u (-τ))
+  (fun c => u (c.val - τ) - u (-τ), -u (-τ))
 
 /-- Reading the row of the colour of the label of value `v` and subtracting the part `h` of
 `u v` gives the reduced label plus the rest of `u v`. -/
@@ -625,19 +625,19 @@ private theorem map_reduceRows_uniformOfFintype {m : ℕ} [NeZero m] {L : Type} 
   apply Cslib.Probability.PMF.uniformOfFintype_map_of_shift
   intro c
   let w : ZMod m → L := fun x => row c (x + τ) - row c (v + τ)
-  refine ⟨Equiv.addRight fun x : {x : ZMod m // x ≠ v} => w x.1, fun o => funext fun c' => ?_⟩
+  refine ⟨Equiv.addRight fun x : {x : ZMod m // x ≠ v} => w x.val, fun o => funext fun c' => ?_⟩
   have hext : ∀ y,
-      (if hy : y = v then h else (o + fun x : {x : ZMod m // x ≠ v} => w x.1) ⟨y, hy⟩) =
+      (if hy : y = v then h else (o + fun x : {x : ZMod m // x ≠ v} => w x.val) ⟨y, hy⟩) =
       (if hy : y = v then h else o ⟨y, hy⟩) + w y := by
     intro y
     by_cases hy : y = v
     · subst hy
       simp [w]
     · simp [hy]
-  have hc' : row c c'.1 = c c' := by simp [row, c'.2]
+  have hc' : row c c'.val = c c' := by simp [row, c'.property]
   have h0 : row c 0 = 0 := by simp [row]
   change (reduceRows (fun y => if hy : y = v then h
-      else (o + fun x : {x : ZMod m // x ≠ v} => w x.1) ⟨y, hy⟩) τ).1 c' =
+      else (o + fun x : {x : ZMod m // x ≠ v} => w x.val) ⟨y, hy⟩) τ).1 c' =
     (reduceRows (fun y => if hy : y = v then h else o ⟨y, hy⟩) τ).1 c' + c c'
   rw [funext hext]
   simp only [reduceRows, w, sub_add_cancel, neg_add_cancel, hc', h0]
@@ -666,7 +666,8 @@ theorem bind_reduceWith_uniformOfFintype [Fintype T] [DecidableEq T] {β : Type}
     let t := tw k
     let W := A.get a
     let v := V.get a
-    let pt : {x : ZMod (μ i) // x ≠ v} → CCRInput μ ℓ := fun x => ⟨i, j, W, x.1 - v, φ x.1 - φ v⟩
+    let pt : {x : ZMod (μ i) // x ≠ v} → CCRInput μ ℓ := fun x =>
+      ⟨i, j, W, x.val - v, φ x.val - φ v⟩
     let G : CCRTable μ ℓ → ({c : ZMod (μ i) // c ≠ 0} → Label μ ℓ j) × Label μ ℓ j :=
       fun s => reduceRows (rowsWith (fun q => s q.2) H t W v φ) (W.2 - v)
     let Φ : ({c : ZMod (μ i) // c ≠ 0} → Label μ ℓ j) → PMF β := fun R =>

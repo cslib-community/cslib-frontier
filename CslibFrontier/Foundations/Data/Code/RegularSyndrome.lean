@@ -92,7 +92,8 @@ theorem hammingNorm_eq_sum_chunks {chunks chunkSize : ℕ}
   classical
   let e : {p : Fin chunks × Fin chunkSize // x p ≠ 0} ≃
       Σ i : Fin chunks, {j : Fin chunkSize // x (i, j) ≠ 0} :=
-    ⟨fun p => ⟨p.1.1, p.1.2, p.2⟩, fun p => ⟨(p.1, p.2.1), p.2.2⟩, fun _ => rfl, fun _ => rfl⟩
+    ⟨fun p => ⟨p.val.1, p.val.2, p.property⟩, fun p => ⟨(p.1, p.2.val), p.2.property⟩,
+      fun _ => rfl, fun _ => rfl⟩
   simp only [hammingNorm, ← Fintype.card_subtype, Fintype.card_congr e, Fintype.card_sigma]
 
 @[simp]

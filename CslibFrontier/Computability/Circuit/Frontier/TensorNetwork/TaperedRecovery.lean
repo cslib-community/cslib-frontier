@@ -343,7 +343,7 @@ private theorem inTwoPow_coeff_hermiteQuotient {B : Subring K}
       have := mem_antidiagonal.mp hkl
       omega
     rw [Polynomial.coeff_coe, PowerSeries.coeff_map]
-    exact (hP _ hk).mul_left (hB _ (PowerSeries.coeff kl.2 ψ).2)
+    exact (hP _ hk).mul_left (hB _ (PowerSeries.coeff kl.2 ψ).property)
   · exact inTwoPow_zero B n
 
 /-- The value of `E_t(0)` in `K` is the image of the rational one. -/

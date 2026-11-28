@@ -63,7 +63,7 @@ theorem readBit_of_le (x : Fin m → Bool) {c : ℕ} (h : m ≤ c) : readBit x c
   simp [readBit, List.getD_eq_getElem?_getD, h]
 
 @[simp] theorem readBit_fin (x : Fin m → Bool) (i : Fin m) : readBit x i = x i :=
-  readBit_of_lt x i.2
+  readBit_of_lt x i.isLt
 
 /-- Basis strings are equal when they have the same bits. -/
 theorem funext_readBit {x y : Fin m → Bool} (h : ∀ c, readBit x c = readBit y c) : x = y :=

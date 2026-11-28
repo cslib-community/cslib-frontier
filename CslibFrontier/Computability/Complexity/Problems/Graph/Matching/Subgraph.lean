@@ -49,7 +49,7 @@ theorem isMatching_matchingOfPositions {S : Finset ℕ}
       (hk : G.edgeList.getD k (0, 0) = (u.val, v) ∨ G.edgeList.getD k (0, 0) = (v, u.val)) :
       incident (G.edgeList.getD k (0, 0)) u = true := by
     rcases hk with h | h <;> rw [h] <;> simp [incident]
-  obtain rfl := huniq u u.2 i hi j hj (hinc he) (hinc he')
+  obtain rfl := huniq u u.property i hi j hj (hinc he) (hinc he')
   apply Subtype.ext
   rcases he with h | h <;> rcases he' with h' | h' <;> rw [h] at h' <;>
     simp only [Prod.mk.injEq] at h' <;> omega
@@ -74,15 +74,15 @@ theorem card_positions (M : G.induced.Subgraph) : (positions M).card = M.edgeSet
   classical
   let f : (positions M) → M.edgeSet := fun i =>
     ⟨s(⟨(G.edgeList.getD i.val (0, 0)).1,
-        (of_mem_edgeList (getD_edgeList_mem (mem_positions.mp i.2).1)).2.2.1⟩,
+        (of_mem_edgeList (getD_edgeList_mem (mem_positions.mp i.property).1)).2.2.1⟩,
       ⟨(G.edgeList.getD i.val (0, 0)).2,
-        (of_mem_edgeList (getD_edgeList_mem (mem_positions.mp i.2).1)).2.2.2⟩), by
-      obtain ⟨_, _, _, h⟩ := mem_positions.mp i.2
+        (of_mem_edgeList (getD_edgeList_mem (mem_positions.mp i.property).1)).2.2.2⟩), by
+      obtain ⟨_, _, _, h⟩ := mem_positions.mp i.property
       exact h⟩
   have hinj : Function.Injective f := by
     intro i j he
     apply Subtype.ext
-    apply eq_of_getD_edgeList (mem_positions.mp i.2).1 (mem_positions.mp j.2).1
+    apply eq_of_getD_edgeList (mem_positions.mp i.property).1 (mem_positions.mp j.property).1
     have hh := congrArg (fun e : M.edgeSet => Sym2.map Subtype.val e.val) he
     change s((G.edgeList.getD i.val (0, 0)).1, (G.edgeList.getD i.val (0, 0)).2) =
       s((G.edgeList.getD j.val (0, 0)).1, (G.edgeList.getD j.val (0, 0)).2) at hh
@@ -94,9 +94,9 @@ theorem card_positions (M : G.induced.Subgraph) : (positions M).card = M.edgeSet
       refine ⟨⟨i, mem_positions.mpr ⟨hi, ?_⟩⟩, ?_⟩
       · rcases hie with hie | hie
         · rw [hie]
-          exact ⟨u.2, w.2, he⟩
+          exact ⟨u.property, w.property, he⟩
         · rw [hie]
-          exact ⟨w.2, u.2, he.symm⟩
+          exact ⟨w.property, u.property, he.symm⟩
       · apply Subtype.ext
         apply (Sym2.map.injective Subtype.val_injective)
         change s((G.edgeList.getD i (0, 0)).1, (G.edgeList.getD i (0, 0)).2) = s(u.val, w.val)

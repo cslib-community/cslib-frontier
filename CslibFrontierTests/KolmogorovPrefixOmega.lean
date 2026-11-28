@@ -198,7 +198,7 @@ example :
   let S : Finset twoProgramMethod.haltingSet := {a, b}
   have hzero : ∀ p ∉ S, (2 : ℝ)⁻¹ ^ (p : List Bool).length = 0 := fun p hp => by
     exfalso
-    rcases (Set.ext_iff.mp hhalt _).mp p.2 with h1 | h2
+    rcases (Set.ext_iff.mp hhalt _).mp p.property with h1 | h2
     · exact hp (Finset.mem_insert.mpr (Or.inl (Subtype.ext h1)))
     · exact hp (Finset.mem_insert.mpr (Or.inr (Finset.mem_singleton.mpr (Subtype.ext h2))))
   rw [chaitinOmega, tsum_eq_sum hzero, Finset.sum_pair hab]

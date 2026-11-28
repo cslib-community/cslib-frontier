@@ -89,27 +89,27 @@ theorem pi_succ {m : ℕ} {α : Fin (m + 1) → Type v}
 /-- Run the programs in a subset `I : Finset (Fin m)` in index order, returning a dependent tuple
 on `I` without running programs outside `I`. -/
 def piRestrict : {m : ℕ} → {α : Fin m → Type v} → (I : Finset (Fin m)) →
-    ((i : I) → OracleComp spec (α i.1)) → OracleComp spec ((i : I) → α i.1)
-  | 0, _, _, _ => pure (fun i => i.1.elim0)
+    ((i : I) → OracleComp spec (α i.val)) → OracleComp spec ((i : I) → α i.val)
+  | 0, _, _, _ => pure (fun i => i.val.elim0)
   | m + 1, α, I, programs =>
     let I' : Finset (Fin m) := Finset.univ.filter (fun j : Fin m => j.succ ∈ I)
-    let restProg : (j : I') → OracleComp spec (α j.1.succ) :=
-      fun j => programs ⟨j.1.succ, (Finset.mem_filter.mp j.2).2⟩
+    let restProg : (j : I') → OracleComp spec (α j.val.succ) :=
+      fun j => programs ⟨j.val.succ, (Finset.mem_filter.mp j.property).2⟩
     if h0 : (0 : Fin (m + 1)) ∈ I then do
       let first ← programs ⟨0, h0⟩
-      (fun (rest : (j : I') → α j.1.succ) (i : I) =>
+      (fun (rest : (j : I') → α j.val.succ) (i : I) =>
         Fin.cases
           (motive := fun k => k ∈ I → α k)
           (fun _ => first)
           (fun j hj => rest ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ j, hj⟩⟩)
-          i.1 i.2) <$> piRestrict (α := fun k => α k.succ) I' restProg
+          i.val i.property) <$> piRestrict (α := fun k => α k.succ) I' restProg
     else
-      (fun (rest : (j : I') → α j.1.succ) (i : I) =>
+      (fun (rest : (j : I') → α j.val.succ) (i : I) =>
         Fin.cases
           (motive := fun k => k ∈ I → α k)
           (fun hk => (h0 hk).elim)
           (fun j hj => rest ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ j, hj⟩⟩)
-          i.1 i.2) <$> piRestrict (α := fun k => α k.succ) I' restProg
+          i.val i.property) <$> piRestrict (α := fun k => α k.succ) I' restProg
 
 /-- Collect successive runs as a length-indexed vector, in execution order. -/
 def replicateFin (count : ℕ) (program : OracleComp spec α) : OracleComp spec (Fin count → α) :=
@@ -338,13 +338,13 @@ equivalent to running only the programs in `I` via `piRestrict`. No finiteness a
 is needed. -/
 theorem eval_bind_restrict_pi {m : ℕ} {α : Fin m → Type} {β : Type}
     (I : Finset (Fin m)) (programs : (i : Fin m) → ProbComp (α i))
-    (k : ((i : I) → α i.1) → PMF β) :
+    (k : ((i : I) → α i.val) → PMF β) :
     (eval (OracleComp.pi programs)).bind (fun r => k (I.restrict r)) =
       (eval (OracleComp.piRestrict I (I.restrict programs))).bind k := by
   induction m with
   | zero =>
     simp only [OracleComp.pi_zero, OracleComp.piRestrict, eval_pure, PMF.pure_bind]
-    exact congrArg k (funext fun i => i.1.elim0)
+    exact congrArg k (funext fun i => i.val.elim0)
   | succ m ih =>
     let I' : Finset (Fin m) := Finset.univ.filter (fun j : Fin m => j.succ ∈ I)
     have htail (z : (0 : Fin (m + 1)) ∈ I → α 0) (first : α 0)
@@ -352,9 +352,10 @@ theorem eval_bind_restrict_pi {m : ℕ} {α : Fin m → Type} {β : Type}
         (eval (OracleComp.pi fun i : Fin m => programs i.succ)).bind
             (fun x => k (I.restrict (Fin.cons first x))) =
           (eval (OracleComp.piRestrict (α := fun j => α j.succ) I'
-            (fun j => programs j.1.succ))).bind fun rest =>
+            (fun j => programs j.val.succ))).bind fun rest =>
             k fun i => Fin.cases (motive := fun idx => idx ∈ I → α idx) z
-              (fun j hj => rest ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ j, hj⟩⟩) i.1 i.2 := by
+              (fun j hj => rest ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ j, hj⟩⟩)
+              i.val i.property := by
       refine (congrArg (eval _).bind (funext fun rest => ?_)).trans
         (ih (α := fun j => α j.succ) I' (fun j => programs j.succ) _)
       exact congrArg k (funext fun ⟨i, hi⟩ =>

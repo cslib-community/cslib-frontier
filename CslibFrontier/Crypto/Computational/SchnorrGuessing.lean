@@ -93,17 +93,17 @@ theorem inv_two_pow_le_succProbability_schnorrDirectGame (setup : ℕ → PMF F.
     obtain ⟨r₀, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hc₀
     rw [BitString.uniformList, PMF.map, PMF.bind_bind, PMF.bind_apply]
     have hpad :
-        ofBits (List.ofFn fun i : Fin (k n) => if h : i.1 < m n then r₀ ⟨i, h⟩ else false) =
+        ofBits (List.ofFn fun i : Fin (k n) => if h : i.val < m n then r₀ ⟨i, h⟩ else false) =
           ofBits (List.ofFn r₀) := by
       have hlist :
-          (List.ofFn fun i : Fin (k n) => if h : i.1 < m n then r₀ ⟨i, h⟩ else false) =
+          (List.ofFn fun i : Fin (k n) => if h : i.val < m n then r₀ ⟨i, h⟩ else false) =
             List.ofFn r₀ ++ List.replicate (k n - m n) false := by
         refine List.ext_getElem (by simp; omega) fun i h₁ h₂ => ?_
         by_cases hi : i < m n <;> simp [List.getElem_append, hi]
       rw [hlist, ofBits_append, ofBits_replicate_false]
       simp
     refine le_trans ?_
-      (le_tsum _ fun i : Fin (k n) => if h : i.1 < m n then r₀ ⟨i, h⟩ else false)
+      (le_tsum _ fun i : Fin (k n) => if h : i.val < m n then r₀ ⟨i, h⟩ else false)
     simp [PMF.uniformOfFintype_apply, hpad]
   rw [Game.succProbability, ← ENNReal.toNNReal_coe ((1 : ℝ≥0) / 2 ^ k n)]
   refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) ?_

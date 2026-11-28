@@ -256,7 +256,7 @@ theorem abs_movingAverage_sub_le (hψ : LipschitzWith c ψ) (hh : 0 < h) (s : �
         simpa [Real.dist_eq] using hψ.dist_le_mul (s + t) s
     _ ≤ c * h := by
         rw [add_sub_cancel_left, abs_of_pos ht.1]
-        exact mul_le_mul_of_nonneg_left ht.2 c.2
+        exact mul_le_mul_of_nonneg_left ht.2 c.property
 
 /-- The `m`-fold moving average with window `h > 0` moves a `c`-Lipschitz function by at most
 `m c h`. -/
@@ -308,7 +308,7 @@ theorem exists_contDiff_smoothing (hψ : LipschitzWith c ψ) (m : ℕ) {η : ℝ
     ∃ ψ' : ℝ → ℝ, ContDiff ℝ m ψ' ∧ (∀ s, |ψ' s - ψ s| ≤ c * η) ∧
       ∀ k, k < m → ∀ s, |iteratedDeriv (k + 1) ψ' s| ≤ (2 * m) ^ k * c / η ^ k := by
   rcases Nat.eq_zero_or_pos m with rfl | hm
-  · exact ⟨ψ, contDiff_zero.2 hψ.continuous, fun _ => by simpa using mul_nonneg c.2 hη.le,
+  · exact ⟨ψ, contDiff_zero.2 hψ.continuous, fun _ => by simpa using mul_nonneg c.property hη.le,
       fun _ hk => absurd hk (by omega)⟩
   have hh : 0 < η / m := div_pos hη (Nat.cast_pos.2 hm)
   refine ⟨(movingAverage (η / m))^[m] ψ, contDiff_iterate_movingAverage hψ.continuous m,

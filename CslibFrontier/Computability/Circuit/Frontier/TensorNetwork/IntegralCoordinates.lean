@@ -344,7 +344,7 @@ theorem deformedContraction_cauchyMatrix_comp_mem_liftsRing [Algebra ℚ R] {P :
     obtain ⟨c, hc⟩ := (lifts_iff_coeff_lifts _).mp
       (cauchyMatrix_comp_mem_lifts (packet := packet) hslot ht e e') n
     rw [coeff_map, ← hc]
-    exact ⟨⟨_, hB c c.2⟩, rfl⟩
+    exact ⟨⟨_, hB c c.property⟩, rfl⟩
 
 end TensorNetwork
 

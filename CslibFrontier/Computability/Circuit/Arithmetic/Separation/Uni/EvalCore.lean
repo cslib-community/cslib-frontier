@@ -204,8 +204,8 @@ the machine multiplies by `θ (p ++ w.path)` and returns `nil` to the frame at r
 theorem sumTo_readName (hθ : ∀ q, q ∉ supp → θ q = 0) (w : Tree) :
     ∀ (p : Name supp) (σ : Config supp), InMode σ (.thetaHead p) H inp →
       Represents σ.heap (σ.regs 1) w → σ.regs 2 = k → Returns θ supp H k inp .nil S B →
-      Mach.SumTo (universalMachine θ supp) σ (θ (p.1 ++ w.path) * S)
-        (B + 1 + 2 * (nameLength supp - p.1.length : ℕ)) := by
+      Mach.SumTo (universalMachine θ supp) σ (θ (p.val ++ w.path) * S)
+        (B + 1 + 2 * (nameLength supp - p.val.length : ℕ)) := by
   induction w with
   | nil =>
     intro p σ hσ hw hk h
@@ -219,7 +219,7 @@ theorem sumTo_readName (hθ : ∀ q, q ∉ supp → θ q = 0) (w : Tree) :
     obtain ⟨x₁, x₂, x₃, hx, -, -⟩ := ha.step.load h₁.wf
     rw [Tree.path, List.append_cons]
     generalize decide (a ≠ .nil) = bt at hx ⊢
-    by_cases hp : p.1 ++ [bt] ∈ prefixes supp
+    by_cases hp : p.val ++ [bt] ∈ prefixes supp
     · have hl := length_le_nameLength hp
       exact h₁.sumTo_step hx (r := .thetaBit p ⟨_, hp⟩ bt rfl)
         (by cases bt <;> exact dite_eq_left hp)
@@ -290,7 +290,7 @@ private theorem sumTo_opcodeChain (o : Tree) : ∀ (j : Fin 11) (σ : Config sup
     intro j σ hσ ho h hS
     obtain ⟨p, q, s, hrec, -, hq⟩ := ho
     simp only [Tree.len] at h hS ⊢
-    by_cases hj : j.1 < 10
+    by_cases hj : j.val < 10
     · refine hσ.sumTo_step hrec (dite_eq_left hj) fun h₁ => ?_
       exact .mono (ih ⟨j + 1, by omega⟩ _ h₁ hq.step
         (fun j' σ' e => h j' σ' (by dsimp only at e; omega))

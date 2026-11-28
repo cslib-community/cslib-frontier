@@ -167,7 +167,7 @@ private theorem anchor_mass (m : Message) :
       ((law G.questions α) (m, none, none)).toReal := by
   have h := ENNReal.toReal_mono (PMF.apply_ne_top _ _) (law_bothAnchors_le G.questions α m)
   rw [ENNReal.toReal_mul, ENNReal.toReal_mul,
-    ENNReal.toReal_ofReal (noise α).2.1, ENNReal.toReal_ofReal α.2.1] at h
+    ENNReal.toReal_ofReal (noise α).property.1, ENNReal.toReal_ofReal α.property.1] at h
   rw [coe_noise] at h
   convert h using 1; ring
 

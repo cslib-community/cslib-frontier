@@ -150,7 +150,8 @@ theorem totalDegree_parityPoly [Nontrivial R] (S : Finset σ) (b : Bool) :
   refine hdeg ▸ le_totalDegree (mem_support_iff.2 ?_)
   have hne : (0 : σ →₀ ℕ) ≠ ∑ i ∈ S, single i 1 :=
     fun h => hS.card_pos.ne (by simpa [← h] using hdeg)
-  rw [parityPoly, prod_X_eq_monomial, coeff_sub, coeff_monomial, coeff_C, ite_eq_right hne]
+  rw [parityPoly, prod_X_eq_monomial, AddMonoidAlgebra.coeff_sub_apply, coeff_monomial, coeff_C,
+    ite_eq_right hne]
   simp
 
 end Encoding

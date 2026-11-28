@@ -152,7 +152,7 @@ theorem isArcCut_outArcs [Fintype V] [DecidableEq V] (G : Digraph V) [DecidableR
   obtain ⟨q, hq, -, hzip⟩ := liftDipath hp
   obtain ⟨e, he, he_out⟩ := Multidigraph.isArcCut_outArcs _ _ hs ht q hq
   rw [Multidigraph.mem_outArcs] at he_out
-  exact ⟨e.1, hzip ▸ List.mem_map_of_mem he, mem_outArcs.mpr ⟨he_out.1, he_out.2, e.2⟩⟩
+  exact ⟨e.val, hzip ▸ List.mem_map_of_mem he, mem_outArcs.mpr ⟨he_out.1, he_out.2, e.property⟩⟩
 
 /-- **Closed-set certificate for directed separators.** If `S` holds on `A \ Y`, fails on `B \ Y`,
 and every arc leaving `S` enters `Y`, then `Y` separates `A` from `B`. -/
@@ -162,7 +162,8 @@ theorem isSeparator_of_forall_adj {G : Digraph V} {A B Y : Set V} (S : V → Pro
     G.IsSeparator A B Y := by
   intro a ha b hb p hp
   obtain ⟨q, hq, hverts, -⟩ := liftDipath hp
-  exact hverts ▸ Multidigraph.isSeparator_of_forall_src_tgt _ _ S (fun e => hstep e.2) hA hB ha
+  exact hverts ▸ Multidigraph.isSeparator_of_forall_src_tgt _ _ S
+    (fun e => hstep e.property) hA hB ha
     hb q hq
 
 /-- Closed-set certificate for a vertex cut: if `s ∈ S`, `t ∉ S`, `T` avoids `s` and `t`, and
@@ -173,7 +174,7 @@ theorem isVertexCut_of_forall_adj {G : Digraph V} {s t : V} {S T : Finset V} (hs
   refine ⟨hsT, htT, fun p hp => ?_⟩
   obtain ⟨q, hq, hverts, -⟩ := liftDipath hp
   exact hverts ▸ (Multidigraph.isVertexCut_of_forall_src_tgt _ _ hs ht hsT htT
-    fun e hu => hST e.1.1 hu e.1.2 e.2).2.2 q hq
+    fun e hu => hST e.val.1 hu e.val.2 e.property).2.2 q hq
 
 /-- **Weak duality for arc-disjoint paths**: `k` pairwise arc-disjoint directed `s`–`t` paths need
 at least `k` arcs in every `s`–`t` arc cut. -/
@@ -181,10 +182,11 @@ theorem card_le_card_of_arcDisjoint_of_isArcCut {G : Digraph V} {s t : V} {k : �
     {P : Fin k → List V} (hP : ∀ i, G.IsDipath s t (P i)) (hdisj : ArcDisjoint P)
     {C : Finset (V × V)} (hC : G.IsArcCut s t C) : k ≤ C.card := by
   classical
-  refine (Multidigraph.card_le_card_of_disjoint_of_isArcCut (Q := fun i => (liftDipath (hP i)).1)
-      (C := C.subtype fun e => G.Adj e.1 e.2) _ _ (fun i => (liftDipath (hP i)).2.1)
-      (fun i j hij e hei hej => hdisj hij e.1 ((liftDipath (hP i)).2.2.2 ▸ List.mem_map_of_mem hei)
-        ((liftDipath (hP j)).2.2.2 ▸ List.mem_map_of_mem hej)) fun q hq => ?_).trans ?_
+  refine (Multidigraph.card_le_card_of_disjoint_of_isArcCut (Q := fun i => (liftDipath (hP i)).val)
+      (C := C.subtype fun e => G.Adj e.1 e.2) _ _ (fun i => (liftDipath (hP i)).property.1)
+      (fun i j hij e hei hej => hdisj hij e.val
+        ((liftDipath (hP i)).property.2.2 ▸ List.mem_map_of_mem hei)
+        ((liftDipath (hP j)).property.2.2 ▸ List.mem_map_of_mem hej)) fun q hq => ?_).trans ?_
   · obtain ⟨e, he, heC⟩ := hC _ (isDipath_of_multidigraph hq)
     obtain ⟨a, ha, rfl⟩ := List.mem_map.mp (hq.zip_tail_vertices ▸ he)
     exact ⟨a, ha, Finset.mem_subtype.mpr heC⟩
@@ -199,9 +201,9 @@ theorem card_le_card_of_internallyDisjoint_of_isVertexCut {G : Digraph V} {s t :
     {P : Fin k → List V} (hP : ∀ i, G.IsDipath s t (P i)) (hdisj : InternallyDisjoint s t P)
     {T : Finset V} (hT : G.IsVertexCut s t T) : k ≤ T.card :=
   Multidigraph.card_le_card_of_internallyDisjoint_of_isVertexCut
-    (Q := fun i => (liftDipath (hP i)).1) _ _ (fun i => (liftDipath (hP i)).2.1)
-    (fun i j hij v hvi hvj => hdisj hij v ((liftDipath (hP i)).2.2.1 ▸ hvi)
-      ((liftDipath (hP j)).2.2.1 ▸ hvj))
+    (Q := fun i => (liftDipath (hP i)).val) _ _ (fun i => (liftDipath (hP i)).property.1)
+    (fun i j hij v hvi hvj => hdisj hij v ((liftDipath (hP i)).property.2.1 ▸ hvi)
+      ((liftDipath (hP j)).property.2.1 ▸ hvj))
     ⟨hT.1, hT.2.1, fun _ hq => hT.2.2 _ (isDipath_of_multidigraph hq)⟩
 
 /-- **Weak duality for vertex-disjoint `A`–`B` paths**: `k` pairwise vertex-disjoint directed
@@ -212,10 +214,10 @@ theorem card_le_card_of_disjoint_of_isSeparator {G : Digraph V} {A B : Set V} {k
     {Y : Finset V} (hY : G.IsSeparator A B ↑Y) : k ≤ Y.card := by
   choose a ha b hb hPi using hP
   refine Multidigraph.card_le_card_of_disjoint_of_isSeparator
-    (Q := fun i => (liftDipath (hPi i)).1) _ _ ha hb (fun i => (liftDipath (hPi i)).2.1)
+    (Q := fun i => (liftDipath (hPi i)).val) _ _ ha hb (fun i => (liftDipath (hPi i)).property.1)
     (fun i j hij => ?_) fun _ hx _ hy _ hq => hY hx hy _ (isDipath_of_multidigraph hq)
   dsimp only
-  rw [(liftDipath (hPi i)).2.2.1, (liftDipath (hPi j)).2.2.1]
+  rw [(liftDipath (hPi i)).property.2.1, (liftDipath (hPi j)).property.2.1]
   exact hdisj hij
 
 end Digraph

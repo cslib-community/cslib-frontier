@@ -55,7 +55,7 @@ theorem of_mem_edgeList {e : ℕ × ℕ} (he : e ∈ G.edgeList) :
 
 /-- Each edge of `G.induced` is in the edge list in one of its orientations. -/
 theorem exists_mem_edgeList {u v : {v // v ∈ G.vertices}} (h : G.induced.Adj u v) :
-    (u.1, v.1) ∈ G.edgeList ∨ (v.1, u.1) ∈ G.edgeList := by
+    (u.val, v.val) ∈ G.edgeList ∨ (v.val, u.val) ∈ G.edgeList := by
   obtain ⟨hne, huv⟩ := (induced_adj.trans toSimpleGraph_adj).mp h
   have key {e : ℕ × ℕ} (he : e ∈ G.edges) (h1 : e.1 ≠ e.2) (h2 : e.1 ∈ G.vertices)
       (h3 : e.2 ∈ G.vertices) : e ∈ G.edgeList ∨ e.swap ∈ G.edgeList := by
@@ -68,7 +68,8 @@ theorem exists_mem_edgeList {u v : {v // v ∈ G.vertices}} (h : G.induced.Adj u
     · rcases (show e = b ∨ e = (b.2, b.1) by simpa using hab) with rfl | rfl
       · exact .inl hb
       · exact .inr hb
-  exact huv.elim (fun h => key h hne u.2 v.2) fun h => (key h hne.symm v.2 u.2).symm
+  exact huv.elim (fun h => key h hne u.property v.property)
+    fun h => (key h hne.symm v.property u.property).symm
 
 /-- No entry of the edge list repeats an earlier entry, in either orientation. -/
 theorem pairwise_edgeList (G : Graph) : G.edgeList.Pairwise fun a b => b ≠ a ∧ b ≠ a.swap :=
@@ -129,7 +130,7 @@ theorem mem_positions {M : G.induced.Subgraph} {i : ℕ} :
 @[expose] def ofPositions (G : Graph) (S : Finset ℕ) : G.induced.Subgraph where
   verts := Set.univ
   Adj u w := G.induced.Adj u w ∧
-    ∃ i ∈ S, G.edgeList.getD i (0, 0) = (u.1, w.1) ∨ G.edgeList.getD i (0, 0) = (w.1, u.1)
+    ∃ i ∈ S, G.edgeList.getD i (0, 0) = (u.val, w.val) ∨ G.edgeList.getD i (0, 0) = (w.val, u.val)
   adj_sub h := h.1
   edge_vert _ := Set.mem_univ _
   symm := ⟨fun _ _ ⟨h, i, hi, he⟩ => ⟨h.symm, i, hi, he.symm⟩⟩
@@ -148,7 +149,7 @@ theorem isPerfectMatching_ofPositions {S : Finset ℕ} (hS : ∀ i ∈ S, i < G.
       incident (G.edgeList.getD i (0, 0)) v = true ∧ i ∈ S) :
     (ofPositions G S).IsPerfectMatching := by
   refine SimpleGraph.Subgraph.isPerfectMatching_iff.mpr fun u => ?_
-  obtain ⟨i, ⟨hi, hinc, hiS⟩, huniq⟩ := hcov u.1 u.2
+  obtain ⟨i, ⟨hi, hinc, hiS⟩, huniq⟩ := hcov u.val u.property
   obtain ⟨hG, hne, h1, h2⟩ := of_mem_edgeList (getD_edgeList_mem hi)
   obtain ⟨w, hw⟩ := exists_other_end hinc
   have hw' : w ∈ G.vertices := by rcases hw with hw | hw <;> rw [hw] at h1 h2 <;> assumption
@@ -175,12 +176,12 @@ theorem cover_positions {M : G.induced.Subgraph} (hM : M.IsMatching) :
     mem_positions.mpr ⟨hi, ?_⟩⟩,
     fun j ⟨hj, hinc, hjS⟩ => ?_⟩
   · rcases he with h | h <;> rw [h]
-    · exact ⟨hv, w.2, hvw⟩
-    · exact ⟨w.2, hv, hvw.symm⟩
+    · exact ⟨hv, w.property, hvw⟩
+    · exact ⟨w.property, hv, hvw.symm⟩
   · obtain ⟨-, hu, hw, hadj⟩ := mem_positions.mp hjS
     obtain ⟨w', hw'⟩ := exists_other_end hinc
     -- the edge at `j` joins `v` to the partner `w` of `v`
-    obtain rfl : w' = w.1 := by
+    obtain rfl : w' = w.val := by
       rcases hw' with h | h <;> simp only [h] at hu hw hadj
       · exact congrArg Subtype.val (hwuniq ⟨w', hw⟩ hadj)
       · exact congrArg Subtype.val (hwuniq ⟨w', hu⟩ hadj.symm)

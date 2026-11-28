@@ -248,7 +248,7 @@ theorem sum_condSignalProb_mul_ref [DecidableEq S] {I : Type*} [Fintype I]
       ∑ s_r : S, M.peerPosterior s_i s_r * g s_r := by
   let Rest := {j : I // j ≠ i ∧ j ≠ r}
   let equiv : (I → S) ≃ S × S × (Rest → S) :=
-    { toFun := fun f => (f i, f r, fun j => f j.1)
+    { toFun := fun f => (f i, f r, fun j => f j.val)
       invFun := fun ⟨si, sr, rest⟩ j =>
         if hji : j = i then si else if hjr : j = r then sr else rest ⟨j, hji, hjr⟩
       left_inv := fun f => by

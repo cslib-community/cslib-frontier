@@ -432,7 +432,7 @@ private theorem eval_cubeExtension (g : (ι → Bool) → R) (x : ι → Bool) :
 /-- Over any commutative ring `R`, multilinear polynomials are `R`-linearly equivalent to
 functions on the Boolean cube `{0, 1} ^ ι`. -/
 noncomputable def restrictDegreeOneLinearEquiv : restrictDegree ι R 1 ≃ₗ[R] ((ι → Bool) → R) where
-  toFun p x := eval (bitPoint x) p.1
+  toFun p x := eval (bitPoint x) p.val
   map_add' p q := by
     funext x
     simp only [Submodule.coe_add, map_add, Pi.add_apply]
@@ -444,7 +444,7 @@ noncomputable def restrictDegreeOneLinearEquiv : restrictDegree ι R 1 ≃ₗ[R]
   left_inv p := by
     ext1
     exact eq_of_mem_restrictDegree_of_forall_eval_bitPoint
-      (cubeExtension_mem_restrictDegree ι R _) p.2 (eval_cubeExtension ι R _)
+      (cubeExtension_mem_restrictDegree ι R _) p.property (eval_cubeExtension ι R _)
   right_inv g := by
     funext x
     exact eval_cubeExtension ι R g x
@@ -460,7 +460,7 @@ variable {ι R}
 /-- Evaluating `restrictDegreeOneLinearEquiv` on a multilinear polynomial computes its values on
 `{0, 1} ^ ι`. -/
 @[simp] theorem restrictDegreeOneLinearEquiv_apply (p : restrictDegree ι R 1) (x : ι → Bool) :
-    restrictDegreeOneLinearEquiv ι R p x = eval (bitPoint x) p.1 := by
+    restrictDegreeOneLinearEquiv ι R p x = eval (bitPoint x) p.val := by
   unfold restrictDegreeOneLinearEquiv
   rfl
 
@@ -469,7 +469,7 @@ variable {ι R}
     (g : (ι → Bool) → R) :
     ((restrictDegreeOneLinearEquiv ι R).symm g : MvPolynomial ι R) = multilinearExtension g := by
   refine eq_of_mem_restrictDegree_of_forall_eval_bitPoint
-    ((restrictDegreeOneLinearEquiv ι R).symm g).2 (multilinearExtension_mem_restrictDegree g)
+    ((restrictDegreeOneLinearEquiv ι R).symm g).property (multilinearExtension_mem_restrictDegree g)
     fun x => ?_
   rw [← restrictDegreeOneLinearEquiv_apply, LinearEquiv.apply_symm_apply,
     eval_multilinearExtension]
@@ -477,7 +477,7 @@ variable {ι R}
 /-- Evaluating `restrictDegreeOneQuotientEquiv` on a multilinear polynomial sends it to its own
 coset modulo `boolIdeal ι R`. -/
 @[simp] theorem restrictDegreeOneQuotientEquiv_apply (p : restrictDegree ι R 1) :
-    restrictDegreeOneQuotientEquiv ι R p = Ideal.Quotient.mk (boolIdeal ι R) p.1 := by
+    restrictDegreeOneQuotientEquiv ι R p = Ideal.Quotient.mk (boolIdeal ι R) p.val := by
   apply (boolQuotientAlgEquiv ι R).injective
   funext x
   rw [restrictDegreeOneQuotientEquiv, LinearEquiv.trans_apply, boolQuotientAlgEquiv_mk]
@@ -506,7 +506,7 @@ coset modulo `boolIdeal ι R`. -/
     ((restrictDegreeOneQuotientEquiv ι R).symm (Ideal.Quotient.mk (boolIdeal ι R) p) :
       MvPolynomial ι R) = multilinearExtension (fun x => eval (bitPoint x) p) := by
   refine eq_of_mem_restrictDegree_of_forall_eval_bitPoint
-    ((restrictDegreeOneQuotientEquiv ι R).symm (Ideal.Quotient.mk (boolIdeal ι R) p)).2
+    ((restrictDegreeOneQuotientEquiv ι R).symm (Ideal.Quotient.mk (boolIdeal ι R) p)).property
     (multilinearExtension_mem_restrictDegree _) fun x => ?_
   rw [eval_coe_restrictDegreeOneQuotientEquiv_symm, boolQuotientAlgEquiv_mk,
     eval_multilinearExtension]

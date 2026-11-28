@@ -300,7 +300,7 @@ theorem modelCount_toThreeOccurrence [DecidableEq V] (φ : CNF V) :
     rw [← map_fst_vars_occurrenceClauses]; exact List.mem_map.2 ⟨x, hx, rfl⟩
   have hex (v : φ.vars.toFinset) : ∃ x ∈ φ.occurrenceClauses.vars, x.1 = v := by
     apply List.mem_map.1
-    simpa only [map_fst_vars_occurrenceClauses] using List.mem_toFinset.1 v.2
+    simpa only [map_fst_vars_occurrenceClauses] using List.mem_toFinset.1 v.property
   let copy (v : φ.vars.toFinset) : V × ℕ × ℕ := Classical.choose (hex v)
   have hcopy (v : φ.vars.toFinset) : copy v ∈ φ.occurrenceClauses.vars ∧ (copy v).1 = v :=
     Classical.choose_spec (hex v)
@@ -319,7 +319,7 @@ theorem modelCount_toThreeOccurrence [DecidableEq V] (φ : CNF V) :
         (eval_toThreeOccurrence_iff φ _).2 ⟨φ.extendAssignment τ, hτ, fun _ _ => rfl⟩,
         funext fun v => ?_⟩
       change φ.extendAssignment τ (copy v).1 = τ v
-      rw [(hcopy v).2, extendAssignment_of_mem _ (List.mem_toFinset.1 v.2)]
+      rw [(hcopy v).2, extendAssignment_of_mem _ (List.mem_toFinset.1 v.property)]
     · rintro ⟨σ, hσ, rfl⟩
       rw [← eval_occurrenceClauses]
       have he : ∀ x ∈ φ.occurrenceClauses.vars,

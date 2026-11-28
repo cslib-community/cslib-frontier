@@ -341,7 +341,7 @@ theorem exists_weightedDegreeLE_eq_zero (entry : κ → ℕ × ℕ → F) (L : �
     fun k => ?_⟩
   · have := coeff_coeff_bivariateOf M c' (col₀ : ℕ × ℕ).1 (col₀ : ℕ × ℕ).2
     rw [h] at this
-    simpa [c', col₀.2] using this.symm
+    simpa [c', col₀.property] using this.symm
   · rw [hL, ← sum_attach]
     have hrow := congrFun (LinearMap.mem_ker.1 hc) k
     simpa [A, c', Matrix.mulVec, dotProduct, mul_comm] using hrow

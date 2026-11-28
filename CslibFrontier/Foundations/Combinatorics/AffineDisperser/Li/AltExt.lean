@@ -244,18 +244,18 @@ private theorem exists_support_subset_lift_uniform {α β : Type*}
       Real.logb 2 (Fintype.card β) + Real.logb 2 (1 - γ) ≤ minEntropy (A'.map f) := by
   classical
   let Sub := {a : α // a ∈ A.support}
-  have hsum : ∑ a : Sub, A a.1 = 1 := by
+  have hsum : ∑ a : Sub, A a.val = 1 := by
     have htsum : ∑' a : α, A a = 1 := A.tsum_coe
     rw [tsum_fintype] at htsum
     rw [← htsum]
-    have hfilter : ∑ a : Sub, A a.1 = ∑ a ∈ Finset.univ.filter (fun x => x ∈ A.support), A a := by
+    have hfilter : ∑ a : Sub, A a.val = ∑ a ∈ Finset.univ.filter (fun x => x ∈ A.support), A a := by
       rw [← Finset.sum_coe_sort (Finset.univ.filter fun x => x ∈ A.support)]
       exact Fintype.sum_equiv (Equiv.subtypeEquivRight fun x => by simp) _ _ fun _ => rfl
     rw [hfilter]
     refine Finset.sum_subset (Finset.filter_subset _ _) fun x _ hx => ?_
     simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hx
     exact (A.apply_eq_zero_iff x).mpr hx
-  let Asub : PMF Sub := PMF.ofFintype (fun a => A a.1) hsum
+  let Asub : PMF Sub := PMF.ofFintype (fun a => A a.val) hsum
   have hval : Asub.map Subtype.val = A := by
     ext a
     rw [PMF.map_apply]
@@ -263,11 +263,11 @@ private theorem exists_support_subset_lift_uniform {α β : Type*}
     · rw [tsum_eq_single ⟨a, ha⟩]
       · simp [Asub]
       · intro b hb
-        have hne : a ≠ b.1 := fun h => hb (Subtype.ext h.symm)
+        have hne : a ≠ b.val := fun h => hb (Subtype.ext h.symm)
         simp [hne]
     · rw [(A.apply_eq_zero_iff a).mpr ha]
-      have hzero : ∀ b : Sub, (if a = b.1 then Asub b else 0) = 0 := fun b => by
-        have hne : a ≠ b.1 := fun h => ha (h ▸ b.2)
+      have hzero : ∀ b : Sub, (if a = b.val then Asub b else 0) = 0 := fun b => by
+        have hne : a ≠ b.val := fun h => ha (h ▸ b.property)
         simp [hne]
       simp [hzero]
   have hdist_sub : dist (Asub.map (f ∘ Subtype.val)) (PMF.uniformOfFintype β) ≤ γ := by
@@ -281,7 +281,7 @@ private theorem exists_support_subset_lift_uniform {α β : Type*}
   · intro a ha
     rw [PMF.mem_support_map_iff] at ha
     obtain ⟨b, -, rfl⟩ := ha
-    exact b.2
+    exact b.property
   · calc dist A (Asub'.map Subtype.val)
         = dist (Asub.map Subtype.val) (Asub'.map Subtype.val) := by rw [hval]
       _ ≤ dist Asub Asub' := dist_map_le Asub Asub' Subtype.val
@@ -1123,8 +1123,8 @@ private theorem altExt_round_state {α β LShiftX LShiftY : Type} {nX nY d1 d2 r
       (∀ τ ∈ S.μ.support, ∀ x ∈ (S.PX τ).support, ∀ y ∈ (S.PY τ).support,
         obs x y = τ ∧
         curS τ y = recS x y k ∧
-        (∀ i : Fin k, histR τ i = recR x y i.1) ∧
-        (∀ i : Fin (k + 1), ∀ j : Fin r, histR' τ i j = recR' j x y i.1)) := by
+        (∀ i : Fin k, histR τ i = recR x y i.val) ∧
+        (∀ i : Fin (k + 1), ∀ j : Fin r, histR' τ i j = recR' j x y i.val)) := by
   classical
   let _ := Fintype.ofFinite α
   let _ := Fintype.ofFinite β
@@ -1211,7 +1211,7 @@ private theorem altExt_round_state {α β LShiftX LShiftY : Type} {nX nY d1 d2 r
       have hb : b = fun j => tR j x (s0' j y) := by
         rw [← hle1]; simp only [leakX0, ha]
       refine ⟨Prod.ext (Prod.ext rfl ha.symm) hb.symm, rfl, fun i => Fin.elim0 i, fun i j => ?_⟩
-      have hi0 : i.1 = 0 := by omega
+      have hi0 : i.val = 0 := by omega
       simp only [hb]
       rw [hi0]
       rfl
@@ -1373,9 +1373,9 @@ theorem dist_altExt_lookAhead_le {nX nY d1 d2 r : ℕ}
         (py : (BitString nY × (Fin r → BitString nY)) × (BitString d1 × (Fin r → BitString d1))) :=
       let (x, x') := px
       let ((y, y'), (s0, s0')) := py
-      (py, (fun i : Fin k => altExtR ext1 ext2 x y s0 i.1,
+      (py, (fun i : Fin k => altExtR ext1 ext2 x y s0 i.val,
             fun i : Fin (k + 1) => fun j : Fin r =>
-              altExtR ext1 ext2 (x' j) (y' j) (s0' j) i.1))
+              altExtR ext1 ext2 (x' j) (y' j) (s0' j) i.val))
     dist
       (PX.bind fun px =>
         let (x, _) := px
@@ -1420,17 +1420,17 @@ theorem dist_altExt_lookAhead_le {nX nY d1 d2 r : ℕ}
         PY.map fun py =>
           let ((y, y'), (s0, s0')) := py
           ((py,
-            (fun i : Fin k => altExtR ext1 ext2 x y s0 i.1,
+            (fun i : Fin k => altExtR ext1 ext2 x y s0 i.val,
              fun i : Fin (k + 1) => fun j : Fin r =>
-               altExtR ext1 ext2 (x' j) (y' j) (s0' j) i.1)),
+               altExtR ext1 ext2 (x' j) (y' j) (s0' j) i.val)),
            altExtR ext1 ext2 x y s0 k) := by
     have hcongr :
         (S.joint.map fun ⟨τ, x, y⟩ => ((y, (histR τ, histR' τ)), ext1 x.1 (curS τ y) + 0)) =
         S.joint.map fun ⟨_, ⟨x1, x2⟩, ⟨⟨y1, y2⟩, ⟨s0, s0'⟩⟩⟩ =>
           ((((y1, y2), (s0, s0')),
-            (fun i : Fin k => altExtR ext1 ext2 x1 y1 s0 i.1,
+            (fun i : Fin k => altExtR ext1 ext2 x1 y1 s0 i.val,
              fun i : Fin (k + 1) => fun j : Fin r =>
-               altExtR ext1 ext2 (x2 j) (y2 j) (s0' j) i.1)),
+               altExtR ext1 ext2 (x2 j) (y2 j) (s0' j) i.val)),
            altExtR ext1 ext2 x1 y1 s0 k) := by
       simp only [PMF.map]
       refine PMF.bind_congr_on_support S.joint _ _
@@ -1452,9 +1452,9 @@ theorem dist_altExt_lookAhead_le {nX nY d1 d2 r : ℕ}
         let (x, x') := px
         PY.map fun py =>
           let ((y, y'), (s0, s0')) := py
-          (py, (fun i : Fin k => altExtR ext1 ext2 x y s0 i.1,
+          (py, (fun i : Fin k => altExtR ext1 ext2 x y s0 i.val,
                 fun i : Fin (k + 1) => fun j : Fin r =>
-                  altExtR ext1 ext2 (x' j) (y' j) (s0' j) i.1))).bind fun v =>
+                  altExtR ext1 ext2 (x' j) (y' j) (s0' j) i.val))).bind fun v =>
         (PMF.uniformOfFintype (BitString d2)).map fun u => (v, u)) := by
     congr 1
     have hfst := congrArg (PMF.map Prod.fst) hL
@@ -1484,7 +1484,7 @@ theorem dist_altExt_sumset_lookAhead_le {n d1 d2 : ℕ}
     (hA_ent : k1 ≤ kA - (k * d2 : ℕ) - (k * d1 : ℕ) - (k + 1 : ℕ) * Real.logb 2 δ⁻¹)
     (hB_ent : k2 ≤ kB - (k * d1 : ℕ) - (k * d2 : ℕ) - (k + 1 : ℕ) * Real.logb 2 δ⁻¹) :
     let view (a : BitString n) (bs : BitString n × BitString d1) :=
-      (bs, fun i : Fin k => altExtR ext1 ext2 (a + bs.1) (a + bs.1) bs.2 i.1)
+      (bs, fun i : Fin k => altExtR ext1 ext2 (a + bs.1) (a + bs.1) bs.2 i.val)
     dist
       (A.bind fun a => JB.map fun bs =>
         (view a bs, altExtR ext1 ext2 (a + bs.1) (a + bs.1) bs.2 k))
@@ -1544,13 +1544,13 @@ theorem dist_altExt_sumset_lookAhead_le {n d1 d2 : ℕ}
   have hL :
       (S.joint.map fun ⟨τ, a, bs⟩ => ((bs, histR τ), ext1 a (curS τ bs) + ext1 bs.1 (curS τ bs))) =
       A.bind fun a => JB.map fun bs =>
-        ((bs, fun i : Fin k => altExtR ext1 ext2 (a + bs.1) (a + bs.1) bs.2 i.1),
+        ((bs, fun i : Fin k => altExtR ext1 ext2 (a + bs.1) (a + bs.1) bs.2 i.val),
          altExtR ext1 ext2 (a + bs.1) (a + bs.1) bs.2 k) := by
     have hcongr :
         (S.joint.map fun ⟨τ, a, bs⟩ =>
           ((bs, histR τ), ext1 a (curS τ bs) + ext1 bs.1 (curS τ bs))) =
         S.joint.map fun ⟨_, a, bs⟩ =>
-          ((bs, fun i : Fin k => altExtR ext1 ext2 (a + bs.1) (a + bs.1) bs.2 i.1),
+          ((bs, fun i : Fin k => altExtR ext1 ext2 (a + bs.1) (a + bs.1) bs.2 i.val),
            altExtR ext1 ext2 (a + bs.1) (a + bs.1) bs.2 k) := by
       simp only [PMF.map]
       refine PMF.bind_congr_on_support S.joint _ _ fun ⟨τ, a, bs⟩ hmem => ?_
@@ -1565,7 +1565,7 @@ theorem dist_altExt_sumset_lookAhead_le {n d1 d2 : ℕ}
       ((S.joint.map fun ⟨τ, _, bs⟩ => (bs, histR τ)).bind fun o =>
         (PMF.uniformOfFintype (BitString d2)).map fun u => (o, u)) =
       ((A.bind fun a => JB.map fun bs =>
-          (bs, fun i : Fin k => altExtR ext1 ext2 (a + bs.1) (a + bs.1) bs.2 i.1)).bind fun v =>
+          (bs, fun i : Fin k => altExtR ext1 ext2 (a + bs.1) (a + bs.1) bs.2 i.val)).bind fun v =>
         (PMF.uniformOfFintype (BitString d2)).map fun u => (v, u)) := by
     congr 1
     have hfst := congrArg (PMF.map Prod.fst) hL
@@ -1589,7 +1589,7 @@ noncomputable def vanderCB (t ℓ : ℕ) (hℓ : ℓ ≠ 0)
     (b : BitString ((t + 1) * ℓ)) (y : BitString ℓ) (α : BitString ℓ) : Bool :=
   let a := (BinaryField.equivBits hℓ).symm α
   let val : BinaryField ℓ :=
-    ∑ i : Fin (t + 1), (BinaryField.equivBits hℓ).symm (BitString.block b i) * a ^ i.1
+    ∑ i : Fin (t + 1), (BinaryField.equivBits hℓ).symm (BitString.block b i) * a ^ i.val
   BinaryField.equivBits hℓ val ⬝ᵥ y
 
 /-- **Unconditional polynomial `IsLinearWeakSeedCB` over `2 ^ ℓ` advice strings**:
@@ -1602,7 +1602,7 @@ theorem isLinearWeakSeedCB_vander {t ℓ : ℕ} (hℓ : ℓ ≠ 0) (ht : t + 1 �
       (δ + 2 ^ (((((t + 1) * ℓ : ℕ) : ℝ) - kSrc - kSeed + Real.logb 2 δ⁻¹) / 2) / 2) := by
   classical
   let evalB (b : BitString ((t + 1) * ℓ)) (a : BinaryField ℓ) : BinaryField ℓ :=
-    ∑ i : Fin (t + 1), (BinaryField.equivBits hℓ).symm (BitString.block b i) * a ^ i.1
+    ∑ i : Fin (t + 1), (BinaryField.equivBits hℓ).symm (BitString.block b i) * a ^ i.val
   refine ⟨fun y α b₁ b₂ => ?_, ?_⟩
   · unfold vanderCB
     have hadd : evalB (b₁ + b₂) ((BinaryField.equivBits hℓ).symm α) =
@@ -1643,7 +1643,7 @@ theorem isLinearWeakSeedCB_vander {t ℓ : ℕ} (hℓ : ℓ ≠ 0) (ht : t + 1 �
   have ha'_mem (j : Fin r) : a' j ∈ pts :=
     Finset.mem_union_left _ (Finset.mem_image_of_mem a' (Finset.mem_univ j))
   let Leak := pts → BinaryField ℓ
-  let leak : BitString ((t + 1) * ℓ) → Leak := fun b p => evalB b p.1
+  let leak : BitString ((t + 1) * ℓ) → Leak := fun b p => evalB b p.val
   let JB : PMF (Leak × BitString ((t + 1) * ℓ)) := B.map fun b => (leak b, b)
   let μ : PMF Leak := JB.map Prod.fst
   have hlog_leak : Real.logb 2 (Fintype.card Leak) = (t * ℓ : ℕ) := by
@@ -1687,7 +1687,7 @@ theorem isLinearWeakSeedCB_vander {t ℓ : ℕ} (hℓ : ℓ ≠ 0) (ht : t + 1 �
         (BinaryField.equivBits hℓ).symm (BitString.block b i)
     have heval (b : BitString ((t + 1) * ℓ)) (x : BinaryField ℓ) :
         (P b : Polynomial (BinaryField ℓ)).eval x = evalB b x := by
-      rw [Polynomial.eval_eq_sum_degreeLTEquiv (P b).2, Subtype.coe_eta,
+      rw [Polynomial.eval_eq_sum_degreeLTEquiv (P b).property, Subtype.coe_eta,
         LinearEquiv.apply_symm_apply]
     have hP : (P b₁ : Polynomial (BinaryField ℓ)) - P b₂ = 0 := by
       refine Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero' _ (insert a₀ pts)
@@ -1700,7 +1700,7 @@ theorem isLinearWeakSeedCB_vander {t ℓ : ℕ} (hℓ : ℓ ≠ 0) (ht : t + 1 �
         by_cases h0 : (P b₁ : Polynomial (BinaryField ℓ)) - P b₂ = 0
         · simp [h0]
         · exact (Polynomial.natDegree_lt_iff_degree_lt h0).mpr
-            (Polynomial.mem_degreeLT.mp (Submodule.sub_mem _ (P b₁).2 (P b₂).2))
+            (Polynomial.mem_degreeLT.mp (Submodule.sub_mem _ (P b₁).property (P b₂).property))
     refine BitString.blocksEquiv.injective (funext fun i => ?_)
     exact (BinaryField.equivBits hℓ).symm.injective (congrFun
       ((Polynomial.degreeLTEquiv _ (t + 1)).symm.injective (Subtype.ext (sub_eq_zero.mp hP))) i)

@@ -76,7 +76,7 @@ theorem exists_spread_of_not_isWeaklySmall {p : ℝ} (hp : 0 < p) {A : Set (Fins
     · have hpI : 0 < p ^ I.card := pow_pos hp _
       have ht := hm I
       rw [kernel_average_eq] at ht
-      have hc : 1 ≤ I.card := card_pos.mpr (nonempty_iff_ne_empty.mpr hI)
+      have hc : 1 ≤ I.card := card_pos.mpr (ne_empty_iff_nonempty.mp hI)
       have htwo : (2 : ℝ) ≤ 2 ^ I.card := by
         simpa only [pow_one] using pow_le_pow_right₀ (by norm_num : (1 : ℝ) ≤ 2) hc
       calc _ ≤ 2 * p ^ I.card := ((div_lt_iff₀ hpI).mp ht).le

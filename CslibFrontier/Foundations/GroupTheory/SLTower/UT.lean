@@ -44,11 +44,11 @@ abbrev SL2 (h : ℕ) : Type := Matrix.SpecialLinearGroup (Fin h) (ZMod 2)
 
 /-- Upper unitriangular matrices, as a submonoid of `SL_h(F₂)`. -/
 private def UMonoid (h : ℕ) : Submonoid (SL2 h) where
-  carrier := {A | ∀ i j, (j < i → A.1 i j = 0) ∧ A.1 i i = 1}
+  carrier := {A | ∀ i j, (j < i → A.val i j = 0) ∧ A.val i i = 1}
   one_mem' := fun i j => ⟨fun hij => Matrix.one_apply_ne hij.ne', Matrix.one_apply_eq i⟩
   mul_mem' := by
     intro A B hA hB i j
-    have h1 : ∀ i j k, j < i → A.1 i k * B.1 k j = 0 := by
+    have h1 : ∀ i j k, j < i → A.val i k * B.val k j = 0 := by
       intro i j k hij
       rcases lt_or_ge k i with hk | hk
       · rw [(hA i k).1 hk, zero_mul]
@@ -76,14 +76,14 @@ def U (h : ℕ) : Subgroup (SL2 h) :=
       rw [e]
       exact (UMonoid h).pow_mem ha _ }
 
-theorem mem_U {h : ℕ} {A : SL2 h} : A ∈ U h ↔ ∀ i j, (j < i → A.1 i j = 0) ∧ A.1 i i = 1 :=
+theorem mem_U {h : ℕ} {A : SL2 h} : A ∈ U h ↔ ∀ i j, (j < i → A.val i j = 0) ∧ A.val i i = 1 :=
   Iff.rfl
 
 /-- The index j as a row. -/
-@[expose] def lo {h : ℕ} (j : Fin (h - 1)) : Fin h := ⟨j.1, by omega⟩
+@[expose] def lo {h : ℕ} (j : Fin (h - 1)) : Fin h := ⟨j.val, by omega⟩
 
 /-- The index j + 1 as a column. -/
-@[expose] def hi {h : ℕ} (j : Fin (h - 1)) : Fin h := ⟨j.1 + 1, by omega⟩
+@[expose] def hi {h : ℕ} (j : Fin (h - 1)) : Fin h := ⟨j.val + 1, by omega⟩
 
 theorem lo_lt_hi {h : ℕ} (j : Fin (h - 1)) : lo j < hi j := by
   rw [Fin.lt_def]; simp [lo, hi]
@@ -128,8 +128,8 @@ noncomputable def equivU (h : ℕ) : U h ≃ ({p : Fin h × Fin h // p.1 < p.2} 
     simp only [Matrix.of_apply]
     split_ifs with h1 h2
     · rfl
-    · rw [h2]; exact ((A.2 j j).2).symm
-    · exact ((A.2 i j).1 (lt_of_le_of_ne (not_lt.1 h1) (Ne.symm h2))).symm
+    · rw [h2]; exact ((A.property j j).2).symm
+    · exact ((A.property i j).1 (lt_of_le_of_ne (not_lt.1 h1) (Ne.symm h2))).symm
   right_inv f := by
     funext p
     obtain ⟨⟨i, j⟩, hij⟩ := p

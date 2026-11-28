@@ -145,7 +145,7 @@ theorem linearIndependent_sigma {ι : Type} {W : ι → Mt m} (h : iSupIndep fun
     LinearIndependent F2 fun x : Σ k, S k => (p x.1 : Mt m).col x.2 := by
   have hle (k : ι) : span F2 (Set.range fun i : S k => (p k : Mt m).col i) ≤ colSpace (W k) := by
     rw [hW k, colSpace_X]
-    exact span_mono fun _ ⟨i, hi⟩ => hi ▸ Set.mem_image_of_mem _ i.2
+    exact span_mono fun _ ⟨i, hi⟩ => hi ▸ Set.mem_image_of_mem _ i.property
   refine linearIndependent_iUnion_finite (f := fun k (i : S k) => (p k : Mt m).col i)
     (fun k => (linearIndependent_col (p k)).comp _ Subtype.val_injective) fun k _ _ hk =>
     (h k).mono (hle k) (iSup₂_le fun j hj =>

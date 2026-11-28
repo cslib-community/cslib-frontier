@@ -129,7 +129,7 @@ structure GraphicalGame (ι : Type*) (S : ι → Type*) where
   /-- The undirected interaction graph `G` over the players. -/
   graph : SimpleGraph ι
   /-- Local payoff table `M_i(a^i)` for player `i` on closed-neighborhood action profiles. -/
-  localPayoff : ∀ i : ι, (∀ j : ClosedNeighborhood graph i, S j.1) → ℝ
+  localPayoff : ∀ i : ι, (∀ j : ClosedNeighborhood graph i, S j.val) → ℝ
 
 namespace CostGame
 
@@ -164,12 +164,12 @@ variable {ι : Type*} {S : ι → Type*} (M : GraphicalGame ι S)
 
 /-- Restrict a global pure action profile `s` to player `i`'s closed neighborhood `N_G(i)`
 (`a^i` in [Kearns2007], §7.2, p. 162). -/
-def restrictNeighborhood (i : ι) (s : ∀ k, S k) : ∀ j : ClosedNeighborhood M.graph i, S j.1 :=
-  fun j => s j.1
+def restrictNeighborhood (i : ι) (s : ∀ k, S k) : ∀ j : ClosedNeighborhood M.graph i, S j.val :=
+  fun j => s j.val
 
 @[simp] theorem restrictNeighborhood_apply (i : ι) (s : ∀ k, S k)
     (j : ClosedNeighborhood M.graph i) :
-    M.restrictNeighborhood i s j = s j.1 := by
+    M.restrictNeighborhood i s j = s j.val := by
   rw [restrictNeighborhood]
 
 /-- Player `i`'s payoff at a global action profile `s`, evaluated from `M.localPayoff i`. -/
@@ -177,7 +177,7 @@ def payoff (i : ι) (s : ∀ k, S k) : ℝ :=
   M.localPayoff i (M.restrictNeighborhood i s)
 
 @[simp] theorem payoff_eq_localPayoff (i : ι) (s : ∀ k, S k) :
-    M.payoff i s = M.localPayoff i (fun j => s j.1) := by
+    M.payoff i s = M.localPayoff i (fun j => s j.val) := by
   unfold payoff restrictNeighborhood
   rfl
 
@@ -187,7 +187,7 @@ theorem payoff_congr {i : ι} {s₁ s₂ : ∀ k, S k}
     (h : ∀ j, (j = i ∨ M.graph.Adj i j) → s₁ j = s₂ j) :
     M.payoff i s₁ = M.payoff i s₂ := by
   simp only [payoff_eq_localPayoff]
-  exact congrArg (M.localPayoff i) (funext fun j => h j.1 j.2)
+  exact congrArg (M.localPayoff i) (funext fun j => h j.val j.property)
 
 /-- Changing the action of a non-neighbor `k` (`k ≠ i` and `¬ M.graph.Adj i k`) leaves player `i`'s
 payoff unchanged. -/
@@ -251,18 +251,19 @@ variable {ι : Type*} {S : ι → Type*} [Fintype ι] [DecidableEq ι] [∀ i, F
 /-- Total number of scalar entries across all local payoff tables `M.localPayoff`
 ([Kearns2007], §7.2 Remarks, p. 162). -/
 def tableEntries (M : GraphicalGame ι S) [DecidableRel M.graph.Adj] : ℕ :=
-  Fintype.card (Σ i : ι, ∀ j : ClosedNeighborhood M.graph i, S j.1)
+  Fintype.card (Σ i : ι, ∀ j : ClosedNeighborhood M.graph i, S j.val)
 
 theorem tableEntries_def (M : GraphicalGame ι S) [DecidableRel M.graph.Adj] :
-    M.tableEntries = Fintype.card (Σ i : ι, ∀ j : ClosedNeighborhood M.graph i, S j.1) := by
+    M.tableEntries = Fintype.card (Σ i : ι, ∀ j : ClosedNeighborhood M.graph i, S j.val) := by
   rw [tableEntries]
 
 /-- `ClosedNeighborhood M.graph i` is canonically equivalent to the finite set
 `insert i (M.graph.neighborFinset i)`. -/
 private def closedNeighborhoodEquiv (M : GraphicalGame ι S) [DecidableRel M.graph.Adj] (i : ι) :
     ClosedNeighborhood M.graph i ≃ {j : ι // j ∈ insert i (M.graph.neighborFinset i)} where
-  toFun j := ⟨j.1, Finset.mem_insert.2 (j.2.imp id (M.graph.mem_neighborFinset i j.1).2)⟩
-  invFun j := ⟨j.1, (Finset.mem_insert.1 j.2).imp id (M.graph.mem_neighborFinset i j.1).1⟩
+  toFun j := ⟨j.val, Finset.mem_insert.2 (j.property.imp id (M.graph.mem_neighborFinset i j.val).2)⟩
+  invFun j :=
+    ⟨j.val, (Finset.mem_insert.1 j.property).imp id (M.graph.mem_neighborFinset i j.val).1⟩
   left_inv _ := rfl
   right_inv _ := rfl
 
@@ -349,13 +350,13 @@ depends only on `{j // P j}` and every coordinate outside `P` has total weight `
 `∑ s, productWeight p s * f (restrict s)` reduces to the product sum on `{j // P j}`. -/
 theorem sum_productWeight_mul_restrict (P : ι → Prop) [DecidablePred P]
     {p : ∀ i, S i → ℝ} (hp : ∀ j, ¬ P j → ∑ a, p j a = 1)
-    (f : (∀ j : {j : ι // P j}, S j.1) → ℝ) :
-    ∑ s : (∀ i, S i), productWeight p s * f (fun j => s j.1) =
-      ∑ u : (∀ j : {j : ι // P j}, S j.1), (∏ j : {j : ι // P j}, p j.1 (u j)) * f u := by
+    (f : (∀ j : {j : ι // P j}, S j.val) → ℝ) :
+    ∑ s : (∀ i, S i), productWeight p s * f (fun j => s j.val) =
+      ∑ u : (∀ j : {j : ι // P j}, S j.val), (∏ j : {j : ι // P j}, p j.val (u j)) * f u := by
   let e := (Equiv.piEquivPiSubtypeProd P S).symm
-  have hprod (u : ∀ j : {j // P j}, S j.1) (v : ∀ j : {j // ¬ P j}, S j.1) :
+  have hprod (u : ∀ j : {j // P j}, S j.val) (v : ∀ j : {j // ¬ P j}, S j.val) :
       productWeight p (e (u, v)) =
-        (∏ j : {j // P j}, p j.1 (u j)) * (∏ j : {j // ¬ P j}, p j.1 (v j)) := by
+        (∏ j : {j // P j}, p j.val (u j)) * (∏ j : {j // ¬ P j}, p j.val (v j)) := by
     rw [productWeight_def,
       ← Finset.prod_filter_mul_prod_filter_not univ P (fun j => p j (e (u, v) j)),
       Finset.prod_subtype (univ.filter P) (p := P) (fun _ => mem_filter_univ _)
@@ -363,23 +364,23 @@ theorem sum_productWeight_mul_restrict (P : ι → Prop) [DecidablePred P]
       Finset.prod_subtype (univ.filter fun j => ¬ P j) (p := fun j => ¬ P j)
         (fun _ => mem_filter_univ _) (fun j => p j (e (u, v) j))]
     exact congrArg₂ (· * ·)
-      (prod_congr rfl fun j _ => by simp [e, Equiv.piEquivPiSubtypeProd, j.2])
-      (prod_congr rfl fun j _ => by simp [e, Equiv.piEquivPiSubtypeProd, j.2])
-  have hrest : ∑ v : (∀ j : {j // ¬ P j}, S j.1), ∏ j : {j // ¬ P j}, p j.1 (v j) = 1 := by
-    rw [← Fintype.prod_sum (fun j : {j // ¬ P j} => p j.1)]
-    exact prod_eq_one fun j _ => hp j.1 j.2
-  rw [← Fintype.sum_equiv e _ (fun s => productWeight p s * f (fun j => s j.1)) fun _ => rfl]
-  calc ∑ x : (∀ j : {j // P j}, S j.1) × (∀ j : {j // ¬ P j}, S j.1),
-        productWeight p (e x) * f (fun j => e x j.1)
-      = ∑ u : (∀ j : {j // P j}, S j.1), ∑ v : (∀ j : {j // ¬ P j}, S j.1),
-          ((∏ j : {j // P j}, p j.1 (u j)) * f u) *
-            (∏ j : {j // ¬ P j}, p j.1 (v j)) := by
+      (prod_congr rfl fun j _ => by simp [e, Equiv.piEquivPiSubtypeProd, j.property])
+      (prod_congr rfl fun j _ => by simp [e, Equiv.piEquivPiSubtypeProd, j.property])
+  have hrest : ∑ v : (∀ j : {j // ¬ P j}, S j.val), ∏ j : {j // ¬ P j}, p j.val (v j) = 1 := by
+    rw [← Fintype.prod_sum (fun j : {j // ¬ P j} => p j.val)]
+    exact prod_eq_one fun j _ => hp j.val j.property
+  rw [← Fintype.sum_equiv e _ (fun s => productWeight p s * f (fun j => s j.val)) fun _ => rfl]
+  calc ∑ x : (∀ j : {j // P j}, S j.val) × (∀ j : {j // ¬ P j}, S j.val),
+        productWeight p (e x) * f (fun j => e x j.val)
+      = ∑ u : (∀ j : {j // P j}, S j.val), ∑ v : (∀ j : {j // ¬ P j}, S j.val),
+          ((∏ j : {j // P j}, p j.val (u j)) * f u) *
+            (∏ j : {j // ¬ P j}, p j.val (v j)) := by
         rw [Fintype.sum_prod_type]
         refine sum_congr rfl fun u _ => sum_congr rfl fun v _ => ?_
-        have hrestrict : (fun j : {j // P j} => e (u, v) j.1) = u :=
-          funext fun j => by simp [e, Equiv.piEquivPiSubtypeProd, j.2]
+        have hrestrict : (fun j : {j // P j} => e (u, v) j.val) = u :=
+          funext fun j => by simp [e, Equiv.piEquivPiSubtypeProd, j.property]
         rw [hprod u v, hrestrict, mul_right_comm]
-    _ = ∑ u : (∀ j : {j // P j}, S j.1), (∏ j : {j // P j}, p j.1 (u j)) * f u :=
+    _ = ∑ u : (∀ j : {j // P j}, S j.val), (∏ j : {j // P j}, p j.val (u j)) * f u :=
         sum_congr rfl fun u _ => by rw [← Finset.mul_sum, hrest, mul_one]
 
 /-- Expected payoff `M_i(p) = E_{s ∼ p}[M.payoff i s]` of player `i` under independent mixed
@@ -420,20 +421,21 @@ theorem sum_mul_deviationPayoff_eq_expectedPayoff (p : ∀ i, S i → ℝ) {i : 
 omit [Fintype ι] [∀ i, Fintype (S i)] in
 /-- Player `i`'s payoff when `i` plays pure action `a` and its neighbors `j ∈ M.graph.neighborSet i`
 play `u j`. -/
-def localNeighborPayoff (i : ι) (a : S i) (u : ∀ j : M.graph.neighborSet i, S j.1) : ℝ :=
+def localNeighborPayoff (i : ι) (a : S i) (u : ∀ j : M.graph.neighborSet i, S j.val) : ℝ :=
   M.localPayoff i fun j =>
-    if h : j.1 = i then cast (congrArg S h.symm) a else u ⟨j.1, j.2.resolve_left h⟩
+    if h : j.val = i then cast (congrArg S h.symm) a else u ⟨j.val, j.property.resolve_left h⟩
 
 omit [Fintype ι] [∀ i, Fintype (S i)] in
-theorem localNeighborPayoff_def (i : ι) (a : S i) (u : ∀ j : M.graph.neighborSet i, S j.1) :
+theorem localNeighborPayoff_def (i : ι) (a : S i) (u : ∀ j : M.graph.neighborSet i, S j.val) :
     M.localNeighborPayoff i a u =
       M.localPayoff i fun j =>
-        if h : j.1 = i then cast (congrArg S h.symm) a else u ⟨j.1, j.2.resolve_left h⟩ := by
+        if h : j.val = i then cast (congrArg S h.symm) a
+        else u ⟨j.val, j.property.resolve_left h⟩ := by
   rw [localNeighborPayoff]
 
 omit [Fintype ι] [∀ i, Fintype (S i)] in
 theorem payoff_update_eq_localNeighborPayoff (i : ι) (a : S i) (s : ∀ k, S k) :
-    M.payoff i (update s i a) = M.localNeighborPayoff i a (fun j => s j.1) := by
+    M.payoff i (update s i a) = M.localNeighborPayoff i a (fun j => s j.val) := by
   rw [payoff_eq_localPayoff, localNeighborPayoff]
   exact congrArg (M.localPayoff i)
     (funext fun ⟨j, _⟩ => by rcases eq_or_ne j i with rfl | hji <;> simp [*])
@@ -441,15 +443,15 @@ theorem payoff_update_eq_localNeighborPayoff (i : ι) (a : S i) (s : ∀ k, S k)
 /-- Purely local expected payoff of player `i` playing pure action `a` when its neighbors in
 `M.graph` use mixed strategies `nbr`. -/
 noncomputable def localDeviationPayoff (i : ι) (a : S i)
-    (nbr : ∀ j : M.graph.neighborSet i, S j.1 → ℝ) : ℝ := by
+    (nbr : ∀ j : M.graph.neighborSet i, S j.val → ℝ) : ℝ := by
   classical
-  exact ∑ u : (∀ j : M.graph.neighborSet i, S j.1),
+  exact ∑ u : (∀ j : M.graph.neighborSet i, S j.val),
     (∏ j : M.graph.neighborSet i, nbr j (u j)) * M.localNeighborPayoff i a u
 
 theorem localDeviationPayoff_def [DecidableRel M.graph.Adj] (i : ι) (a : S i)
-    (nbr : ∀ j : M.graph.neighborSet i, S j.1 → ℝ) :
+    (nbr : ∀ j : M.graph.neighborSet i, S j.val → ℝ) :
     M.localDeviationPayoff i a nbr =
-      ∑ u : (∀ j : M.graph.neighborSet i, S j.1),
+      ∑ u : (∀ j : M.graph.neighborSet i, S j.val),
         (∏ j : M.graph.neighborSet i, nbr j (u j)) * M.localNeighborPayoff i a u := by
   unfold localDeviationPayoff
   convert rfl
@@ -460,8 +462,8 @@ profiles. -/
 theorem expectedPayoff_eq_localSum [DecidableRel M.graph.Adj] {p : ∀ k, S k → ℝ} {i : ι}
     (hp : ∀ k, ¬ (k = i ∨ M.graph.Adj i k) → ∑ a, p k a = 1) :
     M.expectedPayoff p i =
-      ∑ u : (∀ j : ClosedNeighborhood M.graph i, S j.1),
-        (∏ j : ClosedNeighborhood M.graph i, p j.1 (u j)) * M.localPayoff i u := by
+      ∑ u : (∀ j : ClosedNeighborhood M.graph i, S j.val),
+        (∏ j : ClosedNeighborhood M.graph i, p j.val (u j)) * M.localPayoff i u := by
   rw [expectedPayoff_def]
   exact sum_productWeight_mul_restrict (fun k => k = i ∨ M.graph.Adj i k) hp (M.localPayoff i)
 
@@ -470,7 +472,7 @@ summing to `1`, `M.deviationPayoff p i a` equals `M.localDeviationPayoff i a` ev
 `M.graph.neighborSet i` (independent of both `p i` and all non-neighbors). -/
 theorem deviationPayoff_eq_localDeviationPayoff {p : ∀ k, S k → ℝ} {i : ι}
     (hp : ∀ k, ¬ M.graph.Adj i k → ∑ a, p k a = 1) (a : S i) :
-    M.deviationPayoff p i a = M.localDeviationPayoff i a (fun j => p j.1) := by
+    M.deviationPayoff p i a = M.localDeviationPayoff i a (fun j => p j.val) := by
   classical
   simp only [deviationPayoff_def, localDeviationPayoff_def, payoff_update_eq_localNeighborPayoff]
   exact sum_productWeight_mul_restrict (fun k => M.graph.Adj i k) hp (M.localNeighborPayoff i a)
@@ -484,7 +486,7 @@ theorem deviationPayoff_congr_neighbors {p q : ∀ k, S k → ℝ} {i : ι}
     M.deviationPayoff p i a = M.deviationPayoff q i a := by
   rw [M.deviationPayoff_eq_localDeviationPayoff hp a,
     M.deviationPayoff_eq_localDeviationPayoff hq a]
-  exact congrArg (M.localDeviationPayoff i a) (funext fun j => h_eq j.1 j.2)
+  exact congrArg (M.localDeviationPayoff i a) (funext fun j => h_eq j.val j.property)
 
 /-- Two mixed strategy profiles agreeing on `ClosedNeighborhood M.graph i` give player `i` the same
 expected payoff ([Kearns2007], §7.2 & Definition 7.8 / Lemma 7.9 product case). -/
@@ -545,24 +547,24 @@ theorem isApproxNash_iff_mixed {ε : ℝ} {p : ∀ i, S i → ℝ} :
 /-- Purely local `ε`-best-response predicate for player `i` against neighbor mixed strategies `nbr`
 ([Kearns2007], §7.2–7.3, pp. 162, 165). -/
 @[expose] noncomputable def IsApproxBestResponse (ε : ℝ) (i : ι) (x : S i → ℝ)
-    (nbr : ∀ j : M.graph.neighborSet i, S j.1 → ℝ) : Prop :=
+    (nbr : ∀ j : M.graph.neighborSet i, S j.val → ℝ) : Prop :=
   IsMixedStrategy x ∧
     ∀ a : S i, M.localDeviationPayoff i a nbr ≤
       (∑ b : S i, x b * M.localDeviationPayoff i b nbr) + ε
 
 /-- Purely local exact best-response predicate (`ε = 0`). -/
 @[expose] noncomputable def IsBestResponse (i : ι) (x : S i → ℝ)
-    (nbr : ∀ j : M.graph.neighborSet i, S j.1 → ℝ) : Prop :=
+    (nbr : ∀ j : M.graph.neighborSet i, S j.val → ℝ) : Prop :=
   M.IsApproxBestResponse 0 i x nbr
 
 theorem isApproxBestResponse_zero_iff {i : ι} {x : S i → ℝ}
-    {nbr : ∀ j : M.graph.neighborSet i, S j.1 → ℝ} :
+    {nbr : ∀ j : M.graph.neighborSet i, S j.val → ℝ} :
     M.IsApproxBestResponse 0 i x nbr ↔ M.IsBestResponse i x nbr := Iff.rfl
 
 /-- **Locality of `IsApproxNash`**: `p` is an `ε`-Nash equilibrium of `M` if and only if each
 `p i` is locally an `ε`-best response to `(fun j : M.graph.neighborSet i => p j.1)`. -/
 theorem isApproxNash_iff_local {ε : ℝ} {p : ∀ i, S i → ℝ} :
-    M.IsApproxNash ε p ↔ ∀ i, M.IsApproxBestResponse ε i (p i) (fun j => p j.1) := by
+    M.IsApproxNash ε p ↔ ∀ i, M.IsApproxBestResponse ε i (p i) (fun j => p j.val) := by
   refine ⟨fun ⟨hp, hbr⟩ i => ⟨hp i, fun a => ?_⟩,
     fun h => ⟨fun i => (h i).1, fun i a => ?_⟩⟩
   · simp_rw [← M.deviationPayoff_eq_localDeviationPayoff (fun k _ => (hp k).sum_eq_one),
@@ -575,7 +577,7 @@ theorem isApproxNash_iff_local {ε : ℝ} {p : ∀ i, S i → ℝ} :
 /-- **Locality of exact Nash equilibrium**: `p` is a mixed Nash equilibrium of `M.toCostGame` if
 and only if each `p i` is locally an exact best response to its neighbors in `M.graph`. -/
 theorem isMixedNash_toCostGame_iff_local {p : ∀ i, S i → ℝ} :
-    M.toCostGame.IsMixedNash p ↔ ∀ i, M.IsBestResponse i (p i) (fun j => p j.1) := by
+    M.toCostGame.IsMixedNash p ↔ ∀ i, M.IsBestResponse i (p i) (fun j => p j.val) := by
   rw [← M.isApproxNash_zero_iff, M.isApproxNash_iff_local]; rfl
 
 end MixedExpectation
@@ -597,16 +599,17 @@ variable {ι : Type*} {S : ι → Type*}
 closed-neighborhood setting `u` of player `i` in `G` ([Kearns2007], Definition 7.8, p. 171). -/
 noncomputable def neighborhoodMarginal (G : SimpleGraph ι)
     (σ : Convexity.StdSimplex ℝ (∀ i, S i)) (i : ι)
-    (u : ∀ j : ClosedNeighborhood G i, S j.1) : ℝ := by
+    (u : ∀ j : ClosedNeighborhood G i, S j.val) : ℝ := by
   classical
-  exact σ.weights.sum fun s w => if (fun j : ClosedNeighborhood G i => s j.1) = u then w else 0
+  exact σ.weights.sum fun s w => if (fun j : ClosedNeighborhood G i => s j.val) = u then w else 0
 
 theorem neighborhoodMarginal_def (G : SimpleGraph ι)
     (σ : Convexity.StdSimplex ℝ (∀ i, S i)) (i : ι)
-    [DecidableEq (∀ j : ClosedNeighborhood G i, S j.1)]
-    (u : ∀ j : ClosedNeighborhood G i, S j.1) :
+    [DecidableEq (∀ j : ClosedNeighborhood G i, S j.val)]
+    (u : ∀ j : ClosedNeighborhood G i, S j.val) :
     neighborhoodMarginal G σ i u =
-      σ.weights.sum fun s w => if (fun j : ClosedNeighborhood G i => s j.1) = u then w else 0 := by
+      σ.weights.sum fun s w =>
+        if (fun j : ClosedNeighborhood G i => s j.val) = u then w else 0 := by
   unfold neighborhoodMarginal
   convert rfl
 
@@ -615,26 +618,26 @@ Definition 7.8, p. 171): `σ` and `τ` induce identical marginal distributions o
 neighborhood `ClosedNeighborhood G i`. -/
 @[expose] def LocalNeighborhoodEquiv (G : SimpleGraph ι)
     (σ τ : Convexity.StdSimplex ℝ (∀ i, S i)) : Prop :=
-  ∀ (i : ι) (u : ∀ j : ClosedNeighborhood G i, S j.1),
+  ∀ (i : ι) (u : ∀ j : ClosedNeighborhood G i, S j.val),
     neighborhoodMarginal G σ i u = neighborhoodMarginal G τ i u
 
 private theorem sum_mul_local_eq_of_localNeighborhoodEquiv {G : SimpleGraph ι}
     {σ τ : Convexity.StdSimplex ℝ (∀ i, S i)} (h : LocalNeighborhoodEquiv G σ τ) (i : ι)
-    (f : (∀ j : ClosedNeighborhood G i, S j.1) → ℝ) :
-    σ.weights.sum (fun s w => w * f (fun j => s j.1)) =
-      τ.weights.sum (fun s w => w * f (fun j => s j.1)) := by
+    (f : (∀ j : ClosedNeighborhood G i, S j.val) → ℝ) :
+    σ.weights.sum (fun s w => w * f (fun j => s j.val)) =
+      τ.weights.sum (fun s w => w * f (fun j => s j.val)) := by
   classical
-  let U : Finset (∀ j : ClosedNeighborhood G i, S j.1) :=
-    (σ.weights.support ∪ τ.weights.support).image fun s j => s j.1
+  let U : Finset (∀ j : ClosedNeighborhood G i, S j.val) :=
+    (σ.weights.support ∪ τ.weights.support).image fun s j => s j.val
   have hdecomp (ρ : Convexity.StdSimplex ℝ (∀ i, S i))
-      (hU : ∀ s ∈ ρ.weights.support, (fun j : ClosedNeighborhood G i => s j.1) ∈ U) :
-      ρ.weights.sum (fun s w => w * f (fun j => s j.1)) =
+      (hU : ∀ s ∈ ρ.weights.support, (fun j : ClosedNeighborhood G i => s j.val) ∈ U) :
+      ρ.weights.sum (fun s w => w * f (fun j => s j.val)) =
         ∑ u ∈ U, neighborhoodMarginal G ρ i u * f u := by
     simp only [neighborhoodMarginal_def, Finsupp.sum, sum_mul]
     rw [sum_comm]
     refine sum_congr rfl fun s hs => ?_
     simp only [ite_mul, zero_mul,
-      sum_ite_eq U (fun j : ClosedNeighborhood G i => s j.1) (fun u => ρ.weights s * f u),
+      sum_ite_eq U (fun j : ClosedNeighborhood G i => s j.val) (fun u => ρ.weights s * f u),
       ite_eq_left_iff.2 fun hnot => absurd (hU s hs) hnot]
   rw [hdecomp σ (fun s hs => mem_image_of_mem _ (mem_union_left _ hs)),
     hdecomp τ (fun s hs => mem_image_of_mem _ (mem_union_right _ hs))]
@@ -656,11 +659,11 @@ theorem exists_graphicalGame_not_expectedPayoffEquiv {G : SimpleGraph ι}
   classical
   obtain ⟨i₀, u₀, hne⟩ : ∃ i u, _ ≠ _ := by simpa only [LocalNeighborhoodEquiv, not_forall] using h
   refine ⟨⟨G, fun i u =>
-    if hi : i = i₀ then if (hi ▸ u : ∀ j : ClosedNeighborhood G i₀, S j.1) = u₀ then 1 else 0
+    if hi : i = i₀ then if (hi ▸ u : ∀ j : ClosedNeighborhood G i₀, S j.val) = u₀ then 1 else 0
     else 0⟩, rfl, fun hep => hne ?_⟩
   have hval (ρ : Convexity.StdSimplex ℝ (∀ i, S i)) :
       ρ.weights.sum (fun s w =>
-        w * (if (fun j : ClosedNeighborhood G i₀ => s j.1) = u₀ then (1 : ℝ) else 0)) =
+        w * (if (fun j : ClosedNeighborhood G i₀ => s j.val) = u₀ then (1 : ℝ) else 0)) =
         neighborhoodMarginal G ρ i₀ u₀ := by
     rw [neighborhoodMarginal_def]
     exact Finsupp.sum_congr fun _ _ => by split_ifs <;> ring
@@ -674,11 +677,11 @@ theorem LocalNeighborhoodEquiv.isApproxCorrelatedEquilibrium_iff [DecidableEq ι
     M.toCostGame.IsApproxCorrelatedEquilibrium ε σ ↔
       M.toCostGame.IsApproxCorrelatedEquilibrium ε τ := by
   refine forall_congr' fun i => forall_congr' fun δ => ?_
-  let fδ : (∀ j : ClosedNeighborhood M.graph i, S j.1) → ℝ := fun u =>
+  let fδ : (∀ j : ClosedNeighborhood M.graph i, S j.val) → ℝ := fun u =>
     -M.localPayoff i fun j =>
-      if hj : j.1 = i then cast (congrArg S hj.symm) (δ (u ⟨i, Or.inl rfl⟩)) else u j
+      if hj : j.val = i then cast (congrArg S hj.symm) (δ (u ⟨i, Or.inl rfl⟩)) else u j
   have hcost_upd (s : ∀ k, S k) :
-      M.toCostGame.cost i (update s i (δ (s i))) = fδ (fun j => s j.1) := by
+      M.toCostGame.cost i (update s i (δ (s i))) = fδ (fun j => s j.val) := by
     simp only [GraphicalGame.toCostGame_cost, GraphicalGame.payoff_eq_localPayoff, fδ, neg_inj]
     exact congrArg (M.localPayoff i)
       (funext fun ⟨j, _⟩ => by rcases eq_or_ne j i with rfl | hji <;> simp [*])

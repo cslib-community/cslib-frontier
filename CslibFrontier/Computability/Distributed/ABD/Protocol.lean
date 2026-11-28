@@ -1892,7 +1892,8 @@ private lemma not_forall_stay_of_fair {t : ℕ} (_h2t : 2 * t < Fintype.card P)
     obtain ⟨j₂, hj₂, hdel₂⟩ := hfair r (by rwa [hr_dest]) (j₁ + 1) hr_mem
     have hk_j₂ : k₀ ≤ j₂ := hj₁.trans ((Nat.le_succ j₁).trans hj₂)
     exact ⟨j₂ + 1, Nat.le_succ_of_le hk_j₂, hresp_absorb q r j₂ hk_j₂ hdel₂ hr_is⟩
-  choose stepOf hstep_ge hstep_mem using fun (q : {x // x ∈ Finset.univ \ F}) => hex_q q.1 q.2
+  choose stepOf hstep_ge hstep_mem using
+    fun (q : {x // x ∈ Finset.univ \ F}) => hex_q q.val q.property
   let M := max k₀ (Finset.univ.sup stepOf)
   have hM_ge : k₀ ≤ M := le_max_left _ _
   have hsub : Finset.univ \ F ⊆ coll M := by

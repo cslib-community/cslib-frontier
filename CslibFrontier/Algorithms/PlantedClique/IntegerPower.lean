@@ -49,12 +49,12 @@ variable {n : ℕ}
   | 0, i => Vector.ofFn fun j => if j = i then 1 else 0
   | s + 1, i =>
     let v := powerColumnVector M s i
-    Vector.ofFn fun j => ∑ l : Fin n, M j l * v[l.1]
+    Vector.ofFn fun j => ∑ l : Fin n, M j l * v[l.val]
 
 /-- Reading a stored power-column entry agrees with the corresponding matrix-power entry. -/
 @[simp]
 theorem getElem_powerColumnVector (M : Matrix (Fin n) (Fin n) ℤ) (s : ℕ)
-    (i j : Fin n) : (powerColumnVector M s i)[j.1] = (M ^ s) j i := by
+    (i j : Fin n) : (powerColumnVector M s i)[j.val] = (M ^ s) j i := by
   induction s generalizing j with
   | zero => simp [powerColumnVector, Matrix.one_apply]
   | succ s ih =>
@@ -65,15 +65,15 @@ entry magnitude by at most a factor of the dimension. -/
 theorem natAbs_powerColumnVector_le (M : Matrix (Fin n) (Fin n) ℤ)
     (hM : ∀ j l, (M j l).natAbs ≤ 1) (s : ℕ) (i j : Fin n) :
     ((powerColumnVector M s i)[j]).natAbs ≤ n ^ s := by
-  change ((powerColumnVector M s i)[j.1]).natAbs ≤ n ^ s
+  change ((powerColumnVector M s i)[j.val]).natAbs ≤ n ^ s
   induction s generalizing j with
   | zero =>
     simp only [powerColumnVector, Vector.getElem_ofFn, pow_zero]
     split <;> simp
   | succ s ih =>
     simp only [powerColumnVector, Vector.getElem_ofFn]
-    calc (∑ l : Fin n, M j l * (powerColumnVector M s i)[l.1]).natAbs
-        ≤ ∑ l : Fin n, (M j l * (powerColumnVector M s i)[l.1]).natAbs :=
+    calc (∑ l : Fin n, M j l * (powerColumnVector M s i)[l.val]).natAbs
+        ≤ ∑ l : Fin n, (M j l * (powerColumnVector M s i)[l.val]).natAbs :=
           Int.natAbs_sum_le _ _
       _ ≤ ∑ _l : Fin n, n ^ s := by
         refine sum_le_sum fun l _ => ?_

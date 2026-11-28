@@ -50,7 +50,7 @@ def example22_3 : MonotoneSpanProgram (ZMod 5) (Fin 4) where
 
 theorem example22_3_accepts_012 : example22_3.Accepts {0, 1, 2} := by
   rw [MonotoneSpanProgram.accepts_iff_exists_vecMul]
-  let w : (i : ({0, 1, 2} : Finset (Fin 4))) → Fin (example22_3.rowDim i.1) → ZMod 5 :=
+  let w : (i : ({0, 1, 2} : Finset (Fin 4))) → Fin (example22_3.rowDim i.val) → ZMod 5 :=
     fun i => match i with
       | ⟨0, _⟩ => ![1, 0]
       | ⟨1, _⟩ => ![1]
@@ -61,7 +61,7 @@ theorem example22_3_accepts_012 : example22_3.Accepts {0, 1, 2} := by
 
 theorem example22_3_accepts_023 : example22_3.Accepts {0, 2, 3} := by
   rw [MonotoneSpanProgram.accepts_iff_exists_vecMul]
-  let w : (i : ({0, 2, 3} : Finset (Fin 4))) → Fin (example22_3.rowDim i.1) → ZMod 5 :=
+  let w : (i : ({0, 2, 3} : Finset (Fin 4))) → Fin (example22_3.rowDim i.val) → ZMod 5 :=
     fun i => match i with
       | ⟨0, _⟩ => ![0, 1]
       | ⟨2, _⟩ => ![0, 1]
@@ -132,12 +132,12 @@ example :
 
 /-- Explicit row-weight recombination (`sum_dotProduct_linearShare_eq_secret`) on `{0, 1, 2}`. -/
 example (k : LinearKey example22_3) (secret : ZMod 5) :
-    let w : (i : ({0, 1, 2} : Finset (Fin 4))) → Fin (example22_3.rowDim i.1) → ZMod 5 :=
+    let w : (i : ({0, 1, 2} : Finset (Fin 4))) → Fin (example22_3.rowDim i.val) → ZMod 5 :=
       fun i => match i with
         | ⟨0, _⟩ => ![1, 0]
         | ⟨1, _⟩ => ![1]
         | ⟨2, _⟩ => ![1, 0]
-    ∑ i : ({0, 1, 2} : Finset (Fin 4)), dotProduct (w i) (linearShare example22_3 k secret i.1) =
+    ∑ i : ({0, 1, 2} : Finset (Fin 4)), dotProduct (w i) (linearShare example22_3 k secret i.val) =
       secret := by
   refine sum_dotProduct_linearShare_eq_secret example22_3 k secret _ ?_
   ext j
@@ -149,7 +149,8 @@ example (k₁ k₂ : LinearKey example22_3) (secret₁ secret₂ c : ZMod 5) :
     example22_3Scheme.reconstruct {0, 1, 2}
         (example22_3Scheme.view {0, 1, 2} k₁ secret₁) = secret₁ ∧
       linearReconstruct example22_3 {0, 2, 3}
-        (fun i => linearShare example22_3 k₁ secret₁ i.1 + linearShare example22_3 k₂ secret₂ i.1) =
+        (fun i => linearShare example22_3 k₁ secret₁ i.val +
+            linearShare example22_3 k₂ secret₂ i.val) =
         secret₁ + secret₂ ∧
       linearShare example22_3 (c • k₁) (c * secret₁) 0 =
         c • linearShare example22_3 k₁ secret₁ 0 :=
@@ -160,7 +161,7 @@ example (k₁ k₂ : LinearKey example22_3) (secret₁ secret₂ c : ZMod 5) :
 /-- Probe 1 (`hs : P.Accepts s` in `linearReconstruct_linearShare`): on unauthorized `{0, 2}`,
 `linearReconstruct` outputs `0 ≠ 1`. -/
 example (k : LinearKey example22_3) :
-    linearReconstruct example22_3 {0, 2} (fun i => linearShare example22_3 k 1 i.1) ≠ 1 := by
+    linearReconstruct example22_3 {0, 2} (fun i => linearShare example22_3 k 1 i.val) ≠ 1 := by
   classical
   simp [linearReconstruct, example22_3_not_accepts_02]
 
@@ -168,7 +169,7 @@ example (k : LinearKey example22_3) :
 reconstructing the sum of sharings of `1` and `2` outputs `0 ≠ 3`. -/
 example (k₁ k₂ : LinearKey example22_3) :
     linearReconstruct example22_3 {0, 2}
-      (fun i => linearShare example22_3 k₁ 1 i.1 + linearShare example22_3 k₂ 2 i.1) ≠ 3 := by
+      (fun i => linearShare example22_3 k₁ 1 i.val + linearShare example22_3 k₂ 2 i.val) ≠ 3 := by
   classical
   simp only [linearReconstruct, example22_3_not_accepts_02, ↓reduceDIte, ne_eq]
   decide
@@ -188,7 +189,7 @@ example :
     rw [AccessScheme.viewDist, AccessStructure.viewDistOf, PMF.map_comp]
     have hconst :
         (example22_3Scheme.reconstruct {0, 1, 2} ∘ fun k (i : ({0, 1, 2} : Finset (Fin 4))) =>
-            example22_3Scheme.share k m i.1) =
+            example22_3Scheme.share k m i.val) =
           Function.const (LinearKey example22_3) m := by
       funext k
       exact example22_3Scheme.correct k m {0, 1, 2} example22_3_accepts_012
@@ -220,16 +221,16 @@ example :
         (linearShare probe4Program) {0} 1 := by
   intro h
   have hne :
-      (fun i : ({0} : Finset (Fin 1)) => linearShare probe4Program 0 0 i.1) ≠
-        fun i : ({0} : Finset (Fin 1)) => linearShare probe4Program 0 1 i.1 := by
+      (fun i : ({0} : Finset (Fin 1)) => linearShare probe4Program 0 0 i.val) ≠
+        fun i : ({0} : Finset (Fin 1)) => linearShare probe4Program 0 1 i.val := by
     intro heq
     have hval := congrFun (congrFun heq ⟨0, by simp⟩) ⟨0, by simp [probe4Program]⟩
     dsimp only [linearShare, probe4Program] at hval
     revert hval
     decide
   have h0 := congrArg
-    (fun p : PMF ((i : ({0} : Finset (Fin 1))) → LinearShare probe4Program i.1) =>
-      p (fun i : ({0} : Finset (Fin 1)) => linearShare probe4Program 0 0 i.1)) h
+    (fun p : PMF ((i : ({0} : Finset (Fin 1))) → LinearShare probe4Program i.val) =>
+      p (fun i : ({0} : Finset (Fin 1)) => linearShare probe4Program 0 0 i.val)) h
   simp only [AccessStructure.viewDistOf, PMF.pure_map, PMF.pure_apply, hne] at h0
   norm_num at h0
 
@@ -244,10 +245,10 @@ def probe5DupProgram : MonotoneSpanProgram (ZMod 5) (Fin 1) where
 example :
     (linearUniformAccessScheme probe5DupProgram).viewDist
         (uniformOfFintype (LinearKey probe5DupProgram)) {0} 0 ≠
-      uniformOfFintype ((i : ({0} : Finset (Fin 1))) → LinearShare probe5DupProgram i.1) := by
+      uniformOfFintype ((i : ({0} : Finset (Fin 1))) → LinearShare probe5DupProgram i.val) := by
   intro h
-  let bad : (i : ({0} : Finset (Fin 1))) → LinearShare probe5DupProgram i.1 :=
-    fun _ r => (r.1 : ZMod 5)
+  let bad : (i : ({0} : Finset (Fin 1))) → LinearShare probe5DupProgram i.val :=
+    fun _ r => (r.val : ZMod 5)
   have h0 := congrArg (fun p : PMF _ => p bad) h
   have hLHS :
       (linearUniformAccessScheme probe5DupProgram).viewDist
@@ -255,7 +256,7 @@ example :
     simp only [AccessScheme.viewDist, AccessStructure.viewDistOf, linearUniformAccessScheme,
       AccessScheme.monoSources, linearAccessScheme, PMF.map_apply, tsum_eq_zero_iff]
     intro r
-    by_cases hbad : (fun i : ({0} : Finset (Fin 1)) => linearShare probe5DupProgram r 0 i.1) = bad
+    by_cases hbad : (fun i : ({0} : Finset (Fin 1)) => linearShare probe5DupProgram r 0 i.val) = bad
     · have h0' := congrFun (congrFun hbad ⟨0, by simp⟩) ⟨0, by simp [probe5DupProgram]⟩
       have h1' := congrFun (congrFun hbad ⟨0, by simp⟩) ⟨1, by simp [probe5DupProgram]⟩
       simp only [linearShare, probe5DupProgram, bad, Matrix.cons_val_zero] at h0' h1'
@@ -272,7 +273,7 @@ example :
       exact absurd h01 (by decide)
     · simp [Ne.symm hbad]
   have hRHS :
-      (uniformOfFintype ((i : ({0} : Finset (Fin 1))) → LinearShare probe5DupProgram i.1))
+      (uniformOfFintype ((i : ({0} : Finset (Fin 1))) → LinearShare probe5DupProgram i.val))
         bad ≠ 0 := by
     simp [uniformOfFintype_apply]
   exact hRHS (h0.symm.trans hLHS)

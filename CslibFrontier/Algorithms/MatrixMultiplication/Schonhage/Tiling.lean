@@ -111,8 +111,8 @@ theorem nonempty_layout {L m : ℕ} (hmL : m ≤ L) : Nonempty (Layout L m) := b
            rowIdx := (Fintype.equivFinOfCardEq (card_outerStr L m)).symm
            colIdx := (Fintype.equivFinOfCardEq (card_outerStr L m)).symm
            innerIdx := (Fintype.equivFinOfCardEq (card_innerStr m)).symm
-           table := fun gh => (e gh).1
-           table_card := fun gh => (e gh).2
+           table := fun gh => (e gh).val
+           table_card := fun gh => (e gh).property
            table_injective := fun _ _ h => e.injective (Subtype.ext h) }⟩
 
 /-- The subsets in the table are distinct, so a sum over the table that selects the subset of the

@@ -133,7 +133,7 @@ theorem sum_pi_uniformOfFintype_toReal_mul {ι β : Type*} [Fintype ι] [Decidab
 holds gives `(s.filter P).card / s.card`, without requiring `[Fintype α]`. -/
 theorem sum_subtype_uniformOfFintype_ite_toReal (s : Finset α) [Nonempty s] (P : α → Prop)
     [DecidablePred P] :
-    (∑ x : s, if P x.1 then ((uniformOfFintype s) x).toReal else 0) =
+    (∑ x : s, if P x.val then ((uniformOfFintype s) x).toReal else 0) =
       (s.filter P).card / s.card := by
   simp only [uniformOfFintype_apply, Fintype.card_coe, ENNReal.toReal_inv, ENNReal.toReal_natCast,
     ← sum_filter, sum_const, nsmul_eq_mul, div_eq_mul_inv]

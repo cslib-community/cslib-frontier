@@ -123,14 +123,16 @@ theorem exists_isCircuitTest_le_advantage_one {ε : ℝ} (hε : 0 < ε) (G : Lis
     omega
   set g : BitString 1 → BitString m :=
     fun z => PRG.wordFamily G (fun ℓ => ⌈(2 : ℝ) ^ (ε * ℓ)⌉₊) 1 z with hg_def
-  have hseed (z : BitString 1) : z = (fun _ => z 0) :=
-    funext fun j => by rw [Subsingleton.elim j 0]
+  have hseed (z : BitString 1) : z = (fun _ => z 0) := by
+    funext j
+    rw [Subsingleton.elim j 0]
   set a := g fun _ => false
   set b := g fun _ => true
   have hgz (z : BitString 1) : g z = a ∨ g z = b := by
     rw [hseed z]
     cases z 0
-    exacts [Or.inl rfl, Or.inr rfl]
+    · exact Or.inl rfl
+    · exact Or.inr rfl
   let i₀ : Fin m := ⟨0, by omega⟩
   let i₁ : Fin m := ⟨1, by omega⟩
   have hi : i₀ ≠ i₁ := by simp [i₀, i₁, Fin.ext_iff]
@@ -148,8 +150,9 @@ theorem exists_isCircuitTest_le_advantage_one {ε : ℝ} (hε : 0 < ε) (G : Lis
     · change (a i₀ ^^ a i₁) = (b i₀ ^^ b i₁)
       revert h0 h1
       cases a i₀ <;> cases b i₀ <;> cases a i₁ <;> cases b i₁ <;> simp
-  refine ⟨fun y => _root_.PMF.pure (T y),
-    ⟨T, hTc.trans ((Nat.pow_le_pow_left hm2 3).trans' (by norm_num)), rfl⟩, ?_⟩
+  refine ⟨fun y => _root_.PMF.pure (T y), ⟨T, hTc.trans ?_, rfl⟩, ?_⟩
+  · calc 4 ≤ 2 ^ 3 := by norm_num
+      _ ≤ m ^ 3 := Nat.pow_le_pow_left hm2 3
   have hhalf := two_mul_card_filter_of_flip hTi T hT
   rw [Generator.advantage_pure_eq]
   have hconst (z : BitString 1) : T (g z) = T a := by
@@ -278,30 +281,31 @@ private theorem exists_forall_complexity_le_abs_sub_lt {ℓ m : ℕ} (hm : 60 �
       calc (2 : ℝ) ^ (L + 1) ≤ exp 1 ^ (L + 1) := by
             gcongr
             exact (by norm_num : (2 : ℝ) ≤ 1 + 1).trans (add_one_le_exp 1)
-        _ = exp (L + 1) := by rw [← exp_nat_mul, mul_one]; push_cast; ring_nf
+        _ = exp (L + 1) := by rw [← exp_natCast_mul, mul_one]; push_cast; ring_nf
     calc (2 : ℝ) ^ L * (2 * exp (-(2 ^ ℓ / 50))) = 2 ^ (L + 1) * exp (-(2 ^ ℓ / 50)) := by
           ring
       _ ≤ exp (L + 1) * exp (-(2 ^ ℓ / 50)) := by gcongr
       _ = exp (L + 1 - 2 ^ ℓ / 50) := by rw [← exp_add]; ring_nf
       _ < exp 0 := exp_lt_exp.mpr (by linarith)
       _ = 1 := exp_zero
-  let bad : Finset (BitString ℓ → BitString m) := (computableFunctions m (m ^ 3)).biUnion
+  have hfin := (Boolean.computableFunctions m (m ^ 3)).toFinite
+  let bad : Finset (BitString ℓ → BitString m) := hfin.toFinset.biUnion
     fun T => {g | 1 / 10 ≤ |(#{z | T (g z) = true} : ℝ) / 2 ^ ℓ - #{y | T y = true} / 2 ^ m|}
-  have hU : #bad ≤ ∑ T ∈ computableFunctions m (m ^ 3),
+  have hU : #bad ≤ ∑ T ∈ hfin.toFinset,
       #{g : BitString ℓ → BitString m |
         1 / 10 ≤ |(#{z | T (g z) = true} : ℝ) / 2 ^ ℓ - #{y | T y = true} / 2 ^ m|} :=
     card_biUnion_le
   have hbad : (#bad : ℝ) < (2 ^ m) ^ 2 ^ ℓ := by
-    calc (#bad : ℝ) ≤ ∑ T ∈ computableFunctions m (m ^ 3),
+    calc (#bad : ℝ) ≤ ∑ T ∈ hfin.toFinset,
           (#{g : BitString ℓ → BitString m |
             1 / 10 ≤ |(#{z | T (g z) = true} : ℝ) / 2 ^ ℓ - #{y | T y = true} / 2 ^ m|} : ℝ) := by
           exact_mod_cast hU
-      _ ≤ ∑ _T ∈ computableFunctions m (m ^ 3),
+      _ ≤ ∑ _T ∈ hfin.toFinset,
           ((2 : ℝ) ^ m) ^ 2 ^ ℓ * (2 * exp (-(2 ^ ℓ / 50))) :=
           sum_le_sum fun T _ => card_filter_le_abs_sub_le ℓ m T
-      _ = (#(computableFunctions m (m ^ 3)) : ℝ) *
+      _ = ((Boolean.computableFunctions m (m ^ 3)).ncard : ℝ) *
           (((2 : ℝ) ^ m) ^ 2 ^ ℓ * (2 * exp (-(2 ^ ℓ / 50)))) := by
-          rw [sum_const, nsmul_eq_mul]
+          rw [sum_const, nsmul_eq_mul, Set.ncard_eq_toFinset_card _ hfin]
       _ ≤ (2 : ℝ) ^ L * (((2 : ℝ) ^ m) ^ 2 ^ ℓ * (2 * exp (-(2 ^ ℓ / 50)))) := by
           gcongr
           exact_mod_cast card_computableFunctions_le_two_pow m (m ^ 3)
@@ -314,8 +318,9 @@ private theorem exists_forall_complexity_le_abs_sub_lt {ℓ m : ℕ} (hm : 60 �
     rw [hc]
     exact_mod_cast hbad
   obtain ⟨g, -, hg⟩ := exists_mem_notMem_of_card_lt_card hlt
-  exact ⟨g, fun T hT => lt_of_not_ge fun h => hg (mem_biUnion.mpr
-    ⟨T, mem_computableFunctions_iff_complexity_le.mpr hT, by simpa using h⟩)⟩
+  refine ⟨g, fun T hT => lt_of_not_ge fun h => hg (mem_biUnion.mpr ⟨T, ?_, ?_⟩)⟩
+  · exact hfin.mem_toFinset.mpr (mem_computableFunctions_iff_complexity_le.mpr hT)
+  · simpa using h
 
 /-- The corrected output length: `⌈2 ^ (ℓ / 10)⌉` for `ℓ ≥ 2`, and `ℓ` for `ℓ ≤ 1`. -/
 private noncomputable def outputLength (ℓ : ℕ) : ℕ :=
@@ -405,7 +410,8 @@ theorem exists_generator_advantage_lt :
   have hG (ℓ : ℕ) (z : BitString ℓ) : PRG.wordFamily G outputLength ℓ z = g ℓ z := by
     have key : ∀ (w : List Bool) (hw : w.length = ℓ),
         BitString.ofList (outputLength ℓ) (G w) = g ℓ (BitString.ofList ℓ w) := by
-      rintro w rfl
+      intro w hw
+      subst hw
       simp [G]
     change BitString.ofList (outputLength ℓ) (G (List.ofFn z)) = g ℓ z
     rw [key _ (List.length_ofFn), BitString.ofList_ofFn]

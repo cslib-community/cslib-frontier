@@ -44,7 +44,7 @@ def shamir23 : MonotoneSpanProgram (ZMod 5) (Fin 3) where
 /-- The coalition `{0, 1}` is accepted, with weights `2` and `4`. -/
 theorem shamir23_accepts_01 : shamir23.Accepts {0, 1} := by
   rw [MonotoneSpanProgram.accepts_iff_exists_vecMul]
-  let w : (i : ({0, 1} : Finset (Fin 3))) → Fin (shamir23.rowDim i.1) → ZMod 5 :=
+  let w : (i : ({0, 1} : Finset (Fin 3))) → Fin (shamir23.rowDim i.val) → ZMod 5 :=
     fun i => match i with
       | ⟨0, _⟩ => ![2]
       | ⟨1, _⟩ => ![4]

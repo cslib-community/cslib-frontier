@@ -642,17 +642,17 @@ theorem monotonicity_agency (t : (ι → Bool) → ℝ) (c : ι → ℝ) {v₁ v
 liability. -/
 noncomputable def priceOfUnaccountability (t : (ι → Bool) → ℝ)
     (c : ι → ℝ) : ℝ :=
-  ⨆ v : {v : ℝ // 0 < v}, firstBestWelfare t c v.1 / agencyPrincipalUtility t c v.1
+  ⨆ v : {v : ℝ // 0 < v}, firstBestWelfare t c v.val / agencyPrincipalUtility t c v.val
 
 theorem priceOfUnaccountability_eq (t : (ι → Bool) → ℝ) (c : ι → ℝ) :
     priceOfUnaccountability t c =
-      ⨆ v : {v : ℝ // 0 < v}, firstBestWelfare t c v.1 / agencyPrincipalUtility t c v.1 := by
+      ⨆ v : {v : ℝ // 0 < v}, firstBestWelfare t c v.val / agencyPrincipalUtility t c v.val := by
   rfl
 
 theorem bddAbove_pou_range (t : (ι → Bool) → ℝ) (c : ι → ℝ)
     (htpos : ∀ s, 0 < t s) (hc : ∀ i, 0 ≤ c i) :
     BddAbove (Set.range fun v : {v : ℝ // 0 < v} =>
-      firstBestWelfare t c v.1 / agencyPrincipalUtility t c v.1) := by
+      firstBestWelfare t c v.val / agencyPrincipalUtility t c v.val) := by
   let M : ℝ := Finset.univ.sup' Finset.univ_nonempty t / t (fun _ => false)
   refine ⟨M, ?_⟩
   rintro _ ⟨⟨v, hv⟩, rfl⟩

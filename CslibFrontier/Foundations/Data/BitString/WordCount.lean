@@ -339,7 +339,7 @@ theorem wordLt_ofFn_iff {n : ℕ} (x y : Fin n → Bool) :
       rw [hx, hy]
       decide
   · rintro ⟨i, hall, hlt⟩
-    refine ⟨i, i.2, fun j hj => ?_, ?_, ?_⟩
+    refine ⟨i, i.isLt, fun j hj => ?_, ?_, ?_⟩
     · rw [List.getD_ofFn_of_lt x (by omega) false, List.getD_ofFn_of_lt y (by omega) false]
       exact hall ⟨j, by omega⟩ hj
     · rw [List.getD_ofFn x i false]

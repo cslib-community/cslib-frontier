@@ -138,11 +138,12 @@ theorem three_mul_card_cheap_le (A : Fin t → Finset (Fin (2 ^ p))) (ℓ d : �
   -- The tables a function of the input and the gate values recovers.
   let Cons (F : (Fin (p + gateCount p t) → Bool) → Bool) : Finset (Fin (2 ^ p) → Bool) :=
     {T | ∀ x, F (Fin.append x (template A T x)) = tableFun T x}
+  have hfin := (computableFunctions I (p + gateCount p t) ℓ).toFinite
   -- Step 1: a cheap table is recovered by a function computed with `ℓ` gates.
   have hsub : ({T : Fin (2 ^ p) → Bool |
       ecomplexity I (fun x => Fin.append (template A T x) (single (tableFun T) x)) ≤
         ((#(nonInputComponents (template A T)) + ℓ : ℕ) : ℕ∞)} : Finset _) ⊆
-      (computableFunctions I (p + gateCount p t) ℓ).biUnion Cons := by
+      hfin.toFinset.biUnion Cons := by
     intro T hT
     rw [mem_filter] at hT
     have hle := (card_nonInputComponents_add_ecomplexityGiven_le I (template A T)
@@ -152,16 +153,16 @@ theorem three_mul_card_cheap_le (A : Fin t → Finset (Fin (2 ^ p))) (ℓ d : �
       (ENat.add_le_add_iff_left (ENat.natCast_ne_top _)).mp hle
     obtain ⟨c, hc, hsize⟩ := (ecomplexityGiven_le_iff _ _).mp hgiven
     refine mem_biUnion.mpr ⟨fun z => c.eval I z 0, ?_, ?_⟩
-    · exact mem_computableFunctions.mpr ⟨c, fun z => funext fun o => by
-        rw [Subsingleton.elim o 0, single_apply], hsize⟩
+    · exact hfin.mem_toFinset.mpr (mem_computableFunctions.mpr ⟨c, fun z => funext fun o => by
+        rw [Subsingleton.elim o 0, single_apply], hsize⟩)
     · simp only [Cons, mem_filter, mem_univ, true_and]
       intro x
       rw [hc x, single_apply]
   -- Step 2: few tables are recovered by each such function.
-  have hfiber : ∀ F ∈ computableFunctions I (p + gateCount p t) ℓ,
+  have hfiber : ∀ F ∈ hfin.toFinset,
       #(Cons F) ≤ 2 ^ (2 ^ p - d) := by
     intro F hF
-    obtain ⟨c, hc, hsize⟩ := mem_computableFunctions.mp hF
+    obtain ⟨c, hc, hsize⟩ := mem_computableFunctions.mp (hfin.mem_toFinset.mp hF)
     have hFc : ∀ z, F z = c.eval I z 0 := fun z => (congrFun (hc z) 0).symm
     have hsupp : #c.inputSupport ≤ ℓ + 1 := by
       have h := c.card_inputSupport_le_cost (fun _ => 1) fun op =>
@@ -196,7 +197,7 @@ theorem three_mul_card_cheap_le (A : Fin t → Finset (Fin (2 ^ p))) (ℓ d : �
       _ = 2 ^ (2 ^ p - #P) := by rw [card_powerset, card_compl, Fintype.card_fin]
       _ ≤ 2 ^ (2 ^ p - d) := Nat.pow_le_pow_right (by norm_num) (by omega)
   -- Step 3: the union bound.
-  have hcount : 3 * #(computableFunctions I (p + gateCount p t) ℓ) ≤ 2 ^ d := by
+  have hcount : 3 * #hfin.toFinset ≤ 2 ^ d := by
     have hpX := @Nat.lt_two_pow_self p
     have hM : p + gateCount p t + ℓ + 1 ≤ 3 * (2 ^ p) ^ 2 := by
       have h1 : 2 ^ p * p ≤ 2 ^ p * 2 ^ p := Nat.mul_le_mul_left _ hpX.le
@@ -207,12 +208,12 @@ theorem three_mul_card_cheap_le (A : Fin t → Finset (Fin (2 ^ p))) (ℓ d : �
     have h := three_mul_le_pow hX (hℓ.trans ht) hM (Boolean.DeMorganBasis.card_op_le I)
       (card_computableFunctions_mul_factorial_le_of_arity_le I (p + gateCount p t) ℓ 2
         (Boolean.DeMorganBasis.arity_le_two I))
-    rw [← pow_mul] at h
+    rw [Set.ncard_eq_toFinset_card _ hfin, ← pow_mul] at h
     exact h.trans (Nat.pow_le_pow_right (by norm_num) hd)
   have hdle : d ≤ 2 ^ p := by
     obtain ⟨P, hP, -⟩ := hcover ∅ (by simp)
     exact hP.trans ((card_le_univ P).trans_eq (Fintype.card_fin _))
-  calc _ ≤ 3 * #(computableFunctions I (p + gateCount p t) ℓ) * 2 ^ (2 ^ p - d) := by
+  calc _ ≤ 3 * #hfin.toFinset * 2 ^ (2 ^ p - d) := by
         rw [mul_assoc]
         exact Nat.mul_le_mul_left 3
           ((card_le_card hsub).trans (card_biUnion_le_card_mul _ _ _ hfiber))

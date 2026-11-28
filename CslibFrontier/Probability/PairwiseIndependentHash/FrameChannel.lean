@@ -97,8 +97,8 @@ column. -/
 
 @[simp]
 theorem Frame.mapSL_apply (g : SpecialLinearGroup (Fin H) ℤ) (F : Frame P H r) (j : Fin r) :
-    (Frame.mapSL g F).1 j = (SpecialLinearGroup.map (Int.castRingHom (ZMod P)) g : Matrix _ _ _)
-      *ᵥ F.1 j :=
+    (Frame.mapSL g F).val j = (SpecialLinearGroup.map (Int.castRingHom (ZMod P)) g : Matrix _ _ _)
+      *ᵥ F.val j :=
   rfl
 
 variable (P H r)
@@ -139,13 +139,7 @@ theorem dens_eval_mem_retentionBox (hr : r ≤ H) (hL : L ≤ P) (y : ZMod P) :
   have hcard : #{A : FrameChannel P H r | A.eval y ∈ retentionBox P H L} =
       L ^ H * Fintype.card (Frame P H r) := by
     rw [← card_retentionBox (H := H) hL, ← card_univ (α := Frame P H r), ← card_product]
-    refine card_bij (fun A _ ↦ FrameChannel.evalEquiv y A) (fun A hA ↦ ?_)
-      (fun _ _ _ _ h ↦ (FrameChannel.evalEquiv y).injective h) fun p hp ↦ ?_
-    · simpa using hA
-    · refine ⟨(FrameChannel.evalEquiv y).symm p, ?_, by simp⟩
-      have : ((FrameChannel.evalEquiv y).symm p).eval y = p.1 := by
-        simp [FrameChannel.evalEquiv, FrameChannel.eval]
-      simpa [this] using (mem_product.1 hp).1
+    exact card_equiv (FrameChannel.evalEquiv y) fun A => by simp
   have hpos : (0 : ℚ≥0) < Fintype.card (Frame P H r) := by exact_mod_cast Fintype.card_pos
   rw [dens, hcard, Fintype.card_prod, Fintype.card_fun, Fintype.card_fin, ZMod.card, div_pow]
   push_cast
@@ -163,14 +157,14 @@ variable {P H r L}
 reading representatives. -/
 @[expose] def retentionBoxEquiv [NeZero L] (hL : L ≤ P) :
     {w : Fin H → ZMod P // w ∈ retentionBox P H L} ≃ (Fin H → ZMod L) where
-  toFun w i := ((w.1 i).val : ZMod L)
+  toFun w i := ((w.val i).val : ZMod L)
   invFun u := ⟨fun i ↦ ((u i).val : ZMod P), by
     simp only [mem_retentionBox]
     intro i
     rw [ZMod.val_cast_of_lt ((ZMod.val_lt _).trans_le hL)]
     exact ZMod.val_lt _⟩
   left_inv w := by
-    have hw := w.2
+    have hw := w.property
     simp only [mem_retentionBox] at hw
     ext i
     simp only
@@ -183,12 +177,12 @@ reading representatives. -/
 @[simp]
 theorem retentionBoxEquiv_apply [NeZero L] (hL : L ≤ P)
     (w : {w : Fin H → ZMod P // w ∈ retentionBox P H L}) (i : Fin H) :
-    retentionBoxEquiv hL w i = ((w.1 i).val : ZMod L) :=
+    retentionBoxEquiv hL w i = ((w.val i).val : ZMod L) :=
   rfl
 
 @[simp]
 theorem retentionBoxEquiv_symm_apply [NeZero L] (hL : L ≤ P) (u : Fin H → ZMod L) (i : Fin H) :
-    ((retentionBoxEquiv hL).symm u).1 i = ((u i).val : ZMod P) :=
+    ((retentionBoxEquiv hL).symm u).val i = ((u i).val : ZMod P) :=
   rfl
 
 /-- **Coordinates on a retention slice**: a channel retaining `y` is its frame together with its
@@ -202,7 +196,7 @@ value at `y`, which ranges over the whole box `ZMod L ^ H`. -/
 
 @[simp]
 theorem sliceEquiv_apply [NeZero L] (hL : L ≤ P) (y : ZMod P) (A : RetentionSlice P H r L y) :
-    sliceEquiv hL y A = (A.val.2, fun i ↦ ((A.1.eval y i).val : ZMod L)) :=
+    sliceEquiv hL y A = (A.val.2, fun i ↦ ((A.val.eval y i).val : ZMod L)) :=
   rfl
 
 /-- The frame of a channel is its frame coordinate on the slice. -/
@@ -216,10 +210,10 @@ theorem sliceEquiv_symm_apply_snd [NeZero L] (hL : L ≤ P) (y : ZMod P)
 @[simp]
 theorem eval_sliceEquiv_symm [NeZero L] (hL : L ≤ P) (y : ZMod P)
     (p : Frame P H r × (Fin H → ZMod L)) (i : Fin H) :
-    ((sliceEquiv hL y).symm p).1.eval y i = ((p.2 i).val : ZMod P) := by
+    ((sliceEquiv hL y).symm p).val.eval y i = ((p.2 i).val : ZMod P) := by
   have h := congrArg (fun q ↦ q.2 i) ((sliceEquiv hL y).apply_symm_apply p)
   simp only [sliceEquiv_apply] at h
-  rw [← h, ZMod.val_cast_of_lt (mem_retentionBox.1 ((sliceEquiv hL y).symm p).2 i),
+  rw [← h, ZMod.val_cast_of_lt (mem_retentionBox.1 ((sliceEquiv hL y).symm p).property i),
     ZMod.natCast_zmod_val]
 
 /-- A retention slice has `#frames · L ^ H` channels. -/

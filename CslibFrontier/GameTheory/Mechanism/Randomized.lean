@@ -10,6 +10,7 @@ module
 public import CslibFrontier.GameTheory.Mechanism.VCG
 public import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Topology.Algebra.InfiniteSum.Order
 import Mathlib.Topology.Algebra.InfiniteSum.Real
@@ -144,12 +145,8 @@ abbrev IsTruthfulInExpectation [DecidableEq ι] (R : RandomizedMechanism ι Ω) 
 
 @[simp] theorem expectedUtility_deterministic (M : Mechanism ι Ω) (i : ι) (v : Ω → ℝ)
     (b : ι → Ω → ℝ) :
-    (deterministic M).expectedUtility i v b = M.utility i v b := by
-  classical
-  rw [expectedUtility, deterministic, tsum_eq_single M]
-  · simp only [PMF.pure_apply_self, ENNReal.toReal_one, one_mul]
-  · intro N hN
-    simp only [PMF.pure_apply_of_ne _ _ hN, ENNReal.toReal_zero, zero_mul]
+    (deterministic M).expectedUtility i v b = M.utility i v b :=
+  Probability.PMF.tsum_pure_toReal_mul M fun N => N.utility i v b
 
 @[simp] theorem isUniversallyDSICOn_deterministic_iff [DecidableEq ι] (M : Mechanism ι Ω)
     (V : ι → Set (Ω → ℝ)) :
