@@ -109,13 +109,54 @@ to open it on GitHub.</p>
 """)
 
 
+_BODIES["agents"] = ("Agent activity", "Recent agent sessions and the GitHub accounts they used.", """
+<h1>Agent activity</h1>
+<p class="sub">Observed sessions from public work records on GitHub. Several sessions can use the
+same account, and an agent can work in multiple sessions.</p>
+<div class="controls">
+  <div class="seg" id="window" role="group" aria-label="Activity window">
+    <button type="button" data-days="7" aria-pressed="true">Last 7 days</button>
+    <button type="button" data-days="30" aria-pressed="false">Last 30 days</button>
+  </div>
+  <span class="small" id="as-of"></span>
+</div>
+<div class="tiles agent-tiles" id="tiles" aria-live="polite"></div>
+<p class="small" id="coverage"></p>
+<h2>GitHub accounts</h2>
+<p class="sub">Distinct sessions and disclosed records in the selected window. A session can
+appear in both roles or use more than one login.</p>
+<div class="card agent-table" tabindex="0" role="region" aria-label="GitHub account activity">
+<table>
+  <thead><tr><th scope="col">Account</th><th scope="col" class="r">Sessions</th>
+    <th scope="col" class="r">Workers</th><th scope="col" class="r">Coordinators</th>
+    <th scope="col" class="r">Records</th><th scope="col">Evidence</th></tr></thead>
+  <tbody id="accounts"></tbody>
+</table>
+<p class="empty" id="empty" hidden>No agent disclosures were found in this window.</p>
+</div>
+<details class="card agent-method">
+  <summary>How activity is counted</summary>
+  <p>An active session had at least one recognized disclosure in a public issue or pull request
+  description, conversation comment, or submitted review during the selected period. Counts use
+  creation or submission time. The mini charts show daily counts in UTC, with today partial.</p>
+  <p>Recognized disclosures include named session fields, role signatures, worker claims in known
+  formats, and explicit agent or role statements. A review verdict can disclose agent work
+  with no session or role attached.
+  Unrecognized wording and private work are outside the estimate. Session counts can differ
+  from the number of distinct agents in either direction.</p>
+  <a href="agent-activity.json">Download summary data (JSON)</a>
+</details>
+""")
+
+
 def _json(obj) -> str:
     # Safe inside <script>: escaping "<" prevents both "</script>" and HTML5 "<!-- <script>" breakouts.
     return json.dumps(obj, separators=(",", ":")).replace("<", "\\u003c")
 
 
 def build(out: Path, H: h.History, census, charts: list[dict], sections: list[str],
-          repo_url: str, pr_recs: list[dict] | None = None) -> list[Path]:
+          repo_url: str, pr_recs: list[dict] | None = None,
+          agents: dict | None = None) -> list[Path]:
     """Write every page and its assets into `out`."""
     out.mkdir(parents=True, exist_ok=True)
     for f in ASSETS.iterdir():
@@ -125,7 +166,7 @@ def build(out: Path, H: h.History, census, charts: list[dict], sections: list[st
     report = census[0] if census else None
     meta = {"sha": head.sha, "time": head.time, "repoUrl": repo_url, "apiRoot": "../",
             "libRoot": "CslibFrontier", "areas": style.ALL_AREAS, "lean": bool(report),
-            "prs": pr_recs is not None}
+            "prs": pr_recs is not None, "agents": agents is not None}
     daily = sd.daily(H)
     audit_rows = __import__("audits").load(H.repo)
     audit_daily = sd.audit_daily(H, daily["dates"])
@@ -161,12 +202,13 @@ def build(out: Path, H: h.History, census, charts: list[dict], sections: list[st
                                               for r in results["results"]]},
                       "daily": {"dates": daily["dates"]}},
         "areas": {"modules": modules, "daily": daily, "results": results, "changes": changes},
+        "agents": {"activity": agents},
         "prs": {"prs": _pr_payload(pr_recs), "kinds": __import__("prs").KINDS,
                 "charts": [c for c in charts if c["section"] == "Pull requests"]},
     }
     written = []
     for page, (title, description, body) in _BODIES.items():
-        if page == "prs" and pr_recs is None:
+        if (page == "prs" and pr_recs is None) or (page == "agents" and agents is None):
             continue
         payload = {"meta": meta, **payloads[page]}
         p = out / f"{page}.html"

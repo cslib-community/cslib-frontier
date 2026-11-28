@@ -200,3 +200,23 @@ tbody tr[aria-selected="true"] { background: var(--hover); box-shadow: inset 3px
 
 footer.page { max-width: 1240px; margin: 0 auto; padding: 0 16px 40px; color: var(--muted); font-size: 12.5px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* Agent activity */
+.agent-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 650px) {
+  .agent-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.agent-table { overflow-x: auto; }
+.agent-table table { min-width: 560px; }
+.agent-table tbody tr { cursor: auto; }
+.agent-shared { display: block; }
+.agent-role {
+  display: inline-grid; justify-items: end; width: 100%; min-width: 42px;
+}
+.agent-role::after {
+  content: ""; display: block; width: var(--role-width); height: 3px;
+  border-radius: 2px; background: var(--role-color);
+}
+.agent-method { margin-top: 20px; }
+.agent-method summary { cursor: pointer; }
+.agent-method p { max-width: 80ch; }

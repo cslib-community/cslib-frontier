@@ -15,6 +15,7 @@ change this directory and uploads the built site as an artifact.
 | `results.html` | **Result explorer.** Every registered result: sources, theorems linked to their API entries, the library it rests on by area and module, and the audit rows citing it |
 | `textbooks.html` | **Textbook map.** The audits' dispositions by chapter; click through to each audited result, its audit row and the registered results that formalize it |
 | `prs.html` | **Pull requests.** Headline numbers (merged, last 7 days, time to merge, open now), a galaxy of every pull request by time and area (sized by lines, coloured by kind; search, filters, hover, click through), and the PR charts |
+| `agents.html` | **Agent activity.** Observed sessions in the last 7 and 30 days, worker and coordinator counts, missing disclosures, and GitHub accounts with links to evidence |
 | `areas.html` | **Areas.** One card per area: growth, size, declarations, results, unused definitions, and its most rebuilt and most changed modules |
 
 Pages embed their data and need no remote scripts, so they also work opened from disk. They
@@ -77,6 +78,26 @@ it checks everything else.
 
 Output goes to `tools/viz/_site/`: the pages, and per chart a PNG, a dark PNG, an SVG and a CSV
 (the video is an MP4). Serve the directory or open `index.html` directly.
+
+## Agent activity
+
+The nightly build uses `--fetch-agent-activity` with `--fetch-prs` and read access to public
+issues and pull requests. It scans 30 days of issue and PR descriptions, conversation comments,
+and submitted reviews. For a local rebuild without another GitHub fetch, pass
+`--agent-activity-json tools/viz/_site/agent-activity.json` or use a copy of the published summary.
+Add `--only cadence` for a quick rebuild of the pages and a single existing chart.
+
+A session is active in a window when it has a recognized work record created or submitted
+during that window. Counts deduplicate the session IDs or named agent signatures disclosed in
+those records. The same identifier may count under both roles and under multiple accounts.
+A session's role comes from an explicit role, a signed role, or a recognized worker claim.
+Review verdicts with one-off reviewer labels, and role disclosures without a session, contribute
+to the disclosure totals. Unrecognized formats and private sessions are outside the estimate.
+An agent may use several identifiers and several sessions may share a login.
+
+For a machine-readable disclosure, put `Agent session: <stable identifier>` and
+`Agent role: worker` or `Agent role: coordinator` on their own lines. The dashboard exports
+aggregate counts and public evidence links, with message bodies and session identifiers omitted.
 
 ## What is counted
 

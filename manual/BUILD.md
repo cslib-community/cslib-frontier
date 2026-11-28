@@ -310,3 +310,8 @@ Publish the generated `tools/stats/_site/` as a unit; the existing docs workflow
 workflow dispatch on `main`. The [dashboard README](../tools/stats/README.md) documents the
 category config, history/cache semantics, local regression tests and output overrides.
 Generated counts and pages are not versioned and are not inputs to either manual PDF.
+
+The docs workflow also builds the [codebase views](https://www.cslib.io/cslib-frontier/viz/).
+Its **Agent activity** page reads public GitHub disclosures with issue and pull request read
+access. The [visualisation README](../tools/viz/README.md#agent-activity) describes how to rebuild
+the page from a saved summary and how to interpret the session counts.
