@@ -12,6 +12,7 @@ public import CslibFrontier.DataStructure.CellProbe.Randomized.ObliviousSequence
 public import CslibFrontier.DataStructure.Dictionary.Dynamic.Spec
 public import CslibFrontier.Probability.PMF.Uniform
 public import Mathlib.Data.Finset.Sort
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Tactic.UniformRelabel
 import CslibFrontier.Foundations.Data.List.RowMajor
 import Mathlib.Data.Fintype.CardEmbedding
@@ -734,20 +735,12 @@ theorem length_initInsertSeq {U V n : ℕ}
     (initInsertSeq keys vals).length = n := by
   simp [initInsertSeq]
 
-private theorem length_flatMap_const {α β : Type*} (c : ℕ) (xs : List α) (f : α → List β)
-    (hf : ∀ x, (f x).length = c) :
-    (xs.flatMap f).length = c * xs.length := by
-  induction xs with
-  | nil => simp
-  | cons x rest ih =>
-    simp only [List.flatMap_cons, List.length_append, hf, ih, List.length_cons]
-    ring
-
 private theorem length_hardSeq {U V n : ℕ} (c : ℕ)
     (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V)
     (metaOp : Fin n → List (Dynamic.Op U)) (hc : ∀ j, (metaOp j).length = c) :
     (initInsertSeq keys vals ++ (List.finRange n).flatMap metaOp).length = (c + 1) * n := by
-  rw [List.length_append, length_initInsertSeq, length_flatMap_const c _ _ hc, List.length_finRange]
+  rw [List.length_append, length_initInsertSeq,
+    List.length_flatMap_of_forall_length_eq (fun j _ => hc j), List.length_finRange]
   ring
 
 @[simp]
@@ -1089,8 +1082,9 @@ private theorem drop_take_hardSeq {U V n : ℕ} (c : ℕ)
     List.flatMap_nil, List.append_nil, ← List.append_assoc] at htake
   rw [List.take_drop, htake]
   apply List.drop_left'
-  rw [List.length_append, length_initInsertSeq, length_flatMap_const c _ _ hc,
-    List.length_take, List.length_finRange, min_eq_left j.isLt.le]
+  rw [List.length_append, length_initInsertSeq,
+    List.length_flatMap_of_forall_length_eq (fun k _ => hc k),
+    List.length_take, List.length_finRange, min_eq_left j.isLt.le, Nat.mul_comm j.val c]
 
 /-- Elementary slice `[n + 3 * j, n + 3 * (j + 1))` of `insertQueryDeleteSeq` recovers
 `queryDeleteInsertMetaOp keys vals delPerm j`. -/
