@@ -147,11 +147,6 @@ private theorem turnsDown_run_mono {j k : ℕ} (hjk : j ≤ k) {p : Fin m} {r : 
               hyx.trans hxp⟩
         · exact Or.inr ⟨x, by simpa only [target, Function.update_of_ne hxq] using hx, hxp⟩
 
-private theorem getElem?_idxOf_of_mem {α : Type*} [DecidableEq α] {l : List α} {a : α}
-    (ha : a ∈ l) : l[l.idxOf a]? = some a := by
-  have hlt : l.idxOf a < l.length := List.idxOf_lt_length_iff.2 ha
-  exact List.getElem?_eq_getElem hlt |>.trans (congrArg some (List.getElem_idxOf hlt))
-
 /-- For every proposer `p`, the final state index of deferred acceptance equals the rank of
 `p`'s final outcome (`idxOf` when matched, `length` when unmatched), even with duplicate entries. -/
 theorem propRank_deferredAcceptance_eq_finalState (p : Fin m) :
@@ -167,7 +162,7 @@ theorem propRank_deferredAcceptance_eq_finalState (p : Fin m) :
   | some r =>
     rw [hd, propRank_some] at hlt
     exact I.not_rejected_finalState p ⟨r, hd, I.inv_finalState.turnsDown p _ r hlt
-      (getElem?_idxOf_of_mem (I.isIndividuallyRational_deferredAcceptance p r hd).1)⟩
+      (List.getElem?_idxOf (I.isIndividuallyRational_deferredAcceptance p r hd).1)⟩
 
 /-! ### The blocking lemma for incomplete lists -/
 
@@ -179,7 +174,7 @@ private theorem recvRank_deferredAcceptance_lt {q : Fin m} {r : Fin n}
   have hr_mem : r ∈ I.propPref q :=
     (I.propRank_some_lt_none_iff q r).1 (hq_lt.trans_le (I.propRank_le_propRank_none q _))
   rcases I.inv_finalState.turnsDown q _ r (I.propRank_deferredAcceptance_eq_finalState q ▸ hq_lt)
-      (getElem?_idxOf_of_mem hr_mem) with hnot | ⟨x, hx, hxq⟩
+      (List.getElem?_idxOf hr_mem) with hnot | ⟨x, hx, hxq⟩
   · exact absurd hqr hnot
   · exact ⟨x, hx, hxq⟩
 
@@ -299,7 +294,7 @@ theorem exists_isBlockingPair_of_lt {μ : PartialMatching m n}
     have hk_q : (I.propPref q).idxOf r₀ < I.run t q := by
       simpa only [D, hμq, propRank_some, I.propRank_deferredAcceptance_eq_finalState q,
         ← hfin q hqB, hrun_ne q hqp] using (hB q).1 hqB
-    rcases (I.inv_run t).turnsDown q _ r₀ hk_q (getElem?_idxOf_of_mem hq_mem) with
+    rcases (I.inv_run t).turnsDown q _ r₀ hk_q (List.getElem?_idxOf hq_mem) with
       hnot_rec | ⟨x, hx, hxq⟩
     · exact absurd (hrecIR q r₀ hμq) hnot_rec
     have hxp : x ≠ p₀ := by

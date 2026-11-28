@@ -134,8 +134,7 @@ private theorem firstMatch_eq_some [DecidableEq S] {baby giant : List S} {β γ 
   dsimp only at hf
   split_ifs at hf with hℓ
   obtain ⟨rfl, rfl⟩ := Option.some.inj hf
-  exact ⟨ℓ, by simp [List.getElem?_eq_getElem (List.idxOf_lt_length_of_mem hℓ)],
-    List.mem_zipIdx_iff_getElem?.mp hmem⟩
+  exact ⟨ℓ, List.getElem?_idxOf hℓ, List.mem_zipIdx_iff_getElem?.mp hmem⟩
 
 /-- If `firstMatch` finds nothing, no giant label is a baby label. -/
 private theorem not_mem_of_firstMatch_eq_none [DecidableEq S] {baby giant : List S}

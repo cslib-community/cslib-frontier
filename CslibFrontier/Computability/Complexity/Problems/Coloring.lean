@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
 import CslibFrontier.Foundations.Data.List.Counting
+import CslibFrontier.Foundations.Data.List.Lookup
 import Mathlib.Data.List.GetD
 
 /-!
@@ -142,8 +143,7 @@ theorem isVerifier (k : ℕ) :
           fun i => c (G.vertices.getD i 0)) v = c v := by
       intro v hv
       have hlt : G.vertices.idxOf v < G.vertices.length := List.idxOf_lt_length_iff.2 hv
-      have hget : G.vertices.getD (G.vertices.idxOf v) 0 = v := by
-        rw [List.getD_eq_getElem _ _ hlt, List.getElem_idxOf hlt]
+      have hget := List.getD_idxOf hv 0
       have hlen := G.length_vertices_le_encGraph
       rw [colorOf, countP_unaryBlocks (by rw [hget]; exact (hc v hv).le)
         (Nat.mul_le_mul_left k (by omega)), hget]
@@ -397,7 +397,7 @@ private theorem gadgetColoring_literal {φ : CNF ℕ} (σ : ℕ → Bool) {l : L
     (hl : l.1 ∈ φ.vars) : gadgetColoring φ σ (literalVertex φ l) = literalColor σ l := by
   obtain ⟨x, b⟩ := l
   simp only [gadgetColoring, literalVertex, Nat.unpair_pair]
-  rw [List.getD_eq_getElem?_getD, List.getElem?_idxOf hl, Option.getD_some]
+  rw [List.getD_idxOf hl]
   cases b <;> rfl
 
 private theorem gadgetColoring_output (φ : CNF ℕ) (σ : ℕ → Bool) (i j : ℕ) :

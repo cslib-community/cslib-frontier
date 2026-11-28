@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.SAT.ExactOne.DrawingPositions
 public import CslibFrontier.Computability.Complexity.Problems.SAT.ExactOne.DrawingEndpoints
 public import CslibFrontier.Computability.Complexity.Problems.SAT.ExactOne.GeometryProfilesCollar
+import CslibFrontier.Foundations.Data.List.Lookup
 import Mathlib.Data.List.GetD
 import Mathlib.Data.List.Nodup
 
@@ -54,8 +55,7 @@ theorem profileAuxiliaryIndex_not_terminal (p : ClauseProfile)
   change (profileVariables p).idxOf v ∈ (profileGeometry p).terminalVariables at ht
   have hm : v ∈ (profileGeometry p).terminalVariables.map
       (fun i => (profileVariables p).getD i (.inl (.inl 0))) := by
-    refine List.mem_map.mpr ⟨(profileVariables p).idxOf v, ht, ?_⟩
-    rw [List.getD_eq_getElem _ _ (List.idxOf_lt_length_of_mem hv), List.getElem_idxOf]
+    exact List.mem_map.mpr ⟨(profileVariables p).idxOf v, ht, List.getD_idxOf hv _⟩
   rw [profileGeometry_terminals] at hm
   obtain ⟨n, _, he⟩ := List.mem_map.mp hm
   exact ha n he.symm
