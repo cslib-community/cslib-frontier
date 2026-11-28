@@ -300,18 +300,9 @@ theorem succProbability_leveledSelectorGame (E : Scheme) (depth capacity : ℕ �
   have hbit := succProbability_sampleDyadicCoin_one (capacity n)
     (ProbComp.eval (Encryption.game E.keyGen E.encrypt
       (zeroLinkAdversary E depth adversary) bit n))
-  have hprod : (dyadicSize (depth n) : ℝ) * dyadicSize (capacity n) *
-      Game.succProbability ((ProbComp.eval (sampleDyadicCoin (depth n) 1)).bind fun keepLink =>
-        if keepLink then
-          (ProbComp.eval (sampleDyadicCoin (capacity n) 1)).bind fun keepBit =>
-            if keepBit then
-              ProbComp.eval (Encryption.game E.keyGen E.encrypt
-                (zeroLinkAdversary E depth adversary) bit n)
-            else PMF.pure false
-        else PMF.pure false) =
-      Game.succProbability (ProbComp.eval (Encryption.game E.keyGen E.encrypt
-        (zeroLinkAdversary E depth adversary) bit n)) := by
-    linear_combination (dyadicSize (capacity n) : ℝ) * hlink + hbit
+  have hprod := (mul_assoc (dyadicSize (depth n) : ℝ) (dyadicSize (capacity n)) _).trans
+    ((mul_left_comm (dyadicSize (depth n) : ℝ) (dyadicSize (capacity n)) _).trans
+      ((congrArg ((dyadicSize (capacity n) : ℝ) * ·) hlink).trans hbit))
   simp only [Game.succProbability] at hprod
   linarith
 
@@ -379,11 +370,11 @@ theorem advantage_game_eq_leveledAdversary (E : Scheme) (budget capacity : ℕ �
       Encryption.advantage (Encryption.game E.keyGen E.encrypt
         (leveledAdversary E (fun n => 2 * budget n) capacity adversary)) n := by
   apply NNReal.eq
+  have hpos : 0 ≤ 4 * (dyadicSize (2 * budget n) : ℝ) * dyadicSize (capacity n) := by positivity
   rw [NNReal.coe_mul, NNReal.coe_mul, NNReal.coe_mul, NNReal.coe_ofNat,
     NNReal.coe_natCast, NNReal.coe_natCast, Game.coe_advantage, Game.coe_advantage,
     gap_leveledAdversary E budget capacity adversary n width hwidth hcapacity,
-    abs_mul, abs_mul, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < 4),
-    Nat.abs_cast, Nat.abs_cast]
+    abs_mul, abs_of_nonneg hpos]
 
 /-- Polynomial concrete-security bound for the actual serialized leveled scheme in terms of
 the chain length `2 * budget n` and secret-width bound `capacity n`: rounding both dyadic

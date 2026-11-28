@@ -86,15 +86,10 @@ theorem exec_push {w : ℕ} (x : Data registers) (h0 : x.regs nil = 0)
     | 3 => wram_simp; exact h0
   have unext : u.regs nextLevel = x.regs nextLevel :=
     (huregs nextLevel (by decide)).trans (by wram_simp)
-  have ucf : u.regs childFrame = x.regs frames + x.regs nextLevel * 4 :=
-    (huregs childFrame (by decide)).trans (by wram_simp)
-  have ucp : u.regs childPrefix = x.regs leafPrefix + x.regs term * x.regs stride :=
-    (huregs childPrefix (by decide)).trans (by wram_simp)
-  have ucs : u.regs childStride = x.regs stride * 10 :=
-    (huregs childStride (by decide)).trans (by wram_simp)
   wram_exec [unext]
   intro hregs
-  wram_simp [ucf, ucp, ucs]
+  wram_simp [huregs childFrame (by decide), huregs childPrefix (by decide),
+    huregs childStride (by decide)]
   exact ⟨humem', humod, hregs⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

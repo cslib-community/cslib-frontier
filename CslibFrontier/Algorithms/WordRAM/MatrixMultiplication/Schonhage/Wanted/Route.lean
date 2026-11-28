@@ -91,8 +91,7 @@ theorem exec_route {w L m N tab : ℕ} (hm : m ≤ L) (I J : Fin N) (x : Data 96
   have hβ : β < b := bandOf_lt_numBands hm N I I.isLt
   have hγ : γ < b := bandOf_lt_numBands hm N J J.isLt
   have hk : k < b ^ 2 := by
-    dsimp [k]
-    nlinarith only [Nat.mul_le_mul_right b (Nat.succ_le_of_lt hβ), hγ]
+    dsimp only [k]; nlinarith only [Nat.mul_le_mul_right b (Nat.succ_le_of_lt hβ), hγ]
   have hbb : b ≤ b ^ 2 := by nlinarith only [hβ]
   have h2 : 2 ^ L ≤ 10 ^ L := Nat.pow_le_pow_left (by decide) _
   have hu : u ≤ N := (Nat.div_le_self _ _).trans I.isLt.le
@@ -101,16 +100,13 @@ theorem exec_route {w L m N tab : ℕ} (hm : m ≤ L) (I J : Fin N) (x : Data 96
   have hh : h.val < K0 L m := h.isLt
   have hp : rank = (MaskTable.pairRank (g, h)).val := by
     change g.val * K0 L m + h.val = h.val + K0 L m * g.val; ring
-  have hrank : rank < 2 ^ L := by
-    rw [hp]; exact (MaskTable.pairRank (g, h)).isLt.trans_le (Nat.choose_le_two_pow L m)
-  have hmul : g.val * K0 L m ≤ rank := by dsimp [rank]; omega
+  have hrank : rank < 2 ^ L :=
+    hp ▸ (MaskTable.pairRank (g, h)).isLt.trans_le (Nat.choose_le_two_pow L m)
   have ha : a < 2 ^ L := (MaskTable.selectedMask (g, h)).isLt
   have hr : r ≤ N := (Nat.mod_le _ _).trans I.isLt.le
   have hc : c ≤ N := (Nat.mod_le _ _).trans J.isLt.le
-  have hbfit (v : ℕ) (hv : v ≤ L + N + tab + b ^ 2 + 10 ^ L + 2 ^ L + 1) :
-      Fits w v := hfit.of_le (by
-        change v ≤ 64 * (L + N + tab + b ^ 2 + 10 ^ L + 2 ^ L + 1)
-        omega)
+  have hbfit (v : ℕ)
+      (hv : v ≤ 64 * (L + N + tab + b ^ 2 + 10 ^ L + 2 ^ L + 1)) : Fits w v := hfit.of_le hv
   have hfβ : Fits w β := hbfit _ (by omega)
   have hfγ : Fits w γ := hbfit _ (by omega)
   have hfprod : Fits w (β * b) := hbfit _ (by dsimp [k] at hk; omega)
@@ -121,17 +117,13 @@ theorem exec_route {w L m N tab : ℕ} (hm : m ≤ L) (I J : Fin N) (x : Data 96
   have hfv : Fits w v := hbfit _ (by omega)
   have hfg : Fits w g.val := hbfit _ (by have hle : g.val ≤ u := Nat.mod_le _ _; omega)
   have hfh : Fits w h.val := hbfit _ (by have hle : h.val ≤ v := Nat.mod_le _ _; omega)
-  have hfgmul : Fits w (g.val * K0 L m) := hbfit _ (by omega)
+  have hfgmul : Fits w (g.val * K0 L m) := hbfit _ (by dsimp [rank] at hrank; omega)
   have hfrank : Fits w rank := hbfit _ (by omega)
   have hfaddr : Fits w (tab + rank) := hbfit _ (by omega)
   have hload : x.mem (tab + rank) = a := by rw [hp]; exact htable (g, h)
-  have hpackfit : Fits w (a + r + c + L + 32 * 10 ^ L + 32) := hfit.of_le (by
-    change a + r + c + L + 32 * 10 ^ L + 32 ≤
-      64 * (L + N + tab + b ^ 2 + 10 ^ L + 2 ^ L + 1)
-    omega)
-  dsimp only [β, γ, b, k, bandOf] at hfβ hfγ hfprod hfk
-  dsimp only [r, c, u, v, g, h, blockOf, lay] at hfr hfc hfu hfv hfg hfh
-  dsimp only [rank, g, h, blockOf, lay] at hfgmul hfrank hfaddr hload
+  have hpackfit : Fits w (a + r + c + L + 32 * 10 ^ L + 32) := hbfit _ (by omega)
+  dsimp only [β, γ, b, k, bandOf, r, c, u, v, rank, g, h, blockOf, lay]
+    at hfβ hfγ hfprod hfk hfr hfc hfu hfv hfg hfh hfgmul hfrank hfaddr hload
   refine WP.exists_execWithin ?_
   unfold routeCode
   conv in routeHead => unfold routeHead tileCode packRegisters

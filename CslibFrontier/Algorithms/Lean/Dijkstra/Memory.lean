@@ -175,8 +175,7 @@ theorem holds_inputGraph (G : ListInstance) :
   · rw [hoff _ u.isLt, hoff _ u.isLt.le, G.offset_succ u.isLt]
   · rw [hoff _ u.isLt, ← G.offset_n]
     exact Nat.mul_le_mul_left 2 (G.offset_mono u.isLt)
-  · have haddr : G.n + 4 + 2 * (G.offset u + i) = 2 * (G.offset u + i) + G.n + 4 := by omega
-    rw [hoff _ u.isLt.le, haddr]
+  · rw [hoff _ u.isLt.le, Nat.add_comm (G.n + 4), ← Nat.add_assoc]
     exact G.init_target (r := 0) u hi
   · have haddr : G.n + 4 + (2 * (G.offset u + i) + 1) = 2 * (G.offset u + i) + G.n + 5 := by
       omega
@@ -391,11 +390,8 @@ theorem exists_run_logLinear :
   rw [Filter.eventually_comap]
   filter_upwards [Filter.eventually_ge_atTop 2] with b hb ⟨n, m⟩ rfl
   have hL : 1 ≤ Nat.log 2 n := Nat.le_log_of_pow_le (by norm_num) (by simpa using hb)
-  have h : memCost n m ≤ 104 * ((m + 1) * Nat.log 2 n) := by
-    unfold memCost
-    nlinarith
   simp only [Real.norm_natCast, norm_mul]
-  rw [Real.norm_of_nonneg (by positivity)]
-  exact_mod_cast h
+  rw [Real.norm_of_nonneg (by positivity), memCost]
+  norm_cast; nlinarith
 
 end Cslib.Algorithms.Lean.Dijkstra.Memory

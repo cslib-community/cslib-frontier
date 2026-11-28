@@ -162,26 +162,23 @@ theorem toReal_eval_mcspRun (p : Polynomial ℕ) (V : MCSP.Instance × List Bool
 theorem two_thirds_le_toReal_eval_mcspRun
     (hV : DecidesWithBoundedError MCSP.encInstance p V MCSP) {x : MCSP.Instance} (hx : x ∈ MCSP) :
     2 / 3 ≤ (ProbComp.eval (mcspRun p V x) true).toReal := by
-  rw [toReal_eval_mcspRun, le_div_iff₀ (by positivity)]
-  have h : (2 : ℝ) * 2 ^ p.eval (MCSP.encInstance x).length ≤
-      3 * ((Finset.univ.filter fun r : Fin (p.eval (MCSP.encInstance x).length) → Bool =>
-        V (x, List.ofFn r) = true).card : ℝ) := by exact_mod_cast (hV x).1 hx
-  linarith
+  rw [toReal_eval_mcspRun, div_le_div_iff₀ zero_lt_three (by positivity)]
+  exact_mod_cast ((hV x).1 hx).trans_eq (Nat.mul_comm 3 _)
 
 /-- A bounded-error decider accepts a non-member of MCSP with probability at most `1 / 3`. -/
 theorem toReal_eval_mcspRun_le_one_third
     (hV : DecidesWithBoundedError MCSP.encInstance p V MCSP) {x : MCSP.Instance} (hx : x ∉ MCSP) :
     (ProbComp.eval (mcspRun p V x) true).toReal ≤ 1 / 3 := by
-  rw [toReal_eval_mcspRun, div_le_iff₀ (by positivity)]
+  rw [toReal_eval_mcspRun, div_le_div_iff₀ (by positivity) zero_lt_three]
   set k := p.eval (MCSP.encInstance x).length
   have hsum : (Finset.univ.filter fun r : Fin k → Bool => V (x, List.ofFn r) = true).card +
       (Finset.univ.filter fun r : Fin k → Bool => V (x, List.ofFn r) = false).card = 2 ^ k := by
     simpa [Bool.not_eq_true] using Finset.card_filter_add_card_filter_not
       (s := (Finset.univ : Finset (Fin k → Bool))) (fun r => V (x, List.ofFn r) = true)
-  have h' := (Nat.cast_le (α := ℝ)).mpr ((hV x).2 hx)
-  have hsum' := congrArg (Nat.cast (R := ℝ)) hsum
-  push_cast at h' hsum'
-  linarith
+  have hfalse : 2 * 2 ^ k ≤
+      3 * (Finset.univ.filter fun r : Fin k → Bool => V (x, List.ofFn r) = false).card :=
+    (hV x).2 hx
+  norm_cast; omega
 
 /-! ### The distinguisher -/
 
@@ -246,22 +243,14 @@ theorem computableInPolyTime_tableQueries (d : ℕ) :
     (size := fun L => (2 * (L + 1)) ^ d * (2 * (d * (2 * (L + 1))) + 1)) (by fun_prop)
     fun input => ?_) ?_
   · obtain ⟨n, aux⟩ := input
-    dsimp only
-    have hn : n ≤ (encPair encUnary encBits (n, aux)).length := by
-      enc_len
+    dsimp only [tableArity]
+    have hn : n ≤ (encPair encUnary encBits (n, aux)).length := by enc_len
     set L := (encPair encUnary encBits (n, aux)).length
     have hpow : 2 ^ Nat.clog 2 n ≤ 2 * (L + 1) := (Nat.two_pow_clog_two_le n).trans (by omega)
     have hclog : Nat.clog 2 n ≤ 2 * (L + 1) := Nat.lt_two_pow_self.le.trans hpow
-    refine Nat.mul_le_mul ?_ ?_
-    · rw [tableArity, mul_comm, pow_mul]
-      exact Nat.pow_le_pow_left hpow d
-    · have := Nat.mul_le_mul_left d hclog
-      rw [tableArity]
-      omega
-  · have hsub : ComputableInPolyTime (fun p : (ℕ × List Bool) × List Bool =>
-        p.1.1 - tableArity d p.1.1) (encPair (encPair encUnary encBits) encBits) encUnary :=
-      unary_sub.comp ((fst _ _).fst'.prod (harity.comp (fst _ _)))
-    exact bitsAppend ((bitsReplicate false).comp hsub) (snd _ _)
+    exact Nat.mul_le_mul ((pow_mul' 2 d _).trans_le (Nat.pow_le_pow_left hpow d)) (by nlinarith)
+  · exact bitsAppend ((bitsReplicate false).comp
+      (unary_sub.comp ((fst _ _).fst'.prod (harity.comp (fst _ _))))) (snd _ _)
 
 /-- The instance read from the answers is computed in polynomial time. -/
 @[fun_prop]
@@ -275,16 +264,10 @@ theorem computableInPolyTime_tableInstance (d : ℕ) :
   have hsize : ComputableInPolyTime (fun pair : (ℕ × List Bool) × List Bool =>
       2 ^ tableArity d pair.1.1) (encPair (encPair encUnary encBits) encBits) encUnary :=
     (computableInPolyTime_two_pow_tableArity d).comp (fst _ _).fst'
-  have hraw : ComputableInPolyTime (fun pair : (ℕ × List Bool) × List Bool =>
-      ((pair.2 ++ List.replicate (2 ^ tableArity d pair.1.1) false).take
-        (2 ^ tableArity d pair.1.1), 2 ^ tableArity d pair.1.1 / (5 * tableArity d pair.1.1)))
-      (encPair (encPair encUnary encBits) encBits) (encPair encBits encNat) :=
-    (bitsTakeWithInput (bitsAppend (snd _ _) ((bitsReplicate false).comp hsize)) hsize).prod
-      (unary_to_binary.comp (unary_div.comp (hsize.prod (unary_mul.comp
-        ((const 5).prod harity)))))
-  refine hraw.of_enc_eq fun pair => ?_
-  rw [MCSP.encInstance_apply]
-  simp only [tableInstance, BitString.ofFn_ofList_eq_take]
+  refine ((bitsTakeWithInput (bitsAppend (snd _ _) ((bitsReplicate false).comp hsize)) hsize).prod
+    (unary_to_binary.comp (unary_div.comp (hsize.prod (unary_mul.comp
+      ((const 5).prod harity)))))).of_enc_eq fun pair => ?_
+  simp [MCSP.encInstance_apply, tableInstance, BitString.ofFn_ofList_eq_take]
 
 /-- **The Kabanets–Cai distinguisher is uniform strict oracle PPT**, for a polynomial-time
 decider `V`: it makes `2 ^ m ≤ (2 (n + 1)) ^ d` queries of length `n` and runs `V` on a truth table
@@ -336,16 +319,10 @@ theorem eventually_tableArity (c : ℕ) :
   refine ⟨by omega, ?_, ?_, ?_⟩ <;> rw [tableArity]
   · nlinarith
   · nlinarith
-  · have h3 : (3 * n + 2) ^ c ≤ 5 ^ c * n ^ c := by
-      rw [← mul_pow]
-      exact Nat.pow_le_pow_left (by omega) c
+  · have h3 : (3 * n + 2) ^ c ≤ 5 ^ c * n ^ c := mul_pow 5 n c ▸ Nat.pow_le_pow_left (by omega) c
     have h1 : 1 ≤ n ^ c := Nat.one_le_pow c n (by omega)
-    have hpow : n ^ (c + 2) ≤ 2 ^ ((c + 2) * t) := by
-      rw [mul_comm, pow_mul]
-      exact Nat.pow_le_pow_left hn2 _
-    have hpos : 0 < 5 * ((c + 2) * t) := by
-      have : 0 < t := by omega
-      positivity
+    have hpow : n ^ (c + 2) ≤ 2 ^ ((c + 2) * t) := pow_mul' 2 _ t ▸ Nat.pow_le_pow_left hn2 _
+    have hpos : 0 < 5 * ((c + 2) * t) := mul_pos (by decide) (mul_pos (by omega) (by omega))
     refine (Nat.le_div_iff_mul_le hpos).2 ?_
     calc (c * (3 * n + 2) ^ c + 2) * (5 * ((c + 2) * t))
         ≤ (c * (5 ^ c * n ^ c) + 2 * n ^ c) * (5 * ((c + 2) * (2 * n))) := by gcongr; omega
@@ -378,10 +355,8 @@ theorem not_pseudorandomFunction_of_MCSP_mem_BPP (h : MCSP ∈ BPP MCSP.encInsta
     rw [eval_prfRealGame_mcspDistinguisher family hmn, BitString.uniformList, PMF.bind_map,
       PMF.toReal_uniformOfFintype_bind_apply]
     refine Finset.le_expect Finset.univ_nonempty fun key _ => ?_
-    refine two_thirds_le_toReal_eval_mcspRun hdec (MCSP.mk_truthTable_mem_iff.2 ?_)
-    have := hc (List.ofFn key) m (by simpa using hmn)
-    rw [List.length_ofFn] at this
-    exact this.trans hsize
+    refine two_thirds_le_toReal_eval_mcspRun hdec (MCSP.mk_truthTable_mem_iff.2 (le_trans ?_ hsize))
+    simpa using hc (List.ofFn key) m (by simpa using hmn)
   -- It accepts a random truth table with probability at most `1 / 3 + 1 / 12`.
   have hideal :
       (ProbComp.eval (prfIdealGame id id (mcspDistinguisher p V (c + 2)) n) true).toReal ≤
@@ -409,9 +384,8 @@ theorem not_pseudorandomFunction_of_MCSP_mem_BPP (h : MCSP ∈ BPP MCSP.encInsta
         calc 12 * 2 ^ (2 ^ m / 4) ≤ 2 ^ 4 * 2 ^ (2 ^ m / 4) := by gcongr; norm_num
           _ = 2 ^ (4 + 2 ^ m / 4) := by rw [pow_add]
           _ ≤ 2 ^ 2 ^ m := Nat.pow_le_pow_right two_pos (by omega)
-      rw [div_le_iff₀ (by positivity)]
-      have : (12 : ℝ) * 2 ^ (2 ^ m / 4) ≤ 2 ^ 2 ^ m := by exact_mod_cast hnat
-      linarith
+      rw [div_le_div_iff₀ (by positivity) (by norm_num)]
+      norm_cast; omega
     calc 𝔼 table, (ProbComp.eval (mcspRun p V ⟨m,
           MCSP.truthTable m (KabanetsCai.restrictTable n m hn table), 2 ^ m / (5 * m)⟩)
             true).toReal

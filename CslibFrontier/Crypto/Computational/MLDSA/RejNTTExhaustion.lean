@@ -79,13 +79,9 @@ private theorem rejects_mem {b : Triple} (hb : rejects b) (j : Fin 3) :
   change 8380417 ≤ (b 0).val + 256 * (b 1).val + 65536 * ((b 2).val % 128) at hb
   fin_cases j
   · simp [tailBytes]
-  · change b 1 ∈ Icc (224 : Byte) 255
-    rw [mem_Icc]
-    change 224 ≤ (b 1).val ∧ (b 1).val ≤ 255
+  · simp [tailBytes, mem_Icc, Fin.le_iff_val_le_val]
     omega
-  · change b 2 ∈ ({127, 255} : Finset Byte)
-    simp only [mem_insert, mem_singleton, Fin.ext_iff]
-    change (b 2).val = 127 ∨ (b 2).val = 255
+  · simp [tailBytes, Fin.ext_iff]
     omega
 
 private def allowed : Finset Triple := Fintype.piFinset tailBytes
@@ -154,8 +150,7 @@ private theorem isSome_ofFnM {n : ℕ} {α : Type*} (f : Fin n → Option α)
     (h : ∀ i, (f i).isSome) : (Vector.ofFnM f).isSome := by
   have hf : f = fun i => (pure ((f i).get (h i)) : Option α) :=
     funext fun i => (Option.some_get (h i)).symm
-  rw [hf, Vector.ofFnM_pure]
-  rfl
+  rw [hf, Vector.ofFnM_pure]; rfl
 
 private theorem expandA_exhausts_at_cell (H : Xofs) (s : Level) (rho : List Byte)
     (t : MatrixPrefixes s) (h : (H.withMatrixPrefixes s rho t).expandA s rho = none) :

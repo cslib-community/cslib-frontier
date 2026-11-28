@@ -70,11 +70,7 @@ private theorem sum_Tp {K : Type} [Fintype K] (f : Tp K → ℕ) :
         | .inr 4 => .ls
       left_inv := fun s => by cases s <;> rfl
       right_inv := fun y => by
-        rcases y with (i | b | k) | j
-        · rfl
-        · rfl
-        · rfl
-        · fin_cases j <;> rfl }
+        rcases y with (i | b | k) | j <;> first | rfl | (fin_cases j <;> rfl) }
   rw [← e.symm.sum_comp, Fintype.sum_sum_type, Fintype.sum_sum_type, Fintype.sum_sum_type,
     Fin.sum_univ_five (fun j => f (e.symm (.inr j)))]
   change (∑ i, f (.rg i)) + ((∑ b, f (.bk b)) + ∑ k, f (.cm k)) +
@@ -100,11 +96,8 @@ theorem length_rot {K : Type} {n j : ℕ} (hj : j ≤ n) (x : Fin n → Bl K) :
 
 theorem length_encW_recs {M K : Type} {n j : ℕ} (hj : j ≤ n) (l : List (Rc n (Bl K))) :
     (encW (recs j l) : List (Sy M K)).length = l.length * (n + 3) := by
-  rw [length_encW (n := n + 1)]
-  · simp [recs]
-  · intro r hr
-    obtain ⟨_, -, rfl⟩ := List.mem_map.1 hr
-    exact length_rot hj _
+  rw [recs, length_encW (n := n + 1) (List.forall_mem_map.2 fun _ _ => length_rot hj _),
+    List.length_map]
 
 theorem canon_length {M K : Type} [Fintype K] [DecidableEq K] {n : ℕ}
     (l : List (Rc n (Bl K))) (k j : ℕ) (hjk : j + k = n) :
@@ -141,13 +134,7 @@ theorem imu_length {M K : Type} [Fintype K] [DecidableEq K] {n : ℕ}
   rw [imu_iff hl] at h
   obtain ⟨h1, h2, h3, h4⟩ := h
   obtain ⟨c1, c2⟩ := canon_length (M := M) l n 0 (by omega)
-  have hfin : (finL l).length = l.length := by
-    rw [finL, List.length_map]
-    exact length_srt mem_bsl bsl_nodup l n
-  have hfin2 : ∀ r ∈ finL l, r.2.length = n := by
-    intro r hr
-    obtain ⟨r', -, rfl⟩ := List.mem_map.1 hr
-    simp
+  have hfin : (finL l).length = l.length := by simp [finL, length_srt mem_bsl bsl_nodup]
   have hsum := sum_const_map (canon l n 0 : List (Ps M K))
     (List.length ∘ fun p : Ps M K => (encW (dIn p.1) : List (Sy M K)))
     (l.length * (n + 3)) (fun p hp => (c2 p hp).1)
@@ -155,36 +142,22 @@ theorem imu_length {M K : Type} [Fintype K] [DecidableEq K] {n : ℕ}
     rw [emU_lsT, length_blocks, h1, h2, ← recs_last, List.map_append, List.sum_append,
       List.map_map, hsum, c1, List.length_append, List.length_map, c1]
     simp only [List.map_cons, List.map_nil, List.sum_singleton, List.length_singleton]
-    rw [length_encW_recs le_rfl]
-    have hlen : (srt (bsl K) l n).length = l.length := length_srt mem_bsl bsl_nodup l n
-    rw [hlen]
-    ring
+    rw [length_encW_recs le_rfl, length_srt mem_bsl bsl_nodup]; ring
   have e2 : ∑ b, (emU x (.tp (.bk b) true)).length =
       n * (l.length * (n + 3)) + Fintype.card (Bl K) * n := by
-    have h5 : ∀ b, (emU x (.tp (.bk b) true)).length =
+    have h5 (b) : (emU x (.tp (.bk b) true)).length =
         (x.passes.map fun p => ((p.2 b).map (Subtype.val : NB M K → Sy M K)).length).sum + n := by
-      intro b
-      rw [emU_bk_true, length_blocks, List.map_map, List.length_map, h1, c1]
-      rfl
+      rw [emU_bk_true, length_blocks, List.map_map, List.length_map, h1, c1]; rfl
     rw [Finset.sum_congr rfl fun b _ => h5 b, Finset.sum_add_distrib, Finset.sum_const,
       Finset.card_univ, smul_eq_mul]
     congr 1
     rw [Finset.sum_list_sum_comm, h1,
       sum_const_map _ _ (l.length * (n + 3)) (fun p hp => (c2 p hp).2), c1]
-  have e3 : ∀ k, (emU x (.tp (.cm k) true)).length = l.length * (n + 2) := by
-    intro k
-    rw [emU_cm_true]
-    have h7 : (if k then QlG x.cmp else PlG x.cmp) = finL l := by
-      cases k
-      · simpa using h3
-      · simpa using h4
-    rw [h7, length_encW (n := n)]
-    · rw [fOut, List.length_map, hfin]
-    · intro r hr
-      obtain ⟨r', hr', rfl⟩ := List.mem_map.1 hr
-      simpa using hfin2 r' hr'
-  rw [e1, e2, Finset.sum_congr rfl fun k _ => e3 k]
-  simp
+  have e3 (k) : (emU x (.tp (.cm k) true)).length = l.length * (n + 2) := by
+    have h7 : (if k then QlG x.cmp else PlG x.cmp) = finL l := by cases k <;> simp [h3, h4]
+    rw [emU_cm_true, h7, length_encW (n := n), fOut, List.length_map, hfin]
+    exact List.forall_mem_map.2 (List.forall_mem_map.2 fun _ _ => by simp)
+  simp [e1, e2, e3]
 
 theorem length_bws {M K : Type} {ws : List (List Bool)} {n : ℕ}
     (h : ∀ w ∈ ws, w.length = n) :
@@ -211,67 +184,40 @@ theorem MX.total {A M K : Type} [Fintype K] [DecidableEq K] {P : Mach A M K}
   have hcw (s) (hs : s ∈ x.steps) (i) : (cw s.2 i).length = x.init.length + 1 := by
     rw [cw, List.length_map, hx.len s hs]
   have hend (i : Fin 5) : (x.finalRegs.map fun v => v i).length = x.init.length + 1 := by
-    have h2 : ∀ w ∈ x.steps.map (fun s => cw s.2 (rv i)) ++ [x.finalRegs.map fun v => v i],
-        w.length = x.init.length + 1 := by
-      rw [← hx.rg i]
-      intro w hw
-      rcases List.mem_cons.mp hw with rfl | hw
-      · exact length_i0 _
-      · obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hw
-        exact hcw s hs _
-    exact h2 _ (by simp)
+    have hm : (x.finalRegs.map fun v => v i) ∈
+        x.steps.map (fun s => cw s.2 (rv i)) ++ [x.finalRegs.map fun v => v i] := by simp
+    rw [← hx.rg i] at hm
+    rcases List.mem_cons.mp hm with h | hm
+    · exact h.symm ▸ length_i0 _
+    · obtain ⟨s, hs, h⟩ := List.mem_map.mp hm
+      exact h ▸ hcw s hs _
   have e1 (i) : (emX P x (.tp (.rg i) true)).length =
       (x.steps.length + 1) * (x.init.length + 2) := by
-    rw [emX_rg_true, length_bws (n := x.init.length + 1)]
-    · simp
-    · intro w hw
-      rcases List.mem_append.mp hw with hw | hw
-      · obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hw
-        exact hcw s hs _
-      · rw [List.mem_singleton.mp hw]
-        exact hend i
+    simp [emX_rg_true, length_bws (n := x.init.length + 1) (List.forall_mem_append.2
+      ⟨List.forall_mem_map.2 fun s hs => hcw s hs _, List.forall_mem_singleton.2 (hend i)⟩)]
   have e3 : (emX P x (.tp .cp true)).length = (x.steps.length + 1) * (x.init.length + 2) := by
     rw [emX_cp_true, length_bws (n := x.init.length + 1)]
     · simp [hx.length_eq]
-    · intro w hw
-      rcases List.mem_append.mp hw with hw | hw
-      · obtain ⟨r, hr, rfl⟩ := List.mem_map.mp hw
-        exact hx.len_cn.1 r hr
-      · rw [List.mem_singleton.mp hw]
-        simpa using hx.len_cn.2
+    · exact List.forall_mem_append.2 ⟨List.forall_mem_map.2 hx.len_cn.1,
+        List.forall_mem_singleton.2 (by simpa using hx.len_cn.2)⟩
   have e4 : (emX P x (.tp .fr true)).length = x.steps.length * (x.init.length + 2) := by
-    rw [emX_fr_true, length_bws (n := x.init.length + 1)]
-    · simp
-    · intro w hw
-      obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hw
-      exact hcw s hs _
+    simp [emX_fr_true, length_bws (n := x.init.length + 1)
+      (List.forall_mem_map.2 fun s hs => hcw s hs _)]
   have e5 : (emX P x (.tp .lk true)).length = x.steps.length * (x.init.length + 5) := by
     rw [emX_lk_true, hx.lk, length_encW (n := x.init.length + 3)]
     · simp [lks]
-    · intro r hr
-      obtain ⟨c, hc, rfl⟩ := List.mem_map.1 hr
-      obtain ⟨s, hs, rfl⟩ := List.mem_map.1 hc
-      simp [oc, cont, ldc, hx.len s hs]
+    · exact List.forall_mem_map.2 (List.forall_mem_map.2 fun s hs => by
+        simp [oc, cont, ldc, hx.len s hs])
   have e6 := imu_length (lsN_ne _ _) (hx.block ▸ hx.ls)
   have hN : (lsN (x.init.length + 1) (x.steps.map nst)).length = 2 * x.steps.length + 1 := by
     simp [lsN, dfN]; ring
   rw [hN] at e6
-  have e7 : (emX P x (.tp .ls true)).length = (emU x.sort lsT).length := by rw [← emX_ls_true]
-  have e8 (b) : (emX P x (.tp (.bk b) true)).length =
-      (emU x.sort (.tp (.bk b) true)).length := by rw [← emX_bk]
-  have e9 (k) : (emX P x (.tp (.cm k) true)).length =
-      (emU x.sort (.tp (.cm k) true)).length := by rw [← emX_cm]
   rw [sum_Tp (fun s => (emX P x (.tp s true)).length),
     Finset.sum_congr rfl fun i _ => e1 i, emX_md_true, List.length_map, List.length_append,
-    List.length_map, List.length_singleton, e3, e4, e5, e7,
-    Finset.sum_congr rfl fun b _ => e8 b, Finset.sum_congr rfl fun k _ => e9 k]
+    List.length_map, List.length_singleton, e3, e4, e5, emX_ls_true,
+    Finset.sum_congr rfl fun b _ => congrArg List.length (emX_bk ..),
+    Finset.sum_congr rfl fun k _ => congrArg List.length (emX_cm ..)]
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
-  have e10 : ∀ a b c d e f g h' : ℕ,
-      a + b + c + d + e + f + g + h' = a + b + c + d + e + (f + g + h') := by
-    intros
-    omega
-  rw [e10, e6]
-  unfold tU
-  ring
+  rw [tU, ← e6]; ring
 
 end Cslib.Circuits.Arithmetic.Separation.Uni

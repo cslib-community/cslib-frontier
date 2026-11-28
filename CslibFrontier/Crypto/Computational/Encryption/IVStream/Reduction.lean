@@ -126,24 +126,21 @@ private theorem isOraclePPTOn_ivModePrfHandler
       (fun pair : (ℕ × List Bool) × (Unit × List Bool) =>
         ivModePrfHandler bodyQueries pair.1.1 bit pair.2) := by
   let E := encPair (encPair encUnary encBits) (encPair (encFinEnum Unit) encBits)
-  let EIv := encPair E encBits
   have hn : ComputableInPolyTime (fun p : (ℕ × List Bool) × (Unit × List Bool) => p.1.1)
-      E encUnary := by dsimp only [E]; fun_prop
-  have hm0 : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × (Unit × List Bool) => unframe p.2.2) E encBits :=
-    ComputableInPolyTime.unframe.comp (by dsimp only [E]; fun_prop)
-  have hm1 : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × (Unit × List Bool) => dropFrame p.2.2) E encBits :=
-    ComputableInPolyTime.dropFrame.comp (by dsimp only [E]; fun_prop)
+      E encUnary := by
+    dsimp only [E]
+    fun_prop
   have hcond : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × (Unit × List Bool) =>
         blockPairValid p.1.1 (unframe p.2.2) (dropFrame p.2.2)) E encBool := by
-    unfold blockPairValid; fun_prop
+    dsimp only [E]
+    unfold blockPairValid
+    fun_prop
   have hmsg : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × (Unit × List Bool) =>
         if bit then dropFrame p.2.2 else unframe p.2.2) E encBits := by
-    cases bit <;> first | exact hm0 | exact hm1
-  have hyes : IsOraclePPTOn (Operation := Unit) EIv encBits
+    cases bit <;> dsimp only [E] <;> fun_prop
+  have hyes : IsOraclePPTOn (Operation := Unit) (encPair E encBits) encBits
       (fun q : ((ℕ × List Bool) × (Unit × List Bool)) × List Bool =>
         (q.2 ++ ·) <$>
           bodyQueries q.1.1.1 q.2 (if bit then dropFrame q.1.2.2 else unframe q.1.2.2)) :=
@@ -196,16 +193,12 @@ theorem isOraclePPT_ivModeToPrfDistinguisher_blockLen
   let EReq := encPair (encFinEnum Unit) encBits
   have hprepHandler : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × (Unit × List Bool) => ((blockLen p.1.1, p.1.2), p.2))
-      (encPair ECaller EReq) (encPair ECaller EReq) :=
-    (((hblock.comp (by dsimp only [ECaller]; fun_prop)).prod
-      (by dsimp only [ECaller]; fun_prop)).comp (ComputableInPolyTime.fst _ _)).prod
-      (ComputableInPolyTime.snd _ _)
+      (encPair ECaller EReq) (encPair ECaller EReq) := by
+    dsimp only [ECaller, EReq]; fun_prop
   have hres : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List Bool => blockLen p.1.1 + p.2.length)
-      (encPair ECaller encBits) encUnary :=
-    ComputableInPolyTime.unary_add'
-      (hblock.comp ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _)))
-      (ComputableInPolyTime.length_bits.comp (ComputableInPolyTime.snd _ _))
+      (encPair ECaller encBits) encUnary := by
+    dsimp only [ECaller]; fun_prop
   change IsOraclePPTOn ECaller encBool
     (fun caller : ℕ × List Bool => ProbOracleComp.simulate
       (ivModePrfHandler bodyQueries (blockLen caller.1) bit) (adversary caller.1 []))

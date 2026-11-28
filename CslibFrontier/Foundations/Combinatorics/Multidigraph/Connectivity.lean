@@ -112,12 +112,10 @@ theorem IsDipath.zip_tail_vertices {s t : V} {q : List E} (hq : IsDipath src tgt
 `toDigraph src tgt`. -/
 theorem IsDipath.isChain_toDigraph {s t : V} {q : List E} (hq : IsDipath src tgt s t q) :
     (s :: q.map tgt).IsChain (toDigraph src tgt).Adj := by
-  have hall :
-      ∀ p ∈ (s :: q.map tgt).zip (s :: q.map tgt).tail, (toDigraph src tgt).Adj p.1 p.2 := by
-    rintro _ hp
-    obtain ⟨e, _, rfl⟩ := List.mem_map.mp (hq.zip_tail_vertices ▸ hp)
-    exact ⟨e, rfl, rfl⟩
-  clear hq
+  have hall (p) (hp : p ∈ (s :: q.map tgt).zip (s :: q.map tgt).tail) :
+      (toDigraph src tgt).Adj p.1 p.2 :=
+    let ⟨e, _, he⟩ := List.mem_map.mp (hq.zip_tail_vertices ▸ hp)
+    he ▸ ⟨e, rfl, rfl⟩
   generalize s :: q.map tgt = vs at hall
   induction vs with
   | nil => exact List.isChain_nil
@@ -136,10 +134,7 @@ private theorem reflTransGen_of_isChain_adj {R : V → V → Prop} :
     ∀ {l : List V} {u v : V}, l.IsChain R → l.head? = some u → l.getLast? = some v →
       Relation.ReflTransGen R u v
   | [], _, _, _, hu, _ => by simp at hu
-  | [x], _, _, _, hu, hv => by
-    obtain rfl := Option.some.inj hu
-    obtain rfl := Option.some.inj hv
-    exact .refl
+  | [_], _, _, _, hu, hv => Option.some.inj hu ▸ Option.some.inj hv ▸ .refl
   | x :: y :: rest, u, v, hc, hu, hv => by
     obtain rfl : x = u := Option.some.inj hu
     rw [List.isChain_cons_cons] at hc
@@ -233,10 +228,8 @@ theorem isDipath_pmap_zip_tail {S : V × V → Prop}
       q.map (fun e => (src e, tgt e)) = p.zip p.tail := by
   obtain ⟨hc, hm, hhd, hnil, hlt⟩ := isDipath_pmap_zip_tail_aux src tgt f hf hnd hs ht hS
   refine ⟨⟨hc, hm.symm ▸ hnd, hhd, hnil, hlt⟩, hm, ?_⟩
-  rw [List.map_pmap]
-  have hid : ∀ e (he : S e), (src (f e he), tgt (f e he)) = e := fun e he =>
-    Prod.ext (hf e he).1 (hf e he).2
-  simp only [hid, List.pmap_eq_map, List.map_id']
+  have hid (e) (he : S e) : (src (f e he), tgt (f e he)) = e := Prod.ext (hf e he).1 (hf e he).2
+  simp [List.map_pmap, hid]
 
 /-! ### Arc cuts, vertex cuts, separators, and weak duality -/
 
@@ -258,10 +251,8 @@ private theorem exists_boundary_mem_arcList {S : V → Prop} :
       (∀ e ∈ q.head?, src e = s) → (q = [] → s = t) → (∀ e ∈ q.getLast?, tgt e = t) →
       S s → ¬ S t → ∃ e ∈ q, S (src e) ∧ ¬ S (tgt e)
   | [], s, t, _, _, hnil, _, hSs, hSt => absurd (hnil rfl ▸ hSs) hSt
-  | [e], s, t, _, hhd, _, hlt, hSs, hSt => by
-    have hs := hhd e (by simp)
-    have ht := hlt e (by simp)
-    exact ⟨e, List.mem_cons_self, hs ▸ hSs, ht ▸ hSt⟩
+  | [e], _, _, _, hhd, _, hlt, hSs, hSt =>
+    ⟨e, List.mem_cons_self, hhd e rfl ▸ hSs, hlt e rfl ▸ hSt⟩
   | e₁ :: e₂ :: rest, s, t, hchain, hhd, _, hlt, hSs, hSt => by
     rw [List.isChain_cons_cons] at hchain
     have hs : src e₁ = s := hhd e₁ (by simp)
@@ -307,12 +298,9 @@ distinct paths share no visited vertex in `s :: (Q i).map tgt` other than `s` an
   s ∉ T ∧ t ∉ T ∧ ∀ q, IsDipath src tgt s t q → ∃ v ∈ s :: q.map tgt, v ∈ T
 
 theorem isVertexCut_iff_isSeparator {s t : V} {T : Finset V} :
-    IsVertexCut src tgt s t T ↔ s ∉ T ∧ t ∉ T ∧ IsSeparator src tgt {s} {t} ↑T := by
-  refine ⟨fun ⟨hs, ht, h⟩ => ⟨hs, ht, ?_⟩, fun ⟨hs, ht, h⟩ => ⟨hs, ht, ?_⟩⟩
-  · rintro _ rfl _ rfl q hq
-    exact h q hq
-  · intro q hq
-    exact h (Set.mem_singleton s) (Set.mem_singleton t) q hq
+    IsVertexCut src tgt s t T ↔ s ∉ T ∧ t ∉ T ∧ IsSeparator src tgt {s} {t} ↑T :=
+  ⟨fun ⟨hs, ht, h⟩ => ⟨hs, ht, fun _ ha _ hb => ha ▸ hb ▸ h⟩,
+    fun ⟨hs, ht, h⟩ => ⟨hs, ht, h rfl rfl⟩⟩
 
 /-- **Closed-set certificate for multidigraph separators**: if `S` holds on `A \ Y`, fails on
 `B \ Y`, and every arc leaving `S` enters `Y`, then `Y` separates `A` from `B`. -/
@@ -321,8 +309,7 @@ theorem isSeparator_of_forall_src_tgt {A B Y : Set V} (S : V → Prop)
     (hA : ∀ a ∈ A, a ∉ Y → S a) (hB : ∀ b ∈ B, b ∉ Y → ¬ S b) :
     IsSeparator src tgt A B Y := by
   intro a ha b hb q hq
-  by_contra hno
-  push Not at hno
+  by_contra! hno
   have hSa : S a := hA a ha (hno a List.mem_cons_self)
   have hSb : ¬ S b := hB b hb (hno b (List.mem_of_getLast? hq.getLast?_vertices))
   obtain ⟨e, he, heS, heS'⟩ :=
@@ -332,14 +319,11 @@ theorem isSeparator_of_forall_src_tgt {A B Y : Set V} (S : V → Prop)
 /-- Closed-set certificate for a multidigraph vertex cut. -/
 theorem isVertexCut_of_forall_src_tgt {s t : V} {S T : Finset V} (hs : s ∈ S) (ht : t ∉ S)
     (hsT : s ∉ T) (htT : t ∉ T) (hST : ∀ e, src e ∈ S → tgt e ∉ S → tgt e ∈ T) :
-    IsVertexCut src tgt s t T := by
-  refine (isVertexCut_iff_isSeparator src tgt).mpr
-    ⟨hsT, htT, isSeparator_of_forall_src_tgt src tgt (· ∈ S) ?_ ?_ ?_⟩
-  · intro e hu hv
-    by_contra hvS
-    exact hv (Finset.mem_coe.mpr (hST e hu hvS))
-  · rintro _ rfl _; exact hs
-  · rintro _ rfl _; exact ht
+    IsVertexCut src tgt s t T :=
+  (isVertexCut_iff_isSeparator src tgt).mpr ⟨hsT, htT,
+    isSeparator_of_forall_src_tgt src tgt (· ∈ S)
+      (fun e hu hv => Classical.byContradiction fun hvS => hv (hST e hu hvS))
+      (fun _ ha _ => ha.symm ▸ hs) (fun _ hb _ => hb.symm ▸ ht)⟩
 
 /-- **Weak duality for internally disjoint paths in a multidigraph**: `k` pairwise internally
 disjoint simple `s`–`t` paths require at least `k` vertices in every `s`–`t` vertex cut. -/
@@ -348,14 +332,9 @@ theorem card_le_card_of_internallyDisjoint_of_isVertexCut {s t : V} {k : ℕ} {Q
     (hdisj : InternallyDisjoint tgt s t Q)
     {T : Finset V} (hT : IsVertexCut src tgt s t T) : k ≤ T.card := by
   choose v hv hvT using fun i => hT.2.2 (Q i) (hQ i)
-  have hinj : Function.Injective fun i => (⟨v i, hvT i⟩ : T) := by
-    intro i j hij
-    by_contra hne
-    have heq : v i = v j := congrArg Subtype.val hij
-    rcases hdisj hne (v i) (hv i) (heq ▸ hv j) with h | h
-    · exact hT.1 (h ▸ hvT i)
-    · exact hT.2.1 (h ▸ hvT i)
-  simpa using Fintype.card_le_of_injective _ hinj
+  simpa using Fintype.card_le_of_injective (fun i => (⟨v i, hvT i⟩ : T)) fun i j hij =>
+    by_contra fun hne => (hdisj hne (v i) (hv i) (Subtype.mk.inj hij ▸ hv j)).elim
+      (fun h => hT.1 (h ▸ hvT i)) (fun h => hT.2.1 (h ▸ hvT i))
 
 /-- **Weak duality for vertex-disjoint `A`–`B` paths in a multidigraph**. -/
 theorem card_le_card_of_disjoint_of_isSeparator {A B : Set V} {k : ℕ} {Q : Fin k → List E}

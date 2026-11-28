@@ -176,9 +176,8 @@ private theorem mem_vars_prenexMatrix {tab : CNF (CookLevin.Var k State)} {w x :
     obtain ⟨j, hj, rfl | rfl⟩ := hc
     all_goals
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
-      rcases hl with rfl | rfl
-      · exact .inl ⟨j, hj, .inl rfl⟩
-      · exact .inl ⟨j, hj, .inr rfl⟩
+      exact hl.elim (fun h => .inl ⟨j, hj, .inl (congrArg Prod.fst h)⟩)
+        (fun h => .inl ⟨j, hj, .inr (congrArg Prod.fst h)⟩)
   · simp only [CNF.relabel, List.mem_map] at hc
     obtain ⟨c', hc', rfl⟩ := hc
     simp only [Clause.relabel, List.mem_map] at hl
@@ -190,9 +189,7 @@ private theorem dummyVar_notMem_freeVars (tab : CNF (CookLevin.Var k State)) (w 
   rw [QBF.mem_freeVars_ofCNF]
   rintro hx
   rcases mem_vars_prenexMatrix hx with ⟨_, -, h | h⟩ | ⟨_, -, h⟩
-  · exact dummyVar_ne_tabVar _ h
-  · exact dummyVar_ne_certVar _ _ h
-  · exact dummyVar_ne_tabVar _ h
+  exacts [dummyVar_ne_tabVar _ h, dummyVar_ne_certVar _ _ h, dummyVar_ne_tabVar _ h]
 
 /-- **The normal form of the formula of a game has its value.** -/
 theorem eval_prenex (tab : CNF (CookLevin.Var k State)) (w : ℕ) (σ : ℕ → Bool) :
@@ -254,11 +251,9 @@ variable {enc p}
 theorem prenexReduce_mem_TQBFCNF_iff {kV : ℕ} {StateV : Type} [Fintype StateV]
     [DecidableEq StateV] (tmV : MultiTapeTM kV Bool StateV) (cV dV : ℕ) (a : α) :
     prenexReduce enc p tmV cV dV a ∈ TQBFCNF ↔ gameReduce enc p tmV cV dV a ∈ TQBF := by
-  dsimp only [prenexReduce]
-  rw [mk_mem_TQBFCNF,
+  rw [prenexReduce, gameTableau, mk_mem_TQBFCNF,
     mem_TQBF_iff_of_closed (closed_prenex _ _) (fun _ => false), gameReduce,
     mem_TQBF_iff_of_closed (closed_gameFormula _ _) (fun _ => false), eval_prenex]
-  rfl
 
 /-- **The reduction of a game to `TQBFCNF` is polynomial-time.** -/
 theorem computableInPolyTime_prenexReduce {kV : ℕ} {StateV : Type} [Fintype StateV]

@@ -120,41 +120,30 @@ private theorem sortLE_getElem_map_mono {α : Type*} [LinearOrder K] {xs : List 
     (hfg : ∀ x ∈ xs, f x ≤ g x) {k : ℕ} (hk : k < xs.length) :
     (sortLE (xs.map f))[k]'(by rw [length_sortLE, List.length_map]; exact hk) ≤
       (sortLE (xs.map g))[k]'(by rw [length_sortLE, List.length_map]; exact hk) := by
-  set sf := sortLE (xs.map f)
-  set sg := sortLE (xs.map g)
-  have hsf_len : sf.length = xs.length := by simp only [sf, length_sortLE, List.length_map]
-  have hsg_len : sg.length = xs.length := by simp only [sg, length_sortLE, List.length_map]
-  have hsf_sort : sf.SortedLE := by
-    dsimp only [sf]; rw [sortLE_eq_mergeSort]; exact List.sortedLE_mergeSort
-  have hsg_sort : sg.SortedLE := by
-    dsimp only [sg]; rw [sortLE_eq_mergeSort]; exact List.sortedLE_mergeSort
-  have hsf_perm : sf.Perm (xs.map f) := by
-    dsimp only [sf]; rw [sortLE_eq_mergeSort]; exact List.mergeSort_perm _ _
-  have hsg_perm : sg.Perm (xs.map g) := by
-    dsimp only [sg]; rw [sortLE_eq_mergeSort]; exact List.mergeSort_perm _ _
+  simp only [sortLE_eq_mergeSort]
+  set sf := (xs.map f).mergeSort (· ≤ ·)
+  set sg := (xs.map g).mergeSort (· ≤ ·)
+  have hsg_len : sg.length = xs.length := by simp [sg]
   set B := sg[k]'(by omega)
   have hcnt_g : k + 1 ≤ (xs.map g).countP (· ≤ B) := by
-    rw [← hsg_perm.countP_eq]
+    rw [← (List.mergeSort_perm (xs.map g) _).countP_eq]
     refine le_of_eq_of_le ?_ (List.take_sublist (k + 1) sg).countP_le
     rw [List.countP_eq_length.mpr, List.length_take_of_le (by omega)]
     intro y hy
     obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hy
     rw [List.getElem_take, decide_eq_true_eq]
     rw [List.length_take] at hi
-    exact hsg_sort.getElem_le_getElem_of_le (by omega)
+    exact List.sortedLE_mergeSort.getElem_le_getElem_of_le (by omega)
   have hcnt_f : k + 1 ≤ sf.countP (· ≤ B) := by
-    rw [hsf_perm.countP_eq, List.countP_map]
-    refine hcnt_g.trans ?_
-    rw [List.countP_map]
-    exact List.countP_mono_left fun x hx hgx =>
-      decide_eq_true ((hfg x hx).trans (of_decide_eq_true hgx))
-  by_contra hlt
-  rw [not_le] at hlt
+    rw [(List.mergeSort_perm (xs.map f) _).countP_eq, List.countP_map]
+    rw [List.countP_map] at hcnt_g
+    exact hcnt_g.trans (List.countP_mono_left fun x hx hgx =>
+      decide_eq_true ((hfg x hx).trans (of_decide_eq_true hgx)))
+  by_contra! hlt
   have hdrop : (sf.drop k).countP (· ≤ B) = 0 := List.countP_eq_zero.mpr fun y hy => by
     obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hy
-    rw [List.length_drop] at hj
     rw [List.getElem_drop, decide_eq_true_eq, not_le]
-    exact hlt.trans_le (hsf_sort.getElem_le_getElem_of_le (Nat.le_add_right k j))
+    exact hlt.trans_le (List.sortedLE_mergeSort.getElem_le_getElem_of_le (Nat.le_add_right k j))
   have htake : (sf.take k).countP (· ≤ B) ≤ k :=
     List.countP_le_length.trans (List.length_take_le k sf)
   rw [← List.take_append_drop k sf, List.countP_append] at hcnt_f
@@ -329,12 +318,9 @@ theorem lockstepDriftFreeByzantineOffset_abs_sub_le {t : ℕ} (ht : 3 * t < Fint
       add_multisetMidTrim (-e) t (by rw [Multiset.card_map, Finset.card_val]; exact h2t),
       Multiset.map_map]
     exact multisetMidTrim_map_mono t hzb_le
-  have hcore := abs_multisetMidTrim_map_sub_le hF
-    (S₁ := Finset.univ) (S₂ := Finset.univ)
-    (by simp only [Finset.card_univ]; omega) hc_Icc
-    (f₁ := ya) (f₂ := zb)
-    (fun j _ hj => by dsimp only [ya]; split_ifs; rfl)
-    (fun j _ hj => by dsimp only [zb]; split_ifs; rfl)
+  have hcore := abs_multisetMidTrim_map_sub_le hF (S₁ := Finset.univ) (S₂ := Finset.univ)
+    (by simp only [Finset.card_univ]; omega) hc_Icc (f₁ := ya) (f₂ := zb)
+    (fun j _ hj => ite_eq_right hj) (fun j _ hj => ite_eq_right hj)
   have he : 2 * e = u := by dsimp only [e]; ring
   linarith [(le_abs_self _).trans hcore]
 
@@ -353,21 +339,13 @@ theorem lockstepDriftFreeByzantineOffsetIter_abs_sub_le {t : ℕ} (ht : 3 * t < 
           lockstepDriftFreeByzantineOffsetIter t d_min d_max F adv c δ R q| ≤
         δ₀ / 2 ^ R + 2 * (1 - 1 / 2 ^ R) * (d_max - d_min) := by
   induction R with
-  | zero =>
-    intro p q hp hq
-    simp only [lockstepDriftFreeByzantineOffsetIter, pow_zero, div_one, sub_self, mul_zero,
-      zero_mul, add_zero]
-    exact hc p hp q hq
+  | zero => exact fun hp hq => by simpa [lockstepDriftFreeByzantineOffsetIter] using hc _ hp _ hq
   | succ r ih =>
     intro p q hp hq
-    have hstep := lockstepDriftFreeByzantineOffset_abs_sub_le ht hF (adv r)
-      (lockstepDriftFreeByzantineOffsetIter t d_min d_max F adv c δ r) (δ r)
-      (fun a ha b hb => ih ha hb) (hδ r) hp hq
-    have halg : (δ₀ / 2 ^ r + 2 * (1 - 1 / 2 ^ r) * (d_max - d_min)) / 2 + (d_max - d_min) =
-        δ₀ / 2 ^ (r + 1) + 2 * (1 - 1 / 2 ^ (r + 1)) * (d_max - d_min) := by
-      rw [pow_succ]
-      ring
-    simpa only [lockstepDriftFreeByzantineOffsetIter, halg] using hstep
+    refine (lockstepDriftFreeByzantineOffset_abs_sub_le ht hF (adv r) _ (δ r)
+      (fun a ha b hb => ih ha hb) (hδ r) hp hq).trans_eq ?_
+    rw [pow_succ]
+    ring
 
 end ByzantineProtocol
 

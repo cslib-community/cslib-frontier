@@ -142,16 +142,12 @@ private theorem exists_covering_interval (S : Finset ℕ) {N x : ℕ}
   let a := before.max' ⟨0, by simp [before, hzero]⟩
   obtain ⟨haS, hax⟩ := Finset.mem_filter.mp (Finset.max'_mem before _)
   refine ⟨a, haS, hax, ?_⟩
-  by_contra h
-  have hend : nextBoundary S N a ≤ x := by lia
+  by_contra! h
   rcases Finset.mem_insert.mp (Finset.min'_mem (insert N (S.filter fun b => a < b)) (by simp)) with
     he | he
-  · change nextBoundary S N a = N at he
-    lia
-  · have hle : nextBoundary S N a ≤ a := Finset.le_max' before _
-      (Finset.mem_filter.mpr ⟨(Finset.mem_filter.mp he).1, hend⟩)
-    have := nextBoundary_gt S (hax.trans_lt hx)
-    lia
+  · exact (he.symm.trans_le h).not_gt hx
+  · exact (Finset.le_max' before _ (Finset.mem_filter.mpr ⟨(Finset.mem_filter.mp he).1, h⟩)).not_gt
+      (nextBoundary_gt S (hax.trans_lt hx))
 
 /-- Before the next cut, the actual update agrees with numerical increment. -/
 private theorem counterInterval_step (f : BitVec n → BitVec n) {a i : ℕ}
@@ -187,16 +183,14 @@ theorem exists_counterIntervalChart (f : BitVec n → BitVec n) :
   · intro x
     obtain ⟨a, ha, hlo, hhi⟩ := exists_covering_interval S
       (show 0 ∈ S by simp [S, counterIntervalStarts]) x.isLt
-    refine ⟨e.symm ⟨a, ha⟩, ?_, ?_⟩
-    · simpa only [start, Equiv.apply_symm_apply] using hlo
-    · simpa only [stop, start, Equiv.apply_symm_apply] using hhi
+    exact ⟨e.symm ⟨a, ha⟩, by simpa only [start, Equiv.apply_symm_apply] using hlo,
+      by simpa only [stop, start, Equiv.apply_symm_apply] using hhi⟩
   · intro j d hd
     induction d with
     | zero => simp
     | succ d ih =>
       rw [Function.iterate_succ_apply', ih (by lia)]
-      have step := counterInterval_step f (a := start j) (i := start j + d)
-        (by lia) (by change start j + d + 1 < stop j; lia)
-      simpa only [Nat.add_assoc] using step
+      simpa only [Nat.add_assoc] using counterInterval_step f (a := start j) (i := start j + d)
+        (Nat.le_add_right _ _) (by dsimp only [stop, S] at hd ⊢; omega)
 
 end Cslib.Circuits.Boolean.Iteration

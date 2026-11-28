@@ -342,7 +342,8 @@ theorem inputHashFin_accessible_collision_le {n₁ m₁ : ℕ} (f₁ : BitString
           ((PMF.uniformOfFintype (Fin n₁ → BitString n₁)) rows).toReal
         else 0) ≤
       (#L : ℝ) / (2 : ℝ) ^ (min j n₁) := by
-  rw [show (2 : ℝ) ^ min j n₁ = Fintype.card (BitString (min j n₁)) by simp [BitString]]
+  have hcard : (2 : ℝ) ^ min j n₁ = Fintype.card (BitString (min j n₁)) := by simp [BitString]
+  rw [hcard]
   exact (Cslib.BitString.LinearHash.isTwoUniversal_prefix (Nat.min_le_right j n₁))
     |>.sum_ite_toReal_le_card_div_of_imp L z fun _ ⟨z', hz', hne, heq⟩ =>
       ⟨z', hz', hne, (zeroPadPrefix_eq_iff_prefixProj_eq _ _).mp
@@ -452,15 +453,14 @@ theorem shrunkHashFin_false_positive_le {n₁ m₁ : ℕ} (f₁ : BitString n₁
             (Fin (outHashLen n₁ s) → BitString (inputHashOutLen n₁ m₁))) outRows).toReal
         else 0) ≤
       (#(univ.image (inputHashFin f₁ j)) : ℝ) / (2 : ℝ) ^ (outHashLen n₁ s) := by
-  rw [show (2 : ℝ) ^ outHashLen n₁ s = Fintype.card (BitString (outHashLen n₁ s)) by
-    simp [BitString]]
-  exact IsTwoUniversal.sum_ite_toReal_le_card_div_of_imp
-    ((Cslib.BitString.LinearHash.isTwoUniversal
-      (inputHashOutLen n₁ m₁) (outHashLen n₁ s)).precompose
-      (inputHashedOutputEquiv n₁ m₁).injective)
-    (univ.image (inputHashFin f₁ j)) (inputHashFin f₁ j w) fun _ ⟨w', hne, heq⟩ =>
-      ⟨inputHashFin f₁ j w', mem_image_of_mem _ (mem_univ w'), hne,
-        congrArg ShrunkHashOutput.outDigest heq⟩
+  simpa only [Cslib.BitString.card, Nat.cast_pow, Nat.cast_ofNat] using
+    IsTwoUniversal.sum_ite_toReal_le_card_div_of_imp
+      ((Cslib.BitString.LinearHash.isTwoUniversal
+        (inputHashOutLen n₁ m₁) (outHashLen n₁ s)).precompose
+        (inputHashedOutputEquiv n₁ m₁).injective)
+      (univ.image (inputHashFin f₁ j)) (inputHashFin f₁ j w) fun _ ⟨w', hne, heq⟩ =>
+        ⟨inputHashFin f₁ j w', mem_image_of_mem _ (mem_univ w'), hne,
+          congrArg ShrunkHashOutput.outDigest heq⟩
 
 /-! ### Word-level evaluators and polynomial-time certificates -/
 
@@ -705,37 +705,26 @@ private theorem shrunkCollPred_imp_shrunkEscPred {w₁ out₁ j₀ s : ℕ}
     shrunkEscPred w₁ evalWord₁ L z raw := by
   let f₁ := wordToFinMap w₁ out₁ evalWord₁
   rcases hcoll with ⟨hlen_raw, hne_raw, heval_raw⟩
-  let v : ShrunkHashInput w₁ out₁ s := ⟨⟨z, iRows⟩, oRows⟩
-  let v' := ShrunkHashInput.unpackWord w₁ out₁ s raw
-  have hpack' : v'.packWord = raw := ShrunkHashInput.packWord_unpackWord hlen_raw
-  have hf₃_eq : shrunkHashFin f₁ j₀ s v' = shrunkHashFin f₁ j₀ s v := by
-    have hp : (shrunkHashFin f₁ j₀ s v').packWord = (shrunkHashFin f₁ j₀ s v).packWord := by
-      rw [← shrunkHashEvalWord_packWord evalWord₁ j₀ v',
-        ← shrunkHashEvalWord_packWord evalWord₁ j₀ v, hpack', heval_raw]
+  rcases hup : ShrunkHashInput.unpackWord w₁ out₁ s raw with ⟨⟨z', iRows'⟩, oRows'⟩
+  obtain rfl : raw = (ShrunkHashInput.mk ⟨z', iRows'⟩ oRows').packWord := by
+    rw [← hup, ShrunkHashInput.packWord_unpackWord hlen_raw]
+  rw [shrunkHashEvalWord_packWord, shrunkHashEvalWord_packWord] at heval_raw
+  have hf₃_eq : shrunkHashFin f₁ j₀ s ⟨⟨z', iRows'⟩, oRows'⟩ =
+      shrunkHashFin f₁ j₀ s ⟨⟨z, iRows⟩, oRows⟩ := by
     simpa only [ShrunkHashOutput.unpackWord_packWord] using
-      congrArg (ShrunkHashOutput.unpackWord w₁ out₁ s) hp
-  have hoRows_eq : v'.outRows = oRows := congrArg ShrunkHashOutput.outRows hf₃_eq
-  have hf₂_eq : inputHashFin f₁ j₀ v'.inner = inputHashFin f₁ j₀ ⟨z, iRows⟩ :=
-    Classical.byContradiction fun hne₂ => hnot_out ⟨v'.inner, hne₂,
-      by rwa [show (⟨v'.inner, oRows⟩ : ShrunkHashInput _ _ _) = v' by rw [← hoRows_eq]]⟩
-  have hiRows_eq : v'.inner.inRows = iRows := congrArg InputHashedOutput.inRows hf₂_eq
-  have hz_ne : v'.inner.base ≠ z := fun hz_eq => hne_raw <| by
-    rw [← hpack']
-    rcases v' with ⟨⟨_, _⟩, _⟩
-    dsimp only at hz_eq hiRows_eq hoRows_eq
-    subst hz_eq hiRows_eq hoRows_eq; rfl
-  have htake_eq : raw.take w₁ = List.ofFn v'.inner.base := by
-    rw [← hpack', ShrunkHashInput.packWord, InputHashedInput.packWord, List.append_assoc,
-      List.take_left' List.length_ofFn]
-  have heval₁_eq : evalWord₁ (List.ofFn v'.inner.base) = evalWord₁ (List.ofFn z) := by
+      congrArg (ShrunkHashOutput.unpackWord w₁ out₁ s) heval_raw
+  obtain rfl : oRows' = oRows := congrArg ShrunkHashOutput.outRows hf₃_eq
+  have hf₂_eq : inputHashFin f₁ j₀ ⟨z', iRows'⟩ = inputHashFin f₁ j₀ ⟨z, iRows⟩ :=
+    Classical.byContradiction fun hne₂ => hnot_out ⟨⟨z', iRows'⟩, hne₂, hf₃_eq⟩
+  obtain rfl : iRows' = iRows := congrArg InputHashedOutput.inRows hf₂_eq
+  have hz_ne : z' ≠ z := fun h => hne_raw (h ▸ rfl)
+  have heval₁_eq : evalWord₁ (List.ofFn z') = evalWord₁ (List.ofFn z) := by
     rw [← Cslib.BitString.ofFn_ofList (hlen₁ _ List.length_ofFn),
       ← Cslib.BitString.ofFn_ofList (hlen₁ (List.ofFn z) List.length_ofFn)]
     exact congrArg List.ofFn (congrArg InputHashedOutput.baseOut hf₂_eq)
-  have hnot_L₁ : v'.inner.base ∉ L z := fun hmem =>
-    hnot_in ⟨v'.inner.base, hmem, hz_ne,
-      by rwa [show (⟨v'.inner.base, iRows⟩ : InputHashedInput _) = v'.inner by rw [← hiRows_eq]]⟩
-  simpa only [shrunkEscPred, htake_eq, List.length_ofFn, heval₁_eq, Cslib.BitString.ofList_ofFn,
-    true_and] using hnot_L₁
+  simpa only [shrunkEscPred, ShrunkHashInput.packWord, InputHashedInput.packWord, List.append_assoc,
+    List.take_left' List.length_ofFn, List.length_ofFn, heval₁_eq, Cslib.BitString.ofList_ofFn,
+    true_and] using fun hmem => hnot_in ⟨z', hmem, hz_ne, hf₂_eq⟩
 
 open Classical in
 private theorem shrunkHash_pointwise_toReal_le {w₁ out₁ j₀ s : ℕ}
@@ -754,16 +743,13 @@ private theorem shrunkHash_pointwise_toReal_le {w₁ out₁ j₀ s : ℕ}
     PMF.pure (decide (shrunkCollPred w₁ out₁ j₀ s evalWord₁ ⟨⟨z, iRows⟩, oRows⟩ raw))) true
   have h0 := ENNReal.toReal_nonneg (a := (pA >>= fun raw =>
     PMF.pure (decide (shrunkEscPred w₁ evalWord₁ L z raw))) true)
-  by_cases hin : shrunkBadIn (wordToFinMap w₁ out₁ evalWord₁) j₀ L z iRows
-  · simp only [hin, ↓reduceIte]; split_ifs <;> linarith
-  · by_cases hout : shrunkBadOut (wordToFinMap w₁ out₁ evalWord₁) j₀ ⟨z, iRows⟩ oRows
-    · simp only [hin, hout, ↓reduceIte]; linarith
-    · simp only [hin, hout, ↓reduceIte, add_zero, PMF.monad_bind_eq_bind]
-      refine ENNReal.toReal_mono (PMF.apply_ne_top _ _)
-        (PMF.bind_apply_mono_on_support pA true fun raw _ => ?_)
-      by_cases hc : shrunkCollPred w₁ out₁ j₀ s evalWord₁ ⟨⟨z, iRows⟩, oRows⟩ raw
-      · simp [hc, shrunkCollPred_imp_shrunkEscPred evalWord₁ L hlen₁ z iRows oRows hin hout raw hc]
-      · simp [hc]
+  split_ifs with hin _ hout <;> try linarith
+  rw [add_zero, add_zero, PMF.monad_bind_eq_bind]
+  refine ENNReal.toReal_mono (PMF.apply_ne_top _ _)
+    (PMF.bind_apply_mono_on_support pA true fun raw _ => ?_)
+  by_cases hc : shrunkCollPred w₁ out₁ j₀ s evalWord₁ ⟨⟨z, iRows⟩, oRows⟩ raw
+  · simp [hc, shrunkCollPred_imp_shrunkEscPred evalWord₁ L hlen₁ z iRows oRows hin hout raw hc]
+  · simp [hc]
 
 private noncomputable abbrev shrunkExpect (w₁ out₁ s : ℕ)
     (g : BitString w₁ → (Fin w₁ → BitString w₁) →
@@ -787,13 +773,9 @@ private theorem shrunkHash_randomCollision_succProbability_eq (n₁ m₁ j s : �
           PMF.pure (decide (shrunkCollPred (n₁ n) (m₁ n) (j n) (s n) (evalWord₁ n)
             ⟨⟨z, iRows⟩, oRows⟩ raw))) true).toReal := by
   simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal, randomCollisionGame,
-    ProbComp.eval_bind, Cslib.BitString.eval_sampleList, ProbComp.eval_pure]
-  rw [uniformList_shrunkHashInLen_eq (n₁ n) (m₁ n) (s n), PMF.bind_bind]
-  simp only [PMF.bind_apply_toReal]
-  refine sum_congr rfl fun z _ => congrArg (_ * ·) ?_
-  rw [PMF.bind_bind]
-  simp only [PMF.bind_apply_toReal]
-  exact sum_congr rfl fun _ _ => congrArg (_ * ·) (by rw [PMF.bind_map, PMF.bind_apply_toReal]; rfl)
+    ProbComp.eval_bind, Cslib.BitString.eval_sampleList, ProbComp.eval_pure,
+    uniformList_shrunkHashInLen_eq (n₁ n) (m₁ n) (s n), PMF.monad_bind_eq_bind, PMF.bind_bind,
+    PMF.bind_map, PMF.bind_apply_toReal, Function.comp_def]
 
 open Classical in
 private theorem shrunkHash_escape_succProbability_eq (n₁ m₁ s : ℕ → ℕ)
@@ -806,30 +788,13 @@ private theorem shrunkHash_escape_succProbability_eq (n₁ m₁ s : ℕ → ℕ)
         ((ProbComp.eval (A n (ShrunkHashInput.mk ⟨z, iRows⟩ oRows).packWord) >>= fun raw =>
           PMF.pure (decide
             (shrunkEscPred (n₁ n) (evalWord₁ n) (L₁ n) z raw))) true).toReal := by
-  have heval :
-      ProbComp.eval (accessibleEscapeGame evalWord₁ n₁ L₁
-        (shrunkHashEscapeInverter n₁ m₁ s A) n) =
-      (PMF.uniformOfFintype (BitString (n₁ n))).bind fun z =>
-        (PMF.uniformOfFintype (Fin (n₁ n) → BitString (n₁ n))).bind fun iRows =>
-          (PMF.uniformOfFintype
-            (Fin (outHashLen (n₁ n) (s n)) → BitString (inputHashOutLen (n₁ n) (m₁ n)))).bind
-              fun oRows =>
-                ProbComp.eval (A n (ShrunkHashInput.mk ⟨z, iRows⟩ oRows).packWord) >>= fun raw =>
-                  PMF.pure (decide (shrunkEscPred (n₁ n) (evalWord₁ n) (L₁ n) z raw)) := by
-    simp only [accessibleEscapeGame, shrunkHashEscapeInverter, ProbComp.eval_bind,
-      Cslib.BitString.eval_sampleList, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
-      PMF.bind_bind]
-    rw [Cslib.BitString.uniformList, PMF.bind_map]
-    refine congrArg (PMF.uniformOfFintype (BitString (n₁ n))).bind (funext fun z => ?_)
-    dsimp only [Function.comp_def]
-    rw [uniformList_mul_eq_map_blocks, PMF.bind_map]
-    refine congrArg (PMF.uniformOfFintype _).bind (funext fun iRows => ?_)
-    dsimp only [Function.comp_def]
-    rw [uniformList_mul_eq_map_blocks, PMF.bind_map]
-    refine congrArg (PMF.uniformOfFintype _).bind (funext fun oRows => ?_)
-    simp only [Function.comp_def, listRow_zero_ofFn, Cslib.BitString.ofList_ofFn, PMF.pure_bind,
-      ShrunkHashInput.packWord, InputHashedInput.packWord, shrunkEscPred]
-  simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal, heval, PMF.bind_apply_toReal]
+  simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal, accessibleEscapeGame,
+    shrunkHashEscapeInverter, ProbComp.eval_bind, Cslib.BitString.eval_sampleList,
+    ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.bind_bind]
+  rw [Cslib.BitString.uniformList, uniformList_mul_eq_map_blocks, uniformList_mul_eq_map_blocks]
+  simp only [PMF.bind_map, PMF.bind_apply_toReal, Function.comp_def,
+    listRow_zero_ofFn, Cslib.BitString.ofList_ofFn, PMF.pure_bind, ShrunkHashInput.packWord,
+    InputHashedInput.packWord, shrunkEscPred]
 
 open Classical in
 private theorem shrunkBadIn_sum_le {w₁ out₁ j₀ s : ℕ} (f₁ : BitString w₁ → BitString out₁)
@@ -847,12 +812,10 @@ private theorem shrunkBadIn_sum_le {w₁ out₁ j₀ s : ℕ} (f₁ : BitString 
         (2 : ℝ) ^ (A_max - (min j₀ w₁ : ℝ)) := by
     by_cases hA_ge : A_max ≤ Real.logb 2 #(L z)
     · simp only [hA_ge, ↓reduceIte]
-      have hle1 := (sum_le_sum fun iRows (_ : iRows ∈ univ) => show
-          (if shrunkBadIn f₁ j₀ L z iRows then
-            ((PMF.uniformOfFintype (Fin w₁ → BitString w₁)) iRows).toReal else 0) ≤
-            ((PMF.uniformOfFintype (Fin w₁ → BitString w₁)) iRows).toReal by
-        split_ifs <;> simp).trans_eq (PMF.sum_toReal _)
-      linarith [Real.rpow_nonneg two_pos.le (A_max - (min j₀ w₁ : ℝ))]
+      exact le_add_of_le_of_nonneg
+        ((sum_le_sum fun _ _ => by split_ifs <;> simp [-PMF.uniformOfFintype_apply]).trans_eq
+          (PMF.sum_toReal (PMF.uniformOfFintype (Fin w₁ → BitString w₁))))
+        (Real.rpow_nonneg two_pos.le _)
     · simp only [hA_ge, ↓reduceIte, zero_add]
       have hcard_le : (#(L z) : ℝ) ≤ (2 : ℝ) ^ A_max := by
         rcases Nat.eq_zero_or_pos #(L z) with h0 | hpos

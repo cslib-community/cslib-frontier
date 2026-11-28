@@ -170,10 +170,8 @@ theorem card_children_le {k h : ℕ} {φ : CNF (Fin n)} {σ : Fin n → Bool} {x
   obtain ⟨hmem, hflip⟩ := hC p hxp hph
   obtain ⟨l, hl, hls⟩ :=
     (Clause.eval_eq_true_iff σ _).mp ((CNF.eval_eq_true_iff σ φ).mp hσ _ hmem)
-  have hlp : l.1 ∈ p := by_contra fun hlp => by
-    have : (C p).eval (flipOn p.toFinset σ) = true := (Clause.eval_eq_true_iff _ _).mpr
-      ⟨l, hl, by rwa [flipOn_apply_of_notMem (by simpa using hlp)]⟩
-    simp [hflip] at this
+  have hlp : l.1 ∈ p := by_contra fun hlp => Bool.false_ne_true <| hflip.symm.trans <|
+    (Clause.eval_eq_true_iff _ _).mpr ⟨l, hl, by rwa [flipOn_apply_of_notMem (by simpa using hlp)]⟩
   calc (children C p).card ≤ ((PPZ.vars (C p)).erase l.1).card := card_le_card fun y hy =>
         mem_erase.mpr ⟨fun e => notMem_of_mem_children hy (e ▸ hlp), (mem_children.mp hy).1⟩
     _ = (PPZ.vars (C p)).card - 1 :=
@@ -326,14 +324,11 @@ theorem exists_mem_labels_eval_eq_false {φ : CNF (Fin n)} {σ γ : Fin n → Bo
       have hagree : γ l.1 = flipOn p.toFinset σ l.1 := by
         by_cases hlp : l.1 ∈ p
         · rw [flipOn_apply_of_mem (List.mem_toFinset.mpr hlp)]
-          have h1 := hγ l.1 hlp
-          cases ha : γ l.1
-          all_goals cases hb : σ l.1 <;> simp_all
+          exact Bool.eq_not_of_ne (hγ l.1 hlp)
         · rw [flipOn_apply_of_notMem (by simpa using hlp)]
           exact hall l.1 (mem_children.mpr ⟨List.mem_toFinset.mpr (List.mem_map_of_mem hl), hlp⟩)
-      have : (C p).eval (flipOn p.toFinset σ) = true :=
-        (Clause.eval_eq_true_iff _ _).mpr ⟨l, hl, hagree.symm.trans hls⟩
-      simp [(hC p hxp (by omega)).2] at this
+      exact absurd ((Clause.eval_eq_true_iff _ _).mpr ⟨l, hl, hagree.symm.trans hls⟩)
+        (by simp [(hC p hxp (by omega)).2])
     · push Not at hall
       obtain ⟨y, hy, hyγ⟩ := hall
       have hlen' : (y :: p).length + d ≤ h + 1 := by rw [List.length_cons]; omega

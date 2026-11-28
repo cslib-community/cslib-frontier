@@ -71,16 +71,11 @@ theorem paxos_liveness_from_phase2a_crashStop {inputs : Proposer → V}
       simp only [(hexec j₃).2, hj₃_act, synodStep, synodStepCore, hallows_j₃, ↓reduceIte,
         Finset.mem_insert_self]
     obtain ⟨j₄, _, hj₄_act⟩ := hphase2b (j₃ + 1) a v haQ h2b_mem
-    refine ⟨j₄ + 1, ?_⟩
-    simp only [(hexec j₄).2, hj₄_act, synodStep, synodStepCore, ↓reduceIte, Finset.mem_insert_self]
-  let recvStep : Acceptor → ℕ := fun a =>
-    if h : a ∈ Q then Classical.choose (hQ_recv a h) else 0
+    exact ⟨j₄ + 1, by simp [(hexec j₄).2, hj₄_act, synodStep, synodStepCore]⟩
+  choose! recvStep hrecv using hQ_recv
   let k_final := Q.sup recvStep
-  have hlearnedAt : (ss k_final).LearnedAt qs l b v := by
-    refine ⟨Q, hQ, fun a haQ => ?_⟩
-    have hle : Classical.choose (hQ_recv a haQ) ≤ k_final := by
-      simpa only [recvStep, dite_eq_left haQ] using Finset.le_sup (f := recvStep) haQ
-    exact learner_received_mono qs hexec hle (Classical.choose_spec (hQ_recv a haQ))
+  have hlearnedAt : (ss k_final).LearnedAt qs l b v :=
+    ⟨Q, hQ, fun a haQ => learner_received_mono qs hexec (Finset.le_sup haQ) (hrecv a haQ)⟩
   have hr_final : Reachable qs inputs (ss k_final) :=
     hr₀.trans ⟨xs.extract 0 k_final, hexec.extract_mTr (Nat.zero_le k_final)⟩
   exact ⟨k_final, hlearnedAt, hr_final.learned_eq_some_iff.mpr ⟨b, hlearnedAt⟩⟩
@@ -152,19 +147,15 @@ theorem paxos_liveness_of_sole_leader_crashStop {inputs : Proposer → V}
         | succ n ih =>
           intro v hm
           rw [(hexec n).2] at hm
-          rcases mem_msgs_synodStep_cases hm with hold | ⟨_, _, _, h⟩ | ⟨_, _, _, _, h⟩ |
-              ⟨q, _, _, _, r_q, _, hact, _, _, hprop_t, h⟩ | ⟨_, _, _, _, _, h⟩
+          rcases mem_msgs_synodStep_cases hm with hold | ⟨_, _, _, ⟨⟩⟩ | ⟨_, _, _, _, ⟨⟩⟩ |
+              ⟨q, _, _, _, r_q, _, hact, _, _, hprop_t, h⟩ | ⟨_, _, _, _, _, ⟨⟩⟩
           · exact ih v hold
-          · cases h
-          · cases h
           · injection h with hb_eq _
-            have hqp : q = p := (congrArg Ballot.proposer hb_eq).symm
-            subst hqp
+            obtain rfl : q = p := (congrArg Ballot.proposer hb_eq).symm
             rcases eq_or_ne n 0 with rfl | hn0
             · rw [hprep₀] at hact; cases hact
             · have hp1 := hprop_false (n + 1) (by omega)
               rw [(hexec n).2, hprop_t] at hp1; cases hp1
-          · cases h
       have hacc_1b : ∀ n a, ((ss n).acceptors a).maxBal = some b →
           ∃ j mv, Msg.phase1b a b mv ∈ (ss j).msgs := by
         intro n
@@ -176,32 +167,24 @@ theorem paxos_liveness_of_sole_leader_crashStop {inputs : Proposer → V}
           rw [hstep] at hmb
           rcases acceptors_synodStep_cases qs (ss n) (xs n) a with heq |
               ⟨b', _, _, heq, h1b⟩ | ⟨b', v, hact, _, heq⟩ | ⟨_, heq⟩
-          · rw [heq] at hmb; exact ih a hmb
-          · rw [heq] at hmb; injection hmb with hb_eq; subst hb_eq
-            exact ⟨n + 1, _, hstep ▸ h1b⟩
-          · rw [heq] at hmb; injection hmb with hb_eq; subst hb_eq
-            rw [hact] at hen
-            exact False.elim (hno_2a n v hen.2)
-          · rw [heq] at hmb; exact ih a hmb
+          · exact ih a (heq ▸ hmb)
+          · exact ⟨n + 1, _, Option.some.inj (heq ▸ hmb) ▸ hstep ▸ h1b⟩
+          · exact (hno_2a n v (Option.some.inj (heq ▸ hmb) ▸ (hact ▸ hen).2)).elim
+          · exact ih a (by simpa [heq] using hmb)
       have hQ_prom : ∀ a ∈ Q, ∃ n, 1 ≤ n ∧ a ∈ ((ss n).proposers p).promised := by
         intro a haQ
         obtain ⟨j₁, _, hj₁_act⟩ := hlive.fair_phase1a 1 hs1_1a a haQ
-        have hex_1b : ∃ j_m mv, Msg.phase1b a b mv ∈ (ss j_m).msgs := by
+        obtain ⟨j_m, mv, h1b_mem⟩ : ∃ j_m mv, Msg.phase1b a b mv ∈ (ss j_m).msgs := by
           cases hab : aboveMaxBal ((ss j₁).acceptors a).maxBal b with
           | true =>
-            refine ⟨j₁ + 1, ((ss j₁).acceptors a).maxVoted, ?_⟩
-            rw [(hexec j₁).2, hj₁_act]
-            dsimp only [synodStep, synodStepCore]
-            rw [ite_eq_left hab]
-            exact Finset.mem_insert_self _ _
+            exact ⟨j₁ + 1, ((ss j₁).acceptors a).maxVoted, by
+              simp [(hexec j₁).2, hj₁_act, synodStep, synodStepCore, hab]⟩
           | false =>
             cases hmb_cur : ((ss j₁).acceptors a).maxBal with
-            | none => rw [hmb_cur] at hab; cases hab
+            | none => simp [hmb_cur, aboveMaxBal] at hab
             | some mb =>
-              rw [hmb_cur] at hab
-              simp only [aboveMaxBal, decide_eq_false_iff_not, not_lt] at hab
+              simp only [hmb_cur, aboveMaxBal, decide_eq_false_iff_not, not_lt] at hab
               exact hacc_1b j₁ a (le_antisymm ((hceil j₁).2 a mb hmb_cur) hab ▸ hmb_cur)
-        obtain ⟨j_m, mv, h1b_mem⟩ := hex_1b
         have h1b_at_max : Msg.phase1b a b mv ∈ (ss (max 1 j_m)).msgs :=
           ballot_msg_persist qs hexec hlive.no_drop_ballot (le_max_right 1 j_m) h1b_mem rfl
         obtain ⟨j₂, hj₂_ge, hj₂_act⟩ := hlive.fair_phase1b (max 1 j_m) a mv haQ h1b_at_max
@@ -209,10 +192,7 @@ theorem paxos_liveness_of_sole_leader_crashStop {inputs : Proposer → V}
         refine ⟨j₂ + 1, by omega, ?_⟩
         by_cases ha_already : a ∈ ((ss j₂).proposers p).promised
         · exact promised_mono qs hexec hprep₀ hno_higher hj₂_1 (Nat.le_succ j₂) ha_already
-        · rw [(hexec j₂).2, hj₂_act]
-          dsimp only [synodStep, synodStepCore]
-          rw [(hround_inv j₂ hj₂_1).1]
-          dsimp only []
+        · simp only [(hexec j₂).2, hj₂_act, synodStep, synodStepCore, (hround_inv j₂ hj₂_1).1]
           rw [ite_eq_left ⟨rfl, ha_already⟩]
           split_ifs <;> simp only [↓reduceIte] <;> exact Finset.mem_insert_self _ _
       choose! stepOf hstep₁ hstep using hQ_prom
@@ -245,8 +225,7 @@ theorem paxos_liveness_of_sole_leader_crashStop {inputs : Proposer → V}
       · simp [heq] at hm_next_pfalse
       · rw [heq] at hm_sub
         exact (hq_not (by simpa [hm_pfalse] using ⟨Q₁, hQ₁, hQ₁_sub.trans hm_sub⟩)).elim
-      · rw [heq] at hm_sub
-        exact (hm_not_sub hm_sub).elim
+      · exact (hm_not_sub (by simpa [heq] using hm_sub)).elim
   -- The accept phase needs only the accept quorum inside the live cohort.
   obtain ⟨n₂, v, _, h2a_mem⟩ := hexists_2a
   obtain ⟨k, hlearned, hreg⟩ := paxos_liveness_from_phase2a_crashStop qs hr₀ hexec hQ₂

@@ -135,16 +135,12 @@ theorem encryptEntry_eq (n m w : ℕ) (publicWord : List Bool) (message : Bool)
   unfold encryptEntry
   rw [List.map_range_eq_ofFn, List.sum_ofFn, ← ZMod.val_natCast]
   congr 1
-  rw [Nat.cast_add, Nat.cast_sum, encryptWithCoins, Pi.add_apply]
-  refine congrArg₂ (· + ·) ?_ ?_
-  · simp only [Matrix.vecMul, dotProduct, coinVector]
-    refine Finset.sum_congr rfl fun r _ => ?_
-    rw [Cslib.Matrix.ofBinary_apply]
-    cases coins.getD r.val false <;> simp
-  · by_cases hj : j = 0
-    · subst hj
-      simp [LWE.encodeBit]
-    · simp [hj]
+  simp only [Nat.cast_add, Nat.cast_sum, encryptWithCoins, Pi.add_apply,
+    Matrix.vecMul, dotProduct, coinVector]
+  refine congrArg₂ (· + ·) (Finset.sum_congr rfl fun r _ => ?_)
+    (by by_cases hj : j = 0 <;> simp [hj, LWE.encodeBit])
+  rw [Cslib.Matrix.ofBinary_apply]
+  cases coins.getD r.val false <;> simp
 
 /-- The word encryption is the typed encryption of the decoded public matrix and coins. -/
 theorem encryptWithCoinsSerialized_eq (n m w : ℕ) (publicWord : List Bool) (message : Bool)
@@ -290,8 +286,8 @@ theorem computableInPolyTime_encryptWithCoinsSerialized
       (fun a => encryptWithCoinsSerialized (n a) (m a) (w a) (publicWord a) (message a)
         (coins a)) input encBits := by
   unfold encryptWithCoinsSerialized
-  apply flatMapToBitsWithInput (range.comp (by fun_prop))
-  fun_prop
+  exact flatMapToBitsWithInput (range.comp (by fun_prop))
+    (by fun_prop)
 
 /-- The complete encryption program is strict PPT on arbitrary public words and messages. -/
 @[fun_prop]
@@ -318,8 +314,7 @@ theorem computableInPolyTime_decryptResidue
     ComputableInPolyTime
       (fun a => decryptResidue (n a) (w a) (secretWord a) (ciphertextWord a))
       input encNat := by
-  unfold decryptResidue
-  fun_prop
+  fun_prop [decryptResidue]
 
 /-- Serialized Regev decryption is computable in polynomial time on arbitrary secret and
 ciphertext words. -/
@@ -333,8 +328,7 @@ theorem computableInPolyTime_decryptSerialized
     ComputableInPolyTime
       (fun a => decryptSerialized (n a) (w a) (secretWord a) (ciphertextWord a))
       input encBool := by
-  unfold decryptSerialized
-  fun_prop
+  fun_prop [decryptSerialized]
 
 /-- The single-challenge leftover-hash term `sqrt(2 ^ ((n + 1) * w) / 2 ^ m)`. -/
 noncomputable def hidingError (n m w : ℕ) : ℝ≥0 :=
@@ -499,12 +493,7 @@ theorem eval_lorRunSerialized_toBinary (n m w : ℕ → ℕ) (adversary : Encryp
       bind_assoc, ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.bind_map,
       PMF.pure_bind, Function.comp_def, eval_encryptSerialized_toBinary]
     refine congrArg (PMF.bind _ ·) (funext fun choice => ?_)
-    have hsel : (⟨Encryption.ChoiceOut.msg₀ choice, Encryption.ChoiceOut.msg₁ choice⟩ :
-        MessagePair Bool).select bit =
-      (if bit then Encryption.ChoiceOut.msg₁ choice else Encryption.ChoiceOut.msg₀ choice) := by
-      cases bit <;> rfl
-    rw [hsel]
-    exact congrArg (PMF.bind _ ·) (funext fun c =>
+    cases bit <;> exact congrArg (PMF.bind _ ·) (funext fun c =>
       ih (Encryption.ChoiceOut.state choice, serializeCiphertext c :: loopState.2))
 
 /-- On canonical public-matrix words, `lorDistinguisherSerialized` has the exact distribution of
@@ -515,16 +504,9 @@ theorem eval_lorDistinguisherSerialized_toBinary (n m w Q : ℕ → ℕ)
     ProbComp.eval (lorDistinguisherSerialized n m w Q adversary bit security
         (Cslib.Matrix.toBinary A)) =
       lorDistinguisher (Q security) (typedLoRAdversary adversary security) bit A := by
-  unfold lorDistinguisherSerialized Encryption.lorDistinguisher Encryption.lorDistinguisherOn
-    lorDistinguisher lorGame
-  simp only [ProbComp.eval_bind, PMF.monad_bind_eq_bind, PMF.pure_bind]
-  rw [show (typedLoRAdversary adversary security).start A =
-    (ProbComp.eval (adversary.start security (Cslib.Matrix.toBinary A))).map (fun st₀ => (st₀, []))
-    from rfl, PMF.bind_map]
-  congr 1 with st₀ : 1
-  dsimp only [Function.comp_def]
-  rw [eval_lorRunSerialized_toBinary n m w adversary security A bit (Q security) (st₀, [])]
-  rfl
+  simp [lorDistinguisherSerialized, Encryption.lorDistinguisher, Encryption.lorDistinguisherOn,
+    eval_lorRunSerialized_toBinary, lorDistinguisher, lorGame, typedLoRAdversary,
+    PMF.bind_map, Function.comp_def]
 
 /-- On canonical public-matrix words, the hidden-bit reduction `lorLweDistinguisher` draws a fair
 challenge bit `bit` and outputs the guess of typed `Regev.lorDistinguisher` at `bit`, XOR `bit`. -/
@@ -535,10 +517,8 @@ theorem eval_lorLweDistinguisher_toBinary (n m w Q : ℕ → ℕ)
       (PMF.uniformOfFintype Bool).bind fun bit =>
         (lorDistinguisher (Q security) (typedLoRAdversary adversary security) bit A).map
           fun guess => guess ^^ bit := by
-  simp only [← eval_lorDistinguisherSerialized_toBinary, lorLweDistinguisher,
-    Encryption.lorKeyDistinguisher, Encryption.lorKeyDistinguisherOn, ProbComp.eval_bind,
-    ProbComp.eval_uniform, ProbComp.eval_pure]
-  rfl
+  simp [← eval_lorDistinguisherSerialized_toBinary, lorLweDistinguisher,
+    Encryption.lorKeyDistinguisher, Encryption.lorKeyDistinguisherOn, ← PMF.bind_pure_comp]
 
 /-- Under the real `DecisionLWE` ensemble, `lorDistinguisherSerialized` realizes the real side of
 `Regev.lorGame_advantage_le`. -/
@@ -666,15 +646,11 @@ theorem lorGameSerialized_advantage_le (n m w η Q : ℕ → ℕ) (adversary : E
             (lorDistinguisherSerialized n m w Q adversary true security)) +
         Q security * hidingError (n security) (m security) (w security) := by
   apply NNReal.coe_le_coe.mp
-  rw [eval_lorGameSerialized, eval_lorGameSerialized,
-    distinguishingGame_realEnsemble_lorDistinguisherSerialized,
-    distinguishingGame_uniformEnsemble_lorDistinguisherSerialized,
-    distinguishingGame_realEnsemble_lorDistinguisherSerialized,
-    distinguishingGame_uniformEnsemble_lorDistinguisherSerialized]
-  simpa only [hidingError, NNReal.coe_add, NNReal.coe_mul, NNReal.coe_natCast, Real.coe_sqrt,
-    NNReal.coe_div, NNReal.coe_pow, NNReal.coe_ofNat] using
-    lorGame_advantage_le (LWE.noiseLaw (w security) (η security)) (Q security)
-      (typedLoRAdversary adversary security)
+  simpa only [eval_lorGameSerialized, distinguishingGame_realEnsemble_lorDistinguisherSerialized,
+    distinguishingGame_uniformEnsemble_lorDistinguisherSerialized, hidingError, NNReal.coe_add,
+    NNReal.coe_mul, NNReal.coe_natCast, Real.coe_sqrt, NNReal.coe_div, NNReal.coe_pow,
+    NNReal.coe_ofNat] using lorGame_advantage_le (LWE.noiseLaw (w security) (η security))
+      (Q security) (typedLoRAdversary adversary security)
 
 /-- Concrete adaptive `Q`-query left-or-right security for `lorGameSerialized` via the single
 hidden-bit reduction `lorLweDistinguisher`: the advantage is at most twice its `DecisionLWE`
@@ -697,11 +673,9 @@ theorem lorGameSerialized_advantage_le_two_mul (n m w η Q : ℕ → ℕ)
         (lorDistinguisherSerialized n m w Q adversary true security)) ≤
       Q security * hidingError (n security) (m security) (w security) := by
     apply NNReal.coe_le_coe.mp
-    rw [distinguishingGame_uniformEnsemble_lorDistinguisherSerialized,
-      distinguishingGame_uniformEnsemble_lorDistinguisherSerialized,
-      ← lorGame_eq_bind_lorDistinguisher, ← lorGame_eq_bind_lorDistinguisher]
-    simpa only [hidingError, NNReal.coe_mul, NNReal.coe_natCast, Real.coe_sqrt,
-      NNReal.coe_div, NNReal.coe_pow, NNReal.coe_ofNat] using
+    simpa only [distinguishingGame_uniformEnsemble_lorDistinguisherSerialized,
+      ← lorGame_eq_bind_lorDistinguisher, hidingError, NNReal.coe_mul, NNReal.coe_natCast,
+      Real.coe_sqrt, NNReal.coe_div, NNReal.coe_pow, NNReal.coe_ofNat] using
       lorGame_uniform_advantage_le (Q security) (typedLoRAdversary adversary security)
   rw [lorGameSerialized, Encryption.eval_lorGame_eq_distinguishingGame,
     Encryption.eval_lorGame_eq_distinguishingGame, LWE.eval_keyGenSerialized_publicWord]

@@ -191,21 +191,7 @@ theorem getD_childPass_eq_forget (w : V → ℕ) {LB LP : List V} (hLB : LB.Nodu
   rw [powerset_toFinset_eq_image, Finset.filter_image, Finset.sup_image]
   refine Finset.sup_congr ?_ fun t ht => ?_
   · refine Finset.filter_congr fun t _ => and_congr_right fun _ => ?_
-    rw [toMask_eq_toMask_iff]
-    constructor
-    · intro h
-      ext x
-      have := congrArg (x ∈ ·) h
-      simp only [Finset.mem_inter, eq_iff_iff] at this ⊢
-      constructor
-      · rintro ⟨hxt, hxP⟩
-        exact ⟨(this.1 ⟨hxt, hxP⟩).1.1, (List.mem_toFinset.1 (ofMask_subset LB t hxt)) |>
-          List.mem_toFinset.2⟩
-      · rintro ⟨hxS, hxB⟩
-        exact ⟨(this.2 ⟨⟨hxS, hxB⟩, hS hxS⟩).1, hS hxS⟩
-    · intro h
-      rw [h]
-      exact (Finset.inter_eq_left.2 (Finset.inter_subset_left.trans hS)).symm
+    rw [toMask_eq_toMask_iff, Finset.inter_eq_left.2 (Finset.inter_subset_left.trans hS)]
   · rw [Finset.mem_filter, Finset.mem_range] at ht
     simp only [Function.comp_apply, hfg t ht.1]
 

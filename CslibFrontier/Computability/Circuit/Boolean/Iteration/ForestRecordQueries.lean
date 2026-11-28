@@ -94,9 +94,8 @@ theorem synthesis_selected_mark {a Q : ℕ} (f : BitString n → BitString n)
     obtain ⟨j, _, hj, hch⟩ :=
       chooseRecord_spec (flags z) (records z) (fun _ => false) Q ⟨j₀, j₀.isLt, hj₀⟩
     obtain ⟨i, hi⟩ := (hdict z j).1.mp hj
-    refine ⟨j, (tables.marks_mem _).mpr ⟨i, hi⟩, ?_⟩
-    dsimp [chosen]
-    rw [hch, (hdict z j).2 i hi, hi]
+    exact ⟨j, (tables.marks_mem _).mpr ⟨i, hi⟩,
+      hch.trans (((hdict z j).2 i hi).trans (congrArg _ hi))⟩
   · rintro ⟨j, hj⟩
     obtain ⟨i, hi⟩ := (tables.marks_mem _).mp hj
     exact (hfound_iff z).2 ⟨j, Finset.mem_univ _, (hdict z j).1.mpr ⟨i, hi⟩⟩
@@ -158,10 +157,9 @@ theorem synthesis_selected_anchor {Q : ℕ} (f : BitString n → BitString n)
   have hcand (j : Fin Q) (bit : Fin (n + (n + 1 + (n + 1)))) :
       (fun z => candRec z j bit) ∈ s1 :=
     Or.inl (heRec j ⟨Fin.castAdd (n + 3) bit, rfl⟩)
-  have hbase (bit : Fin (n + (n + 1 + (n + 1)))) : (fun z => baseRec z bit) ∈ s1 := by
-    refine Fin.addCases (fun i => ?_) (fun i => ?_) bit
-    · simp only [baseRec, Fin.append_left]; exact Or.inl (hy ⟨i, rfl⟩)
-    · simp only [baseRec, Fin.append_right]; exact Or.inl (hyRec ⟨i, rfl⟩)
+  have hbase (bit : Fin (n + (n + 1 + (n + 1)))) : (fun z => baseRec z bit) ∈ s1 :=
+    Fin.addCases (fun i => Or.inl (by simpa only [baseRec, Fin.append_left] using hy ⟨i, rfl⟩))
+      (fun i => Or.inl (by simpa only [baseRec, Fin.append_right] using hyRec ⟨i, rfl⟩)) bit
   let chosenPair : BitString (n + n) → BitString (n + (n + 1 + (n + 1))) :=
     fun z => chooseRecord (elig z) (candRec z) (baseRec z) Q
   have hchoose := synthesis_chooseRecord s1 elig candRec baseRec
@@ -181,9 +179,8 @@ theorem synthesis_selected_anchor {Q : ℕ} (f : BitString n → BitString n)
     htotal.mono Set.Subset.rfl ?_ ?_⟩
   · intro hf
     rw [tables.edgeTable.anchor_iff]
-    by_cases hex : ∃ j : Fin Q, elig z j = true
-    · obtain ⟨j₀, hj₀⟩ := hex
-      obtain ⟨j, _, hj, hch⟩ := chooseRecord_spec (elig z) (candRec z) (baseRec z) Q
+    rcases Classical.em (∃ j : Fin Q, elig z j = true) with ⟨j₀, hj₀⟩ | hex
+    · obtain ⟨j, _, hj, hch⟩ := chooseRecord_spec (elig z) (candRec z) (baseRec z) Q
         ⟨j₀, j₀.isLt, hj₀⟩
       have hje : edgeFlags z j = true ∧
           (!(forestAnchorDepth (edgeRecords z j)).ult (depthWord f (inputRight z))) = true := by
@@ -229,9 +226,7 @@ theorem synthesis_selected_anchor {Q : ℕ} (f : BitString n → BitString n)
       have hjTrue : elig z j = true := by simp [elig, (heDict z j).1.mpr ⟨i, hkey.symm⟩, hdTrue]
       simp [foundA, (hany_iff z).2 ⟨j, Finset.mem_univ _, hjTrue⟩]
   · rintro _ ((rfl | ⟨b, rfl⟩) | ⟨b, rfl⟩)
-    · exact Or.inl rfl
-    · exact Or.inr ⟨Fin.castAdd (n + 1 + (n + 1)) b, rfl⟩
-    · exact Or.inr ⟨Fin.natAdd n b, rfl⟩
+    exacts [Or.inl rfl, Or.inr ⟨Fin.castAdd _ b, rfl⟩, Or.inr ⟨Fin.natAdd n b, rfl⟩]
   · simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
     nlinarith
 

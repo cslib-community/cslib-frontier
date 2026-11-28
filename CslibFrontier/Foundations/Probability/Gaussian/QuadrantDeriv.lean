@@ -126,14 +126,10 @@ theorem measureReal_correlatedGaussian_setOf_le_and_le {ρ : ℝ} (hρ : |ρ| < 
       (Iic t).indicator (fun x => ENNReal.ofReal (Φ ((t' - ρ * x) / √(1 - ρ ^ 2)))) x := by
     by_cases hx : x ≤ t
     · rw [indicator_of_mem (mem_Iic.2 hx), ofReal_cdf]
-      congr 1
-      ext y
-      simp only [mem_preimage, mem_ofPred_eq, hx, true_and, mem_Iic, le_div_iff₀ hs]
-      exact ⟨fun h => by linarith, fun h => by linarith⟩
-    · rw [indicator_of_notMem (by simpa using hx), ← measure_empty (μ := gaussianReal 0 1)]
-      congr 1
-      ext y
-      simp only [mem_preimage, mem_ofPred_eq, hx, false_and, mem_empty_iff_false]
+      exact congrArg _ (Set.ext fun y => by
+        simp only [mem_preimage, mem_ofPred_eq, hx, true_and, mem_Iic, le_div_iff₀ hs,
+          mul_comm √(1 - ρ ^ 2), ← le_sub_iff_add_le'])
+    · simp [indicator_of_notMem, hx]
   rw [measureReal_def, correlatedGaussian_def, Measure.map_apply (by fun_prop) hS,
     Measure.prod_apply (hS.preimage (by fun_prop))]
   simp_rw [hinner]
@@ -153,9 +149,7 @@ theorem hasDerivAt_measureReal_correlatedGaussian_setOf_le_and_le_left {ρ : ℝ
     (continuous_cdf_gaussianReal 0 one_ne_zero).comp (by fun_prop)
   refine hasDerivAt_integral_Iic ?_ ((continuous_gaussianPDFReal 0 1).mul hc).continuousAt
   refine (integrable_gaussianPDFReal 0 1).mul_bdd hc.aestronglyMeasurable (c := 1)
-    (ae_of_all _ fun x => ?_)
-  rw [norm_of_nonneg (cdf_nonneg _ _)]
-  exact cdf_le_one _ _
+    (ae_of_all _ fun x => (norm_of_nonneg (cdf_nonneg _ _)).trans_le (cdf_le_one _ _))
 
 /-- The partial derivative of `P[z ≤ t, z' ≤ t']` in `t'` is `φ(t') Φ((t - ρt') / √(1 - ρ²))`,
 for `|ρ| < 1` and a `ρ`-correlated pair `(z, z')`. -/
@@ -163,10 +157,7 @@ theorem hasDerivAt_measureReal_correlatedGaussian_setOf_le_and_le_right {ρ : �
     (t t' : ℝ) :
     HasDerivAt (fun t' => (correlatedGaussian ρ).real {p | p.1 ≤ t ∧ p.2 ≤ t'})
       (φ t' * Φ ((t - ρ * t') / √(1 - ρ ^ 2))) t' := by
-  have h : ∀ t', (correlatedGaussian ρ).real {p | p.1 ≤ t ∧ p.2 ≤ t'} =
-      (correlatedGaussian ρ).real {p | p.1 ≤ t' ∧ p.2 ≤ t} := fun t' => by
-    rw [← gaussianQuadrant_cdf_cdf, ← gaussianQuadrant_cdf_cdf, gaussianQuadrant_comm hρ.le]
-  simp_rw [h]
+  simp_rw [← gaussianQuadrant_cdf_cdf, gaussianQuadrant_comm hρ.le (Φ t), gaussianQuadrant_cdf_cdf]
   exact hasDerivAt_measureReal_correlatedGaussian_setOf_le_and_le_left hρ t' t
 
 /-! ### Exercise 11.19 (d): first derivatives -/
@@ -188,9 +179,8 @@ theorem hasDerivAt_gaussianQuadrant_left {ρ : ℝ} (hρ : |ρ| < 1) {α β : �
   have h := (hasDerivAt_measureReal_correlatedGaussian_setOf_le_and_le_left hρ (gaussianQuantile α)
     (gaussianQuantile β)).comp α (hasDerivAt_gaussianQuantile hα)
   rw [mul_right_comm, mul_inv_cancel₀ (gaussianPDFReal_pos 0 1 _ one_ne_zero).ne', one_mul] at h
-  refine h.congr_of_eventuallyEq ?_
-  filter_upwards [Ioo_mem_nhds hα.1 hα.2] with α' hα' using
-    gaussianQuadrant_eq_measureReal_quantile ρ hα' hβ
+  exact h.congr_of_eventuallyEq (eventually_of_mem (Ioo_mem_nhds hα.1 hα.2) fun _ hα' =>
+    gaussianQuadrant_eq_measureReal_quantile ρ hα' hβ)
 
 /-- **The derivative of `Λ_ρ` in `β`** [O'Donnell, Exercise 11.19 (d)][ODonnell2014]: for
 `|ρ| < 1` and `α, β ∈ (0, 1)`, `∂Λ_ρ(α, β) / ∂β = Φ((t - ρt') / √(1 - ρ²))`, where `t = Φ⁻¹ α`
@@ -237,10 +227,9 @@ theorem hasDerivAt_gaussianQuadrant_left_left {ρ : ℝ} (hρ : |ρ| < 1) {α β
       (-(ρ / √(1 - ρ ^ 2)) * (φ (gaussianQuantile α))⁻¹ *
         φ ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2))) α := by
   have h := hasDerivAt_cdf_affine_gaussianQuantile hα (-ρ) (gaussianQuantile β) √(1 - ρ ^ 2)
-  have he (x : ℝ) : -ρ * x + gaussianQuantile β = gaussianQuantile β - ρ * x := by ring
-  simp only [he] at h
-  refine (h.congr_deriv (by ring)).congr_of_eventuallyEq ?_
-  filter_upwards [Ioo_mem_nhds hα.1 hα.2] with α' hα' using deriv_gaussianQuadrant_left hρ hα' hβ
+  simp only [neg_mul, ← sub_eq_neg_add] at h
+  exact (h.congr_deriv (by ring)).congr_of_eventuallyEq
+    (eventually_of_mem (Ioo_mem_nhds hα.1 hα.2) fun _ hα' => deriv_gaussianQuadrant_left hρ hα' hβ)
 
 /-- **The mixed second derivative of `Λ_ρ`** [O'Donnell, Exercise 11.28 (b)][ODonnell2014]: for
 `|ρ| < 1` and `α, β ∈ (0, 1)`,
@@ -251,12 +240,10 @@ theorem hasDerivAt_gaussianQuadrant_left_right {ρ : ℝ} (hρ : |ρ| < 1) {α �
     HasDerivAt (fun β => deriv (fun α => gaussianQuadrant ρ α β) α)
       ((√(1 - ρ ^ 2))⁻¹ * (φ (gaussianQuantile β))⁻¹ *
         φ ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2))) β := by
-  have h := hasDerivAt_cdf_affine_gaussianQuantile hβ 1 (-(ρ * gaussianQuantile α))
-    √(1 - ρ ^ 2)
-  have he (x : ℝ) : 1 * x + -(ρ * gaussianQuantile α) = x - ρ * gaussianQuantile α := by ring
-  simp only [he] at h
-  refine (h.congr_deriv (by ring)).congr_of_eventuallyEq ?_
-  filter_upwards [Ioo_mem_nhds hβ.1 hβ.2] with β' hβ' using deriv_gaussianQuadrant_left hρ hα hβ'
+  have h := hasDerivAt_cdf_affine_gaussianQuantile hβ 1 (-(ρ * gaussianQuantile α)) √(1 - ρ ^ 2)
+  simp only [one_mul, ← sub_eq_add_neg] at h
+  exact (h.congr_deriv (by ring)).congr_of_eventuallyEq
+    (eventually_of_mem (Ioo_mem_nhds hβ.1 hβ.2) fun _ hβ' => deriv_gaussianQuadrant_left hρ hα hβ')
 
 /-- **The second derivative of `Λ_ρ` in `β`** [O'Donnell, Exercise 11.28 (a)][ODonnell2014]: for
 `|ρ| < 1` and `α, β ∈ (0, 1)`,
@@ -280,11 +267,8 @@ theorem hasDerivAt_gaussianQuadrant_right_left {ρ : ℝ} (hρ : |ρ| < 1) {α �
     HasDerivAt (fun α => deriv (fun β => gaussianQuadrant ρ α β) β)
       ((√(1 - ρ ^ 2))⁻¹ * (φ (gaussianQuantile α))⁻¹ *
         φ ((gaussianQuantile α - ρ * gaussianQuantile β) / √(1 - ρ ^ 2))) α := by
-  have h : (fun α => deriv (fun β => gaussianQuadrant ρ α β) β) =
-      fun α => deriv (fun β => gaussianQuadrant ρ β α) β :=
-    funext fun α => by simp_rw [gaussianQuadrant_comm hρ.le α]
-  rw [h]
-  exact hasDerivAt_gaussianQuadrant_left_right hρ hβ hα
+  refine (hasDerivAt_gaussianQuadrant_left_right hρ hβ hα).congr_of_eventuallyEq
+    (Eventually.of_forall fun α' => by simp_rw [gaussianQuadrant_comm hρ.le α'])
 
 /-- **Symmetry of the bivariate Gaussian density**: for `|ρ| < 1` and `s = √(1 - ρ²)`,
 `φ(t) φ((t' - ρt) / s) = φ(t') φ((t - ρt') / s)`; both are `s` times the density of a
@@ -450,11 +434,9 @@ theorem deriv_gaussianQuadrant_left_left_neg {ρ : ℝ} (hρ0 : 0 < ρ) (hρ1 : 
     deriv (fun α => deriv (fun α => gaussianQuadrant ρ α β) α) α < 0 := by
   have hρ : |ρ| < 1 := abs_lt.2 ⟨by linarith, hρ1⟩
   rw [(hasDerivAt_gaussianQuadrant_left_left hρ hα hβ).deriv, neg_mul, neg_mul, neg_lt_zero]
-  have := sqrt_one_sub_sq_pos hρ
-  have := gaussianPDFReal_pos 0 1 (gaussianQuantile α) one_ne_zero
-  have := gaussianPDFReal_pos 0 1
-    ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2)) one_ne_zero
-  positivity
+  exact mul_pos (mul_pos (div_pos hρ0 (sqrt_one_sub_sq_pos hρ))
+    (inv_pos.2 (gaussianPDFReal_pos 0 1 _ one_ne_zero)))
+    (gaussianPDFReal_pos 0 1 _ one_ne_zero)
 
 /-- [O'Donnell, Exercise 11.28 (d)][ODonnell2014]: `∂²Λ_ρ / ∂β² < 0` on `(0, 1)²` for
 `ρ ∈ (0, 1)`. -/
@@ -477,25 +459,19 @@ theorem negSemidef_rhoHessian_gaussianQuadrant {ρ : ℝ} (hρ0 : 0 < ρ) (hρ1 
   -- The two off-diagonal entries agree by the symmetry of the bivariate density.
   have hsymm : (rhoHessian ρ (gaussianQuadrant ρ) α β) 0 1 =
       (rhoHessian ρ (gaussianQuadrant ρ) α β) 1 0 := by
-    have hA := (gaussianPDFReal_pos 0 1 (gaussianQuantile α) one_ne_zero).ne'
-    have hB := (gaussianPDFReal_pos 0 1 (gaussianQuantile β) one_ne_zero).ne'
-    have hid := gaussianPDFReal_mul_gaussianPDFReal_comm hρ (gaussianQuantile α)
-      (gaussianQuantile β)
-    have hAB : (φ (gaussianQuantile α))⁻¹ *
-        φ ((gaussianQuantile α - ρ * gaussianQuantile β) / √(1 - ρ ^ 2)) =
-        (φ (gaussianQuantile β))⁻¹ *
-          φ ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2)) := by
-      rw [inv_mul_eq_div, inv_mul_eq_div, div_eq_div_iff hA hB]
-      linear_combination -hid
     rw [rhoHessian_gaussianQuadrant hρ hα hβ]
     simp only [Matrix.of_apply, Matrix.cons_val', Matrix.cons_val_zero, Matrix.cons_val_one,
-      Matrix.empty_val', Matrix.cons_val_fin_one, mul_assoc, hAB]
+      Matrix.empty_val', Matrix.cons_val_fin_one, mul_assoc]
+    congr 2
+    rw [inv_mul_eq_div, inv_mul_eq_div,
+      div_eq_div_iff (gaussianPDFReal_pos 0 1 _ one_ne_zero).ne'
+        (gaussianPDFReal_pos 0 1 _ one_ne_zero).ne']
+    linear_combination
+      -gaussianPDFReal_mul_gaussianPDFReal_comm hρ (gaussianQuantile α) (gaussianQuantile β)
   set M := rhoHessian ρ (gaussianQuadrant ρ) α β
   have hM : -M = !![-M 0 0, -M 0 1; -M 0 1, -M 1 1] := by
     ext i j
-    fin_cases i
-    · fin_cases j <;> simp [hsymm]
-    · fin_cases j <;> simp [hsymm]
+    fin_cases i <;> fin_cases j <;> simp [hsymm]
   rw [hM]
   refine Matrix.posSemidef_fin_two (by simpa [M, rhoHessian] using h00.le)
     (by simpa [M, rhoHessian] using h11.le) ?_

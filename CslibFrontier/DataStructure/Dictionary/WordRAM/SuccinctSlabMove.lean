@@ -185,21 +185,20 @@ private theorem promoteStepProg_exec {U V w n_max h_space base b k : ℕ}
   simp only [promoteStepProg, promoteStepGenProg, p_slabSizeSubOne_mk, p_slabSize_mk,
     p_gmTailPtrBase_mk, p_tailCap_mk, p_nMaxSubOne_mk, readGMGenProg_mk, readQuotGenProg_mk,
     readValGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk, removeLastTailItemGenProg_mk]
-  refine ⟨?_, ?_⟩
-  · repeat rw [StateTransitionSpec.clientResult_bind]
-    exact StateTransitionSpec.clientResult_pure _ _
-  · rw [StateTransitionSpec.clientState_bind, clientState_readGMProg, hres_tu,
-      StateTransitionSpec.clientState_bind, clientState_readGMProg, hres_ttop,
-      StateTransitionSpec.clientState_bind, clientState_readGMProg, hres_p,
-      StateTransitionSpec.clientState_bind, clientState_readQuotProg, hres_qu,
-      StateTransitionSpec.clientState_bind, clientState_readValProg, hres_vu,
-      StateTransitionSpec.clientState_bind, clientState_readQuotProg, hres_qtop,
-      StateTransitionSpec.clientState_bind, clientState_readValProg, hres_vtop,
-      StateTransitionSpec.clientState_bind, hs1,
-      StateTransitionSpec.clientState_bind, hs2,
-      StateTransitionSpec.clientState_bind, hs3,
-      StateTransitionSpec.clientState_bind, hs4,
-      StateTransitionSpec.clientState_bind, hs5, StateTransitionSpec.clientState_pure]
+  refine ⟨by simp only [StateTransitionSpec.clientResult_bind,
+    StateTransitionSpec.clientResult_pure], ?_⟩
+  rw [StateTransitionSpec.clientState_bind, clientState_readGMProg, hres_tu,
+    StateTransitionSpec.clientState_bind, clientState_readGMProg, hres_ttop,
+    StateTransitionSpec.clientState_bind, clientState_readGMProg, hres_p,
+    StateTransitionSpec.clientState_bind, clientState_readQuotProg, hres_qu,
+    StateTransitionSpec.clientState_bind, clientState_readValProg, hres_vu,
+    StateTransitionSpec.clientState_bind, clientState_readQuotProg, hres_qtop,
+    StateTransitionSpec.clientState_bind, clientState_readValProg, hres_vtop,
+    StateTransitionSpec.clientState_bind, hs1,
+    StateTransitionSpec.clientState_bind, hs2,
+    StateTransitionSpec.clientState_bind, hs3,
+    StateTransitionSpec.clientState_bind, hs4,
+    StateTransitionSpec.clientState_bind, hs5, StateTransitionSpec.clientState_pure]
 
 /-- Index and capacity bounds for one step of slab promotion, shared by
 `promoteStepProg_effect` and `promoteStep_bounds`. -/
@@ -377,14 +376,10 @@ private theorem promoteStep_bounds {U V w₀ n_max h_space base b k : ℕ}
   rw [← htu_eq] at htu_le hgu_lt
   rw [← httop_eq] at httop_le hgtop_lt
   rw [← hpnew_eq] at hgslab_lt
-  have hqtop_lt : q_top < 2 ^ quotientBits U n_max := by
-    rw [show q_top = _ from clientResult_readQuotProg s hgtop_lt]; exact quotAt_lt ..
-  have hvtop_lt : v_top < 2 ^ valBits V := by
-    rw [show v_top = _ from clientResult_readValProg s hgtop_lt]; exact valAt_lt ..
-  obtain ⟨_, _, _, _, _, hg1⟩ :=
-    writeQuotProg_effect (base := base) (V := V) (h_space := h_space) hw hgu_lt hqtop_lt s
-  obtain ⟨_, _, _, _, _, hg2⟩ :=
-    writeValProg_effect (base := base) (h_space := h_space) hw hgu_lt hvtop_lt s_wq
+  obtain ⟨_, _, _, _, _, hg1⟩ := writeQuotProg_effect (base := base) (V := V) (h_space := h_space)
+    hw hgu_lt ((clientResult_readQuotProg s hgtop_lt).trans_lt (quotAt_lt ..)) s
+  obtain ⟨_, _, _, _, _, hg2⟩ := writeValProg_effect (base := base) (h_space := h_space)
+    hw hgu_lt ((clientResult_readValProg s hgtop_lt).trans_lt (valAt_lt ..)) s_wq
   have hgm_wv : gmAt base U V w₀ n_max h_space s_wv.mem = gmAt base U V w₀ n_max h_space s.mem := by
     dsimp only [s_wv]; rw [hg2, hg1]
   refine ⟨by have := h.1.2.1; omega, hr_top_cap.le, hptr_u_lt, hptr_top_lt, h0_lt, htu_le, httop_le,
@@ -408,15 +403,7 @@ theorem realizes_promoteStepGen :
       promoteStep_bounds hw ⟨hinv, hbp⟩
     first
     | exact hdict
-    | with_reducible exact hk
-    | with_reducible exact hpu
-    | with_reducible exact hpt
-    | with_reducible exact h0
-    | with_reducible exact htu
-    | with_reducible exact httop
-    | with_reducible exact hgu
-    | with_reducible exact hgtop
-    | with_reducible exact hgslab
+    | with_reducible assumption
     | exact ⟨hdict, htail', hinv.1, hr1, hbp⟩
     | exact fits_of_le_globalMetaLen hdict hbp hw hnU hU hpu.le
     | exact fits_of_le_globalMetaLen hdict hbp hw hnU hU hpt.le
@@ -517,8 +504,7 @@ theorem promoteArrInv_step {α : Type*} {n_max b k : ℕ} {gm₀ gm : ℕ → �
     (slotOf_tail_add hb0 (hq b hb)).symm
   have hgtop_eq_slot : g_top = slotOf n_max gm b (gm₀ (gmQIdx b) * slabSize n_max + r_top) :=
     (slotOf_tail_add hb0 (hq b hb)).symm
-  have harr1_ne : ∀ x ≠ g_u, arr₁ x = arr x := fun _ h => by
-    dsimp only [arr₁]; exact Function.update_of_ne h _ _
+  have harr1_ne : ∀ x ≠ g_u, arr₁ x = arr x := fun _ h => Function.update_of_ne h _ _
   have harr3_slot : ∀ b' < numBuckets n_max, ∀ j < bCount n_max (gmRemoveTail n_max gm b) b',
       arr₃ (slotOf n_max (gmRemoveTail n_max gm b) b' j) = arr₁ (slotOf n_max gm b' j) := by
     intro b' hb' j hj
@@ -533,9 +519,7 @@ theorem promoteArrInv_step {α : Type*} {n_max b k : ℕ} {gm₀ gm : ℕ → �
         have ht'_lt := htail'.ptr_lt b' hb'
           (j - gmRemoveTail n_max gm b (gmQIdx b') * slabSize n_max) (by omega)
         rw [hpres.2.1] at ht'_lt; omega
-    dsimp only [arr₃]
-    rw [Function.update_of_ne hne_slab]
-    exact hupd_slot b' hb' j hj
+    simpa only [arr₃, Function.update_of_ne hne_slab] using hupd_slot b' hb' j hj
   have hslab_ne_gu : ∀ b' < numBuckets n_max, ∀ j < gm₀ (gmQIdx b') * slabSize n_max,
       slotOf n_max gm b' j ≠ g_u := by
     intro b' hb' j hj
@@ -587,18 +571,18 @@ theorem promoteArrInv_step {α : Type*} {n_max b k : ℕ} {gm₀ gm : ℕ → �
   · by_cases heq : u' = u
     · subst heq
       rw [harr3_slot b hb _ (by rw [hbc_b]; omega), ← hgu_eq_slot]
-      dsimp only [arr₁]; rw [Function.update_self, hgtop_eq_slot]
-      exact harr.high_tail u (by omega)
+      simpa only [arr₁, Function.update_self, hgtop_eq_slot] using harr.high_tail u (by omega)
     · exact (harr_tail u' (by omega) heq).trans (harr.shifted_tail u' (by omega) hu'_lt)
   · dsimp only [arr₃]
+    have h0_mul : gm 0 * slabSize n_max = gm₀ 0 * slabSize n_max := by rw [h0]
     by_cases heq : k' = k
-    · subst heq; rw [← h0, Function.update_self, hgu_eq_slot]; exact harr.low_tail u (by omega)
-    · have hne_slab : gm₀ 0 * slabSize n_max + k' ≠ g_slab := by
-        dsimp only [g_slab]; rw [h0]; omega
-      have hne_gu : gm₀ 0 * slabSize n_max + k' ≠ g_u := by dsimp only [g_u]; rw [← h0]; omega
-      rw [Function.update_of_ne hne_slab]
-      dsimp only [arr₂, g_del, g_last]
-      rw [hupd_low _ (by rw [← h0]; omega), harr1_ne _ hne_gu]
+    · subst heq
+      rw [← h0_mul, Function.update_self, hgu_eq_slot]
+      exact harr.low_tail u (by omega)
+    · dsimp only [arr₂, g_del, g_last, g_u, g_slab]
+      have hlow :=
+        (hupd_low (gm₀ 0 * slabSize n_max + k') (by omega)).trans (harr1_ne _ (by omega))
+      rw [Function.update_of_ne (by omega), hlow]
       exact harr.new_slab k' (by omega)
 
 /-- Loop invariant at step `k ≤ slabSize n_max` of `promoteLoopProg`. -/
@@ -650,31 +634,25 @@ theorem promoteLoopInv_step {U V w₀ n_max h_space base b k : ℕ} {s₀ s : Me
   have hstep := promoteStepInv_of_loopInv hinv hk
   obtain ⟨hres, hf, hout, hq, hv, hl, hgm⟩ :=
     promoteStepProg_effect hw hb_pos s hstep
-  have hrb_eq : gmAt base U V w₀ n_max h_space s.mem (gmRIdx b) = 2 * slabSize n_max - k :=
-    hinv.rb_eq
-  have hr_pos : 1 ≤ gmAt base U V w₀ n_max h_space s.mem (gmRIdx b) := by omega
+  have hr_pos : 1 ≤ gmAt base U V w₀ n_max h_space s.mem (gmRIdx b) := hinv.rb_eq ▸ by omega
   have hpres := gmRemoveTail_preserves_nonTail hinv.b_lt hr_pos hinv.tail_bij
   have htail' := tailBijection_gmRemoveTail hinv.b_lt hr_pos hinv.tail_bij
   have ⟨_, hslab'⟩ := slabBijection_gmRemoveTail hinv.b_lt hr_pos hinv.tail_bij hinv.slab_bij
-  have hgm1_pos : 1 ≤ gmAt base U V w₀ n_max h_space s.mem 1 := by
-    have := r_le_ntails_of_tailBijection hinv.tail_bij hinv.b_lt
-    omega
-  refine ⟨hres, ⟨hinv.b_lt, by omega, hf.trans hinv.frontier_eq,
+  have := r_le_ntails_of_tailBijection hinv.tail_bij hinv.b_lt
+  have harr_step {arr₀ arr : ℕ → ℕ} :=
+    promoteArrInv_step (arr₀ := arr₀) (arr := arr) hb_pos hinv.b_lt hk hinv.tail_bij hinv.slab_bij
+      hinv.gm0_eq hinv.q_eq hinv.r_other hinv.rb_eq hinv.tot_le
+  exact ⟨hres, ⟨hinv.b_lt, by omega, hf.trans hinv.frontier_eq,
     fun a ha => (hout a ha).trans (hinv.mem_out a ha), hl.trans hinv.lm_eq,
-    by rw [hgm]; exact htail', by rw [hgm]; exact hslab',
+    hgm ▸ htail', hgm ▸ hslab',
     by rw [hgm, hpres.1, hinv.gm0_eq],
     by rw [hgm, hpres.2.1]; have := hinv.gm1_eq; omega,
-    by rw [hgm, hpres.2.2.1, hrb_eq]; omega,
+    by rw [hgm, hpres.2.2.1, hinv.rb_eq]; omega,
     fun b' hb' hne => by rw [hgm, hpres.2.2.2.1 b' hb' hne, hinv.r_other b' hb' hne],
     fun b' hb' => by rw [hgm, hpres.2.2.2.2.1 b' hb', hinv.q_eq b' hb'],
     by rw [hgm, hpres.1, hpres.2.1]; have := hinv.tot_le; omega,
-    ?_, ?_⟩⟩
-  · rw [hgm, hq]
-    exact promoteArrInv_step hb_pos hinv.b_lt hk hinv.tail_bij hinv.slab_bij
-      hinv.gm0_eq hinv.q_eq hinv.r_other hinv.rb_eq hinv.tot_le hinv.quot_inv
-  · rw [hgm, hv]
-    exact promoteArrInv_step hb_pos hinv.b_lt hk hinv.tail_bij hinv.slab_bij
-      hinv.gm0_eq hinv.q_eq hinv.r_other hinv.rb_eq hinv.tot_le hinv.val_inv
+    hgm ▸ hq ▸ harr_step hinv.quot_inv,
+    hgm ▸ hv ▸ harr_step hinv.val_inv⟩⟩
 
 theorem iterate_promoteStepProg_spec {U V w₀ n_max h_space w base b : ℕ} {s₀ : Memory.State}
     (hw : 0 < w₀) (hb_pos : 0 < bucketBits n_max) :
@@ -691,10 +669,7 @@ theorem iterate_promoteStepProg_spec {U V w₀ n_max h_space w base b : ℕ} {s�
           w (base, b) m k s) := by
   intro m
   induction m with
-  | zero =>
-    intro k s _ hinv
-    simp only [iterate, Nat.add_zero, Nat.mul_zero, memoryCost_pure, iterationSafe]
-    exact ⟨hinv, trivial, fun _ => trivial⟩
+  | zero => exact fun _ _ _ hinv => ⟨hinv, rfl, fun _ => trivial⟩
   | succ m ih =>
     intro k s hkm hinv
     have hk_lt : k < slabSize n_max := by omega
@@ -702,16 +677,14 @@ theorem iterate_promoteStepProg_spec {U V w₀ n_max h_space w base b : ℕ} {s�
     obtain ⟨hfinal, hcost, hsafe⟩ := ih (k + 1)
       ((Memory.spec 0).clientState s (promoteStepProg U V w₀ n_max h_space ((base, b), k)))
       (by omega) hinv'
-    refine ⟨?_, ?_, ?_⟩
+    refine ⟨?_, ?_, fun hdenv => ?_⟩
     · unfold iterate
-      rw [StateTransitionSpec.clientState_bind, hres]
-      rw [show k + (m + 1) = (k + 1) + m by omega]
+      rw [StateTransitionSpec.clientState_bind, hres, Nat.add_succ, ← Nat.succ_add]
       exact hfinal
     · simp only [iterate, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
         memoryCost_promoteStepProg, hres, hcost]
       omega
-    · intro hdenv
-      simp only [iterationSafe, hres]
+    · simp only [iterationSafe, hres]
       exact ⟨⟨hdenv, promoteStepInv_of_loopInv hinv hk_lt, hb_pos⟩, hsafe hdenv⟩
 
 /-- Parameter-free wrapper for `iterate promoteStepGenProg` with signature
@@ -854,17 +827,11 @@ theorem slotOf_gmPushSlab_preserve {α : Type*} {n_max b : ℕ} {gm₀ gm : ℕ 
         rw [hq_b_push, hq b hb]
         exact Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm])
       by_cases hj_old : j < gm₀ (gmQIdx b) * slabSize n_max
-      · have hs_ne : j / slabSize n_max ≠ gm (gmQIdx b) := by
-          rw [hq b hb]
-          have := Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm] : j < slabSize n_max * gm₀ (gmQIdx b))
-          omega
-        rw [hptr b hb (j / slabSize n_max) hs_lt, ite_eq_right (fun h => hs_ne h.2)]
-        have hslot_eq :
-            slabPtrOf n_max gm b (j / slabSize n_max) * slabSize n_max +
-              (slabSize n_max - 1 - j % slabSize n_max) = slotOf n_max gm b j := by
-          unfold slotOf; rw [ite_eq_right hb0, hq b hb, ite_eq_left hj_old]
-        rw [hslot_eq]
-        exact harr.same_slabs j hj_old
+      · have hs_ne : j / slabSize n_max ≠ gm (gmQIdx b) :=
+          (hq b hb ▸ Nat.div_lt_of_lt_mul (Nat.mul_comm _ _ ▸ hj_old)).ne
+        rw [hptr b hb (j / slabSize n_max) hs_lt, ite_eq_right (fun h => hs_ne h.2),
+          ← harr.same_slabs j hj_old]
+        simp only [slotOf, hb0, hq b hb, hj_old, ↓reduceIte]
       · set u := j - gm₀ (gmQIdx b) * slabSize n_max
         have hu_lt : u < slabSize n_max := by rw [Nat.add_one_mul] at hj_slab; omega
         have hj_eq : j = gm₀ (gmQIdx b) * slabSize n_max + u := by omega
@@ -874,8 +841,8 @@ theorem slotOf_gmPushSlab_preserve {α : Type*} {n_max b : ℕ} {gm₀ gm : ℕ 
         have hmod_eq : j % slabSize n_max = u := by
           rw [hj_eq, Nat.mul_comm, Nat.mul_add_mod, Nat.mod_eq_of_lt hu_lt]
         rw [hptr b hb (j / slabSize n_max) hs_lt, ite_eq_left ⟨rfl, hs_eq⟩, hmod_eq, h0]
-        have hnew := harr.new_slab (slabSize n_max - 1 - u) (by omega)
-        rwa [show slabSize n_max - 1 - (slabSize n_max - 1 - u) = u by omega, ← hj_eq] at hnew
+        have hsub : slabSize n_max - 1 - (slabSize n_max - 1 - u) = u := by omega
+        simpa only [hsub, ← hj_eq] using harr.new_slab (slabSize n_max - 1 - u) (by omega)
     · set u := j - (gm₀ (gmQIdx b) + 1) * slabSize n_max
       have hu_lt : u < slabSize n_max := by omega
       have hu_cap : u < tailCapPerBucket n_max := by
@@ -890,10 +857,9 @@ theorem slotOf_gmPushSlab_preserve {α : Type*} {n_max b : ℕ} {gm₀ gm : ℕ 
       unfold slotOf
       rw [ite_eq_right hb0, ite_eq_right hb0, hq_b'_push, hq b' hb']
       split_ifs with hj_slab
-      · have hs_lt : j / slabSize n_max < gmPushSlab n_max gm b (gmQIdx b') := by
-          rw [hq_b'_push, hq b' hb']
-          exact Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm])
-        rw [hptr b' hb' (j / slabSize n_max) hs_lt, ite_eq_right (fun h => hbeq h.1)]
+      · rw [hptr b' hb' (j / slabSize n_max)
+            (hq_b'_push.symm ▸ hq b' hb' ▸ Nat.div_lt_of_lt_mul (Nat.mul_comm _ _ ▸ hj_slab)),
+          ite_eq_right (fun h => hbeq h.1)]
       · have hr'_lt : j - gm₀ (gmQIdx b') * slabSize n_max < gm (gmRIdx b') := by
           rw [hr_other b' hb' hbeq]; omega
         rw [htail_ptr b' hb' _ (lt_of_lt_of_le hr'_lt (htail.r_le b' hb'))]
@@ -950,8 +916,7 @@ theorem promoteSlabProg_effect {U V w n_max h_space base b : ℕ}
       hw hb_pos hloopK.b_lt s₁ hloopK.slab_bij hp_lt1
   have hst : s' =
       (Memory.spec 0).clientState s₁ (gmPushSlabProg U V w n_max h_space (base, b)) := by
-    change (Memory.spec 0).clientState s (promoteSlabProg U V w n_max h_space (base, b)) = _
-    simp only [promoteSlabProg, promoteSlabGenProg, p_slabSize_mk, promoteLoopGenProg_mk,
+    simp only [s', promoteSlabProg, promoteSlabGenProg, p_slabSize_mk, promoteLoopGenProg_mk,
       gmPushSlabGenProg_mk]
     rw [StateTransitionSpec.clientState_bind]
   have hgm'_eq : gm' = gmPushSlab n_max gm₁ b := by dsimp only [gm']; rw [hst, hgm_push]
@@ -971,13 +936,13 @@ theorem promoteSlabProg_effect {U V w n_max h_space base b : ℕ}
     rw [hgm'_eq, hf_fields.2.2.2.2.1 b' hb', ite_eq_right hne, hf_fields.2.2.1 b' hb']
     exact ⟨hloopK.q_eq b' hb', hloopK.r_other b' hb' hne⟩
   have hinv2 : SlotStoreInv n_max gm' := by
-    refine ⟨fun _ => by omega, fun _ => by rw [hgm'_eq]; exact htail2,
-      fun _ => by rw [hgm'_eq]; exact hslab2, fun _ b' hb' => ?_, fun _ => ?_⟩
+    refine ⟨fun _ => by omega, fun _ => hgm'_eq ▸ htail2,
+      fun _ => hgm'_eq ▸ hslab2, fun _ b' hb' => ?_, ?_⟩
     · by_cases hbeq : b' = b
       · subst b'; rw [hrb]; unfold tailCapPerBucket; rw [ite_eq_right hb0]; omega
       · rw [(hother b' hb' hbeq).1, (hother b' hb' hbeq).2]
         exact hpre.2.2.2.2.1 b' hb' hbeq
-    · rw [hgm'_eq, hf_fields.1, hf_fields.2.1]; exact htot_push
+    · simpa only [hgm'_eq, hf_fields.1, hf_fields.2.1] using fun _ => htot_push
   have hbc : ∀ b' < numBuckets n_max, bCount n_max gm' b' = bCount n_max gm₀ b' := by
     intro b' hb'
     rw [bCount_of_pos hb0 _ hb', bCount_of_pos hb0 _ hb']
@@ -1003,13 +968,9 @@ theorem promoteSlabProg_effect {U V w n_max h_space base b : ℕ}
       exact ⟨hpres_arr hloopK.quot_inv b' hb' j hj, hpres_arr hloopK.val_inv b' hb' j hj⟩, ?_⟩
   simp only [promoteSlabProg, promoteSlabGenProg, p_slabSize_mk,
     promoteLoopGenProg_mk, gmPushSlabGenProg_mk]
-  unfold promoteLoopProg
-  rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-  change memoryCost
-      (iterate (promoteStepProg U V w n_max h_space) (base, b) (slabSize n_max) 0) s +
-    memoryCost (gmPushSlabProg U V w n_max h_space (base, b)) s₁ ≤ _
-  rw [hcost_loop]
   have hpush_cost := memoryCost_gmPushSlabProg_le U V w n_max h_space (base, b) s₁
+  dsimp only [s₁, promoteLoopProg] at hpush_cost ⊢
+  rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hcost_loop]
   omega
 
 theorem realizes_promoteSlabGen :
@@ -1023,16 +984,12 @@ theorem realizes_promoteSlabGen :
   · exact (iterate_promoteStepProg_spec hw h.2.2 (slabSize n_max) 0 s
       (by omega) (promoteLoopInv_zero h.2.1)).2.2 h.1
   · rcases d with ⟨base, b⟩
-    dsimp only at h
     have hloopK := (iterate_promoteStepProg_spec (w := w) hw h.2.2 (slabSize n_max) 0 s
       (by omega) (promoteLoopInv_zero h.2.1)).1
-    rw [Nat.zero_add] at hloopK
-    have htot1 : (gmAt base U V w₀ n_max h_space
-        ((Memory.spec 0).clientState s
-          (promoteLoopProg U V w₀ n_max h_space (((base, b), 0), slabSize n_max))).mem 0 + 1) *
-        slabSize n_max ≤ n_max := by
-      unfold promoteLoopProg; dsimp only; have := hloopK.tot_le; rw [Nat.add_one_mul]; omega
-    unfold GmPushSlabPre
-    exact ⟨h.1, hloopK.slab_bij, h.2.1.1, nslabs_lt_maxFullSlabs_of_mul_le h.2.2 htot1, h.2.2⟩
+    have htot := hloopK.tot_le
+    refine ⟨h.1, hloopK.slab_bij, h.2.1.1, nslabs_lt_maxFullSlabs_of_mul_le h.2.2 ?_, h.2.2⟩
+    dsimp only [GmPushSlabPre, promoteLoopProg] at htot ⊢
+    rw [Nat.add_one_mul]
+    omega
 
 end Cslib.DataStructure.Dictionary.WordRAM.Succinct

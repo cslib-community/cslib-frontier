@@ -142,15 +142,13 @@ theorem finish_loop_eq (d : Argument) (ht : d.control = d.size / 2 + 1) (fuel k 
       congr 1 with vl : 1
       congr 1 with kl : 1
       split
-      next hr =>
-        simp only [bind_assoc]
+      · simp only [bind_assoc]
         congr 1 with vr : 1
         congr 1 with kr : 1
         split
-        · exact hsink (2 * k + 1) vk kk vr kr (by omega) hr
+        · exact hsink (2 * k + 1) vk kk vr kr (by omega) ‹_›
         · exact hsink (2 * k) vk kk vl kl (by omega) hsrc.2
-      next hr =>
-        exact hsink (2 * k) vk kk vl kl (by omega) hsrc.2
+      · exact hsink (2 * k) vk kk vl kl (by omega) hsrc.2
     · have hsrc : ¬(1 ≤ k ∧ 2 * k ≤ d.size) := mt (guard_iff ht hk).mpr hg
       simp only [boundedWhile, hg, hsrc, ↓reduceIte, pure_bind]
 
@@ -211,8 +209,7 @@ theorem step_triple {w : ℕ} {d : Argument} {k : ℕ} {s : Memory.State}
     split
     · exact hsink (2 * k + 1) (by omega) hr
     · exact hsink (2 * k) (by omega) hsrc.2
-  next hr =>
-    exact (hsink (2 * k) (by omega) hsrc.2).mono (by omega) fun _ _ h => h
+  · exact (hsink (2 * k) (by omega) hsrc.2).mono (by omega) fun _ _ h => h
 
 /-- The layout/size, then the charged prepared threshold. -/
 abbrev inputWords := appendWords indexWords (Equiv.funUnique (Fin 1) ℕ).symm.toEmbedding
@@ -326,11 +323,9 @@ theorem exec_siftDown {r : ℕ} (frontier : Fin r) (src : Fin 6 → Fin r)
   have hn : Fits w n := Eq.mp (congrArg (Fits w) (congrFun hin 0)) (hx.1 (src 0))
   obtain ⟨hv, hc, hpost⟩ := triple_iff.mp
     (BinaryHeap.Memory.siftDown_triple hn hA hkS hshape hord)
-  have hI : Safe w (((⟨n, L⟩ : HeapLayout), S), k) (memoryState frontier x) :=
-    ⟨hn, hA, hshape, hkS⟩
   obtain ⟨y, hy, hm, _, hframe⟩ :=
     (realizes_siftDown.code_spec frontier src tmp hi hd hf hs).2 w ((⟨n, L⟩, S), k) x
-      hx hin hI hv
+      hx hin ⟨hn, hA, hshape, hkS⟩ hv
   rw [← memoryCost_eq_totalCost] at hc
   have hlog := Nat.log_mono_right (b := 2) hshape.size_le
   have hbound : realizes_siftDown.factor *

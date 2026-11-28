@@ -15,7 +15,7 @@ import CslibFrontier.Computability.Probabilistic.Repeat
 public import CslibFrontier.Languages.Probabilistic.Repeat
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
-import CslibFrontier.Languages.Probabilistic.Vector
+import CslibFrontier.Languages.Probabilistic.UniformNat.Residue
 import CslibFrontier.Probability.PMF.Uniform
 
 /-!
@@ -72,13 +72,6 @@ private theorem sampledWord_ppt
     (by fun_prop)).replicate
     (by fun_prop)).map_with (hexpand.comp (by fun_prop))
 
-private theorem eval_modNat_residue (width q : ℕ) :
-    eval (sampleModNat width q) =
-      (eval ((Nat.cast : ℕ → ZMod q) <$> sampleModNat width q)).map ZMod.val := by
-  rw [eval_map, eval_sampleModNat, PMF.map_comp, PMF.map_comp]
-  congr 1 with i : 1
-  simp only [Function.comp_apply, ZMod.val_natCast, Nat.mod_mod]
-
 /-- Drawing every coefficient of a `d × k` module matrix with the bounded modular sampler gives
 the canonical residues of a matrix whose coefficients are independent sampler outputs read in
 `ZMod q`. -/
@@ -89,7 +82,7 @@ theorem eval_sampleModNat_coefficients (d k n width q : ℕ) [NeZero q] :
         (eval (sampleModNat width q)).map (Nat.cast : ℕ → ZMod q)).map
           (fun A => List.ofFn fun i => List.ofFn fun j => List.ofFn fun l => (A i j l).val) := by
   simpa only [eval_replicateFin, eval_map] using eval_replicateFin_map
-    (eval_replicateFin_map (eval_replicateFin_map (eval_modNat_residue width q) n) k) d
+    (eval_replicateFin_map (eval_replicateFin_map (eval_sampleModNat_eq_map_val width q) n) k) d
 
 /-- The coefficientwise sampler law is within `d * k * n * q / 2 ^ width` of a uniform `d × k`
 module matrix. -/

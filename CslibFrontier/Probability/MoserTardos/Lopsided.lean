@@ -71,18 +71,16 @@ theorem lopsidependent_iff [DecidableEq V] (vbl : ι → Finset V) (A : ι → S
 
 theorem lopsidependent_comm [DecidableEq V] (vbl : ι → Finset V) (A : ι → Set (∀ v, α v))
     {i j : ι} : Lopsidependent vbl A i j ↔ Lopsidependent vbl A j i := by
-  constructor <;>
-  · rintro ⟨f, g, hfg, hfi, hgj, hne⟩
-    refine ⟨g, f, fun v hv => (hfg v ?_).symm, hgj, hfi, hne.symm⟩
-    rwa [inter_comm]
+  suffices ∀ {a b}, Lopsidependent vbl A a b → Lopsidependent vbl A b a from ⟨this, this⟩
+  rintro a b ⟨f, g, hfg, hfi, hgj, hne⟩
+  exact ⟨g, f, fun v hv => (hfg v (inter_comm (vbl b) (vbl a) ▸ hv)).symm, hgj, hfi, hne.symm⟩
 
 theorem not_lopsidependent_of_disjoint [DecidableEq V] (vbl : ι → Finset V)
     (A : ι → Set (∀ v, α v)) {i j : ι} (hd : Disjoint (vbl i) (vbl j)) :
     ¬Lopsidependent vbl A i j := by
   rintro ⟨f, g, hfg, hfi, hgj, hne⟩
-  have heq : f = g := funext fun v => hfg v (by simp [disjoint_iff_inter_eq_empty.1 hd])
-  subst heq
-  rcases hne with h | h <;> exact h (by assumption)
+  obtain rfl : f = g := funext fun v => hfg v (by simp [disjoint_iff_inter_eq_empty.1 hd])
+  exact hne.elim (· hgj) (· hfi)
 
 /-- Reflexive lopsidependency relation `i = j ∨ Lopsidependent vbl A i j`. -/
 def lopsidedAdj [DecidableEq V] (vbl : ι → Finset V) (A : ι → Set (∀ v, α v))
@@ -99,8 +97,7 @@ theorem lopsidedAdj_refl [DecidableEq V] (vbl : ι → Finset V) (A : ι → Set
 
 theorem lopsidedAdj_comm [DecidableEq V] (vbl : ι → Finset V) (A : ι → Set (∀ v, α v))
     {i j : ι} : lopsidedAdj vbl A i j ↔ lopsidedAdj vbl A j i := by
-  unfold lopsidedAdj
-  rw [eq_comm, lopsidependent_comm]
+  simp only [lopsidedAdj, eq_comm, lopsidependent_comm]
 
 end Lopsidependent
 
@@ -111,16 +108,12 @@ variable {V ι : Type*} [DecidableEq V] {α : V → Type*} (vbl : ι → Finset 
 private theorem uses_cons_swap (u v : List ι) (a b : ι) (x : V) :
     uses vbl (u ++ a :: b :: v) x = uses vbl (u ++ b :: a :: v) x := by
   induction u with
-  | nil =>
-    rw [List.nil_append, List.nil_append, uses_cons, uses_cons, uses_cons, uses_cons]
-    omega
-  | cons c u ih =>
-    rw [List.cons_append, List.cons_append, uses_cons, uses_cons, ih]
+  | nil => simp only [List.nil_append, uses_cons]; omega
+  | cons c u ih => simp only [List.cons_append, uses_cons, ih]
 
 private theorem current_append_swap (T : ∀ p : V × ℕ, α p.1) (u v : List ι) (a b : ι) :
-    current vbl T (u ++ a :: b :: v) = current vbl T (u ++ b :: a :: v) := by
-  funext x
-  rw [current_apply, current_apply, uses_cons_swap]
+    current vbl T (u ++ a :: b :: v) = current vbl T (u ++ b :: a :: v) :=
+  funext fun x => by rw [current_apply, current_apply, uses_cons_swap]
 
 private theorem isLog_swap_cons {A : ι → Set (∀ v, α v)}
     (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V)) {T : ∀ p : V × ℕ, α p.1}
@@ -134,23 +127,19 @@ private theorem isLog_swap_cons {A : ι → Set (∀ v, α v)}
   let hfn : ∀ x, α x := fun x => if x ∈ vbl a ∩ vbl b then g x else f x
   have h_eq_f : ∀ x, x ∉ vbl a ∩ vbl b → hfn x = f x := fun x hx => ite_eq_right hx
   have h_eq_g : ∀ x ∈ (vbl a : Set V), hfn x = g x := fun x hx => by
-    have hxa : x ∈ vbl a := Finset.mem_coe.1 hx
     by_cases hxb : x ∈ vbl b
-    · exact ite_eq_left (mem_inter.2 ⟨hxa, hxb⟩)
-    · dsimp only [hfn, f, g]
-      rw [ite_eq_right (by simp [hxb]), current_apply, current_apply,
-        uses_cons, ite_eq_right hxb, add_zero]
+    · simp [hfn, Finset.mem_coe.1 hx, hxb]
+    · simp only [hfn, f, g, hxb, mem_inter, and_false, ↓reduceIte, current_apply]
+      rw [uses_cons, ite_eq_right hxb, add_zero]
   have ha_hfn : hfn ∈ A a := (hA a h_eq_g).mpr hg
   have hnot : ¬(hfn ∉ A b ∨ f ∉ A a) := fun hbad => hab ⟨hfn, f, h_eq_f, ha_hfn, hf, hbad⟩
   rw [not_or, not_not, not_not] at hnot
   have h_eq_φ : ∀ x ∈ (vbl b : Set V), hfn x = φ x := fun x hx => by
-    have hxb : x ∈ vbl b := Finset.mem_coe.1 hx
-    dsimp only [hfn, f, g, φ]
-    by_cases hxa : x ∈ vbl a
-    · rw [ite_eq_left (mem_inter.2 ⟨hxa, hxb⟩), current_apply, current_apply,
-        uses_cons, uses_cons, ite_eq_left hxb, ite_eq_left hxa]
-    · rw [ite_eq_right (by simp [hxa]), current_apply, current_apply,
-        uses_cons, ite_eq_right hxa, add_zero]
+    have hxb := Finset.mem_coe.1 hx
+    by_cases hxa : x ∈ vbl a <;>
+      simp only [hfn, f, g, φ, hxa, hxb, mem_inter, and_self, false_and, ↓reduceIte, current_apply]
+    · rw [uses_cons, uses_cons, ite_eq_left hxb, ite_eq_left hxa]
+    · rw [uses_cons, ite_eq_right hxa, add_zero]
   exact ⟨(hA b h_eq_φ).mp hnot.1, hnot.2, hv⟩
 
 private theorem isLog_swap {A : ι → Set (∀ v, α v)}
@@ -160,8 +149,7 @@ private theorem isLog_swap {A : ι → Set (∀ v, α v)}
   | [], v, h => isLog_swap_cons vbl hA hab h
   | c :: u, v, h => by
     rw [List.cons_append, isLog_cons] at h ⊢
-    rw [← current_append_swap vbl T u v a b]
-    exact ⟨h.1, isLog_swap hA hab u v h.2⟩
+    exact ⟨current_append_swap vbl T u v a b ▸ h.1, isLog_swap hA hab u v h.2⟩
 
 private noncomputable def canonList (S : Finset (ι × ℕ)) : List ι :=
   (S.toList.mergeSort (fun a b => decide (a.2 ≤ b.2))).map Prod.fst
@@ -192,9 +180,7 @@ private theorem traceSteps_length (S₀ : Finset (ι × ℕ)) (w : List ι) :
     (traceSteps R S₀ w).length = w.length := by
   induction w generalizing S₀ with
   | nil => simp [traceSteps]
-  | cons j w ih =>
-    simp only [traceSteps]
-    split_ifs <;> simp [ih]
+  | cons j w ih => by_cases h0 : levelRel R j S₀ = 0 <;> simp [traceSteps, h0, ih]
 
 private theorem traceSteps_append (S₀ : Finset (ι × ℕ)) (u v : List ι) :
     traceSteps R S₀ (u ++ v) = traceSteps R S₀ u ++ traceSteps R (foldPush R S₀ u) v := by
@@ -233,12 +219,9 @@ private theorem traceSteps_swap (hRs : ∀ {i j}, R i j → R j i) (S₀ : Finse
   have hb := levelRel_insert_of_not_rel hnab la S₀
   have ha (k : ℕ) := levelRel_insert_of_not_rel hnba k S₀
   refine ⟨hnab, ?_, (pushRel_comm_of_not_rel hnba hnab S₀).symm⟩
-  change (if levelRel R b S₁ = 0 then [none] else [some (b, levelRel R b S₁)]) = [o] at hst
-  rw [hb] at hst
-  have ho' : (if levelRel R b S₀ = 0 then none else some (b, levelRel R b S₀)) = o := by
-    split_ifs at hst ⊢ <;> exact (List.cons.inj hst).1
-  rw [← ho']
-  by_cases hb0 : levelRel R b S₀ = 0 <;> simp [traceSteps, hb0, ha0, ha, la]
+  by_cases hb0 : levelRel R b S₀ = 0 <;>
+    simp only [S₁, hb, hb0, ↓reduceIte, List.cons.injEq] at hst <;>
+    simp [traceSteps, hb0, ha0, ha, la, ← hst.1]
 
 private theorem traceSteps_map_some_eq (hRr : ∀ i, R i i) :
     ∀ (S₀ : Finset (ι × ℕ)) (w : List ι) (L : List (ι × ℕ)),
@@ -247,9 +230,7 @@ private theorem traceSteps_map_some_eq (hRr : ∀ i, R i i) :
         foldPush R S₀ w = S₀ ∪ L.toFinset
   | S₀, [], [], _ => by simp [foldPush]
   | S₀, [], p :: L, h => by simp [traceSteps] at h
-  | S₀, j :: w, [], h => by
-    simp only [traceSteps] at h
-    split_ifs at h <;> simp at h
+  | S₀, j :: w, [], h => by cases h0 : levelRel R j S₀ <;> simp [traceSteps, h0] at h
   | S₀, j :: w, p :: L, h => by
     simp only [traceSteps] at h
     split_ifs at h with h0
@@ -258,16 +239,11 @@ private theorem traceSteps_map_some_eq (hRr : ∀ i, R i i) :
       obtain rfl := Option.some.inj hp
       obtain ⟨hwm, hnodup, hnot, hfold⟩ :=
         traceSteps_map_some_eq hRr (insert (j, levelRel R j S₀) S₀) w L hw
-      have hnot0 : (j, levelRel R j S₀) ∉ S₀ := levelRel_notMem hRr j S₀
       refine ⟨by simp [hwm], List.nodup_cons.2 ⟨fun hm => hnot _ hm (mem_insert_self _ _), hnodup⟩,
-        fun q hq => ?_, ?_⟩
-      · rcases List.mem_cons.1 hq with rfl | hq
-        · exact hnot0
-        · exact fun hm => hnot q hq (mem_insert_of_mem hm)
-      · rw [foldPush, List.foldl_cons, pushRel_of_ne_zero h0, ← foldPush, hfold,
-          List.toFinset_cons]
-        ext q
-        simp [or_left_comm]
+        List.forall_mem_cons.2 ⟨levelRel_notMem hRr j S₀,
+          fun q hq hm => hnot q hq (mem_insert_of_mem hm)⟩, ?_⟩
+      rw [foldPush, List.foldl_cons, pushRel_of_ne_zero h0, ← foldPush, hfold, List.toFinset_cons]
+      exact Finset.ext fun q => by simp [or_left_comm]
 
 -- Decompose the log at its first skipped step.
 private theorem traceSteps_split_none :
@@ -306,15 +282,12 @@ private theorem erase_first_skipped {A : ι → Set (∀ v, α v)}
       (witnessRel_cons_of_not_rel R hnib v).symm⟩
   | append_singleton u a ih =>
     let S := foldPush R {(i, 0)} u
-    have ha : levelRel R a S ≠ 0 := by
-      intro h
-      apply hu
-      rw [traceSteps_append]
-      exact List.mem_append_right _ (show none ∈ traceSteps R S [a] by simp [traceSteps, h])
+    have ha : levelRel R a S ≠ 0 := fun h =>
+      hu (traceSteps_append R {(i, 0)} u [a] ▸
+        List.mem_append_right _ (by simp [traceSteps, h] : none ∈ traceSteps R S [a]))
+    have hpush : foldPush R S [a] = insert (a, levelRel R a S) S := pushRel_of_ne_zero ha
     have hb' : levelRel R b (insert (a, levelRel R a S) S) = 0 := by
-      rw [foldPush_append] at hb
-      change levelRel R b (pushRel R a S) = 0 at hb
-      rwa [pushRel_of_ne_zero ha] at hb
+      rwa [foldPush_append, hpush] at hb
     have hstep : traceSteps R S [a, b] = [some (a, levelRel R a S), none] := by
       simp [traceSteps, ha, hb']
     obtain ⟨hnab, _, hfold⟩ := traceSteps_swap R hRs S hstep (Or.inl rfl)
@@ -322,17 +295,15 @@ private theorem erase_first_skipped {A : ι → Set (∀ v, α v)}
     have hswap : IsLog vbl A T (i :: (u ++ b :: a :: v)) :=
       isLog_swap vbl hA hnlop (i :: u) v (by
         simpa only [List.cons_append, List.append_assoc, List.nil_append] using hlog)
-    have hu' : none ∉ traceSteps R {(i, 0)} u := fun h => hu (by
-      rw [traceSteps_append]
-      exact List.mem_append_left _ h)
+    have hu' : none ∉ traceSteps R {(i, 0)} u :=
+      fun h => hu (traceSteps_append R {(i, 0)} u [a] ▸ List.mem_append_left _ h)
     rw [levelRel_insert_of_not_rel hnab] at hb'
     obtain ⟨w', hlen, hlog', hw'⟩ := ih (a :: v) hu' hb' hswap
     refine ⟨w', by simpa only [List.length_append, List.length_cons, List.length_nil,
       Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hlen, hlog', hw'.trans ?_⟩
-    simp only [witnessRel_eq_foldPush, List.append_assoc, List.singleton_append]
-    rw [show u ++ b :: a :: v = u ++ [b, a] ++ v by simp [List.append_assoc],
-      show u ++ a :: b :: v = u ++ [a, b] ++ v by simp [List.append_assoc],
-      foldPush_append, foldPush_append, foldPush_append, foldPush_append, hfold]
+    simp only [R, S, witnessRel_eq_foldPush, foldPush, List.foldl_append, List.foldl_cons,
+      List.foldl_nil] at hfold ⊢
+    rw [hfold]
 
 private theorem phase1_elim_none {A : ι → Set (∀ v, α v)}
     (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V)) {T : ∀ p : V × ℕ, α p.1}
@@ -350,9 +321,8 @@ private theorem phase1_elim_none {A : ι → Set (∀ v, α v)}
   · match h : (traceSteps R {(i, 0)} w).allSome with
     | none => exact (hnone (List.allSome_eq_none_iff.mp h)).elim
     | some L =>
-      refine ⟨w, hlog, rfl, L, ?_⟩
-      rw [← List.forall₂_eq_eq_eq, List.forall₂_map_right_iff]
-      exact List.allSome_eq_some_iff_forall₂.mp h
+      exact ⟨w, hlog, rfl, L,
+        by simpa [← List.forall₂_eq_eq_eq] using List.allSome_eq_some_iff_forall₂.mp h⟩
 termination_by w.length
 
 private theorem phase2_sort_perm {A : ι → Set (∀ v, α v)}
@@ -384,11 +354,10 @@ private theorem phase2_sort_perm {A : ι → Set (∀ v, α v)}
       · simp at htr'
       · obtain ⟨hp, ht⟩ := List.cons.inj htr'
         rw [Option.some.inj hp] at ht
-        have hlog_sub : IsLog vbl A T ((pref ++ [p]).map Prod.fst ++ tail.map Prod.fst) := by
-          simpa only [List.map_append, List.map_cons, List.map_nil, List.nil_append,
-            List.append_assoc, List.singleton_append] using hlog'
-        have ih := phase2_sort_perm hA c' (pref ++ [p]) (insert p S₀') tail hlog_sub ht
-          hperm'.cons_inv (List.pairwise_cons.1 hpair).2 (List.nodup_cons.1 hnod).2
+        have ih := phase2_sort_perm hA c' (pref ++ [p]) (insert p S₀') tail
+          (by simpa only [List.map_append, List.map_cons, List.map_nil, List.nil_append,
+            List.append_assoc, List.singleton_append] using hlog')
+          ht hperm'.cons_inv (List.pairwise_cons.1 hpair).2 (List.nodup_cons.1 hnod).2
         simpa only [List.map_append, List.map_cons, List.map_nil, List.append_assoc,
           List.singleton_append] using ih
     | append_singleton front q ih =>
@@ -420,10 +389,9 @@ private theorem phase2_sort_perm {A : ι → Set (∀ v, α v)}
             List.nil_append, List.singleton_append] using hlog')
         simpa only [u, v, List.map_append, List.map_cons, List.append_assoc] using hswap
       · simp only [List.map_append, List.map_cons]
-        change traceSteps R S₀' (u ++ p.1 :: q.1 :: v) = _
-        rw [show p.1 :: q.1 :: v = [p.1, q.1] ++ v from rfl, traceSteps_append,
-          traceSteps_append, hpre, htrace, hfold, htail]
-        simp
+        change traceSteps R S₀' (u ++ ([p.1, q.1] ++ v)) = _
+        rw [traceSteps_append, traceSteps_append, hpre, htrace, hfold, htail]
+        rfl
       · exact (List.Perm.append_left front (List.Perm.swap q p tail)).trans hperm'
 
 /-- Any valid log `i :: w` whose lopsided witness structure is `S` implies that the canonical
@@ -444,23 +412,17 @@ private theorem isLog_canonList {A : ι → Set (∀ v, α v)}
   set sorted := S.toList.mergeSort (fun a b => decide (a.2 ≤ b.2))
   have hpermS : sorted.Perm S.toList := List.mergeSort_perm S.toList _
   have hpairS : sorted.Pairwise (fun a b => a.2 ≤ b.2) := by
-    refine (List.pairwise_mergeSort (le := fun (a b : ι × ℕ) => decide (a.2 ≤ b.2))
-      (fun a b c h1 h2 => decide_eq_true (Nat.le_trans (of_decide_eq_true h1)
-        (of_decide_eq_true h2)))
-      (fun a b => by
-        simp only [Bool.or_eq_true, decide_eq_true_eq]
-        omega)
-      S.toList).imp fun {a b} hab => of_decide_eq_true hab
+    simpa only [decide_eq_true_eq] using List.pairwise_mergeSort
+      (le := fun a b : ι × ℕ => decide (a.2 ≤ b.2))
+      (by grind) (by grind) S.toList
   have hroot : RootedRel R i S := hS₁ ▸ rooted_witnessRel R i (L.map Prod.fst)
   have hmem : (i, 0) ∈ sorted := hpermS.symm.subset (mem_toList.2 hroot.root)
   obtain ⟨p₀, t, hsorted⟩ := List.exists_cons_of_ne_nil (List.ne_nil_of_mem hmem)
   rw [hsorted] at hmem hpairS hpermS
   obtain ⟨hle, hpair_t⟩ := List.pairwise_cons.1 hpairS
-  obtain rfl : p₀ = (i, 0) := by
-    rcases List.mem_cons.1 hmem with h | hit
-    · exact h.symm
-    · exact hroot.zero p₀ (mem_toList.1 (hpermS.subset List.mem_cons_self))
-        (Nat.eq_zero_of_le_zero (hle _ hit))
+  obtain rfl : p₀ = (i, 0) := (List.mem_cons.1 hmem).elim Eq.symm fun hit =>
+    hroot.zero p₀ (mem_toList.1 (hpermS.subset List.mem_cons_self))
+      (Nat.eq_zero_of_le_zero (hle _ hit))
   have hnod_t : t.Nodup := (List.nodup_cons.1 (hpermS.nodup_iff.2 S.nodup_toList)).2
   have hperm_ins : ((i, 0) :: L).Perm S.toList :=
     (List.perm_ext_iff_of_nodup (List.nodup_cons.2 ⟨hnot_root, hnodL⟩) S.nodup_toList).2
@@ -500,8 +462,7 @@ private theorem lt_uses_of_mem_stepCoords :
 omit [Fintype V] [∀ v, MeasurableSpace (α v)] [∀ v, IsProbabilityMeasure (μ v)] in
 private theorem disjoint_stepCoords (j : ι) (w : List ι) :
     Disjoint ((vbl j).image fun v => (v, uses vbl w v)) (stepCoords vbl w) := by
-  rw [Finset.disjoint_left]
-  intro p hp hq
+  refine Finset.disjoint_left.2 fun p hp hq => ?_
   obtain ⟨v, -, rfl⟩ := mem_image.1 hp
   exact lt_irrefl _ (lt_uses_of_mem_stepCoords vbl hq)
 
@@ -512,17 +473,14 @@ private theorem isLog_dependsOn (A : ι → Set (∀ v, α v))
   | [], T, T', _ => by simp [isLog_nil]
   | j :: w, T, T', h => by
     have hcur : (fun v => T (v, uses vbl w v)) ∈ A j ↔
-        (fun v => T' (v, uses vbl w v)) ∈ A j := by
-      refine (hA j fun v hv => h (v, uses vbl w v) ?_).to_iff
-      exact Finset.mem_coe.2 (mem_union_left _ (mem_image_of_mem _ (Finset.mem_coe.1 hv)))
+        (fun v => T' (v, uses vbl w v)) ∈ A j :=
+      (hA j fun v hv => h (v, uses vbl w v)
+        (Finset.mem_coe.2 (mem_union_left _ (mem_image_of_mem _ (Finset.mem_coe.1 hv))))).to_iff
     have htail : IsLog vbl A T w = IsLog vbl A T' w :=
       isLog_dependsOn A hA w fun c hc =>
         h c (Finset.mem_coe.2 (mem_union_right _ (Finset.mem_coe.1 hc)))
-    have hfun : ∀ T₀ : ∀ p : V × ℕ, α p.1,
-        current vbl T₀ w = fun v => T₀ (v, uses vbl w v) :=
-      fun T₀ => funext fun v => current_apply vbl T₀ w v
     change IsLog vbl A T (j :: w) = IsLog vbl A T' (j :: w)
-    rw [isLog_cons, isLog_cons, hfun T, hfun T']
+    rw [isLog_cons, isLog_cons, funext (current_apply vbl T w), funext (current_apply vbl T' w)]
     exact propext (and_congr hcur (iff_of_eq htail))
 
 /-- For any fixed list `w`, the event `IsLog vbl A T w` reads pairwise disjoint table entries,
@@ -533,11 +491,8 @@ theorem table_isLog_eq_prod (A : ι → Set (∀ v, α v)) (hAm : ∀ i, Measura
   | [] => by simp [isLog_nil]
   | j :: w => by
     have heq : {T : ∀ p : V × ℕ, α p.1 | IsLog vbl A T (j :: w)} =
-        (fun T v => T (v, uses vbl w v)) ⁻¹' A j ∩ {T | IsLog vbl A T w} := by
-      ext T
-      have hcur : current vbl T w = fun v => T (v, uses vbl w v) :=
-        funext (current_apply vbl T w)
-      simp only [Set.mem_ofPred_eq, Set.mem_inter_iff, Set.mem_preimage, isLog_cons, hcur]
+        (fun T v => T (v, uses vbl w v)) ⁻¹' A j ∩ {T | IsLog vbl A T w} :=
+      Set.ext fun T => by simp [isLog_cons, funext (current_apply vbl T w)]
     have hd1 : DependsOn
         (· ∈ (fun (T : ∀ p : V × ℕ, α p.1) v => T (v, uses vbl w v)) ⁻¹' A j)
         (((vbl j).image fun v => (v, uses vbl w v)) : Set (V × ℕ)) := fun T T' h =>
@@ -548,17 +503,15 @@ theorem table_isLog_eq_prod (A : ι → Set (∀ v, α v)) (hAm : ∀ i, Measura
       (measurable_read (fun v => uses vbl w v) (hAm j)) (measurableSet_isLog vbl A hAm w)
       hd1 (isLog_dependsOn vbl A hA w) (disjoint_stepCoords vbl j w)
     rw [heq, table_def, hind.measure_inter_eq_mul, ← table_def, List.map_cons, List.prod_cons,
-      table_isLog_eq_prod A hAm hA w]
-    congr 1
-    rw [← Measure.map_apply (measurable_read _) (hAm j), table_map_read]
+      table_isLog_eq_prod A hAm hA w, ← Measure.map_apply (measurable_read _) (hAm j),
+      table_map_read]
 
 private theorem table_canonList_eq_prod (A : ι → Set (∀ v, α v)) (hAm : ∀ i, MeasurableSet (A i))
     (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V)) (S : Finset (ι × ℕ)) :
     table μ {T | IsLog vbl A T (canonList S)} = ∏ p ∈ S, Measure.pi μ (A p.1) := by
   rw [table_isLog_eq_prod μ vbl A hAm hA (canonList S), canonList, List.map_map,
-    ((List.mergeSort_perm S.toList _).map ((fun j => Measure.pi μ (A j)) ∘ Prod.fst)).prod_eq,
-    Finset.prod_map_toList]
-  rfl
+    ((List.mergeSort_perm S.toList _).map ((fun j => Measure.pi μ (A j)) ∘ Prod.fst)).prod_eq]
+  exact Finset.prod_map_toList S _
 
 open scoped Classical in
 /-- **Lemma 6.2** of [MoserTardos2010]: the probability that a fixed structure `S` occurs as the
@@ -571,8 +524,7 @@ theorem table_witness_le [DecidableEq ι] (A : ι → Set (∀ v, α v))
         witnessRel (lopsidedAdj vbl A) i w = S} ≤
       ∏ p ∈ S, Measure.pi μ (A p.1) := by
   refine (measure_mono ?_).trans (table_canonList_eq_prod μ vbl A hAm hA S).le
-  rintro _ ⟨_, _, hlog, hS⟩
-  exact isLog_canonList vbl hA hlog hS
+  exact fun _ ⟨_, _, hlog, hS⟩ => isLog_canonList vbl hA hlog hS
 
 end Measure
 

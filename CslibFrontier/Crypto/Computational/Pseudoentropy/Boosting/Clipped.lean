@@ -148,12 +148,7 @@ theorem isPPTOn_clippedPredict {α : Type} {input : α ↪ List Bool}
     (hnumerator : ComputableInPolyTime numerator input encUnary)
     (hvotes : ComputableInPolyTime votes input encBits) :
     IsPPTOn input encBool (fun a => clippedPredict (bound a) (numerator a) (votes a)) := by
-  unfold clippedPredict
-  apply isPPTOn_sampleDyadicCoin
-  · exact ComputableInPolyTime.unary_dyadicSize.comp hbound
-  · exact (show ComputableInPolyTime
-      (fun a => dyadicSize (bound a) + numerator a * (2 * (votes a).count true) -
-        numerator a * (votes a).length) input encUnary by fun_prop)
+  exact isPPTOn_sampleDyadicCoin (ComputableInPolyTime.unary_dyadicSize.comp hbound) (by fun_prop)
 
 attribute [program_certificate] isPPTOn_clippedPredict
 
@@ -206,9 +201,7 @@ theorem exists_clippedError_le (source : PMF α) (margin : α → ℝ) {δ gap b
   have hupper : (∑ x, (source x).toReal * (softSet x * margin x)) ≤ δ * cutoff := by
     calc
       _ ≤ ∑ x, (source x).toReal * (softSet x * cutoff) := by
-        apply Finset.sum_le_sum
-        intro x _
-        apply mul_le_mul_of_nonneg_left _ ENNReal.toReal_nonneg
+        refine Finset.sum_le_sum fun x _ => mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
         by_cases h : margin x ≤ cutoff
         · exact mul_le_mul_of_nonneg_left h (hsoftSet x).1
         · simp [habove x (lt_of_not_ge h)]
@@ -220,15 +213,13 @@ theorem exists_clippedError_le (source : PMF α) (margin : α → ℝ) {δ gap b
     rcases lt_trichotomy (margin x) cutoff with hlt | heq | hgt
     · rw [hbelow x hlt]
       have hratio : (1 / cutoff) * margin x ≤ 1 := by
-        rw [one_div_mul_eq_div]
-        exact (div_le_one hcutoff).mpr hlt.le
+        simpa only [one_div_mul_eq_div] using (div_le_one hcutoff).mpr hlt.le
       linarith [le_clippedProbability hratio]
     · have hratio : (1 / cutoff) * margin x = 1 := by rw [heq, one_div_mul_cancel hcutoff.ne']
       rw [clippedProbability_eq_one (le_of_eq hratio.symm), hratio]
       simp
     · have hratio : 1 ≤ (1 / cutoff) * margin x := by
-        rw [one_div_mul_eq_div]
-        exact (one_le_div hcutoff).mpr hgt.le
+        simpa only [one_div_mul_eq_div] using (one_le_div hcutoff).mpr hgt.le
       rw [clippedProbability_eq_one hratio, habove x hgt]
       simp
   refine ⟨cutoff, hgap_cutoff, hcutoff_bound, ?_⟩
@@ -244,9 +235,8 @@ theorem exists_clippedError_le (source : PMF α) (margin : α → ℝ) {δ gap b
     _ ≤ δ / 2 - (1 / cutoff) / 2 * (δ * gap) :=
       sub_le_sub_left (mul_le_mul_of_nonneg_left hcorrelation (by positivity)) _
     _ = δ / 2 - δ * gap / (2 * cutoff) := by ring
-    _ ≤ δ / 2 - δ * gap / (2 * bound) := by
-      apply sub_le_sub_left
-      exact div_le_div_of_nonneg_left (by positivity) (by positivity) (by linarith)
+    _ ≤ δ / 2 - δ * gap / (2 * bound) :=
+      sub_le_sub_left (div_le_div_of_nonneg_left (by positivity) (by positivity) (by linarith)) _
 
 private theorem exists_gridSlope (denominator : ℕ) (hd : 0 < denominator)
     {slope : ℝ} (hslope : slope ∈ Set.Icc 0 1) :

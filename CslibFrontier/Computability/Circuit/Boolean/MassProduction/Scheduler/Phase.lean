@@ -170,9 +170,8 @@ theorem next_accepted (bits : K ≃+ BitString b) (scalar : Fin s ≃ {c : K // 
     (m : Fin a) (f : Fin (width D (ℓ * b) s)) :
     next hk bits scalar menu x (finProdFinEquiv (accepted hk m, f)) =
       x (finProdFinEquiv (accepted hk m, f)) := by
-  simp only [next, Equiv.symm_apply_apply]
-  rw [show Fin.cast hk.symm (accepted hk m) = Fin.castAdd (arity p) m from Fin.ext rfl,
-    Fin.addCases_left]
+  have hcast : Fin.cast hk.symm (accepted hk m) = Fin.castAdd (arity p) m := Fin.ext rfl
+  simp only [next, Equiv.symm_apply_apply, hcast, Fin.addCases_left]
 
 /-- After a phase, the pending block holds the sorted enriched records without their flags. -/
 theorem next_pending (bits : K ≃+ BitString b) (scalar : Fin s ≃ {c : K // c ≠ 0})
@@ -180,8 +179,8 @@ theorem next_pending (bits : K ≃+ BitString b) (scalar : Fin s ≃ {c : K // c
     (j : Fin (arity p)) (f : Fin (width D (ℓ * b) s)) :
     next hk bits scalar menu x (finProdFinEquiv (pending hk j, f)) =
       sortedPending hk bits scalar menu x j (Fin.natAdd 1 f) := by
-  simp only [next, Equiv.symm_apply_apply]
-  rw [show Fin.cast hk.symm (pending hk j) = Fin.natAdd a j from Fin.ext rfl, Fin.addCases_right]
+  have hcast : Fin.cast hk.symm (pending hk j) = Fin.natAdd a j := Fin.ext rfl
+  simp only [next, Equiv.symm_apply_apply, hcast, Fin.addCases_right]
 
 section Correctness
 
@@ -200,13 +199,10 @@ theorem mem_occupiedPoints_acceptedLines {w : Fin ℓ → K} :
     w ∈ occupiedPoints (acceptedLines a T dirs) ↔
       ∃ m : Fin (2 ^ D), m.val < a ∧ w ∈ puncturedLine (T m) (dirs m) := by
   simp only [occupiedPoints, mem_biUnion, mem_univ, true_and, acceptedLines]
-  constructor
-  · rintro ⟨m, hm⟩
-    split_ifs at hm with h
-    · exact ⟨m, h, hm⟩
-    · exact absurd hm (Finset.notMem_empty w)
-  · rintro ⟨m, h, hm⟩
-    exact ⟨m, by simpa only [h, ↓reduceIte, Option.elim_some] using hm⟩
+  refine ⟨?_, fun ⟨m, h, hm⟩ => ⟨m, by simpa only [h, ↓reduceIte, Option.elim_some] using hm⟩⟩
+  rintro ⟨m, hm⟩
+  split_ifs at hm with h
+  exacts [⟨m, h, hm⟩, absurd hm (Finset.notMem_empty w)]
 
 variable (htarget : ∀ m, target x m = pointBits bits (T m))
 include htarget
@@ -227,16 +223,14 @@ theorem occupied_iff (e : Fin r) (i : Fin (arity p)) (c : Fin s) :
     occupied hk bits scalar menu x e i c = true ↔
       T (pending hk i) + (scalar c : K) • menu e i ∈ occupiedPoints (acceptedLines a T dirs) := by
   rw [occupied, decide_eq_true_iff, mem_occupiedPoints_acceptedLines]
-  constructor
-  · rintro ⟨m, c', h⟩
-    rw [(hline _ m.isLt).2, candidate_eq bits scalar menu htarget] at h
+  refine ⟨fun ⟨m, c', h⟩ => ?_, fun ⟨m, hm, hw⟩ => ?_⟩
+  · rw [(hline _ m.isLt).2, candidate_eq bits scalar menu htarget] at h
     exact ⟨accepted hk m, m.isLt, (mem_puncturedLine_iff scalar).mpr
       ⟨c', pointBits_injective bits h⟩⟩
-  · rintro ⟨m, hm, hw⟩
-    obtain ⟨c', hc'⟩ := (mem_puncturedLine_iff scalar).mp hw
-    refine ⟨⟨m.val, hm⟩, c', ?_⟩
-    rw [show accepted hk ⟨m.val, hm⟩ = m from Fin.ext rfl, (hline m hm).2,
-      candidate_eq bits scalar menu htarget, hc']
+  · obtain ⟨c', hc'⟩ := (mem_puncturedLine_iff scalar).mp hw
+    have hm_eq : accepted hk ⟨m.val, hm⟩ = m := Fin.ext rfl
+    exact ⟨⟨m.val, hm⟩, c', by
+      rw [hm_eq, (hline m hm).2, candidate_eq bits scalar menu htarget, hc']⟩
 
 omit hline [Fintype K] [DecidableEq K] in
 /-- A candidate is a duplicate exactly when another candidate of its entry is the same point. -/
@@ -258,25 +252,21 @@ theorem clean_iff (hmenu : ∀ e i, menu e i ≠ 0) (e : Fin r) (i : Fin (arity 
     refine ⟨disjoint_left.mpr fun w hw hocc => ?_,
       fun j hji => disjoint_left.mpr fun w hw hw' => ?_⟩
     · obtain ⟨c, rfl⟩ := (mem_puncturedLine_iff scalar).mp hw
-      have := (h c).1
-      rw [← Bool.not_eq_true, occupied_iff bits scalar menu htarget hline] at this
-      exact this hocc
+      exact (occupied_iff bits scalar menu htarget hline e i c).not.mp
+        (Bool.eq_false_iff.mp (h c).1) hocc
     · obtain ⟨c, rfl⟩ := (mem_puncturedLine_iff scalar).mp hw
       obtain ⟨c', hc'⟩ := (mem_puncturedLine_iff scalar).mp hw'
-      have := (h c).2
-      rw [← Bool.not_eq_true, duplicate_iff bits scalar menu htarget] at this
-      exact this ⟨j, c', fun h => hji (Prod.mk.inj h).1, hc'⟩
+      exact (duplicate_iff bits scalar menu htarget e i c).not.mp
+        (Bool.eq_false_iff.mp (h c).2) ⟨j, c', fun h => hji (Prod.mk.inj h).1, hc'⟩
   · intro h c
-    refine ⟨?_, ?_⟩
-    · rw [← Bool.not_eq_true, occupied_iff bits scalar menu htarget hline]
-      exact disjoint_left.mp h.1 ((mem_puncturedLine_iff scalar).mpr ⟨c, rfl⟩)
-    · rw [← Bool.not_eq_true, duplicate_iff bits scalar menu htarget]
-      rintro ⟨i', c', hne, heq⟩
-      by_cases hi : i' = i
-      · subst hi
-        exact hne (by rw [add_smul_injective scalar (hmenu e i') heq])
-      · exact disjoint_left.mp (h.2 i' hi) ((mem_puncturedLine_iff scalar).mpr ⟨c, rfl⟩)
-          ((mem_puncturedLine_iff scalar).mpr ⟨c', heq⟩)
+    refine ⟨Bool.eq_false_iff.mpr ((occupied_iff bits scalar menu htarget hline e i c).not.mpr
+      (disjoint_left.mp h.1 ((mem_puncturedLine_iff scalar).mpr ⟨c, rfl⟩))), ?_⟩
+    rw [← Bool.not_eq_true, duplicate_iff bits scalar menu htarget]
+    rintro ⟨i', c', hne, heq⟩
+    rcases eq_or_ne i' i with rfl | hi
+    · exact hne (by rw [add_smul_injective scalar (hmenu e i') heq])
+    · exact disjoint_left.mp (h.2 i' hi) ((mem_puncturedLine_iff scalar).mpr ⟨c, rfl⟩)
+        ((mem_puncturedLine_iff scalar).mpr ⟨c', heq⟩)
 
 end Correctness
 
@@ -303,10 +293,9 @@ theorem good_next [Fintype K] [DecidableEq K] (bits : K ≃+ BitString b)
   simp only [mem_filter, mem_univ, true_and, id] at he hmin
   have hchosen (e' : Fin r) : chosen hk bits scalar menu x e' = true ↔ e' = e := by
     rw [chosen, decide_eq_true_iff]
-    refine ⟨fun ⟨hs, hfirst⟩ => (hmin e' hs).antisymm' (not_lt.mp fun h => ?_), ?_⟩
-    · simp [hfirst e h] at he
-    · rintro rfl
-      exact ⟨he, fun e'' h'' => Bool.eq_false_iff.mpr fun hn => (hmin e'' hn).not_gt h''⟩
+    refine ⟨fun ⟨hs, hfirst⟩ =>
+      (hmin e' hs).antisymm' (not_lt.mp fun h => by simp [hfirst e h] at he), fun h =>
+        h ▸ ⟨he, fun e'' h'' => Bool.eq_false_iff.mpr fun hn => (hmin e'' hn).not_gt h''⟩⟩
   have hflag (i : Fin (arity p)) :
       flag hk bits scalar menu x i = clean hk bits scalar menu x e i := by
     rw [Bool.eq_iff_iff, flag, decide_eq_true_iff]
@@ -325,10 +314,8 @@ theorem good_next [Fintype K] [DecidableEq K] (bits : K ≃+ BitString b)
     rw [hsorted, enriched, Fin.append_left, hflag]
   have hfront (j : Fin (arity p)) (hj : j.val < (arity p + 1) / 2) :
       IsClean (occupiedPoints (acceptedLines a T dirs)) P (menu e) (σ j) := by
-    refine (hclean e (σ j)).mp ?_
-    rw [← hflagbit]
-    refine (sort_flag_eq_true_iff (fun record => record ∘ flagKey) p
-      (enriched hk bits scalar menu x) j).mpr ?_
+    refine (hclean e (σ j)).mp (hflagbit j ▸ (sort_flag_eq_true_iff
+      (fun record => record ∘ flagKey) p (enriched hk bits scalar menu x) j).mpr ?_)
     simp only [Function.comp_apply, flagKey, enriched, Fin.append_left, hflag]
     have := of_decide_eq_true he
     lia
@@ -338,12 +325,8 @@ theorem good_next [Fintype K] [DecidableEq K] (bits : K ≃+ BitString b)
   have hEr (i : Fin (arity p)) : E (Sum.inr i) = pending hk i := Fin.ext rfl
   let τ : Equiv.Perm (Fin (2 ^ D)) :=
     E.symm.trans ((Equiv.sumCongr (Equiv.refl _) σ).trans E)
-  have hτa (m : Fin a) : τ (accepted hk m) = accepted hk m := by
-    simp only [τ, Equiv.trans_apply, ← hEl, Equiv.symm_apply_apply, Equiv.sumCongr_apply,
-      Sum.map_inl, Equiv.refl_apply]
-  have hτp (i : Fin (arity p)) : τ (pending hk i) = pending hk (σ i) := by
-    simp only [τ, Equiv.trans_apply, ← hEr, Equiv.symm_apply_apply, Equiv.sumCongr_apply,
-      Sum.map_inr]
+  have hτa (m : Fin a) : τ (accepted hk m) = accepted hk m := by simp [τ, ← hEl]
+  have hτp (i : Fin (arity p)) : τ (pending hk i) = pending hk (σ i) := by simp [τ, ← hEr]
   let dirs' : Fin (2 ^ D) → Fin ℓ → K :=
     fun m => Sum.elim (fun m' => dirs (accepted hk m')) (fun j => menu e (σ j)) (E.symm m)
   have hda (m : Fin a) : dirs' (accepted hk m) = dirs (accepted hk m) := by

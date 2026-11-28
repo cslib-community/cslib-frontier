@@ -264,9 +264,8 @@ theorem IsCyclicallyMonotoneOn.isWeaklyMonotoneOn [DecidableEq ι] {f : (ι → 
   have hc := hf i b hb 1 (fun t => if t = 0 then v else v') fun t => by
     fin_cases t
     exacts [hv, hv']
-  rw [Fin.sum_univ_two, show (0 : Fin 2) + 1 = 1 from rfl,
-    show (1 : Fin 2) + 1 = 0 from rfl] at hc
-  simp only [↓reduceIte, one_ne_zero] at hc
+  rw [Fin.sum_univ_two] at hc
+  simp only [Fin.isValue, Fin.reduceAdd, ↓reduceIte, one_ne_zero] at hc
   linarith
 
 private def chainWeight (g : (Ω → ℝ) → Ω) (v₀ : Ω → ℝ) (n : ℕ)
@@ -298,13 +297,11 @@ private theorem cycleSum_snoc (g : (Ω → ℝ) → Ω) (v₀ : Ω → ℝ) (n :
     simp only [snocSeq, Fin.val_castSucc, s.isLt, ↓reduceDIte, Fin.eta]
   have hlast_eq : snocSeq u v₀ (Fin.last (n + 1)) = v₀ := by
     simp only [snocSeq, Fin.val_last, lt_self_iff_false, ↓reduceDIte]
-  rw [Fin.sum_univ_castSucc, Fin.last_add_one, ← Fin.castSucc_zero, hlast_eq, hcast 0]
-  congr 1
-  rw [Fin.sum_univ_castSucc, chainWeight]
-  congr 1
-  · refine Finset.sum_congr rfl fun t _ => ?_
-    rw [Fin.coeSucc_eq_succ, hcast t.castSucc, show t.castSucc.succ = t.succ.castSucc from rfl,
-      hcast t.succ]
+  rw [Fin.sum_univ_castSucc, Fin.last_add_one, ← Fin.castSucc_zero, hlast_eq, hcast 0,
+    Fin.sum_univ_castSucc, chainWeight]
+  refine congrArg (· + _) (congrArg₂ (· + ·) (Finset.sum_congr rfl fun t _ => ?_) ?_)
+  · rw [Fin.coeSucc_eq_succ, hcast t.castSucc]
+    exact congrArg (fun x => _ - u t.castSucc (g x)) (hcast t.succ)
   · rw [Fin.coeSucc_eq_succ, hcast (Fin.last n), Fin.succ_last, hlast_eq]
 
 /-- **Cyclic monotonicity characterizes DSIC implementability** (the Rockafellar–Rochet
@@ -324,11 +321,9 @@ theorem isImplementableOn_iff_isCyclicallyMonotoneOn [DecidableEq ι]
       Finset.sum_le_sum fun t _ => by
         linarith [hp (v t) (hv t) (g (v (t + 1))) ⟨v (t + 1), hv (t + 1), rfl⟩]
     have hshift : ∑ t : Fin (k + 1), p (g (v (t + 1))) = ∑ t : Fin (k + 1), p (g (v t)) := by
-      conv_lhs => simp only [Fin.sum_univ_castSucc, Fin.last_add_one, Fin.coeSucc_eq_succ]
-      rw [add_comm]
-      exact (Fin.sum_univ_succ fun t => p (g (v t))).symm
-    rw [Finset.sum_sub_distrib, hshift, sub_self] at hsum
-    exact hsum
+      rw [Fin.sum_univ_castSucc, Fin.last_add_one, add_comm]
+      simpa only [Fin.coeSucc_eq_succ] using (Fin.sum_univ_succ fun t => p (g (v t))).symm
+    rwa [Finset.sum_sub_distrib, hshift, sub_self] at hsum
   · intro hcyc i b hb
     by_cases hne : (V i).Nonempty
     · obtain ⟨v₀, hv₀⟩ := hne

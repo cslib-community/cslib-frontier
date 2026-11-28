@@ -56,9 +56,8 @@ density of the seeds on which it accepts. -/
 theorem Generator.toReal_realExperiment_pure [Fintype Seed] [Nonempty Seed]
     (G : Generator Seed Output) (test : Output → Bool) :
     (G.realExperiment (fun y => PMF.pure (test y)) true).toReal = dens {z | test (G z) = true} := by
-  rw [Generator.realExperiment, Generator.outputDist, PMF.bind_map,
-    ← toReal_uniformOfFintype_map_apply_true, ← PMF.bind_pure_comp]
-  rfl
+  simp [Generator.realExperiment, Generator.outputDist, PMF.bind_map,
+    ← toReal_uniformOfFintype_map_apply_true]
 
 /-- A deterministic test accepts a uniform string with probability the density of the strings it
 accepts. -/
@@ -66,8 +65,7 @@ theorem Generator.toReal_idealExperiment_pure [Fintype Output] [Nonempty Output]
     (test : Output → Bool) :
     (Generator.idealExperiment (fun y => PMF.pure (test y)) true).toReal =
       dens {y | test y = true} := by
-  rw [Generator.idealExperiment, ← toReal_uniformOfFintype_map_apply_true, ← PMF.bind_pure_comp]
-  rfl
+  simp [Generator.idealExperiment, ← toReal_uniformOfFintype_map_apply_true]
 
 /-- **Dense tests that avoid a generator.** If a deterministic test accepts no output of `G`, its
 negation accepts outputs of `G` with probability exceeding that of uniform strings by exactly the
@@ -79,15 +77,12 @@ theorem Generator.toReal_realExperiment_sub_toReal_idealExperiment_not [Fintype 
         (Generator.idealExperiment (fun y => PMF.pure (!test y)) true).toReal =
       dens {y | test y = true} := by
   rw [Generator.toReal_realExperiment_pure, Generator.toReal_idealExperiment_pure]
-  simp only [Bool.not_eq_eq_eq_not, Bool.not_true]
-  have hreal : ({z | test (G z) = false} : Finset Seed) = univ :=
-    filter_true_of_mem fun z _ => havoid z
-  have hsplit := dens_filter_add_dens_filter_not_eq_dens (s := (univ : Finset Output))
-    fun y => test y = true
-  simp only [Bool.not_eq_true, dens_univ] at hsplit
-  rw [hreal, dens_univ, NNRat.cast_one]
-  have hcast : (dens {y : Output | test y = true} : ℝ) + dens {y : Output | test y = false} = 1 :=
-    mod_cast hsplit
+  simp only [Bool.not_eq_eq_eq_not, Bool.not_true, filter_true_of_mem fun z _ => havoid z,
+    dens_univ, NNRat.cast_one]
+  have hsplit :
+      (dens {y : Output | test y = true} : ℝ) + dens {y : Output | test y = false} = 1 := by
+    norm_cast
+    simpa using dens_filter_add_dens_filter_not_eq_dens (s := univ) fun y => test y = true
   linarith
 
 end Deterministic

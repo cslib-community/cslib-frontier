@@ -134,17 +134,13 @@ private theorem range_eq_of (lo hi : α) :
   | .node first ((s, c) :: rest), h => by
     rw [range_node_cons, toList_node_cons, SortedAssoc.range_append]
     congr 1
-    · by_cases h₁ : s ≤ lo
-      · simp only [h₁, ↓reduceIte]
-        exact (SortedAssoc.range_eq_nil_iff.2 fun p hp => Or.inl
+    · split_ifs with h₁
+      · exact (SortedAssoc.range_eq_nil_iff.2 fun p hp => Or.inl
           ((h.separated.lt_of_mem_first (e := (s, c)) List.mem_cons_self hp).trans_le h₁)).symm
-      · simp only [h₁, ↓reduceIte]
-        exact range_eq_of lo hi first (h.child List.mem_cons_self)
-    · by_cases h₂ : s ≤ hi
-      · simp only [h₂, ↓reduceIte]
-        exact range_eq_of lo hi (.node c rest) h.tail
-      · simp only [h₂, ↓reduceIte]
-        have hc := h.occupied c (by simp)
+      · exact range_eq_of lo hi first (h.child List.mem_cons_self)
+    · split_ifs with h₂
+      · exact range_eq_of lo hi (.node c rest) h.tail
+      · have hc := h.occupied c (by simp)
         exact (SortedAssoc.range_eq_nil_iff.2 fun q hq => Or.inr
           ((lt_of_not_ge h₂).trans_le
             (h.separated.le_of_mem_tail h.sorted (hc.size_pos h.two_le) hq))).symm
@@ -161,15 +157,13 @@ theorem Occupied.ne_nil_of_mem_leaves (ht : 2 ≤ t) (ho : Occupied t tr) :
     ∀ l ∈ tr.leaves, l ≠ [] := by
   induction tr with
   | leaf entries =>
-    rintro l hl
-    obtain rfl : l = entries := by simpa [leaves_leaf] using hl
     have := ho.le_width
-    simp only [width_leaf] at this
+    simp only [leaves_leaf, List.mem_singleton, width_leaf] at *
+    rintro _ rfl
     exact List.ne_nil_of_length_pos (by omega)
   | node first rest ih₁ ih₂ =>
-    intro l hl
-    simp only [leaves_node, leavesRest_eq_flatMap, List.mem_append, List.mem_flatMap] at hl
-    rcases hl with hl | ⟨e, he, hl⟩
+    simp only [leaves_node, leavesRest_eq_flatMap, List.mem_append, List.mem_flatMap]
+    rintro l (hl | ⟨e, he, hl⟩)
     · exact ih₁ ho.first l hl
     · exact ih₂ e he
         (ho.of_mem_children (List.mem_cons_of_mem _ (List.mem_map_of_mem he))) l hl
@@ -183,19 +177,15 @@ theorem range_eq_flatten_run (h : IsWF t tr) (lo hi : α) :
       (∀ l ∈ run, SortedAssoc.range lo hi l ≠ []) ∧
       ∀ l ∈ (run.drop 1).dropLast, SortedAssoc.range lo hi l = l := by
   rw [range_eq h]
-  by_cases hne : ∀ l ∈ tr.leaves, l ≠ []
-  · exact SortedAssoc.exists_run_range_flatten h.sorted hne lo hi
-  · cases tr with
-    | leaf entries =>
-      obtain rfl : entries = [] := by simpa using hne
-      exact ⟨[[]], [], [], by simp, by simp, by simp, by simp⟩
-    | node first rest =>
-      refine absurd (fun l hl => ?_) hne
-      simp only [leaves_node, leavesRest_eq_flatMap, List.mem_append, List.mem_flatMap] at hl
-      rcases hl with hl | ⟨e, he, hl⟩
-      · exact (h.occupied_of_mem_children first (by simp)).ne_nil_of_mem_leaves h.two_le l hl
-      · exact (h.occupied_of_mem_children e.child
-          (List.mem_cons_of_mem _ (List.mem_map_of_mem he))).ne_nil_of_mem_leaves h.two_le l hl
+  rcases tr with (_ | ⟨p, entries⟩) | ⟨first, rest⟩
+  · exact ⟨[[]], [], [], by simp, by simp, by simp, by simp⟩
+  · exact SortedAssoc.exists_run_range_flatten h.sorted (by simp) lo hi
+  · refine SortedAssoc.exists_run_range_flatten h.sorted ?_ lo hi
+    simp only [leaves_node, leavesRest_eq_flatMap, List.mem_append, List.mem_flatMap]
+    rintro l (hl | ⟨e, he, hl⟩)
+    · exact (h.occupied_of_mem_children first List.mem_cons_self).ne_nil_of_mem_leaves h.two_le l hl
+    · exact (h.occupied_of_mem_children e.child
+        (List.mem_cons_of_mem _ (List.mem_map_of_mem he))).ne_nil_of_mem_leaves h.two_le l hl
 
 end Pure
 

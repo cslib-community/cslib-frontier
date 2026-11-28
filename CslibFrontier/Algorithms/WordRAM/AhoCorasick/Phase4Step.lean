@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.AhoCorasick.Phase3Mem
+-- The scanner uses the private `fits_matrix_cell` address bound.
+import all CslibFrontier.Algorithms.WordRAM.AhoCorasick.Layout
 import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
@@ -48,13 +50,8 @@ private theorem exec_computeFailCond (inp : Input) (w : ℕ) (hw : Fits w inp.wo
       y.regs r7 =
         (if 0 < x.regs rState ∧ T.trie (x.regs rState) (x.regs r5) = 0 then 1 else 0) := by
   have hlo := layout_order inp
-  have hrm := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu ha
   have hf1 : Fits w 1 := fits_of_le_outBase hw (by omega)
-  have hf_m : Fits w (x.regs rState * inp.alphabetSize) := fits_of_le_outBase hw (by omega)
-  have hf_a : Fits w (x.regs rState * inp.alphabetSize + x.regs r5) :=
-    fits_of_le_outBase hw (by omega)
-  have hf_t : Fits w (inp.trieBase + (x.regs rState * inp.alphabetSize + x.regs r5)) :=
-    fits_of_le_outBase hw (by omega)
+  obtain ⟨hf_m, hf_a, hf_t⟩ := fits_matrix_cell (base := inp.trieBase) hw hu ha (by lia)
   have ht_read : x.mem (inp.trieBase + (x.regs rState * inp.alphabetSize + x.regs r5)) =
       T.trie (x.regs rState) (x.regs r5) := by
     rw [← Nat.add_assoc]; exact hM.trie_cell _ hu _ ha
@@ -105,8 +102,7 @@ private theorem exec_failLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     by_cases hgo : 0 < x.regs rState ∧ inp.trie.trie (x.regs rState) (x.regs r5) = 0
     · obtain ⟨hupos, ht0⟩ := hgo
       have hc : (Cond.lt zero r7).Holds x := by
-        simp only [Cond.holds_lt, hL.h_zero, hr7, hupos, ht0, and_self, ↓reduceIte]
-        exact Nat.zero_lt_one
+        simp [Cond.holds_lt, hL.h_zero, hr7, hupos, ht0]
       obtain ⟨hfu_lt, hfu_str, hfu_depth⟩ := hB.fail_spec (x.regs rState) hu_lt hupos
       have hu_maxS : x.regs rState < inp.maxS := lt_of_lt_of_le hu_lt hT_maxS
       have hfu_maxS : inp.bfs.fail (x.regs rState) < inp.maxS := lt_of_lt_of_le hfu_lt hT_maxS
@@ -120,10 +116,9 @@ private theorem exec_failLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
         wram_exec [hL.h_failBase, hf_read, hf_addr]
         exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
       obtain ⟨x₁, he_hop, hs1, h11, h21, h31, h51, hm1⟩ := hhop
-      have hL₁ := hL.of_preserves he_hop
       obtain ⟨x₂, he_cond, hL₂, hm2, hs2, h12, h22, h32, h52, hr7_2⟩ :=
-        exec_computeFailCond inp w hw hL₁ (by rwa [hm1]) (by rw [hs1]; exact hfu_maxS)
-          (by rw [h51]; exact ha_lt)
+        exec_computeFailCond inp w hw (hL.of_preserves he_hop) (by rwa [hm1])
+          (hs1.symm ▸ hfu_maxS) (h51.symm ▸ ha_lt)
       rw [hs1, h51] at hr7_2
       have hfu_d_lt : inp.trie.depth (inp.bfs.fail (x.regs rState)) < d := by rwa [← hd_eq]
       obtain ⟨y, u_exit, hu_ex_lt, he_tl, hLy, hmy, hsy, hd_ex, hstop_ex, hnm_ex,
@@ -131,17 +126,13 @@ private theorem exec_failLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
         ih (inp.trie.depth (inp.bfs.fail (x.regs rState))) hfu_d_lt x₂ hL₂ (by rwa [hm2, hm1])
           (by rw [hs2, hs1]; exact hfu_lt) (by rw [hs2, hs1])
           (by rw [h52, h51]; exact ha_lt) (by rw [hs2, hs1, h52, h51]; exact hr7_2)
-      rw [h52, h51] at hstop_ex hnm_ex
-      rw [hs2, hs1] at hnm_ex
-      have hnot_node : ¬IsNode inp.patterns (inp.trie.strOf (x.regs rState) ++ [x.regs r5]) := by
-        intro his
-        have hpos_t := (hchar _ hu_lt _ ha_lt).1 his
-        omega
+      simp only [h52, h51, hs2, hs1] at hstop_ex hnm_ex
+      have hnot_node : ¬IsNode inp.patterns (inp.trie.strOf (x.regs rState) ++ [x.regs r5]) :=
+        fun his => absurd ((hchar _ hu_lt _ ha_lt).1 his) (by omega)
       have hnm_step :
           nextMove inp.patterns (inp.trie.strOf (x.regs rState)) (x.regs r5) =
-            nextMove inp.patterns (inp.trie.strOf (inp.bfs.fail (x.regs rState))) (x.regs r5) := by
-        rw [hfu_str]
-        exact nextMove_of_not_isNode hnot_node (hT.str_ne_nil _ hupos hu_lt)
+            nextMove inp.patterns (inp.trie.strOf (inp.bfs.fail (x.regs rState))) (x.regs r5) :=
+        hfu_str ▸ nextMove_of_not_isNode hnot_node (hT.str_ne_nil _ hupos hu_lt)
       refine ⟨y, u_exit, hu_ex_lt,
         (ExecWithin.loop_iter hc (he_hop.seq he_cond) he_tl).mono (by omega),
         hLy, hmy.trans (hm2.trans hm1), hsy, by omega, hstop_ex, hnm_ex.trans hnm_step.symm,
@@ -181,19 +172,14 @@ theorem exec_stepCode (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     exec_failLoop inp w hvalid hw (inp.trie.depth (x.regs rState)) x₁ hL₁ (by rwa [hm1])
       (by rw [hs1]; exact hu_lt) (by rw [hs1]) (by rw [h51]; exact ha_lt)
       (by rw [hs1, h51]; exact hr7_1)
-  rw [h51] at hstop_ex hnm_ex
-  rw [hs1] at hnm_ex
+  simp only [h51, hs1] at hstop_ex hnm_ex
   set a := x.regs r5
   set u' := inp.trie.trie u_ex a
   have hu'_lt : u' < inp.trie.numStates := hT.trie_lt u_ex hu_ex_lt a ha_lt
   have hu_ex_maxS : u_ex < inp.maxS := lt_of_lt_of_le hu_ex_lt hT_maxS
-  have hrm := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu_ex_maxS ha_lt
   have ht_read : x₂.mem (inp.trieBase + (u_ex * inp.alphabetSize + a)) = u' := by
     rw [hm2, hm1, ← Nat.add_assoc]; exact hM.trie_cell u_ex hu_ex_maxS a ha_lt
-  have hf_m : Fits w (u_ex * inp.alphabetSize) := fits_of_le_outBase hw (by omega)
-  have hf_a : Fits w (u_ex * inp.alphabetSize + a) := fits_of_le_outBase hw (by omega)
-  have hf_t : Fits w (inp.trieBase + (u_ex * inp.alphabetSize + a)) :=
-    fits_of_le_outBase hw (by omega)
+  obtain ⟨hf_m, hf_a, hf_t⟩ := fits_matrix_cell (base := inp.trieBase) hw hu_ex_maxS ha_lt (by lia)
   obtain ⟨y, he_fin, hsy, h1y, h2y, h3y, h5y, hmy⟩ :
       ∃ y, ExecWithin w (ram[
         r6 ← rState * sigma; r6 ← r6 + r5; r6 ← trieBase + r6; rState ← *r6 ]) x₂ y 4 ∧
@@ -202,26 +188,20 @@ theorem exec_stepCode (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     WP.exists_execWithin <| by
       wram_exec [hL₂.h_sigma, hL₂.h_trieBase, hs2, h52, h51, ht_read, hf_m, hf_a, hf_t]
       exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
-  have hLy := hL₂.of_preserves he_fin
-  have hu'_props :
+  obtain ⟨hu'_str, hu'_depth⟩ :
       inp.trie.strOf u' = nextMove inp.patterns (inp.trie.strOf u_ex) a ∧
         inp.trie.depth u' ≤ inp.trie.depth u_ex + 1 := by
     rcases hT.trie_spec u_ex hu_ex_lt a ha_lt with h0 | ⟨_, hstr⟩
     · obtain rfl : u_ex = 0 := by omega
-      have hnot_node : ¬IsNode inp.patterns ([] ++ [a]) := fun his => by
-        have := (hchar 0 hT.one_le a ha_lt).1 (by rwa [hT.str_zero])
-        omega
-      rw [show u' = 0 from h0, hT.str_zero, hT.depth_zero,
-        nextMove_of_not_isNode_of_eq_nil hnot_node rfl]
-      exact ⟨rfl, Nat.zero_le _⟩
-    · have hnode_u' : IsNode inp.patterns (inp.trie.strOf u_ex ++ [a]) := by
-        rw [← hstr]; exact hnode u' hu'_lt
-      refine ⟨hstr.trans (nextMove_of_isNode hnode_u').symm, ?_⟩
+      have hnot_node : ¬IsNode inp.patterns ([] ++ [a]) := fun his =>
+        absurd ((hchar 0 hT.one_le a ha_lt).1 (by rwa [hT.str_zero])) (by omega)
+      simp only [u', h0, hT.str_zero, hT.depth_zero,
+        nextMove_of_not_isNode_of_eq_nil hnot_node rfl, Nat.zero_le, and_self]
+    · refine ⟨hstr.trans (nextMove_of_isNode (hstr ▸ hnode u' hu'_lt)).symm, ?_⟩
       rw [hT.depth_eq u' hu'_lt, hstr, List.length_append, List.length_singleton,
         ← hT.depth_eq u_ex hu_ex_lt]
-  refine ⟨y, u', hu'_lt,
-    (he_c0.seq (he_fl.seq he_fin)).mono (by have := hu'_props.2; omega),
-    hLy, hmy.trans (hm2.trans hm1), hsy, hu'_props.1.trans hnm_ex, by have := hu'_props.2; omega,
+  exact ⟨y, u', hu'_lt, (he_c0.seq (he_fl.seq he_fin)).mono (by omega),
+    hL₂.of_preserves he_fin, hmy.trans (hm2.trans hm1), hsy, hu'_str.trans hnm_ex, by omega,
     h1y.trans (h12.trans h11), h2y.trans (h22.trans h21),
     h3y.trans (h32.trans h31), h5y.trans (h52.trans h51)⟩
 

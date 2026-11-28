@@ -88,11 +88,9 @@ theorem transportRows_project (g : OccurrenceLabeling F Bool) (vs : List ℕ)
   rw [get_transportRows_old]
   split
   next hp =>
-    have he := List.isEmpty_iff.mp hp
-    have hl : (localTuple g i).length = F[i.val].scope.length := by simp [localTuple]
-    simp only [he, outsidePositions, List.contains_nil, Bool.not_false, List.filter_true,
-      project, List.append_nil]
-    rw [← hl, List.map_getD_range]
+    have hlen : F[i.val].scope.length = (localTuple g i).length := by simp [localTuple]
+    simp only [List.isEmpty_iff.mp hp, outsidePositions, List.contains_nil, Bool.not_false,
+      List.filter_true, project, List.append_nil, hlen, List.map_getD_range]
   · rfl
 
 /-- Arbitrarily changed outside values survive the actual positional transport. -/
@@ -117,10 +115,8 @@ theorem scope_constraint_touched (f : OccurrenceLabeling F Bool) (vs : List ℕ)
     (constraint f vs i).scope =
       (outsidePositions F[i.val].scope.length (positions vs F[i.val].scope)).map
         (fun j => F[i.val].scope.getD j 0) ++ [connector F i] := by
-  have hp : (positions vs F[i.val].scope).isEmpty = false := by
-    simpa only [List.isEmpty_eq_false_iff] using (mem_touched vs i).mp hi
-  rw [scope_constraint, ← outsideScope_eq_filter]
-  simp only [hp, Bool.false_eq_true, ↓reduceIte]
+  have hp := List.isEmpty_eq_false_iff.mpr ((mem_touched vs i).mp hi)
+  simp only [scope_constraint, ← outsideScope_eq_filter, hp, Bool.false_eq_true, ↓reduceIte]
 
 /-- The new terminal port of a touched original constraint. -/
 @[expose] def connectorPort (f : OccurrenceLabeling F Bool) (vs : List ℕ)
@@ -149,12 +145,9 @@ theorem transport_connectorPort (f g : OccurrenceLabeling F Bool) (vs : List ℕ
     (bits : Fin F.length → Bool) (central : List Bool) (i : Fin F.length)
     (hi : i ∈ touched F vs) :
     transport f vs g bits central (connectorPort f vs i hi) = bits i := by
-  have hp : (positions vs F[i.val].scope).isEmpty = false := by
-    simpa only [List.isEmpty_eq_false_iff] using (mem_touched vs i).mp hi
-  change ((transportRows g vs bits central).getD i.val []).getD
-    (outsidePositions F[i.val].scope.length (positions vs F[i.val].scope)).length false = bits i
-  rw [transportRows_project]
-  simp only [hp, Bool.false_eq_true, ↓reduceIte]
+  have hp := List.isEmpty_eq_false_iff.mpr ((mem_touched vs i).mp hi)
+  dsimp only [transport, labels, connectorPort]
+  simp only [transportRows_project, hp, Bool.false_eq_true, ↓reduceIte]
   rw [List.getD_append_right _ _ _ _ (by simp [project])]
   simp [project]
 
@@ -174,12 +167,12 @@ theorem transport_centralPort (f g : OccurrenceLabeling F Bool) (vs : List ℕ)
 /-- The central end of exactly the first connector is one. -/
 @[simp] theorem reference_centralPort (f : OccurrenceLabeling F Bool) (vs : List ℕ)
     (k : Fin (connectors F vs).length) :
-    reference f vs (centralPort f vs k) = decide (0 = k.val) := by
-  change transport f vs f (fun _ => false) (listSingle (connectors F vs).length 0)
-    (centralPort f vs k) = _
-  rw [transport_centralPort, List.getD_eq_getElem _ _ (by
-    simpa only [listSingle, List.length_map, List.length_range] using k.isLt)]
-  simp only [listSingle, List.getElem_map, List.getElem_range]
+    reference f vs (centralPort f vs k) = decide (0 = k.val) :=
+  (transport_centralPort f f vs (fun _ => false) (listSingle (connectors F vs).length 0) k).trans
+    (by
+      rw [List.getD_eq_getElem _ _ (by
+        simpa only [listSingle, List.length_map, List.length_range] using k.isLt)]
+      simp only [listSingle, List.getElem_map, List.getElem_range])
 
 private theorem eq_partner_contract_of_var_eq (hF : EdgeInstance F)
     (f : OccurrenceLabeling F Bool) (vs : List ℕ)
@@ -265,17 +258,15 @@ theorem defects_transport (hF : EdgeInstance F) (f g : OccurrenceLabeling F Bool
   simp only [mem_defects, mem_union, mem_sdiff, List.mem_toFinset]
   constructor
   · intro hv
-    have hm : v ∈ (contract f vs).vars := by
-      obtain ⟨o, _, ho, _, _⟩ := hv
-      exact ho ▸ o.var_mem
+    have ⟨o', _, ho', _, _⟩ := hv
     have hset : v ∈ (F.vars.toFinset \ vs.toFinset) ∪ (connectors F vs).toFinset := by
       rw [← vars_contract f vs]
-      exact List.mem_toFinset.mpr hm
+      exact List.mem_toFinset.mpr (ho' ▸ o'.var_mem)
     rcases mem_union.mp hset with hset | hset
     · obtain ⟨hm, hn⟩ := mem_sdiff.mp hset
       obtain ⟨o, rfl⟩ := (exists_occurrence_iff v).mpr (List.mem_toFinset.mp hm)
-      have hout : o.var ∉ vs := by simpa using hn
-      exact Or.inl ⟨(inconsistent_transport_old hF f g vs bits central o hout).mp hv, hout⟩
+      exact Or.inl ⟨(inconsistent_transport_old hF f g vs bits central o
+        (List.mem_toFinset.not.mp hn)).mp hv, List.mem_toFinset.not.mp hn⟩
     · obtain ⟨i, hi, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hset)
       obtain ⟨k, hk, he⟩ := List.mem_iff_getElem.mp hi
       have hd := (inconsistent_transport_connector hF f g vs bits central ⟨k, hk⟩).mp (he ▸ hv)
@@ -301,11 +292,8 @@ theorem connectorDefects_zero (vs : List ℕ) (hne : touched F vs ≠ []) :
   ext v
   simp only [connectorDefects, List.mem_toFinset, List.mem_map, List.mem_filter,
     List.mem_finRange, true_and, hpred, mem_singleton]
-  constructor
-  · rintro ⟨⟨_, _⟩, rfl, he⟩
-    simpa only [baseConnector, List.getElem_zero] using he.symm
-  · rintro rfl
-    exact ⟨⟨0, hpos⟩, rfl, by simp only [baseConnector, List.getElem_zero]⟩
+  exact ⟨fun ⟨⟨_, _⟩, rfl, he⟩ => by simpa only [baseConnector, List.getElem_zero] using he.symm,
+    fun h => ⟨⟨0, hpos⟩, rfl, h ▸ congrArg (connector F) (List.getElem_zero hpos)⟩⟩
 
 /-- General zero-connector transport deletes the old internal defects and inserts exactly one
 fresh connector defect, even when every outside value has changed. -/

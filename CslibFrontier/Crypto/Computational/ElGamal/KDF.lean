@@ -246,8 +246,7 @@ theorem DDH.withSeed {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
     {seedLen : ℕ → F.Desc → ℕ} (hDDH : F.DDH setup)
     (hseed : ComputableInPolyTime (fun p : ℕ × F.Desc => seedLen p.1 p.2)
       (encPair encUnary F.encDesc) encUnary) :
-    F.withSeed.DDH (F.seededSetup setup seedLen) := by
-  intro distinguisher hD
+    F.withSeed.DDH (F.seededSetup setup seedLen) := fun distinguisher hD => by
   simpa only [F.ddhRealGame_seededDDHDistinguisher, F.ddhRandomGame_seededDDHDistinguisher] using
     hDDH (F.seededDDHDistinguisher seedLen distinguisher)
       (F.isPPT_seededDDHDistinguisher hseed hD)
@@ -315,13 +314,9 @@ theorem ofFn_paddedGeneratorMultiple {bound : F.Desc → ℕ} {d : F.Desc}
 `paddedGeneratorMultiple bound d` is injective on `ZMod (F.order d)`. -/
 theorem paddedGeneratorMultiple_injective {bound : F.Desc → ℕ} {d : F.Desc}
     (hbound : ∀ x : F.Carrier d, (F.encode d x).length ≤ bound d) :
-    Function.Injective (F.paddedGeneratorMultiple bound d) := by
-  intro γ₁ γ₂ h
-  unfold paddedGeneratorMultiple at h
-  have hpad : F.encode d (γ₁ • F.generator d) = F.encode d (γ₂ • F.generator d) :=
-    Cslib.BitString.word_eq_of_paddedBits_eq
-      (hbound (γ₁ • F.generator d)) (hbound (γ₂ • F.generator d)) h
-  exact F.smul_generator_injective d (F.encode_injective d hpad)
+    Function.Injective (F.paddedGeneratorMultiple bound d) := fun _ _ h =>
+  F.smul_generator_injective d (F.encode_injective d
+    (Cslib.BitString.word_eq_of_paddedBits_eq (hbound _) (hbound _) h))
 
 /-- **Unconditional Leftover Hash Lemma bound for `linearHashKDF`** ([BonehShoup2023],
 Section 8.10.4, Theorem 8.11, p. 334, and Section 11.5.2, p. 449): for every (even computationally
@@ -384,16 +379,10 @@ theorem advantage_kdfGame_linearHashKDF_le (setup : ℕ → PMF F.Desc)
     conv_rhs => rw [PMF.bind_comm]
     congr 1 with seed : 1
     congr 1 with γ : 1
-    have hpad := F.ofFn_paddedGeneratorMultiple (hbound d hd) γ
-    have hhash :
-        F.linearHashKDF keyLen bound ((d, List.ofFn seed), F.encode d (γ • F.generator d)) =
-          List.ofFn (Cslib.BitString.LinearHash.hash
-            (Cslib.BitString.blocksEquiv (m := m) (k := W) seed)
-            (F.paddedGeneratorMultiple bound d γ)) := by
-      simp only [linearHashKDF, SeededDesc.seed, hkey d hd, ← hpad,
-        Cslib.BitString.LinearHash.wordHash_eq_ofFn,
-        Cslib.BitString.ofList_ofFn, Cslib.BitString.blocksEquiv_apply]
-    rw [hhash]
+    simp only [linearHashKDF, SeededDesc.seed, hkey d hd,
+      ← F.ofFn_paddedGeneratorMultiple (hbound d hd) γ,
+      Cslib.BitString.LinearHash.wordHash_eq_ofFn,
+      Cslib.BitString.ofList_ofFn, Cslib.BitString.blocksEquiv_apply]
   have hideal :
       (Cslib.BitString.uniformList (F.linearHashSeedLen msgLen bound n d)).bind (fun s =>
         (Cslib.BitString.uniformList m).bind fun pad =>
@@ -409,14 +398,14 @@ theorem advantage_kdfGame_linearHashKDF_le (setup : ℕ → PMF F.Desc)
     simp only [source,
       collisionProbability_map_of_injective _ _ (F.paddedGeneratorMultiple_injective (hbound d hd)),
       collisionProbability_uniform, ZMod.card]
-  have hcard : (Fintype.card (BitString m) : ℝ) = (2 : ℝ) ^ m := by
-    simp [BitString]
-  have hord_le : (F.order d : ℝ)⁻¹ ≤ (qMin : ℝ)⁻¹ :=
-    inv_anti₀ (by exact_mod_cast hq0) (by exact_mod_cast hq d hd)
   refine (dist_bind_le _ _ _).trans (hlhl.trans ?_)
+  have hcard : (Fintype.card (BitString m) : ℝ) = (2 : ℝ) ^ m := by simp [BitString]
   rw [hcard, hcoll]
   calc Real.sqrt ((2 : ℝ) ^ m * (F.order d : ℝ)⁻¹) / 2
-      ≤ Real.sqrt ((2 : ℝ) ^ m * (qMin : ℝ)⁻¹) / 2 := by gcongr
+      ≤ Real.sqrt ((2 : ℝ) ^ m * (qMin : ℝ)⁻¹) / 2 := by
+        have := inv_anti₀ (by exact_mod_cast hq0 : (0 : ℝ) < qMin)
+          (by exact_mod_cast hq d hd : (qMin : ℝ) ≤ F.order d)
+        gcongr
     _ = ↑(NNReal.sqrt ((2 : ℝ≥0) ^ m / (qMin : ℝ≥0)) / 2) := by
         push_cast
         rw [← div_eq_mul_inv]
@@ -449,10 +438,8 @@ theorem secureKDF_linearHashKDF {setup : ℕ → PMF F.Desc} {keyLen bound : F.D
     F.withSeed.SecureKDF (F.seededSetup setup (F.linearHashSeedLen msgLen bound))
       (F.linearHashKDF keyLen bound) msgLen := by
   intro distinguisher _
-  have hsqrt : Negligible fun n => NNReal.sqrt ((2 : ℝ≥0) ^ (msgLen n) / (qMin n : ℝ≥0)) / 2 := by
-    simpa only [Negligible, div_eq_inv_mul] using
-      (Negligible.sqrt h.negligible).const_mul (2⁻¹ : ℝ≥0)
-  exact negligible_of_le hsqrt fun n =>
+  refine negligible_of_le (by simpa only [Negligible, div_eq_inv_mul] using
+    (Negligible.sqrt h.negligible).const_mul (2⁻¹ : ℝ≥0)) fun n =>
     F.advantage_kdfGame_linearHashKDF_le setup keyLen bound msgLen distinguisher n (qMin n)
       (h.qMin_pos n) (h.keyLen_eq n) (h.length_encode_le n) (h.qMin_le_order n)
 
@@ -489,9 +476,8 @@ theorem exists_secureKDF_withSeed (setup : ℕ → PMF F.Desc) (k : ℕ) {qMin :
       F.withSeed.SecureKDF (F.seededSetup setup seedLen) H (fun _ => k) := by
   obtain ⟨c, e, hce⟩ := F.exists_length_encode_le
   let bound : F.Desc → ℕ := fun d => c * ((F.encDesc d).length + 1) ^ e
-  have hbound_poly : ComputableInPolyTime bound F.encDesc encUnary := by
-    dsimp only [bound]
-    fun_prop
+  have hbound_poly : ComputableInPolyTime (fun d => c * ((F.encDesc d).length + 1) ^ e)
+      F.encDesc encUnary := by fun_prop
   exact ⟨F.linearHashSeedLen (fun _ => k) bound, F.linearHashKDF (fun _ => k) bound,
     F.computableInPolyTime_linearHashSeedLen (by fun_prop) hbound_poly,
     F.computableInPolyTime_linearHashKDF (by fun_prop) hbound_poly,

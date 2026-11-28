@@ -145,8 +145,7 @@ theorem boundedWhile_stops
       StateTransitionSpec.runClient_pure'] using hs
   | succ n ih =>
     by_cases hg : guard d a
-    · simp only [whileSafe, hg, ↓reduceIte] at hs
-      simp only [boundedWhile, hg, ↓reduceIte] at hv
+    · simp only [whileSafe, boundedWhile, hg, ↓reduceIte] at hs hv
       have ht := ((validHistory_bind w (body (d, a)) (boundedWhile guard body d n) s).mp hv).2
       rw [clientResult_width w, clientState_width w] at ht
       simpa only [boundedWhile, hg, ↓reduceIte, StateTransitionSpec.clientResult,
@@ -178,17 +177,16 @@ theorem while_charge_le_potential
       StateTransitionSpec.clientState]
   | succ n ih =>
     by_cases hg : guard d a
-    · have hv' := hv
-      simp only [boundedWhile, hg, ↓reduceIte] at hv'
+    · simp only [boundedWhile, hg, ↓reduceIte] at hv
       obtain ⟨hb, ht⟩ := (validHistory_bind w (body (d, a))
-        (boundedWhile guard body d n) s).mp hv'
+        (boundedWhile guard body d n) s).mp hv
       rw [clientResult_width w, clientState_width w] at ht
       obtain ⟨hi', hp⟩ := hstep a s hi hg hb
       have hrest := ih hi' ht
       rw [while_charge_succ guard body work d n a s hg]
       simp only [boundedWhile, hg, ↓reduceIte, StateTransitionSpec.clientResult,
         StateTransitionSpec.clientState, ← PFunctor.FreeM.bind_eq_bind,
-        StateTransitionSpec.runClient_bind] at *
+        StateTransitionSpec.runClient_bind] at hp hrest ⊢
       omega
     · rw [boundedWhile_of_not guard body d (n + 1) a hg]
       simp [whileWork, hg, StateTransitionSpec.clientResult, StateTransitionSpec.clientState]
@@ -370,9 +368,7 @@ theorem With.whileBounded {B : Basis}
     obtain ⟨u, hu, hum, huo, huf⟩ := hrun w (d, q.1) y hI.bounded
       (regs_comp_append_eq_appendWords input output hI.env hI.state)
       (hI.memory ▸ hdom) (hI.memory ▸ hvalid)
-    rw [hI.memory] at hu hum huo
-    rw [clientState_width] at hum
-    simp only [clientResult_width] at huo
+    simp only [hI.memory, clientState_width w, clientResult_width w] at hu hum huo
     obtain ⟨z, hz, hzm, hzs, hzf⟩ := hcopy frontier
       (fun i : Fin l => bt (Fin.castAdd (n + 1) i)) st idle hst houtdis (fun _ => hf _) w u
     have hstep_exec := hseq (hzf frontier fun _ => hf _).symm.le hu hz
@@ -397,8 +393,7 @@ theorem With.whileBounded {B : Basis}
     | succ fuel ih =>
       intro q y hI hdom hvalid
       by_cases hg : guard d q.1
-      · simp only [whileSafe, hg, ↓reduceIte] at hdom
-        simp only [boundedWhile, hg, ↓reduceIte] at hvalid
+      · simp only [whileSafe, boundedWhile, hg, ↓reduceIte] at hdom hvalid
         obtain ⟨hb, ht⟩ := (validHistory_bind w (body (d, q.1))
           (boundedWhile guard body d fuel) q.2).mp hvalid
         rw [clientResult_width w, clientState_width w] at ht

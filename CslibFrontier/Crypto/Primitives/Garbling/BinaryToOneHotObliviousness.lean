@@ -140,9 +140,7 @@ private theorem interpret_oracleSteps {m : Type → Type*} [Monad m] [LawfulMona
         (oracleSteps H tw n x A) = pure (runSteps H tw f n x A) := by
   induction n with
   | zero => simp only [oracleSteps, OracleComp.interpret_pure, runSteps]
-  | succ n ih =>
-    simp only [oracleSteps, interp_norm, ih, pure_bind]
-    rfl
+  | succ n ih => simp [oracleSteps, interp_norm, ih, runSteps]
 
 /-- The reduction's evaluation makes one oracle query per doubling step. -/
 private theorem isQueryBounded_oracleSteps (H : L → T → L)
@@ -180,16 +178,14 @@ private theorem isCostBounded_oracleSteps_tweak [DecidableEq T] (H : L → T →
           ⟨prev.2 (Fin.init x), tw n (Fin.init x), x (Fin.last (n + 1))⟩).bind fun _ =>
         OracleComp.IsCostBounded.pure _ 0
     · by_cases h1 : ∃ s < n, ∃ j, tw s j = τ
-      · obtain ⟨s, hs, j, hst⟩ := h1
+      · have ⟨s, hs, j, hst⟩ := h1
         have h2 : tw n (Fin.init x) ≠ τ := fun h2 =>
-          absurd (htw s n j (Fin.init x) (by omega) (by omega) (hst.trans h2.symm)) (by omega)
-        simp only [show ∃ s < n, ∃ j, tw s j = τ from ⟨s, hs, j, hst⟩, h2,
-          show ∃ s < n + 1, ∃ j, tw s j = τ from ⟨s, by omega, j, hst⟩,
-          ↓reduceIte, Nat.add_zero, le_refl]
+          absurd (htw s n j _ (by omega) (by omega) (hst.trans h2.symm)) (by omega)
+        rw [ite_eq_left h1, ite_eq_right h2, ite_eq_left ⟨s, by omega, j, hst⟩]
       · by_cases h2 : tw n (Fin.init x) = τ
-        · simp only [h1, h2, show ∃ s < n + 1, ∃ j, tw s j = τ from ⟨n, by omega, Fin.init x, h2⟩,
-            ↓reduceIte, Nat.add_zero, zero_add, le_refl]
-        · simp only [h1, h2, ↓reduceIte, Nat.add_zero, Nat.zero_le]
+        · rw [ite_eq_right h1, ite_eq_left h2, ite_eq_left ⟨n, by omega, _, h2⟩]
+        · rw [ite_eq_right h1, ite_eq_right h2]
+          omega
 
 /-- Against the keyed oracle with offset `Δ`, on the labels of the bits of `x` with zero-labels
 `X`, the reduction's evaluation gives the garbled ciphertexts and the one-hot labels. -/
@@ -226,7 +222,7 @@ private theorem runSteps_oracle [Module (ZMod 2) L] (H : L → T → L)
         bitOffset Δ (x (Fin.last (n + 1)))).trans (ZModModule.add_self _))
     rw [hct]
     refine Prod.ext rfl ?_
-    simp only
+    dsimp only
     rw [evalStep_garbleStep, Fin.snoc_init_self]
     rfl
 
@@ -267,11 +263,11 @@ noncomputable def reduction (H : L → T → L) (tw : (t : ℕ) → (Fin (t + 1)
 theorem isQueryBounded_reduction (H : L → T → L) (tw : (t : ℕ) → (Fin (t + 1) → Bool) → T)
     (n : ℕ) (x : Fin (n + 1) → Bool) (D : OneHotView L n → ProbComp Bool) :
     (reduction H tw n x D).IsQueryBounded n := by
-  have h := (ProbOracleComp.IsQueryBounded.sample (spec := fun _ : CCR.Query L T => L)
-    (ProbComp.uniform (Fin (n + 1) → L))).bind fun A =>
-    (isQueryBounded_oracleSteps H tw n x A).bind fun steps =>
-    ProbOracleComp.IsQueryBounded.sample (spec := fun _ : CCR.Query L T => L) (D (A, steps.1))
-  simpa only [reduction, Nat.zero_add, Nat.add_zero] using h
+  simpa only [reduction, Nat.zero_add, Nat.add_zero] using
+    (ProbOracleComp.IsQueryBounded.sample (spec := fun _ : CCR.Query L T => L)
+      (ProbComp.uniform (Fin (n + 1) → L))).bind fun A =>
+      (isQueryBounded_oracleSteps H tw n x A).bind fun steps =>
+      ProbOracleComp.IsQueryBounded.sample (spec := fun _ : CCR.Query L T => L) (D (A, steps.1))
 
 /-- When different steps use different tweaks, the reduction makes at most one query with each
 tweak. -/

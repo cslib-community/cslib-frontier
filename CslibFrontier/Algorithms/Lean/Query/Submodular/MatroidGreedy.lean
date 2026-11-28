@@ -184,13 +184,9 @@ private theorem countInl_stepM {indep : Finset α → Bool}
         (fun T => SumQuery.liftInr (.indep T)) u S) =
       (feasibleCandidates indep u S).length := by
   simp only [submodularMatroidGreedyStepM, SumQuery.countInl_bind, countInl_filterIndepM,
-    eval_filterIndepM oracle hi, Nat.zero_add]
-  change SumQuery.countInl oracle (match feasibleCandidates indep u S with
-    | [] => pure none
-    | c₀ :: cs => _) = _
-  cases feasibleCandidates indep u S with
-  | nil => rfl
-  | cons c₀ cs => simp [countInl_scanCandidatesM, Nat.add_comm]
+    eval_filterIndepM oracle hi, Nat.zero_add, feasibleCandidates, List.filter_filter]
+  cases List.filter (fun a => indep (insert a S) && !decide (a ∈ S)) u <;>
+    simp [countInl_scanCandidatesM, Nat.add_comm]
 
 private theorem countInr_stepM {indep : Finset α → Bool}
     (hi : ∀ T, oracle (.inr (.indep T)) = indep T) (u : List α) (S : Finset α) :
@@ -199,12 +195,7 @@ private theorem countInr_stepM {indep : Finset α → Bool}
         (fun T => SumQuery.liftInr (.indep T)) u S) = (u.filter (· ∉ S)).length := by
   simp only [submodularMatroidGreedyStepM, SumQuery.countInr_bind, countInr_filterIndepM,
     eval_filterIndepM oracle hi]
-  change _ + SumQuery.countInr oracle (match feasibleCandidates indep u S with
-    | [] => pure none
-    | c₀ :: cs => _) = _
-  cases feasibleCandidates indep u S with
-  | nil => rfl
-  | cons c₀ cs => simp [countInr_scanCandidatesM]
+  split <;> simp [countInr_scanCandidatesM]
 
 omit [LinearOrder β] in
 private theorem length_filter_notMem_add_card {u : List α} (hu : u.Nodup) {S : Finset α}
@@ -255,11 +246,10 @@ theorem countInr_submodularMatroidGreedyQuery (xs : List α) :
       ∑ t ∈ Finset.range
         ((submodularMatroidGreedy (fun S => oracle (.inl (.value S)))
           (fun S => oracle (.inr (.indep S))) xs).card + 1), (xs.toFinset.card - t) := by
-  have h := countInr_loopM oracle (f := fun S => oracle (.inl (.value S)))
-    (indep := fun S => oracle (.inr (.indep S))) (fun _ => rfl) (fun _ => rfl)
-    (List.nodup_eraseDups xs) xs.eraseDups.length (Finset.empty_subset _) (by simp)
-  rw [Finset.card_empty, ← Finset.range_eq_Ico] at h
-  rwa [← List.length_eraseDups]
+  simpa only [submodularMatroidGreedyQuery, submodularMatroidGreedyM, submodularMatroidGreedy,
+    Finset.card_empty, ← Finset.range_eq_Ico, List.length_eraseDups] using
+    countInr_loopM oracle (fun _ => rfl) (fun _ => rfl) (List.nodup_eraseDups xs)
+      xs.eraseDups.length (Finset.empty_subset _) (by simp)
 
 private theorem countInl_loopM_chain {f : Finset α → β} {indep : Finset α → Bool}
     (hf : ∀ T, oracle (.inl (.value T)) = f T) (hi : ∀ T, oracle (.inr (.indep T)) = indep T)
@@ -298,11 +288,10 @@ theorem countInl_submodularMatroidGreedyQuery (xs : List α) :
         (feasibleCandidates (fun S => oracle (.inr (.indep S))) xs.eraseDups
           (submodularMatroidGreedyChain (fun S => oracle (.inl (.value S)))
             (fun S => oracle (.inr (.indep S))) xs.eraseDups t)).length := by
-  have h := countInl_loopM_chain oracle (f := fun S => oracle (.inl (.value S)))
-    (indep := fun S => oracle (.inr (.indep S))) (fun _ => rfl) (fun _ => rfl)
-    xs.eraseDups xs.eraseDups.length 0
-  simp only [Nat.zero_add] at h
-  rwa [← List.length_eraseDups]
+  simpa only [submodularMatroidGreedyQuery, submodularMatroidGreedyM,
+    submodularMatroidGreedyChain_zero, Nat.zero_add, List.length_eraseDups] using
+    countInl_loopM_chain oracle (fun _ => rfl) (fun _ => rfl) xs.eraseDups
+      xs.eraseDups.length 0
 
 private theorem countInl_le_countInr_loopM {indep : Finset α → Bool}
     {f : Finset α → β} (hf : ∀ T, oracle (.inl (.value T)) = f T)

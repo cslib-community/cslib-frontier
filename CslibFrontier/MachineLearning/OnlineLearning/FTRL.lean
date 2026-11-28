@@ -154,10 +154,7 @@ theorem ftrl_regret_eq (ψ : E → ℝ) (ℓ : ℕ → E → ℝ) (x : ℕ → E
   induction T with
   | zero => simp only [range_zero, sum_empty, ftrlObjective_zero]; ring
   | succ T ih =>
-    rw [sum_range_succ (fun t => ℓ t (x t) - ℓ t u), ih,
-      sum_range_succ (fun t => ftrlObjective ψ ℓ t (x t) -
-        ftrlObjective ψ ℓ (t + 1) (x (t + 1)) + ℓ t (x t)),
-      ftrlObjective_succ ψ ℓ T u]
+    rw [sum_range_succ, ih, sum_range_succ, ftrlObjective_succ ψ ℓ T u]
     ring
 
 /-- **Be the leader** [Hazan2022, Lemma 5.4]: playing each round's minimizer one round early
@@ -168,8 +165,7 @@ theorem IsFTRL.add_sum_le (h : IsFTRL K ψ ℓ x) {u : E} (hu : u ∈ K) (T : �
   | zero => simpa using h.objective_le 0 hu
   | succ T ih =>
     have h2 := h.objective_le (T + 1) hu
-    rw [ftrlObjective_def, ftrlObjective_def, sum_range_succ, sum_range_succ] at h2
-    rw [sum_range_succ, sum_range_succ]
+    simp only [ftrlObjective_def, sum_range_succ] at h2 ⊢
     linarith [ih (h.mem (T + 1))]
 
 /-- **Regret is at most stability** [Hazan2022, Lemma 5.3]: the regret of FTRL against `u ∈ K` is
@@ -177,9 +173,8 @@ at most `ψ u - ψ (x 0)` plus the stability terms `ℓ t (x t) - ℓ t (x (t + 
 theorem IsFTRL.regret_le_add_sum_sub (h : IsFTRL K ψ ℓ x) {u : E} (hu : u ∈ K) (T : ℕ) :
     ∑ t ∈ range T, (ℓ t (x t) - ℓ t u) ≤
       ψ u - ψ (x 0) + ∑ t ∈ range T, (ℓ t (x t) - ℓ t (x (t + 1))) := by
-  have := h.add_sum_le hu T
   rw [sum_sub_distrib, sum_sub_distrib]
-  linarith
+  linarith [h.add_sum_le hu T]
 
 /-- **Existence of FTRL runs**: on a compact nonempty `K`, with a regularizer and losses continuous
 on `K`, every round's objective has a minimizer on `K`. -/
@@ -217,10 +212,9 @@ theorem IsFTRL.stability_le (h : IsFTRL K ψ ℓ x) (hψ : StrongConvexOn K μ �
     (hL : ∀ y ∈ K, ℓ t (x t) - ℓ t y ≤ L * ‖x t - y‖) :
     ftrlObjective ψ ℓ t (x t) - ftrlObjective ψ ℓ (t + 1) (x (t + 1)) + ℓ t (x t) ≤
       L ^ 2 / (2 * μ) := by
-  have := (strongConvexOn_ftrlObjective hψ hℓ t).sub_le_of_isMinOn hμ (h.mem t) (h.isMinOn t)
-    (h.mem (t + 1)) (ℓ := ℓ t) (hL _ (h.mem (t + 1)))
   rw [ftrlObjective_succ]
-  linarith
+  linarith [(strongConvexOn_ftrlObjective hψ hℓ t).sub_le_of_isMinOn hμ (h.mem t) (h.isMinOn t)
+    (h.mem (t + 1)) (ℓ := ℓ t) (hL _ (h.mem (t + 1)))]
 
 /-- **Regret of FTRL with a strongly convex regularizer** ([Orabona2019, Lemmas 7.1 and 7.8];
 compare [Hazan2022, Theorem 5.2]). If `ψ` is `μ`-strongly convex on `K` with `μ > 0`, the losses
@@ -233,11 +227,8 @@ theorem IsFTRL.regret_le (h : IsFTRL K ψ ℓ x) (hψ : StrongConvexOn K μ ψ) 
     ∑ t ∈ range T, (ℓ t (x t) - ℓ t u) ≤
       ψ u - ψ (x 0) + ∑ t ∈ range T, L t ^ 2 / (2 * μ) := by
   rw [ftrl_regret_eq ψ ℓ x u T]
-  have hstab : ∑ t ∈ range T, (ftrlObjective ψ ℓ t (x t) -
-      ftrlObjective ψ ℓ (t + 1) (x (t + 1)) + ℓ t (x t)) ≤ ∑ t ∈ range T, L t ^ 2 / (2 * μ) :=
-    sum_le_sum fun t _ => h.stability_le hψ hμ hℓ (hL t)
-  have hlast := h.objective_le T hu
-  linarith
+  linarith [sum_le_sum fun t (_ : t ∈ range T) => h.stability_le hψ hμ hℓ (hL t),
+    h.objective_le T hu]
 
 /-- **Constant learning rate** ([Orabona2019, Corollary 7.9] with `η_t = η`): FTRL with the
 regularizer `R / η`, for a `σ`-strongly convex `R` with `σ, η > 0`, has regret at most
@@ -250,14 +241,10 @@ theorem IsFTRL.regret_le_div {R : E → ℝ} {η σ : ℝ} (h : IsFTRL K (fun y 
     ∑ t ∈ range T, (ℓ t (x t) - ℓ t u) ≤
       (R u - R (x 0)) / η + η / (2 * σ) * ∑ t ∈ range T, L t ^ 2 := by
   have hscale : StrongConvexOn K (η⁻¹ * σ) fun y => R y / η := by
-    convert hR.smul (inv_nonneg.mpr hη.le) using 1
-    ext
-    exact div_eq_inv_mul _ _
-  have hb := h.regret_le hscale (mul_pos (inv_pos.mpr hη) hσ) hℓ hL hu T
-  have e : ∑ t ∈ range T, L t ^ 2 / (2 * (η⁻¹ * σ)) = η / (2 * σ) * ∑ t ∈ range T, L t ^ 2 := by
-    rw [mul_sum]
-    exact sum_congr rfl fun _ _ => by field_simp
-  rwa [e, ← sub_div] at hb
+    simpa only [Pi.smul_def, smul_eq_mul, div_eq_inv_mul] using hR.smul (inv_nonneg.mpr hη.le)
+  rw [sub_div, mul_sum]
+  exact (h.regret_le hscale (mul_pos (inv_pos.mpr hη) hσ) hℓ hL hu T).trans_eq
+    (congrArg _ (sum_congr rfl fun _ _ => by field_simp))
 
 /-- **Tuned learning rate.** If `R` is `σ`-strongly convex on `K` with `R y - R z ≤ D ^ 2` for
 `y z ∈ K`, the losses are convex and `ℓ t (x t) - ℓ t y ≤ L * ‖x t - y‖` on `K`, then FTRL with
@@ -308,9 +295,7 @@ theorem IsFTRL.regret_le_of_subgradient {f : ℕ → E → ℝ} {g : ℕ → E �
     ∑ t ∈ range T, (f t (x t) - f t u) ≤ ψ u - ψ (x 0) + ∑ t ∈ range T, ‖g t‖ ^ 2 / (2 * μ) := by
   refine (sum_le_sum fun t _ => ?_).trans
     (h.regret_le hψ hμ (fun t => (g t).toLinearMap.convexOn hψ.1) (L := fun t => ‖g t‖)
-      (fun t y _ => by
-        rw [← map_sub]
-        exact (le_norm_self _).trans ((g t).le_opNorm _)) hu T)
+      (fun t y _ => (le_norm_self _).trans (map_sub (g t) _ _ ▸ (g t).le_opNorm _)) hu T)
   have := hsub t u hu
   rw [map_sub] at this; linarith
 
@@ -425,23 +410,21 @@ theorem lazyOGD_regret_le {f : ℕ → E → ℝ} (hne : K.Nonempty) (hc : IsCom
         η / 2 * ∑ t ∈ range T, ‖grad t (lazyOGD K η grad x₀ t)‖ ^ 2 := by
   set x := lazyOGD K η grad x₀
   have hψ : StrongConvexOn K η⁻¹ fun y => ‖y - x₀‖ ^ 2 / (2 * η) := by
-    convert strongConvexOn_mul_norm_sub_sq hK η⁻¹ x₀ using 1
-    ext
-    field_simp
+    simpa only [div_eq_mul_inv, mul_inv, mul_comm, mul_left_comm, mul_assoc] using
+      strongConvexOn_mul_norm_sub_sq hK η⁻¹ x₀
   have hb := (isFTRL_lazyOGD (grad := grad) (x₀ := x₀) hne hc hK hη).regret_le hψ
     (inv_pos.mpr hη) (fun _ => (innerₛₗ ℝ _).convexOn hK) (L := fun t => ‖grad t (x t)‖)
-    (fun t y _ => by
-      rw [← inner_sub_right]
-      exact real_inner_le_norm _ _) hu T
+    (fun t y _ => (inner_sub_right (𝕜 := ℝ) (grad t (x t)) (x t) y).symm ▸ real_inner_le_norm _ _)
+    hu T
   refine (sum_le_sum fun t _ => ?_).trans (hb.trans ?_)
   · have := hsub t (x t) (lazyOGD_mem hne hc hK t) u hu
     rw [inner_sub_right] at this; linarith
-  · have e : ∑ t ∈ range T, ‖grad t (x t)‖ ^ 2 / (2 * η⁻¹) =
+  · have h0 : 0 ≤ ‖x 0 - x₀‖ ^ 2 / (2 * η) := by positivity
+    have e : ∑ t ∈ range T, ‖grad t (x t)‖ ^ 2 / (2 * η⁻¹) =
         η / 2 * ∑ t ∈ range T, ‖grad t (x t)‖ ^ 2 := by
       rw [mul_sum]
       exact sum_congr rfl fun _ _ => by field_simp
-    rw [e]
-    linarith [show 0 ≤ ‖x 0 - x₀‖ ^ 2 / (2 * η) by positivity]
+    linarith
 
 /-- **Tuned lazy projected online gradient descent**: if the gradients satisfy the subgradient
 inequality `f t x + ⟪grad t x, y - x⟫ ≤ f t y` and have norm at most `G` on `K`, `‖u - x₀‖ ≤ D`

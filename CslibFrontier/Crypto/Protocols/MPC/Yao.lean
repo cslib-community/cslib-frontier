@@ -299,9 +299,10 @@ private theorem eval_pi_yaoSampleCoins [Fintype K] [Nonempty K] (C : Circuit σ 
     (I : Interpretation σ Bool) (F : K → T → K × Bool) (tw : Slot C.topology → T) :
     ProbComp.eval (OracleComp.pi (yaoProtocol C I F tw).sampleCoins) =
       (ProbComp.eval (sampleGarblerCoins C K)).map (yaoCoins C) := by
+  have hs1 : ProbComp.eval ((yaoProtocol C I F tw).sampleCoins (Fin.succ 0)) =
+      PMF.pure (() : YaoCoins C K (Fin.succ 0)) := rfl
   simp only [OracleComp.pi_succ, OracleComp.pi_zero, ProbComp.eval_bind, ProbComp.eval_map,
-    ProbComp.eval_pure, show ProbComp.eval ((yaoProtocol C I F tw).sampleCoins (Fin.succ 0)) =
-      PMF.pure (show YaoCoins C K (Fin.succ 0) from ()) from rfl]
+    ProbComp.eval_pure, hs1]
   erw [PMF.pure_bind]
   simp only [PMF.pure_map]
   rw [← PMF.bind_pure_comp]
@@ -340,9 +341,8 @@ private theorem evalWith_yao [Fintype K] [Nonempty K] (C : Circuit σ (n₀ + n�
   rw [Protocol.evalWith_eq, eval_pi_yaoSampleCoins]
   simp only [evalWith_yaoSteps, PMF.pure_map, PMF.bind_map]
   rw [← PMF.bind_pure_comp]
-  refine congrArg _ (funext fun c => ?_)
-  simp only [Function.comp_apply]
-  refine congrArg PMF.pure (Prod.ext rfl (funext fun i => ?_))
+  refine congrArg (PMF.bind _) (funext fun c =>
+    congrArg PMF.pure (Prod.ext rfl (funext fun i => ?_)))
   fin_cases i
   · rfl
   · exact outputOfView_yao_one C I F tw x c
@@ -636,17 +636,11 @@ private theorem evalWith_yaoBoth [Fintype K] [Nonempty K]
         (fun i => ⟨x i, yaoCoins C c i,
             yaoBothReceived C I F tw (fun i => (x i, yaoCoins C c i)) (C.eval I (yaoInput x)) i⟩,
           fun _ => C.eval I (yaoInput x)) := by
-  rw [Protocol.evalWith_eq, eval_pi_yaoBothSampleCoins, PMF.bind_map]
-  rw [← PMF.bind_pure_comp]
+  rw [Protocol.evalWith_eq, eval_pi_yaoBothSampleCoins, PMF.bind_map, ← PMF.bind_pure_comp]
   refine congrArg (PMF.bind _) (funext fun c => ?_)
   simp only [Function.comp_apply, evalWith_yaoBothSteps, PMF.pure_map]
   refine congrArg PMF.pure (Prod.ext rfl (funext fun i => ?_))
-  change ((yaoProtocol C I F tw).steps.append (yaoReturnSteps n₁ K m)).outputAt i
-      (x i, yaoCoins C c i)
-      (Schedule.Received.append (sc₁ := yaoSchedule C K)
-        (yaoReceived C I F tw (fun i => (x i, yaoCoins C c i)) i)
-        (Round.deliverMessage (C.eval I (yaoInput x)) i, ())) =
-    C.eval I (yaoInput x)
+  dsimp only [Protocol.outputOfView, yaoBothProtocol, yaoBothReceived]
   rw [Steps.outputAt_append, congrFun (outputAt_yaoSteps C I F tw x c) i,
     outputAt_yaoReturnSteps]
 
@@ -657,14 +651,12 @@ private theorem yaoBothReceived_one (C : Circuit σ (n₀ + n₁) m)
         yaoBothReceived C I F tw (fun i => (x i, yaoCoins C c i)) y 1⟩ :
         PartyView (YaoIn n₀ n₁) (YaoCoins C K) (yaoBothSchedule C K) 1) =
       evaluatorBothView C (x 1) ((garbleWith C I F tw c.key c.perm).view (yaoInput x)) := by
-  have h1 : yaoReceived C I F tw (fun i => (x i, yaoCoins C c i)) 1 =
-      (evaluatorView C (x 1) ((garbleWith C I F tw c.key c.perm).view (yaoInput x))).received :=
+  have h1 : yaoReceived C I F tw (fun i => (x i, yaoCoins C c i)) 1 = _ :=
     congrArg PartyView.received (yaoReceived_one C I F tw x c)
   have h2 : Round.deliverMessage (spec := batchOTSpec n₁ (K × Bool))
       (sender := (1 : Fin 2)) (receiver := (0 : Fin 2)) y 1 = fun h => absurd h (by decide) :=
     Round.received_message_eq_of_ne (by decide) _ _
-  refine PartyView.ext rfl rfl ?_
-  simp only [yaoBothReceived, evaluatorBothView, h1, h2]
+  exact PartyView.ext rfl rfl (by simp only [yaoBothReceived, evaluatorBothView, h1, h2])
 
 private theorem yaoBothReceived_zero (C : Circuit σ (n₀ + n₁) m)
     (I : Interpretation σ Bool) (F : K → T → K × Bool) (tw : Slot C.topology → T)
@@ -673,11 +665,9 @@ private theorem yaoBothReceived_zero (C : Circuit σ (n₀ + n₁) m)
         yaoBothReceived C I F tw (fun i => (x i, yaoCoins C c i)) y 0⟩ :
         PartyView (YaoIn n₀ n₁) (YaoCoins C K) (yaoBothSchedule C K) 0) =
       garblerBothView C (x 0) c y := by
-  have h0 : yaoReceived C I F tw (fun i => (x i, yaoCoins C c i)) 0 =
-      (garblerView C (x 0) c).received :=
+  have h0 : yaoReceived C I F tw (fun i => (x i, yaoCoins C c i)) 0 = _ :=
     congrArg PartyView.received (yaoReceived_zero C I F tw x c)
-  refine PartyView.ext rfl rfl ?_
-  simp only [yaoBothReceived, garblerBothView, h0]
+  exact PartyView.ext rfl rfl (by simp only [yaoBothReceived, garblerBothView, h0])
 
 /-- **Correctness of two-output Yao's protocol**: in every run both the garbler and the evaluator
 output `C.eval I (Fin.append x₀ x₁)`. -/

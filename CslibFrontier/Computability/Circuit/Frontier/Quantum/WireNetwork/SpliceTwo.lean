@@ -114,21 +114,12 @@ private theorem ncard_incidence_spliceTwo_inr {V E V_add E_int W : Type} [Decida
   have hfin₀ : S₀.Finite := by dsimp only [S₀]; split_ifs <;> simp
   have hfin₁ : S₁.Finite := by dsimp only [S₁]; split_ifs <;> simp
   have hfin_int : S_int.Finite := (toFinite _).image _
-  have hd₀ : Disjoint S₀ (S₁ ∪ S_int) := Set.disjoint_left.mpr fun x hx0 hx12 => by
-    dsimp only [S₀, S₁, S_int] at hx0 hx12
-    split_ifs at hx0
-    · rcases hx0 with rfl | rfl
-      · rcases hx12 with hx1 | ⟨_, _, h⟩
-        · split_ifs at hx1 <;> simp at hx1
-        · cases h
-      · rcases hx12 with hx1 | ⟨_, _, h⟩
-        · split_ifs at hx1 <;> simp [hq_ne] at hx1
-        · cases h
-    · exact hx0
-  have hd₁ : Disjoint S₁ S_int := Set.disjoint_left.mpr fun _ hx1 ⟨_, _, h⟩ => by
-    subst h
-    dsimp only [S₁] at hx1
-    split_ifs at hx1 <;> simp at hx1
+  have hd₀ : Disjoint S₀ (S₁ ∪ S_int) := by
+    dsimp only [S₀, S₁]
+    split_ifs <;> simp [S_int, hq_ne.symm]
+  have hd₁ : Disjoint S₁ S_int := by
+    dsimp only [S₁]
+    split_ifs <;> simp [S_int]
   have hc₀ : S₀.ncard = if v = v₀ then 2 else 0 := by
     by_cases hv : v = v₀ <;> simp [S₀, hv]
   have hc₁ : S₁.ncard = if v = v₁ then 2 else 0 := by

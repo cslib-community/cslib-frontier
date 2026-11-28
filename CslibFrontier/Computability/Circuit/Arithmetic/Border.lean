@@ -101,10 +101,8 @@ theorem ApproximatedWithin.of_isAffineProjection {P : MvPolynomial σ K} {Q : Mv
     ApproximatedWithin P (5 * s) := by
   obtain ⟨ρ, hρ, rfl⟩ := h
   obtain ⟨Q', hQ', hc⟩ := hQ
-  have hA : ∀ i, IsAffine (map (HahnSeries.C : K →+* K⸨X⸩) (ρ i)) := fun i => (hρ i).map_C
-  have hP : IsAffineProjection (aeval (fun i => map (HahnSeries.C : K →+* K⸨X⸩) (ρ i)) Q') Q' :=
-    ⟨_, hA, rfl⟩
-  refine ⟨_, ?_, ComputedWithin.of_isAffineProjection hc hP⟩
+  refine ⟨_, ?_, ComputedWithin.of_isAffineProjection hc
+    ⟨_, fun i => (hρ i).map_C, rfl⟩⟩
   intro d i hi
   classical
   have hsub : Q.support ⊆ Q'.support := fun b hb => mem_support_iff.2 fun h0 =>
@@ -261,11 +259,9 @@ private theorem ordGe_trace_sub (p : Program (arithSignature K⸨X⸩) n g) {B T
     cases hw : (p.lines k).wires a with
     | input i => simp only [wireIndex, Nat.cast_zero, mul_zero, sub_zero]; nlinarith
     | gate j =>
-      have := p.lt_of_lines_wires_eq_gate k a j hw
-      have : ((j : ℕ) + 1 : ℤ) ≤ k := by exact_mod_cast this
+      have : ((j : ℕ) + 1 : ℤ) ≤ k := mod_cast p.lt_of_lines_wires_eq_gate k a j hw
       simp only [wireIndex]
-      push_cast
-      nlinarith
+      push_cast; nlinarith
   have hkg : (k : ℤ) < g := by exact_mod_cast k.isLt
   rw [p.trace_gate, p.trace_gate]
   generalize p.lines k = line at hk
@@ -317,9 +313,7 @@ theorem ApproximatedWithin.exists_laurentPolynomial {P : MvPolynomial σ K} {s :
           c.program.trace I X (c.outputs 0)) := by
     rw [Circuit.polynomial_mapOp, Circuit.map_eval_arith]
     refine Eq.trans ?_ (add_sub_cancel (c.program.trace I X (c.outputs 0)) _).symm
-    have hX : (map LaurentPolynomial.toLaurentSeries ∘ X : Fin n → MvPolynomial (Fin n) K⸨X⸩) = X :=
-      funext fun a => map_X _ _
-    rw [hX]
+    simp only [Function.comp_def, map_X]
     exact congrArg (fun f => c.eval (arithInterpretationWith _ f) X 0) (funext fun a => map_C _ _)
   have hbound : (1 : ℤ) ≤ T - B₀ * wireIndex (c.outputs 0) := by
     cases c.outputs 0 with

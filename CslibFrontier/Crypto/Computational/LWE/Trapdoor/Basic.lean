@@ -168,13 +168,8 @@ theorem trapdoorTransform_map_intCast (w : ℕ) [DecidableEq ι]
     (R : _root_.Matrix μ (ι × Fin w) ℤ) :
     (trapdoorTransform R).map (Int.cast : ℤ → ZMod (2 ^ w)) =
       _root_.Matrix.fromRows (R.map Int.cast) 1 := by
-  rw [trapdoorTransform, _root_.Matrix.fromRows_map]
-  congr 1
-  ext p q
-  by_cases hpq : p = q
-  · subst hpq
-    simp
-  · simp [_root_.Matrix.one_apply_ne hpq]
+  rw [trapdoorTransform, _root_.Matrix.fromRows_map,
+    _root_.Matrix.map_one _ Int.cast_zero Int.cast_one]
 
 /-- Unrestricted tag equation: `[Abar | H * G - Abar * R] * [R; I] = H * G` modulo `2 ^ w` for any
 `Abar`, `R`, and `H` ([MicciancioPeikert2012], Section 5.2, Algorithm 1). -/
@@ -549,8 +544,7 @@ and `2 * |e k| < 2 ^ w`, `invertLWE` recovers the exact pair `(s, e)`. -/
   congr 1
   funext k
   have hk := he k
-  rw [show trapdoorLWE w (taggedMatrix w Abar R H) s e k - (s ᵥ* taggedMatrix w Abar R H) k =
-    (e k : ZMod (2 ^ w)) by simp [trapdoorLWE]]
+  simp only [trapdoorLWE, Pi.add_apply, Function.comp_apply, add_sub_cancel_left]
   exact (ZMod.valMinAbs_spec _ _).mpr ⟨rfl, by omega, by omega⟩
 
 /-- Infinity-norm analogue of the first claim of [MicciancioPeikert2012], Theorem 5.4:

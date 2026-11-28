@@ -142,11 +142,11 @@ theorem toOuterMeasure_first_mem (S : Finset β) (hS : S.Nonempty) (R : Set β)
     exact congrArg card (filter_congr fun σ _ => ⟨And.right, fun h => ⟨h ▸ hb, h⟩⟩)
   have hall := hfib S Subset.rfl
   rw [filter_true_of_mem fun σ _ => first_mem σ hS, card_univ] at hall
-  rw [PMF.toOuterMeasure_uniformOfFintype_toReal, hall]
-  have hR := hfib (S.filter (· ∈ R)) (filter_subset _ _)
-  rw [show (univ.filter fun σ : Enumeration β => σ ∈ {σ | first σ S hS ∈ R}) =
-      univ.filter fun σ => first σ S hS ∈ S.filter (· ∈ R) from
-    Finset.ext fun σ => by simp [first_mem], hR]
+  have hfilter : (univ.filter fun σ : Enumeration β => σ ∈ {σ | first σ S hS ∈ R}) =
+      univ.filter fun σ => first σ S hS ∈ S.filter (· ∈ R) :=
+    Finset.ext fun σ => by simp [first_mem]
+  rw [PMF.toOuterMeasure_uniformOfFintype_toReal, hall, hfilter,
+    hfib (S.filter (· ∈ R)) (filter_subset _ _)]
   have hF : (F : ℝ) ≠ 0 :=
     Nat.cast_ne_zero.2 (Nat.pos_of_mul_pos_left (hall ▸ Fintype.card_pos : 0 < #S * F)).ne'
   push_cast
@@ -183,8 +183,7 @@ theorem toPMF_apply (P : GridDist α L) (x : α) : P.toPMF x = P.count x / L := 
 omit [DecidableEq α] in
 theorem toPMF_apply_toReal (P : GridDist α L) (x : α) :
     (P.toPMF x).toReal = P.count x / L := by
-  rw [toPMF_apply, ENNReal.toReal_div]
-  simp
+  simp [toPMF_apply, ENNReal.toReal_div]
 
 omit [DecidableEq α] [NeZero L] in
 theorem count_le (P : GridDist α L) (x : α) : P.count x ≤ L :=
@@ -236,8 +235,8 @@ theorem map_gridSample (P : GridDist α L) :
     ← ENNReal.ofReal_toReal (PMF.toOuterMeasure_ne_top _ _),
     ← ENNReal.ofReal_toReal (PMF.apply_ne_top _ x)]
   congr 1
-  rw [show gridSample P ⁻¹' {x} = {σ | first σ _ (cells_nonempty P) ∈ {p | p.1 = x}} from rfl,
-    toOuterMeasure_first_mem _ (cells_nonempty P) {p | p.1 = x}]
+  have hpre : gridSample P ⁻¹' {x} = {σ | first σ _ (cells_nonempty P) ∈ {p | p.1 = x}} := rfl
+  rw [hpre, toOuterMeasure_first_mem _ (cells_nonempty P) {p | p.1 = x}]
   simp only [Set.mem_ofPred_eq]
   rw [card_cells_filter_fst, min_eq_right (P.count_le x), card_cells _ P.count_le,
     P.sum_count, GridDist.toPMF_apply_toReal]
@@ -271,22 +270,16 @@ theorem gridSample_disagree_le (P Q : GridDist α L) :
       (Nat.cast_nonneg L)]
     have hL0 : (L : ℝ) ≠ 0 := Nat.cast_ne_zero.2 (NeZero.ne L)
     field_simp
-  have hA : (#A : ℝ) = L := by rw [card_cells _ P.count_le, P.sum_count]
-  have hB : (#B : ℝ) = L := by rw [card_cells _ Q.count_le, Q.sum_count]
   have hcard : (#((A ∪ B).filter fun p => p ∉ A ∩ B) : ℝ) = #(A ∪ B) - #(A ∩ B) := by
-    rw [filter_not, card_sdiff_of_subset (filter_subset _ _), Nat.cast_sub (card_le_card
-      (filter_subset _ _))]
-    congr 3
-    ext p
-    simp only [mem_filter, mem_union, mem_inter]
-    tauto
-  have hunion : (#(A ∪ B) : ℝ) = 2 * L - #(A ∩ B) := by
-    have h' : (#(A ∪ B) + #(A ∩ B) : ℝ) = #A + #B := mod_cast card_union_add_card_inter A B
-    linarith
+    rw [filter_not, filter_mem_eq_inter, inter_eq_right.2 inter_subset_union,
+      card_sdiff_of_subset inter_subset_union, Nat.cast_sub (card_le_card inter_subset_union)]
+  have hunion : (#(A ∪ B) + #(A ∩ B) : ℝ) = 2 * L := by
+    exact_mod_cast (card_union_add_card_inter A B).trans
+      (by rw [card_cells _ P.count_le, P.sum_count, card_cells _ Q.count_le, Q.sum_count, two_mul])
   have hL : (0 : ℝ) < L := Nat.cast_pos.2 (Nat.pos_of_ne_zero (NeZero.ne L))
   have hd := dist_nonneg (x := P.toPMF) (y := Q.toPMF)
   have hd1 := Cslib.Probability.PMF.dist_le_one P.toPMF Q.toPMF
-  rw [hcard, hunion, hI, div_le_iff₀ (by nlinarith)]
+  rw [hcard, eq_sub_of_add_eq hunion, hI, div_le_iff₀ (by nlinarith)]
   nlinarith
 
 end Grid

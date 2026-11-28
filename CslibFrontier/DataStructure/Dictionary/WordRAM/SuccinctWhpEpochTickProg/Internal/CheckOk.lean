@@ -75,22 +75,14 @@ theorem epochTickWillSucceed_fastInsert {c U V n_max : ℕ} {θ : SeedWhp c U n_
     epochTickWillSucceed n_max fs1 = epochTickWillSucceed n_max fs := by
   unfold fastInsert fastInsertAlloc fastInsertFresh at hins
   dsimp only at hins
-  cases hfl : fastFindLoc c U n_max θ fs u with
-  | some loc =>
-    rw [hfl] at hins
-    injection hins with hfs1
-    rw [← hfs1, overmarsStep_epochTickWillSucceed]
-    rfl
-  | none =>
-    rw [hfl] at hins
-    dsimp only at hins
-    have hne : 1 - fs.curEp ≠ fs.curEp := by
+  cases hfl : fastFindLoc c U n_max θ fs u <;> rw [hfl] at hins
+  · have hne : 1 - fs.curEp ≠ fs.curEp := by
       rcases hv.curEp_or with h01 | h01 <;> simp [h01]
-    split_ifs at hins <;>
-      · injection hins with hfs1
-        rw [← hfs1, overmarsStep_epochTickWillSucceed]
-        exact epochTickWillSucceed_eq_of_fields rfl rfl rfl
-          (by first | exact Function.update_of_ne hne _ _ | rfl)
+    split_ifs at hins <;> obtain ⟨rfl⟩ := hins <;>
+      exact (overmarsStep_epochTickWillSucceed θ _).trans
+        (epochTickWillSucceed_eq_of_fields rfl rfl rfl
+          (by first | exact Function.update_of_ne hne _ _ | rfl))
+  · exact Option.some.inj hins ▸ overmarsStep_epochTickWillSucceed θ _
 
 private theorem buf_oldEp_ite_locState {α : Type*} {fs : FastState}
     (hce_or : fs.curEp = 0 ∨ fs.curEp = 1) {s : ℕ}
@@ -99,23 +91,9 @@ private theorem buf_oldEp_ite_locState {α : Type*} {fs : FastState}
     (if s = 2 then Function.update buf 0 b2
      else if s = 3 then Function.update buf 1 b3
      else buf) fs.oldEp = buf fs.oldEp := by
-  rcases hce_or with hce | hce
-  · have ho : fs.oldEp = 1 := by
-      unfold FastState.oldEp
-      omega
-    rw [ho]
-    split_ifs with h2 h3
-    · exact Function.update_of_ne (by decide) _ _
-    · exact absurd h3 (h1 ho)
-    · rfl
-  · have ho : fs.oldEp = 0 := by
-      unfold FastState.oldEp
-      omega
-    rw [ho]
-    split_ifs with h2 h3
-    · exact absurd h2 (h0 ho)
-    · exact Function.update_of_ne (by decide) _ _
-    · rfl
+  rcases hce_or with hce | hce <;> simp only [FastState.oldEp, hce] at h1 h0 ⊢
+  all_goals
+    split_ifs <;> first | rfl | exact absurd ‹_› (h1 trivial) | exact absurd ‹_› (h0 trivial)
 
 /-- `fastDelete` preserves `epochTickWillSucceed`. -/
 theorem epochTickWillSucceed_fastDelete {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
@@ -138,39 +116,32 @@ theorem epochTickWillSucceed_fastDelete {c U V n_max : ℕ} {θ : SeedWhp c U n_
           fs.dirtyBuckets fs.dirtyIdx = b ∧ fs.rebCandSalt < sMaxWhp c n_max ∧
           fs.rebCollision = 0)) fs1
       else fs1
-    have hclk2 :
-        (fastDeleteShrink n_max b (fs.bktCount b - 1) fs2).epochClock = fs.epochClock := by
-      dsimp only [fastDeleteShrink, fs2, fs1]; split_ifs <;> rfl
-    have hstg2 : (fastDeleteShrink n_max b (fs.bktCount b - 1) fs2).rebStage = fs.rebStage := by
-      dsimp only [fastDeleteShrink, fs2, fs1]; split_ifs <;> rfl
+    obtain ⟨hclk2, hstg2, hce2⟩ :
+        (fastDeleteShrink n_max b (fs.bktCount b - 1) fs2).epochClock = fs.epochClock ∧
+        (fastDeleteShrink n_max b (fs.bktCount b - 1) fs2).rebStage = fs.rebStage ∧
+        (fastDeleteShrink n_max b (fs.bktCount b - 1) fs2).curEp = fs.curEp := by
+      dsimp only [fastDeleteShrink, fs2, fs1]
+      split_ifs <;> exact ⟨rfl, rfl, rfl⟩
     by_cases hs4 : fs.rebStage = 4
     · have hbo := hv.bufOld_valid
       rw [ite_eq_right (by omega : ¬(fs.rebStage ≤ 3)), ite_eq_left hs4] at hbo
       obtain ⟨hno_old, _, _⟩ := hbo
-      have hrem_buf : fs1.buf fs.oldEp = fs.buf fs.oldEp := by
-        have hne_d := hno_old b hb loc_del hspec.1
-        exact buf_oldEp_ite_locState hv.curEp_or
-          (fun ho => by rwa [ho] at hne_d)
-          (fun ho => by rwa [ho] at hne_d) _ _ _
+      have hrem_buf : fs1.buf fs.oldEp = fs.buf fs.oldEp :=
+        buf_oldEp_ite_locState hv.curEp_or
+          (fun ho => by simpa [ho] using hno_old b hb loc_del hspec.1)
+          (fun ho => by simpa [ho] using hno_old b hb loc_del hspec.1) _ _ _
       have hmv_buf : fs2.buf fs.oldEp = fs.buf fs.oldEp := by
         dsimp only [fs2]
         split_ifs with hlt_l
         · have hne_l := hno_old b hb (fs.bktCount b - 1) (by omega)
-          have hls1 : fs1.locState = fs.locState := rfl
           dsimp only [fastDeleteMoveLast]
-          rw [hls1]
           exact (buf_oldEp_ite_locState hv.curEp_or
             (fun ho => by rwa [ho] at hne_l)
             (fun ho => by rwa [ho] at hne_l) _ _ _).trans hrem_buf
         · exact hrem_buf
-      have hce2 : (fastDeleteShrink n_max b (fs.bktCount b - 1) fs2).curEp = fs.curEp := by
-        dsimp only [fastDeleteShrink, fs2, fs1]; split_ifs <;> rfl
-      have hold2 : (fastDeleteShrink n_max b (fs.bktCount b - 1) fs2).oldEp = fs.oldEp := by
-        unfold FastState.oldEp; rw [hce2]
-      exact epochTickWillSucceed_eq_of_fields hclk2 hstg2 hce2 (by rw [hold2]; exact hmv_buf)
-    · unfold epochTickWillSucceed
-      rw [hclk2, hstg2]
-      simp [hs4]
+      refine epochTickWillSucceed_eq_of_fields hclk2 hstg2 hce2 ?_
+      rwa [FastState.oldEp, hce2]
+    · simp [epochTickWillSucceed, hclk2, hstg2, hs4]
 
 /-- Read-only `O(1)` check returning `1` iff `epochTickWillSucceed n_max fs = true`
 (`d = (cp, base)`). -/
@@ -225,23 +196,19 @@ theorem realizes_checkEpochTickOkGen :
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
     have hh := fastMemHdrs hrep
-    have h2w := henv.two_le_w
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have hq_lt := (large_bounds_lt_n_max hth).2.2.2.2.2.2.1
-    obtain ⟨hck_st, hck_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrEpochClock)
-      (by dsimp [hdrEpochClock]; omega) (s := s)
-    obtain ⟨hst_st, hst_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebStage)
-      (by dsimp [hdrRebStage]; omega) (s := s)
+    have hhdr (off) (hoff : base + off < base + largeSpaceWhp c U V w n_max) :=
+      readHdrProg_spec (w := w) (F := base + largeSpaceWhp c U V w n_max) (base := base)
+        (hdrOff := off) hoff (s := s)
+    obtain ⟨hck_st, hck_res, _, _⟩ := hhdr hdrEpochClock (by dsimp [hdrEpochClock]; omega)
+    obtain ⟨hst_st, hst_res, _, _⟩ := hhdr hdrRebStage (by dsimp [hdrRebStage]; omega)
     obtain ⟨hro_st, hro_res, _, _⟩ := readOldEpProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max) (by dsimp [hdrCurEp]; omega) hce_or
       hh.curEp (s := s)
-    rw [hh.epochClock] at hck_res
-    rw [hh.rebStage] at hst_res
-    simp only [hck_st, hck_res, hst_st, hst_res, hro_st, hro_res] at *
+    simp only [hck_st, hck_res, hst_st, hst_res, hro_st, hro_res, hh.epochClock, hh.rebStage] at *
     first
-    | exact h2w
+    | exact henv.two_le_w
     | exact henv.2.1
     | exact henv.fits_const (by decide)
     | exact henv.fits_hdr_addr (by dsimp [hdrEpochClock, hdrRebStage, hdrCurEp]; omega)
@@ -262,12 +229,11 @@ theorem checkEpochTickOkGenProg_spec {c U V w n_max base : ℕ}
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
   have hth := henv.2.2.2.1
   have hh := fastMemHdrs hrep
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   have hold_or : fs.oldEp = 0 ∨ fs.oldEp = 1 := by
     rcases hce_or with h01 | h01 <;> simp [FastState.oldEp, h01]
-  obtain ⟨hck_st, hck_res, hck_mc, hck_vp⟩ := readHdrProg_spec (w := w)
-    (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrEpochClock)
-    (by dsimp [hdrEpochClock]; omega) (s := s)
+  obtain ⟨hck_st, hck_res, hck_mc, hck_vp⟩ := readHdrProg_large_spec c U V w n_max
+    (base := base) (hdrOff := hdrEpochClock) (s := s) (by decide)
   rw [hh.epochClock] at hck_res
   let Spec (n : ℕ) (q : Memory.Prog ℕ) (r : ℕ) : Prop :=
     (Memory.spec 0).clientState s q = s ∧
@@ -283,30 +249,23 @@ theorem checkEpochTickOkGenProg_spec {c U V w n_max base : ℕ}
       (hvp : ValidProg w (base + largeSpaceWhp c U V w n_max) s p)
       (hn : c₁ + c₂ ≤ n) {k : α → Memory.Prog ℕ} (hk : Spec c₂ (k v) r) :
       Spec n (p >>= k) r := by
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · rw [clientState_bind, hst, hres, hk.1]
-    · rw [clientResult_bind, hst, hres, hk.2.1]
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hst, hres]
-      exact (Nat.add_le_add hmc hk.2.2.1).trans hn
-    · refine validProg_bind hvp ?_
-      rw [hst, hres]
-      exact hk.2.2.2
+    refine ⟨by rw [clientState_bind, hst, hres, hk.1],
+      by rw [clientResult_bind, hst, hres, hk.2.1], ?_,
+      validProg_bind hvp (by simpa only [hst, hres] using hk.2.2.2)⟩
+    simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, hres]
+    exact (Nat.add_le_add hmc hk.2.2.1).trans hn
   dsimp only
   change Spec 5 _ _
   unfold checkEpochTickOkGenProg
   simp only [pure_bind, wp_large_qEpoch hth]
   unfold epochTickWillSucceed
+  refine step hck_st hck_res (by omega) hck_vp (c₁ := 1) (c₂ := 4) (by omega) ?_
   by_cases hlt : fs.epochClock + 1 < qEpochWhp n_max
-  · rw [decide_eq_true (Or.inl hlt)]
-    refine step hck_st hck_res (by omega) hck_vp (c₁ := 1) (c₂ := 0) (by omega) ?_
-    rw [ite_eq_left hlt]
-    exact hpure 0 1
-  · obtain ⟨hst_st, hst_res, hst_mc, hst_vp⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebStage)
-      (by dsimp [hdrRebStage]; omega) (s := s)
+  · rw [decide_eq_true (Or.inl hlt), ite_eq_left hlt]
+    exact hpure 4 1
+  · obtain ⟨hst_st, hst_res, hst_mc, hst_vp⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrRebStage) (s := s) (by decide)
     rw [hh.rebStage] at hst_res
-    refine step hck_st hck_res (by omega) hck_vp (c₁ := 1) (c₂ := 4) (by omega) ?_
     rw [ite_eq_right hlt]
     refine step hst_st hst_res (by omega) hst_vp (c₁ := 1) (c₂ := 3) (by omega) ?_
     by_cases hs5 : fs.rebStage = 5
@@ -326,11 +285,9 @@ theorem checkEpochTickOkGenProg_spec {c U V w n_max base : ℕ}
         by_cases h8 : (fs.buf fs.oldEp).nodeAlloc ≤ 8
         · rw [decide_eq_true (Or.inr (Or.inr ⟨hs4, h8⟩)), ite_eq_left h8]
           exact hpure 0 1
-        · rw [decide_eq_false (fun h => by rcases h with h1 | h2 | ⟨_, h3⟩ <;> omega),
-            ite_eq_right h8]
+        · rw [decide_eq_false (by omega), ite_eq_right h8]
           exact hpure 0 0
-      · rw [decide_eq_false (fun h => by rcases h with h1 | h2 | ⟨h3, _⟩ <;> omega),
-          ite_eq_right hs4]
+      · rw [decide_eq_false (by omega), ite_eq_right hs4]
         exact hpure 3 0
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.EpochTickInternal

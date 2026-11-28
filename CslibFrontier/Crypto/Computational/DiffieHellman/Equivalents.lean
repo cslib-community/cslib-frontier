@@ -164,19 +164,17 @@ theorem solvesCDH_evalPure_cdhFromSqProg [DecidableEq G] [Fact q.Prime] {sq : G 
   by_cases hq : q = 2
   · subst hq
     simp only [↓reduceIte, OracleComp.evalPure_pure]
-    rcases eq_or_ne g 0 with rfl | hg
+    rcases (by decide +revert : α = 0 ∨ α = 1) with rfl | rfl
     · simp
-    · rcases eq_or_ne α 0 with rfl | hα0
-      · simp
-      · rcases eq_or_ne α 1 with rfl | hα1
-        · simp [hg]
-        · exact ((two_ne_zero_of_ne_zero_one hα0 hα1) (by simpa using ZMod.natCast_self 2)).elim
+    · simp only [one_smul, one_mul]
+      split_ifs with hg <;> simp [hg]
   · simp only [hq, ↓reduceIte, OracleComp.evalPure_bind, OracleComp.evalPure_query,
       OracleComp.evalPure_pure]
     have h2 : (2 : ZMod q) ≠ 0 := Ring.two_ne_zero (by rwa [ZMod.ringChar_zmod_n])
-    rw [← add_smul, ← sub_smul, hsq (α + β), hsq (α - β), ← sub_smul,
-      show (α + β) ^ 2 - (α - β) ^ 2 = (2 * 2) * (α * β) by ring, smul_smul, ← mul_assoc,
-      show (4 : ZMod q) = 2 * 2 by ring, inv_mul_cancel₀ (mul_ne_zero h2 h2), one_mul]
+    have h4 : (4 : ZMod q) ≠ 0 := (by ring : (2 : ZMod q) * 2 = 4) ▸ mul_ne_zero h2 h2
+    have hdiff : (α + β) ^ 2 - (α - β) ^ 2 = 4 * (α * β) := by ring
+    rw [← add_smul, ← sub_smul, hsq (α + β), hsq (α - β), ← sub_smul, hdiff, smul_smul,
+      inv_mul_cancel_left₀ h4]
 
 end CDHFromSq
 
@@ -274,10 +272,10 @@ theorem solvesSqDH_evalPure_sqFromInvProg [DecidableEq G] [Fact q.Prime] {inv : 
           have h2 : (2 : ZMod q) ≠ 0 := two_ne_zero_of_ne_zero_one hα0 hα1
           have hinv_ne : (α - 1)⁻¹ - (α + 1)⁻¹ ≠ 0 := inv_sub_inv_ne_zero h2 hsub hadd
           have hr_ne : (α - 1)⁻¹ • g ≠ (α + 1)⁻¹ • g := fun h => hinv_ne (sub_eq_zero.mpr (hinj h))
+          have hsub_g : α • g - g = (α - 1) • g := by rw [sub_smul, one_smul]
+          have hadd_g : α • g + g = (α + 1) • g := by rw [add_smul, one_smul]
           simp only [hu0, hnot, ↓reduceIte, OracleComp.evalPure_bind, OracleComp.evalPure_query,
-            show α • g - g = (α - 1) • g by rw [sub_smul, one_smul],
-            show α • g + g = (α + 1) • g by rw [add_smul, one_smul],
-            hinv (α - 1) hsub, hinv (α + 1) hadd, hr_ne, OracleComp.evalPure_pure]
+            hsub_g, hadd_g, hinv (α - 1) hsub, hinv (α + 1) hadd, hr_ne, OracleComp.evalPure_pure]
           rw [← sub_smul, hinv _ hinv_ne, ← Nat.cast_smul_eq_nsmul (ZMod q), smul_smul,
             Nat.cast_ofNat]
           calc (2 * ((α - 1)⁻¹ - (α + 1)⁻¹)⁻¹) • g + g
@@ -361,19 +359,16 @@ private theorem evalPure_foldlM_invFromCDHStep {cdh : G × G → G} (hcdh : Solv
   | nil => simp [Cslib.BitString.binaryValue]
   | append_singleton ws b ih =>
     rw [List.foldl_append, List.foldl_cons, List.foldl_nil, ih]
-    unfold invFromCDHStep
-    simp only [OracleComp.evalPure_bind, OracleComp.evalPure_query]
-    rw [hcdh (α ^ Cslib.BitString.binaryValue ws) (α ^ Cslib.BitString.binaryValue ws)]
+    simp only [invFromCDHStep, OracleComp.evalPure_bind, OracleComp.evalPure_query,
+      hcdh (α ^ Cslib.BitString.binaryValue ws) (α ^ Cslib.BitString.binaryValue ws)]
     cases b
     · simp only [Bool.false_eq_true, ↓reduceIte, OracleComp.evalPure_pure,
         Cslib.BitString.binaryValue_snoc, Bool.toNat_false, add_zero]
-      congr 1
-      ring
+      exact congrArg (· • g) (by ring)
     · simp only [↓reduceIte, OracleComp.evalPure_query,
         Cslib.BitString.binaryValue_snoc, Bool.toNat_true]
       rw [← pow_two, hcdh ((α ^ Cslib.BitString.binaryValue ws) ^ 2) α]
-      congr 1
-      ring
+      exact congrArg (· • g) (by ring)
 
 /-- Correctness of `(c) Inverse-DH ≤ (a) CDH`, a step toward [BonehShoup2023], Exercise 10.17
 (p. 429), not the cited result, which also bounds the reduction's running time (only solver calls
@@ -387,8 +382,9 @@ theorem solvesInvDH_evalPure_invFromCDHProg [Fact q.Prime] {cdh : G × G → G}
   rw [evalPure_foldlM_invFromCDHStep q g hcdh α (q - 2).bits.reverse,
     Cslib.BitString.binaryValue_reverse_bits]
   have h2le : 2 ≤ q := (Fact.out : q.Prime).two_le
+  have hq1 : q - 2 + 1 = q - 1 := by omega
   have hmul : α ^ (q - 2) * α = 1 := by
-    rw [← pow_succ, show q - 2 + 1 = q - 1 by omega, ZMod.pow_card_sub_one_eq_one hα]
+    rw [← pow_succ, hq1, ZMod.pow_card_sub_one_eq_one hα]
   rw [eq_inv_of_mul_eq_one_left hmul]
 
 end InvFromCDH
@@ -417,10 +413,8 @@ theorem solvesDivDH_evalPure_divFromCDHProg [Fact q.Prime] {cdh : G × G → G}
     (hcdh : SolvesCDH q g cdh) :
     SolvesDivDH q g fun p => OracleComp.evalPure cdh (divFromCDHProg q g p.1 p.2) := by
   intro α β hβ
-  have hinv := solvesInvDH_evalPure_invFromCDHProg q g hcdh β hβ
-  dsimp only at hinv
-  simp only [divFromCDHProg, OracleComp.evalPure_bind, OracleComp.evalPure_query, hinv]
-  exact hcdh α β⁻¹
+  simp only [divFromCDHProg, OracleComp.evalPure_bind, OracleComp.evalPure_query,
+    solvesInvDH_evalPure_invFromCDHProg q g hcdh β hβ, hcdh α β⁻¹]
 
 end DivFromCDH
 

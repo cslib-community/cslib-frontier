@@ -105,21 +105,19 @@ theorem pow_add_mul_carmichael {M : ℕ} (hM : Squarefree M) (x : ZMod M) {a : �
 residue, including non-units. -/
 theorem pow_eq_pow_of_modEq {M : ℕ} (hM : Squarefree M) (x : ZMod M) {a b : ℕ}
     (ha : 1 ≤ a) (hb : 1 ≤ b) (h : a ≡ b [MOD carmichael M]) : x ^ a = x ^ b := by
-  rcases le_total a b with hab | hab
-  · obtain ⟨k, hk⟩ := (Nat.modEq_iff_dvd' hab).mp h
-    rw [show b = a + carmichael M * k by omega, pow_add_mul_carmichael hM x ha]
-  · obtain ⟨k, hk⟩ := (Nat.modEq_iff_dvd' hab).mp h.symm
-    rw [show a = b + carmichael M * k by omega, pow_add_mul_carmichael hM x hb]
+  wlog hab : a ≤ b generalizing a b
+  · exact (this hb ha h.symm (le_of_not_ge hab)).symm
+  obtain ⟨k, hk⟩ := (Nat.modEq_iff_dvd' hab).mp h
+  rw [show b = a + carmichael M * k by omega, pow_add_mul_carmichael hM x ha]
 
 /-- The reduced exponent `1 + (2 ^ T - 1) % λ(M)` of `T` squarings. -/
 noncomputable def reducedExponent (M T : ℕ) : ℕ := 1 + (2 ^ T - 1) % carmichael M
 
 /-- The reduced exponent is positive and at most `λ(M)`. -/
 theorem reducedExponent_le (M T : ℕ) :
-    1 ≤ reducedExponent M T ∧ reducedExponent M T ≤ carmichael M := by
-  have := Nat.mod_lt (2 ^ T - 1) (carmichael_pos M)
-  unfold reducedExponent
-  omega
+    1 ≤ reducedExponent M T ∧ reducedExponent M T ≤ carmichael M :=
+  ⟨Nat.le_add_right 1 _,
+    (Nat.add_comm 1 _).trans_le (Nat.succ_le_of_lt (Nat.mod_lt _ (carmichael_pos M)))⟩
 
 /-- Sequential squaring modulo a fixed squarefree `M`: for every `T` and every residue `x`,
 including non-units, `T` squarings equal the single power `x ^ (1 + (2 ^ T - 1) % λ(M))`. -/
@@ -142,13 +140,11 @@ theorem crypto_table_entries :
       128 ^ 3 * 2 ^ 128 / 2 ^ 40 = 2 ^ 109 ∧
       Nat.sqrt (2 ^ 512) = 2 ^ 256 ∧ Nat.sqrt (2 ^ 256) = 2 ^ 128 ∧
       Nat.sqrt (2 ^ 128) = 2 ^ 64 := by
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, pow_add 2 256 256 ▸ Nat.sqrt_eq _, pow_add 2 128 128 ▸ Nat.sqrt_eq _,
+    pow_add 2 64 64 ▸ Nat.sqrt_eq _⟩
   · rw [show (512 : ℕ) ^ 3 = 2 ^ 27 by norm_num, ← pow_add, Nat.pow_div (by norm_num) two_pos]
   · rw [show (256 : ℕ) ^ 3 = 2 ^ 24 by norm_num, ← pow_add, Nat.pow_div (by norm_num) two_pos]
   · rw [show (128 : ℕ) ^ 3 = 2 ^ 21 by norm_num, ← pow_add, Nat.pow_div (by norm_num) two_pos]
-  · rw [show (2 : ℕ) ^ 512 = 2 ^ 256 * 2 ^ 256 by rw [← pow_add], Nat.sqrt_eq]
-  · rw [show (2 : ℕ) ^ 256 = 2 ^ 128 * 2 ^ 128 by rw [← pow_add], Nat.sqrt_eq]
-  · rw [show (2 : ℕ) ^ 128 = 2 ^ 64 * 2 ^ 64 by rw [← pow_add], Nat.sqrt_eq]
 
 end SequentialSquaring
 

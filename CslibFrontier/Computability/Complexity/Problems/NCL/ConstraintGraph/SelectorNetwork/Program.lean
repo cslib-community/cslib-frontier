@@ -87,30 +87,23 @@ private theorem computableInPolyTime_blockTemplate (budget : ℕ) :
 @[local fun_prop]
 private theorem computableInPolyTime_blockVertices (budget : ℕ) :
     ComputableInPolyTime (blockVertices (budget := budget)) (encBlock budget)
-      (encList (encVertex encUnary)) := by
-  unfold blockVertices
-  fun_prop
+      (encList (encVertex encUnary)) := by fun_prop [blockVertices]
 
 @[local fun_prop]
 private theorem computableInPolyTime_blockNames (budget : ℕ) :
     ComputableInPolyTime (blockNames (budget := budget)) (encBlock budget) (encList encUnary) := by
   have hp := encTemplate_privateWires_polyTime (computableInPolyTime_blockTemplate budget)
-  unfold blockNames
-  fun_prop
+  fun_prop [blockNames]
 
 @[local fun_prop]
 private theorem computableInPolyTime_vertices (budget : ℕ) :
     ComputableInPolyTime (vertices (budget := budget)) (encList (encBlock budget))
-      (encList (encVertex encUnary)) := by
-  unfold vertices
-  fun_prop
+      (encList (encVertex encUnary)) := by fun_prop [vertices]
 
 @[local fun_prop]
 private theorem computableInPolyTime_names (budget : ℕ) :
     ComputableInPolyTime (names (budget := budget)) (encList (encBlock budget))
-      (encList encUnary) := by
-  unfold names
-  fun_prop
+      (encList encUnary) := by fun_prop [names]
 
 @[local fun_prop]
 private theorem computableInPolyTime_compactVertex :
@@ -133,8 +126,7 @@ theorem computableInPolyTime_graph (budget : ℕ) :
   have hc : ComputableInPolyTime (fun blocks : List (Block budget) => (names blocks).length)
       (encList (encBlock budget)) encNat :=
     ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
-  unfold graph
-  fun_prop
+  fun_prop [graph]
 
 /-- Input data for one canonical orientation block. -/
 structure StateBlock (budget : ℕ) where

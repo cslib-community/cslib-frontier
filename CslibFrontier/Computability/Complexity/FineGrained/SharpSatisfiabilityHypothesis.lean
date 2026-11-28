@@ -9,6 +9,9 @@ module
 
 public import CslibFrontier.Computability.Complexity.FineGrained.CountingExponents
 public import CslibFrontier.Computability.Complexity.FineGrained.PowerTime
+public import CslibFrontier.Computability.Complexity.FineGrained.SatisfiabilityHypothesis
+import CslibFrontier.Computability.Complexity.FineGrained.CountingPowerSearch
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -19,6 +22,7 @@ import Mathlib.Tactic.Ring
 `SharpSH` measures exact model counting in occurring variables, clauses, and literal
 occurrences. The fixed-width formulation absorbs the literal count into the clause count.
 The proof follows the counting argument of [MITHardnessGroup2026SH, v2, §2.1, Lemma 2.1].
+Quantitative sparsification then gives the equivalence with Weak #ETH in the variable count.
 
 The native encoding permits repeated clauses and arbitrarily large binary variable labels.
 Running time allows polynomial dependence on the encoded input length. The model count is
@@ -29,15 +33,18 @@ over occurring variables. For a declared finite superset of those variables,
 ## Main definitions
 
 * `Cslib.Complexity.SharpSH`: the counting hypothesis for unrestricted CNF.
+* `Cslib.Complexity.WeakSharpETH`: the counting hypothesis for #3SAT in the variable count.
 
 ## Main results
 
 * `Cslib.Complexity.SharpSH_iff_SharpKSAT`: the fixed-width size formulation.
+* `Cslib.Complexity.SharpSH_iff_WeakSharpETH`: the variable-count formulation for #3SAT.
+* `Cslib.Complexity.SH.sharpSH`: the decision hypothesis implies the counting hypothesis.
 
 ## References
 
 * [MIT Hardness Group, *ETH is Dead, Long Live SH*][MITHardnessGroup2026SH], v2, §2 and
-  §2.1, Lemma 2.1.
+  §2.1, Lemma 2.1, §2.2, Corollary 2.3, and §2.3, Theorem 2.4.
 -/
 
 public section
@@ -55,7 +62,16 @@ CNF to binary counts, with size given by occurring variables, clauses, and liter
     ¬ComputableInPowerExpTime SharpSAT encCNF encNat
       (fun φ => φ.numVars + φ.length + φ.vars.length) p
 
-private theorem toSharpThreeSAT_size_le (φ : CNF ℕ) :
+/-- Weak #ETH [MITHardnessGroup2026SH, v2, §2, p. 5] in the native deterministic multitape model.
+It rules out a fixed power saving in the number of occurring variables for `SharpThreeSAT`,
+allowing a polynomial factor in the binary CNF input length. `SharpThreeSAT` counts assignments
+over occurring variables on formulas of width at most three and returns zero outside that width. -/
+@[expose] def WeakSharpETH : Prop :=
+  ∀ p : ℝ, 0 < p → p < 1 → ¬ComputableInPowerExpTime SharpThreeSAT encCNF encNat CNF.numVars p
+
+/-- The parsimonious width-three conversion has linear variable-plus-clause size in the
+source variable and clause counts and number of literal occurrences. -/
+theorem toSharpThreeSAT_size_le (φ : CNF ℕ) :
     (toSharpThreeSAT φ).numVars + (toSharpThreeSAT φ).length ≤
       11 * (φ.numVars + φ.length + φ.vars.length) := by
   have hclauses : (toSharpThreeSAT φ).length ≤ φ.length + 3 * φ.vars.length := by
@@ -80,22 +96,20 @@ theorem SharpSH_iff_SharpKSAT {k : ℕ} (hk : 3 ≤ k) :
   constructor
   · intro h p hp hp₁ hsolver
     apply h p hp hp₁
-    have hcomp : SharpKSAT k ∘ toSharpThreeSAT = SharpSAT := by
-      funext φ
-      have hw : ∀ c ∈ toSharpThreeSAT φ, c.length ≤ k :=
-        fun _ hc => (length_le_three_of_mem_toSharpThreeSAT hc).trans hk
-      exact (SharpKSAT_of_width hw).trans (modelCount_toSharpThreeSAT φ)
+    have hcomp : SharpKSAT k ∘ toSharpThreeSAT = SharpSAT := funext fun φ =>
+      (SharpKSAT_of_width fun _ hc =>
+        (length_le_three_of_mem_toSharpThreeSAT hc).trans hk).trans
+        (modelCount_toSharpThreeSAT φ)
     have hsize (φ : CNF ℕ) :
         (((toSharpThreeSAT φ).numVars + (toSharpThreeSAT φ).length : ℕ) + 1 : ℝ) ≤
           (11 + 1 : ℝ) * ((φ.numVars + φ.length + φ.vars.length : ℕ) + 1 : ℝ) ^ (1 : ℝ) := by
       rw [Real.rpow_one]
       have h := toSharpThreeSAT_size_le φ
-      exact_mod_cast (show (toSharpThreeSAT φ).numVars + (toSharpThreeSAT φ).length + 1 ≤
-        (11 + 1) * (φ.numVars + φ.length + φ.vars.length + 1) by omega)
+      exact_mod_cast (by omega : (toSharpThreeSAT φ).numVars + (toSharpThreeSAT φ).length + 1 ≤
+        (11 + 1) * (φ.numVars + φ.length + φ.vars.length + 1))
     simpa only [hcomp, one_mul] using hsolver.comp_polyTime computableInPolyTime_toSharpThreeSAT
       (K := 11) hsize zero_le_one hp.le
-  · intro h p hp hp₁
-    rintro ⟨C, e, hsolver⟩
+  · rintro h p hp hp₁ ⟨C, e, hsolver⟩
     apply h p hp hp₁
     let D : ℕ := ⌈(C : ℝ) * (k + 1 : ℝ) ^ p⌉₊
     have hscale (φ : CNF ℕ) (hφ : (φ.all fun c => decide (c.length ≤ k)) = true) :
@@ -126,5 +140,41 @@ theorem SharpSH_iff_SharpKSAT {k : ℕ} (hk : 3 ≤ k) :
     refine ⟨D, e', ?_⟩
     delta SharpKSAT
     exact hguard
+
+/-- The counting equivalence of [MITHardnessGroup2026SH, v2, §2.3, Theorem 2.4].
+The fixed-width size formulation and disjoint sparsification give the equivalence with
+Weak #ETH on the native CNF encoding. The decision equivalence is proved in
+`WeakExponentialTimeHypothesis`. -/
+theorem SharpSH_iff_WeakSharpETH : SharpSH ↔ WeakSharpETH := by
+  rw [SharpSH_iff_SharpKSAT (k := 3) le_rfl]
+  constructor
+  · intro h p hp hp1 hcount
+    apply h p hp hp1
+    rw [SharpKSAT_three]
+    have hsize (φ : CNF ℕ) :
+        (φ.numVars + 1 : ℝ) ≤ (0 + 1 : ℝ) * ((φ.numVars + φ.length : ℕ) + 1 : ℝ) ^ (1 : ℝ) := by
+      rw [zero_add, one_mul, Real.rpow_one]
+      exact_mod_cast (show φ.numVars + 1 ≤ φ.numVars + φ.length + 1 by omega)
+    have hid : ComputableInPolyTime (id : CNF ℕ → CNF ℕ) encCNF encCNF :=
+      ComputableInPolyTime.id'
+    simpa only [Function.comp_id, one_mul] using hcount.comp_polyTime
+      hid (μA := fun φ => φ.numVars + φ.length)
+      (K := 0) (b := 1) (fun φ => by simpa only [id_eq, Nat.cast_zero] using hsize φ)
+      zero_le_one hp.le
+  · intro h p hp hp1 hcount
+    obtain ⟨q, hq, hq1, hcount'⟩ := hcount.SharpKSAT_numVars_of_size (by decide) hp hp1
+    exact h q hq hq1 (by simpa only [SharpKSAT_three] using hcount')
+
+/-- The Satisfiability Hypothesis implies its counting counterpart
+[MITHardnessGroup2026SH, v2, §2, p. 5]. Testing the binary model count for positivity preserves
+the exponent power because the count has polynomially bounded bit length. -/
+theorem SH.sharpSH (h : SH) : SharpSH := by
+  rintro p hp hp₁ ⟨C, e, hcount⟩
+  obtain ⟨d, hdec⟩ := DecidableInTimeO.of_computableInTimeO_polyBounded
+    (fun _ => by positivity) hcount polyBounded_length_encNat_SharpSAT
+    ComputableInPolyTime.binary_pos
+  rw [(Set.ext fun _ => by simp [SharpSAT.mem_SAT_iff] :
+    {φ | decide (0 < SharpSAT φ) = true} = SAT)] at hdec
+  exact h p hp hp₁ ⟨C, d, hdec⟩
 
 end Cslib.Complexity

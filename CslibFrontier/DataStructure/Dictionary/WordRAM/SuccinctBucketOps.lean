@@ -438,26 +438,22 @@ private theorem bucketStateInv_updateVal {U V w₀ n_max h_space base b j₀ q_t
     fun b' hb' j₁ hj₁ j₂ hj₂ => by
       rw [hgm] at hj₁ hj₂; rw [hgm, hq]; exact hinv.hnodup_q b' hb' j₁ hj₁ j₂ hj₂,
     fun b' hb' j hj => ?_, fun b' hb' q => ?_⟩
-  · rw [hgm] at hj; rw [hgm, hq, hv]
+  · rw [hgm] at hj
+    rw [hgm, hq, hv]
     rcases eq_or_ne b' b with rfl | hbeq
     · rcases eq_or_ne j j₀ with rfl | hjeq
       · simp [hq₀]
-      · have hq_ne : quotAt base U w₀ n_max h_space s.mem
-            (slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b' j) ≠ q_target :=
-          fun heq => hjeq (hinv.hnodup_q b' hb' j hj j₀ hj₀ (heq.trans hq₀.symm))
-        have hs_ne : slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b' j ≠
-            slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b' j₀ :=
-          fun heq => hjeq (hinj b' hb' j hj b' hb' j₀ hj₀ heq).2
-        simp [hq_ne, hs_ne, hinv.hmap_some b' hb' j hj]
-    · have hs_ne : slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b' j ≠
-          slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b j₀ :=
-        fun heq => hbeq (hinj b' hb' j hj b hb j₀ hj₀ heq).1
-      simp [hbeq, hs_ne, hinv.hmap_some b' hb' j hj]
+      · rw [Function.update_self, Function.update_of_ne fun heq =>
+            hjeq (hinv.hnodup_q b' hb' j hj j₀ hj₀ (heq.trans hq₀.symm)),
+          Function.update_of_ne fun heq => hjeq (hinj b' hb' j hj b' hb' j₀ hj₀ heq).2,
+          hinv.hmap_some b' hb' j hj]
+    · rw [Function.update_of_ne hbeq,
+        Function.update_of_ne fun heq => hbeq (hinj b' hb' j hj b hb j₀ hj₀ heq).1,
+        hinv.hmap_some b' hb' j hj]
   · rw [hgm, hq]
     rcases eq_or_ne b' b with rfl | hbeq
     · rcases eq_or_ne q q_target with rfl | hqeq
-      · simp only [Function.update_self, Option.isSome_some, true_iff]
-        exact ⟨j₀, hj₀, hq₀⟩
+      · simpa using ⟨j₀, hj₀, hq₀⟩
       · simp [hqeq, hinv.hmap_dom b' hb' q]
     · simp [hbeq, hinv.hmap_dom b' hb' q]
 
@@ -510,8 +506,8 @@ private theorem bucketStateInv_pushBack
     · rw [hbc_b]
       rcases eq_or_ne j j_new with rfl | hjeq
       · simp [j_new, hq_new, ← hm_eq, and_comm, eq_comm]
-      · simp only [show j ≠ bCount n_max (gmAt base U V w₀ n_max h_space s.mem) b' from hjeq,
-          false_and, and_false, or_false]
+      · have hjeq' : j ≠ bCount n_max (gmAt base U V w₀ n_max h_space s.mem) b' := hjeq
+        simp only [hjeq', false_and, and_false, or_false]
         exact ⟨fun ⟨hj, hcap, hm_j⟩ => ⟨by omega, hcap, (hold b' hb' j hj).1.symm ▸ hm_j⟩,
           fun ⟨hj, hcap, hm_j⟩ => ⟨by omega, hcap, (hold b' hb' j (by omega)).1 ▸ hm_j⟩⟩
     · simp only [hbeq, false_and, or_false]
@@ -522,15 +518,11 @@ private theorem bucketStateInv_pushBack
       wlog hle : j₁ ≤ j₂ generalizing j₁ j₂
       · exact (this j₂ hj₂ j₁ hj₁ hq_eq.symm (by omega)).symm
       rcases eq_or_ne j₂ j_new with rfl | h2
-      · rcases eq_or_ne j₁ j_new with rfl | h1
-        · rfl
-        · have hj1 : j₁ < j_new := by omega
-          rw [(hold b' hb' j₁ hj1).1, hq_new] at hq_eq
-          exact False.elim (habs ⟨j₁, hj1, hq_eq⟩)
-      · have hj1 : j₁ < j_new := by omega
-        have hj2 : j₂ < j_new := by omega
-        rw [(hold b' hb' j₁ hj1).1, (hold b' hb' j₂ hj2).1] at hq_eq
-        exact hinv.hnodup_q b' hb' j₁ hj1 j₂ hj2 hq_eq
+      · exact hle.eq_or_lt.resolve_right fun hj1 =>
+          habs ⟨j₁, hj1, ((hold b' hb' j₁ hj1).1.symm.trans hq_eq).trans hq_new⟩
+      · have hj2 : j₂ < j_new := by omega
+        rw [(hold b' hb' j₁ (hle.trans_lt hj2)).1, (hold b' hb' j₂ hj2).1] at hq_eq
+        exact hinv.hnodup_q b' hb' j₁ (hle.trans_lt hj2) j₂ hj2 hq_eq
     · rw [hbc_other b' hb' hbeq] at hj₁ hj₂
       rw [(hold b' hb' j₁ hj₁).1, (hold b' hb' j₂ hj₂).1] at hq_eq
       exact hinv.hnodup_q b' hb' j₁ hj₁ j₂ hj₂ hq_eq
@@ -539,24 +531,21 @@ private theorem bucketStateInv_pushBack
       rcases eq_or_ne j j_new with rfl | hjeq
       · simp [j_new, hq_new, hv_new]
       · have hj_lt : j < j_new := by omega
-        rw [(hold b' hb' j hj_lt).1, (hold b' hb' j hj_lt).2]
         have hq_ne : _ ≠ q_target := fun heq => habs ⟨j, hj_lt, heq⟩
-        simp [hq_ne, hinv.hmap_some b' hb' j hj_lt]
+        simp [(hold b' hb' j hj_lt).1, (hold b' hb' j hj_lt).2, hq_ne,
+          hinv.hmap_some b' hb' j hj_lt]
     · rw [hbc_other b' hb' hbeq] at hj
-      rw [(hold b' hb' j hj).1, (hold b' hb' j hj).2]
-      simp [hbeq, hinv.hmap_some b' hb' j hj]
+      simp [(hold b' hb' j hj).1, (hold b' hb' j hj).2, hbeq, hinv.hmap_some b' hb' j hj]
   · rcases eq_or_ne b' b with rfl | hbeq
     · rw [Function.update_self, hbc_b]
       rcases eq_or_ne q q_target with rfl | hqeq
-      · simp only [Function.update_self, Option.isSome_some, true_iff]
-        exact ⟨j_new, by omega, hq_new⟩
+      · simpa using ⟨j_new, le_rfl, hq_new⟩
       · rw [Function.update_of_ne hqeq, hinv.hmap_dom b' hb' q]
-        refine ⟨fun ⟨j, hj, hq⟩ => ⟨j, by omega, by rw [(hold b' hb' j hj).1]; exact hq⟩,
+        refine ⟨fun ⟨j, hj, hq⟩ => ⟨j, by omega, (hold b' hb' j hj).1.trans hq⟩,
           fun ⟨j, hj, hq⟩ => ?_⟩
         rcases eq_or_ne j j_new with rfl | hjeq
-        · exact False.elim (hqeq (hq.symm.trans hq_new))
-        · have hj_lt : j < j_new := by omega
-          exact ⟨j, hj_lt, by rw [(hold b' hb' j hj_lt).1] at hq; exact hq⟩
+        · exact absurd (hq.symm.trans hq_new) hqeq
+        · exact ⟨j, by omega, (hold b' hb' j (by omega)).1.symm.trans hq⟩
     · rw [Function.update_of_ne hbeq, hbc_other b' hb' hbeq, hinv.hmap_dom b' hb' q]
       exact exists_congr fun j => and_congr_right fun hj => by simp [(hold b' hb' j hj).1]
 
@@ -590,18 +579,18 @@ private theorem insertNewProg_bucket_spec
   let j_new := bCount n_max gm₀ b
   let s₁ := (Memory.spec 0).clientState s
     (pushBackSlotProg U V w₀ n_max h_space (((base, b), q_target), v_new))
-  have eff_pb := pushBackSlotProg_effect (U := U) (V := V) (w := w₀) (n_max := n_max)
-    (h_space := h_space) (base := base) (b := b) (q_val := q_target) (v_val := v_new)
-    hw s hinv.hslot hb htot hq_lt hv_lt
-  rcases eff_pb with ⟨hf_pb, hout_pb, hlm_pb, hslot₁, htot₁, hbc_b₁, hbc_o₁,
-    hq_new₁, hv_new₁, hold₁, hcost_pb⟩
+  obtain ⟨hf_pb, hout_pb, hlm_pb, hslot₁, htot₁, hbc_b₁, hbc_o₁,
+    hq_new₁, hv_new₁, hold₁, hcost_pb⟩ :=
+    pushBackSlotProg_effect (U := U) (V := V) (w := w₀) (n_max := n_max)
+      (h_space := h_space) (base := base) (b := b) (q_val := q_target) (v_val := v_new)
+      hw s hinv.hslot hb htot hq_lt hv_lt
   have hj_lt_n : j_new < n_max := lt_of_le_of_lt (bCount_le_totalSlots hinv.hslot b hb) htot
   have hj_not : ∀ m' < numMicroPerBucket n_max, j_new ∉ L b m' := fun m' hm' h =>
     Nat.lt_irrefl _ ((hinv.hchain_mem b hb m' hm' j_new).mp h).1
-  have eff_pr := prependIfIndexedProg_allChainsValid (U := U) (V := V) (w := w₀) (n_max := n_max)
-    (h_space := h_space) (base := base) (b := b) (m := m) (j_new := j_new)
-    hw hb hm_lt hj_lt_n (hinv.hchains.of_lm_eq hlm_pb) hj_not
-  rcases eff_pr with ⟨hf_pr, hout_pr, hq_pr, hv_pr, hgm_pr, L', hchains', hmem'⟩
+  obtain ⟨hf_pr, hout_pr, hq_pr, hv_pr, hgm_pr, L', hchains', hmem'⟩ :=
+    prependIfIndexedProg_allChainsValid (U := U) (V := V) (w := w₀) (n_max := n_max)
+      (h_space := h_space) (base := base) (b := b) (m := m) (j_new := j_new)
+      hw hb hm_lt hj_lt_n (hinv.hchains.of_lm_eq hlm_pb) hj_not
   have hs' : s' = (Memory.spec 0).clientState s₁
       (prependIfIndexedProg U V w₀ n_max h_space (((base, b), m), j_new)) := by
     simp only [s', d, insertNewProg, insertNewGenProg, readTotalSlotsGenProg_mk, p_nMax_mk,
@@ -619,22 +608,17 @@ private theorem insertNewProg_bucket_spec
     rw [memoryCost_bind, clientState_readTotalSlotsProg, clientResult_readTotalSlotsProg,
       ite_eq_left htot, memoryCost_bind, clientState_readBucketCountProg,
       clientResult_readBucketCountProg (base, b) s hb, memoryCost_bind]
-    have hc_tot := memoryCost_readTotalSlotsProg_le U V w₀ n_max h_space base s
-    have hc_bc := memoryCost_readBucketCountProg_le (U := U) (V := V) (w := w₀) (n_max := n_max)
-      (h_space := h_space) (base, b) s
-    have hc_pr := memoryCost_prependIfIndexedProg_le U V w₀ n_max h_space (((base, b), m), j_new) s₁
-    dsimp only [s₁, j_new, gm₀] at hc_pr ⊢
-    omega
+    linarith [memoryCost_readTotalSlotsProg_le U V w₀ n_max h_space base s,
+      memoryCost_readBucketCountProg_le (U := U) (V := V) (w := w₀) (n_max := n_max)
+        (h_space := h_space) (base, b) s,
+      memoryCost_prependIfIndexedProg_le U V w₀ n_max h_space (((base, b), m), j_new) s₁]
   rw [← hs'] at hf_pr hout_pr hq_pr hv_pr hgm_pr hchains'
-  rw [← hgm_pr] at hslot₁ htot₁ hbc_b₁ hbc_o₁ hq_new₁ hv_new₁ hold₁ hcost_pb
-  rw [← hq_pr] at hq_new₁
-  rw [← hv_pr] at hv_new₁
+  simp only [← hgm_pr, ← hq_pr,
+    ← hv_pr] at hslot₁ htot₁ hbc_b₁ hbc_o₁ hq_new₁ hv_new₁ hold₁ hcost_pb
   exact ⟨hf_pr.trans hf_pb,
     fun a ha => (hout_pr a (by wram_omega [ha])).trans (hout_pb a ha),
     ⟨L', bucketStateInv_pushBack hinv hb hm_eq habs hslot₁ hchains' hbc_b₁ hbc_o₁
-      hq_new₁ hv_new₁
-      (fun b' hb' j hj => by simpa only [hq_pr, hv_pr] using hold₁ b' hb' j hj)
-      hmem'⟩,
+      hq_new₁ hv_new₁ hold₁ hmem'⟩,
     htot₁, by dsimp only [gm', gm₀] at hcost_in hcost_pb ⊢; omega⟩
 
 /-- Pure state effect, `BucketStateInv` preservation, and amortized `memoryCost` bound of
@@ -678,20 +662,17 @@ theorem insertBodyProg_bucket_spec {U V w₀ n_max h_space w base b q_target v_n
     rcases hres with ⟨hf1, hj_lt, hq_match, hphys_eq⟩
     have hsome : (B b q_target).isSome := (hinv.hmap_dom b hb q_target).mpr hex
     have hphys_lt : _ < n_max := hphys_eq ▸ (slotOf_lt_and_injective hinv.hslot).1 b hb _ hj_lt
-    have eff := writeValProg_effect (U := U) (base := base) (h_space := h_space)
-      hw hphys_lt hv_lt s
-    rw [ite_eq_left hf1, ite_eq_left hsome, memoryCost_writeValProg, eff.2.2.2.2.2]
-    exact ⟨eff.1, fun a ha => eff.2.1 a (by wram_omega [ha]),
-      ⟨L, bucketStateInv_updateVal hinv hb hj_lt hq_match eff.2.2.2.2.2 eff.2.2.2.2.1
-        eff.2.2.1 (hphys_eq ▸ eff.2.2.2.1)⟩,
+    obtain ⟨hf_w, hout_w, hq_w, hv_w, hlm_w, hgm_w⟩ := writeValProg_effect
+      (U := U) (base := base) (h_space := h_space) hw hphys_lt hv_lt s
+    rw [ite_eq_left hf1, ite_eq_left hsome, memoryCost_writeValProg, hgm_w]
+    exact ⟨hf_w, fun a ha => hout_w a (by wram_omega [ha]),
+      ⟨L, bucketStateInv_updateVal hinv hb hj_lt hq_match hgm_w hlm_w hq_w (hphys_eq ▸ hv_w)⟩,
       rfl, by omega⟩
   · rw [ite_eq_right hex] at hres
     have hnot_some : ¬(B b q_target).isSome := mt (hinv.hmap_dom b hb q_target).mp hex
-    have hne1 : searchResFound ((Memory.spec 0).clientResult s
-        (searchBucketProg U V w₀ n_max h_space (((base, b), q_target), m))) ≠ 1 := by omega
-    have hnew := insertNewProg_bucket_spec hw hinv hb hm_eq hm_lt hq_lt hv_lt
-      (hcap.resolve_left hnot_some) hex
-    rw [ite_eq_right hne1, ite_eq_right hnot_some]
-    exact ⟨hnew.1, hnew.2.1, hnew.2.2.1, hnew.2.2.2.1, by omega⟩
+    obtain ⟨hf_n, hout_n, hinv_n, htot_n, hcost_n⟩ := insertNewProg_bucket_spec hw hinv hb hm_eq
+      hm_lt hq_lt hv_lt (hcap.resolve_left hnot_some) hex
+    simp only [insertArgQuery, insertArgMicro, hres, Nat.zero_ne_one, ↓reduceIte, hnot_some]
+    exact ⟨hf_n, hout_n, hinv_n, htot_n, by omega⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.Succinct

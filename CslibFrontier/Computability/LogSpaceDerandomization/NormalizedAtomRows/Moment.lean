@@ -197,30 +197,25 @@ theorem uniform_moment_capacity {scale : ℝ} (hs : 0 < scale) (hmargin : scale 
     (fun i _ σ x y _ hy => herr i σ x y hy)
     (fun σ x y _ hy => by simpa only [Nat.sub_add_cancel hm] using herr (m - 1) σ x y hy)
   dsimp only at hb
-  have hp := vertexNormPow_sum_le_pow_sum (X := X) (by decide : 4 ≠ 0) hNu (range m) e
-    (dyadicFloor η m) (fun i => ε * 2 ^ dyadicSlack m i)
-    (fun _ _ => by positivity) (fun _ _ => by positivity)
-    (fun i hi => (he i).trans (hrow i (mem_range.mp hi)))
-  have hp' := hp.trans (pow_le_pow_left₀ (sum_nonneg fun _ _ => by positivity)
-    (pre_schedule_sum hη.le hε m) 4)
+  have hp' := (vertexNormPow_sum_le_pow_sum (X := X) (by decide : 4 ≠ 0) hNu (range m) e
+    (dyadicFloor η m) (fun i => ε * 2 ^ dyadicSlack m i) (fun _ _ => by positivity)
+    (fun _ _ => by positivity) (fun i hi => (he i).trans (hrow i (mem_range.mp hi)))).trans
+    (pow_le_pow_left₀ (sum_nonneg fun _ _ => by positivity) (pre_schedule_sum hη.le hε m) 4)
   have hf : vertexNormPow 4 N u X (fun σ x => if ∀ i < m,
       stepThreshold (S σ) n (fun _ => HP.K) (dyadicFloor η m) (Δ σ x) ⟨0, raw σ x⟩ i ≤ dyadicFloor
         η m i
       then e (m - 1) σ x else 0) ≤ (2 * ε) ^ 4 := by
-    apply (vertex_mono_nonneg X hNu _ _ (by
-      intro σ x
-      split_ifs <;> first | exact kthLargest_nonneg | exact le_rfl)
-      (by intro σ x; split_ifs <;> first | exact le_rfl | exact kthLargest_nonneg)).trans
-    have hh := (he (m - 1)).trans (hrow (m - 1) (by omega))
-    have hd : dyadicSlack m (m - 1) = 1 := by unfold dyadicSlack; simp only [Nat.sub_add_cancel
-      hm, Nat.sub_self, pow_zero]
-    simpa only [hd, pow_one, mul_comm] using hh
-  have hcharge := sum_le_sum (s := range m) (fun i hi =>
+    refine (vertex_mono_nonneg X hNu _ _
+      (fun _ _ => by split_ifs <;> first | exact kthLargest_nonneg | exact le_rfl)
+      (fun _ _ => by split_ifs <;> first | exact le_rfl | exact kthLargest_nonneg)).trans ?_
+    have hd : dyadicSlack m (m - 1) = 1 := by simp [dyadicSlack, Nat.sub_add_cancel hm]
+    simpa only [hd, pow_one, mul_comm] using (he (m - 1)).trans (hrow (m - 1) (by omega))
+  have hcharge' := (sum_le_sum (s := range m) fun i hi =>
     mul_le_mul_of_nonneg_left (hrow i (mem_range.mp hi))
-      (by positivity : 0 ≤ 64 * (HP.K : ℝ) * (rangeBound HP) ^ 4 / ((n i : ℝ) * dyadicFloor η m i
- ^ 4)))
-  have hcharge' := hcharge.trans (false_schedule_sum_capacity (ε := ε) (R := rangeBound HP) hη
-    (Nat.cast_nonneg HP.K) m n hnscale)
+      (by positivity : 0 ≤ 64 * (HP.K : ℝ) * (rangeBound HP) ^ 4 /
+        ((n i : ℝ) * dyadicFloor η m i ^ 4))).trans
+    (false_schedule_sum_capacity (ε := ε) (R := rangeBound HP) hη (Nat.cast_nonneg HP.K) m n
+      hnscale)
   calc
     _ ≤ 128 * (HP.K : ℝ) * (A ^ 4 * (η * ε / 511) ^ 4 + C ^ 4 * (2 * ε) ^ 4 + C ^ 4 * (T * ε) ^ 4)
  +

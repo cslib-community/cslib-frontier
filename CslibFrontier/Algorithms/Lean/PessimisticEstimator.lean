@@ -155,16 +155,11 @@ private theorem runFrom_spec [Fintype ι] [∀ i, Fintype (α i)]
         rcases List.mem_cons.mp ha_mem with rfl | hmem_cs
         · exact hle_v₀
         · exact hle_cs a_star hmem_cs
-      have hstep_exp : PMF.condExpect p f fixedNext (Function.update x i best.1) ≤
-          PMF.condExpect p f fixed x := by
-        have hm := hmono hbest_le_star
-        rw [heq_best, heval, heval] at hm
-        exact hm.trans ha_le
-      have hdisj_next : ∀ j ∈ rs, j ∉ fixedNext := by
-        intro j hj hmem
-        rcases Finset.mem_insert.mp hmem with rfl | hj_fix
-        · exact hi_rs hj
-        · exact hdisj j (List.mem_cons_of_mem i hj) hj_fix
+      have hm := hmono hbest_le_star
+      rw [heq_best, heval, heval] at hm
+      have hdisj_next : ∀ j ∈ rs, j ∉ fixedNext := fun j hj hmem =>
+        (Finset.mem_insert.mp hmem).elim (fun h => hi_rs (h ▸ hj))
+          (hdisj j (List.mem_cons_of_mem i hj))
       have hstep_eq : D.stepCoord (fixed, x) i = (fixedNext, Function.update x i best.1) := by
         simp [stepCoord, hcs, fixedNext, best, v₀]
       obtain ⟨hset_end, hexp_end⟩ :=
@@ -173,12 +168,8 @@ private theorem runFrom_spec [Fintype ι] [∀ i, Fintype (α i)]
       have hrun : D.runFrom (i :: rs) fixed x =
           D.runFrom rs fixedNext (Function.update x i best.1) := by
         simp [runFrom, hstep_eq]
-      refine ⟨?_, ?_⟩
-      · rw [hrun, hset_end]
-        ext j
-        simp [fixedNext]
-      · rw [hrun]
-        exact hexp_end.trans hstep_exp
+      exact ⟨hrun ▸ Finset.ext fun j => by simp [hset_end, fixedNext],
+        hrun ▸ hexp_end.trans (hm.trans ha_le)⟩
 
 /-- **Method of conditional expectations on a finite product space**: if `order` visits every
 coordinate without repetition, `D.choices i` covers `(p i).support`, and `D.condExp` computes
@@ -191,14 +182,10 @@ theorem derandomize_spec [Fintype ι] [∀ i, Fintype (α i)]
     (hchoices : ∀ i a, a ∈ (p i).support → a ∈ D.choices i)
     (order : List ι) (hnd : order.Nodup) (hcov : ∀ i, i ∈ order) (init : ∀ i, α i) :
     f (D.derandomize order init) ≤ ∑ y, (PMF.pi p y).toReal * f y := by
-  obtain ⟨hset, hexp⟩ :=
-    runFrom_spec D p f hmono heval hchoices order ∅ init hnd (by simp)
-  have huniv : (D.runFrom order ∅ init).1 = Finset.univ := by
-    rw [hset]
-    ext i
-    simp [hcov i]
-  rw [huniv, PMF.condExpect_univ, PMF.condExpect_empty] at hexp
-  exact hexp
+  obtain ⟨hset, hexp⟩ := runFrom_spec D p f hmono heval hchoices order ∅ init hnd (by simp)
+  have huniv : (D.runFrom order ∅ init).1 = Finset.univ :=
+    Finset.ext fun i => by simp [hset, hcov i]
+  rwa [huniv, PMF.condExpect_univ, PMF.condExpect_empty] at hexp
 
 end Correctness
 

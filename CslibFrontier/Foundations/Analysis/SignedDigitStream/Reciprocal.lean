@@ -70,15 +70,13 @@ during formation of the `(recipCutoff t + 1)`-place integer prefix is paid for b
 with constant additive slack. -/
 theorem recipCutoff_clock_payment {t j : ℕ} (hj : j ≤ recipCutoff t) :
     ((recipCutoff t + 1 : ℕ) : ℤ) ≤ 22 + 2 * ((t : ℤ) - (j : ℤ)) := by
-  unfold recipCutoff at hj ⊢
-  omega
+  rw [recipCutoff] at hj ⊢; omega
 
 /-- Also `t + 1` itself is bounded by `15 + 2 * (t - j)` on every early-word query
 `j ≤ recipCutoff t` [OpenAI2026LogSpace, (10.16)]. -/
 theorem clock_succ_le_early_payment {t j : ℕ} (hj : j ≤ recipCutoff t) :
     ((t + 1 : ℕ) : ℤ) ≤ 15 + 2 * ((t : ℤ) - (j : ℤ)) := by
-  unfold recipCutoff at hj
-  omega
+  rw [recipCutoff] at hj; omega
 
 /-- Rational early prefix `x^{[recipCutoff t]}` formed from digits `0 .. recipCutoff t`. -/
 @[expose] def recipPrefixRat (x : ℕ → ℤ) (t : ℕ) : ℚ :=
@@ -128,9 +126,8 @@ theorem abs_tail_recipCutoff_le {x : ℕ → ℤ} (hx : IsSignedStream x) (t : �
 theorem recipPrefixRat_mem_Icc {x : ℕ → ℤ} (hx : IsSignedStream x)
     (hx_mem : streamVal x ∈ Set.Icc (1 / 4 : ℝ) 1) (t : ℕ) :
     (recipPrefixRat x t : ℝ) ∈ Set.Icc (3 / 16 : ℝ) (17 / 16) := by
-  have herr := abs_tail_recipCutoff_le hx t
   obtain ⟨hlo, hhi⟩ := hx_mem
-  obtain ⟨he1, he2⟩ := abs_sub_le_iff.mp herr
+  obtain ⟨he1, he2⟩ := abs_sub_le_iff.mp (abs_tail_recipCutoff_le hx t)
   exact ⟨by linarith, by linarith⟩
 
 private theorem abs_recipAlpha_cast_le {x : ℕ → ℤ} (hx : IsSignedStream x)
@@ -151,14 +148,13 @@ theorem abs_recipBeta_le_one {x : ℕ → ℤ} (hx : IsSignedStream x)
     (hx_mem : streamVal x ∈ Set.Icc (1 / 4 : ℝ) 1) (t : ℕ) :
     |recipBeta x t| ≤ 1 := by
   have hmem := (recipPrefixRat_mem_Icc hx hx_mem t).1
-  have hreal : |(recipBeta x t : ℝ)| ≤ 1 := by
-    unfold recipBeta
-    push_cast
-    have hsq : (3 / 16 : ℝ) ^ 2 ≤ (recipPrefixRat x t : ℝ) ^ 2 :=
-      pow_le_pow_left₀ (by norm_num) hmem 2
-    rw [neg_div, abs_neg, abs_of_pos (one_div_pos.2 (by linarith)), div_le_one (by linarith)]
-    linarith
-  exact_mod_cast hreal
+  suffices |(recipBeta x t : ℝ)| ≤ 1 by exact_mod_cast this
+  unfold recipBeta
+  push_cast
+  have hsq : (3 / 16 : ℝ) ^ 2 ≤ (recipPrefixRat x t : ℝ) ^ 2 :=
+    pow_le_pow_left₀ (by norm_num) hmem 2
+  rw [neg_div, abs_neg, abs_of_pos (one_div_pos.2 (by linarith)), div_le_one (by linarith)]
+  linarith
 
 private theorem abs_recipProdVal_le {x : ℕ → ℤ} (hx : IsSignedStream x)
     (hx_mem : streamVal x ∈ Set.Icc (1 / 4 : ℝ) 1) (t : ℕ) :
@@ -211,9 +207,8 @@ private theorem recipHalfStream_certificate {x : ℕ → ℤ} (hx : IsSignedStre
   have hp_le : |streamVal (recipProdStream x t)| ≤ 3 / 64 := by
     rw [streamVal_recipProdStream hx hx_mem t, recipPrefixRat_cast, ← streamVal_suffixStream hx]
     exact abs_recipProdVal_le hx hx_mem t
-  rw [abs_div, abs_of_pos (by norm_num : (0 : ℝ) < 2)]
-  have htri := abs_add_le (recipAlpha x t : ℝ) (streamVal (recipProdStream x t))
-  linarith
+  rw [abs_div, abs_of_pos (zero_lt_two : (0 : ℝ) < 2)]
+  linarith [abs_add_le (recipAlpha x t : ℝ) (streamVal (recipProdStream x t))]
 
 theorem recipHalfStream_isSignedStream {x : ℕ → ℤ} (hx : IsSignedStream x)
     (hx_mem : streamVal x ∈ Set.Icc (1 / 4 : ℝ) 1) (t : ℕ) :
@@ -282,9 +277,8 @@ theorem recip64Approx_isScaledApprox {x : ℕ → ℤ} (hx : IsSignedStream x)
     have hp_le : |(recipBeta x t : ℝ) * (streamVal x - (recipPrefixRat x t : ℝ))| ≤ 3 / 64 := by
       rw [recipPrefixRat_cast, ← streamVal_suffixStream hx]
       exact abs_recipProdVal_le hx hx_mem t
-    have htri := abs_add_le (recipAlpha x t : ℝ)
-      ((recipBeta x t : ℝ) * (streamVal x - (recipPrefixRat x t : ℝ)))
-    linarith
+    linarith [abs_add_le (recipAlpha x t : ℝ)
+      ((recipBeta x t : ℝ) * (streamVal x - (recipPrefixRat x t : ℝ)))]
   have hclip_eq : shiftClipVal 1 (streamVal (recipHalfStream x t)) = T := by
     rw [streamVal_recipHalfStream hx hx_mem t]
     unfold shiftClipVal
@@ -293,19 +287,13 @@ theorem recip64Approx_isScaledApprox {x : ℕ → ℤ} (hx : IsSignedStream x)
   rw [hclip_eq] at hsc
   have hfl := abs_ediv_sub_div_lt_one A (by decide : (0 : ℤ) < 8)
   push_cast at hfl
-  have hA_err : |(A : ℝ) / 8 - (2 : ℝ) ^ t * T| < 1 / 4 := by
-    have hpow : (2 : ℝ) ^ (t + 3) = 8 * (2 : ℝ) ^ t := by ring
-    rw [hpow] at hsc
-    have hsub : (A : ℝ) / 8 - (2 : ℝ) ^ t * T = ((A : ℝ) - 8 * (2 : ℝ) ^ t * T) / 8 := by ring
-    rw [hsub, abs_div, abs_of_pos (by norm_num : (0 : ℝ) < 8)]
-    linarith
-  have hrem := abs_recipTaylor_remainder_le hx hx_mem t
-  have htri1 := abs_sub_le ((A / 8 : ℤ) : ℝ) ((A : ℝ) / 8) ((2 : ℝ) ^ t * T)
-  have htri2 := abs_sub_le ((A / 8 : ℤ) : ℝ) ((2 : ℝ) ^ t * T)
-    ((2 : ℝ) ^ t * (1 / (64 * streamVal x)))
-  have hrem' : |(2 : ℝ) ^ t * T - (2 : ℝ) ^ t * (1 / (64 * streamVal x))| ≤ 1 / 128 := by
-    simpa only [← mul_sub, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ t)] using hrem
-  linarith
+  have hsc' := abs_lt.mp ((by ring : (2 : ℝ) ^ (t + 3) = 8 * (2 : ℝ) ^ t) ▸ hsc)
+  have hA_err : |(A : ℝ) / 8 - (2 : ℝ) ^ t * T| < 1 / 4 := abs_lt.mpr ⟨by linarith, by linarith⟩
+  have hrem : |(2 : ℝ) ^ t * T - (2 : ℝ) ^ t * (1 / (64 * streamVal x))| ≤ 1 / 128 := by
+    simpa only [T, ← mul_sub, abs_mul, abs_of_pos (pow_pos (zero_lt_two : (0 : ℝ) < 2) t)] using
+      abs_recipTaylor_remainder_le hx hx_mem t
+  linarith [abs_sub_le ((A / 8 : ℤ) : ℝ) ((A : ℝ) / 8) ((2 : ℝ) ^ t * T),
+    abs_sub_le ((A / 8 : ℤ) : ℝ) ((2 : ℝ) ^ t * T) ((2 : ℝ) ^ t * (1 / (64 * streamVal x)))]
 
 /-- The target value `1 / (64 * streamVal x)` of `recip64Stream` is bounded by `1`. -/
 private theorem abs_one_div_sixtyfour_mul_le_one {x : ℕ → ℤ}
@@ -330,10 +318,8 @@ theorem streamVal_recip64Stream {x : ℕ → ℤ} (hx : IsSignedStream x)
 
 theorem recip64Approx_emod_eq (x : ℕ → ℤ) (t q : ℕ) :
     recip64Approx x t % (2 : ℤ) ^ q =
-      (shiftClipApprox 1 (recipHalfStream x t) (t + 3) % (2 : ℤ) ^ (q + 3)) / 8 := by
-  unfold recip64Approx
-  simpa only [show (8 : ℤ) = (2 : ℤ) ^ (3 : ℕ) by decide] using
-    ediv_two_pow_emod_eq (shiftClipApprox 1 (recipHalfStream x t) (t + 3)) q 3
+      (shiftClipApprox 1 (recipHalfStream x t) (t + 3) % (2 : ℤ) ^ (q + 3)) / 8 :=
+  ediv_two_pow_emod_eq (shiftClipApprox 1 (recipHalfStream x t) (t + 3)) q 3
 
 end EarlyWordReciprocal
 
@@ -374,29 +360,21 @@ theorem polynomialTransition4_eq_shiftClip (t : ℝ) :
       (((1 / 32 + (1 / 8) * (1 - u)) / 2 +
         ((5 / 16) * (1 - u) ^ 2 + (5 / 8) * (1 - u) ^ 3) / 2) / 2) =
       Cslib.polynomialTransition4 t / 128 := by
-    unfold Cslib.polynomialTransition4 Cslib.transitionPolynomial4
-    dsimp [u]
-    ring
-  rw [hpoly]
-  unfold shiftClipVal
+    simp only [Cslib.polynomialTransition4, Cslib.transitionPolynomial4, u]; ring
+  rw [hpoly, shiftClipVal]
   have hscale : (2 : ℝ) ^ (7 : ℤ) * (Cslib.polynomialTransition4 t / 128) =
-      Cslib.polynomialTransition4 t := by
-    norm_num
-    ring
-  have h0 : 0 ≤ Cslib.polynomialTransition4 t := Cslib.polynomialTransition4_nonneg t
-  have h1 : Cslib.polynomialTransition4 t ≤ 1 := Cslib.polynomialTransition4_le_one t
-  rw [hscale, min_eq_right h1, max_eq_right (by linarith)]
+      Cslib.polynomialTransition4 t := by rw [zpow_ofNat]; ring
+  rw [hscale, min_eq_right (Cslib.polynomialTransition4_le_one t),
+    max_eq_right (by linarith [Cslib.polynomialTransition4_nonneg t])]
 
 /-- Exact polynomial-plus-reciprocal decomposition of `Cslib.rationalRamp4Unit`. -/
 theorem rationalRamp4Unit_eq_poly_add_inv (t : ℝ) :
     Cslib.rationalRamp4Unit t =
       max 0 t - 3 + 6 * (1 / (1 + max 0 t)) - 4 * (1 / (1 + max 0 t)) ^ 2 +
         (1 / (1 + max 0 t)) ^ 3 := by
-  unfold Cslib.rationalRamp4Unit
-  set u := max (0 : ℝ) t
-  have hpos : 0 < 1 + u := by linarith [le_max_left (0 : ℝ) t]
-  field_simp
-  ring
+  rw [Cslib.rationalRamp4Unit]
+  have hpos : 0 < 1 + max (0 : ℝ) t := by linarith [le_max_left (0 : ℝ) t]
+  field_simp; ring
 
 /-- Smooth dyadic transition `polynomialSwitch4 (2 ^ r) (2 ^ (r + 1)) w`. -/
 @[expose] noncomputable def dyadicSwitch (r : ℕ) (w : ℝ) : ℝ :=
@@ -426,61 +404,50 @@ theorem dyadicSwitch_eq_of_norm {m r : ℕ} {w : ℝ} (hr : r ≤ m) (hw0 : 0 �
   have hscale : (2 : ℝ) ^ ((m : ℤ) - (r : ℤ)) * (w / (2 : ℝ) ^ (m + 1)) =
       w / (2 : ℝ) ^ (r + 1) := by
     have hm1 : (m + 1 : ℕ) = (m - r) + (r + 1) := by omega
-    have hsub : ((m : ℤ) - (r : ℤ)) = ((m - r : ℕ) : ℤ) := by omega
-    rw [hsub, zpow_natCast, hm1, pow_add]
+    rw [← Nat.cast_sub hr, zpow_natCast, hm1, pow_add]
     field_simp
   set q := w / (2 : ℝ) ^ (r + 1)
-  have hq0 : 0 ≤ q := by
-    dsimp [q]
-    positivity
+  have hq0 : 0 ≤ q := by positivity
   have hy : shiftClipVal ((m : ℤ) - (r : ℤ)) (w / (2 : ℝ) ^ (m + 1)) = min 1 q := by
     unfold shiftClipVal
-    rw [hscale, max_eq_right]
-    exact le_min (by norm_num) (by linarith)
+    rw [hscale, max_eq_right (le_min (by norm_num) (by linarith))]
   rw [hy]
   have hmin_mem : min 1 q ∈ Set.Icc (0 : ℝ) 1 :=
     ⟨le_min zero_le_one hq0, min_le_left _ _⟩
   have hs2 : shiftClipVal 2 ((min 1 q + (-1 / 2)) / 2) = 2 * min 1 q - 1 := by
-    unfold shiftClipVal
     have h4 : (2 : ℝ) ^ (2 : ℤ) * ((min 1 q + (-1 / 2)) / 2) = 2 * min 1 q - 1 := by
-      norm_num
-      ring
-    rw [h4, min_eq_right (by linarith [hmin_mem.2]), max_eq_right (by linarith [hmin_mem.1])]
+      rw [zpow_ofNat]; ring
+    rw [shiftClipVal, h4, min_eq_right (by linarith [hmin_mem.2]),
+      max_eq_right (by linarith [hmin_mem.1])]
   rw [hs2]
   have harg_eq : (w - (2 : ℝ) ^ r) / ((2 : ℝ) ^ (r + 1) - (2 : ℝ) ^ r) = 2 * q - 1 := by
-    dsimp [q]
-    have hp : (2 : ℝ) ^ (r + 1) = 2 * (2 : ℝ) ^ r := by ring
-    rw [hp]
-    field_simp
-    ring
+    dsimp only [q]
+    rw [pow_succ']
+    field_simp; ring
   rw [harg_eq]
   unfold Cslib.polynomialTransition4
-  congr 1
-  by_cases hq1 : 1 ≤ q
-  · rw [min_eq_left hq1, show (2 : ℝ) * 1 - 1 = 1 by norm_num, min_self,
-      min_eq_left (by linarith : (1 : ℝ) ≤ 2 * q - 1)]
-  · have hq_lt : q ≤ 1 := (not_le.mp hq1).le
-    rw [min_eq_right hq_lt]
+  congr 2
+  rcases le_total 1 q with hq1 | hq1
+  · have h2q : 1 ≤ 2 * q - 1 := by linarith
+    rw [min_eq_left hq1, min_eq_left h2q]
+    norm_num
+  · rw [min_eq_right hq1]
 
 theorem sum_dyadicWeight (m : ℕ) (w : ℝ) :
     ∑ r ∈ range (m + 1), dyadicWeight m r w = 1 := by
   rcases Nat.eq_zero_or_pos m with rfl | hm
   · simp [dyadicWeight]
-  · have hlast : dyadicWeight m m w = dyadicSwitch (m - 1) w := by
-      simp [dyadicWeight, hm.ne']
-    have htel (k : ℕ) (hk1 : 1 ≤ k) (hkm : k ≤ m) :
+  · have htel (k : ℕ) (hk1 : 1 ≤ k) (hkm : k ≤ m) :
         ∑ r ∈ range k, dyadicWeight m r w = 1 - dyadicSwitch (k - 1) w := by
-      induction k with
-      | zero => omega
-      | succ k ih =>
-        rcases Nat.eq_zero_or_pos k with rfl | hk_pos
-        · simp [dyadicWeight, hm.ne']
-        · rw [sum_range_succ, ih hk_pos (by omega)]
-          have hwk : dyadicWeight m k w = dyadicSwitch (k - 1) w - dyadicSwitch k w := by
-            simp [dyadicWeight, hm.ne', hk_pos.ne', show k < m by omega]
-          rw [hwk, Nat.add_sub_cancel]
-          ring
-    rw [sum_range_succ, htel m hm le_rfl, hlast]
+      induction k, hk1 using Nat.le_induction with
+      | base => simp [dyadicWeight, hm.ne']
+      | succ k hk1 ih =>
+        rw [sum_range_succ, ih (Nat.le_of_succ_le hkm)]
+        simp only [dyadicWeight, hm.ne', Nat.ne_of_gt hk1, Nat.lt_of_succ_le hkm,
+          Nat.add_sub_cancel, ↓reduceIte]
+        ring
+    rw [sum_range_succ, htel m hm le_rfl]
+    simp only [dyadicWeight, hm.ne', lt_irrefl, ↓reduceIte]
     ring
 
 theorem dyadicWeight_mem_Icc (m r : ℕ) (w : ℝ) :
@@ -528,50 +495,33 @@ theorem scaled_mem_Icc_of_dyadicWeight_ne_zero {m r : ℕ} {w : ℝ}
     w / (2 : ℝ) ^ (r + 1) ∈ Set.Icc (1 / 4 : ℝ) 1 := by
   obtain ⟨hw_lo, hw_hi⟩ := hw
   rcases Nat.eq_zero_or_pos m with rfl | hm
-  · unfold dyadicWeight at hne
-    by_cases hr0 : r = 0
-    · subst hr0
-      norm_num at hw_hi ⊢
+  · rcases eq_or_ne r 0 with rfl | hr0
+    · norm_num at hw_hi ⊢
       exact ⟨by linarith, by linarith⟩
-    · simp [hr0] at hne
-  · have hm_ne : m ≠ 0 := hm.ne'
-    by_cases hr0 : r = 0
-    · subst hr0
-      have hlt2 : w < 2 := by
+    · simp [dyadicWeight, hr0] at hne
+  · rcases eq_or_ne r 0 with rfl | hr0
+    · have hlt2 : w < 2 := by
         by_contra! hge
-        have h1 := dyadicSwitch_eq_one_of_ge (k := 0) (w := w) (by norm_num; linarith)
-        unfold dyadicWeight at hne
-        simp [hm_ne, h1] at hne
+        simp [dyadicWeight, hm.ne', dyadicSwitch_eq_one_of_ge (k := 0) (by simpa using hge)] at hne
       norm_num
       exact ⟨by linarith, by linarith⟩
-    · by_cases hrm : r < m
-      · have hgt_lo : (2 : ℝ) ^ (r - 1) < w := by
-          by_contra! hle
-          have hs1 := dyadicSwitch_eq_zero_of_le hle
-          have hle2 : w ≤ (2 : ℝ) ^ r := hle.trans (pow_le_pow_right₀ (by norm_num) (by omega))
-          have hs2 := dyadicSwitch_eq_zero_of_le hle2
-          unfold dyadicWeight at hne
-          simp [hm_ne, hr0, hrm, hs1, hs2] at hne
-        have hlt_hi : w < (2 : ℝ) ^ (r + 1) := by
-          by_contra! hge
+    · have hgt_lo : (2 : ℝ) ^ (r - 1) < w := by
+        by_contra! hle
+        have hs1 := dyadicSwitch_eq_zero_of_le hle
+        have hs2 :=
+          dyadicSwitch_eq_zero_of_le (k := r) (hle.trans (pow_le_pow_right₀ one_le_two (by omega)))
+        simp_all [dyadicWeight, hm.ne']
+      have hhi : w ≤ (2 : ℝ) ^ (r + 1) := by
+        rcases lt_trichotomy r m with hrm | rfl | hgt
+        · by_contra! hge
           have hge1 : (2 : ℝ) ^ ((r - 1) + 1) ≤ w := by
             rw [Nat.sub_add_cancel (Nat.pos_of_ne_zero hr0)]
-            exact (pow_le_pow_right₀ (by norm_num) (Nat.le_succ r)).trans hge
-          have hs1 := dyadicSwitch_eq_one_of_ge hge1
-          have hs2 := dyadicSwitch_eq_one_of_ge hge
-          unfold dyadicWeight at hne
-          simp [hm_ne, hr0, hrm, hs1, hs2] at hne
-        exact scaled_mem_Icc_of_two_pow_pred_lt hr0 hgt_lo hlt_hi.le
-      · by_cases hreq : r = m
-        · subst hreq
-          have hgt_lo : (2 : ℝ) ^ (r - 1) < w := by
-            by_contra! hle
-            have hs1 := dyadicSwitch_eq_zero_of_le hle
-            unfold dyadicWeight at hne
-            simp [hm_ne, hs1] at hne
-          exact scaled_mem_Icc_of_two_pow_pred_lt hr0 hgt_lo hw_hi
-        · unfold dyadicWeight at hne
-          simp [hm_ne, hr0, hrm, hreq] at hne
+            exact (pow_le_pow_right₀ one_le_two (Nat.le_succ r)).trans hge.le
+          simp [dyadicWeight, hm.ne', hr0, hrm, dyadicSwitch_eq_one_of_ge hge1,
+            dyadicSwitch_eq_one_of_ge hge.le] at hne
+        · exact hw_hi
+        · simp [dyadicWeight, hm.ne', hr0, not_lt_of_gt hgt, hgt.ne'] at hne
+      exact scaled_mem_Icc_of_two_pow_pred_lt hr0 hgt_lo hhi
 
 /-- **Smooth dyadic partition-of-unity reciprocal formula**: for every `w ∈ [1, 2 ^ (m + 1)]`,
 `1 / w` equals a weighted sum of `m + 1` reciprocals whose arguments are all clamped to the
@@ -584,17 +534,14 @@ theorem inv_eq_sum_dyadicWeight {m : ℕ} {w : ℝ}
           ((1 / (2 : ℝ) ^ (r + 1)) *
             (1 / max (1 / 4 : ℝ) (min 1 (w / (2 : ℝ) ^ (r + 1))))) := by
   have hw_pos : 0 < w := by linarith [hw.1]
-  have hterm : ∀ r ∈ range (m + 1),
-      dyadicWeight m r w *
-        ((1 / (2 : ℝ) ^ (r + 1)) *
-          (1 / max (1 / 4 : ℝ) (min 1 (w / (2 : ℝ) ^ (r + 1))))) =
-        dyadicWeight m r w * (1 / w) := by
-    intro r _
+  have hterm (r : ℕ) (_ : r ∈ range (m + 1)) :
+      dyadicWeight m r w * ((1 / (2 : ℝ) ^ (r + 1)) *
+        (1 / max (1 / 4 : ℝ) (min 1 (w / (2 : ℝ) ^ (r + 1))))) =
+      dyadicWeight m r w * (1 / w) := by
     by_cases hne : dyadicWeight m r w = 0
     · simp [hne]
     · obtain ⟨hlo, hhi⟩ := scaled_mem_Icc_of_dyadicWeight_ne_zero hw hne
       rw [min_eq_right hhi, max_eq_right hlo]
-      congr 1
       field_simp
   rw [sum_congr rfl hterm, ← sum_mul, sum_dyadicWeight, one_mul]
 

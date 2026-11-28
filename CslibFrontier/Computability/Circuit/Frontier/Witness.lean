@@ -81,9 +81,8 @@ private theorem exists_injective_range_eq {α : Type*} {s : Set α} {k : ℕ} (h
     rw [Nat.card_coe_set_eq, Nat.card_eq_fintype_card, Fintype.card_fin]
     exact_mod_cast (hfin.cast_ncard_eq.trans hs).symm
   obtain ⟨e⟩ := Finite.card_eq.mp hcard
-  exact ⟨fun i => (e i : α), Subtype.val_injective.comp e.injective, by
-    rw [show (fun i => (e i : α)) = Subtype.val ∘ e from rfl, e.surjective.range_comp,
-      Subtype.range_coe]⟩
+  exact ⟨Subtype.val ∘ e, Subtype.val_injective.comp e.injective,
+    (e.surjective.range_comp _).trans Subtype.range_coe⟩
 
 /-- An input with a given part on `X` and a given part off `X`. -/
 private theorem exists_domRestrict_eq (X : Set ι) (u : X → U) (v : ↥Xᶜ → U) :
@@ -107,13 +106,10 @@ private theorem exists_rectangle_range_subset {X : Set ι} {A : Set (X → U)} {
   obtain ⟨a, ha, rfl⟩ := exists_injective_range_eq hA'
   obtain ⟨b, hb, rfl⟩ := exists_injective_range_eq hB'
   choose z hz using fun i => exists_domRestrict_eq X (a i) (b i)
-  have hza : (fun i => X.domRestrict (z i)) = a := funext fun i => (hz i).1
-  have hzb : (fun j => Xᶜ.domRestrict (z j)) = b := funext fun j => (hz j).2
-  refine ⟨z, ?_, ?_⟩
-  · rw [hza, hzb]
-    exact fun x hx => ⟨hA'A hx.1, hB'B hx.2⟩
-  · rw [hza, hzb, ncard_rectangle, ncard_range_of_injective ha, ncard_range_of_injective hb,
-      Nat.card_eq_fintype_card, Fintype.card_fin]
+  refine ⟨z, ?_⟩
+  simp only [hz, ncard_rectangle, ncard_range_of_injective ha, ncard_range_of_injective hb,
+    Nat.card_eq_fintype_card, Fintype.card_fin]
+  exact ⟨fun x hx => ⟨hA'A hx.1, hB'B hx.2⟩, trivial⟩
 
 /-- Every rectangle with finite sides is spanned by inputs, one for each element of each side:
 its sides are the parts on `X` of the inputs `x i` and the parts off `X` of the inputs `y j`. -/
@@ -126,9 +122,7 @@ private theorem exists_eq_rectangle_range [Nonempty U] {X : Set ι} {A : Set (X 
   obtain ⟨b, -, hb⟩ := exists_injective_range_eq hB.cast_ncard_eq.symm
   choose x hx using fun i => exists_domRestrict_eq X (a i) fun _ => Classical.arbitrary U
   choose y hy using fun j => exists_domRestrict_eq X (fun _ => Classical.arbitrary U) (b j)
-  refine ⟨x, y, ?_⟩
-  rw [show (fun i => X.domRestrict (x i)) = a from funext fun i => (hx i).1,
-    show (fun j => Xᶜ.domRestrict (y j)) = b from funext fun j => (hy j).2, ha, hb]
+  exact ⟨x, y, by simp only [hx, hy, ha, hb]⟩
 
 /-! ### Dense rectangle-free sets -/
 
@@ -154,13 +148,10 @@ private theorem two_pow_le_two_mul_card_filter [DecidableEq ι] :
       #{f : (ι → Bool) → Bool | t ≤ #{x | f x = true}} := by
     refine card_le_card_of_injOn (fun f x => !f x) (fun f hf => ?_)
       fun f _ g _ h => funext fun x => by simpa using congrFun h x
-    have hf : #{x | f x = true} < t := by simpa using hf
     have hsplit := card_filter_add_card_filter_not (s := (univ : Finset (ι → Bool)))
       fun x => f x = true
-    simp only [card_univ, Bool.not_eq_true] at hsplit
-    have hneg : #{x | (!f x) = true} = #{x | f x = false} := by
-      simp only [Bool.not_eq_true']
-    simp only [coe_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq, hneg]
+    simp only [coe_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq, card_univ,
+      Bool.not_eq_true, Bool.not_eq_true'] at hf hsplit ⊢
     omega
   have hsplit := card_filter_add_card_filter_not (s := (univ : Finset ((ι → Bool) → Bool)))
     fun f => t ≤ #{x | f x = true}
@@ -190,14 +181,12 @@ theorem exists_rectangleFree_two_pow_le_ncard :
   have hE (w : Set ι × (Fin K → ι → Bool)) : #(E w) * 2 ^ (K * K) ≤ 2 ^ N := by
     by_cases hw : (R w).ncard = K * K
     · have hEw : E w = ({f : (ι → Bool) → Bool |
-          ∀ x ∉ (R w).toFinsetᶜ, f x = (fun _ => true) x} : Finset _) := by
-        ext f
-        simp [E, hw]
+          ∀ x ∉ (R w).toFinsetᶜ, f x = (fun _ => true) x} : Finset _) :=
+        Finset.ext fun f => by simp [E, hw]
       have hle : K * K ≤ N := hw ▸ (ncard_le_card _).trans_eq Nat.card_eq_fintype_card
       rw [hEw, BitString.card_filter_forall_notMem_eq, card_compl, ← ncard_eq_toFinset_card', hw,
         ← pow_add, Nat.sub_add_cancel hle]
-    · have hEw : E w = ∅ := by ext f; simp [E, hw]
-      simp [hEw]
+    · simp [E, hw]
   -- Every set that is not `K`-rectangle-free contains a spanned rectangle with `K ^ 2` points.
   set bad : Finset ((ι → Bool) → Bool) :=
     {f : (ι → Bool) → Bool | ¬ RectangleFree {x | f x = true} K}
@@ -225,21 +214,11 @@ theorem exists_rectangleFree_two_pow_le_ncard :
   -- Some large set is rectangle-free.
   have hlarge := two_pow_le_two_mul_card_filter (ι := ι)
   have hlt : #bad < #{f : (ι → Bool) → Bool | 2 ^ (n - 1) ≤ #{x | f x = true}} := by
-    have h16 : 16 ≤ 2 ^ (n + 4) := by
-      rw [pow_add]
-      exact Nat.le_mul_of_pos_left _ (by positivity)
-    have hone : 1 ≤ 2 ^ N := Nat.one_le_two_pow
-    generalize 2 ^ N = P at hcount hlarge hone
-    generalize 2 ^ (n + 4) = Q at hcount h16
-    nlinarith
+    have h16 : 16 ≤ 2 ^ (n + 4) := pow_add 2 n 4 ▸ Nat.le_mul_of_pos_left _ (Nat.two_pow_pos n)
+    nlinarith [Nat.one_le_two_pow (n := N)]
   obtain ⟨f, hf, hfbad⟩ := exists_mem_notMem_of_card_lt_card hlt
-  refine ⟨{x | f x = true}, ?_, ?_⟩
-  · simpa [bad] using hfbad
-  · have : ({x | f x = true} : Set (ι → Bool)) = ↑({x | f x = true} : Finset (ι → Bool)) := by
-      ext
-      simp
-    rw [this, ncard_coe_finset]
-    exact (mem_filter.mp hf).2
+  exact ⟨{x | f x = true}, by simpa [bad] using hfbad,
+    by simpa [ncard_eq_toFinset_card'] using (mem_filter.mp hf).2⟩
 
 end RectangleFree
 
@@ -259,15 +238,12 @@ private theorem card_filter_lt_abs_le {α : Type*} [Fintype α] [DecidableEq α]
   have hT : T.ncard = #R := ncard_eq_toFinset_card' T
   have hTS (f : α → Bool) : (T ∩ {x | f x = true}).ncard = #{x ∈ R | f x = true} := by
     rw [ncard_eq_toFinset_card']
-    congr 1
-    ext x
-    simp [R]
+    exact congrArg Finset.card (Finset.ext fun x => by simp [R])
   calc (#{f : α → Bool | b * T.ncard < |((T ∩ {x | f x = true}).ncard : ℝ) - T.ncard / 2|} : ℝ)
-      ≤ #{f : α → Bool | b * #R ≤ |(#{x ∈ R | f x = true} : ℝ) - #R / 2|} := by
-        refine Nat.cast_le.mpr (Finset.card_le_card fun f hf => ?_)
-        simp only [mem_filter, Finset.mem_univ, true_and] at hf ⊢
-        rw [← hTS, ← hT]
-        exact hf.le
+      ≤ #{f : α → Bool | b * #R ≤ |(#{x ∈ R | f x = true} : ℝ) - #R / 2|} :=
+        Nat.cast_le.mpr (Finset.card_le_card fun f hf => by
+          simpa only [mem_filter, Finset.mem_univ, true_and, ← hTS, ← hT] using
+            (mem_filter.mp hf).2.le)
     _ ≤ 2 * 2 ^ Fintype.card α * exp (-(2 * (b * #R) ^ 2 / #R)) :=
         BitString.card_filter_le_abs_card_filter_sub_half_le R (by positivity)
     _ = 2 * 2 ^ Fintype.card α * exp (-(2 * b ^ 2 * T.ncard)) := by
@@ -314,12 +290,9 @@ theorem exists_rectangleBias {K : ℕ} {b : ℝ} (hb : 0 < b)
   have hE (k₁ k₂ : ℕ) (w : Set ι × (Fin k₁ → ι → Bool) × (Fin k₂ → ι → Bool)) :
       (#(E k₁ k₂ w) : ℝ) ≤ 2 * 2 ^ N * exp (-(2 * b ^ 2 * (k₁ * k₂ : ℕ))) := by
     by_cases hw : (R k₁ k₂ w).ncard = k₁ * k₂
-    · rw [← hw]
-      refine le_trans ?_ (card_filter_lt_abs_le (R k₁ k₂ w) hb.le)
-      exact Nat.cast_le.mpr (Finset.card_le_card (monotone_filter_right _ fun f _ hf => hf.2))
-    · have hEw : E k₁ k₂ w = ∅ := by ext f; simp [E, hw]
-      rw [hEw, Finset.card_empty, Nat.cast_zero]
-      positivity
+    · exact hw ▸ (Nat.cast_le.mpr (Finset.card_le_card
+        (monotone_filter_right _ fun _ _ hf => hf.2))).trans (card_filter_lt_abs_le _ hb.le)
+    · simp only [E, hw, false_and, filter_false, Finset.card_empty, Nat.cast_zero]; positivity
   -- Every set of large bias on some rectangle has large bias on a spanned rectangle.
   set bad : Finset ((ι → Bool) → Bool) :=
     {f : (ι → Bool) → Bool | ¬ RectangleBias {x | f x = true} K b}
@@ -336,9 +309,7 @@ theorem exists_rectangleBias {K : ℕ} {b : ℝ} (hb : 0 < b)
     have hBN : B.ncard ≤ N := (Nat.le_mul_of_pos_left _ (by omega)).trans (hR ▸ hRN)
     refine mem_biUnion.mpr ⟨A.ncard, mem_Icc.mpr ⟨hA, hAN⟩, mem_biUnion.mpr ⟨B.ncard,
       mem_Icc.mpr ⟨hB, hBN⟩, mem_biUnion.mpr ⟨(X, x, y), Finset.mem_univ _, ?_⟩⟩⟩
-    simp only [E, R, mem_filter, Finset.mem_univ, true_and]
-    rw [hxy]
-    exact ⟨hR, hbias⟩
+    simpa only [E, R, mem_filter, Finset.mem_univ, true_and, hxy] using ⟨hR, hbias⟩
   -- The union bound for rectangles with sides of sizes `k₁` and `k₂`.
   have hterm (k₁ k₂ : ℕ) (hk₁ : K ≤ k₁) (hk₂ : K ≤ k₂) :
       ∑ w : Set ι × (Fin k₁ → ι → Bool) × (Fin k₂ → ι → Bool), (#(E k₁ k₂ w) : ℝ) ≤
@@ -371,11 +342,9 @@ theorem exists_rectangleBias {K : ℕ} {b : ℝ} (hb : 0 < b)
     calc (#bad : ℝ)
         ≤ ∑ k₁ ∈ Finset.Icc K N, ∑ k₂ ∈ Finset.Icc K N,
             ∑ w : Set ι × (Fin k₁ → ι → Bool) × (Fin k₂ → ι → Bool), (#(E k₁ k₂ w) : ℝ) := by
-          refine le_trans (Nat.cast_le.mpr ((Finset.card_le_card hbad).trans (card_biUnion_le.trans
+          exact_mod_cast (Finset.card_le_card hbad).trans (card_biUnion_le.trans
             (sum_le_sum fun k₁ _ => card_biUnion_le.trans
-              (sum_le_sum fun k₂ _ => card_biUnion_le))))) ?_
-          push_cast
-          rfl
+              (sum_le_sum fun k₂ _ => card_biUnion_le)))
       _ ≤ ∑ _k₁ ∈ Finset.Icc K N, ∑ _k₂ ∈ Finset.Icc K N, 2 ^ (n + 1) * 2 ^ N * exp (-(2 * K)) :=
           sum_le_sum fun k₁ hk₁ => sum_le_sum fun k₂ hk₂ =>
             hterm k₁ k₂ (mem_Icc.mp hk₁).1 (mem_Icc.mp hk₂).1
@@ -384,19 +353,16 @@ theorem exists_rectangleBias {K : ℕ} {b : ℝ} (hb : 0 < b)
           have : (#(Finset.Icc K N) : ℝ) ≤ N := by exact_mod_cast hIcc
           gcongr
       _ = (2 : ℝ) ^ (3 * n + 1) * exp (-(2 * K)) * 2 ^ N := by
-          rw [hN]
-          push_cast
-          ring
+          push_cast [hN]; ring
       _ < 2 ^ N := by
           refine mul_lt_of_lt_one_left (by positivity) ?_
           refine (mul_le_mul_of_nonneg_right (two_pow_le_exp _) (exp_pos _).le).trans_lt ?_
           rw [← exp_add, exp_lt_one_iff]
           cast_linarith
   by_contra! h
-  have huniv : bad = Finset.univ := eq_univ_of_forall fun f => by simp [bad, h]
-  rw [huniv, card_univ, Fintype.card_fun, Fintype.card_bool] at hcount
-  push_cast at hcount
-  exact lt_irrefl _ hcount
+  rw [Finset.eq_univ_of_forall (s := bad) fun f => by simp [bad, h], card_univ, Fintype.card_fun,
+    Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat] at hcount
+  exact hcount.false
 
 end RectangleBias
 
@@ -424,19 +390,15 @@ theorem isLittleO_deficit_of_two_pow_le_ncard {S : ∀ n, Set (Fin n → Bool)}
   have hpos : (0 : ℝ) < 2 ^ (n - 1) := by positivity
   have hlow : (2 : ℝ) ^ (n - 1) ≤ (S n).ncard := by exact_mod_cast hdense n
   have hup : ((S n).ncard : ℝ) ≤ 2 ^ n := by
-    have := ncard_le_card (S n)
-    simp only [Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_bool,
-      Fintype.card_fin] at this
-    exact_mod_cast this
+    simpa using (Nat.cast_le (α := ℝ)).mpr (ncard_le_card (S n))
   have hlog_low : ((n : ℝ) - 1) * Real.log 2 ≤ Real.log (S n).ncard := by
     calc ((n : ℝ) - 1) * Real.log 2 ≤ ((n - 1 : ℕ) : ℝ) * Real.log 2 := by
           gcongr
           rcases n with _ | n <;> simp
       _ = Real.log (2 ^ (n - 1)) := by rw [Real.log_pow]
       _ ≤ Real.log (S n).ncard := Real.log_le_log hpos hlow
-  have hlog_up : Real.log (S n).ncard ≤ n * Real.log 2 := by
-    rw [← Real.log_pow]
-    exact Real.log_le_log (hpos.trans_le hlow) hup
+  have hlog_up : Real.log (S n).ncard ≤ n * Real.log 2 :=
+    Real.log_pow 2 n ▸ Real.log_le_log (hpos.trans_le hlow) hup
   rw [Nat.card_eq_fintype_card, Fintype.card_bool, Nat.cast_ofNat, Real.norm_eq_abs, norm_one,
     mul_one, abs_le]
   constructor <;> linarith
@@ -467,10 +429,8 @@ theorem exists_rectangleBias_family :
       Tendsto (fun n : ℕ => 1 / ((n : ℝ) + 1)) atTop (nhds 0) := by
   have hK (n : ℕ) :
       (Fintype.card (Fin n) + 1 : ℝ) ≤ (1 / ((n : ℝ) + 1)) ^ 2 * ((n + 1) ^ 3 : ℕ) := by
-    rw [Fintype.card_fin]
-    push_cast
-    field_simp
-    rfl
+    push_cast [Fintype.card_fin]
+    field_simp; rfl
   choose S hS using fun n : ℕ => exists_rectangleBias (ι := Fin n) (by positivity) (hK n)
   refine ⟨S, Eventually.of_forall hS, ?_, tendsto_one_div_add_atTop_nhds_zero_nat⟩
   simpa only [Nat.cast_pow, Nat.cast_add, Nat.cast_one, Real.log_pow, Nat.cast_ofNat] using

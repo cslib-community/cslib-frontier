@@ -151,9 +151,8 @@ theorem card_left_eq_card_right (B : BipartiteRotationMap L R D)
     [Fintype L] [Fintype R] [Finite D] [Nonempty D] :
     Fintype.card L = Fintype.card R := by
   let := Fintype.ofFinite D
-  have h := Fintype.card_congr B.toRight
-  rw [Fintype.card_prod, Fintype.card_prod] at h
-  exact Nat.eq_of_mul_eq_mul_right Fintype.card_pos h
+  exact Nat.eq_of_mul_eq_mul_right Fintype.card_pos
+    (by simpa only [Fintype.card_prod] using Fintype.card_congr B.toRight)
 
 section Walk
 
@@ -218,11 +217,8 @@ variable [Fintype L] [Fintype R]
 /-- Averaging `B.walkLeft g` over left vertices equals averaging `g` over right vertices. -/
 theorem expect_walkLeft [Nonempty D] (g : R → ℝ) :
     𝔼 u : L, B.walkLeft g u = 𝔼 v : R, g v := by
-  have _ : Fintype.card L = Fintype.card R := B.card_left_eq_card_right
   simp only [walkLeft_apply, neighborRight, ← expect_product', univ_product_univ]
-  rw [Fintype.expect_equiv B.toRight (fun p => g (B.toRight p).1) (fun q => g q.1)
-    fun _ => rfl, Fintype.expect_prod_type]
-  dsimp only
+  rw [Fintype.expect_equiv B.toRight _ (fun q => g q.1) fun _ => rfl, Fintype.expect_prod_type]
   simp only [Fintype.expect_const]
 
 /-- `B.walkLeft` and `B.walkRight` are adjoint with respect to uniform expectations on `L` and `R`.
@@ -231,10 +227,7 @@ theorem expect_mul_walkLeft (f : L → ℝ) (g : R → ℝ) :
     𝔼 u : L, f u * B.walkLeft g u = 𝔼 v : R, B.walkRight f v * g v := by
   simp only [walkLeft_apply, walkRight_apply, mul_expect, expect_mul, neighborRight, neighborLeft,
     ← expect_product', univ_product_univ, Prod.mk.eta]
-  exact Fintype.expect_equiv B.toRight
-    (fun p => f p.1 * g (B.toRight p).1)
-    (fun q => f (B.toRight.symm q).1 * g q.1)
-    fun p => by simp only [Equiv.symm_apply_apply]
+  exact Fintype.expect_equiv B.toRight _ _ fun _ => by simp only [Equiv.symm_apply_apply]
 
 /-- `B.walkLeft` preserves mean zero. -/
 theorem expect_walkLeft_eq_zero {g : R → ℝ} (hg : 𝔼 v : R, g v = 0) :
@@ -251,10 +244,8 @@ theorem expect_walkRight_eq_zero {f : L → ℝ} (hf : 𝔼 u : L, f u = 0) :
 omit [Fintype L] in
 /-- For a centered function `g - 𝔼 g`, `B.walkLeft` commutes with subtracting the mean. -/
 theorem walkLeft_sub_expect [Nonempty D] (g : R → ℝ) :
-    B.walkLeft (fun v => g v - 𝔼 w, g w) = fun u => B.walkLeft g u - 𝔼 w, g w := by
-  rw [show (fun v => g v - 𝔼 w, g w) = g - fun _ => 𝔼 w, g w from rfl,
-    map_sub, B.walkLeft_const]
-  rfl
+    B.walkLeft (fun v => g v - 𝔼 w, g w) = fun u => B.walkLeft g u - 𝔼 w, g w :=
+  (B.walkLeft.map_sub g (fun _ => 𝔼 w, g w)).trans (by rw [B.walkLeft_const]; rfl)
 
 end Walk
 
@@ -334,14 +325,12 @@ theorem nontrivialSingularValue_flip_le [Nonempty D] (B : BipartiteRotationMap L
       (B.nontrivialSingularValue ^ 2 * 𝔼 u : L, f u ^ 2) * (𝔼 v : R, h v ^ 2) := by
     have hadj : 𝔼 v : R, h v ^ 2 = 𝔼 u : L, f u * B.walkLeft h u := by
       simpa only [h, sq] using (B.expect_mul_walkLeft f h).symm
-    have hcs : (𝔼 u : L, f u * B.walkLeft h u) ^ 2 ≤
-        (𝔼 u : L, f u ^ 2) * 𝔼 u : L, B.walkLeft h u ^ 2 :=
-      expect_mul_sq_le_sq_mul_sq univ f (B.walkLeft h)
-    have hwl := expect_walkLeft_sq_le (B := B) hh0
-    have hf_nn : 0 ≤ 𝔼 u : L, f u ^ 2 := expect_nonneg fun _ _ => sq_nonneg _
     calc (𝔼 v : R, h v ^ 2) ^ 2 = (𝔼 u : L, f u * B.walkLeft h u) ^ 2 := by rw [hadj]
-      _ ≤ (𝔼 u : L, f u ^ 2) * 𝔼 u : L, B.walkLeft h u ^ 2 := hcs
-      _ ≤ (𝔼 u : L, f u ^ 2) * (B.nontrivialSingularValue ^ 2 * 𝔼 v : R, h v ^ 2) := by gcongr
+      _ ≤ (𝔼 u : L, f u ^ 2) * 𝔼 u : L, B.walkLeft h u ^ 2 :=
+          expect_mul_sq_le_sq_mul_sq univ f (B.walkLeft h)
+      _ ≤ (𝔼 u : L, f u ^ 2) * (B.nontrivialSingularValue ^ 2 * 𝔼 v : R, h v ^ 2) :=
+          mul_le_mul_of_nonneg_left (expect_walkLeft_sq_le hh0)
+            (expect_nonneg fun _ _ => sq_nonneg _)
       _ = (B.nontrivialSingularValue ^ 2 * 𝔼 u : L, f u ^ 2) * 𝔼 v : R, h v ^ 2 := by ring
   rw [sq] at hsq
   exact le_of_mul_le_mul_right hsq hpos
@@ -377,13 +366,12 @@ singular value as `G.spectralExpansion`. -/
 @[simp]
 theorem nontrivialSingularValue_doubleCover {V : Type*} [Fintype V] [Nonempty D]
     (G : RotationMap V D) :
-    G.doubleCover.nontrivialSingularValue = G.spectralExpansion := by
-  refine le_antisymm ?_ ?_
-  · refine (nontrivialSingularValue_le_iff G.spectralExpansion_nonneg).2 fun g hg => ?_
-    simpa only [doubleCover_walkLeft] using G.expect_walk_sq_le_spectralExpansion_sq_mul hg
-  · refine G.spectralExpansion_le G.doubleCover.nontrivialSingularValue_nonneg fun f hf => ?_
-    simpa only [doubleCover_walkLeft] using
-      expect_walkLeft_sq_le (B := G.doubleCover) hf
+    G.doubleCover.nontrivialSingularValue = G.spectralExpansion :=
+  le_antisymm
+    ((nontrivialSingularValue_le_iff G.spectralExpansion_nonneg).2 fun _ hg =>
+      G.expect_walk_sq_le_spectralExpansion_sq_mul hg)
+    (G.spectralExpansion_le G.doubleCover.nontrivialSingularValue_nonneg fun _ hf =>
+      expect_walkLeft_sq_le (B := G.doubleCover) hf)
 
 end SingularValue
 
@@ -405,26 +393,24 @@ theorem abs_eigenvalue_le_nontrivialSingularValue_of_isBipartiteBalanced
   let fL : L → ℝ := fun u => f (.inl u)
   let fR : R → ℝ := fun v => f (.inr v)
   have hf_elim : f = Sum.elim fL fR := funext fun x => by cases x <;> rfl
-  have hwalk' : Sum.elim (B.walkLeft fR) (B.walkRight fL) = μ • Sum.elim fL fR := by
-    rw [← toRotationMap_walk_sumElim, ← hf_elim, hwalk]
+  have hwalk' : Sum.elim (B.walkLeft fR) (B.walkRight fL) = μ • Sum.elim fL fR :=
+    (toRotationMap_walk_sumElim B fL fR).symm.trans (hf_elim ▸ hwalk)
   have hL_eq : B.walkLeft fR = μ • fL := funext fun u => congrFun hwalk' (.inl u)
   have hR_eq : B.walkRight fL = μ • fR := funext fun v => congrFun hwalk' (.inr v)
-  have h1 := expect_walkLeft_sq_le (B := B) hf.2
-  have h2 := expect_walkRight_sq_le (B := B) hf.1
+  have h1 := hL_eq ▸ expect_walkLeft_sq_le (B := B) hf.2
+  have h2 := hR_eq ▸ expect_walkRight_sq_le (B := B) hf.1
   have h_sum_le :
       μ ^ 2 * (𝔼 u : L, fL u ^ 2 + 𝔼 v : R, fR v ^ 2) ≤
         B.nontrivialSingularValue ^ 2 * (𝔼 u : L, fL u ^ 2 + 𝔼 v : R, fR v ^ 2) := by
-    rw [hL_eq] at h1
-    rw [hR_eq] at h2
     simp only [Pi.smul_apply, smul_eq_mul, mul_pow, ← mul_expect] at h1 h2
     linarith
   have hpos : 0 < 𝔼 u : L, fL u ^ 2 + 𝔼 v : R, fR v ^ 2 := by
     obtain ⟨u₀ | v₀, hx₀⟩ := Function.ne_iff.1 hf0
     · exact add_pos_of_pos_of_nonneg
-        (expect_pos' (fun _ _ => sq_nonneg _) ⟨u₀, mem_univ u₀, sq_pos_iff.2 hx₀⟩)
+        (Fintype.expect_sq_pos (f := fL) (Function.ne_iff.2 ⟨u₀, hx₀⟩))
         (expect_nonneg fun _ _ => sq_nonneg _)
     · exact add_pos_of_nonneg_of_pos (expect_nonneg fun _ _ => sq_nonneg _)
-        (expect_pos' (fun _ _ => sq_nonneg _) ⟨v₀, mem_univ v₀, sq_pos_iff.2 hx₀⟩)
+        (Fintype.expect_sq_pos (f := fR) (Function.ne_iff.2 ⟨v₀, hx₀⟩))
   exact abs_le_of_sq_le_sq (le_of_mul_le_mul_right h_sum_le hpos) B.nontrivialSingularValue_nonneg
 
 /-- In the Euclidean space `EuclideanSpace ℝ (L ⊕ R)`, `IsBipartiteBalanced f` holds iff
@@ -442,8 +428,7 @@ theorem isBipartiteBalanced_iff_inner_eq_zero [Fintype L] [Fintype R] [Finite D]
     EuclideanSpace.inner_toLp_toLp, dotProduct, Fintype.sum_sum_type, star_trivial,
     mul_one, Sum.elim_inl, Sum.elim_inr, mul_neg, Finset.sum_neg_distrib,
     div_eq_zero_iff, or_iff_left hL0, or_iff_left hR0]
-  exact ⟨fun ⟨h₁, h₂⟩ => ⟨by linarith, by linarith⟩,
-    fun ⟨h₁, h₂⟩ => ⟨by linarith, by linarith⟩⟩
+  constructor <;> rintro ⟨h₁, h₂⟩ <;> exact ⟨by linarith, by linarith⟩
 
 end Spectral
 
@@ -493,9 +478,7 @@ private theorem expect_boole_mem_walkLeft [Fintype L] [Fintype D]
   rw [← expect_product', univ_product_univ, Fintype.expect_eq_sum_div_card, Fintype.card_prod,
     Nat.cast_mul]
   simp only [ite_zero_mul_ite_zero, mul_one, sum_boole]
-  congr 3
-  ext p
-  simp
+  exact congrArg (fun n : ℕ => (n : ℝ) / _) (congrArg Finset.card (Finset.ext fun _ => by simp))
 
 /-- **Bipartite expander mixing lemma**, sharper form: for `B : BipartiteRotationMap L R D` with
 `d = |D| > 0` and `N = |L| = |R|`, the number of edges from `U ⊆ L` to `W ⊆ R` differs from
@@ -509,8 +492,7 @@ theorem abs_card_interedges_sub_le [Fintype L] [Fintype R] [Fintype D]
   rcases (Fintype.card L).eq_zero_or_pos with hL | hL
   · have : IsEmpty L := Fintype.card_eq_zero_iff.1 hL
     have : IsEmpty R := Fintype.card_eq_zero_iff.1 (B.card_left_eq_card_right ▸ hL)
-    have hU : U = ∅ := Subsingleton.elim U ∅
-    simp [hU]
+    simp [Subsingleton.elim U ∅]
   have hLR : Fintype.card L = Fintype.card R := B.card_left_eq_card_right
   have : Nonempty L := Fintype.card_pos_iff.1 hL
   have hn : (0 : ℝ) < Fintype.card L := Nat.cast_pos.2 hL
@@ -525,9 +507,8 @@ theorem abs_card_interedges_sub_le [Fintype L] [Fintype R] [Fintype D]
     simp only [sub_mul, mul_sub, expect_sub_distrib, ← expect_mul, ← mul_expect,
       B.expect_walkLeft, Fintype.expect_const]
     ring
-  have hf0 : 𝔼 u : L, (f u - 𝔼 u', f u') = 0 := Fintype.expect_balance f
-  have hg0 : 𝔼 v : R, (g v - 𝔼 v', g v') = 0 := Fintype.expect_balance g
-  have hbd := expect_mul_walkLeft_sq_le (B := B) hf0 hg0
+  have hbd := expect_mul_walkLeft_sq_le (B := B) (f := fun u => f u - 𝔼 u', f u')
+    (g := fun v => g v - 𝔼 v', g v') (Fintype.expect_balance f) (Fintype.expect_balance g)
   rw [← add_sub_cancel_left ((𝔼 u : L, f u) * 𝔼 v : R, g v)
     (𝔼 u : L, (f u - 𝔼 u', f u') * B.walkLeft (fun v => g v - 𝔼 v', g v') u), ← hcorr,
     Fintype.expect_sub_expect_sq, Fintype.expect_sub_expect_sq] at hbd
@@ -536,7 +517,6 @@ theorem abs_card_interedges_sub_le [Fintype L] [Fintype R] [Fintype D]
   have hlam := B.nontrivialSingularValue_nonneg
   rw [hLR] at hn
   refine abs_le_of_sq_le_sq ?_ (by positivity)
-  have hmul := mul_le_mul_of_nonneg_left hbd (sq_nonneg ((Fintype.card R : ℝ) * Fintype.card D))
   have hlhs :
       ((#(B.interedges U W) : ℝ) - Fintype.card D * #U * #W / Fintype.card R) ^ 2 =
         (Fintype.card R * Fintype.card D : ℝ) ^ 2 *
@@ -554,7 +534,7 @@ theorem abs_card_interedges_sub_le [Fintype L] [Fintype R] [Fintype D]
         Nat.cast_sub (card_le_univ U), Nat.cast_sub (card_le_univ W), hLR]
     field_simp
   rw [hLR, hlhs, ← hrhs]
-  exact hmul
+  exact mul_le_mul_of_nonneg_left hbd (sq_nonneg _)
 
 /-- **Bipartite expander mixing lemma**: `|e(U, W) - d |U| |W| / N| ≤ σ₂(B) d √(|U| |W|)`. -/
 theorem abs_card_interedges_sub_le_mul_sqrt [Fintype L] [Fintype R] [Fintype D]
@@ -566,8 +546,7 @@ theorem abs_card_interedges_sub_le_mul_sqrt [Fintype L] [Fintype R] [Fintype D]
   refine (B.abs_card_interedges_sub_le U W).trans ?_
   have hlam := B.nontrivialSingularValue_nonneg
   rcases (Fintype.card L).eq_zero_or_pos with hL | hL
-  · rw [hL, Nat.cast_zero, div_zero]
-    positivity
+  · rw [hL, Nat.cast_zero, div_zero]; positivity
   have hn : (0 : ℝ) < Fintype.card L := Nat.cast_pos.2 hL
   have hU : (#Uᶜ : ℝ) ≤ Fintype.card L := Nat.cast_le.2 (card_le_univ _)
   have hW : (#Wᶜ : ℝ) ≤ Fintype.card L := by
@@ -585,10 +564,9 @@ theorem card_interedges_le_of_nontrivialSingularValue_le [Fintype L] [Fintype R]
     [Nonempty D] {lam : ℝ} (hlam : B.nontrivialSingularValue ≤ lam) (U : Finset L) (W : Finset R) :
     (#(B.interedges U W) : ℝ) ≤
       Fintype.card D * #U * #W / Fintype.card L + lam * Fintype.card D * √((#U : ℝ) * #W) := by
-  have h1 := (le_abs_self _).trans (B.abs_card_interedges_sub_le_mul_sqrt U W)
   have h2 := mul_le_mul_of_nonneg_right hlam
-    (by positivity : 0 ≤ (Fintype.card D : ℝ) * √((#U : ℝ) * #W))
-  linarith
+    (mul_nonneg (Nat.cast_nonneg (Fintype.card D)) (Real.sqrt_nonneg ((#U : ℝ) * #W)))
+  linarith [(le_abs_self _).trans (B.abs_card_interedges_sub_le_mul_sqrt U W)]
 
 end Mixing
 

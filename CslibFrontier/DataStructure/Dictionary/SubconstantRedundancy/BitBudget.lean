@@ -268,7 +268,6 @@ theorem allLeavesBits_le_padded_infoBits_add :
     exact (Nat.sub_le _ _).trans
       ((Nat.le_add_right _ _).trans (P.nHigh_le_two_pow_idBits P.depth h1d le_rfl))
   have hXV : 1 ≤ Q_k * V := Nat.mul_pos (P.quotUniv_pos P.depth) P.val_pos
-  have hleaf := Minimap.bitWidth_le_infoBits_add_two hm1 hmA hXV
   set X_leaf := A.choose m * (Q_k * V) ^ m
   have hpow_clog : 2 ^ Minimap.infoBits A m (Q_k * V) ≤ 2 * X_leaf :=
     Nat.pow_clog_le_mul Nat.one_lt_two
@@ -276,14 +275,13 @@ theorem allLeavesBits_le_padded_infoBits_add :
   have hvand : (A.choose m) ^ N_k ≤ (N_k * A).choose (N_k * m) := by
     simpa only [Finset.prod_const, Finset.sum_const, Finset.card_range, smul_eq_mul] using
       Nat.prod_choose_le_choose_sum (Finset.range N_k) (fun _ => A) (fun _ => m)
-  have hscale : Q_k ^ (N_k * m) * (N_k * A).choose (N_k * m) ≤
-      P.paddedUniv.choose (N_k * m) := by
-    have h := Nat.pow_mul_choose_le_choose_mul (P.quotUniv_pos P.depth) (N_k * A) (N_k * m)
-    rwa [Nat.mul_comm (P.quotUniv P.depth), P.numNodes_mul_idUniv_mul_quotUniv h1d le_rfl] at h
   have hprod_le : X_leaf ^ N_k ≤ P.paddedUniv.choose (N_k * m) * V ^ (N_k * m) :=
     calc X_leaf ^ N_k = (Q_k ^ (N_k * m) * (A.choose m) ^ N_k) * V ^ (N_k * m) := by
           dsimp only [X_leaf]; ring
-      _ ≤ _ := Nat.mul_le_mul_right _ ((Nat.mul_le_mul_left _ hvand).trans hscale)
+      _ ≤ _ := Nat.mul_le_mul_right _ ((Nat.mul_le_mul_left _ hvand).trans
+        (P.numNodes_mul_idUniv_mul_quotUniv h1d le_rfl ▸
+          Nat.mul_comm (P.quotUniv P.depth) (N_k * A) ▸
+            Nat.pow_mul_choose_le_choose_mul (P.quotUniv_pos P.depth) (N_k * A) (N_k * m)))
   have hexp_le :
       N_k * Minimap.infoBits A m (Q_k * V) ≤ N_k + infoBits P.paddedUniv V (N_k * m) := by
     refine (Nat.pow_le_pow_iff_right Nat.one_lt_two).mp ?_
@@ -294,10 +292,9 @@ theorem allLeavesBits_le_padded_infoBits_add :
       _ ≤ 2 ^ N_k * 2 ^ infoBits P.paddedUniv V (N_k * m) :=
           Nat.mul_le_mul_left _ (hprod_le.trans (Nat.le_pow_clog Nat.one_lt_two _))
       _ = _ := (Nat.pow_add 2 _ _).symm
-  have : P.allLeavesBits ≤ N_k * (Minimap.infoBits A m (Q_k * V) + 2) :=
-    Nat.mul_le_mul_left N_k hleaf
-  rw [Nat.mul_add] at this
-  omega
+  dsimp only [allLeavesBits]
+  linarith [Nat.mul_add N_k (Minimap.infoBits A m (Q_k * V)) 2,
+    Nat.mul_le_mul_left N_k (Minimap.bitWidth_le_infoBits_add_two hm1 hmA hXV)]
 
 /-- Non-leaf quotient + value bit conservation: combining `infoBits U_pad V n_L` with `d = n - n_L`
 slots of `(⌈log₂ ⌈U_pad / n⌉⌉ + ⌈log₂ V⌉)` bits never exceeds `infoBits U_pad V n + 3 * d + 1`
@@ -311,8 +308,7 @@ theorem nonLeaf_infoBits_conservation {U_pad V n n_L : ℕ}
   set Q_up := (U_pad + n - 1) / n
   have hnU : n ≤ U_pad := by omega
   have hnQ : n * Q_up ≤ 2 * (U_pad - n + 1) := by
-    have : Q_up * n ≤ U_pad + n - 1 := Nat.div_mul_le_self _ n
-    have := Nat.mul_comm Q_up n
+    have := Nat.mul_comm n Q_up ▸ Nat.div_mul_le_self (U_pad + n - 1) n
     omega
   have h2q : 2 ^ q_base ≤ 2 * Q_up :=
     Nat.pow_clog_le_mul Nat.one_lt_two (Nat.div_pos (by omega) hn).ne'
@@ -331,9 +327,9 @@ theorem nonLeaf_infoBits_conservation {U_pad V n n_L : ℕ}
       _ = _ := by rw [Nat.pow_mul, Nat.mul_pow, Nat.mul_pow]
   set X_L := U_pad.choose n_L * V ^ n_L
   set X_n := U_pad.choose n * V ^ n
-  have hchoose := Nat.choose_sub_mul_pow_le (m := U_pad) (ℓ := n) (s := d) (Nat.sub_le n n_L) hnU
-  rw [show n - d = n_L by omega] at hchoose
-  have hV_split : V ^ n_L * V ^ d = V ^ n := by rw [← Nat.pow_add]; congr 1; omega
+  have hchoose : U_pad.choose n_L * (U_pad - n + 1) ^ d ≤ U_pad.choose n * n ^ d :=
+    Nat.sub_sub_self hnL ▸ Nat.choose_sub_mul_pow_le (Nat.sub_le n n_L) hnU
+  have hV_split : V ^ n_L * V ^ d = V ^ n := by rw [← Nat.pow_add, Nat.add_sub_of_le hnL]
   have hXL_le : X_L * 2 ^ (d * (q_base + Nat.clog 2 V)) ≤ 2 ^ (3 * d) * X_n := by
     refine Nat.le_of_mul_le_mul_left ?_ (Nat.pow_pos hn : 0 < n ^ d)
     calc n ^ d * (X_L * 2 ^ (d * (q_base + Nat.clog 2 V)))
@@ -431,8 +427,8 @@ theorem totalTreeBits_le_padded_infoBits_add
     obtain ⟨h2, hlt⟩ := Finset.mem_Ico.mp hℓ
     nlinarith [Nat.mul_le_mul_left (P.numNodes ℓ * P.tableCap ℓ) (hquot_le ℓ (by omega) hlt)]
   have hroot_split : P.numNodes 1 * P.tableCap 1 * q_base ≤
-      P.rootValPoolCap * q_base + (P.numNodes 1 * P.tableCap 1 - P.rootValPoolCap) * q_base := by
-    rw [← Nat.add_mul]; exact Nat.mul_le_mul_right q_base (by omega)
+      P.rootValPoolCap * q_base + (P.numNodes 1 * P.tableCap 1 - P.rootValPoolCap) * q_base :=
+    Nat.add_mul _ _ q_base ▸ Nat.mul_le_mul_right q_base (by omega)
   have hroot_le : P.allRootTablesBits ≤
       P.rootValPoolCap * (q_base + Nat.clog 2 P.valBound) +
         P.numNodes 1 *
@@ -444,16 +440,11 @@ theorem totalTreeBits_le_padded_infoBits_add
     dsimp only [allRootTablesBits]
     nlinarith [Nat.mul_le_mul_left (P.numNodes 1 * P.tableCap 1)
       (hquot_le 1 le_rfl (by have := P.two_le_depth; omega))]
-  have hleaves := P.allLeavesBits_le_padded_infoBits_add
-  have hnonleaf := nonLeaf_infoBits_conservation hcap1 P.val_pos hnL_le hU3
-  have hd_mul :
-      (∑ ℓ ∈ Finset.Ico 2 P.depth, P.numNodes ℓ * P.tableCap ℓ) *
-          (q_base + Nat.clog 2 P.valBound) +
-        P.rootValPoolCap * (q_base + Nat.clog 2 P.valBound) =
-      d * (q_base + Nat.clog 2 P.valBound) := by
-    rw [← Nat.add_mul, hd_eq]
   dsimp only [totalTreeBits, redundancySlack]
-  linarith
+  linarith [P.allLeavesBits_le_padded_infoBits_add,
+    nonLeaf_infoBits_conservation hcap1 P.val_pos hnL_le hU3,
+    (Nat.add_mul _ _ (q_base + Nat.clog 2 P.valBound)).symm.trans
+      (congrArg (· * (q_base + Nat.clog 2 P.valBound)) hd_eq)]
 
 end TreeSchedule
 

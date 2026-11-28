@@ -55,10 +55,8 @@ open Polynomial Matrix Module
 
 private lemma root_degree (e : ℕ) : AdjoinRoot.root (modulus e) ^ degree e = -1 := by
   have h := AdjoinRoot.eval₂_root (modulus e)
-  change Polynomial.eval₂ (AdjoinRoot.of (modulus e)) (AdjoinRoot.root (modulus e))
-    ((X : ℚ[X]) ^ degree e + 1) = 0 at h
-  rw [Polynomial.eval₂_add, Polynomial.eval₂_pow, Polynomial.eval₂_X, Polynomial.eval₂_one] at h
-  exact eq_neg_of_add_eq_zero_left h
+  rwa [modulus, Polynomial.eval₂_add, Polynomial.eval₂_pow, Polynomial.eval₂_X,
+    Polynomial.eval₂_one, ← eq_neg_iff_add_eq_zero] at h
 
 private lemma root_pow_reduce (e k : ℕ) :
     AdjoinRoot.root (modulus e) ^ k = (-1 : R e) ^ (k / degree e) *
@@ -70,10 +68,10 @@ This also gives an explicit integral computation with a division and remainder. 
 private lemma rho_root_pow (e k : ℕ) (i j : Fin (degree e)) :
     rho e (AdjoinRoot.root (modulus e) ^ k) i j =
       if (k + j.val) % degree e = i.val then (-1 : ℚ) ^ ((k + j.val) / degree e) else 0 := by
-  rw [rho, Algebra.leftMulMatrix_eq_repr_mul, basis_apply, ← pow_add, root_pow_reduce]
-  rw [show (-1 : R e) ^ ((k + j.val) / degree e) =
-      algebraMap ℚ (R e) ((-1 : ℚ) ^ ((k + j.val) / degree e)) by simp]
-  rw [← Algebra.smul_def, map_smul, Basis.repr_self, Finsupp.smul_apply, Finsupp.single_apply]
+  have hneg : (-1 : R e) ^ ((k + j.val) / degree e) =
+      algebraMap ℚ (R e) ((-1 : ℚ) ^ ((k + j.val) / degree e)) := by simp
+  rw [rho, Algebra.leftMulMatrix_eq_repr_mul, basis_apply, ← pow_add, root_pow_reduce, hneg,
+    ← Algebra.smul_def, map_smul, Basis.repr_self, Finsupp.smul_apply, Finsupp.single_apply]
   simp only [smul_eq_mul, mul_ite, mul_one, mul_zero]
   congr 1
   exact propext Fin.ext_iff
@@ -95,8 +93,7 @@ private lemma rho_character_integral (e : ℕ) (a : ZMod (dimension e)) (i j : F
 
 private lemma signedEntry_abs (e : ℕ) (a : ZMod (dimension e)) (i j : Fin (degree e)) :
     |signedEntry e a i j| ≤ 1 := by
-  unfold signedEntry
-  split_ifs <;> simp [abs_pow]
+  by_cases h : (a.val + j.val) % degree e = i.val <;> simp [signedEntry, h, abs_pow]
 
 end Rational.CyclotomicRing
 
@@ -160,8 +157,8 @@ private lemma full_cast {K : Type*} [Field K] (M : ℕ) (a t : ℤ) (i j : Fin M
     Polynomial.eval (t : K) (TestPolynomial.full M (a : K) i j) =
       (full M a t i j : K) := by
   simp only [TestPolynomial.full, full, coeff_X_add_C_pow, Polynomial.eval_finsetSum,
-    Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_pow, Polynomial.eval_X]
-  simp only [Int.cast_sum, Int.cast_mul, Int.cast_pow, Int.cast_neg, Int.cast_natCast]
+    Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_pow, Polynomial.eval_X,
+    Int.cast_sum, Int.cast_mul, Int.cast_pow, Int.cast_neg, Int.cast_natCast]
 
 private lemma padded_cast {K : Type*} [Field K] (M N : ℕ) (a t : ℤ) (i j : Fin M) :
     Polynomial.eval (t : K) (TestPolynomial.padded M N (a : K) i j) =
@@ -193,8 +190,7 @@ lemma eval_lift (χ : AddChar (ZMod d) K) (R : Matrix (ZMod d) (ZMod d) K[X])
         χ (-a * k) * Polynomial.eval (x 0) (R k (k - b)) * QuantumMatrices.weyl χ a b i j *
           (x 1) ^ a.val * (x 2) ^ b.val := by
   simp only [lift, map_sum, map_mul, map_pow, eval_uni, MvPolynomial.eval_C, MvPolynomial.eval_X,
-    coeffP, Polynomial.eval_C]
-  simp only [Finset.mul_sum, Finset.sum_mul]
+    coeffP, Polynomial.eval_C, Finset.mul_sum, Finset.sum_mul]
   exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ =>
     Finset.sum_congr rfl fun _ _ => by ring
 
@@ -249,9 +245,8 @@ private lemma rho_rat_mul (e : ℕ) (q : ℚ) (z : R e) (i j : Fin (degree e)) :
 
 private lemma rho_div_nat (e : ℕ) (z : R e) (i j : Fin (degree e)) :
     (dimension e : ℚ) * rho e ((dimension e : R e)⁻¹ * z) i j = rho e z i j := by
-  have hc : (dimension e : R e)⁻¹ = algebraMap ℚ (R e) ((dimension e : ℚ)⁻¹) := by simp
-  have hd : (dimension e : ℚ) ≠ 0 := by exact_mod_cast (dimension_pos e).ne'
-  rw [hc, rho_rat_mul, ← mul_assoc, mul_inv_cancel₀ hd, one_mul]
+  rw [← map_natCast (algebraMap ℚ (R e)), ← map_inv₀, rho_rat_mul, ← mul_assoc,
+    mul_inv_cancel₀ (Nat.cast_ne_zero.mpr (dimension_pos e).ne'), one_mul]
 
 /-- The integer formula `entry e T p r u v i j` equals `dimension e` times the `(i, j)` regular
 representation entry of `ThreeLift.lift (character e) P u v` at `(t, p, r)`. -/
@@ -329,7 +324,6 @@ lemma U_cast (n N e : ℕ) (x : Fin 3 → ℕ) (a : Fin (n + 1)) :
   change (integralLift n N e x a i j : ℚ) =
     (CyclotomicRing.dimension e : ℚ) * regular e (specializedLift n N e x a) i j
   rw [regular_apply]
-  unfold integralLift
   have hh := IntegralLift.entry_spec e
     (PencilDeformation.test (CyclotomicRing.dimension e) N (a.val : CyclotomicRing.R e))
     (integerTest N e (a.val : ℤ) (x 0 : ℤ)) (x 0 : ℤ) (x 1 : ℤ) (x 2 : ℤ)
@@ -341,10 +335,9 @@ lemma U_cast (n N e : ℕ) (x : Fin 3 → ℕ) (a : Fin (n + 1)) :
     ((coordinate e).symm i).1 ((coordinate e).symm j).1
     ((coordinate e).symm i).2 ((coordinate e).symm j).2
   have hx : (fun j : Fin 3 => (x j : CyclotomicRing.R e)) =
-      ![(x 0 : CyclotomicRing.R e), (x 1 : CyclotomicRing.R e), (x 2 : CyclotomicRing.R e)] := by
-    funext j
-    fin_cases j <;> rfl
-  simpa only [specializedLift, PencilCertificates.lifts, RingHom.mapMatrix_apply,
+      ![(x 0 : CyclotomicRing.R e), (x 1 : CyclotomicRing.R e), (x 2 : CyclotomicRing.R e)] :=
+    funext fun j => by fin_cases j <;> rfl
+  simpa only [integralLift, specializedLift, PencilCertificates.lifts, RingHom.mapMatrix_apply,
     Matrix.map_apply, MvPolynomial.coe_eval₂Hom, MvPolynomial.eval₂_id, Int.cast_natCast,
     hx] using hh
 
@@ -357,10 +350,10 @@ lemma U_bound (n N e H : ℕ) (x : Fin 3 → ℕ) (hH : 1 ≤ H) (hx : ∀ l, x 
         (H : ℤ) ^ (3 * CyclotomicRing.dimension e) := by
   have hT (u v) : |integerTest N e (a.val : ℤ) (x 0 : ℤ) u v| ≤
       (CyclotomicRing.dimension e : ℤ) * (2 * (n + 1) : ℤ) ^ (2 * CyclotomicRing.dimension e) *
-        (H : ℤ) ^ CyclotomicRing.dimension e := by
-    apply IntegralTest.padded_bound _ _ _ _ (n + 1) H (by omega) hH
-    · rw [Int.abs_natCast]; exact_mod_cast (Nat.le_of_lt a.isLt)
-    · rw [Int.abs_natCast]; exact_mod_cast hx 0
+        (H : ℤ) ^ CyclotomicRing.dimension e :=
+    IntegralTest.padded_bound _ _ _ _ (n + 1) H (Nat.succ_pos n) hH
+      ((Int.abs_natCast _).trans_le (Int.ofNat_le.mpr a.isLt.le))
+      ((Int.abs_natCast _).trans_le (Int.ofNat_le.mpr (hx 0))) _ _
   have hh := IntegralLift.entry_bound e (integerTest N e (a.val : ℤ) (x 0 : ℤ))
     (x 1 : ℤ) (x 2 : ℤ)
     (CyclotomicRing.dimension e * (2 * (n + 1)) ^ (2 * CyclotomicRing.dimension e) *
@@ -369,9 +362,10 @@ lemma U_bound (n N e H : ℕ) (x : Fin 3 → ℕ) (hH : 1 ≤ H) (hx : ∀ l, x 
     ((coordinate e).symm i).1 ((coordinate e).symm j).1
     ((coordinate e).symm i).2 ((coordinate e).symm j).2
   apply hh.trans_eq
+  have h3 : 3 * CyclotomicRing.dimension e =
+      CyclotomicRing.dimension e + 2 * CyclotomicRing.dimension e := by omega
   push_cast
-  rw [show 3 * CyclotomicRing.dimension e =
-    CyclotomicRing.dimension e + 2 * CyclotomicRing.dimension e by omega, pow_add]
+  rw [h3, pow_add]
   ring
 
 /-- When `(rationalLift n N e x 0).det ≠ 0`, the normalized matrix `tupleAt n N e x a` is the
@@ -380,20 +374,17 @@ lemma tupleAt_integer (n N e : ℕ) (x : Fin 3 → ℕ) (hz : (rationalLift n N 
     (a : Fin n) :
     tupleAt n N e x a = ((integralLift n N e x 0).map (Int.castRingHom ℚ))⁻¹ *
       (integralLift n N e x a.succ).map (Int.castRingHom ℚ) := by
-  rw [U_cast, U_cast,
-    Matrix.inv_smul_mul_smul_of_ne_zero _ _ hz
-      (by exact_mod_cast (CyclotomicRing.dimension_pos e).ne')]
+  rw [U_cast, U_cast, Matrix.inv_smul_mul_smul_of_ne_zero _ _ hz
+    (Nat.cast_ne_zero.mpr (CyclotomicRing.dimension_pos e).ne')]
   rfl
 
 /-- If `(rationalLift n N e x 0).det ≠ 0`, then `(integralLift n N e x 0).det ≠ 0`. -/
 lemma U_det_ne_zero (n N e : ℕ) (x : Fin 3 → ℕ) (hz : (rationalLift n N e x 0).det ≠ 0) :
     (integralLift n N e x 0).det ≠ 0 := by
-  have hu : ((integralLift n N e x 0).det : ℚ) ≠ 0 := by
-    rw [Int.cast_det]
-    change ((integralLift n N e x 0).map (Int.castRingHom ℚ)).det ≠ 0
-    rw [U_cast, Matrix.det_smul]
-    exact mul_ne_zero (pow_ne_zero _ (by exact_mod_cast (CyclotomicRing.dimension_pos e).ne')) hz
-  exact_mod_cast hu
+  rw [← Int.cast_ne_zero (α := ℚ), Int.cast_det]
+  change ((integralLift n N e x 0).map (Int.castRingHom ℚ)).det ≠ 0
+  rw [U_cast, Matrix.det_smul]
+  exact mul_ne_zero (pow_ne_zero _ (Nat.cast_ne_zero.mpr (CyclotomicRing.dimension_pos e).ne')) hz
 
 end Rational.Generator
 

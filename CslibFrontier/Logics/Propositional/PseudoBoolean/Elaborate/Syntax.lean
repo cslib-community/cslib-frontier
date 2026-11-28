@@ -653,67 +653,83 @@ private partial def endSection (L : Lexer σ) : PM σ Unit := do
 
 mutual
 
-/-- A reference of a specification step, made absolute and sent to its kernel number. -/
-private partial def remapRef (map : Std.HashMap ℕ ℕ) : Ref → Ref
-  | .abs n => .abs ((map[n]?).getD n)
+/-- An absolute reference of the specification step whose negation has the augmented number `a`,
+sent to its kernel number: `map` sends the earlier steps, and the constraints of this step (its
+negation and those of its subproof) are numbered `off` higher in the kernel syntax. -/
+private partial def remapRef (map : Std.HashMap ℕ ℕ) (a off : ℕ) : Ref → Ref
+  | .abs n => .abs (if a ≤ n then n + off else (map[n]?).getD n)
   | r => r
 
-/-- The constraint references of a step in a specification, sent to kernel numbers; relative
-references inside the subproof are kept. -/
-private partial def remap (map : Std.HashMap ℕ ℕ) (a : ℕ) : AStep → AStep
+/-- The constraint references of a step in a specification, whose negation has the augmented
+number `a`, sent to kernel numbers (`remapRef`); relative references are kept. -/
+private partial def remap (map : Std.HashMap ℕ ℕ) (a off : ℕ) : AStep → AStep
   | .pol ops => .pol (ops.map fun (o : AOp) => match o with
-    | .ref r => .ref (remapRef map r)
+    | .ref r => .ref (remapRef map a off r)
     | o => o)
   | .rup c (some hs) => .rup c (some (hs.map fun (h : AHint) => match h with
-    | .ref r => .ref (remapRef map r)
+    | .ref r => .ref (remapRef map a off r)
     | h => h))
-  | .pbc c sub q => .pbc c (sub.map (·.map (remap map a))) (q.map (remapRef map))
-  | .goal g sub q => .goal g (sub.map (remap map a)) (q.map (remapRef map))
+  | .pbc c sub q => .pbc c (sub.map (·.map (remap map a off))) (q.map (remapRef map a off))
+  | .goal g sub q =>
+    let g := match g with
+      | .ref r => AGoal.ref (remapRef map a off r)
+      | g => g
+    .goal g (sub.map (remap map a off)) (q.map (remapRef map a off))
+  | .labeled l s => .labeled l (remap map a off s)
   | s => s
 
-/-- The local number of a reference inside `def_order`, the next number being `next`. -/
-private partial def refNum (next : ℕ) : Ref → ℕ
+/-- The local number of a reference inside `def_order`, the next number being `next` and the
+labels of the section being `lbl`; an unknown label gets `0`, which numbers no constraint. -/
+private partial def refNum (lbl : Std.HashMap String ℕ) (next : ℕ) : Ref → ℕ
   | .abs n => n
   | .rel k => next - k
-  | .label _ => 0
+  | .label l => lbl.getD l 0
 
-/-- A step inside `def_order`, in the kernel syntax, numbered from `next`; with the next number
-after it. -/
-private partial def toKernelStep (s : AStep) (next : ℕ) : Option (Step × ℕ) :=
+/-- A step inside `def_order`, in the kernel syntax, numbered from `next`, with the labels `lbl`;
+with the next number after it and the labels after it. The step derives the constraint before
+that next number, which a label before the step names: the labels of a section are local to it
+and visible after a subproof, as in `proof_lines` of VeriPB 3.0.2's parser. -/
+private partial def toKernelStep (lbl : Std.HashMap String ℕ) (s : AStep) (next : ℕ) :
+    Option (Step × ℕ × Std.HashMap String ℕ) :=
   match s with
   | .pol ops => (ops.mapM fun (o : AOp) => match o with
-      | .ref r => some (PolOp.id (refNum next r)) | .lit l => some (.lit l) | .add => some .add
-      | .mul k => some (.mul k) | .div k => some (.div k) | .sat => some .sat
-      | .weaken v => some (.weaken v) | _ => none).map fun ops => (.pol ops, next + 1)
-  | .rup c none => some (.rupSearch c, next + 1)
+      | .ref r => some (PolOp.id (refNum lbl next r)) | .lit l => some (.lit l)
+      | .add => some .add | .mul k => some (.mul k) | .div k => some (.div k)
+      | .sat => some .sat | .weaken v => some (.weaken v) | _ => none).map
+        fun ops => (.pol ops, next + 1, lbl)
+  | .rup c none => some (.rupSearch c, next + 1, lbl)
   | .rup c (some hs) =>
     some (.rup c (hs.map fun (h : AHint) => match h with
       | .neg => .neg
-      | .ref r => .id (refNum next r)), next + 1)
+      | .ref r => .id (refNum lbl next r)), next + 1, lbl)
   | .pbc c (some sub) q =>
-    let (ks, n') := toKernelSteps sub (next + 1)
-    some (.pbc c ks ((q.map (refNum n')).getD (n' - 1)), n' + 1)
+    let (ks, n', lbl) := toKernelSteps lbl sub (next + 1)
+    some (.pbc c ks ((q.map (refNum lbl n')).getD (n' - 1)), n' + 1, lbl)
+  | .labeled l s => (toKernelStep lbl s next).map fun (k, n', lbl) => (k, n', lbl.insert l (n' - 1))
   | _ => none
 
-/-- Steps inside `def_order`, numbered from `next`. -/
-private partial def toKernelSteps (ss : List AStep) (next : ℕ) : List Step × ℕ :=
-  ss.foldl (fun (acc, n) s => match toKernelStep s n with
-    | some (k, n') => (acc ++ [k], n')
-    | none => (acc, n)) ([], next)
+/-- Steps inside `def_order`, numbered from `next`, with the labels `lbl`. -/
+private partial def toKernelSteps (lbl : Std.HashMap String ℕ) (ss : List AStep) (next : ℕ) :
+    List Step × ℕ × Std.HashMap String ℕ :=
+  ss.foldl (fun (acc, n, lbl) s => match toKernelStep lbl s n with
+    | some (k, n', lbl') => (acc ++ [k], n', lbl')
+    | none => (acc, n, lbl)) ([], next, lbl)
 
-/-- The items of a subproof inside `def_order`, in the kernel syntax, numbered from `next`: a
-`proofgoal` block's negated goal takes the next number. -/
-private partial def toKernelItems (items : List AStep) (next : ℕ) : List RedItem × ℕ :=
-  items.foldl (fun (acc, n) s => match s with
+/-- The items of a subproof inside `def_order`, in the kernel syntax, numbered from `next`, with
+the labels `lbl`: a `proofgoal` block's negated goal takes the next number. -/
+private partial def toKernelItems (lbl : Std.HashMap String ℕ) (items : List AStep) (next : ℕ) :
+    List RedItem × ℕ × Std.HashMap String ℕ :=
+  items.foldl (fun (acc, n, lbl) s => match s with
     | .goal g sub q =>
-      let (ks, n') := toKernelSteps sub (n + 1)
+      -- The goal is resolved before the subproof, whose labels name the closing constraint.
       let g := match g with
         | .hash k => GoalId.hash k
-        | .ref r => GoalId.db (refNum n r)
-      (acc ++ [.goal g ks ((q.map (refNum n')).getD (n' - 1))], n')
-    | s => match toKernelStep s n with
-      | some (k, n') => (acc ++ [.step k], n')
-      | none => (acc, n)) ([], next)
+        | .ref r => GoalId.db (refNum lbl n r)
+      let (ks, n', lbl') := toKernelSteps lbl sub (n + 1)
+      (acc ++ [.goal g ks ((q.map (refNum lbl' n')).getD (n' - 1))], n', lbl')
+    | s => match toKernelStep lbl s n with
+      | some (k, n', lbl') => (acc ++ [.step k], n', lbl')
+      | none => (acc, n, lbl)) ([], next, lbl)
 
 end
 
@@ -910,22 +926,25 @@ private partial def orderBody (L : Lexer σ) (full : Bool) :
   let a ← if (← L.peek) == "aux" then do let _ ← L.next; vars L else pure []
   endSection L
   let mut spec : Array PBConstr := #[]
-  let mut sps : Array (Witness × Option (List AStep) × Option Ref) := #[]
+  let mut sps : Array (Option String × Witness × Option (List AStep) × Option Ref) := #[]
   if (← L.peek) == "spec" then
     let _ ← L.next
     while (← L.peek) != "end" do
       if full then
+        let t ← L.peek
+        let lab ← if t.startsWith "@" && t.length > 1 then do let _ ← L.next; pure (some t)
+          else pure none
         expect L "red"
         let c ← constr L
         expect L ":"
         let ω ← witness L
         let u ← L.next
-        if u == ";" then sps := sps.push (ω, none, none)
+        if u == ";" then sps := sps.push (lab, ω, none, none)
         else
           expect L "subproof"
           let sub ← steps L
           let q ← qed L
-          sps := sps.push (ω, some sub, q)
+          sps := sps.push (lab, ω, some sub, q)
         spec := spec.push c
       else
         spec := spec.push (← constr L)
@@ -963,29 +982,35 @@ private partial def orderBody (L : Lexer σ) (full : Bool) :
   endSection L
   -- Convert to the kernel syntax with the local numbering. Every specification step gets a
   -- subproof, as CakePB requires, so its negation takes a kernel number but no augmented one:
-  -- `map` sends augmented numbers in the specification to kernel numbers.
+  -- `map` sends augmented numbers in the specification to kernel numbers. The specification, the
+  -- transitivity proof and the reflexivity proof each have their own labels, which name kernel
+  -- numbers, as in `order_spec` and `order_proof` of VeriPB 3.0.2's parser.
   let mut a := 1
   let mut n := 1
   let mut map : Std.HashMap ℕ ℕ := {}
+  let mut lbl : Std.HashMap String ℕ := {}
   let mut ksp : Array SpecStep := #[]
-  for (ω, sub, q) in sps do
+  for (lab, ω, sub, q) in sps do
     match sub with
     | none =>
       ksp := ksp.push ⟨ω, some [], none⟩
       map := map.insert a (n + 1)
+      if let some l := lab then lbl := lbl.insert l (n + 1)
       a := a + 1
       n := n + 2
     | some sub =>
-      let sub := sub.map (remap map a)
-      let (items, n') := toKernelItems sub (n + 1)
-      ksp := ksp.push ⟨ω, some items, q.map (fun r => refNum n' (remapRef map r))⟩
+      let sub := sub.map (remap map a (n - a))
+      let (items, n', lbl') := toKernelItems lbl sub (n + 1)
+      ksp := ksp.push ⟨ω, some items, q.map (fun r => refNum lbl' n' (remapRef map a (n - a) r))⟩
       map := map.insert (a + (n' - n)) n'
+      lbl := lbl'
+      if let some l := lab then lbl := lbl.insert l n'
       a := a + (n' - n) + 1
       n := n' + 1
-  let (ti, tn) := toKernelItems tItems (3 * spec.size + 2 * defn.size + 1)
-  let tp : OrderProof := ⟨ti, tq.map (refNum tn)⟩
-  let (ri, rn) := toKernelItems rItems (tn + spec.size)
-  let rp : OrderProof := ⟨ri, rq.map (refNum rn)⟩
+  let (ti, tn, tl) := toKernelItems {} tItems (3 * spec.size + 2 * defn.size + 1)
+  let tp : OrderProof := ⟨ti, tq.map (refNum tl tn)⟩
+  let (ri, rn, rl) := toKernelItems {} rItems (tn + spec.size)
+  let rp : OrderProof := ⟨ri, rq.map (refNum rl rn)⟩
   return (O, ksp.toList, ⟨w, b, c⟩, tp, rp)
 
 /-- A `proof … qed [: id];` block of an order. -/

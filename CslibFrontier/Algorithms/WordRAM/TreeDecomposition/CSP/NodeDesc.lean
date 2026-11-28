@@ -29,8 +29,6 @@ handler modules (`LeafIntro`, `Forget`, and `Join`) as well as `NodeStep`/`Pass`
 
 * `Cslib.Algorithms.WordRAM.TreeDecomposition.DescWriteArgs`: arguments for `writeDescProg`.
 * `Cslib.Algorithms.WordRAM.TreeDecomposition.writeDescProg`: 4-word node descriptor writer.
-* `Cslib.Algorithms.WordRAM.TreeDecomposition.FrameOutsideRange`: range-scoped memory framing
-  predicate.
 * `Cslib.Algorithms.WordRAM.TreeDecomposition.NodeDescAt`: descriptor-slot invariant for a subtree.
 
 ## Main results
@@ -84,41 +82,6 @@ def writeDescProg (a : DescWriteArgs) : Memory.Prog Unit := do
   Memory.write (a.dCur + 1) a.bagLen
   Memory.write (a.dCur + 2) a.tblPtr
   Memory.write (a.dCur + 3) a.tblLen
-
-/-- Memory framing invariant: `s₁` extends `s₀`'s frontier and preserves every previously
-allocated address outside `[lo, hi)`. -/
-@[expose] def FrameOutsideRange (lo hi : ℕ) (s₀ s₁ : Memory.State) : Prop :=
-  s₀.frontier ≤ s₁.frontier ∧
-  ∀ x < s₀.frontier, (x < lo ∨ hi ≤ x) → s₁.mem x = s₀.mem x
-
-theorem FrameOutsideRange.refl (lo hi : ℕ) (s : Memory.State) :
-    FrameOutsideRange lo hi s s :=
-  ⟨le_rfl, fun _ _ _ => rfl⟩
-
-theorem FrameOutsideRange.of_preservesBelow (lo hi : ℕ) {s₀ s₁ : Memory.State}
-    (hp : PreservesBelow s₀.frontier s₀ s₁) :
-    FrameOutsideRange lo hi s₀ s₁ :=
-  ⟨hp.2.1, fun x hx _ => hp.2.2 x hx⟩
-
-theorem FrameOutsideRange.mono_range {lo₁ hi₁ lo₂ hi₂ : ℕ} {s₀ s₁ : Memory.State}
-    (h : FrameOutsideRange lo₁ hi₁ s₀ s₁) (hlo : lo₂ ≤ lo₁) (hhi : hi₁ ≤ hi₂) :
-    FrameOutsideRange lo₂ hi₂ s₀ s₁ :=
-  ⟨h.1, fun x hx hout => h.2 x hx (hout.imp (fun hlt => lt_of_lt_of_le hlt hlo)
-    (fun hge => le_trans hhi hge))⟩
-
-theorem FrameOutsideRange.trans {lo hi : ℕ} {s₀ s₁ s₂ : Memory.State}
-    (h₁ : FrameOutsideRange lo hi s₀ s₁) (h₂ : FrameOutsideRange lo hi s₁ s₂) :
-    FrameOutsideRange lo hi s₀ s₂ :=
-  ⟨h₁.1.trans h₂.1, fun x hx hout =>
-    (h₂.2 x (lt_of_lt_of_le hx h₁.1) hout).trans (h₁.2 x hx hout)⟩
-
-theorem HoldsIn.frame_outsideRange {base lo hi : ℕ} {xs : List ℕ} {s₀ s₁ : Memory.State}
-    (h : HoldsIn base xs s₀)
-    (hdisj : base + xs.length ≤ lo ∨ hi ≤ base)
-    (hf : FrameOutsideRange lo hi s₀ s₁) :
-    HoldsIn base xs s₁ := by
-  refine ⟨h.1.trans hf.1, h.2.frame fun x hlo hhi => ?_⟩
-  exact hf.2 x (by have := h.1; omega) (by omega)
 
 /-- Memory validity, descriptor storage, and range-framing spec for `writeDescProg`. -/
 theorem writeDescProg_spec {w : ℕ} (a : DescWriteArgs) {s : Memory.State}

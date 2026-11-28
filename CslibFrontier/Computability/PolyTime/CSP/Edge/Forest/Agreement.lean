@@ -106,16 +106,13 @@ theorem partners_eq (input : Input) (a : Occurrence input.body)
     Finset.insert_empty] at hf
   dsimp only [Function.comp_def, Occurrence.record]
   rw [← occurrences_eq_map_incidenceList]
-  have haIndex := EdgeAugmenting.record_index a
-  have hbIndex := EdgeAugmenting.record_index b
-  simp only [Occurrence.record] at haIndex hbIndex
-  simp only [haIndex, hbIndex, EdgeAugmenting.valid_eq, hf]
+  have hrec (o : Occurrence input.body) := EdgeAugmenting.record_index o
+  simp only [Occurrence.record] at hrec
+  simp only [hrec, EdgeAugmenting.valid_eq, hf]
   by_cases hv : a.var = b.var
   · simp [hv]
-  · have hab : a ≠ b := fun h => hv (congrArg Occurrence.var h)
-    rw [DAG.pairFlip_eq _ hab]
-    apply Bool.eq_iff_iff.mpr
-    simp [Bool.and_eq_true, hv, Fin.val_inj]
+  · rw [DAG.pairFlip_eq _ fun h => hv (congrArg Occurrence.var h)]
+    exact Bool.eq_iff_iff.mpr (by simp [Bool.and_eq_true, hv, Fin.val_inj])
 
 private theorem scan_stopped (rs : List ℕ) (es : WorkLog) (a : Record)
     (os bs : List Record) (b : Record) :
@@ -138,18 +135,17 @@ theorem scan_eq {F : CSP Table ℕ} (rs : List ℕ) (es : Forest.Log F) (a : Occ
         workLog ((⟨a, os⟩ : Forest.Expansion F) :: es) := rfl
     have hvar : b.record.2.2 = b.var := rfl
     have hcon : a.record.1 = a.1.val := rfl
+    dsimp only [scan] at ih ⊢
+    simp only [List.map_cons, List.foldl_cons, scanStep, hc, hvar, hcon, visited_workLog,
+      Option.isSome_none, Bool.false_eq_true, ite_false, Forest.scan]
     by_cases hv : Forest.Log.Visited rs ((⟨a, os⟩ : Forest.Expansion F) :: es) b.var
     · by_cases hp : Forest.Log.SameParent ((⟨a, os⟩ : Forest.Expansion F) :: es) b.var a.1
-      · simpa only [scan, List.map_cons, List.foldl_cons, scanStep, hc, hvar, hcon, visited_workLog,
-          hv, decide_true, Bool.not_true, Bool.false_eq_true, Option.isSome_none, ite_false,
-          sameParent_workLog, hp, ite_true, Forest.scan, not_true_eq_false] using ih os
-      · simp only [scan, List.map_cons, List.foldl_cons, scanStep, hc, hvar, hcon, visited_workLog,
-          hv, decide_true, Bool.not_true, Bool.false_eq_true, Option.isSome_none, ite_false,
-          sameParent_workLog, hp, Forest.scan, not_true_eq_false]
+      · simpa only [hv, decide_true, Bool.not_true, Bool.false_eq_true, ite_false,
+          sameParent_workLog, hp, ite_true, not_true_eq_false] using ih os
+      · simp only [hv, decide_true, Bool.not_true, Bool.false_eq_true, ite_false,
+          sameParent_workLog, hp, ite_false, not_true_eq_false]
         exact scan_stopped rs (workLog es) a.record _ _ _
-    · simpa only [scan, List.map_cons, List.foldl_cons, scanStep, hc, hvar, hcon, visited_workLog,
-        hv, decide_false, Bool.not_false, Option.isSome_none,
-        Bool.false_eq_true, ite_false, ite_true, Forest.scan, not_false_eq_true,
+    · simpa only [hv, decide_false, Bool.not_false, ite_true, not_false_eq_true,
         List.map_append, List.map_cons, List.map_nil] using ih (os ++ [b])
 
 private theorem finishExpansion_workExpansion {F : CSP Table ℕ} (e : Forest.Expansion F) :
@@ -214,29 +210,25 @@ private theorem iterate_agrees (input : Input)
   | succ n ih =>
     let rs := Forest.roots (labeling input.body input.labels)
     have hfind : (rem.map Occurrence.record).find?
-        (fun a => visited (roots input) (workLog es) a.2.2) =
+        (fun a => visited (Forest.roots (labeling input.body input.labels)) (workLog es) a.2.2) =
           (rem.find? (fun a => decide (es.Visited rs a.var))).map Occurrence.record := by
-      rw [List.find?_map]
-      simp only [visited_workLog, roots_eq, rs, Function.comp_def]
-      rfl
+      simp [List.find?_map, visited_workLog, rs, Occurrence.record]; rfl
     rw [Function.iterate_succ_apply]
     conv_rhs => rw [Forest.run]
     cases hn : rem.find? (fun a => decide (es.Visited rs a.var)) with
     | none =>
       have hs : step input (workLog es, rem.map Occurrence.record, none) =
           (workLog es, rem.map Occurrence.record, some none) := by
-        simp only [step, Option.isSome_none, Bool.false_eq_true, ite_false, hfind, hn,
+        simp only [step, Option.isSome_none, Bool.false_eq_true, ite_false, roots_eq, hfind, hn,
           Option.map_none, Option.elim_none]
       rw [hs, step_stopped, finish_exhausted]
     | some a =>
-      have ha : a.record ∈ CSP.occurrences input.body := by
-        rw [occurrences_eq_map_incidenceList]
-        exact List.mem_map.mpr ⟨a, mem_incidenceList a, rfl⟩
-      have hs := scan_eq rs es a []
+      have ha : a.record ∈ CSP.occurrences input.body :=
+        occurrences_eq_map_incidenceList input.body ▸ List.mem_map.mpr ⟨a, mem_incidenceList a, rfl⟩
+      have hs := scan_eq (Forest.roots (labeling input.body input.labels)) es a []
         (Forest.partners Table.sem (labeling input.body input.labels) a)
-      change scan (Forest.roots (labeling input.body input.labels)) _ _ _ _ = _ at hs
-      rw [← roots_eq input, List.map_nil] at hs
-      cases hc : Forest.scan rs es a []
+      rw [List.map_nil] at hs
+      cases hc : Forest.scan (Forest.roots (labeling input.body input.labels)) es a []
           (Forest.partners Table.sem (labeling input.body input.labels) a) with
       | continued os =>
         have hstep : step input (workLog es, rem.map Occurrence.record, none) =
@@ -246,7 +238,7 @@ private theorem iterate_agrees (input : Input)
               none) := by
           simp only [hc] at hs
           simp only [step, Option.isSome_none, Bool.false_eq_true, ite_false, hfind, hn,
-            Option.map_some, Option.elim_some, ha, ite_true, partners_eq input a hw, hs,
+            Option.map_some, Option.elim_some, ha, ite_true, partners_eq input a hw, roots_eq, hs,
             Option.elim_none]
           exact congrArg (fun r =>
             (workLog ((⟨a, os⟩ : Forest.Expansion input.body) :: es), r, none))
@@ -257,18 +249,15 @@ private theorem iterate_agrees (input : Input)
           (List.length_filter_le _ _).trans_lt (by
             have := List.length_erase_add_one (List.mem_of_find?_eq_some hn)
             omega)
-        have hi := ih ((⟨a, os⟩ : Forest.Expansion input.body) :: es) _ hlen'
-        change Forest.scan (Forest.roots (labeling input.body input.labels)) _ _ _ _ = _ at hc
-        simpa only [hn, hc] using hi
+        simpa only [hn, hc] using ih ((⟨a, os⟩ : Forest.Expansion input.body) :: es) _ hlen'
       | meeting os b =>
         have hstep : step input (workLog es, rem.map Occurrence.record, none) =
             (workLog es, rem.map Occurrence.record,
               some (some (a.record, os.map Occurrence.record, b.record))) := by
           simp only [hc] at hs
           simp only [step, Option.isSome_none, Bool.false_eq_true, ite_false, hfind, hn,
-            Option.map_some, Option.elim_some, ha, ite_true, partners_eq input a hw, hs]
+            Option.map_some, Option.elim_some, ha, ite_true, partners_eq input a hw, roots_eq, hs]
         rw [hstep, step_stopped, finish_meeting]
-        change Forest.scan (Forest.roots (labeling input.body input.labels)) _ _ _ _ = _ at hc
         simp only [hc]
 
 /-- Exact compilation of the existing chronological forest search on every raw explicit-table
@@ -276,8 +265,7 @@ CSP. Correct buffer width alone suffices; the finite clock never fails on such a
 theorem run_eq (input : Input)
     (hw : input.labels.length = (incidenceList input.body).length) :
     run input = some (code (Forest.search Table.sem (labeling input.body input.labels))) := by
-  have ho := occurrences_eq_map_incidenceList input.body
-  simp only [run, ho, List.length_map, hw, ite_true, Forest.search]
+  simp only [run, occurrences_eq_map_incidenceList, List.length_map, hw, ite_true, Forest.search]
   exact iterate_agrees input hw _ [] (incidenceList input.body) (Nat.lt_succ_self _)
 
 /-- Width mismatch is the only rejection: a correctly formed buffer never runs out of fuel. -/

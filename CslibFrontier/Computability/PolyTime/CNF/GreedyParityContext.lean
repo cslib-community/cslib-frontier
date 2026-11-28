@@ -88,8 +88,7 @@ private def augment (s : ℕ × C × SelectBestAcc) : C × List (List Bool) :=
 private theorem augment_polyTime : ComputableInPolyTime (augment (C := C))
     (encPair encNat (encAcc encC)) (encPair encC (encList encBits)) := by
   have := computableInPolyTime_augCandidateRows
-  unfold augment encAcc
-  fun_prop
+  fun_prop [augment, encAcc]
 
 private def finish (p : (ℕ × C × SelectBestAcc) × ℕ) : C × SelectBestAcc :=
   (p.1.2.1, finishSelectBestStep ((p.1.1, p.1.2.2), p.2))
@@ -97,8 +96,7 @@ private def finish (p : (ℕ × C × SelectBestAcc) × ℕ) : C × SelectBestAcc
 private theorem finish_polyTime : ComputableInPolyTime (finish (C := C))
     (encPair (encPair encNat (encAcc encC)) encNat) (encAcc encC) := by
   have := computableInPolyTime_finishSelectBestStep
-  unfold finish encAcc
-  fun_prop
+  fun_prop [finish, encAcc]
 
 private def step (count : C × List (List Bool) → ℕ)
     (s : ℕ × C × SelectBestAcc) : C × SelectBestAcc :=
@@ -147,8 +145,7 @@ private def initIn (a : C × ℕ × ℕ × List (List Bool)) : C × SelectBestAc
 
 private theorem initIn_polyTime :
     ComputableInPolyTime (initIn (C := C)) (encInput encC) (encAcc encC) := by
-  unfold initIn encInput encSelectBestIn encAcc encSelectBestAcc
-  fun_prop
+  fun_prop [initIn, encInput, encSelectBestIn, encAcc, encSelectBestAcc]
 
 private def extract (r : ℕ × C × SelectBestAcc) : List Bool :=
   r.2.2.2.2.elim (List.replicate r.2.2.1.1 false) Prod.fst
@@ -186,8 +183,7 @@ private def appendRow (p : (C × ℕ × ℕ × List (List Bool)) × List Bool) :
 
 private theorem appendRow_polyTime : ComputableInPolyTime (appendRow (C := C))
     (encPair (encInput encC) encBits) (encInput encC) := by
-  unfold appendRow encInput encSelectBestIn
-  fun_prop
+  fun_prop [appendRow, encInput, encSelectBestIn]
 
 private def outerStep (count : C × List (List Bool) → ℕ)
     (s : C × ℕ × ℕ × List (List Bool)) : C × ℕ × ℕ × List (List Bool) :=
@@ -222,8 +218,7 @@ private def outerInit (a : C × ℕ × ℕ × ℕ × List (List Bool)) :
 
 private theorem outerInit_polyTime :
     ComputableInPolyTime (outerInit (C := C)) (encGreedyInput encC) (encInput encC) := by
-  unfold outerInit encGreedyInput encGreedyIn encInput
-  fun_prop
+  fun_prop [outerInit, encGreedyInput, encGreedyIn, encInput]
 
 /-- One fixed machine runs `3n` greedy rounds for the runtime context. The context survives every
 candidate and round; the returned rows are the original `greedyParityRows` specialization. -/
@@ -337,10 +332,7 @@ private theorem AdditiveBounds.iterate {n : α → ℕ} {init : α → β} {step
     have hround : NativeCertificate.maxRoundTime cs (n a) (init a) +
         NativeCertificate.maxStateLength eb stepF (n a) (init a) +
         ((encNat (n a)).length + 1) ^ 2 ≤
-        M a * (pMax a + B a + ((encNat (n a)).length + 1) ^ 2 + R) := by
-      have := hmaxB.trans (Nat.le_mul_of_pos_left _ hMa)
-      have := Nat.le_mul_of_pos_left (((encNat (n a)).length + 1) ^ 2) hMa
-      nlinarith
+        M a * (pMax a + B a + ((encNat (n a)).length + 1) ^ 2 + R) := by nlinarith
     rw [NativeCertificate.iterate_time]
     exact (Nat.add_le_add (Nat.le_mul_of_pos_left _ hpos) (Nat.mul_le_mul_left _ hround)).trans
       ((by ring : _ = (n a + 1) * M a *
@@ -623,9 +615,8 @@ theorem computableInO_selectBestTestRow {countSys : List (List Bool) → ℕ}
   refine (h.comp' (unitInput encSelectBestIn)).mono_le (fun ⟨m, P, rows⟩ => ?_)
     fun ⟨m, P, rows⟩ => ?_
   all_goals
-    dsimp only
-    rw [show (encInput encUnit ((), m, P, rows)).length =
-      (encSelectBestIn (m, P, rows)).length + 1 from length_unitInput encSelectBestIn (m, P, rows)]
+    dsimp only [encInput]
+    rw [length_unitInput]
   · nlinarith [Nat.zero_le (candidateTupleCount m P * (encSelectBestIn (m, P, rows)).length)]
   · omega
 
@@ -671,8 +662,8 @@ theorem computableInO_greedyParityRows {countSys : List (List Bool) → ℕ}
   refine (h.comp' (unitInput encGreedyIn)).mono_le (fun ⟨n, m, P, rows⟩ => ?_)
     fun ⟨n, m, P, rows⟩ => ?_
   all_goals
-    dsimp only
-    rw [show (encGreedyInput encUnit ((), n, m, P, rows)).length = _ from length_unitInput _ _]
+    dsimp only [encGreedyInput]
+    rw [length_unitInput]
   · have hM : 1 ≤ (3 * n + 1) * (candidateTupleCount m P + 1) := Nat.mul_pos (by omega) (by omega)
     generalize (3 * n + 1) * (candidateTupleCount m P + 1) = M at hM ⊢
     nlinarith [Nat.mul_le_mul_right (encGreedyIn (n, m, P, rows)).length hM]

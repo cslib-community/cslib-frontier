@@ -94,16 +94,9 @@ theorem length_parallelGenerator {generator : List Bool → List Bool} {length :
     (hlen : ∀ {seed : List Bool}, (generator seed).length = length seed.length)
     (count width : ℕ) (seed : List Bool) :
     (parallelGenerator generator count width seed).length = count * length width := by
-  unfold parallelGenerator
-  rw [List.length_flatten, List.map_map, Function.comp_def]
-  have hmap : List.map (fun x => (generator x).length) (BitString.listRows count width seed) =
-      List.replicate count (length width) := by
-    apply List.ext_getElem (by simp)
-    intro i hi _
-    have hi' : i < count := by simpa using hi
-    simp only [List.getElem_map, List.getElem_replicate, BitString.listRows,
-      List.getElem_range, BitString.length_listRow, hlen]
-  rw [hmap, List.sum_replicate, smul_eq_mul]
+  simp only [parallelGenerator, List.length_flatten, BitString.listRows, List.map_map,
+    Function.comp_def, hlen, BitString.length_listRow, List.map_const', List.length_range,
+    List.sum_replicate, smul_eq_mul]
 
 private theorem eval_replicate_sampleList_bind_flatten (f : List Bool → List Bool)
     (count width : ℕ) :

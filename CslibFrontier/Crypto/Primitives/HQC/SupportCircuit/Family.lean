@@ -126,10 +126,8 @@ private theorem computableInPolyTime_circuitCode :
     S.computableInPolyTime_supportWeight
 
 private theorem computableInPolyTime_seedBits :
-    ComputableInPolyTime S.seedBits encUnary encUnary := by
-  unfold seedBits
-  exact unary_mul' S.computableInPolyTime_supportWeight
-    S.computableInPolyTime_wordWidth
+    ComputableInPolyTime S.seedBits encUnary encUnary :=
+  unary_mul' S.computableInPolyTime_supportWeight S.computableInPolyTime_wordWidth
 
 /-- Clear the framed unary family input, prepare the fair seeds, run the reversible sampler, and
 move its output block to the measured prefix. -/
@@ -145,11 +143,8 @@ move its output block to the measured prefix. -/
   have hseed := S.computableInPolyTime_seedBits
   have hcode := S.computableInPolyTime_circuitCode
   have hsampler := computableInPolyTime_samplerCodes hseed hcode
-  have hsource : ComputableInPolyTime
-      (fun s => samplerOutputStart (S.seedBits s) (S.circuit s).code)
-      encUnary encUnary := computableInPolyTime_samplerOutputStart hseed hcode
-  have hprefix := computableInPolyTime_prefixSwapCodes hsource
-    S.computableInPolyTime_universeSize
+  have hprefix := computableInPolyTime_prefixSwapCodes
+    (computableInPolyTime_samplerOutputStart hseed hcode) S.computableInPolyTime_universeSize
   unfold gateCodes flipCodes
   fun_prop
 
@@ -161,17 +156,15 @@ private theorem classicalRun_clearInput {s width : ℕ} (hwidth : 2 * s + 1 ≤ 
   apply funext_readBit
   intro c
   rw [readBit_classicalRun_flipCodes List.nodup_range
-    (by intro j hj; have := List.mem_range.mp hj; omega)]
-  rw [readBit_inputState (by simp [encUnary_apply]; omega),
-    readBit_inputState (by simp)]
+      (fun j hj => Nat.lt_of_lt_of_le (List.mem_range.mp hj) (by omega)),
+    readBit_inputState (by simp [encUnary_apply]; omega), readBit_inputState (Nat.zero_le width)]
   simp only [encPair_apply, encUnary_apply, encBits_apply, List.append_nil,
     frame_replicate_true]
   by_cases hc : c ≤ 2 * s
   · rw [List.getD_replicate_true_append_false_of_le [] hc]
     by_cases hlt : c < 2 * s <;> simp [hlt]
   · rw [List.getD_eq_default _ _ (by simp; omega)]
-    have hnot : ¬c < 2 * s := by omega
-    simp [hnot]
+    simp [Nat.not_lt.mpr (Nat.le_of_not_le hc)]
 
 private theorem run_gateCodes (s : ℕ) :
     Circuit.run (Circuit.ofCodes (S.activeWidth s) (S.gateCodes s))
@@ -183,14 +176,13 @@ private theorem run_gateCodes (s : ℕ) :
         (Circuit.run (Circuit.ofCodes (S.activeWidth s)
             (samplerCodes (S.seedBits s) (S.circuit s).code))
           (inputState (S.activeWidth s) [])) := by
-  have hwidth : 2 * s + 1 ≤ S.activeWidth s := S.framedInput_le_activeWidth s
   have hclear : IsClassical (S.activeWidth s) (flipCodes (List.range (2 * s))) :=
-    isClassical_flipCodes fun j hj => (List.mem_range.mp hj).trans (by omega)
+    isClassical_flipCodes fun j hj =>
+      (List.mem_range.mp hj).trans (S.framedInput_le_activeWidth s)
   rw [Circuit.run, gateCodes, Circuit.ofCodes_append, Circuit.ofCodes_append,
-    Quantum.Circuit.eval_append, Quantum.Circuit.eval_append,
-    Circuit.eval_ofCodes_ket hclear,
-    classicalRun_clearInput hwidth]
-  rw [Quantum.Circuit.run]
+    Quantum.Circuit.eval_append, Quantum.Circuit.eval_append, Circuit.eval_ofCodes_ket hclear,
+    classicalRun_clearInput (width := S.activeWidth s) (S.framedInput_le_activeWidth s),
+    Quantum.Circuit.run]
 
 /-- Starting from the framed empty input, the complete gate list realizes exactly the scheduled
 Boolean sampler law. Input clearing and output-prefix movement add no approximation. -/
@@ -205,12 +197,7 @@ theorem measureOut_gateCodes (s : ℕ) :
     (Circuit.ofCodes (S.activeWidth s) (samplerCodes (S.seedBits s) (S.circuit s).code))
     (inputState (S.activeWidth s) [])
   have hψ : ‖ψ‖ = 1 := Circuit.norm_run _ _
-  have hrun :
-      Circuit.run (Circuit.ofCodes (S.activeWidth s) (S.gateCodes s))
-          (inputState (S.activeWidth s) (encPair encUnary encBits (s, []))) =
-        Circuit.eval
-          (Circuit.ofCodes (S.activeWidth s) (prefixSwapCodes source (S.universeSize s))) ψ := by
-    simpa only [source, ψ] using S.run_gateCodes s
+  have hrun := S.run_gateCodes s
   have hdisjoint : S.universeSize s ≤ source := S.outputPrefix_disjoint s
   have hfit : source + S.universeSize s ≤ S.activeWidth s := by
     unfold source activeWidth seedBits circuit samplerWidth
@@ -252,52 +239,38 @@ private theorem computableInPolyTime_description :
       (fun input : OracleInputSize => S.description input.securityParameter
         input.classicalInputLength)
       encOracleInputSize encOracleCircuitDescription := by
-  have hs : ComputableInPolyTime
-      (fun input : OracleInputSize => input.securityParameter) encOracleInputSize encUnary := by
-    fun_prop
-  have hℓ : ComputableInPolyTime
-      (fun input : OracleInputSize => input.classicalInputLength) encOracleInputSize encUnary := by
-    fun_prop
-  have hwidth := S.computableInPolyTime_activeWidth
-  have huniverse := S.computableInPolyTime_universeSize
-  have hphase : ComputableInPolyTime (fun g : GateCode => (false, g))
-      encGateCode encPhaseGateCode := (const false).prod id'
-  have horacle := OracleGateCode.computableInPolyTime_gate hphase
-  have hinstructions := horacle.map.comp (S.computableInPolyTime_gateCodes.comp hs)
+  have := S.computableInPolyTime_activeWidth
+  have := S.computableInPolyTime_universeSize
+  have := (OracleGateCode.computableInPolyTime_gate (g := fun g : GateCode => (false, g))
+    ((const false).prod id')).map
   unfold description
   fun_prop
 
 private theorem wellFormed_description (s ℓ : ℕ) :
     (S.description s ℓ).WellFormed ⟨s, ℓ⟩ := by
-  let code := (S.circuit s).code
-  let seed := S.seedBits s
-  let source := samplerOutputStart seed code
-  let width := S.activeWidth s
-  have hinput : 2 * s + 1 + ℓ ≤ width + ℓ :=
+  let source := samplerOutputStart (S.seedBits s) (S.circuit s).code
+  have hinput : 2 * s + 1 + ℓ ≤ S.activeWidth s + ℓ :=
     Nat.add_le_add_right (S.framedInput_le_activeWidth s) ℓ
   have hsource : S.universeSize s ≤ source := S.outputPrefix_disjoint s
-  have hfit : source + S.universeSize s ≤ width := by
-    simp only [width, activeWidth, samplerWidth, seed, source, code, circuit, Circuit.code,
-      List.length_ofFn, le_refl]
-  have hclear : IsClassical width (flipCodes (List.range (2 * s))) :=
+  have hfit : source + S.universeSize s ≤ S.activeWidth s := by
+    simp only [activeWidth, samplerWidth, source, circuit, Circuit.code, List.length_ofFn, le_refl]
+  have hclear : IsClassical (S.activeWidth s) (flipCodes (List.range (2 * s))) :=
     isClassical_flipCodes fun j hj => (List.mem_range.mp hj).trans_le (by omega)
-  have hsampler : ∀ g ∈ samplerCodes seed code, g.WellFormed width :=
-    wellFormed_samplerCodes seed code
-  have hprefix : IsClassical width (prefixSwapCodes source (S.universeSize s)) :=
+  have hsampler : ∀ g ∈ samplerCodes (S.seedBits s) (S.circuit s).code,
+      g.WellFormed (S.activeWidth s) :=
+    wellFormed_samplerCodes _ _
+  have hprefix : IsClassical (S.activeWidth s) (prefixSwapCodes source (S.universeSize s)) :=
     isClassical_prefixSwapCodes hsource hfit
-  refine ⟨hinput, by simp [description], ?_, ?_⟩
-  · change S.universeSize s ≤ width + ℓ
-    omega
-  intro instruction hinstruction
-  simp only [description, List.mem_map] at hinstruction
-  obtain ⟨g, hg, rfl⟩ := hinstruction
-  change OracleGateCode.WellFormed 0 0 (width + ℓ) (.gate (false, g))
-  simp only [OracleGateCode.WellFormed, PhaseGateCode.WellFormed]
-  have hgwidth : g.WellFormed width := by
+  refine ⟨hinput, by simp [description],
+    (Nat.le_of_add_left_le hfit).trans (Nat.le_add_right _ ℓ), fun _ hinst => ?_⟩
+  simp only [description, List.mem_map, OracleGateCode.WellFormed,
+    PhaseGateCode.WellFormed] at hinst ⊢
+  obtain ⟨g, hg, rfl⟩ := hinst
+  have hgwidth : g.WellFormed (S.activeWidth s) := by
     simp only [gateCodes, List.mem_append] at hg
     rcases hg with (hg | hg) | hg
     exacts [(hclear g hg).2, hsampler g hg, (hprefix g hg).2]
-  simpa using hgwidth.shift (o := 0) (by omega : 0 + width ≤ width + ℓ)
+  simpa using hgwidth.shift (o := 0) ((Nat.zero_add _).le.trans (Nat.le_add_right _ ℓ))
 
 /-- Native uniform oracle-circuit family realizing one scheduled HQC support draw. The family is
 oracle-free; the certified output law below uses empty auxiliary input. -/

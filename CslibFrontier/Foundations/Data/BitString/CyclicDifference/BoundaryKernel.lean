@@ -28,18 +28,10 @@ theorem zeroPort_kernel {n : ℕ} (i a b : Fin (n + 2)) :
       Function.update id (finRotate (n + 2) i) i a =
         Function.update id (finRotate (n + 2) i) i b := by
   rw [Function.update_id_apply_eq_iff]
-  constructor
-  · intro h
-    have hh := congrArg (retainPort i) h
-    have ha := retainPort_zeroPort i a
-    have hb := retainPort_zeroPort i b
-    grind
-  · intro h
-    rcases h with hab | ⟨ha, hb⟩ | ⟨ha, hb⟩
-    · exact congrArg (zeroPort i) hab
-    · rw [ha, hb]
-      exact (zeroPort_next i).symm
-    · rw [ha, hb]
-      exact zeroPort_next i
+  refine ⟨fun h => ?_, ?_⟩
+  · grind [congrArg (retainPort i) h, retainPort_zeroPort i a, retainPort_zeroPort i b]
+  · rintro (hab | ⟨ha, hb⟩ | ⟨ha, hb⟩)
+    exacts [congrArg (zeroPort i) hab, by simp only [ha, hb, zeroPort_next],
+      by simp only [ha, hb, zeroPort_next]]
 
 end Cslib.BitString

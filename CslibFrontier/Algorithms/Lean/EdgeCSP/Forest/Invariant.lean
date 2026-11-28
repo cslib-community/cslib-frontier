@@ -76,9 +76,7 @@ namespace Log
 theorem birth_le (es : Log F) (v : V) : es.birth v ≤ 2 * es.length := by
   induction es with
   | nil => exact Nat.le_refl _
-  | cons e es ih =>
-    simp only [birth]
-    split <;> simp only [List.length_cons] <;> omega
+  | cons e es ih => by_cases h : v ∈ e.outputs.map Occurrence.var <;> simp [birth, h] <;> omega
 
 end Log
 
@@ -95,9 +93,7 @@ theorem used_nodup (hg : Grown sem f rs es) : es.used.Nodup := by
     rw [Log.used, List.nodup_cons, List.nodup_append]
     refine ⟨fun h => ?_, hn.of_map Occurrence.var, ih, fun a ha b hb he =>
       hf a ha (he.symm ▸ Log.Grown.used_visited hp hb)⟩
-    rcases List.mem_append.mp h with ho | ho
-    · exact hf e.input ho hv
-    · exact hu ho
+    exact (List.mem_append.mp h).elim (fun ho => hf e.input ho hv) hu
 
 /-- A variable is discovered at most once, even across different copies of a constraint. -/
 theorem children_nodup (hg : Grown sem f rs es) : es.children.Nodup := by
@@ -195,10 +191,8 @@ theorem copy_unique (hg : Grown sem f rs es) {a b : Arc F}
     rcases hcase a ha with ha | ⟨hat, hac⟩ <;>
       rcases hcase b hb with hb | ⟨hbt, hbc⟩
     · exact ih ha hb
-    · have hlt := (es.mem_arcs ha).2
-      omega
-    · have hlt := (es.mem_arcs hb).2
-      omega
+    · exact absurd (es.mem_arcs ha).2 (by omega)
+    · exact absurd (es.mem_arcs hb).2 (by omega)
     · exact hac.trans hbc.symm
 
 /-- The source's timestamp-compatible topological order, witnessed by an explicit finite
@@ -213,8 +207,7 @@ theorem ordered (hg : Grown sem f rs es) : (es.toDAG rs).Ordered := by
     rcases hxy with ⟨a, ha, rfl, rfl⟩ | ⟨c, hc, d, hd, ht, rfl, rfl⟩
     · have hr := hg.rank_arc (List.mem_toFinset.mp ha)
       cases hi : a.incoming <;> simpa [Arc.source, Arc.target, hi, Arc.copy] using hr
-    · dsimp only [Sum.elim]
-      omega
+    · simp only [Sum.elim]; omega
 
 /-- Feasibility at every copied constraint, with cancellation of equal input ports. -/
 theorem feasible (hg : Grown sem f rs es) (hf : ValidLabeling sem f)

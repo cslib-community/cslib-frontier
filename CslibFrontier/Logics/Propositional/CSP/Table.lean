@@ -104,18 +104,14 @@ theorem length_outsidePositions_add {width : ℕ} {positions : List ℕ}
     (h : validPositions width positions = true) :
     (outsidePositions width positions).length + positions.length = width := by
   obtain ⟨hd, hr⟩ := validPositions_eq_true.mp h
-  have hs : positions.toFinset ⊆ Finset.range width := by
-    intro i hi
-    exact Finset.mem_range.mpr (hr i (List.mem_toFinset.mp hi))
   have heq : (outsidePositions width positions).toFinset =
       Finset.range width \ positions.toFinset := by
     ext i
     simp [outsidePositions]
-  have hc := Finset.card_sdiff_add_card_eq_card hs
   have ho : (outsidePositions width positions).Nodup := List.nodup_range.filter _
-  rw [← heq, List.toFinset_card_of_nodup ho, List.toFinset_card_of_nodup hd,
-    Finset.card_range] at hc
-  exact hc
+  simpa only [← heq, List.toFinset_card_of_nodup ho, List.toFinset_card_of_nodup hd,
+    Finset.card_range] using Finset.card_sdiff_add_card_eq_card fun i hi =>
+      Finset.mem_range.mpr (hr i (List.mem_toFinset.mp hi))
 
 /-- Read coordinates, with a total fallback for malformed indices. -/
 @[expose] def project (row : List Bool) (positions : List ℕ) : List Bool :=
@@ -250,15 +246,13 @@ its entries need not be distinct, since this constructs only a relation, not a C
 /-- Exactly-one semantics, independently of row ordering and the names in the supplied scope. -/
 theorem sem_exactlyOne_eq_true {V : Type*} (scope : List V) (row : List Bool) :
     (exactlyOne scope).sem row = true ↔ row.length = scope.length ∧ row.count true = 1 := by
-  rw [sem_eq_true]
-  simp only [wellFormed_exactlyOne, true_and]
-  constructor
-  · intro h
-    obtain ⟨index, hi, rfl⟩ := List.mem_map.mp h
-    exact ⟨by simp [BitString.listSingle], BitString.count_true_listSingle (List.mem_range.mp hi)⟩
-  · rintro ⟨hw, hc⟩
-    obtain ⟨index, hi, hr⟩ := BitString.exists_listSingle_of_count_true hc
-    exact List.mem_map.mpr ⟨index, List.mem_range.mpr (hw ▸ hi), hw ▸ hr⟩
+  rw [sem_eq_true, wellFormed_exactlyOne]
+  simp only [true_and, exactlyOne, List.mem_map, List.mem_range]
+  refine ⟨?_, fun ⟨hw, hc⟩ => ?_⟩
+  · rintro ⟨index, hi, rfl⟩
+    exact ⟨by simp [BitString.listSingle], BitString.count_true_listSingle hi⟩
+  · obtain ⟨index, hi, hr⟩ := BitString.exists_listSingle_of_count_true hc
+    exact ⟨index, hw ▸ hi, hw ▸ hr⟩
 
 /-- The connector relation is nonempty precisely when there is a connector. -/
 theorem rows_exactlyOne_ne_nil {V : Type*} (scope : List V) :

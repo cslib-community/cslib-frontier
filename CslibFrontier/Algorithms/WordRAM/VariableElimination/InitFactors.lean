@@ -45,11 +45,11 @@ private theorem holdsIn_encodeFactor_cons {curRaw : ℕ} {f : FactorTable ℕ �
         (rest.flatMap encodeFactor) s := by
   simp only [List.flatMap_cons, encodeFactor, List.cons_append, List.nil_append,
     List.append_assoc] at hraw
-  obtain ⟨h1, hm_sc, hr1⟩ := holdsIn_cons_shift hraw
-  obtain ⟨h2, hm_en, hr2⟩ := holdsIn_cons_shift hr1
+  obtain ⟨h1, hm_sc, hr1⟩ := hraw.cons
+  obtain ⟨h2, hm_en, hr2⟩ := hr1.cons
   rw [Nat.add_assoc] at hr2
-  obtain ⟨hsc, hr3⟩ := holdsIn_append_split hr2
-  obtain ⟨hen, hrest⟩ := holdsIn_append_split hr3
+  obtain ⟨hsc, hr3⟩ := HoldsIn.append_iff.mp hr2
+  obtain ⟨hen, hrest⟩ := HoldsIn.append_iff.mp hr3
   exact ⟨h1, h2, hm_sc, hm_en, hsc, hen, by simpa [Array.length_toList] using hrest⟩
 
 private def initFactorStep : Unit × (ℕ × ℕ) → Memory.Prog (ℕ × ℕ) :=

@@ -32,28 +32,30 @@ private theorem tickStage_epochClock (c U n_max : ℕ) (θ : SeedWhp c U n_max) 
     (epochTickStage c U n_max θ fs).epochClock = fs.epochClock := by
   dsimp only [epochTickStage]
   by_cases hs0 : fs.rebStage = 0
-  · rw [ite_eq_left hs0]; dsimp only [epochTickStage0]
+  · rw [ite_eq_left hs0]
+    dsimp only [epochTickStage0]
     by_cases hlt : fs.stageCursor < (fs.buf fs.oldEp).itemAlloc
     · rw [ite_eq_left hlt]
-      cases bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor
-      · dsimp only; split_ifs <;> rfl
-      · rename_i p; rcases p with ⟨_, _⟩; dsimp only; split_ifs <;> rfl
+      rcases bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor with _ | ⟨_, _⟩ <;>
+        dsimp only <;> split_ifs <;> rfl
     · rw [ite_eq_right hlt]
   rw [ite_eq_right hs0]
   by_cases hs1 : fs.rebStage = 1
-  · rw [ite_eq_left hs1]; dsimp only [epochTickStage1, epochTickStage1Finish]
+  · rw [ite_eq_left hs1]
+    dsimp only [epochTickStage1, epochTickStage1Finish]
     by_cases hlt : fs.stageCursor < (fs.buf fs.oldEp).itemAlloc
     · rw [ite_eq_left hlt]
       by_cases hdone : (fs.buf fs.oldEp).itemAlloc ≤ fs.stageCursor + 1
       · rw [ite_eq_left hdone]
-        cases bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor
-        · dsimp only; split_ifs <;> rfl
-        · rename_i p; rcases p with ⟨_, _⟩; dsimp only; split_ifs <;> rfl
+        rcases bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor with _ | ⟨_, _⟩ <;>
+          dsimp only <;> split_ifs <;> rfl
       · rw [ite_eq_right hdone]
-        cases bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor
+        rcases bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor with _ | ⟨_, _⟩
         · rfl
-        · rename_i p; rcases p with ⟨_, _⟩; dsimp only; split_ifs <;> rfl
-    · rw [ite_eq_right hlt]; split_ifs <;> rfl
+        · dsimp only
+          split_ifs <;> rfl
+    · rw [ite_eq_right hlt]
+      split_ifs <;> rfl
   rw [ite_eq_right hs1]
   by_cases hs2 : fs.rebStage = 2
   · rw [ite_eq_left hs2]
@@ -69,17 +71,15 @@ private theorem tickStage_epochClock (c U n_max : ℕ) (θ : SeedWhp c U n_max) 
     · rw [ite_eq_right hd]
   rw [ite_eq_right hs2]
   by_cases hs3 : fs.rebStage = 3
-  · rw [ite_eq_left hs3]; dsimp only [epochTickStage3]
+  · rw [ite_eq_left hs3]
+    dsimp only [epochTickStage3]
     by_cases hlt : fs.stageCursor < (fs.buf fs.oldEp).itemAlloc
     · rw [ite_eq_left hlt]
-      cases bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor
-      · dsimp only; split_ifs <;> rfl
-      · rename_i p; rcases p with ⟨_, _⟩; dsimp only; split_ifs <;> rfl
+      rcases bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor with _ | ⟨_, _⟩ <;>
+        dsimp only <;> split_ifs <;> rfl
     · rw [ite_eq_right hlt]
   rw [ite_eq_right hs3]
-  by_cases hs4 : fs.rebStage = 4
-  · rw [ite_eq_left hs4]; rfl
-  rw [ite_eq_right hs4]
+  split_ifs <;> rfl
 
 private theorem tickStage_rollover_itemAlloc_zero {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     {fs : FastState} {dict : State U} (hc : CoreFastInv c U V n_max θ fs dict)
@@ -88,36 +88,35 @@ private theorem tickStage_rollover_itemAlloc_zero {c U V n_max : ℕ} {θ : Seed
     (fs1.buf (1 - fs1.curEp)).itemAlloc = 0 := by
   dsimp only [epochTickStage] at hs5 ⊢
   by_cases h0 : fs.rebStage = 0
-  · rw [ite_eq_left h0] at hs5; dsimp only [epochTickStage0] at hs5
+  · rw [ite_eq_left h0] at hs5
+    dsimp only [epochTickStage0] at hs5
     have hne5 : fs.rebStage ≠ 5 := by omega
     by_cases hlt : fs.stageCursor < (fs.buf fs.oldEp).itemAlloc
     · rw [ite_eq_left hlt] at hs5
-      cases hchk : bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor
-      · rw [hchk] at hs5; dsimp only at hs5
+      rcases hchk : bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor with _ | ⟨_, _⟩ <;>
+        rw [hchk] at hs5 <;> dsimp only at hs5 <;>
         split_ifs at hs5 <;> first | cases hs5 | exact absurd hs5 hne5
-      · rename_i p; rcases p with ⟨_, _⟩
-        rw [hchk] at hs5; dsimp only at hs5
-        split_ifs at hs5 <;> first | cases hs5 | exact absurd hs5 hne5
-    · rw [ite_eq_right hlt] at hs5; cases hs5
+    · rw [ite_eq_right hlt] at hs5
+      cases hs5
   rw [ite_eq_right h0] at hs5 ⊢
   by_cases h1 : fs.rebStage = 1
-  · rw [ite_eq_left h1] at hs5; dsimp only [epochTickStage1, epochTickStage1Finish] at hs5
+  · rw [ite_eq_left h1] at hs5
+    dsimp only [epochTickStage1, epochTickStage1Finish] at hs5
     have hne5 : fs.rebStage ≠ 5 := by omega
     by_cases hlt : fs.stageCursor < (fs.buf fs.oldEp).itemAlloc
     · rw [ite_eq_left hlt] at hs5
       by_cases hdone : (fs.buf fs.oldEp).itemAlloc ≤ fs.stageCursor + 1
       · rw [ite_eq_left hdone] at hs5
-        cases hchk : bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor
-        · rw [hchk] at hs5; dsimp only at hs5; split_ifs at hs5 <;> cases hs5
-        · rename_i p; rcases p with ⟨_, _⟩
-          rw [hchk] at hs5; dsimp only at hs5; split_ifs at hs5 <;> cases hs5
+        rcases hchk : bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor with _ | ⟨_, _⟩ <;>
+          rw [hchk] at hs5 <;> dsimp only at hs5 <;> split_ifs at hs5 <;> cases hs5
       · rw [ite_eq_right hdone] at hs5
-        cases hchk : bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor
-        · rw [hchk] at hs5; exact absurd hs5 hne5
-        · rename_i p; rcases p with ⟨_, _⟩
-          rw [hchk] at hs5; dsimp only at hs5
+        rcases hchk : bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor with _ | ⟨_, _⟩ <;>
+          rw [hchk] at hs5
+        · exact absurd hs5 hne5
+        · dsimp only at hs5
           split_ifs at hs5 <;> exact absurd hs5 hne5
-    · rw [ite_eq_right hlt] at hs5; split_ifs at hs5 <;> cases hs5
+    · rw [ite_eq_right hlt] at hs5
+      split_ifs at hs5 <;> cases hs5
   rw [ite_eq_right h1] at hs5 ⊢
   by_cases h2 : fs.rebStage = 2
   · rw [ite_eq_left h2] at hs5
@@ -134,32 +133,35 @@ private theorem tickStage_rollover_itemAlloc_zero {c U V n_max : ℕ} {θ : Seed
             (rebScanSteps c U n_max θ (fs.dirtyBuckets fs.dirtyIdx) 16 fs).rebStage ≠ 5 := by
           omega
         split_ifs at hs5 <;> first | cases hs5 | exact absurd hs5 hne5'
-      · rw [ite_eq_right hcs] at hs5; exact absurd hs5 hne5
-    · rw [ite_eq_right hd] at hs5; cases hs5
+      · rw [ite_eq_right hcs] at hs5
+        exact absurd hs5 hne5
+    · rw [ite_eq_right hd] at hs5
+      cases hs5
   rw [ite_eq_right h2] at hs5 ⊢
   by_cases h3 : fs.rebStage = 3
-  · rw [ite_eq_left h3] at hs5; dsimp only [epochTickStage3] at hs5
+  · rw [ite_eq_left h3] at hs5
+    dsimp only [epochTickStage3] at hs5
     have hne5 : fs.rebStage ≠ 5 := by omega
     by_cases hlt : fs.stageCursor < (fs.buf fs.oldEp).itemAlloc
     · rw [ite_eq_left hlt] at hs5
-      cases hchk : bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor
-      · rw [hchk] at hs5; dsimp only at hs5
+      rcases hchk : bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor with _ | ⟨_, _⟩ <;>
+        rw [hchk] at hs5 <;> dsimp only at hs5 <;>
         split_ifs at hs5 <;> first | cases hs5 | exact absurd hs5 hne5
-      · rename_i p; rcases p with ⟨_, _⟩
-        rw [hchk] at hs5; dsimp only at hs5
-        split_ifs at hs5 <;> first | cases hs5 | exact absurd hs5 hne5
-    · rw [ite_eq_right hlt] at hs5; cases hs5
+    · rw [ite_eq_right hlt] at hs5
+      cases hs5
   rw [ite_eq_right h3] at hs5 ⊢
   by_cases h4 : fs.rebStage = 4
-  · rw [ite_eq_left h4] at hs5 ⊢; dsimp only [epochTickStage4] at hs5 ⊢
+  · rw [ite_eq_left h4] at hs5 ⊢
+    dsimp only [epochTickStage4] at hs5 ⊢
     by_cases hle8 : (fs.buf fs.oldEp).nodeAlloc ≤ 8
     · have hbo := hc.bufOld_valid
       rw [ite_eq_right (by omega : ¬(fs.rebStage ≤ 3)), ite_eq_left h4] at hbo
-      have hia0 := (hbo.2.1.clearSteps_spec (cTabWhp c) (bCharWhp n_max) 8 hle8).2.2
       change (Function.update fs.buf fs.oldEp (bufClearSteps 8 (fs.buf fs.oldEp))
         fs.oldEp).itemAlloc = 0
-      rw [Function.update_self]; exact hia0
-    · rw [decide_eq_false hle8, ite_eq_right Bool.false_ne_true] at hs5; cases hs5
+      simpa only [Function.update_self] using
+        (hbo.2.1.clearSteps_spec (cTabWhp c) (bCharWhp n_max) 8 hle8).2.2
+    · rw [decide_eq_false hle8, ite_eq_right Bool.false_ne_true] at hs5
+      cases hs5
   rw [ite_eq_right h4] at hs5 ⊢
   have hbo := hc.bufOld_valid
   rw [ite_eq_right (by omega : ¬(fs.rebStage ≤ 3)), ite_eq_right h4] at hbo
@@ -185,38 +187,24 @@ theorem fastDelete_epochClock (c U n_max : ℕ) (θ : SeedWhp c U n_max)
     (fastDelete c U n_max θ fs u).epochClock = fs.epochClock := by
   dsimp only [fastDelete]
   refine (overmarsStep_meta c U n_max _ θ _).1.trans ?_
-  cases fastFindLoc c U n_max θ fs u with
-  | none => rfl
-  | some loc_del =>
-    dsimp only [fastDeleteShrink, fastDeleteMoveLast, fastDeleteRemove]
-    by_cases hlt : loc_del < fs.bktCount (feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val)
-        - 1 <;> [rw [ite_eq_left hlt]; rw [ite_eq_right hlt]]
+  rcases fastFindLoc c U n_max θ fs u with _ | loc_del
+  · rfl
+  · dsimp only [fastDeleteShrink]
+    split <;> rfl
 
 theorem fastInsert_epochClock {c U n_max : ℕ} {θ : SeedWhp c U n_max}
     {fs fs1 : FastState} {u : Fin U} {v : ℕ}
     (hins : fastInsert c U n_max θ fs u v = some fs1) :
     fs1.epochClock = fs.epochClock := by
   unfold fastInsert fastInsertAlloc at hins
-  dsimp only at hins
-  cases hfl : fastFindLoc c U n_max θ fs u with
-  | some loc =>
-    rw [hfl] at hins; dsimp only at hins
-    injection hins with h1; rw [← h1]
-    exact (overmarsStep_meta c U n_max _ θ _).1
-  | none =>
-    rw [hfl] at hins
-    dsimp only at hins
-    split at hins
-    · cases hins
-    split at hins
-    · cases hins
-    split at hins
-    · cases hins
-    injection hins with h1
-    rw [← h1]
+  rcases hfl : fastFindLoc c U n_max θ fs u with _ | loc <;> rw [hfl] at hins
+  · dsimp only at hins
+    iterate 3 (split at hins <;> try cases hins)
     refine (overmarsStep_meta c U n_max _ θ _).1.trans ?_
     dsimp only [fastInsertFresh]
     split <;> rfl
+  · cases hins
+    exact (overmarsStep_meta c U n_max _ θ _).1
 
 theorem trySelfHeal_clean {c U V n_max : ℕ} (hth : whpThreshold c ≤ n_max)
     {θ : SeedWhp c U n_max} {W_keys BadIns : Finset (Fin U)}

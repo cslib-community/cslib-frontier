@@ -251,10 +251,10 @@ theorem generatedGateWeightBound_inSpace :
       .of_le_linear (268435456 + 1) 268435456 fun p => ?_)).of_enc_eq fun p =>
       congrArg encNat (by simp [generatedGateWeightBound, scaleByLevel])
   have hc := codeLength_le_encodedDimensions (p.1, 0)
-  dsimp only at hc
+  have h0 : (encNat 0).length = 0 := rfl
   have : (encPair encNat encNat (p.1, 0)).length ≤ (encPair encNat encNat p).length := by
-    simp only [length_encPair, show (encNat 0).length = 0 from rfl]; omega
-  omega
+    simp only [length_encPair, h0]; omega
+  dsimp only at hc; omega
 
 /-- Binary circuit size and gate metadata supplied by the circuit interface for a standalone
 gate-weight query. -/
@@ -309,13 +309,10 @@ theorem evalInput_eq_gateWeightRank (x : Input) :
   unfold evalInput gateWeightRank
   split_ifs
   · congr 1
-    unfold SeedDigits.maskedPrefix SeedRank.accumulateRank
-    have hlsb : ofBits x.seed = Cslib.BitString.lsbValue x.seed :=
-      (Cslib.BitString.lsbValue_eq_foldr_bit x.seed).symm
+    unfold SeedDigits.maskedPrefix SeedRank.accumulateRank ofBits
     congr 1
     funext j
-    rw [hlsb, Cslib.BitString.testBit_lsbValue]
-    rfl
+    rw [← Cslib.BitString.lsbValue_eq_foldr_bit, Cslib.BitString.testBit_lsbValue]; rfl
   · rfl
 
 /-- On canonical inputs, `evalInput` returns the exact weight `C.generatedGateWeight seed g`. -/
@@ -386,10 +383,8 @@ theorem generatedGateWeight_computesInTimeAndSpace :
   refine ⟨time, A * (268435456 + 20), k, State, hfinite, tm, fun {N} C seed g => ?_⟩
   intro x budget
   have hbound : A * ((encInput x).length + x.header.andLevel + 1 + 1) ≤ budget := by
-    dsimp only [budget, x, canonicalInput]
-    rw [Nat.mul_assoc]
-    exact Nat.mul_le_mul_left A
-      (by simpa only [canonicalInput] using length_canonicalInput_add_level_le C seed g)
+    simpa only [budget, x, canonicalInput, Nat.mul_assoc] using
+      Nat.mul_le_mul_left A (length_canonicalInput_add_level_le C seed g)
   obtain ⟨houtput, htime, hspace⟩ := hrun x
   rw [← evalInput_canonicalInput C seed g]
   exact ⟨⟨houtput, htime, hspace.mono hbound⟩, (hout x).trans hbound⟩

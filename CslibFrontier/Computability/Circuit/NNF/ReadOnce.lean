@@ -93,19 +93,16 @@ theorem nnfGate_and {v l r : NNFNode L S} (h : P.nnfGate ord v = .and l r) :
   · simp only [nnfGate] at h
     split at h <;> cases h
   · cases h
-  · obtain ⟨rfl, rfl⟩ := NNF.Gate.and.inj h
+  · cases h
     have := t.isLt
-    simp only [nnfRank, Fin.val_succ]
-    omega
+    simp only [nnfRank, Fin.val_succ]; omega
 
 theorem nnfGate_or {v l r : NNFNode L S} (h : P.nnfGate ord v = .or l r) :
     nnfRank l < nnfRank v ∧ nnfRank r < nnfRank v := by
   rcases v with ⟨t, q⟩ | ⟨t, b⟩ | ⟨t, q, b⟩
   · simp only [nnfGate] at h
-    split at h
-    · obtain ⟨rfl, rfl⟩ := NNF.Gate.or.inj h
-      simp [nnfRank]
-    · cases h
+    split at h <;> cases h
+    simp [nnfRank]
   · cases h
   · cases h
 
@@ -198,12 +195,10 @@ read. -/
 theorem isDeterministic_toNNF : (P.toNNF ord).IsDeterministic := by
   rintro (⟨t, q⟩ | ⟨t, b⟩ | ⟨t, q, b⟩) l r hg x ⟨hl, hr⟩
   · simp only [toNNF, nnfGate] at hg
-    split at hg
-    next ht =>
-      obtain ⟨rfl, rfl⟩ := NNF.Gate.or.inj hg
-      rw [NNF.eval_and rfl, NNF.eval_lit rfl] at hl hr
-      cases hx : x (ord ⟨t, ht⟩) <;> simp_all
-    · cases hg
+    split at hg <;> cases hg
+    rename_i ht
+    rw [NNF.eval_and rfl, NNF.eval_lit rfl] at hl hr
+    cases hx : x (ord ⟨t, ht⟩) <;> simp_all
   · cases hg
   · cases hg
 

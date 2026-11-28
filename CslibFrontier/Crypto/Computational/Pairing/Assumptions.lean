@@ -513,30 +513,25 @@ theorem not_ddh_of_symmetric (h : P.G₁ = P.G₀.self) (setup : ℕ → PMF P.G
       Game.succProbability (P.G₀.ddhRandomGame setup P.symmetricDDHDistinguisher n) ≤
         (1 / 2 : ℝ≥0) := by
     refine Game.succProbability_withSetup_le _ _ fun d _ => ?_
-    dsimp only [Experiment.succProbability, Game.succProbability]
-    rw [eval_ddhRandomExperiment]
-    simp only [symmetricDDHDistinguisher, ProbComp.eval_pure,
-      P.symmetricDDHCheck_eq_of_symmetric h]
+    simp only [Experiment.succProbability, Game.succProbability, eval_ddhRandomExperiment,
+      symmetricDDHDistinguisher, ProbComp.eval_pure, P.symmetricDDHCheck_eq_of_symmetric h]
     have hinner (x : ZMod (P.G₀.order d)) :
         ((PMF.uniformOfFintype (ZMod (P.G₀.order d))).bind fun c =>
           PMF.pure (decide (x = c))) true = (P.G₀.order d : ℝ≥0∞)⁻¹ := by
       simpa only [ZMod.card, eq_comm] using
         Cslib.Probability.PMF.uniformOfFintype_bind_decide_eq_apply_true x
-    have hconst {β : Type} (p : PMF β) (v : ℝ≥0∞) (f : β → PMF Bool) (hf : ∀ x, f x true = v) :
-        (p.bind f) true = v := by
-      rw [PMF.bind_apply]
-      simp_rw [hf, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
-    rw [hconst _ _ _ fun a => hconst _ _ _ fun b => hinner (a * b),
+    have hconst {f : ZMod (P.G₀.order d) → PMF Bool}
+        (hf : ∀ x, f x true = (P.G₀.order d : ℝ≥0∞)⁻¹) :
+        ((PMF.uniformOfFintype _).bind f) true = (P.G₀.order d : ℝ≥0∞)⁻¹ := by
+      simp only [PMF.bind_apply, hf, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
+    rw [hconst fun a => hconst fun b => hinner (a * b),
       ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast]
     have h2 : (2 : ℝ≥0) ≤ P.G₀.order d := by exact_mod_cast (P.G₀.prime_order d).two_le
     simpa only [one_div] using inv_anti₀ (by norm_num) h2
   refine not_negligible_const (c := 1 / 2) (by norm_num) (negligible_of_le hneg fun n => ?_)
-  have hra := hrand n
-  rw [hreal n]
-  rw [← NNReal.coe_le_coe] at hra ⊢
-  rw [Game.coe_advantage_pure_true_left]
-  push_cast at hra ⊢
-  linarith
+  have hra := NNReal.coe_le_coe.mpr (hrand n)
+  rw [hreal n, ← NNReal.coe_le_coe, Game.coe_advantage_pure_true_left]
+  push_cast at hra ⊢; linarith
 
 /-- Lift a target-group discrete-log adversary to `P.G₀` via `u₀ ↦ P.pair d u₀ g₁`
 ([BonehShoup2023], Section 15.4, p. 625). -/

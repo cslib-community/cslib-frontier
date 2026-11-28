@@ -47,10 +47,8 @@ theorem ancestry_finish (es : Log F) (v : V) : (es.ancestry v).walk.finish = v :
   | cons e es ih =>
     simp only [ancestry]
     split
-    next o ho =>
-      rw [Walk.finish_snoc]
-      simpa only [beq_iff_eq] using List.find?_some ho
-    next => exact ih
+    · next o ho => simpa only [Walk.finish_snoc, beq_iff_eq] using List.find?_some ho
+    · exact ih
 
 /-- Every reconstructed trail port is an actual recorded input or output port. -/
 theorem ancestry_edges_subset (es : Log F) (v : V) :
@@ -77,7 +75,8 @@ omit [DecidableEq V] in
 already used unchanged. -/
 theorem stamp_cons_of_mem_used {e : Expansion F} {es : Log F} {z : Occurrence F}
     (hu : e.input ∉ es.used) (hz : z ∈ es.used) : stamp (e :: es) z = es.stamp z := by
-  simp [stamp, show e.input ≠ z from fun he => hu (he ▸ hz)]
+  have hne : e.input ≠ z := fun he => hu (he ▸ hz)
+  simp [stamp, hne]
 
 end Log
 
@@ -173,23 +172,19 @@ theorem ancestry_copies_injective (hg : Grown sem f rs es) (v : V)
     have old {w} (hs : s ∈ (es.ancestry w).walk.steps) (ht : t ∈ (es.ancestry w).walk.steps) :=
       ih w hs ht (by simpa only [inArc, Arc.copy, (hp.stamp_cons_of_mem_ancestry hu hs).1,
         (hp.stamp_cons_of_mem_ancestry hu ht).1] using hc)
-    have htime : Log.stamp (e :: es) s.1 = Log.stamp (e :: es) t.1 := congrArg Prod.snd hc
-    have hnew : Log.stamp (e :: es) e.input = es.length := by simp [Log.stamp]
+    have hne {x} (hx : x ∈ (es.ancestry e.input.var).walk.steps)
+        (heq : Log.stamp (e :: es) x.1 = Log.stamp (e :: es) e.input) : False := by
+      obtain ⟨h1, h2⟩ := hp.stamp_cons_of_mem_ancestry hu hx
+      rw [h1, Log.stamp, ite_eq_left rfl] at heq; omega
     cases hfind : e.outputs.find? (fun o => o.var == v) with
     | none =>
       simp only [Log.ancestry, hfind] at hs ht
       exact old hs ht
     | some o =>
-      simp only [Log.ancestry, hfind, Walk.snoc] at hs ht
-      rcases List.mem_append.mp hs with hs | hs <;> rcases List.mem_append.mp ht with ht | ht
-      · exact old hs ht
-      · obtain rfl : t = (e.input, o) := List.mem_singleton.mp ht
-        have := hp.stamp_cons_of_mem_ancestry hu hs
-        dsimp only at htime; omega
-      · obtain rfl : s = (e.input, o) := List.mem_singleton.mp hs
-        have := hp.stamp_cons_of_mem_ancestry hu ht
-        dsimp only at htime; omega
-      · exact (List.mem_singleton.mp hs).trans (List.mem_singleton.mp ht).symm
+      simp only [Log.ancestry, hfind, Walk.snoc, List.mem_append, List.mem_singleton] at hs ht
+      rcases hs with hs | rfl <;> rcases ht with ht | rfl
+      exacts [old hs ht, (hne hs (congrArg Prod.snd hc)).elim,
+        (hne ht (congrArg Prod.snd hc).symm).elim, rfl]
 
 /-- The reconstructed path of every visited variable starts at one of the supplied roots. -/
 theorem ancestry_start_root (hg : Grown sem f rs es) {v : V}

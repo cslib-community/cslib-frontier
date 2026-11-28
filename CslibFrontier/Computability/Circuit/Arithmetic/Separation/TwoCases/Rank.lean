@@ -57,18 +57,16 @@ private theorem quadrangle (hw : IsPrice K w) (x v y u : Mt μ) :
   exact ⟨dist_sq_add_dist_sq_le_sides _ _ _ _, sides_eq_of_dist_sq_add_dist_sq_eq⟩
 
 private theorem defect_nonneg (hw : IsPrice K w) (a W W' : Mt μ) : 0 ≤ defect w a W W' := by
-  have := (quadrangle hw a (a + W + W') (a + W) (a + W')).1
   unfold defect
-  linarith
+  linarith [(quadrangle hw a (a + W + W') (a + W) (a + W')).1]
 
 /-- The number of the triples `(p, q, a)`. -/
 private noncomputable abbrev frames (μ : ℕ) : ℝ :=
   (Fintype.card (GLM (Fin μ)) : ℝ) ^ 2 * Fintype.card (Mt μ)
 
 private theorem frames_pos : 0 < frames μ := by
-  unfold frames
-  have : (0 : ℝ) < Fintype.card (GLM (Fin μ)) := by exact_mod_cast Fintype.card_pos
-  positivity
+  have : (0 : ℝ) < Fintype.card (GLM (Fin μ)) := mod_cast Fintype.card_pos
+  rw [frames]; positivity
 
 /-- The squared sides minus the squared diagonals of the quadrangles with sides `p · dg S · q`
 and `p · dg T · q`, added over all `p`, `q` and `a`, are `2 (D(|S|)² + D(|T|)² − D(|S| + |T|)²)`
@@ -87,12 +85,10 @@ private theorem meanSq_add_le (hw : IsPrice K w) {i j : ℕ} (hij : i + j ≤ μ
     meanSq w (i + j) ≤ meanSq w i + meanSq w j := by
   obtain ⟨S, -, T, -, hST, rfl, rfl⟩ :=
     exists_disjoint_card_eq (s := (univ : Finset (Fin μ))) (by simpa using hij)
-  have h := sum_defect_eq hw hST
-  have h0 : 0 ≤ 2 * frames μ * (meanSq w S.card + meanSq w T.card -
-      meanSq w (S.card + T.card)) :=
-    h ▸ sum_nonneg fun _ _ => sum_nonneg fun _ _ => sum_nonneg fun _ _ => defect_nonneg hw _ _ _
-  have := frames_pos (μ := μ)
-  nlinarith
+  have h0 : 0 ≤ ∑ p : GLM (Fin μ), ∑ q : GLM (Fin μ), ∑ a, defect w a (X p q S) (X p q T) :=
+    sum_nonneg fun _ _ => sum_nonneg fun _ _ => sum_nonneg fun _ _ => defect_nonneg hw _ _ _
+  rw [sum_defect_eq hw hST] at h0
+  nlinarith [frames_pos (μ := μ)]
 
 private theorem meanSq_zero (hw : IsPrice K w) : meanSq w 0 = 0 := by
   rw [meanSq, sum_eq_zero fun a _ => ?_, zero_div]
@@ -107,16 +103,14 @@ private theorem meanSq_le (hw : IsPrice K w) {r : ℕ} (hr : r ≤ μ) :
   induction r with
   | zero => simp [meanSq_zero hw]
   | succ r ih =>
-    have := meanSq_add_le hw (i := r) (j := 1) hr
     push_cast
-    linarith [ih (by omega)]
+    linarith [meanSq_add_le hw (i := r) (j := 1) hr, ih (by omega)]
 
 /-- Each squared distance is at most `|Mat_μ(F₂)|²` times the mean over its rank. -/
 private theorem sq_le_meanSq (w : Mt μ → Mt μ → ℝ) (a W : Mt μ) :
     w a (a + W) ^ 2 ≤ (Fintype.card (Mt μ) : ℝ) ^ 2 * meanSq w W.rank := by
   have hc : (0 : ℝ) < Fintype.card (Mt μ) := by exact_mod_cast Fintype.card_pos
-  have hn : (0 : ℝ) < #{V : Mt μ | V.rank = W.rank} := by
-    exact_mod_cast card_pos.2 ⟨W, by simp⟩
+  have hn : (0 : ℝ) < #{V : Mt μ | V.rank = W.rank} := mod_cast card_pos.2 ⟨W, by simp⟩
   have h1 : w a (a + W) ^ 2 ≤ #{V : Mt μ | V.rank = W.rank} *
       rankMean (fun V => w a (a + V)) W.rank := by
     rw [rankMean, mul_div_cancel₀ _ hn.ne']
@@ -125,12 +119,10 @@ private theorem sq_le_meanSq (w : Mt μ → Mt μ → ℝ) (a W : Mt μ) :
     rw [meanSq, mul_div_cancel₀ _ hc.ne']
     exact single_le_sum (f := fun a => rankMean (fun V => w a (a + V)) W.rank)
       (fun _ _ => rankMean_nonneg _ _) (mem_univ a)
-  have h3 : (#{V : Mt μ | V.rank = W.rank} : ℝ) ≤ Fintype.card (Mt μ) := by
-    exact_mod_cast card_le_univ _
+  have h3 : (#{V : Mt μ | V.rank = W.rank} : ℝ) ≤ Fintype.card (Mt μ) := mod_cast card_le_univ _
   calc _ ≤ _ := h1
-    _ ≤ (Fintype.card (Mt μ) : ℝ) * (Fintype.card (Mt μ) * meanSq w W.rank) := by
-      gcongr
-      exact rankMean_nonneg _ _
+    _ ≤ (Fintype.card (Mt μ) : ℝ) * (Fintype.card (Mt μ) * meanSq w W.rank) :=
+      mul_le_mul h3 h2 (rankMean_nonneg _ _) hc.le
     _ = _ := by ring
 
 /-! ### Step 2: a price with equality -/
@@ -165,31 +157,24 @@ private theorem exists_meanSq_eq (hK : ¬ ContractingCase K) (hμ : 2 ≤ μ) :
     have hr := (rank_le_card_width (a + b)).trans (Fintype.card_fin μ).le
     refine (add_cancel_left a b ▸ sq_le_meanSq w' a (a + b)).trans ?_
     gcongr
-    refine (meanSq_le hw' hr).trans ?_
-    rw [hc, mul_one]
-    exact_mod_cast hr
+    exact ((meanSq_le hw' hr).trans_eq (by rw [hc, mul_one])).trans (Nat.cast_le.mpr hr)
   obtain ⟨M, hMμ, hM⟩ : ∃ M : ℝ, M < μ ∧ ∀ w ∈ S, meanSq w μ ≤ M := by
     rcases S.eq_empty_or_nonempty with h0 | hne
     · exact ⟨0, by positivity, by simp [h0]⟩
     obtain ⟨w, ⟨⟨hw, -⟩, hw1⟩, hmax⟩ := hS.exists_isMaxOn hne (continuous_meanSq μ).continuousOn
     refine ⟨meanSq w μ, lt_of_le_of_ne ((meanSq_le hw le_rfl).trans_eq (by rw [hw1, mul_one]))
       fun e => hK' ⟨w, hw, fun r hr => ?_⟩, hmax⟩
-    have h1 := meanSq_le hw hr
-    have h2 := meanSq_le hw (Nat.sub_le μ r)
+    have h1 := (meanSq_le hw hr).trans_eq (by rw [hw1, mul_one])
+    have h2 := (meanSq_le hw (Nat.sub_le μ r)).trans_eq (by rw [hw1, mul_one, Nat.cast_sub hr])
     have h3 := meanSq_add_le hw (i := r) (j := μ - r) (by omega)
-    rw [hw1, mul_one] at h1 h2
     rw [Nat.add_sub_cancel' hr, e] at h3
-    push_cast [hr] at h2
     linarith
   refine hK ⟨μ, √(max 1 M), hμ, Real.one_le_sqrt.2 (le_max_left _ _), ?_, fun w hw => ?_⟩
-  · rw [Real.sq_sqrt (le_max_of_le_left zero_le_one)]
-    exact max_lt (by exact_mod_cast hμ) hMμ
+  · exact (Real.sq_sqrt (le_max_of_le_left zero_le_one)).trans_lt (max_lt (mod_cast hμ) hMμ)
   rw [distAtRank, distAtRank, ← Real.sqrt_mul (le_max_of_le_left zero_le_one)]
   refine Real.sqrt_le_sqrt ?_
   rcases (meanSq_nonneg w 1).eq_or_lt with h0 | h1
-  · have := meanSq_le hw le_rfl
-    rw [← h0] at this ⊢
-    linarith [meanSq_nonneg w μ]
+  · exact (meanSq_le hw le_rfl).trans_eq (by rw [← h0, mul_zero, mul_zero])
   · have h := hM _ (scale w hw h1)
     rw [meanSq_smul, inv_pow, Real.sq_sqrt h1.le, inv_mul_le_iff₀ h1] at h
     exact h.trans ((mul_comm _ _).le.trans (mul_le_mul_of_nonneg_right (le_max_right 1 M) h1.le))
@@ -217,19 +202,19 @@ private theorem Extremal.sides (hx : Extremal K w) {W W' : Mt μ} (h : Transvers
     w a (a + W) = w (a + W + W') (a + W') ∧ w (a + W) (a + W + W') = w a (a + W') ∧
       defect w a W W' = 0 := by
   obtain ⟨p, q, S, hd, hW⟩ := (transversal_iff _).1 h
-  obtain rfl : W = X p q (S 0) := hW 0
-  obtain rfl : W' = X p q (S 1) := hW 1
+  obtain ⟨rfl, rfl⟩ : W = X p q (S 0) ∧ W' = X p q (S 1) := ⟨hW 0, hW 1⟩
   have hST := hd 0 1 (by decide)
-  have hc : (S 0).card + (S 1).card ≤ μ := by
-    rw [← card_union_of_disjoint hST]; exact card_le_univ _ |>.trans (Fintype.card_fin μ).le
+  have hc : (S 0).card + (S 1).card ≤ μ :=
+    card_union_of_disjoint hST ▸ (card_le_univ _).trans (Fintype.card_fin μ).le
   have h1 := sum_defect_eq hx.price hST
   rw [hx.meanSq_eq _ hc, hx.meanSq_eq _ (by omega), hx.meanSq_eq _ (by omega)] at h1
   simp only [Nat.cast_add, sub_self, mul_zero, ← Fintype.sum_prod_type'] at h1
   have h0 := congrFun ((Fintype.sum_eq_zero_iff_of_nonneg fun _ => defect_nonneg hx.price _ _ _).1
     h1) (p, q, a)
-  refine ⟨(quadrangle hx.price _ _ _ _).2 ?_ |>.1, (quadrangle hx.price _ _ _ _).2 ?_ |>.2, h0⟩ <;>
-  · simp only [defect, Pi.zero_apply] at h0
-    linarith
+  obtain ⟨h2, h3⟩ :=
+    (quadrangle hx.price a (a + X p q (S 0) + X p q (S 1)) (a + X p q (S 0)) (a + X p q (S 1))).2
+      (by simp only [defect, Pi.zero_apply] at h0; linarith)
+  exact ⟨h2, h3, h0⟩
 
 /-- (D.1): `n_{a + W'}(W) = n_a(W)` for transversal `W`, `W'`. -/
 private theorem Extremal.opposite (hx : Extremal K w) {W W' : Mt μ} (h : Transversal ![W, W'])
@@ -252,9 +237,8 @@ private theorem Extremal.additive (hx : Extremal K w) {W₁ W₂ W₃ : Mt μ}
     (h : Transversal ![W₁, W₂, W₃]) (a : Mt μ) :
     BB w a W₁ (W₂ + W₃) = BB w a W₁ W₂ + BB w a W₁ W₃ := by
   obtain ⟨p, q, S, hd, hW⟩ := (transversal_iff _).1 h
-  obtain rfl : W₁ = X p q (S 0) := hW 0
-  obtain rfl : W₂ = X p q (S 1) := hW 1
-  obtain rfl : W₃ = X p q (S 2) := hW 2
+  obtain ⟨rfl, rfl, rfl⟩ : W₁ = X p q (S 0) ∧ W₂ = X p q (S 1) ∧ W₃ = X p q (S 2) :=
+    ⟨hW 0, hW 1, hW 2⟩
   have e1 := hx.diagonal (transversal_X₂ (p := p) (q := q)
     (disjoint_union_right.2 ⟨hd 0 1 (by decide), hd 0 2 (by decide)⟩)) (a + X p q (S 1))
   have e2 := hx.diagonal (transversal_X₂ (p := p) (q := q)
@@ -266,17 +250,15 @@ private theorem Extremal.additive (hx : Extremal K w) {W₁ W₂ W₃ : Mt μ}
   rw [X_union p q (hd 1 2 (by decide))] at e1
   rw [X_union p q (hd 0 2 (by decide))] at e2
   rw [X_union p q (hd 0 1 (by decide))] at e3
-  set A := X p q (S 0)
-  set B := X p q (S 1)
-  set C := X p q (S 2)
-  have f1 : a + B + A = a + (A + B) := by abel
-  have f2 : a + B + (B + C) = a + C := by rw [add_assoc, add_cancel_left]
-  have f3 : nn w (a + B) (B + C) = w (a + B) (a + C) ^ 2 := by rw [nn, f2]
-  have f4 : nn w (a + B) (A + (B + C)) = w (a + B) (a + (A + C)) ^ 2 := by
-    rw [nn, add_left_comm A, add_assoc, add_cancel_left]
-  rw [f1, f2, f3, f4, e2, e4, e5, e3] at e1
-  unfold BB
-  rw [show A + B + C = A + (B + C) by abel, show B + (A + C) = A + (B + C) by abel] at *
+  dsimp only [nn] at e1 e5
+  rw [e5, add_assoc a (X p q (S 1)) (X p q (S 0)), add_comm (X p q (S 1)) (X p q (S 0)),
+    add_assoc a (X p q (S 1)) (X p q (S 1) + X p q (S 2)), add_cancel_left,
+    add_left_comm (X p q (S 0)) (X p q (S 1)),
+    add_assoc a (X p q (S 1)) (X p q (S 1) + (X p q (S 0) + X p q (S 2))), add_cancel_left,
+    e2, e4, e3] at e1
+  unfold BB nn at *
+  rw [add_assoc (X p q (S 0)) (X p q (S 1)) (X p q (S 2)),
+    add_left_comm (X p q (S 1)) (X p q (S 0)) (X p q (S 2))] at *
   linarith
 
 /-! ### Step 5: `B_a` is constant on pairs of rank one -/
@@ -347,8 +329,7 @@ private theorem exists_transversal (hμ : 3 ≤ μ) {V W : Mt μ} (hV : V.rank =
     (hW : W.rank = 1) : ∃ Z : Mt μ, Z.rank = 1 ∧ Transversal ![V, Z] ∧ Transversal ![W, Z] := by
   have hc := Submodule.finrank_add_le_finrank_add_finrank (colSpace V) (colSpace W)
   have hr := Submodule.finrank_add_le_finrank_add_finrank (rowSpace V) (rowSpace W)
-  rw [finrank_colSpace, finrank_colSpace] at hc
-  rw [finrank_rowSpace, finrank_rowSpace] at hr
+  simp only [finrank_colSpace, finrank_rowSpace] at hc hr
   obtain ⟨u, hu⟩ := exists_notMem (A := colSpace V ⊔ colSpace W) (by omega)
   obtain ⟨x, hx⟩ := exists_notMem (A := rowSpace V ⊔ rowSpace W) (by omega)
   have hu0 : u ≠ 0 := fun e => hu (e ▸ zero_mem _)
@@ -375,11 +356,9 @@ private theorem Extremal.lambda (hx : Extremal K w) (hμ : 3 ≤ μ) (a : Mt μ)
 /-- "`B_{a+V}(V, W') = −B_a(V, W')`" for transversal `V`, `W'`. -/
 private theorem Extremal.reflect (hx : Extremal K w) {V W' : Mt μ} (h : Transversal ![V, W'])
     (a : Mt μ) : BB w (a + V) V W' = - BB w a V W' := by
-  unfold BB
-  rw [show nn w (a + V) (V + W') = w (a + V) (a + W') ^ 2 by rw [nn, add_assoc, add_cancel_left],
-    show nn w (a + V) V = nn w a V by rw [nn, nn, add_assoc, madd_self, add_zero, hx.price.symm],
-    hx.diagonal h a, hx.opposite (transversal_symm h) a]
-  ring
+  rw [BB, BB, hx.opposite (transversal_symm h) a, nn, add_assoc, add_cancel_left, hx.diagonal h a]
+  simp only [nn, add_assoc a V V, madd_self, add_zero]
+  rw [hx.price.symm]; ring
 
 /-- "Hence `λ = 0`": `B_a` vanishes on transversal pairs of rank one. -/
 private theorem Extremal.BB_eq_zero (hx : Extremal K w) (hμ : 3 ≤ μ) (a : Mt μ) {W W' : Mt μ}
@@ -391,9 +370,7 @@ private theorem Extremal.BB_eq_zero (hx : Extremal K w) (hμ : 3 ≤ μ) (a : Mt
   set i : Fin μ := ⟨0, by omega⟩
   set j : Fin μ := ⟨1, by omega⟩
   set k : Fin μ := ⟨2, by omega⟩
-  have hij : i ≠ j := by simp [i, j, Fin.ext_iff]
-  have hik : i ≠ k := by simp [i, k, Fin.ext_iff]
-  have hjk : j ≠ k := by simp [j, k, Fin.ext_iff]
+  have ⟨hij, hik, hjk⟩ : i ≠ j ∧ i ≠ k ∧ j ≠ k := by simp [i, j, k, Fin.ext_iff]
   have lam (b : Mt μ) {l l' : Fin μ} (h : l ≠ l') : BB w b (e l) (e l') = BB w b (e i) (e j) :=
     hx.lambda hμ b (tr h) (tr hij) (r1 _) (r1 _) (r1 _) (r1 _)
   have two (b : Mt μ) : BB w b (e i + e j) (e k) = 2 * BB w b (e i) (e j) := by
@@ -438,8 +415,7 @@ private theorem Extremal.nn_eq (hx : Extremal K w) (hμ : 3 ≤ μ) (a : Mt μ) 
   refine connect_rank_one' (W := 0) (fun V₁ V₂ h => ?_) (by rw [rank_zero]; omega)
     (transversal_zero V) (transversal_zero V') h1 h2
   obtain ⟨p, q, S, hd, hW⟩ := (transversal_iff _).1 h.tail
-  obtain rfl : V₁ = X p q (S 0) := hW 0
-  obtain rfl : V₂ = X p q (S 1) := hW 1
+  obtain ⟨rfl, rfl⟩ : V₁ = X p q (S 0) ∧ V₂ = X p q (S 1) := ⟨hW 0, hW 1⟩
   rw [← X_union p q (hd 0 1 (by decide)), hx.nn_X hμ, hx.nn_X hμ, hx.nn_X hμ,
     sum_union (hd 0 1 (by decide))]
 
@@ -462,12 +438,11 @@ private theorem Extremal.nn_eq_one (hx : Extremal K w) (hμ : 3 ≤ μ) (a : Mt 
         shift _ _ (by simp [rank_X]), ih]
   have h1 := hx.meanSq_eq 1 (by omega)
   have hc : (Fintype.card (Mt μ) : ℝ) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
-  have hn : (#{W : Mt μ | W.rank = 1} : ℝ) ≠ 0 :=
-    by exact_mod_cast (card_pos.2 ⟨V, by simp [hV]⟩).ne'
+  have hn : (#{W : Mt μ | W.rank = 1} : ℝ) ≠ 0 := mod_cast (card_pos.2 ⟨V, by simp [hV]⟩).ne'
   have h2 (b : Mt μ) : rankMean (fun W => w b (b + W)) 1 = nn w a V := by
-    rw [rankMean, div_eq_iff hn, sum_congr rfl fun W hW =>
-      show w b (b + W) ^ 2 = _ from (hx.nn_eq hμ b (mem_filter.1 hW).2 hV).trans (all b),
-      sum_const, nsmul_eq_mul, mul_comm]
+    have hW' (W) (hW : W ∈ univ.filter fun W : Mt μ => W.rank = 1) : w b (b + W) ^ 2 = nn w a V :=
+      (hx.nn_eq hμ b (mem_filter.1 hW).2 hV).trans (all b)
+    rw [rankMean, div_eq_iff hn, sum_congr rfl hW', sum_const, nsmul_eq_mul, mul_comm]
   simpa only [meanSq, h2, sum_const, card_univ, nsmul_eq_mul, mul_div_cancel_left₀ _ hc,
     Nat.cast_one] using h1
 
@@ -479,9 +454,7 @@ theorem exists_sq_eq_rank (hK : ¬ ContractingCase K) (hμ : 3 ≤ μ) :
   have hx : Extremal K w := ⟨hw, hr⟩
   refine ⟨w, hw, fun a a' => ?_⟩
   obtain ⟨p, q, S, hS⟩ := exists_X (a + a')
-  have e : a - a' = a + a' := by
-    ext i j
-    exact CharTwo.sub_eq_add _ _
+  have e : a - a' = a + a' := Matrix.ext fun _ _ => CharTwo.sub_eq_add _ _
   rw [e, hS, rank_X, ← add_cancel_left a a', hS, ← nn, hx.nn_X hμ,
     sum_congr rfl fun i _ => hx.nn_eq_one hμ a (by simp [rank_X])]
   simp

@@ -96,11 +96,7 @@ theorem prefix_time_le {n D g p : ℕ}
     Catalogue.cost n D p ≤ 229 * (n * n) * D * g := by
   have hbase : 1 ≤ (n * n) * D * g :=
     Nat.mul_pos (Nat.mul_pos (Nat.mul_pos (hD.trans hDn) (hD.trans hDn)) hD) hg
-  have heq : Catalogue.cost n D p =
-      69 * (n * n) + p * (14 * (n * n) + 14) + 30 +
-        (5 * sOf D + 5 * queryCap n D + 27) + (p * (17 * (n * n) + 20) + 9) + 19 := by
-    dsimp [Catalogue.cost]; ring
-  rw [heq]
+  unfold Catalogue.cost
   nlinarith only [residue_class_parameter_time_le hD hDn hg hp,
     catalogue_time_le hD hDn hg hp, hbase]
 
@@ -115,13 +111,9 @@ theorem timeBound_le {n D g p : ℕ} (wAB : Fin n → Fin n → ℤ)
     (Nat.mem_sqrtPrimeWindow_iff_sq.mp hp).2.2.le
   have hmat := matrix_writing_total_le wAB 56 hD hDn hg hp
   simp only [Finset.sum_const, smul_eq_mul] at hmat
-  have hvisit : (instanceIndices wAB D g p).card * (40 * (n * D) + 68) ≤
-      432 * (n * n) * D * g := by
-    convert hmat using 1
-    ring
   rw [Instances.timeBound, ← card_instanceIndices wAB]
   have hn : 0 < n := by omega
-  nlinarith only [prefix_time_le (by omega) hDn hg hpD, hvisit,
+  nlinarith only [prefix_time_le (by omega) hDn hg hpD, hmat,
     Nat.mul_pos (Nat.mul_pos (Nat.mul_pos hn hn) (by omega : 0 < D)) hg]
 
 /-- The native count in the initialized theorem is the existing finite chunk count. Thus its

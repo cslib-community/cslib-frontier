@@ -397,6 +397,9 @@ private theorem exists_threeTensorHard_eventually (K : Type*) [Field K] {U : Typ
 
 /-! ### `3`-way network splicing into `Tensor.mm D D D` -/
 
+private theorem finThreeCases (k : Fin 3) : k = 0 ∨ k = 1 ∨ k = 2 := by
+  fin_cases k <;> decide
+
 section Splicing
 
 /-- **`3`-way circuit splicing into square matrix multiplication.** Let `c : Circuit σ n 1` be a
@@ -433,71 +436,48 @@ theorem isRestriction_partitionThreeTensor_mm (K : Type*) [CommSemiring K]
         ((col (G.src e) = a ∧ col (G.tgt e) = b) ∨
           (col (G.src e) = b ∧ col (G.tgt e) = a)) := by
     simp only [mem_inter_iff, Multigraph.mem_edgeCut, mem_ofPred_eq]
-    generalize col (G.src e) = x
-    generalize col (G.tgt e) = y
-    revert hab
-    fin_cases a <;> fin_cases b <;> fin_cases x <;> fin_cases y <;> decide
+    have hsrc : ¬(col (G.src e) = a ∧ col (G.src e) = b) :=
+      fun h => hab (h.1.symm.trans h.2)
+    have htgt : ¬(col (G.tgt e) = a ∧ col (G.tgt e) = b) :=
+      fun h => hab (h.1.symm.trans h.2)
+    tauto
   have hcut01 := mem_inter_edgeCut_iff 0 1 (by decide)
   have hcut12 := mem_inter_edgeCut_iff 1 2 (by decide)
   have hcut20 := mem_inter_edgeCut_iff 2 0 (by decide)
-  let glueEdges (α₀ : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ : IntE 2 → U)
-      (a₀ : (CutE 0 → U)) (a₁ : (CutE 1 → U)) (a₂ : (CutE 2 → U))
-      (e : Compiler.Edge c) : U :=
-    if h0 : col (G.src e) = 0 ∧ col (G.tgt e) = 0 then α₀ ⟨e, h0⟩
-    else if h1 : col (G.src e) = 1 ∧ col (G.tgt e) = 1 then α₁ ⟨e, h1⟩
-    else if h2 : col (G.src e) = 2 ∧ col (G.tgt e) = 2 then α₂ ⟨e, h2⟩
-    else if hc0 : e ∈ G.edgeCut {v | col v = 0} ∩ G.edgeCut {v | col v = 1} then a₀ ⟨e, hc0⟩
-    else if hc1 : e ∈ G.edgeCut {v | col v = 1} ∩ G.edgeCut {v | col v = 2} then a₁ ⟨e, hc1⟩
-    else if hc2 : e ∈ G.edgeCut {v | col v = 2} ∩ G.edgeCut {v | col v = 0} then a₂ ⟨e, hc2⟩
+  let triple {A : Fin 3 → Type _} (x₀ : A 0) (x₁ : A 1) (x₂ : A 2) : ∀ k, A k :=
+    Fin.cons x₀ (Fin.cons x₁ (Fin.cons x₂ (fun i => i.elim0)))
+  let glueEdges (α : ∀ k, IntE k → U) (a : ∀ k, CutE k → U) (e : Compiler.Edge c) : U :=
+    if h0 : col (G.src e) = 0 ∧ col (G.tgt e) = 0 then α 0 ⟨e, h0⟩
+    else if h1 : col (G.src e) = 1 ∧ col (G.tgt e) = 1 then α 1 ⟨e, h1⟩
+    else if h2 : col (G.src e) = 2 ∧ col (G.tgt e) = 2 then α 2 ⟨e, h2⟩
+    else if hc0 : e ∈ G.edgeCut {v | col v = 0} ∩ G.edgeCut {v | col v = 1} then a 0 ⟨e, hc0⟩
+    else if hc1 : e ∈ G.edgeCut {v | col v = 1} ∩ G.edgeCut {v | col v = 2} then a 1 ⟨e, hc1⟩
+    else if hc2 : e ∈ G.edgeCut {v | col v = 2} ∩ G.edgeCut {v | col v = 0} then a 2 ⟨e, hc2⟩
     else u₀
-  -- Local edge-agreement lemma at each vertex color `0, 1, 2`.
-  have glue_eq_at_zero (α₀ : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ : IntE 2 → U) (a₀ : CutE 0 → U)
-      (a₁ : CutE 1 → U) (a₂ : CutE 2 → U) {v : Compiler.Vertex c} (hv : col v = 0)
-      {e : Compiler.Edge c} (he : G.src e = v ∨ G.tgt e = v) :
-      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e =
-        glueEdges α₀ (fun _ => u₀) (fun _ => u₀) a₀ (fun _ => u₀) a₂ e := by
-    rcases he with rfl | rfl <;> simp only [glueEdges, hcut01, hcut12, hcut20, hv, Fin.reduceEq,
-      true_and, false_and, and_true, and_false, false_or, or_false, ↓reduceDIte]
-  have glue_eq_at_one (α₀ : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ : IntE 2 → U) (a₀ : CutE 0 → U)
-      (a₁ : CutE 1 → U) (a₂ : CutE 2 → U) {v : Compiler.Vertex c} (hv : col v = 1)
-      {e : Compiler.Edge c} (he : G.src e = v ∨ G.tgt e = v) :
-      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e =
-        glueEdges (fun _ => u₀) α₁ (fun _ => u₀) a₀ a₁ (fun _ => u₀) e := by
-    rcases he with rfl | rfl <;> simp only [glueEdges, hcut01, hcut12, hcut20, hv, Fin.reduceEq,
-      true_and, false_and, and_true, and_false, false_or, or_false, ↓reduceDIte]
-  have glue_eq_at_two (α₀ : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ : IntE 2 → U) (a₀ : CutE 0 → U)
-      (a₁ : CutE 1 → U) (a₂ : CutE 2 → U) {v : Compiler.Vertex c} (hv : col v = 2)
-      {e : Compiler.Edge c} (he : G.src e = v ∨ G.tgt e = v) :
-      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e =
-        glueEdges (fun _ => u₀) (fun _ => u₀) α₂ (fun _ => u₀) a₁ a₂ e := by
-    rcases he with rfl | rfl <;> simp only [glueEdges, hcut01, hcut12, hcut20, hv, Fin.reduceEq,
-      true_and, false_and, and_true, and_false, false_or, or_false, ↓reduceDIte]
-  -- Reconstruct any global assignment `β : Edge c → U` from its `6` restrictions.
+  -- A vertex sees only its own internal edges and the cuts incident to its colour.
+  let localInternal (k : Fin 3) (α : ∀ j, IntE j → U) (j : Fin 3) (e : IntE j) :=
+    if j = k then α j e else u₀
+  let localCut (k : Fin 3) (a : ∀ j, CutE j → U) (j : Fin 3) (e : CutE j) :=
+    if j = k ∨ j + 1 = k then a j e else u₀
+  have glue_eq_at (α : ∀ k, IntE k → U) (a : ∀ k, CutE k → U) (k : Fin 3)
+      {v : Compiler.Vertex c} (hv : col v = k) {e : Compiler.Edge c}
+      (he : G.src e = v ∨ G.tgt e = v) :
+      glueEdges α a e = glueEdges (localInternal k α) (localCut k a) e := by
+    rcases finThreeCases k with rfl | rfl | rfl <;> rcases he with rfl | rfl <;>
+      simp only [glueEdges, hcut01, hcut12, hcut20, hv, Fin.reduceEq,
+        true_and, false_and, and_true, and_false, false_or, or_false, ↓reduceDIte] <;> rfl
   have glue_restrict (β : Compiler.Edge c → U) :
-      glueEdges (fun e => β e.1) (fun e => β e.1) (fun e => β e.1)
-        (fun e => β e.1) (fun e => β e.1) (fun e => β e.1) = β := by
+      glueEdges (fun _ e => β e.1) (fun _ e => β e.1) = β := by
     funext e
     simp only [glueEdges, hcut01, hcut12, hcut20]
     split_ifs <;> first | rfl | omega
-  -- Also extract `a₀, a₁, a₂` back from `glueEdges`.
-  have glue_on_cut0 (α₀ : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ : IntE 2 → U)
-      (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) (a₂ : CutE 2 → U) (e : CutE 0) :
-      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e.1 = a₀ e := by
-    have := (hcut01 e.1).mp e.2
-    simp only [glueEdges, hcut01, hcut12, hcut20]
-    split_ifs <;> first | rfl | omega
-  have glue_on_cut1 (α₀ : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ : IntE 2 → U)
-      (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) (a₂ : CutE 2 → U) (e : CutE 1) :
-      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e.1 = a₁ e := by
-    have := (hcut12 e.1).mp e.2
-    simp only [glueEdges, hcut01, hcut12, hcut20]
-    split_ifs <;> first | rfl | omega
-  have glue_on_cut2 (α₀ : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ : IntE 2 → U)
-      (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) (a₂ : CutE 2 → U) (e : CutE 2) :
-      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e.1 = a₂ e := by
-    have := (hcut20 e.1).mp e.2
-    simp only [glueEdges, hcut01, hcut12, hcut20]
-    split_ifs <;> first | rfl | omega
+  have glue_on_cut (α : ∀ k, IntE k → U) (a : ∀ k, CutE k → U)
+      (k : Fin 3) (e : CutE k) : glueEdges α a e.1 = a k e := by
+    have hk : k ≠ k + 1 := by fin_cases k <;> decide
+    obtain ⟨hi, hj⟩ | ⟨hi, hj⟩ := (mem_inter_edgeCut_iff k (k + 1) hk e.1).mp e.2 <;>
+      rcases finThreeCases k with rfl | rfl | rfl <;>
+      simp only [Fin.reduceAdd] at hi hj <;>
+      simp [glueEdges, hcut01, hcut12, hcut20, hi, hj]
   -- Local validity predicates for parts `0, 1, 2`.
   let d0 : {i : Fin n // p i = 0} → U := fun _ => u₀
   let d1 : {i : Fin n // p i = 1} → U := fun _ => u₀
@@ -505,15 +485,15 @@ theorem isRestriction_partitionThreeTensor_mm (K : Type*) [CommSemiring K]
   let Valid₀ (x₀ : {i : Fin n // p i = 0} → U) (a₂ : CutE 2 → U) (a₀ : CutE 0 → U) : Prop :=
     ∃ α₀ : IntE 0 → U, ∀ v : Compiler.Vertex c, col v = 0 →
       N_net.Constraint v (mergeTripartition p x₀ d1 d2)
-        (glueEdges α₀ (fun _ => u₀) (fun _ => u₀) a₀ (fun _ => u₀) a₂)
+        (glueEdges (triple α₀ (fun _ => u₀) (fun _ => u₀)) (triple a₀ (fun _ => u₀) a₂))
   let Valid₁ (x₁ : {i : Fin n // p i = 1} → U) (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) : Prop :=
     ∃ α₁ : IntE 1 → U, ∀ v : Compiler.Vertex c, col v = 1 →
       N_net.Constraint v (mergeTripartition p d0 x₁ d2)
-        (glueEdges (fun _ => u₀) α₁ (fun _ => u₀) a₀ a₁ (fun _ => u₀))
+        (glueEdges (triple (fun _ => u₀) α₁ (fun _ => u₀)) (triple a₀ a₁ (fun _ => u₀)))
   let Valid₂ (x₂ : {i : Fin n // p i = 2} → U) (a₂ : CutE 2 → U) (a₁ : CutE 1 → U) : Prop :=
     ∃ α₂ : IntE 2 → U, ∀ v : Compiler.Vertex c, col v = 2 →
       N_net.Constraint v (mergeTripartition p d0 d1 x₂)
-        (glueEdges (fun _ => u₀) (fun _ => u₀) α₂ (fun _ => u₀) a₁ a₂)
+        (glueEdges (triple (fun _ => u₀) (fun _ => u₀) α₂) (triple (fun _ => u₀) a₁ a₂))
   -- Exact equivalence: `(Valid₀ ∧ Valid₁ ∧ Valid₂)` iff `x ∈ S_acc` and `(a₂, a₀, a₁)` = trace.
   have valid_iff (x₀ : {i : Fin n // p i = 0} → U) (x₁ : {i : Fin n // p i = 1} → U)
       (x₂ : {i : Fin n // p i = 2} → U) (a₂ : CutE 2 → U) (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) :
@@ -525,24 +505,25 @@ theorem isRestriction_partitionThreeTensor_mm (K : Type*) [CommSemiring K]
     set x := mergeTripartition p x₀ x₁ x₂
     constructor
     · rintro ⟨⟨α₀, h0⟩, ⟨α₁, h1⟩, ⟨α₂, h2⟩⟩
-      have hsat : N_net.Satisfies x (glueEdges α₀ α₁ α₂ a₀ a₁ a₂) := by
+      let α := triple (A := fun k => IntE k → U) α₀ α₁ α₂
+      let a := triple (A := fun k => CutE k → U) a₀ a₁ a₂
+      have hsat : N_net.Satisfies x (glueEdges α a) := by
         intro v
-        rcases hv : col v with ⟨_ | _ | _ | _, hlt⟩
+        rcases finThreeCases (col v) with hv | hv | hv
         · refine N_net.constraint_congr v _ x _ _ (fun i hi => ?_) (fun e he => ?_) (h0 v hv)
           · simp only [x, mergeTripartition_apply_zero _ _ _ _ ((hcompat i v hi).trans hv)]
-          · exact (glue_eq_at_zero α₀ α₁ α₂ a₀ a₁ a₂ hv he).symm
+          · exact (glue_eq_at α a 0 hv he).symm
         · refine N_net.constraint_congr v _ x _ _ (fun i hi => ?_) (fun e he => ?_) (h1 v hv)
           · simp only [x, mergeTripartition_apply_one _ _ _ _ ((hcompat i v hi).trans hv)]
-          · exact (glue_eq_at_one α₀ α₁ α₂ a₀ a₁ a₂ hv he).symm
+          · exact (glue_eq_at α a 1 hv he).symm
         · refine N_net.constraint_congr v _ x _ _ (fun i hi => ?_) (fun e he => ?_) (h2 v hv)
           · simp only [x, mergeTripartition_apply_two _ _ _ _ ((hcompat i v hi).trans hv)]
-          · exact (glue_eq_at_two α₀ α₁ α₂ a₀ a₁ a₂ hv he).symm
-        · omega
+          · exact (glue_eq_at α a 2 hv he).symm
       obtain ⟨hacc, htr⟩ := Compiler.satisfies_iff.mp hsat
       refine ⟨hacc 0, ?_, ?_, ?_⟩ <;> funext e
-      · rw [← glue_on_cut2 α₀ α₁ α₂ a₀ a₁ a₂ e, htr]
-      · rw [← glue_on_cut0 α₀ α₁ α₂ a₀ a₁ a₂ e, htr]
-      · rw [← glue_on_cut1 α₀ α₁ α₂ a₀ a₁ a₂ e, htr]
+      · exact (glue_on_cut α a 2 e).symm.trans (congrFun htr e.1)
+      · exact (glue_on_cut α a 0 e).symm.trans (congrFun htr e.1)
+      · exact (glue_on_cut α a 1 e).symm.trans (congrFun htr e.1)
     · rintro ⟨hx, rfl, rfl, rfl⟩
       set β : Compiler.Edge c → U := fun e => c.program.trace I x e.signal.1
       have hsat : N_net.Satisfies x β :=
@@ -553,16 +534,13 @@ theorem isRestriction_partitionThreeTensor_mm (K : Type*) [CommSemiring K]
               ⟨fun e => β e.1, fun v hv2 => ?_⟩⟩
       · refine N_net.constraint_congr v x _ β _ (fun i hi => ?_) (fun e he => ?_) (hsat v)
         · simp only [x, mergeTripartition_apply_zero _ _ _ _ ((hcompat i v hi).trans hv0)]
-        · exact (congrFun hβ_eq e).trans (glue_eq_at_zero (fun e => β e.1) (fun e => β e.1)
-            (fun e => β e.1) (fun e => β e.1) (fun e => β e.1) (fun e => β e.1) hv0 he)
+        · exact (congrFun hβ_eq e).trans (glue_eq_at (fun _ e => β e.1) (fun _ e => β e.1) 0 hv0 he)
       · refine N_net.constraint_congr v x _ β _ (fun i hi => ?_) (fun e he => ?_) (hsat v)
         · simp only [x, mergeTripartition_apply_one _ _ _ _ ((hcompat i v hi).trans hv1)]
-        · exact (congrFun hβ_eq e).trans (glue_eq_at_one (fun e => β e.1) (fun e => β e.1)
-            (fun e => β e.1) (fun e => β e.1) (fun e => β e.1) (fun e => β e.1) hv1 he)
+        · exact (congrFun hβ_eq e).trans (glue_eq_at (fun _ e => β e.1) (fun _ e => β e.1) 1 hv1 he)
       · refine N_net.constraint_congr v x _ β _ (fun i hi => ?_) (fun e he => ?_) (hsat v)
         · simp only [x, mergeTripartition_apply_two _ _ _ _ ((hcompat i v hi).trans hv2)]
-        · exact (congrFun hβ_eq e).trans (glue_eq_at_two (fun e => β e.1) (fun e => β e.1)
-            (fun e => β e.1) (fun e => β e.1) (fun e => β e.1) (fun e => β e.1) hv2 he)
+        · exact (congrFun hβ_eq e).trans (glue_eq_at (fun _ e => β e.1) (fun _ e => β e.1) 2 hv2 he)
   -- Embed each `CutE k → U` injectively into `Fin (Fintype.card U ^ B)`.
   set D := Fintype.card U ^ B
   have hcard_le (k : Fin 3) : Fintype.card (CutE k → U) ≤ Fintype.card (Fin D) := by
@@ -763,11 +741,9 @@ private theorem exists_rebalanced_coloring {σ : Signature} {n : ℕ} (c : Circu
         have hdef_step :
             (∑ k : Fin 3, (n / 3 - {i : Fin n | p₁ i = k}.ncard)) + 1 =
               ∑ k : Fin 3, (n / 3 - {i : Fin n | p i = k}.ncard) := by
-          have hk_cases (x : Fin 3) : x = 0 ∨ x = 1 ∨ x = 2 := by
-            fin_cases x <;> simp
           rw [Fin.sum_univ_three, Fin.sum_univ_three]
-          rcases hk_cases k_lo with rfl | rfl | rfl <;>
-            rcases hk_cases k_hi with rfl | rfl | rfl <;>
+          rcases finThreeCases k_lo with rfl | rfl | rfl <;>
+            rcases finThreeCases k_hi with rfl | rfl | rfl <;>
             first
             | exact absurd rfl hlo_ne_hi
             | have := hcard_other 0 (by decide) (by decide); omega

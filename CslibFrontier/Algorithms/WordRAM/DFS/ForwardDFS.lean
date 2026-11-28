@@ -86,8 +86,7 @@ private theorem forwardDFSLoop_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Li
   | r :: rs, idx, vis, F₀, x, hidx, hrs, hF₀, hregs, hcsr, hvis, hNv, hi, hfc => by
     simp only [List.length_cons] at hidx
     have hr_val : r.val = idx := by
-      have h0 := hrs 0 (by simp)
-      rwa [List.getElem_cons_zero, Nat.add_zero] at h0
+      simpa [List.getElem_cons_zero] using hrs 0 (Nat.zero_lt_succ _)
     have hcard_le : vis.card ≤ N := by simpa using Finset.card_le_univ vis
     have hcons : F₀ + (N - vis.card) ≤ N := by omega
     have hfit_stk : Fits w (kStkAddr wb N Mc + 3 * N + Mc + 4) :=
@@ -118,10 +117,8 @@ private theorem forwardDFSLoop_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Li
     have hcard_s₁ : s₁.visited.card = vis.card + s₁.finished.length :=
       card_visit_nil adj N r vis
     have hcard_s₁_le : s₁.visited.card ≤ N := by simpa using Finset.card_le_univ s₁.visited
-    have hrs' : ∀ q (hq : q < rs.length), rs[q].val = (idx + 1) + q := by
-      intro q hq
-      have h := hrs (q + 1) (by simp; omega)
-      simpa [Nat.add_assoc, Nat.add_comm 1 q] using h
+    have hrs' (q : ℕ) (hq : q < rs.length) : rs[q].val = (idx + 1) + q := by
+      simpa [Nat.add_assoc, Nat.add_comm 1 q] using hrs (q + 1) (Nat.succ_lt_succ hq)
     obtain ⟨y, hy_ex, hy_r, hy_csr, hy_vis, hy_fc, hy_ord, hy_out, hy_fr⟩ :=
       forwardDFSLoop_spec hN adj wb Mc hmc hfit rs (idx + 1) s₁.visited
         (F₀ + s₁.finished.length) x₂ (by omega) hrs' (by omega)
@@ -141,27 +138,19 @@ private theorem forwardDFSLoop_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Li
     · rw [hfold_cons]; dsimp only
       rw [List.length_cons, List.length_append, outDegreeSum_append]
       omega
-    · have hrev : (foldEmpty adj N (r :: rs) vis).finished.reverse =
-          s₁.finished.reverse ++ s₂.finished.reverse := by
-        simp [hfold_cons]
-      simp only [hrev, List.length_append, List.length_reverse] at hq
+    · revert hq
+      simp only [hfold_cons, List.reverse_append, List.length_append, List.length_reverse]
+      intro hq
       by_cases hq1 : q < s₁.finished.length
-      · have hpres : y.mem (kOrdAddr wb N Mc + F₀ + q) = y₁.mem (kOrdAddr wb N Mc + F₀ + q) :=
-          hy_out (kOrdAddr wb N Mc + F₀ + q) (by
-            dsimp only [kVisAddr, kOrdAddr, kStkAddr] at *; omega)
-        rw [hpres, hy₁_ord q (by simpa using hq1)]
-        congr 1
-        simp only [hrev]
-        rw [List.getElem_append_left (by simpa using hq1)]
-      · set q' := q - s₁.finished.length
-        have hq'_lt : q' < s₂.finished.reverse.length := by simp; omega
-        have haddr : kOrdAddr wb N Mc + F₀ + q =
-            kOrdAddr wb N Mc + (F₀ + s₁.finished.length) + q' := by omega
-        rw [haddr, hy_ord q' hq'_lt]
-        congr 1
-        simp only [hrev]
-        rw [List.getElem_append_right (by simp; omega)]
-        simp [q']
+      · have hout : y.mem (kOrdAddr wb N Mc + F₀ + q) = y₁.mem (kOrdAddr wb N Mc + F₀ + q) :=
+          hy_out (kOrdAddr wb N Mc + F₀ + q)
+            (by dsimp only [kVisAddr, kOrdAddr, kStkAddr] at *; omega)
+        rw [hout, hy₁_ord q (by simpa using hq1), List.getElem_append_left (by simpa using hq1)]
+      · have haddr : kOrdAddr wb N Mc + F₀ + q =
+            kOrdAddr wb N Mc + (F₀ + s₁.finished.length) + (q - s₁.finished.length) := by omega
+        have hq' : q - s₁.finished.length < s₂.finished.reverse.length := by simp; omega
+        rw [haddr, hy_ord _ hq', List.getElem_append_right (by simp; omega)]
+        simp
     · rw [hfold_cons] at ha; dsimp only at ha; rw [List.length_append] at ha
       exact (hy_out a (by dsimp only [kVisAddr, kOrdAddr, kStkAddr] at *; omega)).trans
         (hy₁_out a (by dsimp only [kVisAddr, kOrdAddr, kStkAddr] at *; omega))
@@ -209,28 +198,21 @@ theorem forwardDFSCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → List (Fin 
   set ord := topologicalSort adj (List.finRange N)
   have hfold_eq : (foldEmpty adj N (List.finRange N) ∅).finished = ord := by
     simp [foldEmpty, ord, topologicalSort, dfs]
-  have hnd_ord : ord.Nodup := nodup_topologicalSort List.mem_finRange
-  have hmem_ord : ∀ v : Fin N, v ∈ ord := mem_topologicalSort List.mem_finRange
-  have huniv_ord : ord.toFinset = Finset.univ := by ext v; simp [hmem_ord v]
   have hlen_ord : ord.length = N := length_topologicalSort_finRange adj
   have hout_ord : outDegreeSum adj ord = csrOffset adj N := by
-    rw [csrOffset_eq_outDegreeSum]
-    unfold outDegreeSum
-    rw [← List.sum_toFinset _ hnd_ord, ← List.sum_toFinset _ (List.nodup_finRange N), huniv_ord]
-    rw [show (List.finRange N).toFinset = Finset.univ by ext v; simp]
-  rw [hfold_eq] at hy_ex hy_ord hy_out
-  rw [hlen_ord, hout_ord] at hy_ex
-  simp only [List.length_finRange, Nat.add_zero] at hy_ex hy_ord hy_out
+    rw [csrOffset_eq_outDegreeSum, outDegreeSum, outDegreeSum,
+      ← List.sum_toFinset _ (nodup_topologicalSort List.mem_finRange),
+      ← List.sum_toFinset _ (List.nodup_finRange N)]
+    congr 1
+    simp [Finset.ext_iff, mem_topologicalSort List.mem_finRange]
+  simp only [hfold_eq, hlen_ord, hout_ord, List.length_finRange, Nat.add_zero]
+    at hy_ex hy_ord hy_out
   refine ⟨y, (hx₁_ex.seq (hprep.seq hy_ex)).mono (by omega), hlen_ord,
     fun idx hidx => ?_, hy_csr, fun a ha => ?_, fun r hr => ?_⟩
-  · have hrev_idx : N - 1 - idx < ord.reverse.length := by simp [hlen_ord]; omega
-    rw [hy_ord (N - 1 - idx) hrev_idx]
-    congr 1
-    rw [List.getElem_reverse]
-    congr 1
+  · rw [hy_ord (N - 1 - idx) (by simp [hlen_ord]; omega), List.getElem_reverse]
+    congr 2
     omega
-  · rw [hlen_ord] at hy_out
-    exact (hy_out a ha).trans (hx₁_out a (by omega))
+  · exact (hy_out a ha).trans (hx₁_out a (by omega))
   · rw [hy_fr r hr]
     wram_simp [x₂, hx₁_fr r hr]
 

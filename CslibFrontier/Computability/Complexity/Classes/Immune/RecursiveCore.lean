@@ -124,21 +124,16 @@ def memReq (e n : ℕ) (w : List Bool) : Bool :=
 
 theorem memReq_iff {e n : ℕ} {w : List Bool} :
     memReq e n w = true ↔ clock e w.length ≤ n ∧ w ∈ requirement e := by
-  simp only [memReq, Bool.and_eq_true, decide_eq_true_eq]
-  have hcap : capPow (2 * w.length + 2) e (n + 1) ≤ n ↔ clock e w.length ≤ n := by
-    simp only [capPow, clock]; omega
-  refine (and_congr_left' hcap).trans (and_congr_right fun hc => ?_)
-  have heq : capPow (2 * w.length + 2) e (n + 1) = clock e w.length := by
-    simp only [capPow, clock] at hc ⊢; omega
-  rw [heq]
-  rfl
+  simp only [memReq, requirement, Set.mem_ofPred_eq, capPow, clock, Bool.and_eq_true]
+  by_cases hc : (2 * w.length + 2) ^ e ≤ n
+  · simp [Nat.min_eq_left (Nat.le_succ_of_le hc), hc]
+  · simp [hc]
 
 /-- **Every requirement is in `P`**: its clock is a polynomial. -/
 theorem requirement_mem_P (e : ℕ) : requirement e ∈ P encBits := by
   refine ⟨fun w => decide (runIndexed e w (clock e w.length) = ([eBit true], true)), ?_,
     fun w => by simp [requirement]⟩
-  unfold clock
-  fun_prop
+  fun_prop [clock]
 
 /-- **Every problem in `P` is a requirement**, with arbitrarily large indices: machines of
 arbitrarily large index decide it within their clock (`Ladner.exists_index_of_mem_P`). -/
@@ -146,9 +141,7 @@ theorem exists_requirement_eq {B : Set (List Bool)} (hB : B ∈ P encBits) (N : 
     ∃ e, N ≤ e ∧ requirement e = B := by
   obtain ⟨f, hf, e, he, hrun⟩ := exists_index_of_mem_P hB N
   refine ⟨e, he, Set.ext fun w => ?_⟩
-  simp only [requirement, Set.mem_ofPred_eq]
-  rw [hrun w, Prod.mk.injEq, List.singleton_inj, and_iff_left rfl, (hf w)]
-  exact ⟨fun h => eBit.injective h, fun h => h ▸ rfl⟩
+  simp [requirement, hrun w, ← hf w, eBit.injective.eq_iff]
 
 /-! ### The stages -/
 
@@ -193,40 +186,34 @@ def core (A : Set (List Bool)) : Set (List Bool) := A ∩ selected d
 private theorem computableInPolyTime_decAt :
     ComputableInPolyTime (fun p : ℕ × ℕ × Bool => decAt d p.1 p.2.1 p.2.2)
       (encPair encUnary (encPair encUnary encBool)) encBool := by
-  unfold decAt
-  fun_prop
+  fun_prop [decAt]
 
 private theorem computableInPolyTime_memReq :
     ComputableInPolyTime (fun p : ℕ × ℕ × List Bool => memReq p.1 p.2.1 p.2.2)
       (encPair encUnary (encPair encUnary encBits)) encBool := by
-  unfold memReq
-  fun_prop
+  fun_prop [memReq]
 
 private theorem computableInPolyTime_coreCount :
     ComputableInPolyTime (coreCount d) encBits encUnary := by
   have h := computableInPolyTime_decAt d
-  unfold coreCount
-  fun_prop
+  fun_prop [coreCount]
 
 private theorem computableInPolyTime_refuted :
     ComputableInPolyTime (fun p : ℕ × ℕ => refuted d p.1 p.2)
       (encPair encUnary encUnary) encBool := by
   have h₁ := computableInPolyTime_decAt d
   have h₂ := computableInPolyTime_memReq
-  unfold refuted
-  fun_prop
+  fun_prop [refuted]
 
 private theorem computableInPolyTime_stageBit :
     ComputableInPolyTime (stageBit d) encBits encBool := by
   have h₁ := computableInPolyTime_coreCount d
   have h₂ := computableInPolyTime_refuted d
   have h₃ := computableInPolyTime_memReq
-  unfold stageBit
-  fun_prop
+  fun_prop [stageBit]
 
 theorem table_succ (n : ℕ) : table d (n + 1) = table d n ++ [selects d n] := by
-  rw [table, List.courseOfValues_succ]
-  rfl
+  rw [table, List.courseOfValues_succ]; rfl
 
 theorem table_eq (n : ℕ) : table d n = (List.range n).map (selects d) :=
   List.courseOfValues_eq (stageBit d) n
@@ -243,8 +230,7 @@ theorem computableInPolyTime_table : ComputableInPolyTime (table d) encUnary enc
 theorem computableInPolyTime_selects : ComputableInPolyTime (selects d) encUnary encBool := by
   have h₁ := computableInPolyTime_stageBit d
   have h₂ := computableInPolyTime_table d
-  unfold selects
-  fun_prop
+  fun_prop [selects]
 
 /-- **The selected words form a problem in `E`**: the decision at each stage is polynomial-time in
 the stage (`Cslib.Complexity.Ladner.setOf_index_mem_E_of_computableInPolyTime`). -/
@@ -406,12 +392,10 @@ theorem infinite_core (hs : ∀ w t b, runBool d w t = some b → b = indicator 
       simp only [core, Set.mem_union, Set.mem_inter_iff, Set.mem_image, Set.mem_ofPred_eq, not_or,
         not_and, not_exists] at hw
       have hNi : N ≤ index w := not_lt.mp fun h => hw.2 (index w) h (word_index w)
-      have hnY : ¬ selects d (index w) = true := by simpa [selected] using hw.1 hwA
-      rw [selects_eq_true_iff] at hnY
-      obtain ⟨e, he, hne⟩ := not_forall₂.mp hnY
-      obtain ⟨hnref, hmem⟩ := not_or.mp hne
+      obtain ⟨e, he, hnref, hmem⟩ : ∃ e < coreCount d (table d (index w)),
+          ¬ refuted d e (index w) = true ∧ memReq e (index w) w = true := by
+        simpa [selected, selects_eq_true_iff, word_index] using hw.1 hwA
       have heS : e < S.card := he.trans_le (coreCount_le hs hS _)
-      replace hmem : memReq e (index w) w = true := by simpa [word_index] using hmem
       by_cases hsub : requirement e ⊆ A
       · exact hwU (Finset.le_sup (f := requirement)
           (Finset.mem_filter.mpr ⟨Finset.mem_range.mpr heS, hsub⟩) (memReq_iff.mp hmem).2)

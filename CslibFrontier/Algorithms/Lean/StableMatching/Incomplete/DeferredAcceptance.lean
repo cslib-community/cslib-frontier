@@ -108,9 +108,8 @@ theorem step_cases (s : Fin m → ℕ) :
       ∃ p, I.Rejected s p ∧ I.step s = Function.update s p (s p + 1) := by
   unfold step
   split
-  · rename_i p hp
-    exact .inr ⟨p, by simpa using List.find?_some hp, rfl⟩
-  · rename_i hp
+  next p hp => exact .inr ⟨p, by simpa using List.find?_some hp, rfl⟩
+  next hp =>
     exact .inl ⟨rfl, fun p => by simpa using List.find?_eq_none.1 hp p (List.mem_finRange p)⟩
 
 /-- The deferred-acceptance invariant: no proposer has passed the end of its list, and every
@@ -137,11 +136,9 @@ private theorem turnsDown_update {s : Fin m → ℕ} {p : Fin m} (hp : I.Rejecte
     I.TurnsDown (Function.update s p (s p + 1)) r x := by
   rcases h with h | ⟨q, hq, hqx⟩
   · exact Or.inl h
-  · by_cases hqp : q = p
-    · subst hqp
-      obtain ⟨r', hr', hd⟩ := hp
-      have hrr : r' = r := Option.some_injective _ (hr'.symm.trans hq)
-      subst hrr
+  · rcases eq_or_ne q p with rfl | hqp
+    · obtain ⟨r', hr', hd⟩ := hp
+      obtain rfl := Option.some.inj (hr'.symm.trans hq)
       rcases hd with hd | ⟨y, hy, hyq⟩
       · exfalso
         have heq : I.recvRank r' (some q) = I.recvRank r' none := List.idxOf_eq_length_iff.2 hd
@@ -171,21 +168,17 @@ private theorem inv_update {s : Fin m → ℕ} (hs : I.Inv s) {p : Fin m} (hp : 
 /-- Steps preserve the invariant. -/
 theorem inv_step {s : Fin m → ℕ} (hs : I.Inv s) : I.Inv (I.step s) := by
   rcases I.step_cases s with ⟨h, -⟩ | ⟨p, hp, h⟩
-  · rw [h]; exact hs
-  · rw [h]; exact I.inv_update hs hp
+  exacts [h.symm ▸ hs, h.symm ▸ I.inv_update hs hp]
 
 /-- One more round of the run is one more step. -/
-theorem run_succ (k : ℕ) : I.run (k + 1) = I.step (I.run k) := by
-  rw [run, Function.iterate_succ_apply']
-  rfl
+theorem run_succ (k : ℕ) : I.run (k + 1) = I.step (I.run k) :=
+  Function.iterate_succ_apply' _ _ _
 
 /-- Every state of the run satisfies the invariant. -/
 theorem inv_run (k : ℕ) : I.Inv (I.run k) := by
   induction k with
   | zero => exact I.inv_init
-  | succ k ih =>
-    rw [run, Function.iterate_succ_apply']
-    exact I.inv_step ih
+  | succ k ih => exact I.run_succ k ▸ I.inv_step ih
 
 /-- The total number of rejections in an invariant state is at most `totalLength`. -/
 theorem sum_le {s : Fin m → ℕ} (hs : I.Inv s) : ∑ p, s p ≤ I.totalLength :=
@@ -216,9 +209,8 @@ theorem run_fixed_of_le {j k : ℕ} (hjk : j ≤ k) (h : I.step (I.run j) = I.ru
 /-- Deferred acceptance stops after at most `totalLength` rejections. -/
 theorem step_run_fixed : I.step (I.run I.totalLength) = I.run I.totalLength := by
   rcases I.run_fixed_or_le_sum (I.totalLength + 1) with ⟨j, hj, hfix⟩ | hsum
-  · rw [I.run_fixed_of_le (by omega : j ≤ I.totalLength) hfix, hfix]
-  · have := I.sum_le (I.inv_run (I.totalLength + 1))
-    omega
+  · rw [I.run_fixed_of_le (Nat.le_of_lt_succ hj) hfix, hfix]
+  · exact absurd (hsum.trans (I.sum_le (I.inv_run (I.totalLength + 1)))) (Nat.not_succ_le_self _)
 
 /-- The state reached by deferred acceptance. -/
 @[expose] def finalState : Fin m → ℕ := I.run I.totalLength
@@ -270,11 +262,7 @@ theorem propRank_deferredAcceptance_le (p : Fin m) :
     I.propRank p (I.deferredAcceptance p) ≤ I.finalState p := by
   rw [deferredAcceptance_apply]
   cases h : (I.propPref p)[I.finalState p]? with
-  | none =>
-    rw [propRank_none]
-    have := List.getElem?_eq_none_iff.1 h
-    have := I.inv_finalState.le_length p
-    omega
+  | none => exact (I.propRank_none p).trans_le (List.getElem?_eq_none_iff.1 h)
   | some r => exact idxOf_le_of_getElem?_eq h
 
 /-- The deferred-acceptance matching is individually rational. -/
@@ -292,12 +280,9 @@ theorem isStable_deferredAcceptance : I.IsStable I.deferredAcceptance := by
     lt_of_lt_of_le hp (I.propRank_deferredAcceptance_le p)
   have hmem : r ∈ I.propPref p := (I.propRank_some_lt_none_iff p r).1
     (lt_of_lt_of_le hp (I.propRank_le_propRank_none p _))
-  have hget : (I.propPref p)[(I.propPref p).idxOf r]? = some r := List.getElem?_idxOf hmem
-  rcases I.inv_finalState.turnsDown p _ r hk hget with hd | ⟨q, hq, hqp⟩
+  rcases I.inv_finalState.turnsDown p _ r hk (List.getElem?_idxOf hmem) with hd | ⟨q, hq, hqp⟩
   · exact hd (IsBlockingPair.mem_recvPref I ⟨hp, hr⟩)
-  · have hsymm : I.deferredAcceptance.symm r = some q := I.deferredAcceptance.eq_some_iff.2 hq
-    rw [hsymm] at hr
-    exact lt_asymm hr hqp
+  · exact lt_asymm (I.deferredAcceptance.eq_some_iff.2 hq ▸ hr) hqp
 
 /-- Every market with incomplete lists has a stable matching ([RothSotomayor1990], Theorem 2.8). -/
 theorem exists_isStable : ∃ μ : PartialMatching m n, I.IsStable μ :=
@@ -319,12 +304,9 @@ private theorem le_propRank_of_noStableRejected {ν : PartialMatching m n}
     (hν : I.IsStable ν) {s : Fin m → ℕ} (hs : I.Inv s) (hN : I.NoStableRejected ν s) (y : Fin m) :
     s y ≤ I.propRank y (ν y) := by
   by_contra hlt
-  push Not at hlt
+  rw [not_le] at hlt
   cases hνy : ν y with
-  | none =>
-    rw [hνy, propRank_none] at hlt
-    have := hs.le_length y
-    omega
+  | none => exact (hs.le_length y).not_gt (I.propRank_none y ▸ hνy ▸ hlt)
   | some r =>
     rw [hνy, propRank_some] at hlt
     exact hN y _ r hlt (List.getElem?_idxOf (hν.1 y r hνy).1) hνy
@@ -355,10 +337,10 @@ private theorem noStableRejected_run {ν : PartialMatching m n} (hν : I.IsStabl
   induction k with
   | zero => exact I.noStableRejected_init ν
   | succ k ih =>
-    rw [run, Function.iterate_succ_apply', ← run]
+    rw [run_succ]
     rcases I.step_cases (I.run k) with ⟨h, -⟩ | ⟨p, hp, h⟩
-    · rw [h]; exact ih
-    · rw [h]; exact I.noStableRejected_update hν (I.inv_run k) ih hp
+    · exact h.symm ▸ ih
+    · exact h.symm ▸ I.noStableRejected_update hν (I.inv_run k) ih hp
 
 /-- Proposer-optimality ([RothSotomayor1990], Theorem 2.12): every proposer weakly prefers its
 deferred-acceptance outcome to its outcome in any stable matching. -/

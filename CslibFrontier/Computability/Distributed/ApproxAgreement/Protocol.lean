@@ -141,9 +141,7 @@ private lemma exists_Icc_of_roundMidTrim {P K : Type*} [Fintype P]
   classical
   intro r
   induction r with
-  | zero =>
-    refine ⟨lo, hi, le_rfl, hlh, le_rfl, ?_, hbase⟩
-    rw [pow_zero, div_one]
+  | zero => exact ⟨lo, hi, le_rfl, hlh, le_rfl, by rw [pow_zero, div_one], hbase⟩
   | succ r ih =>
     obtain ⟨lo_r, hi_r, hlo_r, hlh_r, hhi_r, hwidth_r, hmem_r⟩ := ih
     let H : Finset P := Finset.univ.filter fun p => p ∉ F ∧ (prop (r + 1) p).isSome
@@ -157,10 +155,9 @@ private lemma exists_Icc_of_roundMidTrim {P K : Type*} [Fintype P]
     let wOf : P → K := fun p => (prop (r + 1) p).getD lo_r
     let val : P → K := fun q => (prop r q).getD lo_r
     have hval_mem : ∀ q ∉ F, val q ∈ Set.Icc lo_r hi_r := fun q hqF => by
-      dsimp only [val]
       cases hq : prop r q with
-      | none => exact ⟨le_rfl, hlh_r⟩
-      | some v => exact hmem_r q hqF v hq
+      | none => simp [val, hq, hlh_r]
+      | some v => simpa [val, hq] using hmem_r q hqF v hq
     have hw_spec : ∀ p ∈ H, ∃ (S : Finset P) (f : P → K),
         m ≤ S.card ∧ wOf p = multisetMidTrim t (S.val.map f) ∧ ∀ q ∈ S, q ∉ F → f q = val q := by
       intro p hp
@@ -212,18 +209,12 @@ private lemma exists_three_group_fn {P : Type*} [Fintype P] {t : ℕ}
   · calc (Finset.univ.filter fun i => g i = k).card
         ≤ (Finset.range t).card := Finset.card_le_card_of_injOn (fun i => (e i : ℕ) / 3) ?_ ?_
       _ = t := Finset.card_range t
-    · intro i _
-      have hi := (e i).isLt
-      simp only [Finset.coe_range, Set.mem_Iio]
-      omega
-    · intro i hi j hj hij
-      simp only [Finset.coe_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq] at hi hj
-      apply e.injective
-      have hi' := congrArg Fin.val hi
-      have hj' := congrArg Fin.val hj
-      simp only [g] at hi' hj' hij
-      ext
-      omega
+    · exact fun i _ =>
+        Finset.mem_coe.2 (Finset.mem_range.2 (Nat.div_lt_of_lt_mul ((e i).isLt.trans_le h3)))
+    · rintro i hi j hj (hij : (e i : ℕ) / 3 = (e j : ℕ) / 3)
+      simp only [Finset.coe_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq, g,
+        Fin.ext_iff] at hi hj
+      exact e.injective (Fin.ext (by omega))
   · exact Fin.ext (by simp only [g, Equiv.apply_symm_apply, Fin.val_zero, Nat.mul_zero])
   · exact Fin.ext (by simp only [g, Equiv.apply_symm_apply]; omega)
 
@@ -274,10 +265,8 @@ theorem adaptiveState_eq_state (F : Finset P) (strat : ℕ → (P → S) → P �
     ∀ r, π.adaptiveState F strat x r =
       π.state F (fun r j i => strat r (π.adaptiveState F strat x r) j i) x r
   | 0 => rfl
-  | r + 1 => by
-    funext i
-    simp only [adaptiveState, state]
-    rw [← adaptiveState_eq_state F strat x r]
+  | r + 1 => funext fun i => by
+    simp only [adaptiveState, state, ← adaptiveState_eq_state F strat x r]
 
 omit [DecidableEq P] in
 /-- Run of `π` on a covering network `(label, input, nbr)`. -/
@@ -359,13 +348,11 @@ theorem solvesUnitSyncApproxAgreement_ownInput [IsStrictOrderedRing K] [Subsingl
     (t R : ℕ) {ε : K} (hε : 0 ≤ ε) :
     (ownInput P K).SolvesUnitSyncApproxAgreement t R ε := by
   have hstate (F adv) (x : P → K) (r) : ∀ i, (ownInput P K).state F adv x r i = x i := by
-    induction r with
-    | zero => exact fun _ => rfl
-    | succ _ ih => exact ih
-  refine ⟨fun F _ adv x lo hi _ hIcc i hi => ?_, fun F _ adv x _ i _ j _ => ?_⟩
-  · rw [decision, hstate]
-    exact hIcc i hi
-  · simpa only [Subsingleton.elim i j, sub_self, abs_zero] using hε
+    induction r with | zero => exact fun _ => rfl | succ _ ih => exact ih
+  refine ⟨fun F _ adv x _ _ _ hIcc i hi => ?_, fun _ _ _ _ _ i _ j _ =>
+    by simpa only [Subsingleton.elim i j, sub_self, abs_zero] using hε⟩
+  rw [decision, hstate]
+  exact hIcc i hi
 
 /-- **Covering impossibility for unit-interval synchronous `ε`-approximate Byzantine agreement**
 (`ε < 1`): if `P` splits into three groups of size at most `t` with witnesses `a` in group `0` and
@@ -378,33 +365,25 @@ theorem not_solvesUnitSyncApproxAgreement_of_partition [Fintype P] [IsStrictOrde
     ¬ πK.SolvesUnitSyncApproxAgreement t R ε := by
   intro h
   let bitVal : Bool → K := fun b => if b then 1 else 0
-  have hbit_Icc : ∀ b : Bool, bitVal b ∈ Set.Icc (0 : K) 1 := by
-    intro b; cases b <;> simp only [bitVal, Bool.false_eq_true, ↓reduceIte, Set.mem_Icc,
-      le_rfl, zero_le_one, and_self]
+  have hbit_Icc (b : Bool) : bitVal b ∈ Set.Icc (0 : K) 1 := by cases b <;> simp [bitVal]
   let cross : P → P → Bool := fun i j => decide ((g i = 0 ∧ g j = 2) ∨ (g i = 2 ∧ g j = 0))
   let nbr : P × Bool → P → P × Bool := fun p j => (j, p.2 ^^ cross p.1 j)
   let cover := πK.coverState Prod.fst (bitVal ∘ Prod.snd) nbr
   let grp : Fin 3 → Finset P := fun k => Finset.univ.filter fun i => g i = k
   let adv : (P → Bool) → ℕ → P → P → M := fun σ r j i =>
     πK.send r j (cover r (nbr (i, σ i) j)) i
-  have hmem : ∀ k j, j ∉ grp k ↔ g j ≠ k := by
-    intro k j; simp only [grp, Finset.mem_filter, Finset.mem_univ, true_and]
-  have key : ∀ (k : Fin 3) (σ : P → Bool),
-      (∀ i j, g i ≠ k → g j ≠ k → (σ i ^^ cross i j) = σ j) →
-      ∀ i, g i ≠ k →
-        πK.decision (grp k) (adv σ) (bitVal ∘ σ) R i = πK.output i (cover R (i, σ i)) := by
-    intro k σ hσ i hi
-    unfold decision
-    rw [state_eq_coverState πK Prod.fst (bitVal ∘ Prod.snd) nbr (grp k) (adv σ) (bitVal ∘ σ)
-      (fun i => (i, σ i)) (fun _ _ => rfl) (fun _ _ => rfl) ?_ (fun _ _ _ _ _ => rfl) R i
-      ((hmem k i).mpr hi)]
-    intro i' hi' j' hj'
-    simp only [nbr, Prod.mk.injEq, true_and]
-    exact hσ i' j' ((hmem k i').mp hi') ((hmem k j').mp hj')
-  have hconst : ∀ (k : Fin 3) (b : Bool) (i : P), g i ≠ k →
-      (∀ i j, g i ≠ k → g j ≠ k → cross i j = false) →
+  have hmem (k j) : j ∉ grp k ↔ g j ≠ k := by simp [grp]
+  have key (k : Fin 3) (σ : P → Bool)
+      (hσ : ∀ i j, g i ≠ k → g j ≠ k → (σ i ^^ cross i j) = σ j) (i : P) (hi : g i ≠ k) :
+      πK.decision (grp k) (adv σ) (bitVal ∘ σ) R i = πK.output i (cover R (i, σ i)) := by
+    rw [decision, state_eq_coverState πK Prod.fst (bitVal ∘ Prod.snd) nbr (grp k) (adv σ)
+      (bitVal ∘ σ) (fun i => (i, σ i)) (fun _ _ => rfl) (fun _ _ => rfl) ?_
+      (fun _ _ _ _ _ => rfl) R i ((hmem k i).mpr hi)]
+    exact fun i' hi' j' hj' =>
+      Prod.ext rfl (hσ i' j' ((hmem k i').mp hi') ((hmem k j').mp hj'))
+  have hconst (k : Fin 3) (b : Bool) (i : P) (hi : g i ≠ k)
+      (hcross : ∀ i j, g i ≠ k → g j ≠ k → cross i j = false) :
       πK.output i (cover R (i, b)) = bitVal b := by
-    intro k b i hi hcross
     have hm := h.validity (grp k) (hcard k) (adv fun _ => b) (bitVal ∘ fun _ => b) (bitVal b)
       (bitVal b) (fun _ _ => hbit_Icc b) (fun _ _ => ⟨le_rfl, le_rfl⟩) i ((hmem k i).mpr hi)
     rw [key k (fun _ => b) (fun i j hi hj => by simp [hcross i j hi hj]) i hi] at hm
@@ -642,11 +621,9 @@ theorem toBroadcast_start [Fintype P] (F : Finset P) (x : P → V) (d : P)
   · simp only [AsyncByzantine.Protocol.start, start, AsyncByzantine.Protocol.initSend, toBroadcast]
     refine congrArg (Multiset.bind Finset.univ.val) (funext fun p => ?_)
     by_cases hpd : p = d <;> simp [hpd]
-  · ext p
-    · simp only [AsyncByzantine.Protocol.start, start, AsyncByzantine.Protocol.initState,
-        toBroadcast]
-      by_cases hpd : p = d <;> simp [hpd]
-    · simp only [AsyncByzantine.Protocol.start, start]
+  · ext p <;> simp only [AsyncByzantine.Protocol.start, start, AsyncByzantine.Protocol.initState,
+      toBroadcast]
+    by_cases hpd : p = d <;> simp [hpd]
 
 theorem admissibleRun_iff_toBroadcast [Fintype P] (F : Finset P) (x : P → V) (d : P)
     (ss : ωSequence (State P S M V)) (xs : ωSequence (Action P M)) :
@@ -757,21 +734,15 @@ theorem solvesUnitAsyncApproxAgreement_ownInput.{u, v} {P : Type u} {K : Type v}
       simp only [State.ProcDecided, recvCore, updateProc, ownInput]
       split_ifs with hp hnone
       · subst hp
-        exact ⟨(ih _ hpF).1, fun v hv => by cases hv; exact (ih _ hpF).1⟩
-      · subst hp
-        exact ih _ hpF
+        exact ⟨(ih _ hpF).1, fun v hv => Option.some.inj hv ▸ (ih _ hpF).1⟩
+      · exact hp ▸ ih _ hpF
       · exact ih p hpF
-    refine LTS.mtrInv_of_trInv htrInv _ _ _ hxl (fun p _ => ⟨rfl, fun v hv => ?_⟩)
-    simp only [State.ProcDecided, start] at hv
-    cases hv
+    exact LTS.mtrInv_of_trInv htrInv _ _ _ hxl fun _ _ => ⟨rfl, by simp [State.ProcDecided, start]⟩
   refine ⟨?_, ?_, ?_⟩
   · intro F _ x _ ss xs ha i hiF
     let e : Envelope P PUnit.{v + 1} := ⟨i, i, .unit⟩
-    have he0 : e ∈ (ss 0).msgs := by
-      simp only [ha.1, start, ownInput, Multiset.mem_bind, Finset.mem_val, Finset.mem_univ,
-        true_and]
-      exact ⟨i, by simp only [hiF, ↓reduceIte, Multiset.map_singleton, Multiset.mem_singleton,
-        tagSender, e]⟩
+    have he0 : e ∈ (ss 0).msgs := ha.1 ▸ Multiset.mem_bind.2
+      ⟨i, Finset.mem_univ _, by simp [hiF, ownInput, tagSender, e]⟩
     obtain ⟨j, _, hj⟩ := ha.2.2 e hiF 0 he0
     have htr : ((ownInput P K).lts F).Tr (ss j) (.deliver e) (ss (j + 1)) := hj ▸ ha.2.1 j
     obtain ⟨_, _, hnext⟩ := htr
@@ -779,10 +750,8 @@ theorem solvesUnitAsyncApproxAgreement_ownInput.{u, v} {P : Type u} {K : Type v}
     have hj_inv := hinv F x (ss j) ((ownInput P K).admissibleRun_reachable ha j) i hiF
     simp only [State.ProcDecided, hnext, recvHonest, recvCore, updateProc, ownInput, e, ↓reduceIte]
     cases hout : ((ss j).proc i).out with
-    | none => simp only [Option.isNone_none, ↓reduceIte, hj_inv.1]
-    | some v =>
-      simp only [Option.isNone_some, Bool.false_eq_true, ↓reduceIte, Option.some.injEq]
-      exact hj_inv.2 v hout
+    | none => simp [hj_inv.1]
+    | some v => simpa using hj_inv.2 v hout
   · intro F _ x lo hi _ hIcc s hr i hiF v hv
     rw [(hinv F x s hr i hiF).2 v hv]
     exact hIcc i hiF
@@ -812,8 +781,7 @@ private lemma extract_isHonest_of_forall {P' M' : Type*} (xs : ωSequence (Actio
     ∀ a ∈ xs.extract 0 n, a.IsHonest := by
   intro a ha
   obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ha
-  have hi' : i < n - 0 := by simpa only [ωSequence.length_extract] using hi
-  rw [xs.get_extract hi']
+  rw [xs.get_extract (by simpa using hi)]
   exact hhon (0 + i)
 
 /-- **Split-brain impossibility for unit-interval asynchronous `ε`-approximate Byzantine agreement**
@@ -837,12 +805,11 @@ theorem not_solvesUnitAsyncApproxAgreement_of_partition [Fintype P] [IsStrictOrd
   have hcoverC : ∀ p, p ∉ C → p ∈ B ∨ p ∈ A := fun p hp => by have := hcover p; tauto
   let x_split : P → K := fun p => if p ∈ A then 1 else 0
   -- A fair honest run with faulty set `G` and constant input `c ∈ [0, 1]`: `q ∉ G` decides `c`.
-  have hrun : ∀ (G : Finset P) (c : K) (q : P), G.card ≤ t → q ∉ G → c ∈ Set.Icc 0 1 →
+  have hrun (G : Finset P) (c : K) (q : P) (hG : G.card ≤ t) (hq : q ∉ G) (hc : c ∈ Set.Icc 0 1) :
       ∃ (ss : ωSequence (State P S M K)) (xs : ωSequence (Action P M)) (n : ℕ),
         (∀ k, (xs k).IsHonest) ∧ (ss n).ProcDecided q c ∧
         ((πK.toBroadcast (fun _ => c) a₀).lts G).MTr
           ((πK.toBroadcast (fun _ => c) a₀).start G none) (xs.extract 0 n) (ss n) := by
-    intro G c q hG hq hc
     obtain ⟨ss, xs, ha_bc, hhon⟩ :=
       (πK.toBroadcast (fun _ => c) a₀).exists_honest_admissibleRun G none
     have ha_run := (πK.admissibleRun_iff_toBroadcast G (fun _ => c) a₀ ss xs).mpr ha_bc
@@ -857,21 +824,20 @@ theorem not_solvesUnitAsyncApproxAgreement_of_partition [Fintype P] [IsStrictOrd
   obtain ⟨ss₁, xs₁, n₁, hhon₁, hdec₁, hmtr₁⟩ := hrun C 1 a₀ hC ha₀_not_C ⟨zero_le_one, le_rfl⟩
   -- Run 3 (`B` equivocating faulty, `x_split`): replay `C` from Run 1, then `A` from Run 2.
   let u₀ := πK.start B x_split
-  have hreplay : ∀ (G F_other : Finset P) (c : K) (u : State P S M K)
-      {n : ℕ} {ss : ωSequence (State P S M K)} {xs : ωSequence (Action P M)},
-      Disjoint B G → Disjoint F_other G →
-      (∀ p, p ∉ F_other → p ∈ B ∨ p ∈ G) →
-      (∀ p ∈ G, x_split p = c) →
-      (∀ p ∈ G, u.proc p = u₀.proc p) →
-      (∀ e : Envelope P M, e.src ∈ G → u₀.msgs.count e ≤ u.msgs.count e) →
-      ((πK.toBroadcast (fun _ => c) a₀).lts F_other).MTr
-        ((πK.toBroadcast (fun _ => c) a₀).start F_other none) (xs.extract 0 n) (ss n) →
-      (∀ k, (xs k).IsHonest) →
+  have hreplay (G F_other : Finset P) (c : K) (u : State P S M K)
+      {n : ℕ} {ss : ωSequence (State P S M K)} {xs : ωSequence (Action P M)}
+      (hBG : Disjoint B G) (hFG : Disjoint F_other G)
+      (hcovG : ∀ p, p ∉ F_other → p ∈ B ∨ p ∈ G)
+      (hxG : ∀ p ∈ G, x_split p = c)
+      (hprocG : ∀ p ∈ G, u.proc p = u₀.proc p)
+      (hmsgG : ∀ e : Envelope P M, e.src ∈ G → u₀.msgs.count e ≤ u.msgs.count e)
+      (hmtr : ((πK.toBroadcast (fun _ => c) a₀).lts F_other).MTr
+        ((πK.toBroadcast (fun _ => c) a₀).start F_other none) (xs.extract 0 n) (ss n))
+      (hhon : ∀ k, (xs k).IsHonest) :
       ∃ yl u', (πK.lts B).MTr u yl u' ∧
         (∀ p ∈ G, u'.proc p = (ss n).proc p) ∧
         (∀ p ∉ G, u'.proc p = u.proc p) ∧
         (∀ e : Envelope P M, e.src ∉ G → u'.msgs.count e = u.msgs.count e) := by
-    intro G F_other c u n ss xs hBG hFG hcovG hxG hprocG hmsgG hmtr hhon
     refine (πK.toBroadcast (fun _ => c) a₀).replay_subset_mTr hBG hmtr
       (extract_isHonest_of_forall xs hhon)
       (fun e he => hcovG e.src
@@ -919,9 +885,7 @@ theorem not_solvesUnitAsyncApproxAgreement [Fintype P] [IsStrictOrderedRing K]
   have hdisj : ∀ k₁ k₂ : Fin 3, k₁ ≠ k₂ → Disjoint (grp k₁) (grp k₂) := fun k₁ k₂ hne =>
     Finset.disjoint_filter.mpr fun _ _ h₁ h₂ => hne (h₁.symm.trans h₂)
   have hcov : ∀ p : P, p ∈ grp 0 ∨ p ∈ grp 1 ∨ p ∈ grp 2 := fun p => by
-    simp only [grp, Finset.mem_filter, Finset.mem_univ, true_and]
-    generalize g p = k
-    revert k; decide
+    match h : g p with | 0 | 1 | 2 => simp [grp, h]
   exact πK.not_solvesUnitAsyncApproxAgreement_of_partition hε (grp 0) (grp 1) (grp 2)
     (hdisj 0 1 (by decide)) (hdisj 0 2 (by decide)) (hdisj 1 2 (by decide))
     hcov (hcard 0) (hcard 1) (hcard 2)
@@ -1055,10 +1019,8 @@ omit [DecidableEq P] in
 private lemma localProposal_isSome {t : ℕ} {x_p : K} {st : AsyncApproxState P K} (r : ℕ) :
     (localProposal t x_p st r).isSome ↔ r ≤ st.round := by
   cases r with
-  | zero => simp only [localProposal, Option.isSome_some, Nat.zero_le]
-  | succ u =>
-    dsimp only [localProposal]
-    split_ifs with hu <;> simp [hu]
+  | zero => simp [localProposal]
+  | succ u => by_cases hu : u + 1 ≤ st.round <;> simp [localProposal, hu]
 
 omit [DecidableEq P] in
 private lemma localProposal_congr {t : ℕ} {x_p : K} {st₁ st₂ : AsyncApproxState P K} {r : ℕ}
@@ -1097,20 +1059,19 @@ private lemma asyncApproxStep_of_fresh {t R : ℕ} {st : AsyncApproxState P K} {
     (hfresh : st.round ≤ body.round ∧ body.round < R ∧ (st.heard body.round src).isNone) :
     asyncApproxStep t R st src body =
       asyncApproxAdvance t R (R - st.round) (recordHeard st body.round src body.val) := by
-  simp only [asyncApproxStep, show R ≠ 0 by omega, hfresh, and_self, ↓reduceIte]
-  rfl
+  have hR0 : R ≠ 0 := by omega
+  simp only [asyncApproxStep, hR0, hfresh, and_self, ↓reduceIte]; rfl
 
 private lemma wellFormedLocal_recordHeard {t R : ℕ} {x_p : K} {st : AsyncApproxState P K}
     (hwf : WellFormedLocal t R x_p st) {m_round : ℕ} (hm : st.round ≤ m_round)
     (src : P) (val : K) :
     WellFormedLocal t R x_p (recordHeard st m_round src val) := by
   have hheard_past : ∀ u < st.round, (recordHeard st m_round src val).heard u = st.heard u :=
-    fun u hu => funext fun j => by simp [recordHeard_heard, show u ≠ m_round by omega]
+    fun u hu => funext fun j => by simp [recordHeard_heard, (hu.trans_le hm).ne]
   refine ⟨hwf.round_le, ?_, fun u hu => ?_⟩
   · exact (localProposal_congr (st₁ := st) (st₂ := recordHeard st m_round src val) le_rfl le_rfl
       hheard_past).trans hwf.prop_round
-  · simp only [roundSenders, hheard_past u hu]
-    exact hwf.past_senders u hu
+  · simpa only [roundSenders, hheard_past u hu] using hwf.past_senders u hu
 
 omit [DecidableEq P] in
 private lemma advance_spec {t R : ℕ} :
@@ -1138,18 +1099,11 @@ private lemma advance_spec {t R : ℕ} :
   | fuel + 1, st, x_p, hwf, hfuel => by
     dsimp only
     by_cases hcond : st.round < R ∧ Fintype.card P - t ≤ (roundSenders st st.round).card
-    · set est' := multisetMidTrim t (roundValues st st.round)
+    · simp only [asyncApproxAdvance, hcond, and_self, ↓reduceIte]
+      set est' := multisetMidTrim t (roundValues st st.round)
       set r' := st.round + 1
       set st' : AsyncApproxState P K := { st with round := r', est := est' }
       have hst'_r : st'.round = st.round + 1 := rfl
-      have hadv : asyncApproxAdvance t R (fuel + 1) st =
-          ⟨(asyncApproxAdvance t R fuel st').nextState,
-            (if r' < R then broadcastAll P ⟨r', est'⟩ else 0) +
-              (asyncApproxAdvance t R fuel st').outgoing,
-            (asyncApproxAdvance t R fuel st').delivered⟩ := by
-        simp only [asyncApproxAdvance, hcond, and_self, ↓reduceIte, est', r', st']
-      rw [hadv]
-      dsimp only
       have hwf' : WellFormedLocal t R x_p st' := by
         refine ⟨by omega, ?_, fun u hu => ?_⟩
         · dsimp only [localProposal, st', r', est']
@@ -1210,9 +1164,9 @@ private lemma step_mono {t R : ℕ} {st : AsyncApproxState P K} {x_p : K}
     (wellFormedLocal_recordHeard hwf hfresh.1 src msg.val) le_rfl
   refine ⟨hle, fun r v hv => ?_, fun r j v hv => ?_⟩
   · have hr : r ≤ st.round := (localProposal_isSome r).mp (by rw [hv]; rfl)
-    rw [localProposal_congr hr hle fun u hu => funext fun j => by
-      simp [hheard_eq, st₁, recordHeard_heard, show u ≠ msg.round by have := hfresh.1; omega]]
-    exact hv
+    refine (localProposal_congr hr hle fun u hu => funext fun j => ?_).trans hv
+    have hne : u ≠ msg.round := (hu.trans_le hfresh.1).ne
+    simp [hheard_eq, st₁, recordHeard_heard, hne]
   · rw [hheard_eq]
     simp only [st₁, recordHeard_heard]
     split_ifs with h
@@ -1239,32 +1193,17 @@ private lemma asyncInv_start (F : Finset P) (t R : ℕ) (x : P → K) :
     AsyncInv F t R x ((asyncApproxProtocol P K t R).start F x) := by
   refine ⟨fun p _ => wellFormedLocal_init (x p), ?_, ?_, ?_, ?_⟩
   · intro e he
-    simp only [AsyncProtocol.start, asyncApproxProtocol, Multiset.mem_bind, Finset.mem_val,
-      Finset.mem_univ, true_and] at he
-    obtain ⟨p, hp⟩ := he
-    by_cases hpF : p ∈ F
-    · simp only [hpF, ↓reduceIte, Multiset.notMem_zero] at hp
-    · simp only [hpF, ↓reduceIte, broadcastAll, Multiset.mem_map, Finset.mem_val,
-        Finset.mem_univ, true_and] at hp
-      obtain ⟨qm, ⟨q, rfl⟩, rfl⟩ := hp
+    rcases Multiset.mem_bind.mp he with ⟨p, -, hp⟩
+    split_ifs at hp with hpF
+    · exact (Multiset.notMem_zero e hp).elim
+    · obtain ⟨_, hmem, rfl⟩ := Multiset.mem_map.mp hp
+      obtain ⟨_, _, rfl⟩ := Multiset.mem_map.mp hmem
       exact ⟨hpF, rfl⟩
-  · intro p _ _ _ r v hv
-    simp only [AsyncProtocol.start, asyncApproxProtocol, asyncApproxInit] at hv
-    cases hv
-  · intro h1 p _
-    refine Or.inr ?_
-    have hemp : roundSenders (asyncApproxInit P (x p)) 0 = ∅ :=
-      Finset.filter_eq_empty_iff.mpr fun _ _ => by simp [asyncApproxInit]
-    change (roundSenders (asyncApproxInit P (x p)) 0).card < Fintype.card P - t
-    rw [hemp, Finset.card_empty]
-    exact h1
-  · intro p _
-    refine ⟨fun v hv => ?_, fun hR => ?_⟩
-    · simp only [State.ProcDecided, AsyncProtocol.start] at hv
-      cases hv
-    · simp only [AsyncProtocol.start, asyncApproxProtocol, asyncApproxInit, Option.isSome_none,
-        Bool.false_eq_true, iff_false]
-      omega
+  · rintro _ _ _ _ _ _ ⟨⟩
+  · exact fun h1 _ _ => Or.inr (by
+      simp [AsyncProtocol.start, asyncApproxProtocol, asyncApproxInit, roundSenders]; omega)
+  · exact fun _ _ => ⟨by simp [State.ProcDecided, AsyncProtocol.start],
+      fun hR => by simp [AsyncProtocol.start, asyncApproxProtocol, asyncApproxInit, hR.ne]⟩
 
 /-- Single-message reception helper preserving `AsyncInv` across both `deliver` and `byzRecv`. -/
 private lemma asyncInv_recvCore {F : Finset P} {t R : ℕ} {x : P → K}
@@ -1318,13 +1257,11 @@ private lemma asyncInv_recvCore {F : Finset P} {t R : ℕ} {x : P → K}
       refine ⟨hwf_dest, by simp, hold, fun _ => Or.inl hst_R, fun v hv => ?_, fun h0 => by omega⟩
       cases hso : (s.proc dest).out with
       | none =>
-        simp only [hso, Option.isNone_none, ↓reduceIte, Option.some.injEq] at hv
-        subst hv
+        obtain rfl : st.est = v := by simpa [hso] using hv
         simpa only [hst_R] using hwf_dest.prop_round
       | some v₀ =>
-        simp only [hso, Option.isNone_some, Bool.false_eq_true, ↓reduceIte,
-          Option.some.injEq] at hv
-        exact hv ▸ (hinv.out_spec dest hdest).1 v₀ hso
+        obtain rfl : v₀ = v := by simpa [hso] using hv
+        exact (hinv.out_spec dest hdest).1 v₀ hso
     by_cases hfresh : st.round ≤ body.round ∧ body.round < R ∧ (st.heard body.round src).isNone
     · have hres : res = _ := asyncApproxStep_of_fresh hfresh
       set st₁ := recordHeard st body.round src body.val
@@ -1346,15 +1283,12 @@ private lemma asyncInv_recvCore {F : Finset P} {t R : ℕ} {x : P → K}
           exact hprop_mono j _ _ (hsrc_auth hjF)
         · exact hold j hjF r v hv
       · split_ifs at hv with hrR
-        obtain rfl := Option.some.inj hv
-        have hp := hwf_n.prop_round
-        rwa [hrR] at hp
+        simpa only [hrR, Option.some.inj hv] using hwf_n.prop_round
       · split_ifs with hrR <;> simp [hrR]
     · have hres : res = ⟨st, 0, none⟩ := by
         simp only [res, asyncApproxStep, hR0, hfresh, ↓reduceIte]
       have hout' : (s'.proc dest).out = (s.proc dest).out := by
-        rw [hout, hres]
-        cases (s.proc dest).out <;> rfl
+        cases h : (s.proc dest).out <;> simp [hout, hres, h]
       rw [hout', hres]
       exact ⟨hwf_dest, by simp, hold, fun h1 => hinv.stop_cond h1 dest hdest,
         hinv.out_spec dest hdest⟩
@@ -1369,9 +1303,7 @@ private lemma asyncInv_recvCore {F : Finset P} {t R : ℕ} {x : P → K}
     · obtain ⟨hsrcF, hprop_old⟩ := hinv.msgs_auth e (hbase e he_old)
       exact ⟨hsrcF, hprop_mono _ _ _ hprop_old⟩
     · obtain ⟨⟨q, m⟩, hqm, rfl⟩ := Multiset.mem_map.mp he_new
-      refine ⟨hdest, ?_⟩
-      simp only [tagSender_src, tagSender_body, hstate]
-      exact hout_d q m hqm
+      exact ⟨hdest, by simpa only [tagSender_src, tagSender_body, hstate] using hout_d q m hqm⟩
   · rcases eq_or_ne p dest with rfl | hpd
     · rw [hstate] at hv; exact hheard_d j hjF r v hv
     · rw [hother p hpd] at hv; exact hprop_mono j r v (hinv.heard_auth p hpF j hjF r v hv)
@@ -1380,10 +1312,7 @@ private lemma asyncInv_recvCore {F : Finset P} {t R : ℕ} {x : P → K}
     · rw [hother p hpd]; exact hinv.stop_cond h1 p hpF
   · rcases eq_or_ne p dest with rfl | hpd
     · simp only [State.ProcDecided, hstate]; exact ⟨hdec_d, hround_d⟩
-    · obtain ⟨h1, h2⟩ := hinv.out_spec p hpF
-      simp only [State.ProcDecided] at h1 ⊢
-      refine ⟨fun v hv => hprop_mono p R v (h1 v (hother p hpd ▸ hv)), ?_⟩
-      rw [hother p hpd]; exact h2
+    · simpa only [State.ProcDecided, hother p hpd] using hinv.out_spec p hpF
 
 private lemma asyncInv_reachable {F : Finset P} {t R : ℕ} {x : P → K}
     {s : State P (AsyncApproxState P K) (RoundMsg K) K}
@@ -1395,16 +1324,12 @@ private lemma asyncInv_reachable {F : Finset P} {t R : ℕ} {x : P → K}
     cases a with
     | deliver e =>
       obtain ⟨he_mem, he_dest, rfl⟩ := hstep
-      exact asyncInv_recvCore hinv he_dest
-        (fun _ hm => Multiset.mem_of_mem_erase hm)
-        (fun _ => (hinv.msgs_auth e he_mem).2)
+      exact asyncInv_recvCore hinv he_dest (fun _ => Multiset.mem_of_mem_erase)
+        fun _ => (hinv.msgs_auth e he_mem).2
     | byzRecv src dest body =>
       obtain ⟨hsrcF, hdest, rfl⟩ := hstep
-      exact asyncInv_recvCore hinv hdest (fun _ hm => hm)
-        (fun hnot => absurd hsrcF hnot)
-    | stutter =>
-      obtain rfl := hstep
-      exact hinv
+      exact asyncInv_recvCore hinv hdest (fun _ hm => hm) (absurd hsrcF)
+    | stutter => exact hstep ▸ hinv
   exact LTS.mtrInv_of_trInv htr _ _ _ hxl (asyncInv_start F t R x)
 
 /-! ### Monotonicity and round-by-round liveness helpers along `AdmissibleRun` -/
@@ -1418,15 +1343,13 @@ private lemma tr_state_mono {F : Finset P} {t R : ℕ} {x : P → K}
   rcases AsyncProtocol.tr_eq_or_recvCore _ htr with rfl | ⟨src, dest, body, base, rfl⟩
   · exact ⟨le_rfl, fun _ _ h => h⟩
   simp only [AsyncProtocol.recvCore, AsyncProtocol.updateProc, asyncApproxProtocol]
-  by_cases hpd : p = dest
+  rcases eq_or_ne p dest with rfl | hpd
   · obtain ⟨h1, _, h3⟩ := step_mono (t := t) (R := R) (hwf p hpF) src body
-    subst hpd
     simp only [↓reduceIte]
     refine ⟨h1, fun r j hs => ?_⟩
     obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hs
     simp [h3 r j v hv]
-  · simp only [hpd, ↓reduceIte]
-    exact ⟨le_rfl, fun _ _ h => h⟩
+  · simp [hpd]
 
 private lemma omega_state_mono {F : Finset P} {t R : ℕ} {x : P → K}
     {ss : ωSequence (State P (AsyncApproxState P K) (RoundMsg K) K)}
@@ -1464,9 +1387,7 @@ private lemma exists_round_msg_emitted {F : Finset P} {t R : ℕ} {x : P → K}
     ∀ m, r ≤ ((ss m).proc q).state.round →
       ∃ k₀ ≤ m, ∃ v : K, (⟨q, p, ⟨r, v⟩⟩ : Envelope P (RoundMsg K)) ∈ (ss k₀).msgs
   | 0, hr0 => by
-    have h0 : ((ss 0).proc q).state.round = 0 := by
-      rw [ha.1]; rfl
-    obtain rfl : r = 0 := by omega
+    obtain rfl : r = 0 := Nat.eq_zero_of_le_zero (by rwa [ha.1] at hr0)
     exact ⟨0, le_rfl, x q, ha.1 ▸ mem_start_msgs hqF p⟩
   | m + 1, hrm => by
     by_cases hprev : r ≤ ((ss m).proc q).state.round
@@ -1479,8 +1400,7 @@ private lemma exists_round_msg_emitted {F : Finset P} {t R : ℕ} {x : P → K}
         ((asyncApproxProtocol P K t R).admissibleRun_reachable ha m)).wf q hqF
       -- Extract the single step on `q` that increased `q`'s round across `r`.
       rcases AsyncProtocol.tr_eq_or_recvCore _ htr with hnext | ⟨src, dest, body, base, hnext⟩
-      · rw [hnext] at hrm
-        omega
+      · exact absurd (hnext ▸ hrm) hprev
       by_cases hqd : q = dest
       swap
       · simp only [hnext, AsyncProtocol.recvCore, hqd, ↓reduceIte] at hrm
@@ -1506,7 +1426,8 @@ private lemma exists_round_msg_emitted {F : Finset P} {t R : ℕ} {x : P → K}
         rw [hstep_eq, Multiset.mem_add]
         exact Or.inr (Multiset.mem_map.mpr
           ⟨(p, ⟨r, multisetMidTrim t (roundValues st₁ (r - 1))⟩), hmem_out, rfl⟩)
-      · simp only [asyncApproxStep, show R ≠ 0 by omega, hfresh, ↓reduceIte] at hrm'
+      · have hR0 : R ≠ 0 := (hr_pos.trans hrR).ne'
+        simp only [asyncApproxStep, hR0, hfresh, ↓reduceIte] at hrm'
         omega
 
 /-- Once `⟨q, p, ⟨r, v⟩⟩` (`r < R`, `p ∉ F`) enters `(ss k₀).msgs` in a fair run, at
@@ -1568,16 +1489,14 @@ theorem asyncApproxProtocol_terminates {t R : ℕ} (ht : t < Fintype.card P)
     | some v =>
       exact ⟨j, v, hout⟩
     | none =>
-      refine ⟨j + 1, ((ss j).proc i).state.est, ?_⟩
-      simp only [State.ProcDecided, hnext, AsyncProtocol.recvHonest, AsyncProtocol.recvCore,
-        AsyncProtocol.updateProc, asyncApproxProtocol, asyncApproxStep, e, ↓reduceIte,
-        hout, Option.isNone_none]
+      exact ⟨j + 1, ((ss j).proc i).state.est, by
+        simp [State.ProcDecided, hnext, AsyncProtocol.recvHonest, AsyncProtocol.recvCore,
+          AsyncProtocol.updateProc, asyncApproxProtocol, asyncApproxStep, e, hout]⟩
   · have hR : 0 < R := Nat.pos_of_ne_zero hR0
     have h1 : 1 ≤ Fintype.card P - t := by omega
     -- Prove by induction on `r ≤ R` that all correct processes eventually reach round `r`.
-    have hall_reach : ∀ r ≤ R, ∃ K_r, ∀ k, K_r ≤ k → ∀ p ∉ F,
+    have hall_reach (r : ℕ) (hr_le : r ≤ R) : ∃ K_r, ∀ k, K_r ≤ k → ∀ p ∉ F,
         r ≤ ((ss k).proc p).state.round := by
-      intro r hr_le
       induction r with
       | zero => exact ⟨0, fun _ _ _ _ => Nat.zero_le _⟩
       | succ r ih =>
@@ -1607,25 +1526,19 @@ theorem asyncApproxProtocol_terminates {t R : ℕ} (ht : t < Fintype.card P)
           · omega
           · simpa only [roundSenders, Finset.mem_filter, Finset.mem_univ, true_and] using
               hhmono r q hsome
-        have hsenders_ge : Fintype.card P - t ≤ (roundSenders ((ss k).proc p).state r).card :=
-          (by rw [Finset.card_univ_sdiff]; omega : Fintype.card P - t ≤ (Finset.univ \ F).card
-            ).trans (Finset.card_le_card hall_heard)
+        have hcard := Finset.card_le_card hall_heard
+        rw [Finset.card_univ_sdiff] at hcard
         have heq_r : ((ss k).proc p).state.round = r := by omega
-        rcases (asyncInv_reachable ((asyncApproxProtocol P K t R).admissibleRun_reachable ha
-          k)).stop_cond h1 p hpF with hR_eq | hlt_card
-        · omega
-        · rw [heq_r] at hlt_card
-          omega
+        have hstop := (asyncInv_reachable
+          ((asyncApproxProtocol P K t R).admissibleRun_reachable ha k)).stop_cond h1 p hpF
+        rw [heq_r] at hstop
+        omega
     obtain ⟨K_R, hK_R⟩ := hall_reach R le_rfl
     have hinv_KR := asyncInv_reachable
       ((asyncApproxProtocol P K t R).admissibleRun_reachable ha K_R)
-    have hround_eq : ((ss K_R).proc i).state.round = R := by
-      have hge := hK_R K_R le_rfl i hiF
-      have hle := (hinv_KR.wf i hiF).round_le
-      omega
-    have hisSome : ((ss K_R).proc i).out.isSome :=
-      ((hinv_KR.out_spec i hiF).2 hR).mp hround_eq
-    obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hisSome
+    have hround_eq : ((ss K_R).proc i).state.round = R :=
+      le_antisymm (hinv_KR.wf i hiF).round_le (hK_R K_R le_rfl i hiF)
+    obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp (((hinv_KR.out_spec i hiF).2 hR).mp hround_eq)
     exact ⟨K_R, v, hv⟩
 
 section AsyncOrderedField

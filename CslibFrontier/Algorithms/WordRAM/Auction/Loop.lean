@@ -105,24 +105,16 @@ private theorem initAuction_spec {w : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin
               (validHistory_pure w _ _)))
       have hmc : memoryCost (initStep (ws, k)) s ≤ 3 := by
         unfold initStep
-        exact memoryCost_write_bind_le fun _ _ =>
-          memoryCost_write_bind_le fun _ _ =>
-            memoryCost_write_bind_le fun _ _ => Nat.le_refl 0
+        exact memoryCost_write_bind_le fun _ _ => memoryCost_write_bind_le fun _ _ =>
+          memoryCost_write_bind_le fun _ _ => le_rfl
       have hst_eq : (Memory.spec 0).clientState s (initStep (ws, k)) =
           ⟨Function.update (Function.update (Function.update s.mem
             (ws.bOwner + k) ws.n) (ws.bPrice + k) 0) (ws.bStack + k) (ws.n - (k + 1)),
-            s.frontier⟩ := by
-        unfold initStep
-        rw [clientState_bind_write, clientState_bind_write, clientState_bind_write,
-          clientState_pure]
-      have hres_eq : (Memory.spec 0).clientResult s (initStep (ws, k)) = k + 1 := by
-        unfold initStep
-        rw [clientResult_bind_write, clientResult_bind_write, clientResult_bind_write,
-          clientResult_pure]
+            s.frontier⟩ := rfl
       refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun x hx => ?_, ?_⟩
       · rw [hst_eq]
         simp (disch := omega) only [Function.update_of_ne]
-      · rw [hst_eq, hres_eq]
+      · rw [hst_eq]
         refine ⟨rfl, hsfr, fun j hj => ?_⟩
         rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hlt' | rfl
         · obtain ⟨ho, hp, hst⟩ := hprev j hlt'
@@ -131,9 +123,8 @@ private theorem initAuction_spec {w : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin
             simp (disch := omega) only [Function.update_of_ne, Function.update_self])
     0 s₀ ⟨rfl, rfl, fun _ h => absurd h (Nat.not_lt_zero _)⟩
   obtain ⟨hsafe, hv, hmc, hfr', hmod, _, _, hprev⟩ := hit
-  refine ⟨hsafe, hv, hmc, hfr', hmod, ?_⟩
-  refine ⟨fun i j => ?_, fun j => (hprev j.val j.isLt).1, fun j => (hprev j.val j.isLt).2.1,
-    fun k hk => ?_⟩
+  refine ⟨hsafe, hv, hmc, hfr', hmod, fun i j => ?_, fun j => (hprev j.val j.isLt).1,
+    fun j => (hprev j.val j.isLt).2.1, fun k hk => ?_⟩
   · have hlt : i.val * ws.n + j.val < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i, j)
     exact (hmod _ (by omega)).trans (hC_mem i j)
   · simp only [auctionInit, List.length_finRange] at hk ⊢
@@ -153,10 +144,8 @@ private theorem bids_le_auctionLoop {n : ℕ} (c : Fin n × Fin n → ℤ) (ε :
     unfold auctionLoop
     rcases hf : st.free with _ | ⟨_, _⟩
     · exact le_rfl
-    · dsimp only
-      have hb := bids_bidStep (c := c) (ε := ε) hf
-      have hm := bids_le_auctionLoop c ε m (bidStep c ε st)
-      omega
+    · exact Nat.le_of_lt ((bids_bidStep (c := c) (ε := ε) hf).symm.trans_le
+        (bids_le_auctionLoop c ε m (bidStep c ε st)))
 
 private theorem boundedWhile_auctionLoop_spec {w W : ℕ} (ws : AuctionWS)
     {C : Fin ws.n × Fin ws.n → ℕ} (hε : 0 < ws.eps)
@@ -189,35 +178,27 @@ private theorem boundedWhile_auctionLoop_spec {w W : ℕ} (ws : AuctionWS)
       simp only [hs_free, List.length_nil, lt_self_iff_false, ↓reduceIte]
       exact ⟨fun _ => by simp [whileSafe], validHistory_pure w _ _, Nat.zero_le _, rfl, ham⟩
     · have hpos : 0 < st.free.length := by simp [hs_free]
-      have hstep := bidStepProg_spec ws hs_free hε hinv hp_nn hC_le s hws ham
-        hfit1 hfit_ws hfit_p
-      obtain ⟨hsafe_step, hv_step, hmc_step, hfr_step, hres_step, ham_step⟩ := hstep
+      obtain ⟨hsafe_step, hv_step, hmc_step, hfr_step, hres_step, ham_step⟩ :=
+        bidStepProg_spec ws hs_free hε hinv hp_nn hC_le s hws ham hfit1 hfit_ws hfit_p
       let cZ : Fin ws.n × Fin ws.n → ℤ := fun e => (C e : ℤ)
       let st₁ := bidStep cZ (ws.eps : ℤ) st
       let s₁ := (Memory.spec 0).clientState s (bidStepProg (ws, st.free.length))
       have hinv₁ : AuctionInv cZ (ws.eps : ℤ) st₁ := hinv.bidStep (by positivity)
       have hp_nn₁ : ∀ j, 0 ≤ st₁.price j := price_nonneg_bidStep (by positivity) hp_nn
       have hws₁ : ValidWS ws s₁ := hws.of_frontier_eq hfr_step
-      have hih := ih st₁ s₁ hinv₁ hp_nn₁ hws₁ ham_step
-      obtain ⟨hwsafe_ih, hv_ih, hmc_ih, hfr_ih, ham_ih⟩ := hih
+      obtain ⟨hwsafe_ih, hv_ih, hmc_ih, hfr_ih, ham_ih⟩ :=
+        ih st₁ s₁ hinv₁ hp_nn₁ hws₁ ham_step
       have hbids₁ : st₁.bids = st.bids + 1 := bids_bidStep hs_free
       have hbids_mono : st₁.bids ≤ (auctionLoop cZ (ws.eps : ℤ) fuel st₁).bids :=
         bids_le_auctionLoop cZ (ws.eps : ℤ) fuel st₁
-      have hbw_eq : boundedWhile (fun _ (sp : ℕ) => 0 < sp) bidStepProg ws (fuel + 1)
-          st.free.length =
-          (bidStepProg (ws, st.free.length) >>= fun a' =>
-            boundedWhile (fun _ (sp : ℕ) => 0 < sp) bidStepProg ws fuel a') := by
-        rw [boundedWhile, ite_eq_left hpos]
       have hloop_step : auctionLoop cZ (ws.eps : ℤ) (fuel + 1) st =
           auctionLoop cZ (ws.eps : ℤ) fuel st₁ := by
         rw [auctionLoop, hs_free]
       simp only [← hs_free]
-      rw [hbw_eq, hloop_step]
-      refine ⟨fun hfree => ?_, ?_, ?_, ?_, ?_⟩
+      rw [boundedWhile, ite_eq_left hpos, hloop_step]
+      refine ⟨fun hfree => ?_, validHistory_bind_step hv_step (by rwa [hres_step]), ?_, ?_, ?_⟩
       · rw [whileSafe, ite_eq_left hpos, hres_step]
         exact ⟨hsafe_step, hwsafe_ih hfree⟩
-      · refine validHistory_bind_step hv_step ?_
-        rwa [hres_step]
       · rw [memoryCost_bind', hres_step]
         have hsub : (auctionLoop cZ (ws.eps : ℤ) fuel st₁).bids - st.bids =
             1 + ((auctionLoop cZ (ws.eps : ℤ) fuel st₁).bids - st₁.bids) := by omega
@@ -283,59 +264,49 @@ theorem auctionCoreProg_spec {w : ℕ} (ws : AuctionWS)
         (auction cZ (ws.eps : ℤ)).bids * (4 * ws.n + 6) + 3 * ws.n ∧
       s'.frontier = s₀.frontier ∧
       AuctionMem ws C (auction cZ (ws.eps : ℤ)) s' := by
-  have hinit := initAuction_spec ws s₀ hws hC_mem hfit_ws
-  obtain ⟨hsafe_init, hv_init, hmc_init, hfr_init, _, ham_init⟩ := hinit
+  obtain ⟨hsafe_init, hv_init, hmc_init, hfr_init, _, ham_init⟩ :=
+    initAuction_spec ws s₀ hws hC_mem hfit_ws
   let s₁ := (Memory.spec 0).clientState s₀ (iterate initStep ws ws.n 0)
   have hws₁ : ValidWS ws s₁ := hws.of_frontier_eq hfr_init
   let W := 2 * ws.scale * ws.M
   have hfit_p' : Fits w (2 * W + 2 * ws.eps) :=
     hfit_p.of_le (le_of_eq (by dsimp only [W]; ring))
   have hlen_init : (auctionInit ws.n).free.length = ws.n := by simp [auctionInit]
-  have hbw := boundedWhile_auctionLoop_spec ws hε hC_le (auctionCutoff ws) (auctionInit ws.n) s₁
-    auctionInv_init (fun _ => le_rfl) hws₁ ham_init hfit1 hfit_ws hfit_p'
-  obtain ⟨hwsafe_bw, hv_bw, hmc_bw, hfr_bw, ham_bw⟩ := hbw
+  obtain ⟨hwsafe_bw, hv_bw, hmc_bw, hfr_bw, ham_bw⟩ :=
+    boundedWhile_auctionLoop_spec ws hε hC_le (auctionCutoff ws) (auctionInit ws.n) s₁
+      auctionInv_init (fun _ => le_rfl) hws₁ ham_init hfit1 hfit_ws hfit_p'
   let cZ : Fin ws.n × Fin ws.n → ℤ := fun e => (C e : ℤ)
   have hεZ : (0 : ℤ) < (ws.eps : ℤ) := Nat.cast_pos.mpr hε
-  have hC_spread : ∀ i j k : Fin ws.n, cZ (i, k) - cZ (i, j) ≤ (W : ℤ) := fun i j k => by
-    have := hC_le i k
-    dsimp only [cZ]; omega
+  have hC_spread : ∀ i j k : Fin ws.n, cZ (i, k) - cZ (i, j) ≤ (W : ℤ) := fun i _ k =>
+    (Int.sub_le_self _ (Nat.cast_nonneg _)).trans (Int.ofNat_le.mpr (hC_le i k))
   have hcut_free : (auctionLoop cZ (ws.eps : ℤ) (auctionCutoff ws) (auctionInit ws.n)).free = [] :=
     (auctionLoop_spec hεZ hC_spread (auctionCutoff ws) (auctionInit ws.n) auctionInv_init (by
       simp only [auctionInit, Finset.sum_const_zero, sub_zero]
-      have hK_nn : (0 : ℤ) ≤ (ws.n : ℤ) * ((W : ℤ) + (ws.eps : ℤ)) := by positivity
-      have h1 : (1 : ℤ) ≤ (ws.eps : ℤ) := by omega
-      have hmul : (ws.n : ℤ) * ((W : ℤ) + (ws.eps : ℤ)) ≤
-          ((ws.n : ℤ) * ((W : ℤ) + (ws.eps : ℤ))) * (ws.eps : ℤ) := by
-        simpa only [mul_one] using mul_le_mul_of_nonneg_left h1 hK_nn
-      have hcut_eq : ((auctionCutoff ws : ℕ) : ℤ) =
-          (ws.n : ℤ) * ((W : ℤ) + (ws.eps : ℤ)) + 2 := by
-        dsimp only [auctionCutoff, W]; push_cast; ring
-      rw [hcut_eq, add_mul]
+      have hmul := mul_le_mul_of_nonneg_left (show (1 : ℤ) ≤ ws.eps by omega)
+        (by positivity : (0 : ℤ) ≤ ws.n * (W + ws.eps))
+      dsimp only [auctionCutoff, W] at hmul ⊢
+      push_cast at hmul ⊢
       linarith)).2
   have hloop_eq :
       auctionLoop cZ (ws.eps : ℤ) (auctionCutoff ws) (auctionInit ws.n) =
         auction cZ (ws.eps : ℤ) := by
     unfold auction
-    have hf2 : (auctionLoop cZ (ws.eps : ℤ)
-        (bidBound ws.n (costSpread cZ) (ws.eps : ℤ)) (auctionInit ws.n)).free = [] :=
-      auction_free hεZ
     rcases le_total (auctionCutoff ws)
         (bidBound ws.n (costSpread cZ) (ws.eps : ℤ)) with hle | hle
-    · symm
-      rw [← Nat.add_sub_cancel' hle, auctionLoop_add hcut_free]
-    · rw [← Nat.add_sub_cancel' hle, auctionLoop_add hf2]
+    · rw [← Nat.add_sub_cancel' hle, auctionLoop_add hcut_free]
+    · rw [← Nat.add_sub_cancel' hle, auctionLoop_add (auction_free hεZ)]
   simp only [hlen_init] at hwsafe_bw hv_bw hmc_bw hfr_bw ham_bw
-  have hsafe_core : AuctionCoreSafe w ws s₀ := ⟨hsafe_init, fun _ => hwsafe_bw hcut_free⟩
   unfold auctionCoreProg
-  refine ⟨hsafe_core, validHistory_bind_step hv_init hv_bw, ?_, ?_, ?_⟩
+  refine ⟨⟨hsafe_init, fun _ => hwsafe_bw hcut_free⟩, validHistory_bind_step hv_init hv_bw,
+    ?_, ?_, ?_⟩
   · rw [memoryCost_bind']
-    rw [hloop_eq, show (auctionInit ws.n).bids = 0 from rfl, Nat.sub_zero] at hmc_bw
-    dsimp only [s₁, cZ] at hmc_bw ⊢
-    omega
+    rw [hloop_eq] at hmc_bw
+    dsimp only [auctionInit, s₁, cZ] at hmc_bw ⊢
+    rw [Nat.sub_zero] at hmc_bw; omega
   · rw [clientState_bind]
     exact hfr_bw.trans hfr_init
-  · rw [clientState_bind]
-    rwa [← hloop_eq]
+  · rw [clientState_bind, ← hloop_eq]
+    exact ham_bw
 
 end
 

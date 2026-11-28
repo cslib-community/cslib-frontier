@@ -29,16 +29,11 @@ theorem WellFormed.weight_eq_of_mem {V E : Type*} [Fintype V] [Fintype E]
     p.weight = q.weight := by
   classical
   obtain ⟨w, hw⟩ := (wellFormed_iff_filter G).1 hG p.port.edge
-  have hp' : p ∈ G.portMultiset.filter (fun t => t.port.edge = p.port.edge) :=
-    Multiset.mem_filter.mpr ⟨hp, rfl⟩
-  have hq' : q ∈ G.portMultiset.filter (fun t => t.port.edge = p.port.edge) :=
-    Multiset.mem_filter.mpr ⟨hq, he.symm⟩
-  rw [hw] at hp' hq'
-  simp only [Multiset.mem_add, Multiset.mem_singleton] at hp' hq'
-  have hpw : p.weight = w := by
-    rcases hp' with h | h <;> exact congrArg WeightedPort.weight h
-  have hqw : q.weight = w := by
-    rcases hq' with h | h <;> exact congrArg WeightedPort.weight h
-  exact hpw.trans hqw.symm
+  have hmem {r : WeightedPort E} (hr : r ∈ G.portMultiset) (hrp : r.port.edge = p.port.edge) :
+      r.weight = w := by
+    have hr' := hw ▸ Multiset.mem_filter.mpr ⟨hr, hrp⟩
+    rcases Multiset.mem_add.mp hr' with h | h <;>
+      exact congrArg WeightedPort.weight (Multiset.mem_singleton.mp h)
+  exact (hmem hp rfl).trans (hmem hq he.symm).symm
 
 end Cslib.Complexity.NCL.ConstraintGraph

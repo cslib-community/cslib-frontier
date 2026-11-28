@@ -133,8 +133,7 @@ theorem eval₂_localDeformation {R' : Type*} [CommRing R'] (N : TensorNetwork B
   · ext e e'
     simp only [Matrix.map_apply, cauchyLocalMatrix, cauchyValueMatrix, coe_eval₂RingHom]
     split_ifs
-    · rw [eval₂_map]
-      rfl
+    · exact eval₂_map _ _ _
     · exact eval₂_zero _ _
 
 /-! ### Degrees -/
@@ -148,25 +147,22 @@ theorem natDegree_deformedContraction_le {R : Type*} [CommRing R] (N : TensorNet
   unfold deformedContraction
   refine natDegree_sum_le_of_forall_le _ _ fun X _ => natDegree_sum_le_of_forall_le _ _ fun Y _ =>
     natDegree_mul_le.trans ?_
-  have hc (s : Finset V) (x : E → Bool) : (∏ v ∈ s, (N.map C).tensor v x).natDegree = 0 := by
-    simp only [map_tensor, ← map_prod, natDegree_C]
-  have h2 := natDegree_mul_le (p := ∏ v ∈ Finset.univ.filter (side · = true), (N.map C).tensor v Y)
-    (q := ∏ v ∈ Finset.univ.filter (side · = false), (N.map C).tensor v X)
-  rw [hc, hc] at h2
+  have h2 : ((∏ v ∈ Finset.univ.filter (side · = true), (N.map C).tensor v Y) *
+      ∏ v ∈ Finset.univ.filter (side · = false), (N.map C).tensor v X).natDegree ≤ 0 := by
+    simpa only [map_tensor, ← map_prod, natDegree_C, add_zero] using
+      natDegree_mul_le (p := ∏ v ∈ Finset.univ.filter (side · = true), (N.map C).tensor v Y)
+        (q := ∏ v ∈ Finset.univ.filter (side · = false), (N.map C).tensor v X)
   have hv (e : E) : (W.mulVec (fun e' => if X e' then (1 : R[X]) else 0) e).natDegree ≤ d :=
     natDegree_sum_le_of_forall_le _ _ fun e' _ => by
       dsimp only
-      split_ifs
-      exacts [(mul_one (W e e')).symm ▸ hW e e', by simp]
-  have hprod : (∏ e, affineFactor (Y e)
-      (W.mulVec (fun e' => if X e' then (1 : R[X]) else 0) e)).natDegree ≤ Fintype.card E * d :=
-    (natDegree_prod_le _ _).trans ((Finset.sum_le_card_nsmul _ _ d fun e _ => by
-      unfold affineFactor
-      split_ifs
-      · exact hv e
-      · exact (natDegree_sub_le _ _).trans (max_le (by simp) (hv e))).trans_eq
-        (by rw [Finset.card_univ, smul_eq_mul]))
-  omega
+      split_ifs <;> simp [hW e e']
+  refine (Nat.add_le_add h2 ((natDegree_prod_le _ _).trans ?_)).trans_eq (zero_add _)
+  refine (Finset.sum_le_card_nsmul _ _ d fun e _ => ?_).trans_eq
+    (by rw [Finset.card_univ, smul_eq_mul])
+  unfold affineFactor
+  split_ifs
+  · exact hv e
+  · exact (natDegree_sub_le _ _).trans (max_le (by simp) (hv e))
 
 /-- On the grid, the local kernel has degree at most `2 L - 1`, `L = 2 ^ a`. -/
 theorem natDegree_localKernel_le {a : ℕ} {t d : ℤ} (ht : t ∈ cauchyGrid (2 ^ a))

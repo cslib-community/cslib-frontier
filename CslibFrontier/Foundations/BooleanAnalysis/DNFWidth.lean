@@ -108,9 +108,7 @@ theorem exists_dnf_hammingDist_div_le (φ : DNF ι) {ε : ℝ} (hε : 0 < ε) :
     rw [Bool.eq_iff_iff, DNF.eval_eq_true_iff, DNF.eval_eq_true_iff]
     constructor
     · rintro ⟨t, ht, htx⟩
-      have hL : (t.width : ℝ) ≤ L := by
-        by_contra hL
-        exact hB t ht hL htx
+      have hL : (t.width : ℝ) ≤ L := by_contra fun hL => hB t ht hL htx
       refine ⟨t.dedup, List.mem_map.2 ⟨t, ?_, rfl⟩, by rwa [Term.eval_dedup]⟩
       simp only [List.mem_filter, Bool.and_eq_true, decide_eq_true_eq]
       exact ⟨ht, hL, Term.consistent_of_eval htx⟩
@@ -121,8 +119,7 @@ theorem exists_dnf_hammingDist_div_le (φ : DNF ι) {ε : ℝ} (hε : 0 < ε) :
   have hterm (t : Term ι) (ht : t ∈ B) :
       (#{x : ι → Bool | t.eval x = true} : ℝ) ≤ ε / φ.length * 2 ^ Fintype.card ι := by
     simp only [B, List.mem_toFinset, List.mem_filter, decide_eq_true_eq, not_le] at ht
-    have hs : (0 : ℝ) < φ.length := by
-      exact_mod_cast List.length_pos_of_mem ht.1
+    have hs : (0 : ℝ) < φ.length := mod_cast List.length_pos_of_mem ht.1
     have hlt : (φ.length : ℝ) / ε < 2 ^ (t.width : ℝ) :=
       (Real.logb_lt_iff_lt_rpow one_lt_two (by positivity)).1 ht.2
     rw [Real.rpow_natCast] at hlt
@@ -145,8 +142,7 @@ theorem exists_dnf_hammingDist_div_le (φ : DNF ι) {ε : ℝ} (hε : 0 < ε) :
     _ ≤ φ.length * (ε / φ.length * 2 ^ Fintype.card ι) := by gcongr
     _ ≤ ε * 2 ^ Fintype.card ι := by
       rcases eq_or_ne (φ.length : ℝ) 0 with hs | hs
-      · rw [hs, zero_mul]
-        positivity
+      · rw [hs, zero_mul]; positivity
       · rw [← mul_assoc, mul_div_cancel₀ _ hs]
 
 /-- **A small CNF is close to a narrow one**: a function computed by a formula in conjunctive
@@ -173,7 +169,6 @@ theorem exists_cnf_hammingDist_div_le (φ : CNF ι) {ε : ℝ} (hε : 0 < ε) :
     unfold hammingDist
     congr 1
     ext x
-    simp only [mem_filter, mem_univ, true_and, DNF.eval_negate, CNF.eval_negate]
-    cases φ.eval x <;> cases ψ.eval x <;> decide
+    simp [DNF.eval_negate, CNF.eval_negate]
 
 end Cslib.BitString

@@ -759,19 +759,11 @@ private theorem checked_from_chunks (check : Node → Bool)
     (chunks : ∀ chunk : Fin 52, (List.range 6).all (fun offset =>
       check ⟨⟨(6 * chunk.val + offset) % 312, Nat.mod_lt _ (by decide)⟩⟩) = true)
     (node : Node) : check node = true := by
-  let chunk : Fin 52 := ⟨node.code.val / 6, by omega⟩
-  have checked := List.all_eq_true.mp (chunks chunk) (node.code.val % 6)
+  rcases node with ⟨⟨c, hc⟩⟩
+  have checked := List.all_eq_true.mp (chunks ⟨c / 6, by omega⟩) (c % 6)
     (List.mem_range.mpr (Nat.mod_lt _ (by decide)))
-  have reconstructed :
-      (⟨⟨(6 * chunk.val + node.code.val % 6) % 312,
-        Nat.mod_lt _ (by decide)⟩⟩ : Node) = node := by
-    cases node with
-    | mk code =>
-      apply congrArg Node.mk
-      apply Fin.ext
-      dsimp only [chunk]
-      omega
-  simpa only [reconstructed] using checked
+  have h_eq : (6 * (c / 6) + c % 6) % 312 = c := by omega
+  simpa only [h_eq] using checked
 
 private theorem seam_checked (node : Node) : seamCheck node = true :=
   checked_from_chunks seamCheck seam_chunks node

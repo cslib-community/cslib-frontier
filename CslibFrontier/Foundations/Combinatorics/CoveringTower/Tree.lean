@@ -25,10 +25,11 @@ and its parent are the loads of the edges at the chamber. The hosts of a type ar
 below the level `J`, so a chamber has at most `b` children: at most one at every place. The
 chambers of the level `J` and the root have the root as their parent (`Node.parent`), and the
 units between the children of a chamber and the chamber add up the units between each child and
-its parent (`childUnits`).
+its parent (`childUnits`). With the stage of a node (`Node.stage`), the level of a chamber and
+`J + 1` at the root, the nodes form a tree by stages.
 
 From *VP ≠ VNP over every field* [AnthropicVPVNP2026], modules `Nc.Tow.Net`, `Nc.Tow.Tree`,
-`Nc.Tow.Ever1` and `Nc.Tow.EndB`.
+`Nc.Tow.Ever1`, `Nc.Tow.EndB` and `Paper.Tree`.
 
 ## Main definitions
 
@@ -44,6 +45,8 @@ From *VP ≠ VNP over every field* [AnthropicVPVNP2026], modules `Nc.Tow.Net`, `
   and the units between a chamber and its parent.
 * `Cslib.CoveringTower.Tower.childUnits`, `Cslib.CoveringTower.Tower.Node.parent`: the units
   between the children of a chamber and the chamber, and the parent of a node.
+* `Cslib.CoveringTower.Tower.Node.stage`: the stage of a node, its level, and `J + 1` at the
+  root.
 
 ## Main results
 
@@ -57,12 +60,21 @@ From *VP ≠ VNP over every field* [AnthropicVPVNP2026], modules `Nc.Tow.Net`, `
   the levels below `J` and of the level `J`, and of the level `0` and of the levels above it.
 * `Cslib.CoveringTower.Tower.sum_ite_childUnits`: the units between the children of the chambers
   with a property and these chambers, by the chambers whose parents have the property.
+* `Cslib.CoveringTower.Tower.Node.stage_parent`, `Cslib.CoveringTower.Tower.Node.stage_eq_iff`:
+  the parent of a node other than the root is in the next stage, and only the root is in the
+  stage `J + 1`.
+* `Cslib.CoveringTower.Tower.Node.card_children_le`,
+  `Cslib.CoveringTower.Tower.Node.card_children_root_le`,
+  `Cslib.CoveringTower.Tower.Node.lift_childUnits_le`: a node other than the root has at most `b`
+  children and the root at most the chambers of the level `J`, and the units between the children
+  of a node and the node.
 
 ## References
 
 * [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
   Theorem H.2(a), p. 45, Theorem H.2(e), p. 46, and the proof ("One stage" and "Bounds", p. 47;
-  "For (e)", p. 48); modules `Nc.Tow.Net`, `Nc.Tow.Tree`, `Nc.Tow.Ever1`, `Nc.Tow.EndB`
+  "For (e)", p. 48); modules `Nc.Tow.Net`, `Nc.Tow.Tree`, `Nc.Tow.Ever1`, `Nc.Tow.EndB`,
+  `Paper.Tree`
 -/
 
 public section
@@ -236,5 +248,100 @@ chamber of a level below `J`, and the root for a chamber of the level `J` and fo
   | .root => .root
   | .chamber j c =>
     if hj : (j : ℕ) + 1 ≤ J then .ofChamber hj (T.parentChamber hh Lf c) else .root
+
+namespace Node
+
+/-- The stage of a node: the level of a chamber, and `J + 1` at the root. -/
+@[expose] def stage : T.Node → ℕ := lift (fun j _ => j) (J + 1)
+
+theorem stage_le (P : T.Node) : P.stage ≤ J + 1 := by
+  cases P with
+  | root => exact le_rfl
+  | chamber j c => exact j.2.le
+
+/-- Only the root is of the stage `J + 1`. -/
+theorem stage_eq_iff {P : T.Node} : P.stage = J + 1 ↔ P = root := by
+  cases P with
+  | root => exact iff_of_true rfl rfl
+  | chamber j c => exact iff_of_false j.2.ne (by simp)
+
+/-- The parent of a node other than the root is in the next stage. -/
+theorem stage_parent {P : T.Node} (hP : P ≠ root) : (P.parent hh Lf).stage = P.stage + 1 := by
+  cases P with
+  | root => exact absurd rfl hP
+  | chamber j c =>
+    simp only [parent]
+    split_ifs with hj
+    · rfl
+    · exact (congrArg (· + 1) (Nat.eq_of_lt_succ_of_not_lt j.2 (by omega))).symm
+
+/-- The children of the root are the chambers of the level `J`. -/
+private theorem filter_parent_eq_root :
+    univ.filter (fun Q : T.Node => Q ≠ root ∧ Q.parent hh Lf = root) =
+      univ.image (ofChamber (T := T) le_rfl) := by
+  ext (_ | ⟨⟨j, hj⟩, c⟩)
+  · simp
+  · simp only [mem_filter, mem_univ, true_and, mem_image]
+    refine ⟨fun ⟨hQ, hp⟩ => ?_, ?_⟩
+    · obtain rfl : j = J := Nat.add_right_cancel
+        ((stage_parent hh Lf hQ).symm.trans (congrArg stage hp))
+      exact ⟨c, rfl⟩
+    · rintro ⟨c', ⟨⟩⟩
+      simp [parent]
+
+/-- The children of a chamber of the level `j + 1` are the chambers of the level `j` whose parent
+chamber it is. -/
+private theorem filter_parent_eq_ofChamber (hj : j + 1 ≤ J) (c : T.X (j + 1)) :
+    univ.filter (fun Q : T.Node => Q ≠ root ∧ Q.parent hh Lf = ofChamber hj c) =
+      (univ.filter (T.parentChamber hh Lf · = c)).image (ofChamber (by omega)) := by
+  ext (_ | ⟨⟨i, hi⟩, c'⟩)
+  · simp
+  · simp only [mem_filter, mem_univ, true_and, mem_image]
+    refine ⟨fun ⟨hQ, hp⟩ => ?_, ?_⟩
+    · obtain rfl : i = j := Nat.add_right_cancel
+        ((stage_parent hh Lf hQ).symm.trans (congrArg stage hp))
+      simp only [parent, hj, dite_true] at hp
+      exact ⟨c', ofChamber_inj.1 hp, rfl⟩
+    · rintro ⟨_, hc', ⟨⟩⟩
+      simp [parent, ofChamber, hj, hc']
+
+/-- A chamber of the level `0` has no children. -/
+private theorem filter_parent_eq_ofChamber_zero (c : T.X 0) :
+    univ.filter (fun Q : T.Node => Q ≠ root ∧ Q.parent hh Lf = ofChamber (Nat.zero_le J) c) =
+      ∅ :=
+  filter_false_of_mem fun Q _ ⟨hQ, hp⟩ => by
+    have := (stage_parent hh Lf hQ).symm.trans (congrArg stage hp)
+    simp [stage, lift, ofChamber] at this
+
+/-- A node other than the root has at most `b` children. -/
+theorem card_children_le {P : T.Node} (hP : P ≠ root) :
+    (univ.filter fun Q => Q ≠ root ∧ Q.parent hh Lf = P).card ≤ b := by
+  obtain _ | ⟨⟨_ | j, hj⟩, c⟩ := P
+  · exact absurd rfl hP
+  · exact (filter_parent_eq_ofChamber_zero hh Lf c).symm ▸ Nat.zero_le b
+  · exact (filter_parent_eq_ofChamber hh Lf (j := j) (by omega) c).symm ▸
+      card_image_le.trans (card_children hh Lf (by omega) c)
+
+/-- The root has a child for every chamber of the level `J`. -/
+theorem card_children_root_le :
+    (univ.filter fun Q => Q ≠ root ∧ Q.parent hh Lf = root).card ≤ Fintype.card (T.X J) :=
+  (filter_parent_eq_root hh Lf).symm ▸ card_image_le
+
+/-- The units between the children of a chamber and the chamber, and at the root those between
+the chambers of the level `J` and the root, are at most the units between the children of the
+node and the node. -/
+theorem lift_childUnits_le (P : T.Node) :
+    P.lift (T.childUnits hh Lf) (∑ c, T.parentUnits Lf J c) ≤
+      ∑ Q ∈ univ.filter (fun Q => Q ≠ root ∧ Q.parent hh Lf = P), Q.lift (T.parentUnits Lf) 0 := by
+  obtain _ | ⟨⟨_ | j, hj⟩, c⟩ := P
+  · rw [filter_parent_eq_root, sum_image fun _ _ _ _ => ofChamber_inj.1]
+    rfl
+  · exact Nat.zero_le _
+  · have hP : (chamber ⟨j + 1, hj⟩ c : T.Node) = ofChamber (Nat.le_of_lt_succ hj) c := rfl
+    rw [hP, filter_parent_eq_ofChamber hh Lf (Nat.le_of_lt_succ hj) c,
+      sum_image fun _ _ _ _ => ofChamber_inj.1]
+    rfl
+
+end Node
 
 end Cslib.CoveringTower.Tower

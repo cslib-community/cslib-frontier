@@ -118,28 +118,16 @@ theorem cnot_eq_submatrix_cnotMatrix :
     (cnot : Matrix (Fin 2 → Bool) (Fin 2 → Bool) ℂ) =
       cnotMatrix.submatrix (finTwoArrowEquiv Bool) (finTwoArrowEquiv Bool) := by
   ext x y
-  rw [cnot_apply]
-  change _ = cnotMatrix (x 0, x 1) (y 0, y 1)
-  rw [cnotMatrix_apply]
-  congr 1
-  refine propext ⟨fun h => ?_, fun ⟨h0, h1⟩ => ?_⟩
-  · rw [h]; simp
-  · funext i; fin_cases i
-    · exact h0
-    · simpa using h1
+  rw [cnot_apply, submatrix_apply, cnotMatrix_apply]
+  simp [funext_iff, Fin.forall_fin_two, Function.update_apply]
 
 /-- The register gate `not` is the Pauli matrix `X`, reindexed by `Fin 1 → Bool ≃ Bool`. -/
 theorem not_eq_submatrix_pauliX :
     (Gate.not : Matrix (Fin 1 → Bool) (Fin 1 → Bool) ℂ) =
       pauliX.submatrix (Equiv.funUnique (Fin 1) Bool) (Equiv.funUnique (Fin 1) Bool) := by
   ext x y
-  rw [not_apply]
-  change _ = pauliX (x 0) (y 0)
-  rw [pauliX_apply]
-  congr 1
-  refine propext ⟨fun h => ?_, fun h => ?_⟩
-  · rw [h]
-  · funext i; fin_cases i; exact h
+  rw [not_apply, submatrix_apply, pauliX_apply]
+  simp [funext_iff, Fin.forall_fin_one]
 
 end Gate
 

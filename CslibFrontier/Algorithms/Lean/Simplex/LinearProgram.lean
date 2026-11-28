@@ -113,11 +113,9 @@ supported on the basis of a representing dictionary, so the basic solution of th
 basic solution of `A *ᵥ x = b`. -/
 theorem eq_zero_of_mulVec_eq_zero (h : D.Represents A b c) {w : ι → K}
     (hw : ∀ j ∉ D.basis, w j = 0) (hAw : A *ᵥ w = 0) : w = 0 := by
-  have hsol : D.IsSolution (D.basicSolution + w) := by
-    rw [h.isSolution_iff, mulVec_add, hAw, add_zero, h.mulVec_basicSolution]
-  have := D.eq_basicSolution_of_isSolution hsol fun j hj => by
-    rw [Pi.add_apply, D.basicSolution_of_notMem hj, hw j hj, add_zero]
-  exact left_eq_add.1 this.symm
+  refine left_eq_add.1 (D.eq_basicSolution_of_isSolution ?_ fun j hj => ?_).symm
+  · rw [h.isSolution_iff, mulVec_add, hAw, add_zero, h.mulVec_basicSolution]
+  · rw [Pi.add_apply, D.basicSolution_of_notMem hj, hw j hj, add_zero]
 
 variable [LinearOrder K]
 
@@ -198,15 +196,13 @@ theorem mem_slackDictionary_basis {i : Fin (n + m)} :
 
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 theorem castAdd_notMem_slackDictionary_basis (j : Fin n) :
-    Fin.castAdd m j ∉ (slackDictionary A b c).basis := by
-  rw [mem_slackDictionary_basis, Fin.val_castAdd, not_le]
-  exact j.isLt
+    Fin.castAdd m j ∉ (slackDictionary A b c).basis :=
+  mt (mem_slackDictionary_basis A b c).1 (not_le.2 j.isLt)
 
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 theorem natAdd_mem_slackDictionary_basis (i : Fin m) :
-    Fin.natAdd n i ∈ (slackDictionary A b c).basis := by
-  rw [mem_slackDictionary_basis, Fin.val_natAdd]
-  exact Nat.le_add_right n i
+    Fin.natAdd n i ∈ (slackDictionary A b c).basis :=
+  (mem_slackDictionary_basis A b c).2 (Fin.val_natAdd n i ▸ Nat.le_add_right n i)
 
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 private theorem sum_compl_slack (f : Fin (n + m) → K) :
@@ -248,10 +244,8 @@ omit [LinearOrder K] [IsStrictOrderedRing K] in
 theorem slackDictionary_represents :
     (slackDictionary A b c).Represents (slackMatrix A) b (Fin.append c 0) := by
   refine ⟨fun x => ?_, fun x _ => ?_⟩
-  · rw [isSolution_slackDictionary_iff, funext_iff]
-    refine forall_congr' fun i => ?_
-    rw [slackMatrix_mulVec]
-    constructor <;> intro h <;> linear_combination h
+  · simp only [isSolution_slackDictionary_iff, funext_iff, slackMatrix_mulVec]
+    exact forall_congr' fun _ => by constructor <;> intro h <;> linear_combination h
   · rw [Dictionary.value, sum_compl_slack, dotProduct, Fin.sum_univ_add]
     simp only [slackDictionary, Fin.append_left, Fin.append_right, Pi.zero_apply, zero_mul,
       Finset.sum_const_zero, add_zero, zero_add]
@@ -276,10 +270,9 @@ theorem withSlack_natAdd (x : Fin n → K) (i : Fin m) :
 
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 theorem isSolution_withSlack (x : Fin n → K) :
-    (slackDictionary A b c).IsSolution (withSlack A b x) := by
-  rw [isSolution_slackDictionary_iff]
-  intro i
-  simp only [withSlack_natAdd, withSlack_castAdd, mulVec, dotProduct]
+    (slackDictionary A b c).IsSolution (withSlack A b x) :=
+  (isSolution_slackDictionary_iff A b c).2 fun i => by
+    simp only [withSlack_natAdd, withSlack_castAdd, mulVec, dotProduct]
 
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 /-- Every solution of the slack dictionary is a point extended by its slacks. -/
@@ -294,10 +287,8 @@ theorem eq_withSlack_of_isSolution {z : Fin (n + m) → K}
 
 theorem withSlack_mem_feasibleSet_iff (x : Fin n → K) :
     withSlack A b x ∈ (slackDictionary A b c).feasibleSet ↔ 0 ≤ x ∧ A *ᵥ x ≤ b := by
-  rw [Dictionary.mem_feasibleSet]
-  simp only [isSolution_withSlack, true_and, Pi.le_def, Pi.zero_apply]
-  rw [Fin.forall_fin_add]
-  simp only [withSlack_castAdd, withSlack_natAdd, sub_nonneg]
+  simp only [Dictionary.mem_feasibleSet, isSolution_withSlack, true_and, Pi.le_def,
+    Pi.zero_apply, Fin.forall_fin_add, withSlack_castAdd, withSlack_natAdd, sub_nonneg]
 
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 theorem value_withSlack (x : Fin n → K) :
@@ -344,8 +335,7 @@ theorem simplex_slackDictionary_spec (hb : 0 ≤ b) :
     obtain ⟨h1, h2⟩ := (withSlack_mem_feasibleSet_iff A b c _).1 hmem
     refine .inl ⟨D, hrun, hgreat, h1, h2, ?_⟩
     rw [← value_withSlack A b c, ← hz, hequiv.value_eq _ hsolS, D.value_basicSolution]
-  · rw [image_value_slackDictionary] at hunb
-    exact .inr ⟨hrun, hunb⟩
+  · exact .inr ⟨hrun, image_value_slackDictionary A b c ▸ hunb⟩
 
 /-- The **dual solution read off a dictionary** on the variables of a slack dictionary: the
 negated reduced cost of the slack variable of each row, and `0` when that slack variable is basic.

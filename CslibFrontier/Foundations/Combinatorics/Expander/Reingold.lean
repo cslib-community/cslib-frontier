@@ -189,15 +189,11 @@ theorem min_le_one_sub_spectralExpansion_reingoldStep {V : Type*} [Fintype V]
   have hstep : (reingoldStep H e G).spectralExpansion ≤ (1 - 16 / 25 * γ) ^ 2 :=
     (spectralExpansion_reingoldStep_le H e G).trans
       (pow_le_pow_left₀ (by linarith) (by linarith) 2)
-  have hγ₁ : γ ≤ 1 := by linarith
   rcases le_total γ (1 / 6) with h | h
   · refine (min_le_left _ _).trans ?_
-    have hq : 0 ≤ γ * (25 - 128 * γ) := mul_nonneg hγ₀ (by linarith)
-    linarith [show 1 - (1 - 16 / 25 * γ) ^ 2 - 6 / 5 * γ = 2 / 625 * (γ * (25 - 128 * γ)) by ring]
+    nlinarith only [hstep, hγ₀, h]
   · refine (min_le_right _ _).trans ?_
-    have hq : (1 - 16 / 25 * γ) ^ 2 ≤ (67 / 75) ^ 2 :=
-      pow_le_pow_left₀ (by linarith) (by linarith) 2
-    linarith [show (67 / 75 : ℝ) ^ 2 ≤ 4 / 5 by norm_num]
+    nlinarith only [hstep, hγ, hμ₀, h]
 
 /-- **The spectral gap grows geometrically** [Reingold, Lemma 3.2][Reingold2008]: if `λ(H) ≤ 1 / 5`
 and the spectral gap of `G` is at least `γ ≥ 0`, the `ℓ`-th graph of the transformation has spectral
@@ -288,12 +284,10 @@ theorem exists_neighbor_pow_reingold_eq {V : Type u} [Fintype V] [DecidableEq V]
   have hwalk : (reingold H e (G.componentGraph x.root) ℓ).spectralExpansion ^ T *
       (Fintype.card (IteratedProd C B ℓ) - 1) < 1 := by
     rw [IteratedProd.card]
-    have hM : (1 : ℝ) ≤ Fintype.card C * Fintype.card B ^ ℓ := by
-      exact_mod_cast Nat.one_le_iff_ne_zero.2 (Nat.mul_ne_zero hC.ne' (pow_pos hB ℓ).ne')
-    have hMV : (Fintype.card C * Fintype.card B ^ ℓ : ℝ) * 4 ^ T ≤ 5 ^ T := by
-      have : (Fintype.card C * Fintype.card B ^ ℓ * 4 ^ T : ℝ) ≤
-          Fintype.card V * Fintype.card B ^ ℓ * 4 ^ T := by gcongr
-      exact this.trans (by exact_mod_cast hT)
+    have hM : (1 : ℝ) ≤ Fintype.card C * Fintype.card B ^ ℓ :=
+      mod_cast Nat.mul_pos hC (pow_pos hB ℓ)
+    have hMV : (Fintype.card C * Fintype.card B ^ ℓ : ℝ) * 4 ^ T ≤ 5 ^ T :=
+      mod_cast (Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ hCV)).trans hT
     push_cast
     calc (reingold H e (G.componentGraph x.root) ℓ).spectralExpansion ^ T *
           ((Fintype.card C : ℝ) * Fintype.card B ^ ℓ - 1) ≤

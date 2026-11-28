@@ -105,14 +105,8 @@ theorem initFresh_rep {w n K base : ℕ} (hn : Fits w n) (hK : Fits w K)
   rw [Program.code_frontier] at hi ha
   refine ⟨y, he, hm, hf, (Backend.rep_iff _ _ _).mpr ⟨hi, ha, hb⟩, ?_⟩
   intro i
-  fin_cases i
-  · change y.regs (Program.argument 0) = n
-    rwa [Program.code_nReg] at hyn
-  · change y.regs (Program.argument 1) = base + n
-    exact hcount
-  · change y.regs (Program.argument 2) = 1
-    exact hlen
-  · change y.regs (Program.argument 3) = base
-    rwa [Program.code_baseReg] at hybase
+  rw [Program.code_nReg] at hyn
+  rw [Program.code_baseReg] at hybase
+  fin_cases i <;> assumption
 
 end Cslib.DataStructure.PriorityQueue.BinaryHeap.Native.Representation

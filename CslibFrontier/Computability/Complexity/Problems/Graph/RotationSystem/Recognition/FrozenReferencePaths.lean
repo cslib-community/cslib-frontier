@@ -49,9 +49,8 @@ private theorem original_mem_iff_lt {I : FixedRotationInput} (hI : Valid I) (v :
   (iff_of_eq (congrArg (fun vs : List ℕ => v ∈ vs) hI.1)).trans List.mem_range
 
 private theorem original_mem_subdivision {I : FixedRotationInput} (hI : Valid I)
-    {v : ℕ} (hv : v ∈ I.graph.vertices) : v ∈ (subdivisionGraph I).vertices := by
-  change v ∈ List.range (subdivisionSize I)
-  exact List.mem_range.mpr (((original_mem_iff_lt hI v).mp hv).trans_le (Nat.le_add_right _ _))
+    {v : ℕ} (hv : v ∈ I.graph.vertices) : v ∈ (subdivisionGraph I).vertices :=
+  List.mem_range.mpr (((original_mem_iff_lt hI v).mp hv).trans_le (Nat.le_add_right _ _))
 
 /-- Membership in the frozen obstacle is membership in an original center or in an
 indexed frozen spoke. Both orientations use their actual stored route supports. -/
@@ -85,8 +84,7 @@ private theorem spoke_support (I : FixedRotationInput) (d : Dart I.graph) :
     (referencePoint I (Dart.vertex (G := subdivisionGraph I) (e, true)))).support = _
   rw [Route.support_line, ← hcenter, ← hleaf]
   cases hb : d.2
-  · rfl
-  · exact segment_symm ℝ _ _
+  exacts [rfl, segment_symm ℝ _ _]
 
 /-- The protected reference set is compact, being a finite union of points and closed
 segments. -/
@@ -116,31 +114,21 @@ theorem frozenReferenceObstacle_compl_isPathConnected {I : FixedRotationInput}
     (fun v => (referencePoint I v.val).re - 1 / 8) (fun v => right v.val) (-R) R
     (fun v => frozenStar_starConvex I v.val) hcenter ?_ ?_ (x := -1) ?_
   · intro v z hz
-    have hOb : z ∈ frozenReferenceObstacle I := by
-      unfold frozenReferenceObstacle
-      exact Set.mem_iUnion.mpr ⟨v, hz⟩
     have hnorm : ‖z‖ < R := by
-      simpa only [Metric.mem_ball, dist_zero_right] using hbound hOb
+      simpa only [Metric.mem_ball, dist_zero_right] using hbound (Set.mem_iUnion.mpr ⟨v, hz⟩)
     refine ⟨?_, abs_lt.mp ((Complex.abs_im_le_norm z).trans_lt hnorm)⟩
-    rcases hz with hz | hz
-    · obtain rfl : z = referencePoint I v.val := hz
-      exact ⟨by linarith, hright _ (hmem v)⟩
+    rcases hz with rfl | hz
+    · exact ⟨by linarith, hright _ (hmem v)⟩
     · obtain ⟨d, hd⟩ := Set.mem_iUnion.mp hz
-      have h := hstrip d.val d.property.2 z hd
-      rw [d.property.1] at h
+      have h := d.property.1 ▸ hstrip d.val d.property.2 z hd
       exact ⟨by linarith only [h.1], h.2⟩
   · refine fun u v hne => Set.disjoint_left.mpr fun x hu hv => ?_
-    have huve : u.val ≠ v.val := fun h => hne (Fin.ext h)
-    rcases lt_or_gt_of_ne huve with h | h
-    · have hs := hsep _ (hmem u) _ (hmem v) h
-      linarith only [hs, hu.2, hv.1]
-    · have hs := hsep _ (hmem v) _ (hmem u) h
-      linarith only [hs, hv.2, hu.1]
+    rcases lt_or_gt_of_ne (Fin.val_ne_of_ne hne) with h | h
+    · linarith only [hsep _ (hmem u) _ (hmem v) h, hu.2, hv.1]
+    · linarith only [hsep _ (hmem v) _ (hmem u) h, hv.2, hu.1]
   · intro v hv
-    have hnonneg : 0 ≤ (referencePoint I v.val).re := by
-      change (0 : ℝ) ≤ ((referenceOrder I).idxOf v.val : ℝ)
-      exact Nat.cast_nonneg _
-    linarith only [hnonneg, hv.1]
+    have h0 : 0 ≤ (referencePoint I v.val).re := Nat.cast_nonneg _
+    linarith only [h0, hv.1]
 
 /-- An original vertex or the occurrence leaf at the end of a frozen reference spoke.
 These are exactly the declared vertex names whose positions belong to the protected set
@@ -178,20 +166,13 @@ private theorem vertex_mem_obstacle_iff {I : FixedRotationInput} (hI : Valid I)
         exact Or.inl ((hends.1.symm.trans hb) ▸ RotationSystem.vertex_mem hdeclared d)
       · rw [Bool.eq_not_of_ne he] at hb
         exact Or.inr ⟨d, hd, hb.symm.trans hends.2⟩
-  · rintro (hv' | ⟨d, hd, hv'⟩)
+  · rintro (hv' | ⟨d, hd, rfl⟩)
     · exact Or.inl ⟨v, hv', hcenter v hv'⟩
-    · refine Or.inr ⟨d, hd, ?_⟩
-      let e := (subdivisionDart I d).1
-      let b := !d.2
-      let p := D.route e
-      have hend : p.endpoint b = D.vertex v :=
-        (D.endpoint_eq e b).trans (congrArg D.vertex
-          ((subdivisionDart_endpoints I d).2.trans hv'.symm))
-      have hpoint := p.at_mem_support (p.endSegment b)
-        (Route.endTime_mem b (t := 0) ⟨le_rfl, zero_le_one⟩)
-      rw [p.eval_near_end, zero_smul, add_zero, hend] at hpoint
-      change D.vertex v ∈ (D.route e).support at hpoint
-      rwa [hroute d hd] at hpoint
+    · have he := congrArg (fun p : Route => p.endpoint (!d.2)) (hroute d hd)
+      have hleaf : Dart.vertex (G := subdivisionGraph I) ((subdivisionDart I d).1, !d.2) =
+          I.graph.vertices.length + d.index := (subdivisionDart_endpoints I d).2
+      rw [D.endpoint_eq, (referenceDrawing I).endpoint_eq, hleaf] at he
+      exact Or.inr ⟨d, hd, he.symm ▸ spoke_support I d ▸ right_mem_segment ℝ _ _⟩
 
 /-- In a subdivision embedding with the frozen spokes and original centers placed, exactly
 the original vertices and the frozen occurrence leaves lie on the protected reference set. -/
@@ -234,8 +215,7 @@ theorem exists_move_unfrozen_reference_vertex {I : FixedRotationInput} (hI : Val
     fun h => hfree ((vertex_mem_frozenReferenceObstacle_iff hI hD hcenter hroute hv).mp h)
   have hkeep : ∀ e ∈ keep, (D.route e).support ⊆ frozenReferenceObstacle I := by
     rintro e ⟨d, rfl, hd⟩ z hz
-    rw [hroute d hd] at hz
-    exact (mem_frozenReferenceObstacle_iff hI).mpr (Or.inr ⟨d, hd, hz⟩)
+    exact (mem_frozenReferenceObstacle_iff hI).mpr (Or.inr ⟨d, hd, hroute d hd ▸ hz⟩)
   obtain ⟨E, hE, hposition, hother, hkept⟩ :=
     hD.exists_vertex_move_in_compl (subdivisionGraph_endpoints_declared hI) v hv
       (frozenReferenceObstacle_isCompact I).isClosed
@@ -284,34 +264,26 @@ private theorem place_reference_vertex {I : FixedRotationInput} (hI : Valid I)
     by_cases hcollision : ∃ w ∈ (subdivisionGraph I).vertices, w ≠ v ∧
         referencePoint I v = D.vertex w
     · obtain ⟨w, hw, hwv, heq⟩ := hcollision
-      have hwfree : ¬ IsFrozenReferenceVertex I w := fun hf => hvout (by
-        rw [heq]; exact (vertex_mem_frozenReferenceObstacle_iff hI hD hcenter hroute hw).mpr hf)
+      have hwfree : ¬ IsFrozenReferenceVertex I w := fun hf => hvout
+        (heq ▸ (vertex_mem_frozenReferenceObstacle_iff hI hD hcenter hroute hw).mpr hf)
       have hwrong : D.vertex w ≠ referencePoint I w := fun h =>
         hwv (referenceDrawing_vertices_injective hI hw hv (h.symm.trans heq.symm))
-      let occupied := D.vertex '' {u | u ∈ (subdivisionGraph I).vertices}
-      let barred := insert (referencePoint I v) occupied
-      have hbarred : barred.Finite :=
-        ((subdivisionGraph I).vertices.finite_toSet.image D.vertex).insert _
       obtain ⟨z, hz⟩ := (Set.ne_univ_iff_exists_notMem _).mp
-        (((frozenReferenceObstacle_isCompact I).union hbarred.isCompact).ne_univ)
-      have hzout : z ∉ frozenReferenceObstacle I := fun h => hz (Or.inl h)
-      have hzne : z ≠ referencePoint I v :=
-        fun h => hz (Or.inr (Set.mem_insert_iff.mpr (Or.inl h)))
-      have hzfree (u : ℕ) (hu : u ∈ (subdivisionGraph I).vertices) : z ≠ D.vertex u :=
-        fun h => hz (Or.inr (Set.mem_insert_iff.mpr (Or.inr ⟨u, hu, h.symm⟩)))
+        (((frozenReferenceObstacle_isCompact I).union (((subdivisionGraph I).vertices.finite_toSet
+          |>.image D.vertex).insert (referencePoint I v)).isCompact).ne_univ)
+      simp only [Set.mem_union, Set.mem_insert_iff, Set.mem_image, Set.mem_ofPred_eq,
+        not_or, not_exists, not_and] at hz
       obtain ⟨F, hF, hFpos, hFother, hFroute⟩ :=
-        exists_move_unfrozen_reference_vertex hI hD hcenter hroute hw hwfree hzout
-          (fun u hu _ => hzfree u hu)
+        exists_move_unfrozen_reference_vertex hI hD hcenter hroute hw hwfree hz.1
+          (fun u hu _ h => hz.2.2 u hu h.symm)
       refine ⟨F, hF, ?_, ?_, hFroute⟩
       · intro u hu _ hpoint
-        by_cases huw : u = w
-        · subst u
-          exact hzne (hFpos.symm.trans hpoint.symm)
+        rcases eq_or_ne u w with rfl | huw
+        · exact hz.2.1 (hFpos.symm.trans hpoint.symm)
         · exact huw (hD.vertices_injective hu hw ((hpoint.trans (hFother u hu huw)).symm.trans heq))
       · intro u hu hpos
-        by_cases huw : u = w
-        · subst u
-          exact (hwrong hpos).elim
+        rcases eq_or_ne u w with rfl | huw
+        · exact (hwrong hpos).elim
         · exact (hFother u hu huw).trans hpos
     · exact ⟨D, hD, fun w hw hwv h => hcollision ⟨w, hw, hwv, h⟩, fun _ _ h => h, hroute⟩
   obtain ⟨F, hF, htarget, hplaced, hFroute⟩ := clear
@@ -319,12 +291,8 @@ private theorem place_reference_vertex {I : FixedRotationInput} (hI : Valid I)
     hplaced w (original_mem_subdivision hI hw) (hcenter w hw)
   obtain ⟨E, hE, hEpos, hEother, hEroute⟩ :=
     exists_move_unfrozen_reference_vertex hI hF hFcenter hFroute hv hvfree hvout htarget
-  refine ⟨E, hE, hEpos, ?_, hEroute⟩
-  intro w hw hpos
-  by_cases hwv : w = v
-  · subst w
-    exact hEpos
-  · exact (hEother w hw hwv).trans (hplaced w hw hpos)
+  refine ⟨E, hE, hEpos, fun w hw hpos => ?_, hEroute⟩
+  exact if hwv : w = v then hwv ▸ hEpos else (hEother w hw hwv).trans (hplaced w hw hpos)
 
 /-- Place every declared subdivision vertex at its reference point while retaining the
 literal frozen routes. If a target is occupied, its occupant is still out of position, so it
@@ -347,18 +315,13 @@ theorem exists_subdivision_embedding_at_reference {I : FixedRotationInput} (hI :
     induction vs with
     | nil => exact ⟨D, hD, fun _ hw => (List.not_mem_nil hw).elim, hcenter, hroute⟩
     | cons v vs ih =>
-      have hrest (w : ℕ) (hw : w ∈ vs) : w ∈ (subdivisionGraph I).vertices :=
-        hvs w (List.mem_cons.mpr (Or.inr hw))
+      obtain ⟨hv, hrest⟩ := List.forall_mem_cons.mp hvs
       obtain ⟨F, hF, hFplaced, hFcenter, hFroute⟩ := ih hrest
-      have hv := hvs v (List.mem_cons.mpr (Or.inl rfl))
       obtain ⟨E, hE, hEpos, hEplaced, hEroute⟩ :=
         place_reference_vertex hI hF hFcenter hFroute hv
-      refine ⟨E, hE, ?_, fun w hw =>
+      exact ⟨E, hE, List.forall_mem_cons.mpr ⟨hEpos, fun w h =>
+        hEplaced w (hrest w h) (hFplaced w h)⟩, fun w hw =>
         hEplaced w (original_mem_subdivision hI hw) (hFcenter w hw), hEroute⟩
-      intro w hw
-      rcases List.mem_cons.mp hw with rfl | h
-      · exact hEpos
-      · exact hEplaced w (hrest w h) (hFplaced w h)
   obtain ⟨E, hE, hV, _, hR⟩ := place (subdivisionGraph I).vertices (fun _ hw => hw)
   exact ⟨E, hE, hV, hR⟩
 

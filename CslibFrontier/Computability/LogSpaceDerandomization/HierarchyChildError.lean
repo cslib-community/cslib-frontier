@@ -84,25 +84,21 @@ theorem rawPositiveSample_sub_le (l bin : ℕ) (t : RawTask k)
     (fun z => estimated R.right z y) (fun z => canonical R.right z y)
     (fun z _ => hleft z) (fun z _ => hright z)
   rw [← he, ← hc] at hs
-  unfold rawPositiveSample positiveChildError
-  dsimp only
-  rw [show b * usageRatio channels endpoint R.direct y * estimated R.direct x y +
-      b * usageRatio channels endpoint R.right y *
-        (midpoint.rate / (dens {σ | midpoint.retains channels σ y} : ℝ)) *
-        (∑ z, estimated R.left x z * estimated R.right z y) -
-      (b * usageRatio channels endpoint R.direct y * canonical R.direct x y +
-      b * usageRatio channels endpoint R.right y *
-        (midpoint.rate / (dens {σ | midpoint.retains channels σ y} : ℝ)) *
-        (∑ z, canonical R.left x z * canonical R.right z y)) =
+  have hdiff : rawPositiveSample channels l bin t source midpoint endpoint b estimated x y -
+      rawPositiveSample channels l bin t source midpoint endpoint b canonical x y =
       b * usageRatio channels endpoint R.direct y *
         (estimated R.direct x y - canonical R.direct x y) +
-      (b * usageRatio channels endpoint R.right y *
-        (midpoint.rate / (dens {σ | midpoint.retains channels σ y} : ℝ))) *
+      b * usageRatio channels endpoint R.right y *
+        (midpoint.rate / (dens {σ | midpoint.retains channels σ y} : ℝ)) *
         ((∑ z, estimated R.left x z * estimated R.right z y) -
-          ∑ z, canonical R.left x z * canonical R.right z y) by ring]
-  exact (abs_add_le _ _).trans (by
-    simp only [abs_mul]
-    exact add_le_add le_rfl (mul_le_mul_of_nonneg_left hs (by positivity)))
+          ∑ z, canonical R.left x z * canonical R.right z y) := by
+    unfold rawPositiveSample
+    dsimp only; ring
+  rw [hdiff]
+  unfold positiveChildError
+  refine (abs_add_le _ _).trans ?_
+  simp only [abs_mul]
+  exact add_le_add le_rfl (mul_le_mul_of_nonneg_left hs (by positivity))
 
 omit [Fintype V] in
 /-- Literal special-negative perturbation, including the zero/base case. -/
@@ -215,11 +211,10 @@ theorem incomingChildren_zero_off_usage {q : ℕ}
     incomingChildren HP D ident Kc cutoff raw prep maximum r σ x y = 0 := by
   cases ht : r.task with
   | row stage task =>
-    cases task <;> simp only [incomingChildren, ht]
-    all_goals first
-    | rfl
-    | exact correctionRequest_eq_zero_of_not_usage D ident r _ _ _ _ _ _ _ _ _ _ σ x y hy
-    | exact normalizedRequest_zero_off_usage D ident r _ _ _ _ _ σ x y hy
+    cases task <;> simp only [incomingChildren, ht] <;> first
+      | rfl
+      | exact correctionRequest_eq_zero_of_not_usage D ident r _ _ _ _ _ _ _ _ _ _ σ x y hy
+      | exact normalizedRequest_zero_off_usage D ident r _ _ _ _ _ σ x y hy
   | _ =>
     simp only [incomingChildren, ht]
     exact normalizedRequest_zero_off_usage D ident r _ _ _ _ _ σ x y hy

@@ -314,11 +314,9 @@ theorem isTPrivate_one_iff : P.IsTPrivate 1 ↔ P.IsPrivate := by
   rcases Nat.le_one_iff_eq_zero_or_eq_one.mp hT with h0 | h1
   · obtain rfl : T = ∅ := Finset.card_eq_zero.mp h0
     have hnil (idx : ι) : ProbComp.eval (P.coalitionTranscript ∅ x idx) = PMF.pure [] := by
-      have hfn : (fun cd : C × ((s : S) → D s) =>
-          (P.tree.execTrace P.serverBit (fun _ => []) x cd.2 (idx, cd.1)).filter
-            fun sm => decide (sm.1 ∈ (∅ : Finset S))) = Function.const _ [] :=
-        funext fun _ => List.filter_eq_nil_iff.mpr fun _ _ => by simp
-      rw [coalitionTranscript, ProbComp.eval_map, hfn, PMF.map_const]
+      simp only [coalitionTranscript, ProbComp.eval_map, Finset.notMem_empty, decide_false,
+        List.filter_false]
+      exact PMF.map_const _ []
     rw [hnil i, hnil i']
   · obtain ⟨s, rfl⟩ := Finset.card_eq_one.mp h1
     have hrec (idx : ι) : ProbComp.eval (P.coalitionTranscript {s} x idx) =
@@ -327,14 +325,10 @@ theorem isTPrivate_one_iff : P.IsTPrivate 1 ↔ P.IsPrivate := by
       congr 1
       funext cd
       simp only [Function.comp_apply, List.map_map]
-      induction P.tree.execTrace P.serverBit (fun _ => []) x cd.2 (idx, cd.1) with
-      | nil => rfl
-      | cons hd _ ih =>
-        rcases hd with ⟨s', msg⟩
-        by_cases hs : s' = s
-        · subst hs
-          rw [List.filter_cons_of_pos (by simp), List.map_cons, Function.comp_apply, ← ih]
-        · rwa [List.filter_cons_of_neg (by simp [hs])]
+      symm
+      refine (List.map_congr_left fun ⟨s', _⟩ hmem => ?_).trans (List.map_id _)
+      exact Prod.ext (Finset.mem_singleton.mp (of_decide_eq_true (List.mem_filter.mp hmem).2)).symm
+        rfl
     rw [hrec i, hrec i', h s x i i']
 
 end Defs

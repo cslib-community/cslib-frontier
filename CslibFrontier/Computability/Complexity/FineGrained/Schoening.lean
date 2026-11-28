@@ -133,17 +133,14 @@ theorem hit_succ_succ (k t d : ℕ) :
   rfl
 
 theorem hit_nonneg (hk : 1 ≤ k) (t d : ℕ) : 0 ≤ hit k t d := by
-  have hk1 : (0 : ℝ) ≤ (k : ℝ) - 1 := by linarith [show (1 : ℝ) ≤ k from mod_cast hk]
+  have hk1 : (0 : ℝ) ≤ (k : ℝ) - 1 := sub_nonneg.mpr (mod_cast hk)
   induction t generalizing d with
   | zero => cases d <;> simp
   | succ t ih =>
     cases d with
     | zero => simp
     | succ d =>
-      rw [hit_succ_succ]
-      have := ih d
-      have := ih (d + 2)
-      positivity
+      exact div_nonneg (add_nonneg (ih d) (mul_nonneg hk1 (ih (d + 2)))) (Nat.cast_nonneg k)
 
 theorem hit_le_one (hk : 1 ≤ k) (t d : ℕ) : hit k t d ≤ 1 := by
   have hk1 : (1 : ℝ) ≤ k := by exact_mod_cast hk
@@ -191,15 +188,17 @@ theorem hit_monotone (hk : 1 ≤ k) (d : ℕ) : Monotone fun t => hit k t d :=
 /-- A single binomial weight is at most one. -/
 private theorem choose_mul_pow_le_one (hk : 1 ≤ k) (m a b : ℕ) (h : a + b = m) :
     (m.choose a : ℝ) * (1 / k) ^ b * (((k : ℝ) - 1) / k) ^ a ≤ 1 := by
-  have hk1 : (1 : ℝ) ≤ k := by exact_mod_cast hk
-  have hsum := add_pow (((k : ℝ) - 1) / k) (1 / k) m
-  rw [show ((k : ℝ) - 1) / k + 1 / k = 1 by field_simp; ring, one_pow] at hsum
-  have ha : a ∈ range (m + 1) := mem_range.mpr (by omega)
+  subst h
+  have hk1 : (1 : ℝ) ≤ k := mod_cast hk
+  have h1 : ((k : ℝ) - 1) / k + 1 / k = 1 := by field_simp; ring
+  have hsum := add_pow (((k : ℝ) - 1) / k) (1 / k) (a + b)
+  rw [h1, one_pow] at hsum
+  have ha : a ∈ range (a + b + 1) := mem_range.mpr (by omega)
   have hle := single_le_sum
-    (f := fun i => (((k : ℝ) - 1) / k) ^ i * (1 / k) ^ (m - i) * (m.choose i))
+    (f := fun i => (((k : ℝ) - 1) / k) ^ i * (1 / k) ^ (a + b - i) * ((a + b).choose i))
     (fun i _ => by have : (0 : ℝ) ≤ (k : ℝ) - 1 := by linarith
                    positivity) ha
-  rw [← hsum, show m - a = b by omega] at hle
+  rw [← hsum, Nat.add_sub_cancel_left] at hle
   linarith
 
 /-- **Path counting.** Any sequence of `b` down-steps and `a` up-steps with `d + a ≤ b` reaches `0`
@@ -207,14 +206,12 @@ from `d`, so the biased walk reaches `0` from `d` within `a + b` steps with prob
 `C(a + b, a) (1/k)^b ((k - 1)/k)^a`. -/
 theorem choose_mul_le_hit (hk : 1 ≤ k) (a b d : ℕ) (h : d + a ≤ b) :
     ((a + b).choose a : ℝ) * (1 / k) ^ b * (((k : ℝ) - 1) / k) ^ a ≤ hit k (a + b) d := by
-  have hk1 : (1 : ℝ) ≤ k := by exact_mod_cast hk
+  have hk1 : (1 : ℝ) ≤ k := mod_cast hk
   have hk0 : (0 : ℝ) < k := by linarith
   have hkm : (0 : ℝ) ≤ (k : ℝ) - 1 := by linarith
-  have hkne : (k : ℝ) ≠ 0 := hk0.ne'
   induction hm : a + b generalizing a b d with
   | zero =>
-    obtain ⟨rfl, rfl⟩ : a = 0 ∧ b = 0 := by omega
-    obtain rfl : d = 0 := by omega
+    obtain ⟨rfl, rfl, rfl⟩ : a = 0 ∧ b = 0 ∧ d = 0 := by omega
     simp
   | succ m ih =>
     cases d with
@@ -239,8 +236,8 @@ theorem choose_mul_le_hit (hk : 1 ≤ k) (a b d : ℕ) (h : d + a ≤ b) :
               ((m.choose (a + 1) : ℝ) * (1 / k) ^ b * (((k : ℝ) - 1) / k) ^ (a + 1) +
                 ((k : ℝ) - 1) * ((m.choose a : ℝ) * (1 / k) ^ (b + 1) *
                   (((k : ℝ) - 1) / k) ^ a)) / k := by
-            rw [eq_div_iff hkne]
-            have hkk : (k : ℝ) * (k : ℝ)⁻¹ = 1 := mul_inv_cancel₀ hkne
+            rw [eq_div_iff hk0.ne']
+            have hkk : (k : ℝ) * (k : ℝ)⁻¹ = 1 := mul_inv_cancel₀ hk0.ne'
             linear_combination ((m.choose a : ℝ) + m.choose (a + 1)) * ((k : ℝ)⁻¹) ^ b *
               (((k : ℝ) - 1) * (k : ℝ)⁻¹) ^ (a + 1) * hkk
           _ ≤ (hit k m d + ((k : ℝ) - 1) * hit k m (d + 2)) / k := by gcongr
@@ -260,18 +257,18 @@ private theorem weight_le_middle {k : ℕ} (hk : 1 ≤ k) (i a : ℕ) :
   have hscale : ∀ b ≤ k * i, ((k * i).choose b * (k - 1) ^ (k * i - b) : ℕ) =
       (k : ℝ) ^ (k * i) * (((k * i).choose b : ℝ) * (1 / k) ^ b * (1 - 1 / k) ^ (k * i - b)) := by
     intro b hb
+    have hpow : (k : ℝ) ^ (k * i) = k ^ b * k ^ (k * i - b) := by
+      rw [← pow_add, Nat.add_sub_cancel' hb]
     have hsub : (1 : ℝ) - 1 / k = ((k - 1 : ℕ) : ℝ) / k := by
       rw [Nat.cast_sub hk, Nat.cast_one]; field_simp
-    rw [hsub, div_pow, div_pow, one_pow,
-      show (k : ℝ) ^ (k * i) = k ^ b * k ^ (k * i - b) by rw [← pow_add]; congr 1; omega]
+    rw [hsub, div_pow, div_pow, one_pow, hpow]
     push_cast
     field_simp
   have hmode := choose_mul_pow_le_mode (n := k * i) (w := i) (p := 1 / k) hi
     (by push_cast; field_simp) (by positivity) (div_le_one_of_le₀ (by exact_mod_cast hk) hk0.le) ha
-  have : (((k * i).choose a * (k - 1) ^ (k * i - a) : ℕ) : ℝ) ≤
-      (((k * i).choose i * (k - 1) ^ (k * i - i) : ℕ) : ℝ) := by
-    rw [hscale a ha, hscale i hi]; gcongr
-  exact_mod_cast this
+  refine (Nat.cast_le (α := ℝ)).mp ?_
+  rw [hscale a ha, hscale i hi]
+  gcongr
 
 /-- **The middle binomial weight**: `k^{ki} ≤ C(ki, i) (k - 1)^{ki - i} (ki + 1)`, since the middle
 weight is the largest of the `ki + 1` weights of `((k - 1) + 1)^{ki}`. -/
@@ -279,9 +276,8 @@ theorem pow_le_choose_mul (hk : 1 ≤ k) (i : ℕ) :
     k ^ (k * i) ≤ (k * i).choose i * (k - 1) ^ (k * i - i) * (k * i + 1) := by
   have hsum : k ^ (k * i) = ∑ a ∈ range (k * i + 1), (k * i).choose a * (k - 1) ^ (k * i - a) := by
     have h := add_pow (1 : ℕ) (k - 1) (k * i)
-    rw [show 1 + (k - 1) = k by omega] at h
-    rw [h]
-    exact sum_congr rfl fun a _ => by rw [one_pow, one_mul, mul_comm, Nat.cast_id]
+    rw [Nat.add_sub_of_le hk] at h
+    exact h.trans (sum_congr rfl fun a _ => by rw [one_pow, one_mul, mul_comm, Nat.cast_id])
   rw [hsum]
   calc
     ∑ a ∈ range (k * i + 1), (k * i).choose a * (k - 1) ^ (k * i - a) ≤
@@ -298,22 +294,17 @@ theorem inv_le_hit (hk : 3 ≤ k) (d : ℕ) :
   set i := d / (k - 2)
   set e := d % (k - 2)
   have hdie : (k - 2) * i + e = d := Nat.div_add_mod d (k - 2)
-  have he : e ≤ k - 3 := by
-    have := Nat.mod_lt d (show 0 < k - 2 by omega)
-    omega
+  have he : e < k - 2 := Nat.mod_lt d (by omega)
   have hlen : i + (i + d) = k * i + e := by
-    rw [← hdie]
-    obtain ⟨k', rfl⟩ : ∃ k', k = k' + 2 := ⟨k - 2, by omega⟩
-    simp only [Nat.add_sub_cancel]
-    ring
+    rw [← hdie, Nat.sub_mul]
+    have := Nat.mul_le_mul_right i hk
+    omega
   have hid : i ≤ d := Nat.div_le_self d (k - 2)
   have hki : k * i ≤ 3 * d := by omega
-  have hpath := choose_mul_le_hit (by omega : 1 ≤ k) i (i + d) d (by omega)
-  have hmono : hit k (i + (i + d)) d ≤ hit k (3 * d) d :=
-    hit_monotone (by omega) d (by omega)
-  refine le_trans ?_ (hpath.trans hmono)
+  refine le_trans ?_ ((choose_mul_le_hit (by omega) i (i + d) d (by omega)).trans
+    (hit_monotone (by omega) d (by omega)))
   -- The natural-number inequality behind the bound.
-  have hmode := pow_le_choose_mul (by omega : 1 ≤ k) i
+  have hmode := pow_le_choose_mul (k := k) (by omega) i
   have hnat : (k - 1) ^ (k - 3) * k ^ (i + (i + d)) ≤
       (i + (i + d)).choose i * (k - 1) ^ (i + d) * k ^ (k - 3) * (3 * d + 1) := by
     obtain ⟨f, hf⟩ : ∃ f, k - 3 = e + f := ⟨k - 3 - e, by omega⟩
@@ -334,7 +325,8 @@ theorem inv_le_hit (hk : 3 ≤ k) (d : ℕ) :
         gcongr
         omega
   -- Transfer to the reals: clear the common denominator `k^{k-3} (k-1)^d (3d+1) k^{2i+d}`.
-  have hpos1 : (0 : ℝ) < (k : ℝ) - 1 := by linarith [show (3 : ℝ) ≤ k from mod_cast hk]
+  have hk3 : (3 : ℝ) ≤ k := mod_cast hk
+  have hpos1 : (0 : ℝ) < (k : ℝ) - 1 := by linarith
   have hk0 : (0 : ℝ) < k := by linarith
   have hne : (k : ℝ) - 1 ≠ 0 := hpos1.ne'
   have hreal : ((k : ℝ) - 1) ^ (k - 3) * (k : ℝ) ^ (i + (i + d)) ≤
@@ -348,8 +340,7 @@ theorem inv_le_hit (hk : 3 ≤ k) (d : ℕ) :
   calc
     _ = ((k : ℝ) - 1) ^ (k - 3) * (k : ℝ) ^ (i + (i + d)) /
           ((k : ℝ) ^ (k - 3) * ((k : ℝ) - 1) ^ d * (3 * d + 1) * (k : ℝ) ^ (i + (i + d))) := by
-      simp only [div_pow, one_pow]
-      field_simp
+      simp only [div_pow, one_pow]; field_simp
     _ ≤ ((i + (i + d)).choose i : ℝ) * ((k : ℝ) - 1) ^ (i + d) * (k : ℝ) ^ (k - 3) *
           (3 * d + 1) /
           ((k : ℝ) ^ (k - 3) * ((k : ℝ) - 1) ^ d * (3 * d + 1) * (k : ℝ) ^ (i + (i + d))) :=
@@ -403,14 +394,11 @@ theorem hit_le_succeedProb (hk : 1 ≤ k) {φ : CNF V} {σs : V → Bool} (hs : 
     | none =>
       have hsat : φ.eval σ = true :=
         (CNF.eval_eq_true_iff _ _).2 fun c hc => by simpa using List.find?_eq_none.mp hfu c hc
-      simp only [succeedProb_pure, hsat, ite_true]
-      exact hit_le_one hk _ _
+      simpa only [succeedProb_pure, hsat, ite_true] using hit_le_one hk _ _
     | some c =>
       have hc : c ∈ φ := List.mem_of_find?_eq_some hfu
-      have hcσ : ∀ l ∈ c, σ l.1 ≠ l.2 := fun l hl hl' => by
-        have hfalse : c.eval σ = false := by simpa using List.find?_some hfu
-        exact Bool.false_ne_true
-          (hfalse.symm.trans ((Clause.eval_eq_true_iff σ c).mpr ⟨l, hl, hl'⟩))
+      have hcσ : ∀ l ∈ c, σ l.1 ≠ l.2 := fun l hl hl' =>
+        absurd ((Clause.eval_eq_true_iff σ c).mpr ⟨l, hl, hl'⟩) (by simpa using List.find?_some hfu)
       obtain ⟨l, hl, hls⟩ :=
         (Clause.eval_eq_true_iff σs c).mp ((CNF.eval_eq_true_iff σs φ).mp hs c hc)
       have hne : σ l.1 ≠ σs l.1 := hls ▸ hcσ l hl
@@ -426,9 +414,8 @@ theorem hit_le_succeedProb (hk : 1 ≤ k) {φ : CNF V} {σs : V → Bool} (hs : 
         rw [hammingDist_flip, hd]
         split_ifs <;> omega
       have hterm₀ : hit k t d ≤ f i₀ := by
-        have hdist : hammingDist (flipOn {(c.get i₀).1} σ) σs = d := by
-          rw [hi₀, hammingDist_flip, hd, ite_eq_right hne, Nat.succ_sub_one]
-        exact hdist ▸ ih _
+        simpa only [f, hi₀, hammingDist_flip, hd, ite_eq_right hne, Nat.succ_sub_one] using
+          ih (flipOn {(c.get i₀).1} σ)
       have hsum : hit k t d + ((c.length : ℝ) - 1) * hit k t (d + 2) ≤ ∑ i, f i := by
         rw [← add_sum_erase _ _ (mem_univ i₀)]
         refine add_le_add hterm₀ ((sum_le_sum fun i _ => hterm i).trans_eq' ?_)
@@ -454,14 +441,11 @@ coordinates. -/
 theorem sum_pow_hammingDist [DecidableEq V] (q : ℝ) (τ : V → Bool) :
     ∑ σ : V → Bool, q ^ hammingDist σ τ = (1 + q) ^ Fintype.card V := by
   have hprod (σ : V → Bool) : q ^ hammingDist σ τ = ∏ i, if σ i = τ i then 1 else q := by
-    rw [prod_ite, prod_const_one, one_mul, prod_const]
-    rfl
-  simp only [hprod]
-  rw [← Fintype.prod_sum (fun i b => if b = τ i then (1 : ℝ) else q)]
+    simp [prod_ite, hammingDist]
   have hb (i : V) : ∑ b : Bool, (if b = τ i then (1 : ℝ) else q) = 1 + q := by
-    rw [Fintype.sum_bool]
     cases τ i <;> simp [add_comm]
-  simp only [hb, prod_const, card_univ]
+  simp only [hprod, ← Fintype.prod_sum (fun i b => if b = τ i then (1 : ℝ) else q), hb,
+    prod_const, card_univ]
 
 /-- **Schöning's theorem for k-SAT, one trial.** For `k ≥ 3` and a satisfiable CNF formula on `n`
 variables whose clauses have at most `k` literals, one trial of Schöning's algorithm finds a
@@ -473,9 +457,8 @@ theorem trial_success_of_length_le (hk : 3 ≤ k) {φ : CNF V} (hφ : φ.Satisfi
         (3 * Fintype.card V + 1) ≤ succeedProb φ (trial φ) := by
   obtain ⟨σs, hs⟩ := hφ
   set n := Fintype.card V
-  have hk1 : (1 : ℝ) < (k : ℝ) - 1 := by
-    have : (3 : ℝ) ≤ k := by exact_mod_cast hk
-    linarith
+  have hk3 : (3 : ℝ) ≤ k := mod_cast hk
+  have hk1 : (1 : ℝ) < (k : ℝ) - 1 := by linarith
   set c := (((k : ℝ) - 1) / k) ^ (k - 3)
   have hc : 0 ≤ c := by positivity
   have hlow (σ : V → Bool) : c * (1 / ((k : ℝ) - 1)) ^ hammingDist σ σs / (3 * n + 1) ≤
@@ -495,23 +478,17 @@ theorem trial_success_of_length_le (hk : 3 ≤ k) {φ : CNF V} (hφ : φ.Satisfi
     c * ((k : ℝ) / (2 * ((k : ℝ) - 1))) ^ n / (3 * n + 1) =
         ∑ σ : V → Bool, ((2 : ℝ) ^ n)⁻¹ *
           (c * (1 / ((k : ℝ) - 1)) ^ hammingDist σ σs / (3 * n + 1)) := by
-      rw [← mul_sum, ← sum_div, ← mul_sum, sum_pow_hammingDist]
-      have : (1 + 1 / ((k : ℝ) - 1)) = (k : ℝ) / ((k : ℝ) - 1) := by
-        field_simp
-        ring
-      rw [this, div_pow, div_pow, mul_pow, show Fintype.card V = n from rfl]
-      field_simp
-    _ ≤ ∑ σ : V → Bool, ((2 : ℝ) ^ n)⁻¹ * succeedProb φ (walk φ (3 * n) σ) := by
-      gcongr with σ
-      exact hlow σ
+      have h1 : 1 + 1 / ((k : ℝ) - 1) = k / ((k : ℝ) - 1) := by field_simp; ring
+      rw [← mul_sum, ← sum_div, ← mul_sum, sum_pow_hammingDist, h1, div_pow, div_pow, mul_pow]
+      dsimp only [n]; field_simp
+    _ ≤ ∑ σ : V → Bool, ((2 : ℝ) ^ n)⁻¹ * succeedProb φ (walk φ (3 * n) σ) :=
+      sum_le_sum fun σ _ => mul_le_mul_of_nonneg_left (hlow σ) (by positivity)
 
 /-- **Schöning's theorem for 3-SAT, one trial.** For a satisfiable CNF formula on `n` variables
 whose clauses have at most three literals, one trial of Schöning's algorithm finds a satisfying
 assignment with probability at least `(3 / 4) ^ n / (3 n + 1)`. -/
 theorem trial_success {φ : CNF V} (hφ : φ.Satisfiable) (h3 : ∀ c ∈ φ, c.length ≤ 3) :
-    (3 / 4 : ℝ) ^ Fintype.card V / (3 * Fintype.card V + 1) ≤ succeedProb φ (trial φ) := by
-  have h := trial_success_of_length_le (le_refl 3) hφ h3
-  norm_num at h ⊢
-  exact h
+    (3 / 4 : ℝ) ^ Fintype.card V / (3 * Fintype.card V + 1) ≤ succeedProb φ (trial φ) :=
+  (trial_success_of_length_le le_rfl hφ h3).trans' (by norm_num)
 
 end Cslib.Complexity.Schoening

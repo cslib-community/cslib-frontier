@@ -126,10 +126,8 @@ private theorem length_cellCandidates (M k : ℕ) :
 private theorem length_cellCandidates_pow_le (bits k : ℕ) :
     (cellCandidates (2 ^ bits) k).length ≤ k.size + bits + 6 := by
   have hk : (2 * k + 1).size ≤ k.size + 1 := by
-    apply Nat.size_le.mpr
-    rw [pow_succ]
-    have := Nat.lt_size_self k
-    omega
+    rw [Nat.size_le, pow_succ]
+    linarith [Nat.lt_size_self k]
   rw [length_cellCandidates, ← pow_succ', Nat.size_pow]
   omega
 
@@ -153,10 +151,7 @@ private theorem euclidConvergent_height_size (i : ℕ) (p : ℕ × ℕ) :
   | succ i ih =>
     have hquot := quotient_height_size p
     let q := euclidConvergent i (gcdStep p)
-    have hinv : (q⁻¹).height = q.height := by
-      by_cases hq : q = 0
-      · simp [hq]
-      · exact height_inv hq
+    have hinv : (q⁻¹).height = q.height := by by_cases hq : q = 0 <;> simp [hq, height_inv]
     have hq : q.height.size ≤ (i + 1) * ((max p.1 p.2).size + 3) :=
       (ih (gcdStep p)).trans
         (Nat.mul_le_mul_left (i + 1) (Nat.add_le_add_right
@@ -350,19 +345,14 @@ private theorem euclidConvergent_polyTime :
       dsimp only [init]
       rw [convergentStep_iterate _ _ _ hj]
       let n := (input x).length
-      have hi := length_le_encPair_right encEuclidPair encUnary x
-      rw [encUnary_apply, List.length_replicate] at hi
-      change x.2 ≤ n at hi
-      let operands := x.1
-      have hp : (max operands.1 operands.2).size ≤ n := by
-        have h : (encEuclidPair operands).length ≤ n :=
+      have hi : x.2 ≤ n := by
+        simpa only [encUnary_apply, List.length_replicate] using
+          length_le_encPair_right encEuclidPair encUnary x
+      have hp : (max x.1.1 x.1.2).size ≤ n := by
+        have h : (encEuclidPair x.1).length ≤ n :=
           length_le_encPair_left encEuclidPair encUnary x
         simp only [encEuclidPair, length_encPair, encNat_apply, Nat.size_eq_bits_len] at h
-        rcases le_total operands.1 operands.2 with hle | hle
-        · rw [max_eq_right hle]
-          omega
-        · rw [max_eq_left hle]
-          omega
+        rcases max_choice x.1.1 x.1.2 with hmax | hmax <;> rw [hmax] <;> omega
       let q := euclidConvergent j (gcdStep^[x.2 - j] x.1)
       have hq : q.height.size ≤ (n + 1) * (n + 3) :=
         (euclidConvergent_height_size j _).trans (Nat.mul_le_mul
@@ -372,15 +362,12 @@ private theorem euclidConvergent_polyTime :
         length_encRat_le q (le_max_left _ _) (le_max_right _ _)
       change (encPair encUnary encRat (x.2 - j, q)).length ≤
         2 * n + 3 * (n + 1) * (n + 3) + 4
-      rw [length_encPair]
-      simp only [encUnary_apply, List.length_replicate]
-      have := Nat.mul_le_mul_left 3 hq
-      simp only [← Nat.mul_assoc] at this
+      simp only [length_encPair, encUnary_apply, List.length_replicate]
+      have h3q : 3 * q.height.size ≤ 3 * (n + 1) * (n + 3) :=
+        Nat.mul_assoc 3 _ _ ▸ Nat.mul_le_mul_left 3 hq
       omega)
-  refine hloop.snd'.of_enc_eq fun x => ?_
-  dsimp only [init]
-  rw [convergentStep_iterate _ _ _ le_rfl, Nat.sub_self]
-  rfl
+  exact hloop.snd'.of_enc_eq fun x => by
+    simp only [init, convergentStep_iterate _ _ _ le_rfl, Nat.sub_self, Function.iterate_zero, id]
 
 private theorem midpointConvergents_polyTime :
     ComputableInPolyTime

@@ -98,8 +98,7 @@ theorem toReal_klDiv_tilted_right {μ ν : Measure α} [IsProbabilityMeasure μ]
 private theorem llr_tilted_self_ae {ν : Measure α} [IsProbabilityMeasure ν] {f : α → ℝ}
     (hfν : Integrable (fun x => exp (f x)) ν) :
     llr (ν.tilted f) ν =ᵐ[ν.tilted f] fun x => f x - log (∫ z, exp (f z) ∂ν) := by
-  have hf_meas : AEMeasurable f ν := aemeasurable_of_aemeasurable_exp hfν.1.aemeasurable
-  have h1 := llr_tilted_left (Measure.AbsolutelyContinuous.refl ν) hfν hf_meas
+  have h1 := llr_tilted_left (.refl ν) hfν (aemeasurable_of_aemeasurable_exp hfν.1.aemeasurable)
   refine (tilted_absolutelyContinuous ν f).ae_le ?_
   filter_upwards [h1, llr_self ν] with x hx h0
   rw [hx, h0, Pi.zero_apply, add_zero]
@@ -110,9 +109,8 @@ theorem klDiv_tilted_self_ne_top {ν : Measure α} [IsProbabilityMeasure ν] {f 
     (hfν : Integrable (fun x => exp (f x)) ν) (hft : Integrable f (ν.tilted f)) :
     klDiv (ν.tilted f) ν ≠ ⊤ := by
   have : IsProbabilityMeasure (ν.tilted f) := isProbabilityMeasure_tilted hfν
-  refine klDiv_ne_top (tilted_absolutelyContinuous ν f) ?_
-  rw [integrable_congr (llr_tilted_self_ae hfν)]
-  exact hft.sub (integrable_const _)
+  exact klDiv_ne_top (tilted_absolutelyContinuous ν f)
+    ((integrable_congr (llr_tilted_self_ae hfν)).mpr (hft.sub (integrable_const _)))
 
 /-- **Equality case of the change-of-measure inequality**: the exponentially tilted measure
 `ν.tilted f` satisfies `KL(ν.tilted f ‖ ν) = ∫ f ∂(ν.tilted f) - log ∫ exp f ∂ν`. -/
@@ -121,9 +119,8 @@ theorem toReal_klDiv_tilted_self {ν : Measure α} [IsProbabilityMeasure ν] {f 
     (klDiv (ν.tilted f) ν).toReal =
       ∫ x, f x ∂(ν.tilted f) - log (∫ x, exp (f x) ∂ν) := by
   have : IsProbabilityMeasure (ν.tilted f) := isProbabilityMeasure_tilted hfν
-  rw [toReal_klDiv_of_measure_eq (tilted_absolutelyContinuous ν f) (by simp),
+  simp [toReal_klDiv_of_measure_eq (tilted_absolutelyContinuous ν f),
     integral_congr_ae (llr_tilted_self_ae hfν), integral_sub hft (integrable_const _)]
-  simp
 
 /-! ### Donsker–Varadhan variational duality -/
 
@@ -137,13 +134,11 @@ theorem log_integral_exp_eq_sSup {ν : Measure α} [IsProbabilityMeasure ν] {f 
         Integrable f μ ∧ r = ∫ x, f x ∂μ - (klDiv μ ν).toReal } := by
   set S : Set ℝ := { r : ℝ | ∃ μ : Measure α, IsProbabilityMeasure μ ∧ klDiv μ ν ≠ ⊤ ∧
     Integrable f μ ∧ r = ∫ x, f x ∂μ - (klDiv μ ν).toReal }
-  have hmem : log (∫ x, exp (f x) ∂ν) ∈ S := by
-    refine ⟨ν.tilted f, isProbabilityMeasure_tilted hfν, klDiv_tilted_self_ne_top hfν hft, hft, ?_⟩
-    linarith [toReal_klDiv_tilted_self hfν hft]
-  have hbdd : ∀ r ∈ S, r ≤ log (∫ x, exp (f x) ∂ν) := by
-    rintro _ ⟨μ, hμ, hkl, hfμ, rfl⟩
-    have := Cslib.Probability.integral_le_toReal_klDiv_add_log_integral_exp hkl hfμ hfν
-    linarith
+  have hmem : log (∫ x, exp (f x) ∂ν) ∈ S :=
+    ⟨ν.tilted f, isProbabilityMeasure_tilted hfν, klDiv_tilted_self_ne_top hfν hft, hft,
+      by linarith [toReal_klDiv_tilted_self hfν hft]⟩
+  have hbdd : ∀ r ∈ S, r ≤ log (∫ x, exp (f x) ∂ν) := fun _ ⟨_, _, hkl, hfμ, hr⟩ => by
+    linarith [hr, Cslib.Probability.integral_le_toReal_klDiv_add_log_integral_exp hkl hfμ hfν]
   exact le_antisymm (le_csSup ⟨log (∫ x, exp (f x) ∂ν), hbdd⟩ hmem)
     (csSup_le ⟨_, hmem⟩ hbdd)
 
@@ -166,8 +161,7 @@ theorem toReal_klDiv_eq_sSup {μ ν : Measure α} [IsProbabilityMeasure μ] [IsP
       Integrable.of_bound hfm.exp.aestronglyMeasurable (exp C) (ae_of_all _ fun x => by
         rw [Real.norm_of_nonneg (exp_pos _).le]
         exact exp_le_exp.mpr (le_trans (le_abs_self _) (hC x)))
-    have := Cslib.Probability.integral_le_toReal_klDiv_add_log_integral_exp hkl hfμ hfν
-    linarith
+    linarith [Cslib.Probability.integral_le_toReal_klDiv_add_log_integral_exp hkl hfμ hfν]
   have hbdd : BddAbove S := ⟨(klDiv μ ν).toReal, hle⟩
   refine le_antisymm ?_
     (csSup_le ⟨0, fun _ => 0, measurable_const, ⟨0, fun _ => by simp⟩, by simp⟩ hle)
@@ -182,16 +176,15 @@ theorem toReal_klDiv_eq_sSup {μ ν : Measure α} [IsProbabilityMeasure μ] [IsP
   have hf_bound (n : ℕ) (x : α) : |f n x| ≤ (n : ℝ) := by
     dsimp only [f]
     split_ifs
-    · rw [abs_neg, abs_of_nonneg (Nat.cast_nonneg n)]
-    · rw [abs_le]
-      exact ⟨le_max_left _ _, max_le (by linarith [Nat.cast_nonneg (α := ℝ) n]) (min_le_left _ _)⟩
+    · simp
+    · exact abs_le.2 ⟨le_max_left _ _, max_le (neg_le_self (Nat.cast_nonneg n)) (min_le_left _ _)⟩
   have hf_le_llr (n : ℕ) : ∀ᵐ x ∂μ, ‖f n x‖ ≤ ‖llr μ ν x‖ := by
     filter_upwards [Measure.rnDeriv_pos hac] with x hx
     simp only [f, hx.ne', ↓reduceIte, Real.norm_eq_abs]
-    have := abs_nonneg (llr μ ν x)
-    have hn : (0 : ℝ) ≤ n := Nat.cast_nonneg n
-    exact abs_le.2 ⟨(le_min (by linarith) (neg_abs_le _)).trans (le_max_right _ _),
-      max_le (by linarith) ((min_le_right _ _).trans (le_abs_self _))⟩
+    have h0 : -|llr μ ν x| ≤ n := (neg_nonpos.2 (abs_nonneg _)).trans (Nat.cast_nonneg n)
+    exact abs_le.2 ⟨(le_min h0 (neg_abs_le _)).trans (le_max_right _ _),
+      max_le ((neg_nonpos.2 (Nat.cast_nonneg n)).trans (abs_nonneg _))
+        ((min_le_right _ _).trans (le_abs_self _))⟩
   have hf_tendsto : ∀ᵐ x ∂μ, Tendsto (fun n => f n x) atTop (𝓝 (llr μ ν x)) := by
     filter_upwards [Measure.rnDeriv_pos hac] with x hx
     refine tendsto_atTop_of_eventually_const (i₀ := Nat.ceil |llr μ ν x|) fun n hn => ?_
@@ -206,9 +199,8 @@ theorem toReal_klDiv_eq_sSup {μ ν : Measure α} [IsProbabilityMeasure μ] [IsP
     integrable_toReal_of_lintegral_ne_top (μ.measurable_rnDeriv ν).aemeasurable
       (by rw [Measure.lintegral_rnDeriv hac]; simp)
   have hrn_val : ∫ x, (μ.rnDeriv ν x).toReal ∂ν = 1 := by
-    rw [integral_toReal (μ.measurable_rnDeriv ν).aemeasurable (Measure.rnDeriv_lt_top μ ν),
-      Measure.lintegral_rnDeriv hac]
-    simp
+    simpa [Measure.lintegral_rnDeriv hac] using
+      integral_toReal (μ.measurable_rnDeriv ν).aemeasurable (Measure.rnDeriv_lt_top μ ν)
   have hlog_le (n : ℕ) : log (∫ x, exp (f n x) ∂ν) ≤ exp (-(n : ℝ)) := by
     have hexp_int : Integrable (fun x => exp (f n x)) ν :=
       Integrable.of_bound (hf_meas n).exp.aestronglyMeasurable (exp n) (ae_of_all _ fun x => by
@@ -230,9 +222,8 @@ theorem toReal_klDiv_eq_sSup {μ ν : Measure α} [IsProbabilityMeasure μ] [IsP
       ((log_le_sub_one_of_pos (by positivity)).trans_eq (by ring))
   have hlim : Tendsto (fun n : ℕ => ∫ x, f n x ∂μ - exp (-(n : ℝ))) atTop
       (𝓝 (klDiv μ ν).toReal) := by
-    have h2 : Tendsto (fun n : ℕ => exp (-(n : ℝ))) atTop (𝓝 0) :=
-      tendsto_exp_atBot.comp (tendsto_neg_atTop_atBot.comp tendsto_natCast_atTop_atTop)
-    simpa only [sub_zero, hkl_eq] using hlim_int.sub h2
+    simpa only [Function.comp_def, sub_zero, hkl_eq] using hlim_int.sub
+      (tendsto_exp_atBot.comp (tendsto_neg_atTop_atBot.comp tendsto_natCast_atTop_atTop))
   exact le_of_tendsto' hlim fun n => by
     linarith [le_csSup hbdd (⟨f n, hf_meas n, ⟨n, hf_bound n⟩, rfl⟩ : _ ∈ S), hlog_le n]
 

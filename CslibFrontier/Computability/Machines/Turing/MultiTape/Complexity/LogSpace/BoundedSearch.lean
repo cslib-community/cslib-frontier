@@ -132,29 +132,24 @@ theorem computableInPolyTime_boundedSearch {α : Type} {enc : α ↪ List Bool} 
     (hpoly : PolyBounded (fun a => (enc a).length) s) :
     ComputableInPolyTime (fun x : α × ℕ => ntm.boundedSearch (enc x.1) x.2 x.2)
       (encPair enc encUnary) (encList encFiniteCfg) := by
-  have hN : ComputableInPolyTime (fun x : α × ℕ => x.2) (encPair enc encUnary) encUnary :=
-    ComputableInPolyTime.snd _ _
   have hinit : ComputableInPolyTime (fun x : α × ℕ => ntm.initView (enc x.1))
       (encPair enc encUnary) encFiniteCfg :=
-    ComputableInPolyTime.finiteCfg_init ((ComputableInPolyTime.of_eq (encIn := enc)
-      (encOut := encBits) (f := fun a => enc a) fun _ => rfl).comp (ComputableInPolyTime.fst _ _))
-      ntm.q₀
+    .finiteCfg_init
+      ((ComputableInPolyTime.of_eq (f := fun a => enc a) fun _ => rfl).comp (.fst _ _)) ntm.q₀
   -- a truncated round
   have hstep : ComputableInPolyTime (fun p : ℕ × List (FiniteCfg k Bool State) =>
       (Cslib.Reachability.expand ntm.viewSucc p.2).take p.1)
       (encPair encUnary (encList encFiniteCfg)) (encList encFiniteCfg) :=
-    ComputableInPolyTime.listTakeWithInput
-      ((ComputableInPolyTime.expand computableInPolyTime_viewSucc).comp
-        (ComputableInPolyTime.snd _ _)) (ComputableInPolyTime.fst _ _)
+    .listTakeWithInput ((ComputableInPolyTime.expand computableInPolyTime_viewSucc).comp
+      (.snd _ _)) (.fst _ _)
   -- the size of the lists of views
   have hbound : PolyBounded (fun x : α × ℕ => (encPair enc encUnary x).length) fun x =>
       (x.2 + 1) * (2 * viewLengthBound k State (enc x.1).length (s x.1) + 1) := by growth_poly
   refine ComputableInPolyTime.iterateWith (step := fun N found =>
-    (Cslib.Reachability.expand ntm.viewSucc found).take N) hN hN
-    (ComputableInPolyTime.cons' hinit (ComputableInPolyTime.const [])) hstep hbound ?_
-  intro x i _
-  refine (length_encList_le encFiniteCfg (ntm.boundedSearch (enc x.1) x.2 i) fun f hf =>
-    length_encFiniteCfg_le (hs x.1) (reflTransGen_of_mem_boundedSearch hf)).trans ?_
-  exact Nat.mul_le_mul_right _ (length_boundedSearch_le _ _ _)
+    (Cslib.Reachability.expand ntm.viewSucc found).take N) (.snd _ _) (.snd _ _)
+    (.cons' hinit (.const [])) hstep hbound fun x i _ => ?_
+  exact (length_encList_le encFiniteCfg _ fun _ hf =>
+    length_encFiniteCfg_le (hs x.1) (reflTransGen_of_mem_boundedSearch hf)).trans
+    (Nat.mul_le_mul_right _ (length_boundedSearch_le _ _ _))
 
 end Turing.MultiTapeNTM

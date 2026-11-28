@@ -190,17 +190,13 @@ private theorem eval_eq_coeff_pow_add_qsPolySum {d : ℕ} {P : Polynomial R} (hd
     (delta : R) :
     P.eval delta = P.coeff d * delta ^ d + qsPolySum d (fun k => P.coeff k) delta := by
   rw [Polynomial.eval_eq_sum_range' (Nat.lt_succ_of_le hdeg), Finset.sum_range_succ, add_comm,
-    qsPolySum]
-  congr 1
-  symm
-  exact Fin.sum_univ_eq_sum_range (fun k => P.coeff k * delta ^ k) d
+    qsPolySum, ← Fin.sum_univ_eq_sum_range (fun k => P.coeff k * delta ^ k) d]
 
 private theorem coeff_qsWirePoly_eq_one {n : ℕ} (w v : Fin n → R) (i : Fin n) :
     (qsWirePoly w v i).natDegree ≤ 1 ∧ (qsWirePoly w v i).coeff 1 = w i := by
-  refine ⟨?_, ?_⟩
-  · refine (Polynomial.natDegree_add_le _ _).trans (max_le (by simp) ?_)
-    exact (Polynomial.natDegree_C_mul_le _ _).trans Polynomial.natDegree_X_le
-  · simp [qsWirePoly]
+  exact ⟨(Polynomial.natDegree_add_le _ _).trans
+    (max_le (by simp) ((Polynomial.natDegree_C_mul_le _ _).trans Polynomial.natDegree_X_le)),
+    by simp [qsWirePoly]⟩
 
 private theorem natDegree_mul_le_and_coeff {p q : Polynomial R} {kp kq : ℕ}
     (hp : p.natDegree ≤ kp) (hq : q.natDegree ≤ kq) :
@@ -232,8 +228,7 @@ private theorem natDegree_prod_le_and_coeff {ι : Type} (s : Finset ι)
   induction s using Finset.induction with
   | empty => simp
   | insert i s hi ih =>
-    have hfs : ∀ j ∈ s, (f j).natDegree ≤ k j := fun j hj => hf j (Finset.mem_insert_of_mem hj)
-    obtain ⟨hdeg, hcoeff⟩ := ih hfs
+    obtain ⟨hdeg, hcoeff⟩ := ih fun j hj => hf j (Finset.mem_insert_of_mem hj)
     rw [Finset.prod_insert hi, Finset.sum_insert hi, Finset.prod_insert hi]
     exact (natDegree_mul_le_and_coeff (hf i (Finset.mem_insert_self i s)) hdeg).imp id
       fun h => by rw [h, hcoeff]
@@ -289,10 +284,9 @@ private theorem natDegree_and_coeff_qsHomogPoly {n : ℕ} (d : ℕ) (F_poly : Mv
     intro m hm
     have hm_le : (m.sum fun _ e => e) ≤ d := (monomial_degree_le_totalDegree hm).trans hdeg
     have hm_sum : (∑ i : Fin n, m i * 1) = m.sum fun _ e => e := by
-      simp only [mul_one, Finsupp.sum]
-      symm
-      exact Finset.sum_subset (Finset.subset_univ m.support) fun i _ hi =>
-        Finsupp.notMem_support_iff.mp hi
+      simpa only [mul_one, Finsupp.sum] using
+        (Finset.sum_subset (Finset.subset_univ m.support) fun _ _ hi =>
+          Finsupp.notMem_support_iff.mp hi).symm
     have hprod := natDegree_prod_le_and_coeff (Finset.univ : Finset (Fin n))
       (fun i => qsWirePoly w v i ^ m i) (fun i => m i * 1) fun i _ =>
         (natDegree_pow_le_and_coeff (qsWirePoly w v i) (coeff_qsWirePoly_eq_one w v i).1
@@ -310,14 +304,12 @@ private theorem natDegree_and_coeff_qsHomogPoly {n : ℕ} (d : ℕ) (F_poly : Mv
     have hmul := natDegree_mul_le_and_coeff hleft hprod.1
     rw [Nat.sub_add_cancel hm_le] at hmul
     refine ⟨hmul.1, ?_⟩
-    rw [hmul.2]
-    simp only [Polynomial.coeff_C_mul, Polynomial.coeff_X_pow_self, mul_one]
+    simp only [hmul.2, Polynomial.coeff_C_mul, Polynomial.coeff_X_pow_self, mul_one]
     congr 1
     simpa only [hm_sum, hpow_coeff] using hprod.2
   refine ⟨Polynomial.natDegree_sum_le_of_forall_le _ _ fun m hm => (hterm m hm).1, ?_⟩
   rw [qsHomogPoly, Polynomial.finsetSum_coeff, MvPolynomial.eval_eq']
-  refine Finset.sum_congr rfl fun m hm => ?_
-  rw [(hterm m hm).2]
+  exact Finset.sum_congr rfl fun m hm => (hterm m hm).2
 
 /-- When `F_poly.totalDegree ≤ d`, the homogenized polynomial `qsHomogPoly d F_poly w v` has
 `natDegree ≤ d`. -/
@@ -378,24 +370,10 @@ theorem qsPolySum_qsMaskCoeff (d : ℕ) (u v : Fin (d - 1) → R) (delta : R) :
   · simp [qsPolySum, qsMaskCoeff]
   · simp [qsPolySum, qsMaskCoeff]
   · simp only [qsPolySum, qsMaskCoeff, add_mul, Finset.sum_add_distrib]
-    have hv : (∑ j : Fin (m + 2),
-        (if hj : j.val < m + 1 then v ⟨j.val, hj⟩ else 0) * delta ^ (j : ℕ)) =
-        ∑ k : Fin (m + 1), v k * delta ^ (k : ℕ) := by
-      rw [Fin.sum_univ_castSucc]
-      simp only [Fin.val_castSucc, Fin.val_last, lt_irrefl, ↓reduceDIte, zero_mul, add_zero]
-      exact Finset.sum_congr rfl fun k _ => by simp only [k.isLt, ↓reduceDIte, Fin.eta]
-    have hu : (∑ j : Fin (m + 2),
-        (if hj0 : 0 < j.val then u ⟨j.val - 1, by omega⟩ else 0) * delta ^ (j : ℕ)) =
-        ∑ k : Fin (m + 1), u k * delta * delta ^ (k : ℕ) := by
-      rw [Fin.sum_univ_succ]
-      simp only [Fin.val_zero, lt_irrefl, ↓reduceDIte, zero_mul, zero_add, Fin.val_succ,
-        Nat.succ_pos, Nat.add_sub_cancel, Fin.eta, pow_succ', mul_assoc]
-    change (∑ j : Fin (m + 2),
-        (if hj : j.val < m + 1 then v ⟨j.val, hj⟩ else 0) * delta ^ (j : ℕ)) +
-      (∑ j : Fin (m + 2),
-        (if hj0 : 0 < j.val then u ⟨j.val - 1, by omega⟩ else 0) * delta ^ (j : ℕ)) = _
-    rw [hv, hu, ← Finset.sum_add_distrib]
-    conv_rhs => rw [← Finset.sum_add_distrib]
+    rw [Fin.sum_univ_castSucc (n := m + 1), Fin.sum_univ_succ (n := m + 1)]
+    simp only [Fin.val_castSucc, Fin.is_lt, Fin.val_last, Fin.val_zero, Fin.val_succ, lt_irrefl,
+      Nat.succ_pos, Nat.add_sub_cancel, ↓reduceDIte, Fin.eta, zero_mul, add_zero, zero_add,
+      pow_succ', ← Finset.sum_add_distrib]
     exact Finset.sum_congr rfl fun k _ => by ring
 
 /-- When `q_m k = u k * delta + v k` for all `k : Fin (d - 1)`, `qsPolySum` on `qsMaskCoeff`
@@ -474,9 +452,7 @@ theorem qsMaskedCheckReply_correct (d : ℕ) (constraints : ι → MvPolynomial 
   simp only [qsPolySum, qsMaskedCheckReply, c_w, add_mul, Finset.sum_add_distrib, Finset.mul_sum,
     ← mul_assoc]
   rw [Finset.sum_comm]
-  congr 1
-  refine Finset.sum_congr rfl fun j _ => ?_
-  rw [Finset.sum_mul]
+  exact congrArg (· + _) (Finset.sum_congr rfl fun _ _ => (Finset.sum_mul _ _ _).symm)
 
 variable [Fintype F] [DecidableEq F] [DecidableEq ι]
 
@@ -614,8 +590,7 @@ theorem qsMaskedCheck_complete (d : ℕ) (constraints : ι → MvPolynomial (Fin
     simp only [interp_norm, pmf_norm, qsMaskedCheck, liftProver, runStrategy, qsMaskedCheckSpec,
       threeMoveSpec, voleWorld, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
       ProbOracleComp.runWith_pure, pure_bind, VOLECorrelation.senderView]
-    apply PMF.bind_congr_on_support
-    intro c hc
+    refine PMF.bind_congr_on_support _ _ _ fun c hc => ?_
     rw [← OracleComp.substitute_eq_interpret]
     erw [bind_runWith_voleWorld_sample_uniform]
     congr 1 with r : 1
@@ -676,18 +651,12 @@ private theorem qsMaskedView_fixed {d : ℕ} (hd : 1 ≤ d)
     have hv_w_fun :
         (fun i => v₁ (Fin.castAdd (d - 1) i)) = fun i => v₂ (Fin.castAdd (d - 1) i) :=
       funext fun i => by
-        have hqi := congrFun hq (Fin.castAdd (d - 1) i)
-        dsimp only [voleSample] at hqi
-        rw [hu_w i] at hqi
-        exact add_left_cancel hqi
-    have hm_ind : ∀ bound : ℕ, ∀ k : Fin (d - 1), (d - 1) - k.val ≤ bound →
+        simpa [voleSample, hu_w i] using congrFun hq (Fin.castAdd (d - 1) i)
+    have hm_ind (bound : ℕ) : ∀ k : Fin (d - 1), (d - 1) - k.val ≤ bound →
         u₁ (Fin.natAdd n k) = u₂ (Fin.natAdd n k) ∧
         v₁ (Fin.natAdd n k) = v₂ (Fin.natAdd n k) := by
-      intro bound
       induction bound with
-      | zero =>
-        intro k hk
-        exact absurd k.isLt (by omega)
+      | zero => exact fun k _ => absurd k.isLt (by omega)
       | succ b ih =>
         intro k hk
         have hhi_k := congrFun hhi k
@@ -700,10 +669,7 @@ private theorem qsMaskedView_fixed {d : ℕ} (hd : 1 ≤ d)
             exact add_left_cancel (add_left_cancel hhi_k)
           · simp only [hk_lt, ↓reduceDIte, zero_add] at hhi_k
             exact add_left_cancel hhi_k
-        have hqk := congrFun hq (Fin.natAdd n k)
-        dsimp only [voleSample] at hqk
-        rw [hu_k] at hqk
-        exact ⟨hu_k, add_left_cancel hqk⟩
+        exact ⟨hu_k, by simpa [voleSample, hu_k] using congrFun hq (Fin.natAdd n k)⟩
     have hu : u₁ = u₂ := funext fun x => by
       cases x using Fin.addCases with
       | left i => exact hu_w i
@@ -721,8 +687,7 @@ private theorem qsMaskedView_fixed {d : ℕ} (hd : 1 ≤ d)
           ∑ k : Fin m,
             qsMaskedCheckReply (m + 1) constraints w uv.1 uv.2 r ⟨k.val + 1, by omega⟩ *
               delta ^ (k.val + 1) := by
-      rw [qsPolySum, Fin.sum_univ_succ]
-      simp only [Fin.val_zero, pow_zero, mul_one, Fin.val_succ]
+      simp only [qsPolySum, Fin.sum_univ_succ, Fin.val_zero, pow_zero, mul_one, Fin.val_succ]
       rfl
     have hc0 :
         qsMaskedCheckValue (m + 1) constraints delta (fun x => uv.1 x * delta + uv.2 x)
@@ -732,20 +697,14 @@ private theorem qsMaskedView_fixed {d : ℕ} (hd : 1 ≤ d)
               delta ^ (k.val + 1) =
           qsMaskedCheckReply (m + 1) constraints w uv.1 uv.2 r ⟨0, Nat.succ_pos _⟩ :=
       sub_eq_iff_eq_add.mpr (by rw [hc, hsum, add_comm])
-    congr 2
-    congr 1
-    congr 1
-    congr 1
-    funext j
+    refine congrArg PMF.pure
+      (Prod.ext rfl (Prod.ext rfl (Prod.ext rfl (Prod.ext (funext fun j => ?_) rfl))))
     by_cases hj : j.val = 0
     · simp only [consReply, hj, ↓reduceDIte]
-      rw [show (j : Fin (m + 1)) = ⟨0, Nat.succ_pos _⟩ from Fin.ext hj]
-      exact hc0.symm
+      exact (congrArg _ (Fin.ext hj)).trans hc0.symm
     · simp only [consReply, hj, ↓reduceDIte]
-      congr 1
-      ext
-      dsimp only
-      omega
+      exact congrArg (qsMaskedCheckReply (m + 1) constraints w uv.1 uv.2 r)
+        (Fin.ext (Nat.sub_add_cancel (Nat.pos_of_ne_zero hj)).symm)
 
 /-- Exact simulation of the entire honest receiver view in `voleWorld F (n + (d - 1))` for any
 degree `d ≥ 1` and any degree-`≤ d` constraint family over a finite commutative ring. The view
@@ -781,28 +740,22 @@ private theorem eval_qsDiffPoly (d : ℕ) (P : Polynomial F) (a : Fin d → F) (
 private theorem coeff_qsDiffPoly_top (d : ℕ) (P : Polynomial F) (a : Fin d → F) :
     (qsDiffPoly d P a).coeff d = P.coeff d := by
   rw [qsDiffPoly, Polynomial.coeff_sub, Polynomial.finsetSum_coeff]
-  have hsum : (∑ k : Fin d, (Polynomial.C (a k) * Polynomial.X ^ (k : ℕ)).coeff d) = 0 := by
-    refine Finset.sum_eq_zero fun k _ => ?_
-    rw [Polynomial.coeff_C_mul, Polynomial.coeff_X_pow,
-      ite_eq_right_iff.mpr fun h => (Nat.ne_of_gt k.isLt h).elim, mul_zero]
-  rw [hsum, sub_zero]
+  refine sub_eq_self.mpr (Finset.sum_eq_zero fun k _ => ?_)
+  rw [Polynomial.coeff_C_mul, Polynomial.coeff_X_pow,
+    ite_eq_right_iff.mpr fun h => (Nat.ne_of_gt k.isLt h).elim, mul_zero]
 
 private theorem qsDiffPoly_ne_zero (d : ℕ) (P : Polynomial F) (a : Fin d → F)
     (hne : P.coeff d ≠ 0) :
     qsDiffPoly d P a ≠ 0 := by
-  intro h
-  have hc := coeff_qsDiffPoly_top d P a
-  rw [h, Polynomial.coeff_zero] at hc
-  exact hne hc.symm
+  exact fun h => hne ((coeff_qsDiffPoly_top d P a).symm.trans (by simp [h]))
 
 private theorem natDegree_qsDiffPoly_le {d : ℕ} {P : Polynomial F} (hdeg : P.natDegree ≤ d)
     (a : Fin d → F) :
     (qsDiffPoly d P a).natDegree ≤ d := by
-  rw [qsDiffPoly]
-  refine (Polynomial.natDegree_sub_le _ _).trans (max_le hdeg ?_)
-  refine Polynomial.natDegree_sum_le_of_forall_le _ _ fun k _ => ?_
-  exact (Polynomial.natDegree_C_mul_le _ _).trans <|
-    (Polynomial.natDegree_X_pow_le _).trans (Nat.le_of_lt k.isLt)
+  refine (Polynomial.natDegree_sub_le _ _).trans
+    (max_le hdeg (Polynomial.natDegree_sum_le_of_forall_le _ _ fun k _ => ?_))
+  exact (Polynomial.natDegree_C_mul_le _ _).trans
+    ((Polynomial.natDegree_X_pow_le _).trans k.isLt.le)
 
 /-- For any injective challenge map `ι : C ↪ F` and any polynomial `P` of degree at most `d` with
 nonzero degree-`d` coefficient, at most `d` challenges satisfy `P.eval (ι c) = qsPolySum d a (ι c)`.
@@ -815,11 +768,9 @@ theorem card_filter_qsCheck_le {C : Type} [Fintype C] [DecidableEq F]
   have hsub : (Finset.univ.filter fun c : C => P.eval (ι c) = qsPolySum d a (ι c)).image ι ⊆
       (qsDiffPoly d P a).roots.toFinset := by
     intro x hx
-    rw [Finset.mem_image] at hx
-    obtain ⟨c, hc, rfl⟩ := hx
-    rw [Multiset.mem_toFinset, Polynomial.mem_roots hp, Polynomial.IsRoot.def, eval_qsDiffPoly,
-      sub_eq_zero]
-    exact (Finset.mem_filter.mp hc).2
+    obtain ⟨c, hc, rfl⟩ := Finset.mem_image.mp hx
+    simpa only [Multiset.mem_toFinset, Polynomial.mem_roots hp, Polynomial.IsRoot.def,
+      eval_qsDiffPoly, sub_eq_zero] using (Finset.mem_filter.mp hc).2
   calc (Finset.univ.filter fun c : C => P.eval (ι c) = qsPolySum d a (ι c)).card
       = ((Finset.univ.filter fun c : C =>
           P.eval (ι c) = qsPolySum d a (ι c)).image ι).card :=
@@ -986,11 +937,8 @@ theorem toOuterMeasure_qsHomogLinearBatch_le [Fintype F] [DecidableEq F] {C ι :
       (Fintype.card F : ℝ≥0∞)⁻¹ +
         (1 - (Fintype.card F : ℝ≥0∞)⁻¹) * ((d : ℝ≥0∞) / (Fintype.card C : ℝ≥0∞)) := by
   classical
-  refine uniform_linearBatch_split_le (fun i => MvPolynomial.eval w (constraints i)) hfalse
-    (fun r => (a r).bind fun reply => (PMF.uniformOfFintype C).bind fun c =>
-      PMF.pure (decide ((∑ i : ι, Polynomial.C (r i) * qsHomogPoly d (constraints i) w v).eval
-        (ι_C c) = qsPolySum d reply (ι_C c)))) fun r hr => ?_
-  exact toOuterMeasure_qsHomogSum_bind_le ι_C constraints hdeg w v r hr (a r)
+  exact uniform_linearBatch_split_le (fun i => MvPolynomial.eval w (constraints i)) hfalse _
+    fun r hr => toOuterMeasure_qsHomogSum_bind_le ι_C constraints hdeg w v r hr (a r)
 
 /-- Single-shot independent-weight soundness of `qsMaskedCheckValue`: for any fixed sender VOLE
 vectors `(u, v)` and correction `d_corr : Fin n → F` whose effective committed witness
@@ -1019,51 +967,32 @@ theorem toOuterMeasure_qsMaskedCheckValue_le [Fintype F] [DecidableEq F] {C ι :
   let v_w : Fin n → F := fun j => v (Fin.castAdd (d - 1) j)
   let mask : Fin d → F :=
     qsMaskCoeff d (fun k => u (Fin.natAdd n k)) (fun k => v (Fin.natAdd n k))
-  have hadj : ∀ (delta : F) (i : Fin n),
-      voleAdjustReceiver (fun j => u (Fin.castAdd (d - 1) j) * delta +
-          v (Fin.castAdd (d - 1) j)) d_corr delta i =
-        w' i * delta + v_w i := fun delta i => by
-    simp only [voleAdjustReceiver, w', v_w]
-    ring
-  have hval : ∀ (r : ι → F) (c : C) (reply : Fin d → F),
+  have hval (r : ι → F) (c : C) (reply : Fin d → F) :
       (qsMaskedCheckValue d constraints (ι_C c) (fun j => u j * ι_C c + v j) d_corr r =
         qsPolySum d reply (ι_C c)) ↔
       ((∑ i : ι, Polynomial.C (r i) * qsHomogPoly d (constraints i) w' v_w).eval (ι_C c) =
         qsPolySum d (reply - mask) (ι_C c)) := by
-    intro r c reply
     have hsum : (∑ i : ι, r i * qsHomogVerifierValue d (constraints i) (ι_C c)
         (voleAdjustReceiver (fun j => u (Fin.castAdd (d - 1) j) * ι_C c +
           v (Fin.castAdd (d - 1) j)) d_corr (ι_C c))) =
         (∑ i : ι, Polynomial.C (r i) * qsHomogPoly d (constraints i) w' v_w).eval (ι_C c) := by
-      simp only [Polynomial.eval_finsetSum, Polynomial.eval_mul, Polynomial.eval_C,
+      have hadj : voleAdjustReceiver (fun j => u (Fin.castAdd (d - 1) j) * ι_C c +
+          v (Fin.castAdd (d - 1) j)) d_corr (ι_C c) = fun j => w' j * ι_C c + v_w j :=
+        funext fun j => by
+          dsimp only [voleAdjustReceiver, w', v_w]
+          ring
+      simp only [hadj, Polynomial.eval_finsetSum, Polynomial.eval_mul, Polynomial.eval_C,
         eval_qsHomogPoly]
-      refine Finset.sum_congr rfl fun i _ => ?_
-      rw [funext (hadj (ι_C c))]
     change (∑ i : ι, r i * qsHomogVerifierValue d (constraints i) (ι_C c) _) +
         qsMaskValue d _ (ι_C c) = qsPolySum d reply (ι_C c) ↔ _
     rw [hsum, qsMaskValue, ← qsPolySum_qsMaskCoeff]
     simp only [qsPolySum, mask, Pi.sub_apply, sub_mul, Finset.sum_sub_distrib, eq_sub_iff_add_eq]
-  have heq : (do
-        let r ← PMF.uniformOfFintype (ι → F)
-        let reply ← a r
-        let c ← PMF.uniformOfFintype C
-        let q : Fin (n + (d - 1)) → F := fun j => u j * ι_C c + v j
-        return decide (qsMaskedCheckValue d constraints (ι_C c) q d_corr r =
-          qsPolySum d reply (ι_C c))) =
-      (do
-        let r ← PMF.uniformOfFintype (ι → F)
-        let reply ← (a r).map (fun rep => rep - mask)
-        let c ← PMF.uniformOfFintype C
-        let P_batch := ∑ i : ι, Polynomial.C (r i) * qsHomogPoly d (constraints i) w' v_w
-        return decide (P_batch.eval (ι_C c) = qsPolySum d reply (ι_C c))) := by
-    simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_map, Function.comp_def]
-    refine congrArg (PMF.bind (PMF.uniformOfFintype (ι → F))) (funext fun r => ?_)
-    refine congrArg (PMF.bind (a r)) (funext fun reply => ?_)
-    refine congrArg (PMF.bind (PMF.uniformOfFintype C)) (funext fun c => ?_)
-    exact congrArg PMF.pure (decide_eq_decide.mpr (hval r c reply))
-  rw [heq]
-  exact toOuterMeasure_qsHomogLinearBatch_le ι_C constraints hdeg w' v_w hfalse
-    fun r => (a r).map fun rep => rep - mask
+  refine le_of_eq_of_le (congrArg (PMF.toOuterMeasure · {true}) ?_)
+    (toOuterMeasure_qsHomogLinearBatch_le ι_C constraints hdeg w' v_w hfalse
+      fun r => (a r).map fun rep => rep - mask)
+  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_map, Function.comp_def]
+  exact congrArg _ (funext fun r => congrArg _ (funext fun reply =>
+    congrArg _ (funext fun c => congrArg PMF.pure (decide_eq_decide.mpr (hval r c reply)))))
 
 /-- Exact bijection between grinding-accepted `λ`-bit challenges
 (`FAEST.Challenge.grindingAccepted`) and `BitString (λ - w_grind)`. -/
@@ -1117,14 +1046,13 @@ theorem toOuterMeasure_qsCheck_grinding_accepted_le (p : ChallengeParams) {d : �
         {c | P.eval (ι (grindingAcceptedEquiv p c)) =
           qsPolySum d a (ι (grindingAcceptedEquiv p c))} ≤
       (d : ℝ≥0∞) / (2 ^ p.nonGrindingBits : ℝ≥0∞) := by
-  let ι' : {c : BitString p.securityBits // grindingAccepted p c = true} ↪ F :=
-    (grindingAcceptedEquiv p).toEmbedding.trans ι
-  have hbound := toOuterMeasure_qsCheck_le_of_embedding ι' hdeg hne a
   have hcard : Fintype.card {c : BitString p.securityBits // grindingAccepted p c = true} =
       2 ^ p.nonGrindingBits := by
     rw [Fintype.card_congr (grindingAcceptedEquiv p), BitString.card]
-  simpa only [ι', Equiv.toEmbedding_apply, Function.Embedding.trans_apply, hcard,
-    Nat.cast_pow, Nat.cast_ofNat] using hbound
+  simpa only [Equiv.toEmbedding_apply, Function.Embedding.trans_apply, hcard,
+    Nat.cast_pow, Nat.cast_ofNat] using
+    toOuterMeasure_qsCheck_le_of_embedding ((grindingAcceptedEquiv p).toEmbedding.trans ι)
+      hdeg hne a
 
 /-- Single-shot soundness over raw uniform `λ`-bit FAEST challenges (including the trailing
 `w_grind` zero-bit check): acceptance has probability at most `d / 2 ^ λ` ([BaumEtAl2026FAEST],
@@ -1161,12 +1089,10 @@ theorem toOuterMeasure_qsCheck_grinding_raw_le (p : ChallengeParams) {d : ℕ}
             qsPolySum d a (ι (grindingAcceptedEquiv p ⟨c, h⟩))).image
         (fun c => ι (proj c))) ⊆ (qsDiffPoly d P a).roots.toFinset := by
       intro x hx
-      rw [Finset.mem_image] at hx
-      obtain ⟨c, hc, rfl⟩ := hx
-      obtain ⟨hacc, heval⟩ := (Finset.mem_filter.mp hc).2
-      rw [Multiset.mem_toFinset, Polynomial.mem_roots (qsDiffPoly_ne_zero d P a hne),
+      obtain ⟨c, hc, rfl⟩ := Finset.mem_image.mp hx
+      obtain ⟨_, heval⟩ := (Finset.mem_filter.mp hc).2
+      rwa [Multiset.mem_toFinset, Polynomial.mem_roots (qsDiffPoly_ne_zero d P a hne),
         Polynomial.IsRoot.def, eval_qsDiffPoly, sub_eq_zero]
-      exact heval
     calc _ = ((Finset.univ.filter fun c : BitString p.securityBits =>
           ∃ h : grindingAccepted p c = true,
             P.eval (ι (grindingAcceptedEquiv p ⟨c, h⟩)) =
@@ -1357,11 +1283,8 @@ private theorem toOuterMeasure_answer_query_le_add_swapped {V : Type}
       (PMF.bind · (fun sc : S × Cache (fun _ : K => V) =>
         (complete d sc.2).bind fun H => distK.bind fun k => body sc.1 k (H k)))
       (run_interpret_memoize_prob d M [])
-    rw [PMF.bind_map] at hmemo
-    simp only [ofList_nil] at hmemo
-    simp only [PMF.monad_bind_eq_bind]
-    rw [← hcomp', ← hmemo]
-    simp only [Function.comp_def]
+    simp only [PMF.bind_map, ofList_nil] at hmemo
+    simp only [PMF.monad_bind_eq_bind, ← hcomp', ← hmemo, Function.comp_def]
     congr 1 with sc : 1
     exact PMF.bind_comm _ _ _
   rw [heq_eager, PMF.toOuterMeasure_apply_singleton]
@@ -1373,19 +1296,17 @@ private theorem toOuterMeasure_answer_query_le_add_swapped {V : Type}
   let T : Finset K := Finset.univ.filter fun k : K => (cache.lookup k).isSome = true
   have hT_card : T.card ≤ q := (card_filter_lookup_isSome_le cache).trans hcache_le
   let g : K → ℝ≥0∞ := fun k => ((PMF.uniformOfFintype V).bind fun v => body s k v) true
-  have hpt : ∀ k : K,
+  have hpt (k : K) :
       ((complete d (ofList cache)).bind fun H => body s k (H k)) true ≤
         (if k ∈ T then (1 : ℝ≥0∞) else 0) + g k := by
-    intro k
     have hproj : ((complete d (ofList cache)).bind fun H => body s k (H k)) =
-        (((ofList cache k).elim (d k) PMF.pure).bind fun v => body s k v) := by
-      rw [← PMF.pi_map_eval (fun k' => (ofList cache k').elim (d k') PMF.pure) k,
-        PMF.bind_map]
+        ((ofList cache k).elim (d k) PMF.pure).bind (body s k) := by
+      rw [← PMF.pi_map_eval (fun k' => (ofList cache k').elim (d k') PMF.pure) k, PMF.bind_map]
       rfl
     rw [hproj]
     cases hlook : cache.lookup k with
     | some v =>
-      have hkT : k ∈ T := Finset.mem_filter.mpr ⟨Finset.mem_univ k, by rw [hlook]; rfl⟩
+      have hkT : k ∈ T := Finset.mem_filter.mpr ⟨Finset.mem_univ k, by simp [hlook]⟩
       simp only [hkT, ↓reduceIte]
       exact (PMF.coe_le_one _ _).trans le_self_add
     | none =>
@@ -1393,8 +1314,7 @@ private theorem toOuterMeasure_answer_query_le_add_swapped {V : Type}
         simp only [T, Finset.mem_filter, hlook, Option.isSome_none, Bool.false_eq_true, and_false,
           not_false_eq_true]
       have hnone : ofList cache k = none := hlook
-      simp only [hkT, ↓reduceIte, zero_add, hnone, Option.elim_none, d, g]
-      exact le_rfl
+      simp [hkT, hnone, d, g]
   rw [PMF.bind_apply]
   calc ∑' k, distK k * ((complete d (ofList cache)).bind fun H => body s k (H k)) true
       ≤ ∑' k, (distK k * (if k ∈ T then (1 : ℝ≥0∞) else 0) + distK k * g k) := by
@@ -1410,11 +1330,8 @@ private theorem toOuterMeasure_answer_query_le_add_swapped {V : Type}
             _ ≤ ∑ _k ∈ T, δ_K := Finset.sum_le_sum fun k _ => hdist k
             _ = (T.card : ℝ≥0∞) * δ_K := by rw [Finset.sum_const, nsmul_eq_mul]
             _ ≤ (q : ℝ≥0∞) * δ_K := by gcongr
-        · have hswap2 : (∑' k, distK k * g k) =
-              ((PMF.uniformOfFintype V).bind fun v =>
-                distK.bind fun k => body s k v).toOuterMeasure {true} := by
-            rw [← PMF.bind_apply, PMF.bind_comm, PMF.toOuterMeasure_apply_singleton]
-          rw [hswap2]
+        · dsimp only [g]
+          rw [← PMF.bind_apply, PMF.bind_comm, ← PMF.toOuterMeasure_apply_singleton]
           exact hbody s
 
 private theorem toOuterMeasure_domainSeparated_query_le_add_swapped
@@ -1521,8 +1438,7 @@ private theorem actV1_qs_inner_le {C : Type}
         (1 - (Fintype.card F : ℝ≥0∞)⁻¹) * (ε_zk + (d : ℝ≥0∞) / (Fintype.card C : ℝ≥0∞)) := by
   classical
   by_cases hs : ∃ j, (P j).coeff d ≠ 0
-  · refine (uniform_linearBatch_split_le (fun j => (P j).coeff d) hs _ fun l hl => ?_).trans_eq
-      rfl
+  · refine uniform_linearBatch_split_le (fun j => (P j).coeff d) hs _ fun l hl => ?_
     have hl' : (foldedConstraint P l).coeff d ≠ 0 := by
       simpa only [coeff_foldedConstraint] using hl
     rw [PMF.toOuterMeasure_bind_apply]
@@ -1554,14 +1470,10 @@ private theorem actV1_qs_inner_le {C : Type}
             (∑' k, distK k * ((d : ℝ≥0∞) / (Fintype.card C : ℝ≥0∞))) := tsum_add
       _ ≤ ε_zk + (d : ℝ≥0∞) / (Fintype.card C : ℝ≥0∞) := by
           refine add_le_add ?_ ?_
-          · have hmem : (∑' k, distK k *
-                (if ZKAccepts k l ∧ (Q k l).coeff d = 0 then (1 : ℝ≥0∞) else 0)) =
-                distK.toOuterMeasure {k | ZKAccepts k l ∧ (Q k l).coeff d = 0} := by
-              rw [PMF.toOuterMeasure_eq_tsum_mul_indicator]
-              refine tsum_congr fun k => ?_
+          · refine (le_of_eq ?_).trans (hzk l hl')
+            rw [PMF.toOuterMeasure_eq_tsum_mul_indicator]
+            exact tsum_congr fun k => by
               by_cases hk : ZKAccepts k l ∧ (Q k l).coeff d = 0 <;> simp [hk]
-            rw [hmem]
-            exact hzk l hl'
           · rw [ENNReal.tsum_mul_right, distK.tsum_coe, one_mul]
   · simp [hs]
 
@@ -1663,12 +1575,11 @@ theorem toOuterMeasure_actV1_foldedQS_le {C : Type} [Fintype K] [DecidableEq K]
         {true} ≤
       (q : ℝ≥0∞) * δ_K + ((Fintype.card F : ℝ≥0∞)⁻¹ +
         (1 - (Fintype.card F : ℝ≥0∞)⁻¹) * ((d : ℝ≥0∞) / (Fintype.card C : ℝ≥0∞))) := by
-  have h := toOuterMeasure_actV1_qs_of_zkBinding_le ι M hbound distK hdist P
-    (fun s _ l => foldedConstraint (P s) l) (fun s _ l => natDegree_foldedConstraint_le (hdegP s) l)
-    a (fun _ _ _ => True) (ε_zk := 0)
-    (fun s l hl => by
-      simp only [true_and, hl, Set.ofPred_false, MeasureTheory.measure_empty, zero_le])
-  simpa only [true_and, zero_add] using h
+  simpa only [true_and, zero_add] using
+    toOuterMeasure_actV1_qs_of_zkBinding_le ι M hbound distK hdist P
+      (fun s _ l => foldedConstraint (P s) l)
+      (fun s _ l => natDegree_foldedConstraint_le (hdegP s) l)
+      a (fun _ _ _ => True) (ε_zk := 0) fun _ _ hl => by simp [hl]
 
 end RLCSoundness
 

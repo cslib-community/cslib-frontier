@@ -110,8 +110,7 @@ private theorem countP_range_le_of_lt (p : ℕ → Bool) {w : ℕ} (hp : ∀ k, 
     by_cases hn : p n = true
     · have hlt := hp n hn
       have hle : (List.range n).countP p ≤ n := List.countP_le_length.trans_eq List.length_range
-      simp only [hn, ite_true]
-      omega
+      simp only [hn, ite_true]; omega
     · simpa [hn] using countP_range_le_of_lt p hp n
 
 /-- The minimum width is at most the number of variables. -/
@@ -120,9 +119,8 @@ theorem minWidth_le_numVars (φ : DNF V) : minWidth φ ≤ CNF.numVars φ :=
 
 /-- The minimum width is at most the width of every consistent term. -/
 theorem minWidth_le_width {φ : DNF V} {t : Term V} (ht : t ∈ φ) (hc : t.consistent = true) :
-    minWidth φ ≤ t.width := by
-  refine countP_range_le_of_lt _ (fun k hk => ?_) _
-  simpa [hc] using (List.all_eq_true.1 hk) t ht
+    minWidth φ ≤ t.width :=
+  countP_range_le_of_lt _ (fun _ hk => by simpa [hc] using (List.all_eq_true.1 hk) t ht) _
 
 /-- Below the number of variables, the minimum width is attained by a consistent term. -/
 theorem exists_width_le_minWidth {φ : DNF V} (h : minWidth φ < CNF.numVars φ) :
@@ -130,15 +128,11 @@ theorem exists_width_le_minWidth {φ : DNF V} (h : minWidth φ < CNF.numVars φ)
   by_contra hne
   push Not at hne
   have hall : ∀ k ∈ List.range (minWidth φ + 1),
-      (φ.all fun t => !t.consistent || decide (k < t.width)) = true := by
-    intro k hk
-    rw [List.mem_range] at hk
-    refine List.all_eq_true.2 fun t ht => ?_
-    cases hc : t.consistent
-    · rfl
-    · have := hne t ht hc
-      simp only [Bool.not_true, Bool.false_or, decide_eq_true_eq]
-      omega
+      (φ.all fun t => !t.consistent || decide (k < t.width)) = true := fun k hk =>
+    List.all_eq_true.2 fun t ht => by
+      cases hc : t.consistent
+      · rfl
+      · simp [(List.mem_range.1 hk).trans_le (hne t ht hc)]
   have hle := (List.range_sublist.2 (Nat.succ_le_of_lt h)).countP_le
     (p := fun k => φ.all fun t => !t.consistent || decide (k < t.width))
   rw [List.countP_eq_length.2 hall, List.length_range] at hle
@@ -218,8 +212,8 @@ theorem card_filter_firstHit (φ : DNF V) {i : ℕ} (hi : i < φ.length) :
     (Finset.univ.filter fun x : Fin (CNF.numVars φ) → Bool =>
         firstHit φ i (List.ofFn x) = true).card =
       2 ^ (φ.getD i []).width * firstCount φ i := by
-  have hmem : φ.getD i [] ∈ φ := by simp [List.getD_eq_getElem?_getD, hi]
-  have h := card_filter_force (CNF.nodup_distinctVars φ) (DNF.mem_distinctVars_of_mem hmem)
+  have h := card_filter_force (CNF.nodup_distinctVars φ)
+    (DNF.mem_distinctVars_of_mem (by simp [List.getD_eq_getElem?_getD, hi] : φ.getD i [] ∈ φ))
     (fun σ => DNF.eval σ (φ.take i) = false)
   rw [CNF.length_distinctVars] at h
   simpa [firstCount, firstHit, forcedAssignment] using h
@@ -236,10 +230,8 @@ theorem eval_trial_true_toReal (φ : DNF V) :
     rw [ProbComp.eval_map, BitString.eval_sampleList, BitString.uniformList_map_apply,
       ENNReal.toReal_div]
     simp only [ENNReal.toReal_natCast, ENNReal.toReal_pow, ENNReal.toReal_ofNat]
-    have hcard : (Finset.univ.filter fun r : Fin (padding φ i + CNF.numVars φ) → Bool =>
-        accepts φ i (List.ofFn r) = true).card = 2 ^ (φ.getD i []).width * firstCount φ i :=
-      (card_filter_not_any_take_and_drop _ _ (firstHit φ i)).trans (card_filter_firstHit φ hi)
-    rw [hcard]
+    erw [(card_filter_not_any_take_and_drop (padding φ i) (CNF.numVars φ) (firstHit φ i)).trans
+      (card_filter_firstHit φ hi)]
     by_cases hF : firstCount φ i = 0
     · simp [hF]
     obtain ⟨y, hy⟩ := Finset.card_pos.1 (Nat.pos_of_ne_zero hF)
@@ -248,38 +240,27 @@ theorem eval_trial_true_toReal (φ : DNF V) :
     have hL := minWidth_le_width hmem (Term.consistent_of_eval hy.1)
     have hw := Term.width_le_length (CNF.nodup_distinctVars φ) (DNF.mem_distinctVars_of_mem hmem)
     rw [CNF.length_distinctVars] at hw
-    have hpow : (2 : ℝ) ^ (padding φ i + CNF.numVars φ) =
-        2 ^ (φ.getD i []).width * 2 ^ (CNF.numVars φ - minWidth φ) := by
-      rw [← pow_add]
-      congr 1
-      unfold padding
-      omega
-    rw [hpow]
-    push_cast
-    field_simp
+    have hpad : padding φ i + CNF.numVars φ =
+        (φ.getD i []).width + (CNF.numVars φ - minWidth φ) := by dsimp only [padding]; omega
+    rw [hpad, pow_add]
+    push_cast; field_simp
   simp only [trial, ProbComp.eval_bind, ProbComp.eval_sampleDyadicIndex, PMF.bind_map]
   rw [PMF.bind_apply_toReal]
   simp only [Function.comp_apply, PMF.uniformOfFintype_apply, Fintype.card_fin, ENNReal.toReal_inv,
     ENNReal.toReal_natCast]
-  rw [← Finset.mul_sum, Fin.sum_univ_eq_sum_range
-    (fun i => (ProbComp.eval (if i < φ.length then
-      accepts φ i <$> BitString.sampleList (padding φ i + CNF.numVars φ) else pure false)
-        true).toReal)]
-  have hsplit : ∑ i ∈ Finset.range (dyadicSize φ.length), (ProbComp.eval (if i < φ.length then
-      accepts φ i <$> BitString.sampleList (padding φ i + CNF.numVars φ) else pure false)
-        true).toReal =
-      ∑ i ∈ Finset.range φ.length, (firstCount φ i : ℝ) / 2 ^ (CNF.numVars φ - minWidth φ) := by
-    rw [← Finset.sum_range_add_sum_Ico _ (lt_dyadicSize φ.length).le]
-    rw [Finset.sum_eq_zero (s := Finset.Ico _ _) (fun i hi => by
-      rw [Finset.mem_Ico] at hi
-      simp [not_lt.2 hi.1]), add_zero]
-    exact Finset.sum_congr rfl fun i hi => by
-      rw [Finset.mem_range] at hi
-      simp only [hi, ↓reduceIte]
-      exact hterm i hi
-  rw [hsplit, ← Finset.sum_div, ← sum_firstCount φ]
-  push_cast
-  ring
+  let g (i : ℕ) := (ProbComp.eval (if i < φ.length then
+    accepts φ i <$> BitString.sampleList (padding φ i + CNF.numVars φ) else pure false)
+      true).toReal
+  rw [← Finset.mul_sum, Fin.sum_univ_eq_sum_range g,
+    ← Finset.sum_range_add_sum_Ico _ (lt_dyadicSize φ.length).le]
+  have hhead : ∑ i ∈ Finset.range φ.length, g i =
+      ∑ i ∈ Finset.range φ.length, (firstCount φ i : ℝ) / 2 ^ (CNF.numVars φ - minWidth φ) :=
+    Finset.sum_congr rfl fun i hi => by
+      simpa only [g, Finset.mem_range.1 hi, ↓reduceIte] using hterm i (Finset.mem_range.1 hi)
+  have htail : ∑ i ∈ Finset.Ico φ.length (dyadicSize φ.length), g i = 0 :=
+    Finset.sum_eq_zero fun i hi => by simp [g, not_lt.2 (Finset.mem_Ico.1 hi).1]
+  rw [hhead, htail, add_zero, ← Finset.sum_div, ← sum_firstCount φ]
+  push_cast; ring
 
 /-! ### The estimator -/
 
@@ -307,10 +288,9 @@ private theorem countTrue_relative_deviation (count : ℕ) (program : ProbComp B
 
 /-- A trial on a formula without models never accepts. -/
 theorem eval_trial_true_of_modelCount_eq_zero {φ : DNF V} (h : DNF.modelCount φ = 0) :
-    ProbComp.eval (trial φ) true = 0 := by
-  have h' := eval_trial_true_toReal φ
-  rw [h, Nat.cast_zero, zero_div] at h'
-  exact (ENNReal.toReal_eq_zero_iff _).1 h' |>.resolve_right (PMF.apply_ne_top _ _)
+    ProbComp.eval (trial φ) true = 0 :=
+  ((ENNReal.toReal_eq_zero_iff _).1 (by simpa [h] using eval_trial_true_toReal φ)).resolve_right
+    (PMF.apply_ne_top _ _)
 
 /-- On a formula without models every trial rejects, so the success count is `0` with
 probability one. -/
@@ -319,11 +299,11 @@ private theorem eval_countTrue_zero {φ : DNF V} (h : DNF.modelCount φ = 0) (co
     (ProbComp.eval (OracleComp.countTrue count (trial φ))).toOuterMeasure s = 1 := by
   rw [PMF.toOuterMeasure_apply_eq_one_iff]
   intro successes hsucc
-  rw [ProbComp.eval_countTrue, PMF.mem_support_map_iff] at hsucc
-  obtain ⟨bits, hbits, rfl⟩ := hsucc
-  rw [Probability.PMF.mem_support_pi_iff] at hbits
+  obtain ⟨bits, hbits, rfl⟩ := (PMF.mem_support_map_iff _ _ _).1
+    (ProbComp.eval_countTrue .. ▸ hsucc)
   have hzero : ∀ i, bits i = false := fun i => Bool.eq_false_iff.2 fun hb =>
-    (PMF.mem_support_iff _ _).1 (hbits i) (hb ▸ eval_trial_true_of_modelCount_eq_zero h)
+    (PMF.mem_support_iff _ _).1 ((Probability.PMF.mem_support_pi_iff _ _).1 hbits i)
+      (hb ▸ eval_trial_true_of_modelCount_eq_zero h)
   simpa [hzero] using hs
 
 /-- **Zero counts are exact**: on a formula without models the estimate is `0` with probability
@@ -351,62 +331,47 @@ theorem approxWithin_estimate (φ : DNF V) {p : ℕ} (hp : 0 < p) (t : ℕ) :
       (by simp [ApproxWithin, hc0, hK]), ENNReal.toReal_one]
     linarith [pow_nonneg (by norm_num : (0 : ℝ) ≤ 1 / 2) t]
   -- Some models: the multiplicative Chernoff bound with `δ = 1 / p`.
-  have hNc : N ≤ c := two_pow_sub_minWidth_le_modelCount hcpos
   have hNpos : (0 : ℝ) < N := by rw [hN_def]; positivity
-  have hcR : (0 : ℝ) < c := by exact_mod_cast hcpos
   have hKR : (0 : ℝ) < K := by exact_mod_cast hK
   have hpR : (0 : ℝ) < p := by exact_mod_cast hp
   have hDR : (0 : ℝ) < dyadicSize φ.length := by exact_mod_cast dyadicSize_pos _
-  have hNcR : (N : ℝ) ≤ c := by exact_mod_cast hNc
+  have hNcR : (N : ℝ) ≤ c := Nat.cast_le.mpr (two_pow_sub_minWidth_le_modelCount hcpos)
   set μ := (trialBudget φ p t : ℝ) * (ProbComp.eval (trial φ) true).toReal with hμ_def
   have hμ : μ = K * c / N := by
     rw [hμ_def, eval_trial_true_toReal, trialBudget, ← hc_def, hN_def, hK_def]
-    push_cast
-    field_simp
-  have hδ₁ : (1 : ℝ) / p ≤ 1 := (div_le_one hpR).2 (by exact_mod_cast hp)
+    push_cast; field_simp
   have hchern := countTrue_relative_deviation (trialBudget φ p t) (trial φ)
-    (δ := 1 / p) (by positivity) hδ₁
+    (δ := 1 / p) (by positivity) ((div_le_one hpR).2 (by exact_mod_cast hp))
   rw [← hμ_def] at hchern
   set good := (fun successes => (successes * N, K)) ⁻¹' {out | ApproxWithin c p out.1 out.2}
   have hsub : goodᶜ ⊆ {successes : ℕ | 1 / p * μ ≤ |(successes : ℝ) - μ|} := by
     intro s hs
     simp only [Set.mem_compl_iff, good, Set.mem_preimage, Set.mem_ofPred_eq] at hs ⊢
     by_contra hlt
+    refine hs ⟨hK, ?_⟩
     push Not at hlt
-    apply hs
-    refine ⟨hK, ?_⟩
     have hμN : μ * N = K * c := by rw [hμ]; field_simp
     have hrw : ((s * N : ℕ) : ℝ) / (K : ℕ) - c = ((s : ℝ) - μ) * N / K := by
-      push_cast
-      field_simp
-      linarith
+      push_cast [hμ]; field_simp
     rw [hrw, abs_div, abs_mul, abs_of_pos hNpos, abs_of_pos hKR, div_le_div_iff₀ hKR hpR]
-    have h1 : |(s : ℝ) - μ| * p < μ := by
-      rwa [one_div, inv_mul_eq_div, lt_div_iff₀ hpR] at hlt
+    rw [one_div, inv_mul_eq_div, lt_div_iff₀ hpR] at hlt
     nlinarith [abs_nonneg ((s : ℝ) - μ)]
   have hbad : ((ProbComp.eval (OracleComp.countTrue (trialBudget φ p t) (trial φ))).toOuterMeasure
       goodᶜ).toReal ≤ (1 / 2 : ℝ) ^ t := by
     refine (Probability.PMF.toOuterMeasure_toReal_mono _ hsub).trans (hchern.trans ?_)
     have hexp : (t + 1 : ℝ) ≤ (1 / p) ^ 2 * μ / 3 := by
-      rw [hμ, hK_def]
-      push_cast
-      rw [div_pow, one_pow, show (1 : ℝ) / p ^ 2 * (3 * (t + 1) * p ^ 2 * c / N) / 3 =
-        (t + 1) * (c / N) by field_simp]
-      have : (1 : ℝ) ≤ c / N := by rw [one_le_div hNpos]; exact hNcR
-      nlinarith
-    have he : (2 : ℝ) ≤ Real.exp 1 := by linarith [Real.add_one_le_exp (1 : ℝ)]
+      have heq : (1 / (p : ℝ)) ^ 2 * μ / 3 = (t + 1) * (c / N) := by
+        push_cast [hμ, hK_def]; field_simp
+      nlinarith [heq, (one_le_div hNpos).2 hNcR, Nat.cast_nonneg (α := ℝ) t]
     have hpow : (2 : ℝ) ^ (t + 1) ≤ Real.exp (t + 1) := by
-      rw [show ((t : ℝ) + 1) = ((t + 1 : ℕ) : ℝ) by push_cast; ring, ← Real.exp_one_pow]
-      exact pow_le_pow_left₀ (by norm_num) he _
+      rw [← Nat.cast_add_one, ← Real.exp_one_pow]
+      exact pow_le_pow_left₀ zero_le_two (by linarith [Real.add_one_le_exp (1 : ℝ)]) _
     calc 2 * Real.exp (-((1 / p) ^ 2 * μ / 3)) ≤ 2 * Real.exp (-(t + 1)) := by
           gcongr
       _ = 2 / Real.exp (t + 1) := by rw [Real.exp_neg, div_eq_mul_inv]
       _ ≤ 2 / 2 ^ (t + 1) := by gcongr
-      _ = (1 / 2 : ℝ) ^ t := by
-          rw [pow_succ, one_div_pow]
-          field_simp
-  have hsum := Probability.PMF.toOuterMeasure_toReal_add_compl
-    (ProbComp.eval (OracleComp.countTrue (trialBudget φ p t) (trial φ))) good
-  linarith
+      _ = (1 / 2 : ℝ) ^ t := by rw [pow_succ, one_div_pow]; field_simp
+  linarith [Probability.PMF.toOuterMeasure_toReal_add_compl
+    (ProbComp.eval (OracleComp.countTrue (trialBudget φ p t) (trial φ))) good]
 
 end Cslib.Complexity.KarpLubyMadras

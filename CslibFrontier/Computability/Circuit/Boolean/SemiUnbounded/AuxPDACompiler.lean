@@ -121,9 +121,8 @@ private lemma realTreeMap_size {V V' : Type*} {stay : V → V → Prop}
 private lemma realTree_cast {V : Type*} {stay : V → V → Prop}
     {pushPop : V → V → V → V → Prop} {u v : V} (u' v' : V) (hu : u = u') (hv : v = v')
     (T : RealTree stay pushPop u v) :
-    ∃ T' : RealTree stay pushPop u' v', T'.size = T.size := by
-  subst hu hv
-  exact ⟨T, rfl⟩
+    ∃ T' : RealTree stay pushPop u' v', T'.size = T.size :=
+  hu ▸ hv ▸ ⟨T, rfl⟩
 
 /-- Every bounded realizability tree lifts to an `AuxPDA.Realizable` witness. -/
 theorem realTree_toRealizable {M : AuxPDA k Bool StackSym State}
@@ -135,12 +134,10 @@ theorem realTree_toRealizable {M : AuxPDA k Bool StackSym State}
   | refl u => exact ⟨0, .refl u.toSurface⟩
   | stay h => exact ⟨1, .stay h⟩
   | pushPop h _ ih =>
-    obtain ⟨γ, hp, hq⟩ := h
-    obtain ⟨d, hd⟩ := ih
+    rcases h, ih with ⟨⟨_, hp, hq⟩, ⟨d, hd⟩⟩
     exact ⟨d + 2, .pushPop hp hd hq⟩
   | trans _ _ ihl ihr =>
-    obtain ⟨d₁, h₁⟩ := ihl
-    obtain ⟨d₂, h₂⟩ := ihr
+    rcases ihl, ihr with ⟨⟨d₁, h₁⟩, ⟨d₂, h₂⟩⟩
     exact ⟨d₁ + d₂, .trans h₁ h₂⟩
 
 private lemma stayStep_of_sameHeightRun_length_one {M : AuxPDA k Bool StackSym State}
@@ -148,11 +145,7 @@ private lemma stayStep_of_sameHeightRun_length_one {M : AuxPDA k Bool StackSym S
     M.StayStep p.head.surface p.last.surface := by
   have hstep : M.Step p.head p.last := by
     have hs : M.Step (p ⟨0, by omega⟩) (p ⟨1, by omega⟩) := p.step ⟨0, by omega⟩
-    have h1 : p ⟨1, by omega⟩ = p.last :=
-      congrArg p <| Fin.ext <| by
-        change 1 = p.length
-        omega
-    rwa [h1] at hs
+    rwa [congrArg p (Fin.ext hlen.symm : (⟨1, by omega⟩ : Fin _) = Fin.last p.length)] at hs
   cases hq : p.head.tapes.state with
   | none => exact .inl ⟨hq, congrArg Cfg.surface ((AuxPDA.step_of_halt hq).mp hstep)⟩
   | some q =>
@@ -162,21 +155,14 @@ private lemma stayStep_of_sameHeightRun_length_one {M : AuxPDA k Bool StackSym S
     have hlenEq := hsame.1
     cases hop : act.stackOp with
     | stay =>
-      rw [hop, StackOp.apply?_stay, Option.some.injEq] at hstack
-      subst hstack
+      obtain ⟨rfl⟩ := hop ▸ hstack
       exact .inr ⟨q, act, hq, htr, hop,
         hpLast.symm ▸ surface_apply_eq_applySurfaceTapes act.tape p.head p.head.stack⟩
-    | push γ =>
-      rw [hop, StackOp.apply?_push, Option.some.injEq] at hstack
-      subst hstack
-      simp [hpLast] at hlenEq
+    | push γ => simp [hpLast, ← Option.some.inj (hop ▸ hstack)] at hlenEq
     | pop =>
       cases hst : p.head.stack with
-      | nil => simp [hop, hst] at hstack
-      | cons _ _ =>
-        rw [hop, hst, StackOp.apply?_pop_cons, Option.some.injEq] at hstack
-        subst hstack
-        simp [hpLast, hst] at hlenEq
+      | nil => nomatch (hop ▸ hst ▸ hstack)
+      | cons _ _ => simp [hpLast, hst, ← Option.some.inj (hop ▸ hst ▸ hstack)] at hlenEq
 
 private lemma exists_boundedRealTree_of_sameHeightRun {M : AuxPDA k Bool StackSym State} (d : ℕ) :
     ∀ (p : M.RunPath input), p.length = d → SameHeightRun p →
@@ -191,18 +177,15 @@ private lemma exists_boundedRealTree_of_sameHeightRun {M : AuxPDA k Bool StackSy
     intro p hlen hsame hfits
     match d with
     | 0 =>
+      have hlast : p.last = p.head := congrArg p (Fin.ext hlen)
       obtain ⟨T, hT⟩ := realTree_cast _
         (BoundedSurfaceCfg.ofSurface p.last.surface (hfits p.last p.last_mem)) rfl
-        (BoundedSurfaceCfg.toSurface_injective
-          (by simp [show p.last = p.head from congrArg p (Fin.ext hlen)]))
+        (BoundedSurfaceCfg.toSurface_injective (by simp [hlast]))
         (.refl (BoundedSurfaceCfg.ofSurface p.head.surface (hfits p.head p.head_mem)))
       exact ⟨T, hT.le.trans (le_max_left 1 _)⟩
     | 1 =>
-      refine ⟨.stay ?_, ?_⟩
-      · unfold BoundedStayStep
-        simpa only [BoundedSurfaceCfg.toSurface_ofSurface] using
-          stayStep_of_sameHeightRun_length_one p hlen hsame
-      · rfl
+      exact ⟨.stay (by simpa only [BoundedStayStep, BoundedSurfaceCfg.toSurface_ofSurface] using
+        stayStep_of_sameHeightRun_length_one p hlen hsame), le_rfl⟩
     | d' + 2 =>
       rcases sameHeightRun_split_ge_two p hlen hsame with
         ⟨j, hjpos, hjlt, h1, h2⟩ |
@@ -231,11 +214,9 @@ private lemma exists_boundedRealTree_of_sameHeightRun {M : AuxPDA k Bool StackSy
         obtain ⟨Tmid, hszMid⟩ := ih d' (by omega) pmid hmidLen hmidSame hfitsMid
         obtain ⟨-, hpop⟩ := hpopFn (hmidSame.last_stack_eq.trans hmidHeadStack)
         refine ⟨.pushPop ⟨γ, ?_, ?_⟩ Tmid, ?_⟩
-        · unfold BoundedPushStep
-          simpa only [BoundedSurfaceCfg.toSurface_ofSurface] using hpush
+        · simpa only [BoundedPushStep, BoundedSurfaceCfg.toSurface_ofSurface] using hpush
         · unfold BoundedPopStep
-          rw [BoundedSurfaceCfg.toSurface_ofSurface, BoundedSurfaceCfg.toSurface_ofSurface]
-          exact hpop
+          rwa [BoundedSurfaceCfg.toSurface_ofSurface, BoundedSurfaceCfg.toSurface_ofSurface]
         · simp only [RealTree.size]; omega
 
 /-- Every configuration along a computation path of a space-`s`-bounded `AuxPDA` fits in
@@ -290,9 +271,7 @@ theorem accepts_iff_exists_boundedRealTree {M : AuxPDA k Bool StackSym State} {t
       let q : M.withEmptyStackHalt.ComputationPath input :=
         ⟨p.toRunPath.take j, by rw [RelSeries.head_take]; exact p.head_eq⟩
       have hqHalt : q.last.Halted := ht' q (by simp [q, ComputationPath.time, RunPath.time, j])
-      have hlastEq : p.last = q.last := by
-        simpa [q, RelSeries.last_take] using RunPath.last_eq_of_halted p.toRunPath j
-          (by simpa [q, RelSeries.last_take] using hqHalt)
+      have hlastEq : p.last = q.last := RunPath.last_eq_of_halted p.toRunPath j hqHalt
       exact ⟨q, by simp [q, j], hqHalt, hlastEq ▸ hout⟩
   have hstack : q.last.stack = [] := withEmptyStackHalt_halted_stack_nil q hqHalt
   have hsame : SameHeightRun q.toRunPath :=
@@ -303,12 +282,10 @@ theorem accepts_iff_exists_boundedRealTree {M : AuxPDA k Bool StackSym State} {t
     (hfits q.toRunPath.last q.toRunPath.last_mem)
   obtain ⟨T', hsz'⟩ := realTree_cast (initBoundedSurface M.withEmptyStackHalt input s) v
     (BoundedSurfaceCfg.toSurface_injective (by simp [q.head_eq]; rfl)) rfl T
-  refine ⟨v, ⟨?_, ?_⟩, T', by omega⟩
-  · change v.toSurface.IsAccepting
-    rw [BoundedSurfaceCfg.toSurface_ofSurface, Cfg.isAccepting_surface_iff]
-    exact ⟨hqHalt, hqOut⟩
-  · change q.last.stack.head? = none
-    simp [hstack]
+  refine ⟨v, ⟨?_, List.head?_eq_none_iff.mpr hstack⟩, T', by omega⟩
+  change v.toSurface.IsAccepting
+  simpa only [v, BoundedSurfaceCfg.toSurface_ofSurface, Cfg.isAccepting_surface_iff] using
+    ⟨hqHalt, hqOut⟩
 
 end BoundedRealTree
 
@@ -428,12 +405,10 @@ theorem compileAuxPDA_andLevel_le_log_gateCount (M : AuxPDA k Bool StackSym Stat
   let N := compiledGateCount mStack mState k input.length s t
   let L := Nat.log2 N + 1
   let B := Nat.log2 (4 * A + 3) + 1
-  have hSge : input.length + 2 ≤ compiledSurfaceCount mStack mState k input.length s :=
-    input_length_add_two_le_boundedSurfaceCard mStack (mState + 1) k input.length s
-  have hNge : compiledSurfaceCount mStack mState k input.length s + 3 ≤ N :=
-    le_balancedGateCount _ _
-  have hltN : N < 2 ^ L := Nat.lt_log2_self
-  have hn1lt : input.length + 1 < 2 ^ L := by omega
+  have hn1lt : input.length + 1 < 2 ^ L :=
+    ((Nat.lt_succ_self _).trans_le
+      ((input_length_add_two_le_boundedSurfaceCard mStack (mState + 1) k input.length s).trans
+        ((Nat.le_add_right _ 3).trans (le_balancedGateCount _ _)))).trans Nat.lt_log2_self
   have hAlt : 4 * A + 3 < 2 ^ B := Nat.lt_log2_self
   have h1lePow : 1 ≤ (input.length + 1) ^ D := Nat.one_le_pow _ _ (Nat.succ_pos _)
   have h4t3 : 4 * t + 3 < 2 ^ (B + D * L) := calc
@@ -442,15 +417,11 @@ theorem compileAuxPDA_andLevel_le_log_gateCount (M : AuxPDA k Bool StackSym Stat
         (Nat.mul_lt_mul_of_pos_right hAlt (by positivity)).trans_le
           (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hn1lt.le D))
     _ = 2 ^ (B + D * L) := by rw [← pow_mul, ← pow_add, Nat.mul_comm L D]
-  have hlogLe : Nat.log2 (4 * t + 3) ≤ B + D * L := by
-    rw [Nat.log2_eq_log_two]
-    refine Nat.le_of_lt_succ (Nat.log_lt_of_lt_pow (by omega) ?_)
-    rw [pow_succ']
-    omega
+  have hlogLe : Nat.log2 (4 * t + 3) ≤ B + D * L := Nat.log2_eq_log_two ▸ Nat.le_of_lt_succ
+    (Nat.log_lt_of_lt_pow (Nat.succ_ne_zero _) (by rw [pow_succ']; omega))
   refine (compileAuxPDA_andLevel_le M eStack eState input s t g).trans ?_
   unfold compiledRounds roundsForSize depthConstant
-  have : 1 ≤ L := Nat.succ_pos _
-  dsimp only [B, L, N] at hlogLe this ⊢
+  dsimp only [B, L, N] at hlogLe ⊢
   nlinarith
 
 /-- **Polynomial compiled gate count in logarithmic space and polynomial time**: when
@@ -459,22 +430,17 @@ bounded in `n`. -/
 theorem compileAuxPDA_gateCount_polynomiallyBounded (mStack mState k c A D : ℕ) :
     Cslib.PolynomiallyBounded fun n =>
       compiledGateCount mStack mState k n (c * (Nat.log2 n + 1)) (A * (n + 1) ^ D) := by
-  open Cslib.PolynomiallyBounded in
+  let C := Cslib.PolynomiallyBounded.const
   have hS : Cslib.PolynomiallyBounded fun n =>
       compiledSurfaceCount mStack mState k n (c * (Nat.log2 n + 1)) :=
     boundedSurfaceCard_log_polynomiallyBounded mStack (mState + 1) k c
   have hR : Cslib.PolynomiallyBounded fun n => compiledRounds (A * (n + 1) ^ D) := by
-    refine ((Cslib.PolynomiallyBounded.const 6).mul
-      (((Cslib.PolynomiallyBounded.const 4).mul ((Cslib.PolynomiallyBounded.const A).mul
-        ((Cslib.PolynomiallyBounded.id.add (Cslib.PolynomiallyBounded.const 1)).pow D))).add
-          (Cslib.PolynomiallyBounded.const 4))).mono_of_le fun n => ?_
-    unfold compiledRounds roundsForSize
-    rw [Nat.log2_eq_log_two]
+    refine ((C 6).mul (((C 4).mul ((C A).mul
+      ((Cslib.PolynomiallyBounded.id.add (C 1)).pow D))).add (C 4))).mono_of_le fun n => ?_
+    rw [compiledRounds, roundsForSize, Nat.log2_eq_log_two]
     exact Nat.mul_le_mul_left 6 (Nat.succ_le_succ (Nat.log_le_self 2 _))
-  exact (((Cslib.PolynomiallyBounded.const 6).mul
-    (hR.add (Cslib.PolynomiallyBounded.const 1))).mul
-      ((hS.add (Cslib.PolynomiallyBounded.const 1)).pow 6)).mono_of_le
-        fun n => balancedGateCount_le _ _
+  exact (((C 6).mul (hR.add (C 1))).mul ((hS.add (C 1)).pow 6)).mono_of_le
+    fun n => balancedGateCount_le _ _
 
 /-! ### Direct bridge to Work Packages 1 & 2 (`MinIsolation` and `WeightGenerator`) -/
 

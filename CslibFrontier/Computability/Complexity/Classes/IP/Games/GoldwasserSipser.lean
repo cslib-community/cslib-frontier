@@ -115,17 +115,14 @@ private theorem clog_bounds (X : ℕ) (hX : 1 < X) :
   omega
 
 theorem threshold_le (c B : ℕ) (hc : 0 < c) : threshold c B < B + 2 * (6 * c * (B + 1)) := by
-  have := (clog_bounds _ (one_lt_six_mul c B hc)).2.2
-  unfold threshold
-  omega
+  obtain ⟨-, -, h⟩ := clog_bounds _ (one_lt_six_mul c B hc)
+  exact Nat.add_lt_add_left h B
 
 private theorem complete_arith (c B : ℕ) (hc : 0 < c) :
     (c : ℚ) * ((B + 1) * 2 ^ B / 2 ^ threshold c B) ≤ 1 / 6 := by
-  obtain ⟨h1, -, -⟩ := clog_bounds _ (one_lt_six_mul c B hc)
-  unfold threshold
-  generalize Nat.clog 2 (6 * c * (B + 1)) = e at h1 ⊢
-  have h1' : (6 : ℚ) * c * (B + 1) ≤ 2 ^ e := by exact_mod_cast h1
-  rw [show ((B : ℚ) + 1) * 2 ^ B / 2 ^ (B + e) = (B + 1) / 2 ^ e by rw [pow_add]; field_simp,
+  have h1 : (6 : ℚ) * c * (B + 1) ≤ 2 ^ Nat.clog 2 (6 * c * (B + 1)) :=
+    mod_cast (clog_bounds _ (one_lt_six_mul c B hc)).1
+  rw [threshold, pow_add, mul_comm (2 ^ B) (2 ^ _), mul_div_mul_right _ _ (by positivity),
     mul_div_assoc', div_le_iff₀ (by positivity)]
   linarith
 
@@ -135,28 +132,22 @@ private theorem sound_arith (c B N κ : ℕ) (hc : 0 < c)
         2 ^ B)) + ((6 * c * (B + 1) * 2 ^ (threshold c B - B) : ℕ) : ℚ) ^ c * N / 2 ^ κ ≤
       1 / 3 := by
   obtain ⟨-, h2, -⟩ := clog_bounds _ (one_lt_six_mul c B hc)
-  rw [show threshold c B - B = Nat.clog 2 (6 * c * (B + 1)) by unfold threshold; omega]
-  unfold threshold
+  rw [threshold, Nat.add_sub_cancel_left]
   generalize Nat.clog 2 (6 * c * (B + 1)) = e at h2 ⊢
   have hμ : 6 * c * (B + 1) * 2 ^ e ≤ 72 * c ^ 2 * (B + 1) ^ 2 := by
     calc 6 * c * (B + 1) * 2 ^ e ≤ 6 * c * (B + 1) * (2 * (6 * c * (B + 1))) := by gcongr
       _ = 72 * c ^ 2 * (B + 1) ^ 2 := by ring
-  have hN' : 6 * ((6 * c * (B + 1) * 2 ^ e) ^ c * N) ≤ 2 ^ κ :=
+  have hN' : (6 : ℚ) * (((6 * c * (B + 1) * 2 ^ e : ℕ) : ℚ) ^ c * N) ≤ 2 ^ κ := mod_cast
     calc 6 * ((6 * c * (B + 1) * 2 ^ e) ^ c * N) ≤ 6 * ((72 * c ^ 2 * (B + 1) ^ 2) ^ c * N) := by
           gcongr
       _ = 6 * (72 * c ^ 2 * (B + 1) ^ 2) ^ c * N := (Nat.mul_assoc _ _ _).symm
       _ ≤ 2 ^ κ := hN
-  have hN'' : (6 : ℚ) * (((6 * c * (B + 1) * 2 ^ e : ℕ) : ℚ) ^ c * N) ≤ 2 ^ κ := by
-    exact_mod_cast hN'
-  have hc' : (c : ℚ) ≠ 0 := by exact_mod_cast hc.ne'
+  have hc' : (c : ℚ) ≠ 0 := Nat.cast_ne_zero.2 hc.ne'
   have h1 : (c : ℚ) * ((B + 1) * 2 ^ (B + e) / ((6 * c * (B + 1) * 2 ^ e : ℕ) * 2 ^ B)) =
       1 / 6 := by
     push_cast
-    rw [pow_add]
-    field_simp
-  have h2' : (((6 * c * (B + 1) * 2 ^ e : ℕ) : ℚ) ^ c * N) / 2 ^ κ ≤ 1 / 6 := by
-    rw [div_le_iff₀ (by positivity)]; linarith
-  rw [h1]
+    rw [pow_add]; field_simp
+  rw [h1, ← le_sub_iff_add_le', div_le_iff₀ (by positivity)]
   linarith
 
 /-- **Completeness with the default threshold**: with `c > 0` verifier moves of at most `B` bits
@@ -168,10 +159,8 @@ theorem two_le_three_mul_value (B Z : ℕ) (V : List Bool → Bool) (g : List (I
     2 ≤ 3 * AMGame.value true (shape B Z g)
       (fun t => ((check B Z (threshold (verifierMoves g) B) V g κ [] t).toNat : ℚ)) := by
   have hK := threshold_le (verifierMoves g) B hc
-  have h := one_sub_le_value B Z (threshold (verifierMoves g) B) (by unfold threshold; omega)
-    (by omega) V g hg κ hκ [] hN
-  have := complete_arith (verifierMoves g) B hc
-  linarith
+  linarith [one_sub_le_value B Z (threshold (verifierMoves g) B) (Nat.le_add_right B _)
+    (by omega) V g hg κ hκ [] hN, complete_arith (verifierMoves g) B hc]
 
 /-- **Soundness with the default threshold**: with `c > 0` verifier moves, an initial claim
 `κ ≤ B` and a count `N` with `6 (72 c² (B + 1)²) ^ c N ≤ 2 ^ κ`, Merlin wins the public-coin game
@@ -182,11 +171,10 @@ theorem three_mul_value_le_one (B Z : ℕ) (V : List Bool → Bool) (g : List (I
       2 ^ κ) :
     3 * AMGame.value true (shape B Z g)
       (fun t => ((check B Z (threshold (verifierMoves g) B) V g κ [] t).toNat : ℚ)) ≤ 1 := by
-  have h := value_le B Z (threshold (verifierMoves g) B)
-    (6 * verifierMoves g * (B + 1) * 2 ^ (threshold (verifierMoves g) B - B))
-    (by unfold threshold; omega) (by positivity) V g κ (by unfold threshold; omega) []
-  have := sound_arith (verifierMoves g) B (countFrom g V []) κ hc hN
-  linarith
+  linarith [value_le B Z (threshold (verifierMoves g) B)
+    (6 * verifierMoves g * (B + 1) * 2 ^ (threshold (verifierMoves g) B - B)) (Nat.le_add_right B _)
+    (by positivity) V g κ (Nat.le_add_right_of_le hκ) [],
+    sound_arith (verifierMoves g) B (countFrom g V []) κ hc hN]
 
 theorem computableInPolyTime_threshold {γ : Type} {encIn : γ ↪ List Bool} (c : ℕ) {B : γ → ℕ}
     (hB : ComputableInPolyTime B encIn encUnary) :
@@ -212,8 +200,7 @@ theorem countFrom_revealPayoff (msg : List Bool → ℕ → List Bool → List B
     (hL : transcriptLength g = L) (ρ : ℕ) :
     countFrom (g ++ [(.verifier, ρ)]) (revealPayoff msg dec g L) [] =
       bestCount (ρ := ρ) (fun c => msg (List.ofFn c)) (fun c => dec (List.ofFn c)) g := by
-  unfold countFrom bestCount
-  rw [count_append]
+  simp only [countFrom, bestCount, count_append]
   refine count_congr_of_length g fun t ht => ?_
   rw [count_verifier, acceptedCoins, card_filter]
   refine sum_congr rfl fun c _ => ?_
@@ -232,10 +219,11 @@ theorem computableInPolyTime_agrees {γ : Type} {encIn : γ ↪ List Bool}
   induction G generalizing j p t with
   | nil => exact (ComputableInPolyTime.const true).of_enc_eq fun x => rfl
   | cons y G ih =>
-    obtain ⟨_ | _, q⟩ := y
-    · have hn : ComputableInPolyTime (fun x => q.eval (len x)) encIn encUnary :=
-        (ComputableInPolyTime.unary_eval q).comp hlen
-      have htake := ComputableInPolyTime.bitsTakeWithInput ht hn
+    obtain ⟨mv, q⟩ := y
+    have hn : ComputableInPolyTime (fun x => q.eval (len x)) encIn encUnary :=
+      (ComputableInPolyTime.unary_eval q).comp hlen
+    cases mv
+    · have htake := ComputableInPolyTime.bitsTakeWithInput ht hn
       have hm := ComputableInPolyTime.bitsRowWithInput hn (ComputableInPolyTime.const 0)
         (hmsg.comp (ComputableInPolyTime.id'.prod (hj.prod hp)))
       have hrec := ih (ComputableInPolyTime.unary_add' hj (ComputableInPolyTime.const 1))
@@ -244,9 +232,7 @@ theorem computableInPolyTime_agrees {γ : Type} {encIn : γ ↪ List Bool}
         hrec).of_enc_eq fun x => ?_
       simp only [evalShape, List.map_cons, agrees, BitString.listRow_zero]
       rfl
-    · have hn : ComputableInPolyTime (fun x => q.eval (len x)) encIn encUnary :=
-        (ComputableInPolyTime.unary_eval q).comp hlen
-      exact (ih (ComputableInPolyTime.unary_add' hj (ComputableInPolyTime.const 1))
+    · exact (ih (ComputableInPolyTime.unary_add' hj (ComputableInPolyTime.const 1))
         (ComputableInPolyTime.bitsAppend hp (ComputableInPolyTime.bitsTakeWithInput ht hn))
         (ComputableInPolyTime.bitsDropWithInput ht hn)).of_enc_eq fun x => rfl
 
@@ -265,10 +251,9 @@ theorem computableInPolyTime_revealPayoff {γ : Type} {encIn : γ ↪ List Bool}
   have hmsg' : ComputableInPolyTime (fun y : γ × ℕ × List Bool => msg (y.1, w y.1 |>.drop (L y.1),
       y.2.1, y.2.2)) (encPair encIn (encPair encUnary encBits)) encBits :=
     hmsg.comp ((ComputableInPolyTime.fst _ _).prod ((hc.comp (.fst _ _)).prod (.snd _ _)))
-  have hag := computableInPolyTime_agrees G hlen hmsg' (ComputableInPolyTime.const 0)
-    (ComputableInPolyTime.const []) ht
-  have hd := hdec.comp (ComputableInPolyTime.id'.prod (hc.prod ht))
-  exact (ComputableInPolyTime.bool_and' hag hd).of_enc_eq fun x => rfl
+  exact (ComputableInPolyTime.bool_and' (computableInPolyTime_agrees G hlen hmsg'
+    (.const 0) (.const []) ht) (hdec.comp (ComputableInPolyTime.id'.prod (hc.prod ht)))).of_enc_eq
+    fun _ => rfl
 
 /-! ### The public-coin verifier -/
 
@@ -345,21 +330,16 @@ open IPGame Emulation
 /-- Bound `x ≤ 2 ^ (ρ - r)` from `x * 2 ^ r ≤ 2 ^ ρ`. -/
 theorem le_two_pow_sub {x r ρ : ℕ} (h : x * 2 ^ r ≤ 2 ^ ρ) : x ≤ 2 ^ (ρ - r) := by
   rcases le_or_gt r ρ with hr | hr
-  · rw [← Nat.sub_add_cancel hr, pow_add] at h
-    exact Nat.le_of_mul_le_mul_right h (Nat.two_pow_pos r)
-  · have := Nat.pow_lt_pow_right one_lt_two hr
-    rcases Nat.eq_zero_or_pos x with rfl | hx
-    · exact Nat.zero_le _
-    · have := Nat.le_mul_of_pos_left (2 ^ r) hx
-      omega
+  · exact Nat.le_of_mul_le_mul_right (by rwa [← pow_add, Nat.sub_add_cancel hr]) (Nat.two_pow_pos r)
+  · exact (Nat.lt_of_mul_lt_mul_right ((h.trans_lt (Nat.pow_lt_pow_right one_lt_two hr)).trans_eq
+      (one_mul _).symm)).le.trans Nat.one_le_two_pow
 
 /-- Bound `2 ^ (ρ - r) ≤ N` from `2 ^ r * 2 ^ ρ ≤ 3 ^ r * N`. -/
 theorem two_pow_sub_le {N r ρ : ℕ} (h : 2 ^ r * 2 ^ ρ ≤ 3 ^ r * N) :
     2 ^ (ρ - r) ≤ N := by
   rcases le_or_gt r ρ with hr | hr
-  · have h3 : 3 ^ r ≤ 2 ^ r * 2 ^ r := by
-      rw [← mul_pow]
-      exact Nat.pow_le_pow_left (by decide) r
+  · have h3 : 3 ^ r ≤ 2 ^ r * 2 ^ r :=
+      (Nat.pow_le_pow_left (by decide) r).trans_eq (mul_pow 2 2 r)
     have hmul : 2 ^ r * (2 ^ r * 2 ^ (ρ - r)) ≤ 2 ^ r * (2 ^ r * N) := by
       calc 2 ^ r * (2 ^ r * 2 ^ (ρ - r)) = 2 ^ r * 2 ^ ρ := by
             rw [← pow_add, Nat.add_sub_cancel' hr]
@@ -369,9 +349,7 @@ theorem two_pow_sub_le {N r ρ : ℕ} (h : 2 ^ r * 2 ^ ρ ≤ 3 ^ r * N) :
     exact Nat.le_of_mul_le_mul_left (Nat.le_of_mul_le_mul_left hmul (Nat.two_pow_pos r))
       (Nat.two_pow_pos r)
   · rw [Nat.sub_eq_zero_of_le hr.le, pow_zero]
-    exact Nat.pos_of_ne_zero fun hN => by
-      rw [hN, mul_zero] at h
-      exact absurd h (Nat.not_le_of_gt (by positivity))
+    exact Nat.pos_of_ne_zero fun hN => by simp [hN] at h
 
 /-- `D r ^ d 2 ^ r ≤ 3 ^ r` for all large `r`. -/
 private theorem eventually_mul_pow_mul_two_pow_le (D d : ℕ) :
@@ -424,8 +402,7 @@ theorem IPGameClass_subset_AMGameClass {enc : α ↪ List Bool} (π : List IPMov
   generalize (enc a).length = n at hN h1 h2 ⊢
   -- the evaluated parameters
   have hc' : verifierMoves (evalShape (repeatShapePoly R G₀ ++ [(.verifier, R * ρ₀)]) n) = c := by
-    rw [verifierMoves_evalShape, List.map_append, hGfst]
-    simp [c]
+    simp [verifierMoves_evalShape, hGfst, c]
   have hRn : R.eval n = max A₀ 1 * W.eval n := by simp [R]
   have hBn : B.eval n = R.eval n * W.eval n := by simp [B]
   have hZn : Z.eval n = 2 * (B.eval n + 6 * c * (B.eval n + 1)) := by simp [Z]
@@ -437,42 +414,36 @@ theorem IPGameClass_subset_AMGameClass {enc : α ↪ List Bool} (π : List IPMov
     exact (Nat.sub_le _ _).trans (Nat.mul_le_mul_left _ (by omega))
   have hg : verifierBits (evalShape (repeatShapePoly R G₀ ++ [(.verifier, R * ρ₀)]) n) ≤
       B.eval n := by
-    have hnil : verifierBits [] = 0 := rfl
     simp only [evalShape_append, verifierBits_append, evalShape_repeatShapePoly,
       verifierBits_repeatShape, evalShape_cons, evalShape_nil, verifierBits_verifier,
-      hnil, Polynomial.eval_mul, hBn, Nat.add_zero]
+      show verifierBits [] = 0 from rfl, Polynomial.eval_mul, hBn, Nat.add_zero, ← Nat.mul_add]
     have := verifierBits_le_transcriptLength (evalShape G₀ n)
-    rw [← Nat.mul_add]
     exact Nat.mul_le_mul_left _ (by omega)
   -- the gap beats the soundness factor
   have hgap : 6 * (72 * c ^ 2 * (B.eval n + 1) ^ 2) ^ c * 2 ^ R.eval n ≤ 3 ^ R.eval n := by
     have hWr : W.eval n ≤ R.eval n := hRn ▸ Nat.le_mul_of_pos_left _ (by omega)
     have hAr : A₀ ≤ R.eval n :=
       hRn ▸ (le_max_left A₀ 1).trans (Nat.le_mul_of_pos_right _ (by omega))
-    have hr1 : 1 ≤ R.eval n := by
-      rw [hRn]
-      exact Nat.mul_pos (by omega) (by omega)
+    have hr1 : 1 ≤ R.eval n := hRn ▸ Nat.mul_pos (by omega) (by omega)
     have hb : B.eval n + 1 ≤ 2 * R.eval n ^ 2 := by
-      have := Nat.mul_le_mul_left (R.eval n) hWr
-      have := Nat.mul_le_mul hr1 hr1
       rw [hBn]
-      nlinarith
+      nlinarith [Nat.mul_le_mul_left (R.eval n) hWr, Nat.mul_le_mul hr1 hr1]
     have hM : 72 * c ^ 2 * (B.eval n + 1) ^ 2 ≤ 288 * c ^ 2 * R.eval n ^ 4 := by
-      have := Nat.pow_le_pow_left hb 2
-      nlinarith
+      nlinarith [Nat.pow_le_pow_left hb 2]
     calc 6 * (72 * c ^ 2 * (B.eval n + 1) ^ 2) ^ c * 2 ^ R.eval n
         ≤ 6 * (288 * c ^ 2 * R.eval n ^ 4) ^ c * 2 ^ R.eval n := by gcongr
       _ = 6 * (288 * c ^ 2) ^ c * R.eval n ^ (4 * c) * 2 ^ R.eval n := by
           rw [mul_pow, ← pow_mul]; ring
       _ ≤ 3 ^ R.eval n := hA₀ _ hAr
-  rw [show (G₀.map Prod.fst).count .verifier + 1 = c from rfl, ← hc']
+  have hc_def : (G₀.map Prod.fst).count .verifier + 1 = c := rfl
+  have hRρ : (R * ρ₀).eval n = R.eval n * ρ₀.eval n := Polynomial.eval_mul
+  rw [hc_def, ← hc']
   refine ⟨fun ha => ?_, fun ha => ?_⟩
   · refine two_le_three_mul_value _ _ _ _ (by omega) (by rw [hc', hZn]) hg _ hκ ?_
     rw [hN]
     exact two_pow_sub_le <| calc
       2 ^ R.eval n * 2 ^ (R * ρ₀).eval n = (2 * 2 ^ ρ₀.eval n) ^ R.eval n := by
-        rw [show (R * ρ₀).eval n = R.eval n * ρ₀.eval n from Polynomial.eval_mul,
-          mul_pow, ← pow_mul, mul_comm (ρ₀.eval n)]
+        rw [hRρ, mul_pow, ← pow_mul, mul_comm (ρ₀.eval n)]
       _ ≤ (3 * N₀) ^ R.eval n := Nat.pow_le_pow_left (h1 ha) _
       _ = 3 ^ R.eval n * N₀ ^ R.eval n := mul_pow _ _ _
   · refine three_mul_value_le_one _ _ _ _ (by omega) _ hκ ?_
@@ -483,9 +454,7 @@ theorem IPGameClass_subset_AMGameClass {enc : α ↪ List Bool} (π : List IPMov
       _ ≤ 3 ^ R.eval n * N₀ ^ R.eval n := Nat.mul_le_mul_right _ hgap
       _ = (3 * N₀) ^ R.eval n := (mul_pow _ _ _).symm
       _ ≤ (2 ^ ρ₀.eval n) ^ R.eval n := Nat.pow_le_pow_left (h2 ha) _
-      _ = 2 ^ (R * ρ₀).eval n := by
-          rw [show (R * ρ₀).eval n = R.eval n * ρ₀.eval n from Polynomial.eval_mul,
-            ← pow_mul, mul_comm]
+      _ = 2 ^ (R * ρ₀).eval n := by rw [hRρ, ← pow_mul, mul_comm]
 
 /-- **Private coins versus public coins** in terms of `AM`: every fixed-pattern private-coin game
 is in `AM`. -/

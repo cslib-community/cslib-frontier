@@ -182,9 +182,8 @@ theorem record_index {F : CSP Table ℕ} (o : Occurrence F) :
     (CSP.occurrences F).idxOf o.record = occurrenceIndex o := by
   rw [occurrences_eq_map_incidenceList]
   simp only [List.idxOf, List.findIdx_map, occurrenceIndex]
-  congr 1
-  funext p
-  simp [Occurrence.record_injective.eq_iff]
+  exact congrArg (List.findIdx · (incidenceList F))
+    (funext fun _ => by simp [Occurrence.record_injective.eq_iff])
 
 theorem read_record {F : CSP Table ℕ} (bits : List Bool) (o : Occurrence F) :
     readRecord F bits o.record = labeling F bits o := by
@@ -211,23 +210,20 @@ theorem getElem?_occurrenceIndex {F : CSP Table ℕ} (o : Occurrence F) :
   simp [occurrenceIndex, mem_incidenceList o]
 
 private theorem zipIdx_eq_ofFn {α : Type} (l : List α) :
-    l.zipIdx = List.ofFn (fun i : Fin l.length => (l[i], i.val)) := by
-  apply List.ext_getElem
-  · simp
-  · intro i hi hj
-    simp
+    l.zipIdx = List.ofFn (fun i : Fin l.length => (l[i], i.val)) :=
+  List.ext_getElem (by simp)
+    fun _ _ _ => by simp
 
 theorem valid_eq (F : CSP Table ℕ) (bits : List Bool) :
     valid F bits = decide (ValidLabeling Table.sem (labeling F bits)) := by
   rw [Bool.eq_iff_iff, decide_eq_true_eq]
   change valid F bits = true ↔ ∀ i : Fin F.length,
     F[i].rel.sem (localTuple (labeling F bits) i) = true
-  simp only [valid, List.all_eq_true, zipIdx_eq_ofFn, List.mem_ofFn, forall_exists_index,
-    forall_apply_eq_imp_iff, List.map_ofFn, Function.comp_def]
   have htuple (i : Fin F.length) : (List.ofFn fun j : Fin F[i].scope.length =>
       readRecord F bits (i.val, j.val, F[i].scope[j])) = localTuple (labeling F bits) i :=
     congrArg List.ofFn (funext fun j => read_record bits ⟨i, j⟩)
-  simp only [htuple]
+  simp only [valid, List.all_eq_true, zipIdx_eq_ofFn, List.mem_ofFn, forall_exists_index,
+    forall_apply_eq_imp_iff, List.map_ofFn, Function.comp_def, htuple]
 
 theorem inconsistent_eq (F : CSP Table ℕ) (bits : List Bool) (v : ℕ) :
     inconsistent F bits v = decide (Inconsistent (labeling F bits) v) := by
@@ -237,9 +233,8 @@ theorem inconsistent_eq (F : CSP Table ℕ) (bits : List Bool) (v : ℕ) :
   rw [inconsistent, List.any_eq_true]
   refine ⟨fun ⟨⟨_, _⟩, hab, ht⟩ => ?_, fun ⟨o, p, ho, hp, hd⟩ => ?_⟩
   · obtain ⟨ha, hb⟩ := List.mem_product.mp hab
-    rw [occurrences_eq_map_incidenceList] at ha hb
-    obtain ⟨o, _, rfl⟩ := List.mem_map.mp ha
-    obtain ⟨p, _, rfl⟩ := List.mem_map.mp hb
+    obtain ⟨o, _, rfl⟩ := List.mem_map.mp (occurrences_eq_map_incidenceList F ▸ ha)
+    obtain ⟨p, _, rfl⟩ := List.mem_map.mp (occurrences_eq_map_incidenceList F ▸ hb)
     change (decide (o.var = v) && decide (p.var = v) &&
       (readRecord F bits o.record != readRecord F bits p.record) = true) at ht
     simp only [Bool.and_eq_true, decide_eq_true_eq, bne_iff_ne, read_record] at ht

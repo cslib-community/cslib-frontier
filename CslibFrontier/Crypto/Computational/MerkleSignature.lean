@@ -160,9 +160,8 @@ theorem verify_sign (hlen : ∀ k m, (H k m).length = k.length) (n : ℕ)
     ProbComp.eval_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hsig
   obtain ⟨ots, hots_sig, rfl⟩ := hsig
   have hu' : u < otsKeys.length := hotsLen ▸ hu
-  have hkey : otsKeys.getD u ([], []) ∈ (ProbComp.eval (S.keyGen n)).support := by
-    rw [List.getD_eq_getElem _ _ hu']
-    exact hots _ (List.getElem_mem hu')
+  have hkey : otsKeys.getD u ([], []) ∈ (ProbComp.eval (S.keyGen n)).support :=
+    List.getD_eq_getElem otsKeys ([], []) hu' ▸ hots _ (List.getElem_mem hu')
   have hdepth : Nat.clog 2 (otsKeys.map Prod.fst).length = depth n := by
     rw [List.length_map, hotsLen, Nat.clog_pow _ _ (by norm_num)]
   have hvk : (otsKeys.map Prod.fst).getD u [] = (otsKeys.getD u ([], [])).1 := by
@@ -187,11 +186,8 @@ variable (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2
 include hcap in
 /-- The depth is computable from the capacity. -/
 theorem computableInPolyTime_depth : ComputableInPolyTime depth encUnary encUnary := by
-  have h :=
+  simpa [Function.comp_def, Nat.log_pow] using
     (ComputableInPolyTime.binary_log_two.comp ComputableInPolyTime.unary_to_binary).comp hcap
-  convert h using 1
-  funext n
-  simp [Nat.log_pow]
 
 private theorem computableInPolyTime_keyMap :
     ComputableInPolyTime (List.map (Prod.fst : List Bool × List Bool → List Bool))

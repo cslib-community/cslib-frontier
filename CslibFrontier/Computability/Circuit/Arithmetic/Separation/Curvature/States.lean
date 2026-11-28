@@ -111,9 +111,8 @@ private theorem lem_count_upper {E : ℕ} (hE : 1 ≤ E) : Real.log (stateCount 
   set t : ℝ := 1 - 1 / (2 * √(E : ℝ)) with ht
   have hx : 1 / (2 * √(E : ℝ)) ≤ 1 / 2 := by
     rw [div_le_div_iff₀ (by positivity) (by norm_num)]; linarith
-  have hpos : 0 < 1 / (2 * √(E : ℝ)) := by positivity
   have ht0 : 0 < t := by linarith
-  have ht1 : t < 1 := by linarith
+  have ht1 : t < 1 := sub_lt_self 1 (by positivity)
   have h3 : (t ^ E)⁻¹ ≤ Real.exp √(E : ℝ) := by
     have h4 : t⁻¹ ≤ Real.exp (1 / √(E : ℝ)) := by
       refine le_trans ?_ (Real.add_one_le_exp (1 / √(E : ℝ)))
@@ -128,17 +127,14 @@ private theorem lem_count_upper {E : ℕ} (hE : 1 ≤ E) : Real.log (stateCount 
           rw [← Real.exp_nat_mul, mul_one_div, (div_eq_iff hs0.ne').2 hss.symm]
   have h2 : ((lowSets E).card : ℝ) ≤ Real.exp (5 * √(E : ℝ)) := by
     have h5 := lem_count_sets E ht0 ht1
-    have h6 : 1 / (1 - t) = 2 * √(E : ℝ) := by
-      rw [ht]
-      field_simp; ring
+    have h6 : 1 / (1 - t) = 2 * √(E : ℝ) := by rw [ht, sub_sub_cancel, one_div_one_div]
     rw [h6] at h5
     have htE : 0 < t ^ E := by positivity
     calc ((lowSets E).card : ℝ) = (lowSets E).card * t ^ E * (t ^ E)⁻¹ := by field_simp
       _ ≤ Real.exp (2 * √(E : ℝ)) * Real.exp √(E : ℝ) :=
           mul_le_mul h5 h3 (by positivity) (Real.exp_pos _).le
-      _ ≤ Real.exp (5 * √(E : ℝ)) := by
-          rw [← Real.exp_add]
-          exact Real.exp_le_exp.2 (by linarith)
+      _ ≤ Real.exp (5 * √(E : ℝ)) :=
+          Real.exp_add _ _ ▸ Real.exp_le_exp.2 (by linarith)
   change logLowStates E ≤ _
   rw [logLowStates, Real.log_le_iff_le_exp (by exact_mod_cast lowStates_card_pos E)]
   calc ((lowStates E).card : ℝ) ≤ (lowSets E).card * (lowSets E).card := by
@@ -161,9 +157,8 @@ theorem exists_log_stateCount_asymptotic : ∃ κ : ℝ,
   change ∃ κ : ℝ, 0 < κ ∧ (∀ E : ℕ, logLowStates E ≤ κ * √E) ∧
     ∀ ε : ℝ, 0 < ε → ∀ᶠ E : ℕ in atTop, (κ - ε) * √E ≤ logLowStates E
   set S : Set ℝ := {z | ∃ E : ℕ, 1 ≤ E ∧ z = logLowStates E / Real.sqrt E}
-  have hb : BddAbove S := ⟨10, by
-    rintro _ ⟨E, hE, rfl⟩
-    exact (div_le_iff₀ (Real.sqrt_pos.2 (by exact_mod_cast hE))).2 (lem_count_upper hE)⟩
+  have hb : BddAbove S := ⟨10, fun _ ⟨E, hE, h⟩ =>
+    h ▸ (div_le_iff₀ (Real.sqrt_pos.2 (Nat.cast_pos.2 hE))).2 (lem_count_upper hE)⟩
   have hpos : 0 < sSup S :=
     (div_pos (Real.log_pos (by exact_mod_cast two_le_card_lowStates))
       (Real.sqrt_pos.2 (by norm_num))).trans_le (le_csSup hb ⟨2, by norm_num, rfl⟩)

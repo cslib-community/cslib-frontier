@@ -90,15 +90,12 @@ private theorem blockCount_update_of_eq_one (b : Bool) {x : BitString (s * w)} {
     blockCount b (update x (finProdFinEquiv (j, i)) (!x (finProdFinEquiv (j, i)))) j = 0 := by
   unfold blockCount at hx ⊢
   obtain ⟨i₀, hi₀⟩ := card_eq_one.1 hx
-  have hii : i = i₀ := mem_singleton.1 (hi₀ ▸ mem_filter.2 ⟨mem_univ i, hi⟩)
   refine card_eq_zero.2 (filter_eq_empty_iff.2 fun i' _ hi' => ?_)
   by_cases h : i' = i
-  · subst h
-    rw [update_self, hi] at hi'
-    cases b <;> simp at hi'
+  · simp only [h, update_self, hi, Bool.not_eq_self] at hi'
   · rw [update_of_ne fun h' => h (congrArg Prod.snd (finProdFinEquiv.injective h'))] at hi'
-    have := mem_singleton.1 (hi₀ ▸ mem_filter.2 ⟨mem_univ i', hi'⟩)
-    exact h (this.trans hii.symm)
+    exact h ((mem_singleton.1 (hi₀ ▸ mem_filter.2 ⟨mem_univ i', hi'⟩)).trans
+      (mem_singleton.1 (hi₀ ▸ mem_filter.2 ⟨mem_univ i, hi⟩)).symm)
 
 /-- **The block relation of [Ambainis2002], Theorem 4**: let a `T`-query algorithm with a unit
 initial state end in states with overlap at most `δ` on every input `x` that has a block without
@@ -126,18 +123,14 @@ private theorem one_sub_mul_sqrt_le_two_mul_of_blockCount (b : Bool)
     let x : BitString (s * w) := fun k =>
       if (finProdFinEquiv.symm k).1 ≠ j₀ ∧ (finProdFinEquiv.symm k).2 = i₀ then b else !b
     have hx (j : Fin s) (i : Fin w) :
-        x (finProdFinEquiv (j, i)) = if j ≠ j₀ ∧ i = i₀ then b else !b := by
+        (x (finProdFinEquiv (j, i)) = b) ↔ j ≠ j₀ ∧ i = i₀ := by
       simp only [x, Equiv.symm_apply_apply]
+      exact ⟨fun h => by_contra fun hp => (Bool.not_eq_self b).1 ((ite_eq_right hp).symm.trans h),
+        fun hp => ite_eq_left hp⟩
     refine ⟨x, mem_filter.2 ⟨mem_univ _, j₀, ?_, fun j hj => ?_⟩⟩
-    · refine card_eq_zero.2 (filter_eq_empty_iff.2 fun i _ => ?_)
-      rw [hx, ite_eq_right fun h => h.1 rfl]
-      cases b <;> decide
-    · refine card_eq_one.2 ⟨i₀, eq_singleton_iff_unique_mem.2 ⟨?_, fun i hi => ?_⟩⟩
-      · exact mem_filter.2 ⟨mem_univ _, by rw [hx, ite_eq_left ⟨hj, rfl⟩]⟩
-      · have hi' := (mem_filter.1 hi).2
-        by_contra hne
-        rw [hx, ite_eq_right fun h => hne h.2] at hi'
-        cases b <;> simp at hi'
+    · simp only [blockCount, hx, ne_eq, not_true_eq_false, false_and, filter_false, card_empty]
+    · simp only [blockCount, hx, ne_eq, hj, not_false_eq_true, true_and, filter_eq', mem_univ,
+        ↓reduceIte, card_singleton]
   have hm : ∀ x ∈ A, w ≤ #{k | update x k (!x k) ∈ B} := by
     intro x hx
     obtain ⟨j₀, h0, h1⟩ := (mem_filter.1 hx).2

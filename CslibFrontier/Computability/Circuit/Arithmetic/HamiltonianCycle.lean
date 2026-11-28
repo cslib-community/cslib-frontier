@@ -38,6 +38,7 @@ it by the bit "position `0` holds `0`" and, for every position `i`, by
 ## Main results
 
 * `Cslib.Circuits.Arithmetic.isPFamily_hcFamily`: it is a p-family.
+* `Cslib.Circuits.Arithmetic.map_hamiltonianCycleSum_genericMatrix`: change of coefficients.
 * `Cslib.Circuits.Arithmetic.hcFamily_mem_VNP`: it belongs to `VNP` over every commutative ring.
 
 ## References
@@ -73,6 +74,14 @@ theorem totalDegree_hamiltonianCycleSum_genericMatrix_le {K : Type u} [CommSemir
 theorem isPFamily_hcFamily {K : Type u} [CommSemiring K] : (hcFamily K).IsPFamily :=
   ⟨PolynomiallyBounded.id.mul PolynomiallyBounded.id,
     PolynomiallyBounded.id.mono_of_le (totalDegree_hamiltonianCycleSum_genericMatrix_le (K := K))⟩
+
+/-- Mapping the coefficients of the generic Hamiltonian cycle polynomial along `f` gives the
+generic Hamiltonian cycle polynomial. -/
+theorem map_hamiltonianCycleSum_genericMatrix {R : Type u} {S : Type*} [CommSemiring R]
+    [CommSemiring S] (f : R →+* S) (n : ℕ) :
+    MvPolynomial.map f (genericMatrix R n).hamiltonianCycleSum =
+      (genericMatrix S n).hamiltonianCycleSum := by
+  rw [RingHom.map_hamiltonianCycleSum, map_genericMatrix]
 
 variable {K : Type u} [CommRing K] (n : ℕ)
 
@@ -111,17 +120,15 @@ private def orderBits (π : Equiv.Perm (Fin n)) : Fin (n * n) → Bool :=
 
 private theorem orderBits_injective : Function.Injective (orderBits n) := by
   intro π π' e
-  refine Equiv.ext fun i => ?_
-  have := congrFun e (finProdFinEquiv (i, π i))
-  simp only [orderBits, Equiv.symm_apply_apply, decide_true] at this
-  exact (of_decide_eq_true this.symm).symm
+  exact Equiv.ext fun i => Eq.symm (of_decide_eq_true <| by
+    simpa only [orderBits, Equiv.symm_apply_apply, decide_true] using
+      (congrFun e (finProdFinEquiv (i, π i))).symm)
 
 /-- Substituting the bits `e` into a bit. -/
 private theorem projection_pos (e : Fin (n * n) → Bool) (i u : Fin n) :
     projection (booleanAssignment e) (pos (K := K) n i u) =
       C (bif e (finProdFinEquiv (i, u)) then 1 else 0) := by
-  rw [pos, projection_X]
-  simp only [booleanAssignment, Fin.append_right, Sum.elim_inr]
+  simp only [pos, projection_X, booleanAssignment, Fin.append_right, Sum.elim_inr]
 
 private theorem projection_entry (e : Fin (n * n) → Bool) (u v : Fin n) :
     projection (booleanAssignment e) (entry (K := K) n u v) =
@@ -176,11 +183,10 @@ private theorem projection_orderEdges_orderBits (π : Equiv.Perm (Fin n)) :
       ∏ i, genericMatrix K n (π i) (π (finRotate n i)) := by
   simp only [orderEdges, map_prod, map_sum, map_mul, projection_pos_orderBits, projection_entry]
   refine Finset.prod_congr rfl fun i _ => ?_
-  rw [Finset.sum_eq_single (π i, π (finRotate n i))]
-  · simp
-  · intro p _ hp
-    split_ifs <;> simp_all [Prod.ext_iff]
-  · simp
+  rw [Finset.sum_eq_single (π i, π (finRotate n i))
+    (fun p _ hp => by split_ifs <;> simp_all [Prod.ext_iff])
+    (by simp)]
+  simp
 
 /-- **Summing the witness over all bit tables gives the Hamiltonian cycle polynomial.** -/
 private theorem booleanSum_hcWitness :
@@ -199,10 +205,9 @@ private theorem booleanSum_hcWitness :
     rw [← Finset.sum_subset (subset_univ (univ.image (orderBits (k + 1)))),
       Finset.sum_image (orderBits_injective (k + 1)).injOn]
     · exact Finset.sum_congr rfl fun π _ => by rw [map_mul, projection_orderTest_orderBits, one_mul]
-    · intro e _ he
-      rw [map_mul]
-      by_contra h
-      obtain ⟨π, rfl⟩ := exists_orderBits_of_ne_zero (k + 1) e (left_ne_zero_of_mul h)
+    · refine fun e _ he => by_contra fun h => ?_
+      obtain ⟨π, rfl⟩ := exists_orderBits_of_ne_zero (k + 1) e
+        (left_ne_zero_of_mul (by rwa [map_mul] at h))
       exact he (mem_image_of_mem _ (mem_univ _))
   rw [booleanSum, hcWitness, dite_eq_left_of_eq_true (eq_true k.succ_pos)]
   simp only [mul_assoc]
@@ -264,10 +269,9 @@ polynomial with circuits of `O(n ^ 4)` nodes. -/
 theorem hcFamily_mem_VNP : hcFamily K ∈ VNP K := by
   have hb : PolynomiallyBounded fun n => 40 * (n + 1) ^ 4 :=
     PolynomiallyBounded.of_forall_le 40 4 fun _ => le_rfl
-  refine ⟨fun n => n * n, hcWitness (K := K), mem_VP_iff.2 ⟨⟨?_, hb.mono_of_le
+  have hsq := PolynomiallyBounded.id.mul PolynomiallyBounded.id
+  exact ⟨fun n => n * n, hcWitness (K := K), mem_VP_iff.2 ⟨⟨hsq.add hsq, hb.mono_of_le
     (totalDegree_hcWitness_le (K := K))⟩, _, hb, computedWithin_hcWitness (K := K)⟩,
     fun n => (booleanSum_hcWitness n).symm⟩
-  exact (PolynomiallyBounded.id.mul PolynomiallyBounded.id).add
-    (PolynomiallyBounded.id.mul PolynomiallyBounded.id)
 
 end Cslib.Circuits.Arithmetic

@@ -92,33 +92,28 @@ def IsConstOrLiteral (φ : BooleanFunction n) : Prop :=
   ⟨false, fun _ => (Bool.xor_false _).symm⟩
 
 /-- Equality up to negation is symmetric. -/
-@[symm] theorem EqUpToNeg.symm (h : EqUpToNeg φ ψ) : EqUpToNeg ψ φ := by
-  obtain ⟨c, h⟩ := h
-  exact ⟨c, fun x => by rw [h x, Bool.xor_assoc, Bool.xor_self, Bool.xor_false]⟩
+@[symm] theorem EqUpToNeg.symm (h : EqUpToNeg φ ψ) : EqUpToNeg ψ φ :=
+  h.imp fun c h x => by rw [h x, Bool.xor_assoc, Bool.xor_self, Bool.xor_false]
 
 /-- Equality up to negation is transitive. -/
-@[trans] theorem EqUpToNeg.trans (h₁ : EqUpToNeg φ ψ) (h₂ : EqUpToNeg ψ χ) : EqUpToNeg φ χ := by
-  obtain ⟨c, h₁⟩ := h₁
-  obtain ⟨d, h₂⟩ := h₂
-  exact ⟨d ^^ c, fun x => by rw [h₁ x, h₂ x, Bool.xor_assoc]⟩
+@[trans] theorem EqUpToNeg.trans (h₁ : EqUpToNeg φ ψ) (h₂ : EqUpToNeg ψ χ) : EqUpToNeg φ χ :=
+  h₁.elim fun c h₁ => h₂.elim fun d h₂ =>
+    ⟨d ^^ c, fun x => by rw [h₁ x, h₂ x, Bool.xor_assoc]⟩
 
-private theorem EqUpToNeg.isConst (h : EqUpToNeg φ ψ) (hψ : IsConst ψ) : IsConst φ := by
-  obtain ⟨c, h⟩ := h
-  exact fun x y => by rw [h, h, hψ x y]
+private theorem EqUpToNeg.isConst (h : EqUpToNeg φ ψ) (hψ : IsConst ψ) : IsConst φ :=
+  h.elim fun _ h x y => by rw [h, h, hψ x y]
 
 private theorem EqUpToNeg.isConstOrLiteral (h : EqUpToNeg φ ψ) (hψ : IsConstOrLiteral ψ) :
     IsConstOrLiteral φ :=
   hψ.imp h.isConst fun ⟨i, hi⟩ => ⟨i, h.trans hi⟩
 
 private theorem EqUpToNeg.dependsOn {s : Set (Fin n)} (h : EqUpToNeg φ ψ) (hψ : DependsOn ψ s) :
-    DependsOn φ s := by
-  obtain ⟨c, h⟩ := h
-  exact fun x y hxy => by rw [h, h, hψ hxy]
+    DependsOn φ s :=
+  h.elim fun _ h x y hxy => by rw [h, h, hψ hxy]
 
 private theorem EqUpToNeg.comp_right (h : EqUpToNeg φ ψ) (f : BitString n → BitString n) :
-    EqUpToNeg (φ ∘ f) (ψ ∘ f) := by
-  obtain ⟨c, h⟩ := h
-  exact ⟨c, fun x => h _⟩
+    EqUpToNeg (φ ∘ f) (ψ ∘ f) :=
+  h.imp fun _ h _ => h _
 
 private theorem isConstOrLiteral_literal (i : Fin n) :
     IsConstOrLiteral fun x : BitString n => x i :=
@@ -192,17 +187,13 @@ private theorem exists_eqUpToNeg_of_isConst (h : ℓ.op.IsBinary) {s : Fin (sign
 
 /-- A gate whose arguments are constant is constant. -/
 private theorem isConst_of_forall_isConst (h : ∀ s, IsConst (G (ℓ.wires s))) :
-    IsConst (lineFunction ℓ G) := fun x y => by
-  simp only [lineFunction]
-  congr 1 with s : 1
-  exact h s x y
+    IsConst (lineFunction ℓ G) :=
+  fun x y => congrArg (interpretation ℓ.op) (funext fun s => h s x y)
 
 /-- A gate whose arguments depend only on `S` depends only on `S`. -/
 private theorem dependsOn_of_forall_dependsOn {S : Set (Fin n)}
-    (h : ∀ s, DependsOn (G (ℓ.wires s)) S) : DependsOn (lineFunction ℓ G) S := fun x y hxy => by
-  simp only [lineFunction]
-  congr 1 with s : 1
-  exact h s hxy
+    (h : ∀ s, DependsOn (G (ℓ.wires s)) S) : DependsOn (lineFunction ℓ G) S :=
+  fun _ _ hxy => congrArg (interpretation ℓ.op) (funext fun s => h s hxy)
 
 /-- A binary gate on two constants or literals that is neither constant, nor a literal, nor one
 of its arguments up to negation reads two different bits, each of which, suitably fixed, makes it
@@ -221,22 +212,18 @@ private theorem exists_two_literals (h : ℓ.op.IsBinary)
   rcases Op.isBinary_iff.1 h with rfl | rfl
   · obtain ⟨i, c, hi⟩ := lit 0
     obtain ⟨j, d, hj⟩ := lit 1
-    simp only at hi hj
-    have hij : i ≠ j := fun he => hℓ (isConstOrLiteral_of_eq_comp (i := i)
+    refine ⟨0, i, j, fun he => hℓ (isConstOrLiteral_of_eq_comp (i := i)
       (fun t => (t ^^ c) && (t ^^ d)) fun x => by
-        simp only [lineFunction, interpretation, hi, he ▸ hj])
-    exact ⟨0, i, j, hij, ⟨c, hi⟩,
-      ⟨c, false, fun x hx => by simp [lineFunction, interpretation, hi, hx]⟩,
-      ⟨d, false, fun x hx => by simp [lineFunction, interpretation, hj, hx]⟩⟩
+        simp only [lineFunction, interpretation, hi x, he ▸ hj x]), ⟨c, hi⟩,
+      ⟨c, false, fun x hx => by simp [lineFunction, interpretation, hi x, hx]⟩,
+      ⟨d, false, fun x hx => by simp [lineFunction, interpretation, hj x, hx]⟩⟩
   · obtain ⟨i, c, hi⟩ := lit 0
     obtain ⟨j, d, hj⟩ := lit 1
-    simp only at hi hj
-    have hij : i ≠ j := fun he => hℓ (isConstOrLiteral_of_eq_comp (i := i)
+    refine ⟨0, i, j, fun he => hℓ (isConstOrLiteral_of_eq_comp (i := i)
       (fun t => (t ^^ c) || (t ^^ d)) fun x => by
-        simp only [lineFunction, interpretation, hi, he ▸ hj])
-    exact ⟨0, i, j, hij, ⟨c, hi⟩,
-      ⟨!c, true, fun x hx => by simp [lineFunction, interpretation, hi, hx]⟩,
-      ⟨!d, true, fun x hx => by simp [lineFunction, interpretation, hj, hx]⟩⟩
+        simp only [lineFunction, interpretation, hi x, he ▸ hj x]), ⟨c, hi⟩,
+      ⟨!c, true, fun x hx => by simp [lineFunction, interpretation, hi x, hx]⟩,
+      ⟨!d, true, fun x hx => by simp [lineFunction, interpretation, hj x, hx]⟩⟩
 
 end Line
 
@@ -255,8 +242,7 @@ functions of its input wires. -/
 theorem restricted_gate_apply (ρ : PartialAssignment (Fin n)) (k : Fin g) (x : BitString n) :
     restricted p ρ (.gate k) x =
       interpretation (p.lines k).op fun s => restricted p ρ ((p.lines k).wires s) x := by
-  simp only [restricted, comp_apply, Program.wireFunction_gate, Program.gateFunction_apply]
-  rw [← p.lines_eval]
+  rw [restricted, comp_apply, Program.wireFunction_gate, Program.gateFunction_apply, ← p.lines_eval]
   rfl
 
 private theorem restricted_gate (ρ : PartialAssignment (Fin n)) (k : Fin g) :
@@ -272,9 +258,8 @@ variable {p} {ρ : PartialAssignment (Fin n)} {i : Fin n}
 /-- Fixing one more free bit is restricting the restricted function. -/
 private theorem restricted_update (hi : ρ i = none) (b : Bool) (w : Wire n g) :
     restricted p (update ρ i (some b)) w =
-      restricted p ρ w ∘ PartialAssignment.fill (update ρ i (some b)) := by
-  funext x
-  simp only [restricted, comp_apply, PartialAssignment.fill_fill_update hi]
+      restricted p ρ w ∘ PartialAssignment.fill (update ρ i (some b)) :=
+  funext fun _ => by simp only [restricted, comp_apply, PartialAssignment.fill_fill_update hi]
 
 private theorem restricted_update_of_ne_none (hi : ρ i ≠ none) (w : Wire n g) (x : BitString n)
     (c : Bool) : restricted p ρ w (update x i c) = restricted p ρ w x := by
@@ -298,10 +283,9 @@ private theorem restricted_update_of_parity {o : Wire n g} (hi : ρ i = none) (b
     parityOn_eq_xor_erase (PartialAssignment.mem_free.2 hi), PartialAssignment.free_update,
     PartialAssignment.fill_of_eq_some (update_self ..), Bool.xor_assoc]
   congr 2
-  refine parityOn_congr fun j hj => PartialAssignment.fill_of_eq_none ?_ x
-  obtain ⟨hji, hj⟩ := mem_erase.1 hj
-  rw [update_of_ne hji]
-  exact PartialAssignment.mem_free.1 hj
+  exact parityOn_congr fun j hj => PartialAssignment.fill_of_eq_none
+    ((update_of_ne (mem_erase.1 hj).1 _ _).trans (PartialAssignment.mem_free.1 (mem_erase.1 hj).2))
+    x
 
 end Restricted
 
@@ -354,19 +338,16 @@ private theorem isConstOrLiteral_or_eqUpToNeg_of_not_nonRedundant {k : Fin g}
       ∃ s, EqUpToNeg (restricted p ρ (.gate k)) (restricted p ρ ((p.lines k).wires s)) := by
   by_cases hb : (p.lines k).op.IsBinary
   · simp only [NonRedundant, hb, true_and, not_and, not_forall, not_not] at hk
-    by_cases ht : IsConstOrLiteral (restricted p ρ (.gate k))
-    · exact Or.inl ht
-    · exact Or.inr (hk ht)
-  · rw [restricted_gate]
-    exact (isConst_or_eqUpToNeg_of_not_isBinary _ _ hb).imp_left Or.inl
+    exact (Classical.em _).imp_right hk
+  · exact (restricted_gate p ρ k ▸ isConst_or_eqUpToNeg_of_not_isBinary _ _ hb).imp_left Or.inl
 
 /-- A binary gate with a constant argument is redundant. -/
 private theorem not_nonRedundant_of_isConst_wires {k : Fin g}
     {s : Fin (signature.Arity (p.lines k).op)}
-    (h : IsConst (restricted p ρ ((p.lines k).wires s))) : ¬NonRedundant p ρ k := by
-  rintro ⟨hb, -, hns⟩
-  obtain ⟨t, ht⟩ := exists_eqUpToNeg_of_isConst _ _ hb h
-  exact hns t (restricted_gate p ρ k ▸ ht)
+    (h : IsConst (restricted p ρ ((p.lines k).wires s))) : ¬NonRedundant p ρ k :=
+  fun ⟨hb, _, hns⟩ =>
+    let ⟨t, ht⟩ := exists_eqUpToNeg_of_isConst _ _ hb h
+    hns t (restricted_gate p ρ k ▸ ht)
 
 end NonRedundant
 
@@ -445,13 +426,11 @@ private theorem Effective.eqUpToNeg_or_dependsOn {i j : Fin n} (hj : ρ j = none
       (PartialAssignment.dependsOn_comp_fill · _)
   | gate k ih =>
     by_cases hkk : k = k₀
-    · subst hkk
-      exact Or.inr fun x y _ => hk₀ x y
+    · exact Or.inr fun x y _ => hkk ▸ hk₀ x y
     by_cases hk : NonRedundant p ρ k
-    · refine Or.inr ?_
-      rw [restricted_gate]
-      exact dependsOn_of_forall_dependsOn _ _ fun s =>
-        (ih s (hv.arg (Or.inl hk))).resolve_left (hread k hk hv hkk s)
+    · exact Or.inr (restricted_gate p (update ρ j (some b)) k ▸
+        dependsOn_of_forall_dependsOn _ _ fun s =>
+          (ih s (hv.arg (Or.inl hk))).resolve_left (hread k hk hv hkk s))
     · rcases isConstOrLiteral_or_eqUpToNeg_of_not_nonRedundant hk with h | ⟨s, h⟩
       · rw [restricted_update hj]
         exact (h.eqUpToNeg_or_dependsOn i).imp_right (PartialAssignment.dependsOn_comp_fill · _)
@@ -547,11 +526,9 @@ private theorem exists_card_add_three_le {c : Bool}
   obtain ⟨s₀, i, j, hij, hs₀, ⟨a, d₁, hka⟩, ⟨b, d₂, hkb⟩⟩ :=
     exists_two_literals _ _ hbin hargs hnt hns
   rw [← restricted_gate] at hka hkb hnt
-  have hi : ρ i = none := by
-    by_contra h
-    obtain ⟨e, he⟩ := hs₀
-    have := restricted_update_of_ne_none (p := p) h ((p.lines k₀).wires s₀) (fun _ => false) true
-    simp [he] at this
+  have hi : ρ i = none := Classical.byContradiction fun h => hs₀.elim fun e he => by
+    simpa [he] using
+      restricted_update_of_ne_none (p := p) h ((p.lines k₀).wires s₀) (fun _ => false) true
   have hfix {l : Fin n} (hl : ρ l = none) {e d : Bool}
       (h : ∀ x, x l = e → restricted p ρ (.gate k₀) x = d) :
       IsConst (restricted p (update ρ l (some e)) (.gate k₀)) :=

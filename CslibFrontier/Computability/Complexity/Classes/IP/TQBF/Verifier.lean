@@ -19,11 +19,9 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Prime
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Search
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Prime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import Mathlib.NumberTheory.Bertrand
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.SuppCases
@@ -80,6 +78,8 @@ every step adds at most a polynomial amount of storage
 @[expose] public section
 
 namespace Cslib.Complexity.QBFProtocol
+
+open Polynomial (evalCoeffListMod evalCoeffListMod_lt_modulus)
 
 open Cslib.Logic.PL Turing.MultiTapeTM Cslib.Probability
 
@@ -207,14 +207,15 @@ def binNext (o : ArithQBF.Connective) (a : StepData) (word : List Bool) : VState
 /-- Whether the reply `word` to an operator `o` passes the check against the top claim. -/
 def opCheck (o : ArithQBF.Operator) (a : StepData) (word : List Bool) : Bool :=
   decide (operatorMod a.modulus o (lookupPt a.top.point a.head.2 % a.modulus)
-    (hornerMod a.modulus 0 (replyOf a word)) (hornerMod a.modulus 1 (replyOf a word)) %
+    (evalCoeffListMod a.modulus 0 (replyOf a word))
+    (evalCoeffListMod a.modulus 1 (replyOf a word)) %
       a.modulus = a.top.value % a.modulus)
 
 /-- The state after the reply `word` to an operator and the random point `z`: the claim that the
 body has the value of the reply at `z`, with the variable set to `z`. -/
 def opNext (a : StepData) (word : List Bool) (z : ℕ) : VState :=
   ⟨a.tokens.tail, ⟨updatePt a.modulus a.xs a.top.point a.head.2 z,
-    hornerMod a.modulus z (replyOf a word)⟩ :: a.below, true⟩
+    evalCoeffListMod a.modulus z (replyOf a word)⟩ :: a.below, true⟩
 
 /-- The reply to the message of a step, of which `D + 1` rows are read. -/
 noncomputable def ask (a : StepData) : WordOracleComp Unit (List Bool) :=
@@ -357,22 +358,15 @@ private lemma opCont_pt (o : ArithQBF.Operator) :
 
 private lemma stepAt_pt (k : ArithQBF.Kind) :
     IsOraclePPTOn encStepData encVState (stepAt k) := by
-  cases k
-  · exact ComputableInPolyTime.isOraclePPTOn (f := fun a : StepData => VState.mk a.tokens.tail
-      a.below (decide (lookupPt a.top.point a.head.2 % a.modulus = a.top.value % a.modulus)))
-      (by fun_prop)
-  · exact ComputableInPolyTime.isOraclePPTOn (f := fun a : StepData => VState.mk a.tokens.tail
-      a.below (decide (1 % a.modulus = a.top.value % a.modulus))) (by fun_prop)
-  · exact ComputableInPolyTime.isOraclePPTOn (f := fun a : StepData => VState.mk a.tokens.tail
-      a.below (decide (0 % a.modulus = a.top.value % a.modulus))) (by fun_prop)
-  · exact ComputableInPolyTime.isOraclePPTOn (f := fun a : StepData => VState.mk a.tokens.tail
-      (⟨normPt a.modulus a.xs a.top.point, subMod a.modulus 1 a.top.value⟩ :: a.below) true)
-      (by fun_prop)
-  · exact ask_pt.bind_with (binNext_pt .and).isOraclePPTOn
-  · exact ask_pt.bind_with (binNext_pt .or).isOraclePPTOn
-  · exact ask_pt.bind_with (opCont_pt .ex)
-  · exact ask_pt.bind_with (opCont_pt .all)
-  · exact ask_pt.bind_with (opCont_pt .lin)
+  cases k with
+  | var | top | bot | not =>
+    unfold stepAt
+    exact ComputableInPolyTime.isOraclePPTOn (by fun_prop)
+  | and => exact ask_pt.bind_with (binNext_pt .and).isOraclePPTOn
+  | or => exact ask_pt.bind_with (binNext_pt .or).isOraclePPTOn
+  | ex => exact ask_pt.bind_with (opCont_pt .ex)
+  | all => exact ask_pt.bind_with (opCont_pt .all)
+  | lin => exact ask_pt.bind_with (opCont_pt .lin)
 
 /-- **A step of the machine is strict oracle PPT** in the encoded input and state. -/
 private theorem isOraclePPTOn_step :
@@ -457,7 +451,7 @@ theorem length_encVState_le_of_mem_support_step (I : LoopInput) (st : VState) {n
     · refine length_encVState_push_le st [_] true (by simp) ?_
       simp only [List.mem_singleton, forall_eq]
       exact length_encClaim_map_le I _ (fun x => by split_ifs <;> exact Nat.mod_lt _ hq) _
-        (hornerMod_lt _ _)
+        (evalCoeffListMod_lt_modulus _ _)
     · exact hrej
   unfold step at h
   split_ifs at h with hactive
@@ -517,7 +511,7 @@ def degreeBound (ψ : QBF ℕ) : ℕ := 2 * ψ.tokens.length
 def primeBound (ψ : QBF ℕ) : ℕ := 12 * ψ.tokens.length ^ 2 * (ψ.tokens.length + 1)
 
 /-- The modulus: the greatest prime at most twice the bound. -/
-def modulus (ψ : QBF ℕ) : ℕ := Nat.findGreatest Nat.Prime (2 * primeBound ψ)
+def modulus (ψ : QBF ℕ) : ℕ := bertrandPrime (primeBound ψ)
 
 /-- The parameters and tokens of the machine for a formula. -/
 def loopInput (ψ : QBF ℕ) : LoopInput where
@@ -537,8 +531,7 @@ theorem prime_modulus (ψ : QBF ℕ) : (modulus ψ).Prime ∧ primeBound ψ < mo
     have := List.length_pos_of_ne_nil (QBF.tokens_ne_nil ψ)
     unfold primeBound
     positivity
-  obtain ⟨q, hq, hlt, hle⟩ := Nat.exists_prime_lt_and_le_two_mul (primeBound ψ) hB
-  exact ⟨Nat.findGreatest_spec hle hq, hlt.trans_le (Nat.le_findGreatest hle hq)⟩
+  exact ⟨(bertrandPrime_spec hB).1, (bertrandPrime_spec hB).2.1⟩
 
 theorem lt_modulus (ψ : QBF ℕ) : primeBound ψ < modulus ψ := (prime_modulus ψ).2
 
@@ -565,10 +558,7 @@ private lemma linVars_pt : ComputableInPolyTime linVars encQBF (encList encNat) 
   fun_prop
 
 private lemma modulus_qbf_pt : ComputableInPolyTime modulus encQBF encUnary :=
-  ComputableInPolyTime.findGreatest (by
-    unfold primeBound
-    fun_prop)
-    (ComputableInPolyTime.unary_decide_prime.comp (.snd _ _))
+  unary_bertrandPrime (by unfold primeBound; fun_prop)
 
 private lemma loopInput_pt : ComputableInPolyTime loopInput encQBF encLoopInput := by
   have := linVars_pt

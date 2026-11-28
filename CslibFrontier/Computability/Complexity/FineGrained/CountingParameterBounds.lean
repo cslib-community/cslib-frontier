@@ -62,16 +62,11 @@ private theorem max_one_numGroups_mul_clog_le (n : ℕ) :
               (Nat.clog_mono_right 2 (by omega)) 1)
         _ ≤ Nat.clog 2 n := numGroups_mul_clog_le_clog hn
         _ ≤ Nat.clog 2 n + 1 := Nat.le_succ _
-    · have hs0 : numGroups n = 0 := by omega
-      simp [hs0]
-  · have hn' : n < 5 := by omega
-    interval_cases n
-    · decide
-    · decide
-    · decide
-    · rw [show numGroups 3 = 1 from (numGroups_eq_iff (by decide)).mpr (by decide)]
-      decide
-    · rw [show numGroups 4 = 1 from (numGroups_eq_iff (by decide)).mpr (by decide)]
+    · simp [Nat.eq_zero_of_not_pos hs]
+  · interval_cases n
+    all_goals try decide
+    all_goals
+      rw [show numGroups _ = 1 from (numGroups_eq_iff (by decide)).mpr (by decide)]
       decide
 
 /-- For fixed width at least two, the same constant bounds the numerical first-success base

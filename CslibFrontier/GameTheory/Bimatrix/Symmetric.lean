@@ -101,10 +101,9 @@ theorem ofSymmetric_B (A : Matrix M M ℝ) : (ofSymmetric A).B = Aᵀ := by rfl
 theorem isSymmetric_ofSymmetric (A : Matrix M M ℝ) : (ofSymmetric A).IsSymmetric := by rfl
 
 theorem IsSymmetric.swap_eq {G : BimatrixGame M M} (hG : G.IsSymmetric) : G.swap = G := by
-  cases G
-  dsimp only [IsSymmetric] at hG
-  subst hG
-  simp only [swap_mk, transpose_transpose]
+  rcases G with ⟨A, B⟩
+  obtain rfl : B = Aᵀ := hG
+  simp [swap_mk]
 
 /-- Embedding of `G : BimatrixGame M M` as a two-player `CostGame Bool (fun _ => M)` on the shared
 strategy type `M`, where `false` is the row player and `true` is the column player. -/
@@ -127,11 +126,7 @@ theorem isSymmetric_toSymmCostGame_iff {G : BimatrixGame M M} :
   constructor
   · intro h
     ext i j
-    have hij := h (Equiv.swap false true) (fun b => cond b j i) false
-    dsimp only [toSymmCostGame, Function.comp_apply] at hij
-    simp only [Equiv.swap_apply_left, Equiv.swap_apply_right, Bool.cond_true, Bool.cond_false,
-      neg_inj, transpose_apply] at hij ⊢
-    exact hij.symm
+    simpa [toSymmCostGame] using (h (Equiv.swap false true) (fun b => cond b j i) false).symm
   · intro (hG : G.B = G.Aᵀ) π s b
     cases b <;> cases hf : π false <;> cases ht : π true <;>
       first
@@ -186,28 +181,21 @@ private def boolPairEquiv (α : Type*) : (Bool → α) ≃ α × α where
 
 private theorem deviationCost_toSymmCostGame_false {x : M → ℝ} (hx : ∑ i : M, x i = 1) (i : M) :
     G.toSymmCostGame.deviationCost (fun _ => x) false i = -(G.A *ᵥ x) i := by
-  rw [CostGame.deviationCost_def, ← (boolPairEquiv M).symm.sum_comp]
-  have hterm : ∀ p : M × M,
-      productWeight (fun _ : Bool => x) ((boolPairEquiv M).symm p) *
-          G.toSymmCostGame.cost false (update ((boolPairEquiv M).symm p) false i) =
-        x p.1 * (-(G.A i p.2 * x p.2)) := by
-    intro p
+  have hterm (a b : M) : productWeight (fun _ : Bool => x) ((boolPairEquiv M).symm (a, b)) *
+      G.toSymmCostGame.cost false (update ((boolPairEquiv M).symm (a, b)) false i) =
+      x a * -(G.A i b * x b) := by
     simp only [productWeight_def, Fintype.prod_bool, boolPairEquiv, Equiv.coe_fn_symm_mk,
       toSymmCostGame, update_self, ne_eq, Bool.true_eq_false, not_false_eq_true, update_of_ne,
       Bool.cond_true, Bool.cond_false]
     ring
-  simp_rw [hterm]
-  rw [Fintype.sum_prod_type]
-  simp_rw [← mul_sum]
-  rw [← sum_mul, hx, one_mul, Finset.sum_neg_distrib]
-  rfl
+  rw [CostGame.deviationCost_def, ← (boolPairEquiv M).symm.sum_comp, Fintype.sum_prod_type]
+  simp only [hterm, mul_neg, sum_neg_distrib, ← mul_sum, ← sum_mul, hx, one_mul, mulVec, dotProduct]
 
 private theorem expectedCost_toSymmCostGame_false {x : M → ℝ} (hx : ∑ i : M, x i = 1) :
     G.toSymmCostGame.expectedCost (fun _ => x) false = -G.payoff₁ x x := by
-  rw [← G.toSymmCostGame.sum_mul_deviationCost_eq_expectedCost (fun _ => x) hx]
-  simp_rw [deviationCost_toSymmCostGame_false hx, mul_neg, Finset.sum_neg_distrib]
-  rw [payoff₁_eq_dotProduct]
-  rfl
+  rw [← G.toSymmCostGame.sum_mul_deviationCost_eq_expectedCost (fun _ => x) hx,
+    payoff₁_eq_dotProduct]
+  simp only [deviationCost_toSymmCostGame_false hx, mul_neg, Finset.sum_neg_distrib, dotProduct]
 
 /-- In a symmetric bimatrix game, `x` is a symmetric Nash equilibrium iff `x` is a symmetric mixed
 Nash equilibrium of `G.toSymmCostGame`. -/
@@ -342,9 +330,8 @@ theorem symmReduction_pos_and_isNash [Nonempty M] [Nonempty N] {G : BimatrixGame
     (isSymmetric_symmReduction G).isSymmetricNash_iff_isBestResponse₁.1 hz
   have hz_mix : IsMixedStrategy z := hbr.isMixedStrategy
   have hAz : G.symmReduction.A = G.symmReductionMatrix := rfl
-  have hsum : ∑ i : M, z (.inl i) + ∑ j : N, z (.inr j) = 1 := by
-    rw [← Fintype.sum_sum_type]
-    exact hz_mix.sum_eq_one
+  have hsum : ∑ i : M, z (.inl i) + ∑ j : N, z (.inr j) = 1 :=
+    Fintype.sum_sum_type z ▸ hz_mix.sum_eq_one
   have hsx_pos : 0 < ∑ i : M, z (.inl i) := by
     refine (sum_nonneg fun i _ => hz_mix.nonneg (.inl i)).lt_of_ne fun hsx0 => ?_
     have hx : (fun i => z (.inl i)) = 0 := funext fun i =>
@@ -356,9 +343,7 @@ theorem symmReduction_pos_and_isNash [Nonempty M] [Nonempty N] {G : BimatrixGame
       (hbr.le_payoff₁ (.inl (Classical.arbitrary M))).trans_eq (hbr.payoff₁_eq_of_pos hj₁)
     rw [hAz, mulVec_symmReductionMatrix_inl, mulVec_symmReductionMatrix_inr, hx, zero_vecMul]
       at hval
-    have hpos := hy_mix.dotProduct_pos (hA (Classical.arbitrary M))
-    rw [dotProduct_comm] at hpos
-    exact absurd hval (not_le.2 hpos)
+    exact not_le_of_gt (by simpa [mulVec, dotProduct_comm] using hy_mix.dotProduct_pos (hA _)) hval
   have hsy_pos : 0 < ∑ j : N, z (.inr j) := by
     refine (sum_nonneg fun j _ => hz_mix.nonneg (.inr j)).lt_of_ne fun hsy0 => ?_
     have hy : (fun j => z (.inr j)) = 0 := funext fun j =>
@@ -394,32 +379,21 @@ theorem isSymmetricNash_symmReduction_of_isNash {G : BimatrixGame M N}
   have hy := hbr₂.isMixedStrategy
   set u : ℝ := G.payoff₁ x y
   set v : ℝ := G.payoff₂ x y
-  have hu : 0 < u := G.payoff₁_pos hA hx hy
-  have hv : 0 < v := G.payoff₂_pos hB hx hy
-  have huv : 0 < u + v := add_pos hu hv
+  have huv : 0 < u + v := add_pos (G.payoff₁_pos hA hx hy) (G.payoff₂_pos hB hx hy)
   set α : ℝ := u / (u + v)
   set β : ℝ := v / (u + v)
-  have hα : 0 < α := div_pos hu huv
-  have hβ : 0 < β := div_pos hv huv
-  have hαβ : α + β = 1 := by
-    dsimp only [α, β]
-    rw [← add_div, div_self huv.ne']
+  have hα : 0 < α := div_pos (G.payoff₁_pos hA hx hy) huv
+  have hβ : 0 < β := div_pos (G.payoff₂_pos hB hx hy) huv
+  have hαβ : α + β = 1 := by rw [← add_div, div_self huv.ne']
   set z : M ⊕ N → ℝ := Sum.elim (α • x) (β • y)
-  have hz_mix : IsMixedStrategy z := by
-    refine isMixedStrategy_iff.2 ⟨fun k => ?_, ?_⟩
-    · cases k with
-      | inl i => exact mul_nonneg hα.le (hx.nonneg i)
-      | inr j => exact mul_nonneg hβ.le (hy.nonneg j)
-    · rw [Fintype.sum_sum_type]
-      simp only [z, Sum.elim_inl, Sum.elim_inr, Pi.smul_apply, smul_eq_mul, ← mul_sum,
-        hx.sum_eq_one, hy.sum_eq_one, mul_one, hαβ]
-  have hAz : G.symmReduction.A = G.symmReductionMatrix := rfl
-  have hval_inl : ∀ i : M, (G.symmReduction.A *ᵥ z) (.inl i) = β * (G.A *ᵥ y) i := fun i => by
-    rw [hAz, mulVec_symmReductionMatrix_inl]
-    exact congrFun (mulVec_smul G.A β y) i
-  have hval_inr : ∀ j : N, (G.symmReduction.A *ᵥ z) (.inr j) = α * (x ᵥ* G.B) j := fun j => by
-    rw [hAz, mulVec_symmReductionMatrix_inr]
-    exact congrFun (smul_vecMul α x G.B) j
+  have hz_mix : IsMixedStrategy z := isMixedStrategy_iff.2
+    ⟨Sum.rec (fun i => mul_nonneg hα.le (hx.nonneg i)) (fun j => mul_nonneg hβ.le (hy.nonneg j)),
+      by simp only [Fintype.sum_sum_type, z, Sum.elim_inl, Sum.elim_inr, Pi.smul_apply,
+        smul_eq_mul, ← mul_sum, hx.sum_eq_one, hy.sum_eq_one, mul_one, hαβ]⟩
+  have hval_inl (i : M) : (G.symmReduction.A *ᵥ z) (.inl i) = β * (G.A *ᵥ y) i :=
+    (mulVec_symmReductionMatrix_inl G z i).trans (congrFun (mulVec_smul G.A β y) i)
+  have hval_inr (j : N) : (G.symmReduction.A *ᵥ z) (.inr j) = α * (x ᵥ* G.B) j :=
+    (mulVec_symmReductionMatrix_inr G z j).trans (congrFun (smul_vecMul α x G.B) j)
   have hcommon : β * u = α * v := by dsimp only [α, β]; ring
   refine ((isSymmetric_symmReduction G).isSymmetricNash_iff_pureBestResponse).2
     ⟨hz_mix, fun k hk => isPureBestResponse₁_iff.2 fun k' => ?_⟩
@@ -452,10 +426,9 @@ theorem exists_addConst_symmReduction [Nonempty M] [Nonempty N] (G : BimatrixGam
             (((G.addConst c).payoff₂ x y /
                 ((G.addConst c).payoff₁ x y + (G.addConst c).payoff₂ x y)) • y))) := by
   obtain ⟨c, hA, hB⟩ := G.exists_addConst_pos
-  refine ⟨c, fun z hz => ?_, fun x y hxy => ?_⟩
-  · obtain ⟨hsx, hsy, hNash⟩ := symmReduction_pos_and_isNash hA hB hz
-    exact ⟨hsx, hsy, isNash_addConst.1 hNash⟩
-  · exact isSymmetricNash_symmReduction_of_isNash hA hB (isNash_addConst.2 hxy)
+  exact ⟨c, fun z hz =>
+      (symmReduction_pos_and_isNash hA hB hz).imp_right (And.imp_right isNash_addConst.1),
+    fun x y hxy => isSymmetricNash_symmReduction_of_isNash hA hB (isNash_addConst.2 hxy)⟩
 
 end FintypeTwoBlock
 

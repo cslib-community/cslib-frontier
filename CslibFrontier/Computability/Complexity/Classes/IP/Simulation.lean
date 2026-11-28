@@ -161,13 +161,10 @@ private theorem aliveStep_eq_replayStep (t : ℕ)
       cases MUnit.tr c cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols cfg.answerSymbols b with
       | step => rfl
       | query op next =>
-        simp only [taggedStep, answerFromHistory, Bool.true_and, id_eq]
-        cases rest with
-        | nil => rfl
-        | cons e rest =>
-          obtain ⟨m, y⟩ := e
-          simp only [List.isEmpty_cons, Bool.false_eq_true, ite_false, List.headD_cons,
-            List.tail_cons, beq_iff_eq]
+        rcases rest with _ | ⟨⟨m, y⟩, rest⟩
+        · rfl
+        · simp only [taggedStep, answerFromHistory, Bool.true_and, id_eq, List.isEmpty_cons,
+            Bool.false_eq_true, ite_false, List.headD_cons, List.tail_cons, beq_iff_eq]
           split_ifs with hm <;> simp
 
 private theorem foldl_bind_error {α β γ : Type*} (f : β → γ → Except α β) (l : List γ) (e : α) :
@@ -191,9 +188,9 @@ private theorem foldl_aliveStep (t : ℕ) (l : List Bool)
   induction l generalizing cfg h with
   | nil => rfl
   | cons b l ih =>
-    simp only [List.foldl_cons, aliveStep_eq_replayStep, ite_true]
-    rw [show (Except.ok (cfg, h)).bind (fun p => replayStep MUnit t p b) =
-      replayStep MUnit t (cfg, h) b from rfl]
+    have hbind : (Except.ok (cfg, h)).bind (fun p => replayStep MUnit t p b) =
+        replayStep MUnit t (cfg, h) b := rfl
+    simp only [List.foldl_cons, aliveStep_eq_replayStep, ite_true, hbind]
     rcases hr : replayStep MUnit t (cfg, h) b with e | ⟨cfg', h'⟩
     · simp only [foldl_bind_error, foldl_aliveStep_false, true_and]
       rintro m rfl
@@ -225,8 +222,7 @@ theorem aliveRun_of_simulate_ok {x r : List Bool} {h : History}
     {p : MultiTapeMachine.FiniteConfig k Bool Control Unit × History}
     (hsim : simulate MUnit r.length x r h = .ok p) :
     aliveRun (fun _ _ => true) id MUnit x r h = (p.1, p.2, true) := by
-  have hrun := aliveRun_spec MUnit x r h
-  rwa [hsim] at hrun
+  simpa [hsim] using aliveRun_spec MUnit x r h
 
 /-- When the replay pauses waiting for a reply to `m`, the live replay stops inactive with `m` on
 channel `()`. -/
@@ -325,9 +321,7 @@ private theorem computableInPolyTime_aliveStep :
   · intro tag
     match tag with
     | (false, _) | (true, none) => exact (fst _ _).snd'
-    | (true, some (.step action symbol move)) =>
-      simp only [taggedStep]
-      fun_prop
+    | (true, some (.step action symbol move)) => fun_prop [taggedStep]
     | (true, some (.query op next)) =>
       exact computableInPolyTime_answerFromHistory matchOp entryPair hmatch hpair op next
 
@@ -357,12 +351,11 @@ private theorem aliveStep_spaceBound {n i t : ℕ} {h : List Entry}
         | cons e rest =>
           simp only [List.isEmpty_cons, Bool.false_eq_true, ↓reduceIte, List.headD_cons,
             List.tail_cons]
-          by_cases hcond : (matchOp op e && (entryPair e).1 == (cfg.channels op).1) = true
-          · simp only [hcond, ↓reduceIte]
-            exact ⟨hspace.receive op next _ (List.length_take_le _ _),
+          by_cases hcond : (matchOp op e && (entryPair e).1 == (cfg.channels op).1) = true <;>
+            simp only [hcond, ↓reduceIte]
+          · exact ⟨hspace.receive op next _ (List.length_take_le _ _),
               (List.suffix_cons _ _).trans hsuffix⟩
-          · simp only [hcond]
-            exact ⟨hspace.mono le_rfl (by lia) le_rfl, hsuffix⟩
+          · exact ⟨hspace.mono le_rfl (by lia) le_rfl, hsuffix⟩
 
 include hmatch hpair in
 /-- **The live replay is polynomial-time** in the input, the coins and the history. -/
@@ -407,10 +400,8 @@ theorem computableInPolyTime_accepts [Finite Operation] :
       accepts matchOp entryPair M p.1 p.2.1 p.2.2)
       (encPair encBits (encPair encBits (encList encEntry))) encBool := by
   cases nonempty_fintype Operation
-  have h := computableInPolyTime_aliveRun matchOp entryPair M
-    (encEntry := encEntry) hmatch hpair
-  unfold accepts
-  fun_prop
+  have := computableInPolyTime_aliveRun matchOp entryPair M (encEntry := encEntry) hmatch hpair
+  fun_prop [accepts]
 
 end PolyTime
 
@@ -443,18 +434,14 @@ theorem computableInPolySpace_countAccepts [Finite Control]
     (hfuel : Turing.MultiTapeTM.ComputableInPolyTime fuel enc encUnary) :
     Turing.MultiTapeTM.ComputableInPolySpace (countAccepts MUnit enc fuel) (encPair enc encHistory)
       encNat := by
-  have hfuel' : ComputableInPolyTime (fun q : α × History => fuel q.1)
-      (encPair enc encHistory) encUnary := hfuel.comp (ComputableInPolyTime.fst _ _)
-  have hacc := (computableInPolyTime_accepts (fun _ _ => true) id MUnit
-    (encEntry := encPair encBits encBits)
-    (fun _ => (ComputableInPolyTime.const true))
-    (ComputableInPolyTime.id'))
+  have hacc := computableInPolyTime_accepts (fun _ _ => true) id MUnit
+    (encEntry := encPair encBits encBits) (fun _ => .const true) .id'
   have hverify : ComputableInPolyTime
       (fun p : (α × History) × List Bool =>
         accepts (fun _ _ => true) id MUnit (enc p.1.1) p.2 p.1.2)
       (encPair (encPair enc encHistory) encBits) encBool := by fun_prop
-  exact (computableInPolySpace_acceptCount (.of_polyTime hverify) (hfuel')).congr fun q =>
-    (streamAcceptCount_eq_acceptCount _ q _).symm
+  exact (computableInPolySpace_acceptCount (.of_polyTime hverify)
+    (hfuel.comp (.fst _ _))).congr fun q => (streamAcceptCount_eq_acceptCount _ q _).symm
 
 end Count
 

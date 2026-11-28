@@ -128,9 +128,7 @@ theorem walkM_replay_eq_some {edge : Fin N → Fin N → Bool} {target current :
     | zero => simp [walk_exhausted]
     | succ fuel =>
       rw [walk_next, hchain]
-      by_cases h : edge current next = true
-      · simp only [h, ite_true, ih, true_and, List.length_cons, Nat.add_succ, Nat.succ.injEq]
-      · simp [h]
+      by_cases h : edge current next = true <;> simp [h, ih, ← Nat.add_assoc]
 
 /-- A verified prefix's accumulated tally and membership bit. -/
 structure Result where
@@ -260,10 +258,8 @@ private theorem foldlM_replay {σ : Type} {R : Type}
   | zero => simp [Fin.foldlM_zero, pure, OptionT.pure, OptionT.run, OptionT.mk, StateT.pure]
   | succ N ih =>
     simp only [Fin.foldlM_succ, bind, OptionT.bind, OptionT.mk, OptionT.run, StateT.bind]
-    have hr : (f a 0 s).1 = g a 0 := h a 0 s
     rcases he : f a 0 s with ⟨r, s'⟩
-    rw [he] at hr
-    rw [← hr]
+    rw [← (congrArg Prod.fst he).symm.trans (h a 0 s)]
     cases r with
     | none => rfl
     | some a' => exact ih _ _ (fun b v t => h b v.succ t) a' s'
@@ -334,14 +330,10 @@ private theorem candidate_spec (edge : Fin N → Fin N → Bool) (source target 
   | some tail =>
     simp only [candidate_eq, contribution, transcript, guessedLength, hb, Option.map_some,
       Option.some.injEq, forall_eq', Option.getD_some, List.length_cons, Nat.add_sub_cancel]
-    cases hw : walk edge v k source tail with
-    | none =>
-      refine (ite_eq_right fun ⟨hc, hl⟩ => ?_).symm
-      have hs : walk edge v k source tail = some (k - tail.length) :=
-        walkM_replay_eq_some.mpr ⟨hc, Nat.sub_add_cancel hl⟩
-      simp [hw] at hs
-    | some left =>
-      obtain ⟨hc, hl⟩ := walkM_replay_eq_some.mp hw
+    rcases hw : walk edge v k source tail with _ | left
+    · exact (ite_eq_right fun ⟨hc, hl⟩ =>
+        nomatch hw.symm.trans (walkM_replay_eq_some.mpr ⟨hc, Nat.sub_add_cancel hl⟩)).symm
+    · obtain ⟨hc, hl⟩ := walkM_replay_eq_some.mp hw
       simp [Result.ofWalk, hc, show tail.length ≤ k by omega, show k - left = tail.length by omega]
 
 private noncomputable def aggregate (f : Fin N → Result) : Result := by
@@ -384,11 +376,7 @@ private theorem contribution_matches (source target : Fin N) (branch : Branch N)
     rw [hs, Finset.sum_filter]
     exact Finset.sum_congr rfl fun v _ => by
       cases h : branch v <;> simp [guessedLength, transcript, h]
-  have hh : decide (∃ v, (contribution target branch v).hit = true) =
-      (branch target).isSome := by simp [contribution]
-  unfold aggregate
-  rw [hh]
-  simp only [contribution, hcount, hsum, observed]
+  simp [aggregate, contribution, hcount, hsum, observed]
 
 open scoped Classical in
 private theorem tally_spec (edge : Fin N → Fin N → Bool) (source target : Fin N)
@@ -406,13 +394,10 @@ private theorem tally_spec (edge : Fin N → Fin N → Bool) (source target : Fi
       p.IsChainFromTo (fun u v => edge u v = true) source v ∧
         guessedLength (transcript source branch) v ≤ k)
     (contribution target branch) (candidate edge source target k branch)
-    (fun v => by
-      rw [candidate_spec]
-      split <;> rfl) Result.zero
+    (fun v => (candidate_spec edge source target k branch v).trans (by split_ifs <;> rfl))
+    Result.zero
   rw [hf, contribution_matches source]
-  split
-  · simp [add, Result.zero]
-  · rfl
+  split <;> simp [add, Result.zero]
 
 /-- With exact round totals, success checks precisely the transcript contract and returns
 the membership bit for the queried vertex. -/
@@ -422,18 +407,9 @@ theorem run_eq_some_iff (edge : Fin N → Fin N → Bool) (source target : Fin N
       Passes (fun u v => edge u v = true) source k (transcript source branch) ∧
         (branch target).isSome = hit := by
   classical
-  unfold run Passes
+  unfold run Passes Result.finish
   rw [tally_spec]
-  by_cases h : ∀ v p, transcript source branch v = some p →
-      p.IsChainFromTo (fun u v => edge u v = true) source v ∧
-        guessedLength (transcript source branch) v ≤ k
-  · rw [ite_eq_left h]
-    change (if (observed (transcript source branch)).matches _ then _ else none) = some hit ↔ _
-    split <;> rename_i hm
-    · exact ⟨fun he => ⟨⟨h, hm⟩, Option.some.inj he⟩, fun he => congrArg some he.2⟩
-    · simp only [reduceCtorEq, hm, false_and, and_false]
-  · rw [ite_eq_right h]
-    simp [Option.bind, h]
+  split_ifs <;> simp_all
 
 /-- The streaming scanner with the canonical choice provider returns a bit exactly when
 the corresponding transcript passes, and that bit records selection of the target. -/
@@ -498,8 +474,7 @@ private theorem candidate_registers_le (edge : Fin N → Fin N → Bool)
     r.tally.count ≤ 1 ∧ r.tally.lengthSum ≤ k := by
   rw [candidate_eq] at hr
   cases h : branch v <;> simp only [h, Option.some.injEq] at hr
-  · subst r
-    simp [Result.zero]
+  · simp [← hr, Result.zero]
   · obtain ⟨left, _, rfl⟩ := Option.map_eq_some_iff.mp hr
     exact ⟨le_rfl, Nat.sub_le _ _⟩
 
@@ -510,8 +485,7 @@ private theorem foldlM_registers_le (g : Fin N → Option Result) (k : ℕ)
   induction N generalizing r with
   | zero =>
     simp only [Fin.foldlM_zero, pure, Option.some.injEq] at hr
-    subst r
-    simp [Result.zero]
+    simp [← hr, Result.zero]
   | succ N ih =>
     rw [Fin.foldlM_succ_last] at hr
     change ((Fin.foldlM N (fun acc v => (g v.castSucc).map (add acc)) Result.zero).bind
@@ -573,17 +547,11 @@ theorem tallyM_clock {σ : Type} (clock : σ → ℕ)
   intro acc v state
   have hselect := hs v state
   simp only [OptionT.run, OptionT.mk, candidateM, bind, StateT.bind]
-  rcases hc : select v state with ⟨choice, t⟩
-  rw [hc] at hselect
-  change clock t ≤ clock state + 1 at hselect
-  cases choice
-  · change clock t ≤ _
-    omega
-  · simp only [ite_true, bind, StateT.bind]
-    have hwalk := walkM_clock clock next edge hn he v source k t
+  rcases hc : select v state with ⟨_ | _, t⟩ <;> rw [hc] at hselect
+  · exact le_trans hselect (by omega)
+  · have hwalk := walkM_clock clock next edge hn he v source k t
     rcases hw : walkM next edge v k source t with ⟨_, u⟩
-    rw [hw] at hwalk
-    change clock u ≤ _ at hwalk ⊢
+    simp only [ite_true, bind, StateT.bind, pure, StateT.pure, hw] at hselect hwalk ⊢
     omega
 
 /-- The terminal tally check adds no callback action to `tallyM_clock`. Both a rejected scan
@@ -596,9 +564,8 @@ theorem runM_clock {σ : Type} (clock : σ → ℕ)
     (he : ∀ u v s, clock (edge u v s).2 ≤ clock s + 1) (s : σ) :
     clock (runM select next edge source target k expected s).2 ≤
       clock s + N * (2 * k + 2) := by
-  have h := tallyM_clock clock select next edge source target k hs hn he s
-  cases ht : tallyM select next edge source target k s with
-  | mk result state =>
-    simpa only [runM, bind, StateT.bind, pure, StateT.pure, ht] using h
+  rcases ht : tallyM select next edge source target k s with ⟨_, _⟩
+  simpa only [runM, bind, StateT.bind, pure, StateT.pure, ht] using
+    tallyM_clock clock select next edge source target k hs hn he s
 
 end Cslib.DoubleCounting.Scan

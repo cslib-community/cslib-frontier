@@ -84,11 +84,8 @@ omit [AddCommGroup Γ] [IsOrderedAddMonoid Γ] [Fintype ι] [DecidableEq ι] in
 
 omit [AddCommGroup Γ] [IsOrderedAddMonoid Γ] [Fintype ι] [DecidableEq ι] in
 private lemma entry_support (x : HahnSeries Γ (Matrix ι ι R)) (i j : ι) :
-    (entry x i j).support ⊆ x.support := by
-  intro a ha
-  change x.coeff a ≠ 0
-  intro h
-  exact ha (by change x.coeff a i j = 0; rw [h]; rfl)
+    (entry x i j).support ⊆ x.support :=
+  fun _ ha h => ha (by simp [entry_coeff, h])
 
 /-- Identify a matrix-valued Hahn series with a matrix of scalar Hahn series. -/
 def split : HahnSeries Γ (Matrix ι ι R) →+* Matrix ι ι (HahnSeries Γ R) where
@@ -209,11 +206,8 @@ theorem fourier_reconstruction (R : Matrix (ZMod d) (ZMod d) K) :
       fourierCoeff χ R a (i - j) * χ (a * i) := by
     rw [Finset.sum_eq_single (i - j)]
     · simp
-    · intro b hb hne
-      rw [ite_eq_right]
-      intro h
-      apply hne
-      linear_combination -h
+    · intro b _ hne
+      exact ite_eq_right fun h => hne (by linear_combination -h)
     · simp
   simp_rw [heq, fourierCoeff, mul_assoc, Finset.sum_mul]
   rw [← Finset.mul_sum, Finset.sum_comm]
@@ -285,14 +279,9 @@ def lift (R : Matrix (ZMod d) (ZMod d) K) : Ambient (K := K) (d := d) :=
 omit [CharZero K] in
 /-- The Fourier lift of any matrix belongs to `divisionSubring χ`. -/
 lemma lift_mem (R : Matrix (ZMod d) (ZMod d) K) : lift χ R ∈ divisionSubring χ := by
-  apply Subring.sum_mem
-  intro a ha
-  apply Subring.sum_mem
-  intro b hb
-  apply single_mem (monomialUnit χ) (monomialUnit_zero χ) (monomialUnit_mul χ)
-  apply Submodule.mem_span_singleton.mpr
-  refine ⟨fourierCoeff χ R a b, ?_⟩
-  simp [monomialUnit]
+  refine Subring.sum_mem _ fun a _ => Subring.sum_mem _ fun b _ g => ?_
+  refine single_mem (monomialUnit χ) (monomialUnit_zero χ) (monomialUnit_mul χ) ?_ g
+  exact Submodule.mem_span_singleton.mpr ⟨fourierCoeff χ R a b, by simp [monomialUnit]⟩
 
 /-- The finite Fourier lift as an element of the division subring. -/
 def liftD (R : Matrix (ZMod d) (ZMod d) K) : divisionSubring χ := ⟨lift χ R, lift_mem χ R⟩

@@ -135,46 +135,40 @@ private theorem exists_mem_append_singleton_iff {T : List (α × α)} {a b : α}
 theorem foundAbove_append_singleton_of_rel {r : α → α → Prop} {T : List (α × α)} {a b : α}
     (hab : a ≠ b) (h : r a b) (x : α) :
     FoundAbove r (T ++ [(a, b)]) x ↔ FoundAbove r T x ∨ x = b := by
-  unfold FoundAbove
-  rw [exists_mem_append_singleton_iff]
+  rw [FoundAbove, exists_mem_append_singleton_iff]
   exact or_congr_right (by simp [hab, h])
 
 /-- A comparison `a ≤ b` with `a ≠ b` answered false finds `a` above. -/
 theorem foundAbove_append_singleton_of_not_rel {r : α → α → Prop} {T : List (α × α)} {a b : α}
     (hab : a ≠ b) (h : ¬ r a b) (x : α) :
     FoundAbove r (T ++ [(a, b)]) x ↔ FoundAbove r T x ∨ x = a := by
-  unfold FoundAbove
-  rw [exists_mem_append_singleton_iff]
+  rw [FoundAbove, exists_mem_append_singleton_iff]
   exact or_congr_right (by simp [hab, h])
 
 /-- A comparison `a ≤ b` with `a ≠ b` answered true finds `a` below. -/
 theorem foundBelow_append_singleton_of_rel {r : α → α → Prop} {T : List (α × α)} {a b : α}
     (hab : a ≠ b) (h : r a b) (x : α) :
     FoundBelow r (T ++ [(a, b)]) x ↔ FoundBelow r T x ∨ x = a := by
-  unfold FoundBelow
-  rw [exists_mem_append_singleton_iff]
+  rw [FoundBelow, exists_mem_append_singleton_iff]
   exact or_congr_right (by simp [hab, h])
 
 /-- A comparison `a ≤ b` with `a ≠ b` answered false finds `b` below. -/
 theorem foundBelow_append_singleton_of_not_rel {r : α → α → Prop} {T : List (α × α)} {a b : α}
     (hab : a ≠ b) (h : ¬ r a b) (x : α) :
     FoundBelow r (T ++ [(a, b)]) x ↔ FoundBelow r T x ∨ x = b := by
-  unfold FoundBelow
-  rw [exists_mem_append_singleton_iff]
+  rw [FoundBelow, exists_mem_append_singleton_iff]
   exact or_congr_right (by simp [hab, h])
 
 /-- A comparison of an element with itself finds nothing above. -/
 theorem foundAbove_append_singleton_self {r : α → α → Prop} {T : List (α × α)} (a x : α) :
     FoundAbove r (T ++ [(a, a)]) x ↔ FoundAbove r T x := by
-  unfold FoundAbove
-  rw [exists_mem_append_singleton_iff]
+  rw [FoundAbove, exists_mem_append_singleton_iff]
   exact or_iff_left_of_imp (by simp)
 
 /-- A comparison of an element with itself finds nothing below. -/
 theorem foundBelow_append_singleton_self {r : α → α → Prop} {T : List (α × α)} (a x : α) :
     FoundBelow r (T ++ [(a, a)]) x ↔ FoundBelow r T x := by
-  unfold FoundBelow
-  rw [exists_mem_append_singleton_iff]
+  rw [FoundBelow, exists_mem_append_singleton_iff]
   exact or_iff_left_of_imp (by simp)
 
 theorem AgreeOn.refl (r : α → α → Prop) (T : List (α × α)) : AgreeOn r r T :=

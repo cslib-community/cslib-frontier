@@ -188,19 +188,14 @@ theorem exists_lt_pair_not_isAndType_or_not_isXorType {n : ℕ} (hn : 2 ≤ n)
     by_cases hi0 : i.val = 0
     · have hiy : i < ⟨1, by omega⟩ := by change i.val < 1; omega
       refine ⟨i, ⟨1, by omega⟩, hiy, Or.inr fun ρ hxor => hxor.2.1 ?_⟩
-      dsimp only
-      rw [Function.update_comm hiy.ne, Function.update_comm hiy.ne, hindep, hindep]
+      simp only [Function.update_comm hiy.ne, hindep]
     · refine ⟨⟨0, by omega⟩, i, by change 0 < i.val; omega, Or.inr fun ρ hxor => hxor.2.2 ?_⟩
-      dsimp only
-      rw [hindep, hindep]
-  · have hnotDisj :
-        ¬ Pairwise fun x y => Disjoint (C.criticalPath x).toFinset (C.criticalPath y).toFinset :=
-      fun hdisj => by
-        have := C.two_mul_sub_two_mul_le_size C.fanInAtMost_fullSignature hCnoDead hiso hdisj
-        omega
-    unfold Pairwise at hnotDisj
-    push Not at hnotDisj
-    obtain ⟨x, y, hxy, hinter⟩ := hnotDisj
+      simp only [hindep]
+  · obtain ⟨x, y, hxy, hinter⟩ : ∃ x y, x ≠ y ∧
+        ¬ Disjoint (C.criticalPath x).toFinset (C.criticalPath y).toFinset := by
+      by_contra! hdisj
+      have := C.two_mul_sub_two_mul_le_size C.fanInAtMost_fullSignature hCnoDead hiso hdisj
+      omega
     suffices ∀ a b : Fin n, a < b →
         ¬ Disjoint (C.criticalPath a).toFinset (C.criticalPath b).toFinset → _ by
       rcases lt_or_gt_of_ne hxy with hltXY | hgtXY

@@ -63,11 +63,9 @@ theorem one_sub_pow_le_half {𝕜 : Type*} [Field 𝕜] [LinearOrder 𝕜] [IsSt
     {p : 𝕜} (hp₀ : 0 ≤ p) (hp₁ : p ≤ 1) {k : ℕ} (hk : 1 ≤ k * p) : (1 - p) ^ k ≤ 1 / 2 := by
   have hbern : 2 ≤ (1 + p) ^ k := by
     linarith [one_add_mul_le_pow (show (-2 : 𝕜) ≤ p by linarith) k]
-  have hprod : (1 - p) ^ k * (1 + p) ^ k ≤ 1 := by
-    rw [← mul_pow]
-    exact pow_le_one₀ (by nlinarith) (by nlinarith)
-  have hnonneg : 0 ≤ (1 - p) ^ k := pow_nonneg (by linarith) k
-  nlinarith
+  have hprod : (1 - p) ^ k * (1 + p) ^ k ≤ 1 :=
+    mul_pow (1 - p) (1 + p) k ▸ pow_le_one₀ (by nlinarith) (by nlinarith)
+  nlinarith [pow_nonneg (by linarith : 0 ≤ 1 - p) k]
 
 namespace Fintype
 
@@ -139,10 +137,8 @@ variable (s : Finset α)
 theorem dens_filter_forall_apply_notMem [DecidableEq α]
     [DecidablePred fun ω : ι → α => ∀ j, ω j ∉ s] :
     dens {ω : ι → α | ∀ j, ω j ∉ s} = dens sᶜ ^ card ι := by
-  have h : ({ω : ι → α | ∀ j, ω j ∉ s} : Finset (ι → α)) = piFinset fun _ => sᶜ := by
-    ext ω
-    simp [mem_piFinset]
-  rw [h, dens_piFinset_const]
+  rw [← dens_piFinset_const]
+  exact congrArg dens (Finset.ext fun _ => by simp [mem_piFinset])
 
 private theorem filter_exists_apply_mem_eq [DecidableEq α]
     [DecidablePred fun ω : ι → α => ∃ j, ω j ∈ s] :
@@ -163,15 +159,8 @@ theorem dens_filter_exists_apply_mem :
 with probability `1 - (1 - dens s) ^ card ι`. -/
 theorem cast_dens_filter_exists_apply_mem [Field 𝕜] [CharZero 𝕜] :
     (dens {ω : ι → α | ∃ j, ω j ∈ s} : 𝕜) = 1 - (1 - (dens s : 𝕜)) ^ card ι := by
-  classical
-  have h₁ := congrArg (NNRat.cast : ℚ≥0 → 𝕜) (dens_add_dens_compl s)
-  have h₂ := congrArg (NNRat.cast : ℚ≥0 → 𝕜)
-    (dens_add_dens_compl (piFinset fun _ : ι => sᶜ))
-  rw [NNRat.cast_add, NNRat.cast_one] at h₁
-  rw [NNRat.cast_add, NNRat.cast_one, dens_piFinset_const, NNRat.cast_pow,
-    show (dens sᶜ : 𝕜) = 1 - dens s by linear_combination h₁] at h₂
-  rw [filter_exists_apply_mem_eq]
-  linear_combination h₂
+  rw [dens_filter_exists_apply_mem, NNRat.cast_sub (pow_le_one₀ zero_le tsub_le_self),
+    NNRat.cast_one, NNRat.cast_pow, NNRat.cast_sub dens_le_one, NNRat.cast_one]
 
 variable {s}
 

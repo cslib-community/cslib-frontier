@@ -167,8 +167,7 @@ theorem numBuckets_le (n_max : ℕ) : numBuckets n_max ≤ 2 * n_max + 4 := by
   obtain ⟨m, hm⟩ := Nat.exists_eq_succ_of_ne_zero (bucketBits_pos n_max).ne'
   have hpow : 2 ^ m < max n_max 2 :=
     (Nat.lt_clog_iff_pow_lt (by decide : 1 < 2)).mp (by rw [← bucketBits, hm]; omega)
-  have hnb : numBuckets n_max = 2 * 2 ^ m := by rw [numBuckets, hm, pow_succ']
-  omega
+  rw [numBuckets, hm, pow_succ']; omega
 
 /-- Linear `O(n_max)` space bound: `space n_max ≤ 5 * n_max + 8`. -/
 theorem space_le (n_max : ℕ) : space n_max ≤ 5 * n_max + 8 := by
@@ -489,9 +488,7 @@ theorem IsChain.lt_sz {mem : ℕ → ℕ} {nextBase sz ptr : ℕ} {L : List ℕ}
     (h : IsChain mem nextBase sz ptr L) : ∀ idx ∈ L, idx < sz := by
   induction h with
   | nil => simp
-  | cons hlt _ _ ih =>
-    rintro _ (_ | ⟨_, hm'⟩)
-    exacts [hlt, ih _ hm']
+  | cons hlt _ _ ih => exact List.forall_mem_cons.mpr ⟨hlt, ih⟩
 
 theorem IsChain.unique {mem : ℕ → ℕ} {nextBase sz₁ sz₂ ptr : ℕ} {L₁ L₂ : List ℕ}
     (h₁ : IsChain mem nextBase sz₁ ptr L₁) (h₂ : IsChain mem nextBase sz₂ ptr L₂) :
@@ -662,10 +659,7 @@ theorem Rep.unique {U V n_max w base : ℕ} {b : Fin (2 ^ (hashBits U n_max - 1)
     obtain ⟨u₂, hk₂, _, hs₂⟩ := hbb.sound idx hidx
     rw [Fin.ext (hk₁.symm.trans hk), ha] at hs₁
     exact (Fin.ext (hk₂.symm.trans hk) ▸ hs₂).trans hs₁.symm
-  rcases h₁ : s₁ u with _ | v₁
-  · rcases h₂ : s₂ u with _ | v₂
-    exacts [rfl, absurd (lookup hb₂ hb₁ h₂) (by simp [h₁])]
-  · exact (lookup hb₁ hb₂ h₁).symm
+  exact Option.ext fun v => ⟨lookup hb₁ hb₂, lookup hb₂ hb₁⟩
 
 theorem Rep.supported {U V n_max w base : ℕ} {b : Fin (2 ^ (hashBits U n_max - 1))}
     {s : Dictionary.State U} {x x' : Data rHash}
@@ -741,8 +735,7 @@ private theorem initSetup_spec {U V n_max w base : ℕ}
   let x_mid (b : Seed) : Data rHash := (MultiplyShift.initData w₀ d₁ b.val).extend hashEmbed x₁
   have hregB (b : Seed) : (x_mid b).regs regB = b.val := by
     change ((x_mid b).comap hashEmbed).regs MultiplyShift.regB = b.val
-    rw [show (x_mid b).comap hashEmbed = _ from Data.comap_extend hashEmbed_injective _ x₁]
-    simp [MultiplyShift.initData]
+    simp [x_mid, Data.comap_extend hashEmbed_injective, MultiplyShift.initData]
   have hstep2 (b : Seed) : ∃ y, Exec w (storeHeader U n_max) (x_mid b) y 11 ∧
       y.regs frontierReg = base + space n_max ∧ Rep U V n_max w base b (Dictionary.empty U) y ∧
       Modifies (Block.mk base (space n_max)).footprint x₁.mem y.mem := by
@@ -759,28 +752,24 @@ private theorem initSetup_spec {U V n_max w base : ℕ}
     refine ((ExecCodeDist.of_execRand (MultiplyShift.initCode_execRand (by omega) d₁)).rename
       hashEmbed_injective (x := x₁)).congr_dist ?_
       (by simp [MultiplyShift.initComp, bind_pure_comp, ProbComp.expect_map, ProbComp.expect_const])
-    have heq := (PMF.uniformOfFintype_map_equiv
+    have heq : seedLaw = _ := (PMF.uniformOfFintype_map_equiv
       (finCongr (Nat.sub_add_cancel (@Nat.one_le_two_pow (w₀ - 1))))).symm
     rw [MultiplyShift.initComp, bind_pure_comp, Functor.map_map, ProbComp.eval_map,
-      ProbComp.eval_unifFin, PMF.map_comp, show seedLaw = _ from heq, PMF.map_comp]
+      ProbComp.eval_unifFin, PMF.map_comp, heq, PMF.map_comp]
     rfl
   let μ₂ (z : Data rHash) : PMF (Data rHash) :=
     if h : z.regs regB < 2 ^ (w₀ - 1) then PMF.pure (y_init ⟨z.regs regB, h⟩) else PMF.pure z
   have hμ₂ (b : Seed) : μ₂ (x_mid b) = PMF.pure (y_init b) := by
-    have hlt : (x_mid b).regs regB < 2 ^ (w₀ - 1) := hregB b ▸ b.isLt
-    have : (⟨(x_mid b).regs regB, hlt⟩ : Seed) = b := Fin.ext (hregB b)
-    simp only [μ₂, hlt, ↓reduceDIte, this]
+    simp [μ₂, hregB b, b.isLt]
   refine ⟨seedLaw.map fun b => (b, y_init b), ?_, fun θ => ?_, fun p hp => ?_⟩
   · refine (hinit1.seq_const (c₂ := storeHeader U n_max) (μ₂ := μ₂) (T₂ := fun _ => 11) (B₂ := 11)
       (fun z hz => by
         obtain ⟨b, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hz
         exact hμ₂ b ▸ ExecCodeDist.of_exec (hys b).1)
       (fun _ _ => le_rfl)).congr_dist ?_ (by norm_num)
-    rw [PMF.bind_map, PMF.map_comp]
-    simp only [Function.comp_def, hμ₂]
-    rfl
-  · rw [PMF.map_comp, show Prod.fst ∘ (fun b : Seed => (b, y_init b)) = id from rfl,
-      PMF.map_id, one_mul]
+    simp only [PMF.bind_map, PMF.map_comp, Function.comp_def, hμ₂]; rfl
+  · have hcomp : Prod.fst ∘ (fun b : Seed => (b, y_init b)) = id := rfl
+    rw [PMF.map_comp, hcomp, PMF.map_id, one_mul]
   · obtain ⟨b, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hp
     exact (hys b).2
 
@@ -961,10 +950,8 @@ private theorem finishQuery_spec {U V n_max w base : ℕ}
     intro hz_bdd
     exact ⟨by omega, hr.of_mem_eq hz_bdd (by regs_frame) hmy,
       by wram_simp; simp [decode, hmy, hsu', Dictionary.spec], by mem_frame⟩
-  · have hsu : s u = none := by
-      cases h : s u with
-      | none => rfl
-      | some v => obtain ⟨i, hi, hki⟩ := hbL.complete u v rfl h; exact absurd hki (hmiss i hi)
+  · have hsu : s u = none := Option.eq_none_iff_forall_not_mem.mpr fun v h =>
+      (hbL.complete u v rfl h).elim fun i ⟨hi, hki⟩ => hmiss i hi hki
     wram_exec [htag, hz, hyf]
     intro hz_bdd
     exact ⟨by omega, hr.of_mem_eq hz_bdd (by regs_frame) hmy,
@@ -1055,12 +1042,8 @@ private theorem finishInsertMiss_spec {U V n_max w base : ℕ}
   let s' := Function.update s u (some v)
   have hbk_lt : bk < numBuckets n_max := hbk_def ▸ multiplyShift_lt_numBuckets b u
   set sz := (Dictionary.dom s).card
-  have hsu : s u = none := by
-    cases h : s u with
-    | none => rfl
-    | some v₀ =>
-      obtain ⟨i, hi, hki⟩ := hbL.complete u v₀ hbk_def.symm h
-      exact absurd hki (hmiss i hi)
+  have hsu : s u = none := Option.eq_none_iff_forall_not_mem.mpr fun v₀ h =>
+    (hbL.complete u v₀ hbk_def.symm h).elim fun i ⟨hi, hki⟩ => hmiss i hi hki
   have hsz_lt : sz < n_max := hv.1.resolve_right (by simp [hsu])
   have hcard_eq : (Dictionary.dom s').card = sz + 1 :=
     Dictionary.card_dom_insert_eq_of_eq_none hsu v
@@ -1136,8 +1119,7 @@ theorem opCode_spec {U V n_max w base : ℕ}
       Rep U V n_max w base b ((Dictionary.spec U V n_max).stepFn s o).1 z ∧
       Modifies (Block.mk base (space n_max)).footprint x.mem z.mem := by
   let u := opKey o
-  have hu_reg : x.regs argU = u.val := by
-    cases o with | query _ => exact harg.2 | insert _ _ => exact harg.2.1
+  have hu_reg : x.regs argU = u.val := by cases o <;> simp_all [argMatch, u, opKey]
   obtain ⟨L, hbL⟩ := hr.buckets _ (multiplyShift_lt_numBuckets b u)
   have hL_le : L.length ≤ 1 + collCount n_max s u b := hbL.length_le u
   obtain ⟨x₁, he1, hx₁_bdd, hmx₁, hbase1, htag1, hargU1, hargV1, hout1,
@@ -1195,9 +1177,7 @@ theorem expect_collCount_le_card_mul (U n_max : ℕ) (s : Dictionary.State U) (u
         refine Finset.sum_congr rfl fun b _ => ?_
         simp only [collCount, Finset.card_filter, Nat.cast_sum, Finset.mul_sum]
         refine Finset.sum_congr rfl fun u' _ => ?_
-        split_ifs with he
-        · rw [Set.indicator_of_mem he, Nat.cast_one, mul_one]
-        · rw [Set.indicator_of_notMem he, Nat.cast_zero, mul_zero]
+        split_ifs with he <;> simp [Set.indicator, h, w₀, M, he]
     _ = ∑ u' ∈ (Dictionary.dom s).erase u, seedLaw.toOuterMeasure {b' | h b' u' = h b' u} := by
         rw [Finset.sum_comm]
         exact Finset.sum_congr rfl fun u' _ => by rw [PMF.toOuterMeasure_apply, tsum_fintype]
@@ -1353,13 +1333,10 @@ theorem seq_expected_amortized (U V n_max w base : ℕ)
   obtain ⟨ν₀, ν_final, T_ops, he_init, hex_steps, hseed_final, hrep_final, hbound⟩ :=
     C.seq_expected_amortized_ofFn ops hx hfr (fun j => Fin.elim0 j) hz hv
   refine ⟨ν₀, ν_final, T_ops, he_init, hex_steps, hseed_final, hrep_final, ?_⟩
-  have hpot : (∑' q, ν_final q * (C.potential q.1 q.2 : ℝ≥0∞)) = 0 := by simp [C, impl]
   have hinit : C.initTime = 16 := by change (3 : ℝ≥0∞) + 13 = 16; norm_num
-  have htotal : (Dictionary.spec U V n_max).totalCost C.charge (Dictionary.empty U) ops =
-      chargeVal * ops.length := by
-    rw [show C.charge = fun _ _ => chargeVal from rfl, StateTransitionSpec.totalCost_const,
-      Nat.mul_comm]
-  rw [hpot, add_zero, htotal] at hbound
-  exact hbound.trans_eq (by change C.initTime + ((0 : ℕ) : ℝ≥0∞) + _ = _; simp [hinit])
+  have hchg : C.charge = fun _ _ => chargeVal := rfl
+  rw [hchg] at hbound
+  rw [hinit] at hbound ⊢
+  simpa [C, impl, StateTransitionSpec.totalCost_const, Nat.mul_comm] using hbound
 
 end Cslib.DataStructure.Dictionary.WordRAM.ChainedHash

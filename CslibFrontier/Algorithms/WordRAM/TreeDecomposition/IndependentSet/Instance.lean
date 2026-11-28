@@ -167,11 +167,8 @@ theorem MWISInstance.maxBagLen_ofRooted_le {V : Type*} {G : SimpleGraph V}
     (hL : IsBagOrder R L) {k : ℕ} (hk : R.width ≤ k) :
     (MWISInstance.ofRooted e R w L).maxBagLen ≤ k + 1 := by
   refine List.foldl_max_le (Nat.zero_le _) fun len hlen => ?_
-  rw [List.mem_map] at hlen
-  obtain ⟨B, hB, rfl⟩ := hlen
-  dsimp only [MWISInstance.ofRooted] at hB
-  rw [List.mem_ofFn] at hB
-  obtain ⟨i, rfl⟩ := hB
+  obtain ⟨_, hB, rfl⟩ := List.mem_map.1 hlen
+  obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hB
   rw [List.length_map, ← List.toFinset_card_of_nodup (hL i).1, (hL i).2]
   exact R.width_le_iff.1 hk i
 
@@ -182,12 +179,7 @@ theorem MWISInstance.stepBound_ofRooted_le {V : Type*} {G : SimpleGraph V}
     (hL : IsBagOrder R L) {k : ℕ} (hk : R.width ≤ k) :
     (MWISInstance.ofRooted e R w L).stepBound ≤ mwisFPTBound n k := by
   have hM := MWISInstance.maxBagLen_ofRooted_le e R w hL hk
-  have hn : (MWISInstance.ofRooted e R w L).numNodes = n := rfl
-  unfold MWISInstance.stepBound mwisFPTBound
-  rw [hn]
-  dsimp only
-  have hpow : 2 ^ (MWISInstance.ofRooted e R w L).maxBagLen ≤ 2 ^ (k + 1) :=
-    Nat.pow_le_pow_right (by decide) hM
+  dsimp only [MWISInstance.stepBound, MWISInstance.ofRooted, mwisFPTBound]
   have hpoly :
       5 * (MWISInstance.ofRooted e R w L).maxBagLen ^ 2 +
           6 * (MWISInstance.ofRooted e R w L).maxBagLen + 32 ≤
@@ -195,6 +187,7 @@ theorem MWISInstance.stepBound_ofRooted_le {V : Type*} {G : SimpleGraph V}
     Nat.add_le_add_right
       (Nat.add_le_add (Nat.mul_le_mul_left 5 (Nat.pow_le_pow_left hM 2))
         (Nat.mul_le_mul_left 6 hM)) 32
-  exact Nat.add_le_add_left (Nat.mul_le_mul_left (n + 1) (Nat.mul_le_mul hpow hpoly)) 6
+  exact Nat.add_le_add_left
+    (Nat.mul_le_mul_left (n + 1) (Nat.mul_le_mul (Nat.pow_le_pow_right (by decide) hM) hpoly)) 6
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

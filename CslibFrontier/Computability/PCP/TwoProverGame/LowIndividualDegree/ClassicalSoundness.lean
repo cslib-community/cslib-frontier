@@ -52,17 +52,11 @@ private theorem consistency_loss_eq_expect (a b : Q → Ans) :
     rw [TwoProverGame.winProb, branchGame_questions, branchQuestions_consistency,
       consistencyQuestions, branchGame_accepts, PMF.toOuterMeasure_map_apply]
     rfl
-  rw [hscore]
-  have hs := Probability.PMF.toOuterMeasure_toReal_add_compl U event
-  have he : (U.toOuterMeasure eventᶜ).toReal =
-      𝔼 u : Pt, if accepts d (.point u) (.point u) (a (.point u)) (b (.point u))
-        then (0 : ℝ) else 1 := by
-    rw [Probability.PMF.toOuterMeasure_toReal_eq_sum_ite, Fintype.expect_eq_sum_div_card,
-      div_eq_inv_mul, Finset.mul_sum]
-    simp only [U, Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv,
-      ENNReal.toReal_natCast, Set.mem_compl_iff, event, Set.mem_ofPred_eq, ite_not]
-  rw [← he]
-  linarith
+  rw [hscore, ← eq_sub_of_add_eq' (Probability.PMF.toOuterMeasure_toReal_add_compl U event),
+    Probability.PMF.toOuterMeasure_toReal_eq_sum_ite, Fintype.expect_eq_sum_div_card,
+    div_eq_inv_mul, Finset.mul_sum]
+  simp only [U, Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv,
+    ENNReal.toReal_natCast, Set.mem_compl_iff, event, Set.mem_ofPred_eq, ite_not]
 
 private theorem exists_poly_decoded_loss_le (a b : Q → Ans) {k : ℕ} (hk : (n + 1) * d ≤ k) :
     let ε := 1 - (game (F := F) n d).winProb a b

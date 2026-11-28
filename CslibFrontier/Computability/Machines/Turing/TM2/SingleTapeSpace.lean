@@ -122,10 +122,7 @@ private theorem initList_eq :
   unfold initList TM2.init
   congr 1
   funext k
-  by_cases hk : k = tm.k₀
-  · subst k
-    simp
-  · simp only [hk, dite_false, Function.update_of_ne hk]
+  rcases eq_or_ne k tm.k₀ with rfl | hk <;> simp [*]
 
 private theorem haltList_eq (output : List (tm.Γ tm.k₁)) :
     haltList tm output =
@@ -134,10 +131,7 @@ private theorem haltList_eq (output : List (tm.Γ tm.k₁)) :
   unfold haltList
   congr 1
   funext k
-  by_cases hk : k = tm.k₁
-  · subst k
-    simp
-  · simp only [hk, dite_false, Function.update_of_ne hk]
+  rcases eq_or_ne k tm.k₁ with rfl | hk <;> simp [*]
 
 /-- Mathlib's compiler takes every bounded stack-machine computation to a native single-tape
 path of width `B + headOverhead tm.m + 2`, independently of its runtime. -/
@@ -169,14 +163,9 @@ theorem outputs_toTM0 (input : List (tm.Γ tm.k₀)) (output : List (tm.Γ tm.k�
       ⟨TM0.init (TM2to1.trInit tm.k₀ input), 0⟩ ⟨toTM0Halt tm output, 0⟩ := by
   let : Inhabited tm.Λ := ⟨tm.main⟩
   obtain ⟨d, hd, hp⟩ := (outputs_reachesWithin tm input output h B hB).restrict (toTM0_supports tm)
-    ⟨TM0.init (TM2to1.trInit tm.k₀ input), 0⟩ (by
-      simp only [TM0.init, HeadPosition.liftCfg_mk]
-      rfl)
-  have he : HeadPosition.liftCfg ⟨toTM0Halt tm output, 0⟩ =
-      (⟨⟨(none, tm.initialState), Tape.mk₁ (TM2to1.trInit tm.k₁ output)⟩, 0⟩ :
-        HeadPosition.Cfg (TM2to1.Γ' tm.K tm.Γ) (TM1to0.Λ' (TM2to1.tr tm.m))) := by
-    simp only [toTM0Halt, HeadPosition.liftCfg_mk]
-  exact HeadPosition.liftCfg_injective (hd.trans he.symm) ▸ hp
+    ⟨TM0.init (TM2to1.trInit tm.k₀ input), 0⟩ (HeadPosition.liftCfg_mk _ _ 0)
+  exact HeadPosition.liftCfg_injective
+    (hd.trans (HeadPosition.liftCfg_mk (toTM0Halt tm output).q _ 0).symm) ▸ hp
 
 /-- Every canonical output configuration halts immediately. -/
 theorem toTM0Halt_terminal (output : List (tm.Γ tm.k₁)) :
