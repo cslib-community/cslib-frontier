@@ -11,7 +11,6 @@ public import CslibFrontier.Init
 public import Mathlib.Algebra.BigOperators.Expect
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import CslibFrontier.Foundations.Data.Finset.Expect
-import Mathlib.Algebra.Order.BigOperators.Expect
 import Mathlib.Analysis.MeanInequalitiesPow
 
 /-!

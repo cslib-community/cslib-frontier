@@ -1057,16 +1057,11 @@ theorem optimizeWith_spec {k : ℕ} (hk : 3 ≤ k) {solve : CNF ℕ → Bool}
 
 @[fun_prop]
 private theorem computableInPolyTime_pinnedClauses :
-    ComputableInPolyTime pinnedClauses encBits encCNF := by
-  have hframed : ComputableInPolyTime (fun bits : List Bool => bits) encBits (encList encBool) :=
-    (bits_encList_polyTime encBool).1
-  have hzip : ComputableInPolyTime (fun bits : List Bool => bits.zipIdx)
-      encBits (encList (encPair encBool encUnary)) :=
-    (zipIdx encBool).comp hframed
-  have hunit : ComputableInPolyTime (fun p : Bool × ℕ => ([(p.2, p.1)] : Clause ℕ))
-      (encPair encBool encUnary) (encList (encPair encNat encBool)) :=
-    cons' ((unary_to_binary.comp (snd encBool encUnary)).prod (fst encBool encUnary)) (const [])
-  exact (ComputableInPolyTime.map hunit).comp hzip
+    ComputableInPolyTime pinnedClauses encBits encCNF :=
+  (ComputableInPolyTime.map
+    (by fun_prop : ComputableInPolyTime (fun p : Bool × ℕ => ([(p.2, p.1)] : Clause ℕ))
+      (encPair encBool encUnary) (encList (encPair encNat encBool)))).comp
+    ((zipIdx encBool).comp (bits_encList_polyTime encBool).1)
 
 private theorem computableInPolyTime_structRecoverStep {solve : CNF ℕ → Bool}
     (hpoly : ComputableInPolyTime solve encCNF encBool) :
@@ -1074,46 +1069,17 @@ private theorem computableInPolyTime_structRecoverStep {solve : CNF ℕ → Bool
       (fun p : (StructInstance × ℕ) × List Bool => p.1.1.recoverStep solve p.1.2 p.2)
       (encPair (encPair encStructInstance encUnary) encBits) encBits := by
   let encPar := encPair encStructInstance encUnary
-  have hF : ComputableInPolyTime (fun p : (StructInstance × ℕ) × List Bool => p.1.1)
-      (encPair encPar encBits) encStructInstance :=
-    (fst encStructInstance encUnary).comp (fst encPar encBits)
-  have hopt : ComputableInPolyTime (fun p : (StructInstance × ℕ) × List Bool => p.1.2)
-      (encPair encPar encBits) encUnary :=
-    (snd encStructInstance encUnary).comp (fst encPar encBits)
-  have hbits : ComputableInPolyTime (fun p : (StructInstance × ℕ) × List Bool => p.2)
-      (encPair encPar encBits) encBits :=
-    snd encPar encBits
-  have hcand : ComputableInPolyTime
-      (fun p : (StructInstance × ℕ) × List Bool => pinnedClauses (p.2 ++ [true]))
-      (encPair encPar encBits) encCNF :=
-    computableInPolyTime_pinnedClauses.comp (bitsAppend hbits (const [true]))
-  have hinst : ComputableInPolyTime
-      (fun p : (StructInstance × ℕ) × List Bool =>
-        StructInstance.mk p.1.1.numVars (pinnedClauses (p.2 ++ [true]) ++ p.1.1.clauses))
-      (encPair encPar encBits) encStructInstance :=
-    encStructInstance_mk_polyTime (encStructInstance_numVars_polyTime hF)
-      (listAppend' hcand (encStructInstance_clauses_polyTime hF))
-  have hcut : ComputableInPolyTime
-      (fun p : (StructInstance × ℕ) × List Bool =>
-        (pinnedClauses (p.2 ++ [true])).length + p.1.2)
-      (encPair encPar encBits) encUnary :=
-    unary_add' ((length_list (encList (encPair encNat encBool))).comp hcand) hopt
-  have hq : ComputableInPolyTime
-      (fun p : (StructInstance × ℕ) × List Bool =>
-        thresholdToCNF
-          ⟨⟨p.1.1.numVars, pinnedClauses (p.2 ++ [true]) ++ p.1.1.clauses⟩,
-            (pinnedClauses (p.2 ++ [true])).length + p.1.2⟩)
-      (encPair encPar encBits) encCNF :=
-    computableInPolyTime_thresholdToCNF.comp (encThresholdQuery_mk_polyTime hinst hcut)
-  have hb : ComputableInPolyTime
-      (fun p : (StructInstance × ℕ) × List Bool =>
-        [solve (thresholdToCNF
-          ⟨⟨p.1.1.numVars, pinnedClauses (p.2 ++ [true]) ++ p.1.1.clauses⟩,
-            (pinnedClauses (p.2 ++ [true])).length + p.1.2⟩)])
-      (encPair encPar encBits) encBits :=
-    (of_finite (fun bit : Bool => [bit]) (encIn := encBool) (encOut := encBits)).comp
-      (hpoly.comp hq)
-  exact bitsAppend hbits hb
+  have hF := (fst encStructInstance encUnary).comp (fst encPar encBits)
+  have hopt := (snd encStructInstance encUnary).comp (fst encPar encBits)
+  have hbits := snd encPar encBits
+  have hcand := computableInPolyTime_pinnedClauses.comp (bitsAppend hbits (const [true]))
+  have hq := computableInPolyTime_thresholdToCNF.comp (encThresholdQuery_mk_polyTime
+    (encStructInstance_mk_polyTime (encStructInstance_numVars_polyTime hF)
+      (listAppend' hcand (encStructInstance_clauses_polyTime hF)))
+    (unary_add' ((length_list (encList (encPair encNat encBool))).comp hcand) hopt))
+  exact bitsAppend hbits
+    ((of_finite (fun bit : Bool => [bit]) (encIn := encBool) (encOut := encBits)).comp
+      (hpoly.comp hq))
 
 /-- **Polynomial-time closure for `optimizeWith`:** for any polynomial-time procedure `solve`,
 `optimizeWith solve` runs in polynomial time on multi-tape Turing machines (and when `solve`
@@ -1554,13 +1520,14 @@ theorem computableInPolyTime_maxCSPOptimizeBounded {Rel : Type} [Finite Rel]
       (encMaxCSPInstance encRel) encStructSolution := by
   have hstruct := computableInPolyTime_maxCSPToStruct encRel w sem
   have hsol := (computableInPolyTime_optimizeWith hpoly).comp hstruct
-  have hval := binary_sub'
-    (binary_add' (encStructSolution_optValue_polyTime hsol)
-      (unary_to_binary.comp ((length_list (encConstraint encRel encNat)).comp
-        (computableInPolyTime_maxCSP_constraints ComputableInPolyTime.id'))))
-    (unary_to_binary.comp ((length_list (encList (encPair encNat encBool))).comp
-      (encStructInstance_clauses_polyTime hstruct)))
-  exact encStructSolution_mk_polyTime hval (encStructSolution_assignmentBits_polyTime hsol)
+  exact encStructSolution_mk_polyTime
+    (binary_sub'
+      (binary_add' (encStructSolution_optValue_polyTime hsol)
+        (unary_to_binary.comp ((length_list (encConstraint encRel encNat)).comp
+          (computableInPolyTime_maxCSP_constraints ComputableInPolyTime.id'))))
+      (unary_to_binary.comp ((length_list (encList (encPair encNat encBool))).comp
+        (encStructInstance_clauses_polyTime hstruct))))
+    (encStructSolution_assignmentBits_polyTime hsol)
 
 /-- Pure exact bounded-arity Boolean `Max-CSP` optimization by binary search via `maxCSPToStruct`.
 -/

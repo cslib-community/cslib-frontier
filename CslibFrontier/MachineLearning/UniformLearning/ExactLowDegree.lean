@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree
 public import CslibFrontier.MachineLearning.UniformLearning.LowDegree
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Foundations.BooleanAnalysis.Degree
 import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeGranularity
 import Mathlib.Algebra.Order.Round
@@ -119,10 +120,7 @@ theorem exactLowDegreeHypothesis_eq {k : ℕ} (hk : 1 ≤ k) {f : (ι → Bool) 
       (round (empiricalCoeff e S * 2 ^ (k - 1)) / 2 ^ (k - 1) : ℝ) =
         fourierCoeff (fun x => signVal (f x)) S := by
     obtain ⟨z, hz⟩ := exists_fourierCoeff_signVal_eq_intCast_div_two_pow_of_mem_lowDegree f hf S
-    have h := he S hS
-    rw [hz, ← Nat.sub_add_cancel hk] at h
-    rw [hz]
-    exact round_mul_two_pow_div_eq h
+    exact hz ▸ round_mul_two_pow_div_eq (by simpa only [hz, Nat.sub_add_cancel hk] using he S hS)
   have hhigh := mem_lowDegree_iff_fourierCoeff_eq_zero.1 hf
   funext x
   have hsum : ∑ S with #S ≤ k,
@@ -165,21 +163,13 @@ theorem exactLowDegreeLearner_learns {k m : ℕ} (hk : 1 ≤ k) {δ : ℝ} (hδ 
     intro x hx
     by_contra hgood
     simp only [Set.mem_ofPred_eq, not_exists, not_and, not_le] at hgood
-    have heq := exactLowDegreeHypothesis_eq hk hf (e := examples f x) fun S hS =>
-      hgood S (mem_filter.2 ⟨mem_univ S, hS⟩)
-    simp only [Set.mem_ofPred_eq, exactLowDegreeLearner, heq, uniformError_self,
-      lt_self_iff_false] at hx
+    simp [Set.mem_ofPred_eq, exactLowDegreeLearner, uniformError_self,
+      exactLowDegreeHypothesis_eq hk hf fun S hS => hgood S (mem_filter.2 ⟨mem_univ S, hS⟩)] at hx
   refine (MeasureTheory.measure_mono hsub).trans
     ((uniform_exists_abs_empiricalCoeff_sub_ge_le f T hγ).trans (ENNReal.ofReal_le_ofReal ?_))
-  rw [hγsq]
-  have hlog : Real.log (2 * N / δ) ≤ m / (2 * 4 ^ k) := by
-    rw [le_div_iff₀ (by positivity)]
-    linarith
-  calc N * (2 * Real.exp (-(m * (1 / 4 ^ k)) / 2))
-      = N * (2 * Real.exp (-(m / (2 * 4 ^ k)))) := by congr 3; field_simp
-    _ ≤ N * (2 * Real.exp (-Real.log (2 * N / δ))) := by gcongr
-    _ = δ := by
-        rw [Real.exp_neg, Real.exp_log (by positivity), inv_div]
-        field_simp
+  rw [hγsq, show N * (2 * Real.exp (-(m * (1 / 4 ^ k)) / 2)) =
+      2 * N * Real.exp (-(1 / (2 * 4 ^ k) * m)) by ring_nf]
+  exact Real.mul_exp_neg_le_of_log le_rfl (by positivity) (by positivity) hδ
+    (by rw [div_div_eq_mul_div, div_one]; linarith)
 
 end Cslib.MachineLearning.UniformLearning

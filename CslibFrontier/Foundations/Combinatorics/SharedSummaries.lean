@@ -116,40 +116,27 @@ theorem sum_prod_eq_sum_measurement_fibers
         fiberContribution measure allowed factor representative y := by
   classical
   let measurements : (∀ g, X g) → (∀ g, Y g) := fun x g => measure g (x g)
-  have hcover : ∀ x ∈ Fintype.piFinset allowed,
-      measurements x ∈ Fintype.piFinset box := by
-    intro x _
-    exact Fintype.mem_piFinset.mpr fun g => covers g (x g)
-  rw [← Finset.sum_fiberwise_of_maps_to hcover (fun x => ∏ g, factor g x)]
-  apply Finset.sum_congr rfl
-  intro y _
+  rw [← Finset.sum_fiberwise_of_maps_to
+    (fun x _ => Fintype.mem_piFinset.mpr fun g => covers g (x g) :
+      ∀ x ∈ Fintype.piFinset allowed, measurements x ∈ Fintype.piFinset box)
+    (fun x => ∏ g, factor g x)]
+  refine Finset.sum_congr rfl fun y _ => ?_
   by_cases hy : ∀ g, ∃ u, measure g u = y g
   · simp only [fiberContribution, dite_eq_left hy]
-    let localChoices : ∀ g, Finset (X g) := fun g => (allowed g).filter (fun u => measure g u = y g)
     have hfiber : ((Fintype.piFinset allowed).filter fun x => measurements x = y) =
-        Fintype.piFinset localChoices := by
+        Fintype.piFinset fun g => (allowed g).filter fun u => measure g u = y g := by
       ext x
-      simp only [Finset.mem_filter, Fintype.mem_piFinset, localChoices, measurements,
-        funext_iff, forall_and]
+      simp only [Finset.mem_filter, Fintype.mem_piFinset, measurements, funext_iff, forall_and]
     rw [hfiber, Finset.prod_univ_sum]
-    apply Finset.sum_congr rfl
-    intro x hx
-    apply Finset.prod_congr rfl
-    intro g _
-    apply locality
-    · intro h
-      have hxh := (Finset.mem_filter.mp (Fintype.mem_piFinset.mp hx h)).2
-      by_cases hh : h = g
-      · subst h
-        simp
-      · simp only [Function.update_of_ne hh]
-        rw [hxh, valid]
+    refine Finset.sum_congr rfl fun x hx => Finset.prod_congr rfl fun g _ =>
+      locality g _ _ (fun h => ?_) (by simp)
+    obtain rfl | hh := eq_or_ne h g
     · simp
-  · have hempty : ((Fintype.piFinset allowed).filter fun x => measurements x = y) = ∅ := by
-      apply Finset.eq_empty_iff_forall_notMem.mpr
-      intro x hx
-      have hxy := (Finset.mem_filter.mp hx).2
-      exact hy fun g => ⟨x g, congrFun hxy g⟩
+    · simp [Function.update_of_ne hh, (Finset.mem_filter.mp (Fintype.mem_piFinset.mp hx h)).2,
+        valid]
+  · have hempty : ((Fintype.piFinset allowed).filter fun x => measurements x = y) = ∅ :=
+      Finset.eq_empty_iff_forall_notMem.mpr fun x hx =>
+        hy fun g => ⟨x g, congrFun (Finset.mem_filter.mp hx).2 g⟩
     simp only [hempty, Finset.sum_empty, fiberContribution, dite_eq_right hy]
 
 omit [CommRing A] [Fintype G] in
@@ -169,29 +156,24 @@ theorem fiber_locality_of_kernel_shifts [Finite G]
   let _ := Fintype.ofFinite G
   let delta := x' - x
   have hdelta (h : G) : measure h (delta h) = 0 := by
-    dsimp [delta]
-    rw [map_sub, sameMeasurements h, sub_self]
-  have hzero : delta g = 0 := by simp [delta, sameCoordinate]
+    simp [delta, sameMeasurements h]
   have hsum (s : Finset G) : ∀ base : (∀ h, V h),
       factor g (base + ∑ h ∈ s, Pi.single h (delta h)) = factor g base := by
     induction s using Finset.induction_on with
-    | empty => intro base; simp
+    | empty => simp
     | @insert h s hs ih =>
       intro base
-      rw [Finset.sum_insert hs]
-      have hrearrange : base + (Pi.single h (delta h) + ∑ j ∈ s, Pi.single j (delta j)) =
-          (base + ∑ j ∈ s, Pi.single j (delta j)) + Pi.single h (delta h) := by abel
-      rw [hrearrange]
-      by_cases hh : h = g
-      · subst h
-        simpa only [hzero, Pi.single_zero, add_zero] using ih base
+      rw [Finset.sum_insert hs, show base + (Pi.single h (delta h) + ∑ j ∈ s, Pi.single j (delta j))
+        = (base + ∑ j ∈ s, Pi.single j (delta j)) + Pi.single h (delta h) by abel]
+      obtain rfl | hh := eq_or_ne h g
+      · simpa only [delta, Pi.sub_apply, sameCoordinate, sub_self, Pi.single_zero, add_zero] using
+          ih base
       · rw [shift g h hh _ _ (hdelta h), ih]
-  have hdecompose : (∑ h : G, Pi.single h (delta h)) = delta := by
-    funext h
-    simp
-  have hfinish : x + delta = x' := by dsimp [delta]; abel
+  have hdecompose : (∑ h : G, Pi.single h (delta h)) = delta := funext fun _ => by simp
+  have hfinish : x + delta = x' := by
+    dsimp [delta]
+    abel
   have h := hsum Finset.univ x
-  rw [hdecompose, hfinish] at h
-  exact h.symm
+  rwa [hdecompose, hfinish, eq_comm] at h
 
 end Cslib.SharedSummaries

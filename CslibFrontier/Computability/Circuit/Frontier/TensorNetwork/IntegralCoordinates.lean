@@ -105,30 +105,22 @@ theorem padicValuation_prod_sub_eq_prod_Ioo {a : ℕ} {t : ℤ} (ht : t ∈ cauc
   rw [hL2]
   refine Finset.prod_nbij' (fun q => if q < t then t - q else t - q + 2 * L)
     (fun r => if -L ≤ t - r then t - r else t - r + 2 * L) ?_ ?_ ?_ ?_ ?_
-  · intro q hq
-    simp only [Finset.mem_erase, Finset.mem_Ico, Finset.mem_Ioo] at hq ⊢
+  iterate 4
+    intro x hx
+    simp only [Finset.mem_erase, Finset.mem_Ico, Finset.mem_Ioo] at hx ⊢
     split_ifs <;> omega
-  · intro r hr
-    simp only [Finset.mem_erase, Finset.mem_Ico, Finset.mem_Ioo] at hr ⊢
-    split_ifs <;> omega
-  · intro q hq
-    simp only [Finset.mem_erase, Finset.mem_Ico] at hq
-    split_ifs <;> omega
-  · intro r hr
-    simp only [Finset.mem_Ioo] at hr
-    split_ifs <;> omega
-  · intro q hq
-    simp only [Finset.mem_erase, Finset.mem_Ico] at hq
-    have hne : t - q ≠ 0 := by omega
-    have habs : |t - q| < 2 ^ (a + 1) := by rw [hL2, abs_lt]; omega
-    have h2L : (2 : ℚ) * (L : ℚ) = 2 ^ (a + 1) := by exact_mod_cast hL2.symm
-    have hadd := padicValuation_add_two_pow hne habs
-    push_cast at hadd
-    split_ifs
-    · push_cast; rfl
-    · push_cast
-      rw [h2L]
-      exact hadd.symm
+  intro q hq
+  simp only [Finset.mem_erase, Finset.mem_Ico] at hq
+  have hne : t - q ≠ 0 := by omega
+  have habs : |t - q| < 2 ^ (a + 1) := by rw [hL2, abs_lt]; omega
+  have h2L : (2 : ℚ) * (L : ℚ) = 2 ^ (a + 1) := by exact_mod_cast hL2.symm
+  have hadd := padicValuation_add_two_pow hne habs
+  push_cast at hadd
+  split_ifs
+  · push_cast; rfl
+  · push_cast
+    rw [h2L]
+    exact hadd.symm
 
 /-- **`v₂(C'(t)) = v₂(C'(0))` on the grid** of `L = 2 ^ a` slots, where
 `C'(t) = ∏_{q ∈ S, q ≠ t} (t - q)`. -/

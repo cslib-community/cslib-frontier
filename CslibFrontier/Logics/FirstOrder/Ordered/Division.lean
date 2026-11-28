@@ -79,11 +79,9 @@ theorem realize_scaleAddEq (d : ℕ) (x y z : (language L).Term α) (v : α → 
     (scaleAddEq L d x y z).Realize v ↔
       d * (x.realize v).val + (y.realize v).val = (z.realize v).val := by
   fo_simp [scaleAddEq]
-  constructor
-  · rintro ⟨t, ht, he⟩
-    omega
-  · intro h
-    exact ⟨fun _ => ⟨d * (x.realize v).val, by have := (z.realize v).isLt; omega⟩, rfl, h⟩
+  refine ⟨fun ⟨t, ht, he⟩ => by omega, fun h => ⟨fun _ => ⟨d * (x.realize v).val, ?_⟩, rfl, h⟩⟩
+  have := (z.realize v).isLt
+  omega
 
 /-- `divNatEq L d x y` holds exactly when `y = x / d`, for a positive literal `d`. -/
 @[simp, fo_realize]
@@ -95,9 +93,7 @@ theorem realize_divNatEq {d : ℕ} (hd : 0 < d) (x y : (language L).Term α) (v 
     rw [← he, Nat.add_comm, Nat.add_mul_div_left _ _ hd, Nat.div_eq_of_lt hm, Nat.zero_add]
   · intro h
     refine ⟨fun _ => ⟨(x.realize v).val % d,
-      (Nat.mod_le _ _).trans_lt (x.realize v).isLt⟩, Nat.mod_lt _ hd, ?_⟩
-    rw [h]
-    exact Nat.div_add_mod _ _
+      (Nat.mod_le _ _).trans_lt (x.realize v).isLt⟩, Nat.mod_lt _ hd, h ▸ Nat.div_add_mod _ _⟩
 
 /-- `modNatEq L d x y` holds exactly when `y = x % d`, for a positive literal `d`. -/
 @[simp, fo_realize]
@@ -109,8 +105,6 @@ theorem realize_modNatEq {d : ℕ} (hd : 0 < d) (x y : (language L).Term α) (v 
     rw [← he, Nat.add_comm, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hy]
   · intro h
     refine ⟨h ▸ Nat.mod_lt _ hd, fun _ => ⟨(x.realize v).val / d,
-      (Nat.div_le_self _ _).trans_lt (x.realize v).isLt⟩, ?_⟩
-    rw [h]
-    exact Nat.div_add_mod _ _
+      (Nat.div_le_self _ _).trans_lt (x.realize v).isLt⟩, h ▸ Nat.div_add_mod _ _⟩
 
 end Cslib.Logic.FO.Ordered

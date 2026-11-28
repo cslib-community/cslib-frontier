@@ -64,8 +64,8 @@ theorem hessian_sum_smul_prod_X (w : Perm ι → K) (x : ι × ι → K) (a b : 
   · simp only [mem_univ, h', and_self, ite_true, pderiv_prod_X, mem_erase]
     by_cases h : c ≠ c' ∧ σ c = r
     · simp [h]
-    · rw [ite_eq_right_iff.2 (fun h'' => absurd ⟨h''.1.1, h''.2⟩ h),
-        ite_eq_right_iff.2 (fun h'' => absurd ⟨h''.1, h''.2.1⟩ h)]
+    · rw [ite_eq_right_iff.2 fun h'' => absurd ⟨h''.1.1, h''.2⟩ h,
+        ite_eq_right_iff.2 fun h'' => absurd ⟨h''.1, h''.2.1⟩ h]
       simp
   · simp [h']
 
@@ -87,25 +87,22 @@ private theorem rank_le_two_mul_card_of_eq_zero (H : Matrix (ι × ι) (ι × ι
     (hH : ∀ a b : ι × ι, a.2 ≠ z → b.2 ≠ z → H a b = 0) :
     H.rank ≤ 2 * Fintype.card ι := by
   classical
-  set E : Matrix (ι × ι) ι K := Matrix.of fun a k => if a = (k, z) then 1 else 0 with hE
-  set D' : Matrix (ι × ι) (ι × ι) K := Matrix.diagonal fun a => if a.2 = z then 0 else 1
-    with hD'
+  let E : Matrix (ι × ι) ι K := Matrix.of fun a k => if a = (k, z) then 1 else 0
+  let D' : Matrix (ι × ι) (ι × ι) K := Matrix.diagonal fun a => if a.2 = z then 0 else 1
   have hD : E * E.transpose = Matrix.diagonal fun a => if a.2 = z then 1 else 0 := by
     ext ⟨r, c⟩ ⟨r', c'⟩
-    rw [Matrix.mul_apply]
-    simp only [hE, transpose_apply, of_apply, diagonal_apply, Prod.mk.injEq]
+    simp only [E, Matrix.mul_apply, transpose_apply, of_apply, diagonal_apply, Prod.mk.injEq]
     by_cases hc : c = z <;> by_cases hc' : c' = z <;>
       simp [hc, hc', Finset.sum_ite_eq, @eq_comm _ z]
   have hsplit : H = E * (E.transpose * H) + (D' * H * E) * E.transpose := by
     rw [← Matrix.mul_assoc, Matrix.mul_assoc (D' * H), hD]
     ext a b
-    simp only [hD']
-    by_cases ha : a.2 = z <;> by_cases hb : b.2 = z <;> simp [ha, hb, hH a b]
+    by_cases ha : a.2 = z <;> by_cases hb : b.2 = z <;> simp [D', ha, hb, hH a b]
   rw [hsplit, two_mul]
-  refine (Matrix.rank_add_le _ _).trans (add_le_add ?_ ?_)
-  · exact (Matrix.rank_mul_le_left _ _).trans (Matrix.rank_le_card_width _)
-  · exact (Matrix.rank_mul_le_left _ _).trans ((Matrix.rank_mul_le_right _ _).trans
-      (Matrix.rank_le_card_width _))
+  exact (Matrix.rank_add_le _ _).trans (add_le_add
+    ((Matrix.rank_mul_le_left _ _).trans (Matrix.rank_le_card_width _))
+    ((Matrix.rank_mul_le_left _ _).trans ((Matrix.rank_mul_le_right _ _).trans
+      (Matrix.rank_le_card_width _))))
 
 /-- **The determinant's Hessian at a singular matrix** has rank at most `2 * m`
 [Mignon and Ressayre][MignonRessayre2004]. -/
@@ -115,31 +112,24 @@ theorem rank_hessian_det_mvPolynomialX_le {x : ι × ι → K}
   set M : Matrix ι ι K := Matrix.of fun i j => x (i, j) with hM
   rw [eval_det_mvPolynomialX] at hx
   obtain ⟨v, hv0, hv⟩ := Matrix.exists_mulVec_eq_zero_iff.2 hx
-  obtain ⟨z, hz⟩ : ∃ z, v z ≠ 0 := by
-    by_contra h
-    push Not at h
-    exact hv0 (funext h)
+  obtain ⟨z, hz⟩ : ∃ z, v z ≠ 0 := Function.ne_iff.mp hv0
   set Q : Matrix ι ι K := (1 : Matrix ι ι K).updateCol z v with hQ
-  have hQdet : Q.det = v z := by
-    simpa [Matrix.one_apply] using Matrix.det_updateCol_sum (1 : Matrix ι ι K) z v
-  set L' : ι × ι → MvPolynomial (ι × ι) K := fun p => ∑ k, X (p.1, k) * C (Q k p.2)
-    with hL'def
-  have hL' : ∀ p, (L' p).totalDegree ≤ 1 := fun p => by
-    refine totalDegree_finsetSum_le fun k _ => (totalDegree_mul _ _).trans ?_
-    simp
+  have hQ0 : Q.det ≠ 0 := by
+    rwa [show Q.det = v z by simpa [Matrix.one_apply] using
+      Matrix.det_updateCol_sum (1 : Matrix ι ι K) z v]
+  let L' : ι × ι → MvPolynomial (ι × ι) K := fun p => ∑ k, X (p.1, k) * C (Q k p.2)
+  have hL' (p) : (L' p).totalDegree ≤ 1 :=
+    totalDegree_finsetSum_le fun _ _ => (totalDegree_mul _ _).trans (by simp)
   have haeval : aeval L' (mvPolynomialX ι ι K).det = (mvPolynomialX ι ι K).det * C Q.det := by
     rw [AlgHom.map_det, RingHom.map_det (C : K →+* MvPolynomial (ι × ι) K) Q, ← det_mul]
     congr 1
     ext i j
     simp [L', Matrix.mul_apply]
-  have hy : ∀ i, eval x (L' (i, z)) = 0 := fun i => by
-    have := congrFun hv i
-    simp only [L', map_sum, map_mul, eval_X, eval_C, hQ, updateCol_self]
-    simpa [Matrix.mulVec, dotProduct, hM] using this
-  have hQ0 : Q.det ≠ 0 := hQdet ▸ hz
+  have hy (i) : eval x (L' (i, z)) = 0 := by
+    simpa [L', hQ, updateCol_self, Matrix.mulVec, dotProduct, hM] using congrFun hv i
   have key : (hessian x (aeval L' (mvPolynomialX ι ι K).det)).rank ≤ 2 * Fintype.card ι :=
     (rank_hessian_aeval_le x L' hL' _).trans
-      (rank_le_two_mul_card_of_eq_zero _ z fun a b ha hb =>
+      (rank_le_two_mul_card_of_eq_zero _ z fun _ _ ha hb =>
         hessian_det_mvPolynomialX_eq_zero hy ha hb)
   rwa [haeval, hessian_mul_C,
     rank_smul_of_mem_nonZeroDivisors _ (mem_nonZeroDivisors_of_ne_zero hQ0)] at key
@@ -154,10 +144,8 @@ theorem rank_hessian_det_le {σ κ : Type*} [Fintype σ] [Fintype κ] [Decidable
   have hdet : A.det = aeval L (mvPolynomialX κ κ K).det := by
     rw [AlgHom.map_det, hL, mvPolynomialX_mapMatrix_aeval]
   rw [hdet, eval_aeval] at hx
-  have h1 := MvPolynomial.rank_hessian_aeval_le x L (fun p => hA p.1 p.2)
-    (mvPolynomialX κ κ K).det
-  have h2 := rank_hessian_det_mvPolynomialX_le hx
   rw [hdet]
-  exact h1.trans h2
+  exact (MvPolynomial.rank_hessian_aeval_le x L (fun p => hA p.1 p.2)
+    (mvPolynomialX κ κ K).det).trans (rank_hessian_det_mvPolynomialX_le hx)
 
 end Matrix

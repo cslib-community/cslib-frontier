@@ -49,19 +49,17 @@ theorem executionWidth_le_admissionWidth (n F b ap bp cp P : ℕ) (values : List
 theorem pow_admissionWidth_le (n F b ap bp cp P : ℕ) (values : List ℤ) :
     2 ^ admissionWidth n F b ap bp cp P values ≤ wordBound n F b ap bp cp P values := by
   let E := envelope n F b ap bp cp values + P + 1
-  have hp := Nat.pow_clog_le_mul (by decide : 1 < (2 : ℕ)) (by dsimp only [E]; omega : E ≠ 0)
+  have hp := Nat.pow_clog_le_mul Nat.one_lt_two (by omega : E ≠ 0)
   change 2 ^ (Nat.clog 2 E + 3) ≤ 16 * E
   rw [pow_add]
-  norm_num only [Nat.reducePow]
   omega
 
 /-- Raw caller data fit at the resource threshold, before any actual remainder instruction. -/
 theorem original_bounded {W n F b ap bp cp P : ℕ} (values : List ℤ) (x : Data 640)
     (hregs : ∀ i, x.regs i ≤ P) (hmem : ∀ q, x.mem q ≤ P)
     (hW : admissionWidth n F b ap bp cp P values ≤ W) : x.Bounded W := by
-  have hp : P < 2 ^ W := by
-    exact fits_of_lt_clog_le (by omega : P < envelope n F b ap bp cp values + P + 1)
-      (by unfold admissionWidth at hW; omega)
+  have hp : P < 2 ^ W := fits_of_lt_clog_le (Nat.lt_succ_of_le (Nat.le_add_left P _))
+    ((Nat.le_add_right _ 3).trans hW)
   exact ⟨fun i => (hregs i).trans_lt hp, fun q => (hmem q).trans_lt hp⟩
 
 /-- Every actual caller prefix has a width-independent bound. The semantic solver proves
@@ -81,13 +79,10 @@ theorem bounded_reachable_caller {W n F ap bp cp b P k : ℕ} (values : List ℤ
     (∀ i, s.data.regs i < wordBound n F b ap bp cp P values) ∧
       (∀ q, s.data.mem q < wordBound n F b ap bp cp P values) ∧
       ∀ q, wordBound n F b ap bp cp P values ≤ q → s.data.mem q = x.mem q := by
-  let w := admissionWidth n F b ap bp cp P values
-  have hx : x.Bounded w := original_bounded values x hregs hmem le_rfl
-  obtain ⟨p, mem, y, he, _⟩ := exec_at values hlen hv x xn xF xap xbp xcp xb
+  obtain ⟨_, _, _, ⟨_, _, hex⟩, _⟩ := exec_at values hlen hv x xn xF xap xbp xcp xb
     hab hbc hac vab vbc vac (executionWidth_le_admissionWidth n F b ap bp cp P values)
-  obtain ⟨t, ht, hex⟩ := he
-  exact hr.prefix_bounds program_fixed.2 hW hx (hex.executes Reg.result)
-    (pow_admissionWidth_le n F b ap bp cp P values)
+  exact hr.prefix_bounds program_fixed.2 hW (original_bounded values x hregs hmem le_rfl)
+    (hex.executes Reg.result) (pow_admissionWidth_le n F b ap bp cp P values)
 
 /-- The initialized program has no physical-width-dependent word or address support. -/
 theorem bounded_reachable_input {W n F k : ℕ} (values : List ℤ)
@@ -98,15 +93,15 @@ theorem bounded_reachable_input {W n F k : ℕ} (values : List ℤ)
     let E := envelope n F (3 + 3 * (n * n)) 3 (3 + n * n) (3 + 2 * (n * n)) values
     (∀ i, s.data.regs i < 16 * E) ∧ (∀ q, s.data.mem q < 16 * E) ∧
       ∀ q, 16 * E ≤ q → s.data.mem q = 0 := by
-  obtain ⟨hi, p, mem, y, t, ht, hpref, he, _⟩ := runs_input values hlen hv le_rfl
+  obtain ⟨hi, _, _, _, _, _, _, he, _⟩ := runs_input values hlen hv le_rfl
   let E := envelope n F (3 + 3 * (n * n)) 3 (3 + n * n) (3 + 2 * (n * n)) values
-  have hpow : 2 ^ inputWidth n F values ≤ 16 * E := by
-    have hp := Nat.pow_clog_le_mul (by decide : 1 < (2 : ℕ))
-      (by dsimp only [E, envelope]; omega : E ≠ 0)
-    change 2 ^ (Nat.clog 2 E + 3) ≤ 16 * E
-    rw [pow_add]
-    norm_num only [Nat.reducePow]
+  refine hr.prefix_bounds_init entryProgram_fixed.2 hW hi he ?_
+  have hE : E ≠ 0 := by
+    dsimp only [E, envelope]
     omega
-  exact hr.prefix_bounds_init entryProgram_fixed.2 hW hi he hpow
+  have hp := Nat.pow_clog_le_mul Nat.one_lt_two hE
+  change 2 ^ (Nat.clog 2 E + 3) ≤ 16 * E
+  rw [pow_add]
+  omega
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.ParameterSelecting

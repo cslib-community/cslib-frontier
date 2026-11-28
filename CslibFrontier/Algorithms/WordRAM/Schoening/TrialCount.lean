@@ -136,8 +136,6 @@ theorem schoeningTrials_eq {k : ℕ} (hk : 3 ≤ k) (n c : ℕ) :
     rw [Nat.cast_sub (by omega), Nat.cast_one]
   push_cast [hcast]
   simp only [div_pow]
-  have hp0 : (k : ℝ) ^ n ≠ 0 := pow_ne_zero _ hk0
-  have hp1 : ((k : ℝ) - 1) ^ (k - 3) ≠ 0 := pow_ne_zero _ hk1
   field_simp
 
 /-- **The value of the counter digits** is the trial count. -/
@@ -206,10 +204,8 @@ theorem numeratorDigits_bound {k : ℕ} (hk : 3 ≤ k) (n : ℕ) :
       ∀ d ∈ numeratorDigits k n, d ≤ 1 := by
   set D := (Nat.digits 2 (3 * n + 2 * k)).length
   have h0 : (mulAddDigits 0 (3 * n + 1) []).length ≤ D := by
-    have := length_mulAddDigits_le (a := 0) (cy := 3 * n + 1) (ds := []) (B := 3 * n + 2 * k)
-      (by simp) (by omega)
-      (show 3 * n + 1 ≤ 3 * n + 2 * k by omega)
-    simpa using this
+    simpa using length_mulAddDigits_le (a := 0) (cy := 3 * n + 1) (ds := []) (B := 3 * n + 2 * k)
+      (by simp) (by omega) (by omega)
   have h1 := length_iterate_le (F := mulStep (2 * (k - 1))) (D := D)
     (fun ds _ => mulStep_digit_le _ ds)
     (fun ds hds => length_mulStep_le (B := 3 * n + 2 * k) hds (by omega)) n
@@ -219,10 +215,7 @@ theorem numeratorDigits_bound {k : ℕ} (hk : 3 ≤ k) (n : ℕ) :
     (fun ds hds => length_mulStep_le (B := 3 * n + 2 * k) hds (by omega)) (k - 3)
     h1.2
   refine ⟨?_, h2.2⟩
-  rw [numeratorDigits]
-  have := h1.1
-  have := h2.1
-  rw [Nat.add_mul, Nat.add_mul, Nat.one_mul]
+  rw [numeratorDigits, Nat.add_mul, Nat.add_mul, Nat.one_mul]
   omega
 
 /-- **The number of digits** of the trial count is at most `counterLen k n c`. -/
@@ -238,8 +231,6 @@ theorem length_counterDigits_le {k : ℕ} (hk : 3 ≤ k) (n c : ℕ) :
     (fun ds _ => ceilStep_digit_le (by omega) ds)
     (fun ds hds => length_ceilStep_le (B := 3 * n + 2 * k) hds (by omega) (by omega)) (k - 3) h3.2
   have h5 := length_mulAddDigits_le h4.2 (le_refl c) (Nat.zero_le c)
-  have := h3.1
-  have := h4.1
   have : (1 + n + (k - 3)) * D + n * D + (k - 3) * D ≤ (2 * n + 2 * k) * D := by
     rw [← Nat.add_mul, ← Nat.add_mul]
     exact Nat.mul_le_mul_right _ (by omega)
@@ -297,22 +288,17 @@ theorem div_sub_one_pow_le_three {k : ℕ} (hk : 3 ≤ k) :
 theorem schoeningTrials_le {k : ℕ} (hk : 3 ≤ k) (n c : ℕ) :
     (schoeningTrials k n c : ℝ) ≤ (9 * n + 4) * (2 * ((k : ℝ) - 1) / k) ^ n * c := by
   have hk3 : (3 : ℝ) ≤ k := by exact_mod_cast hk
-  have hr : 1 ≤ 2 * ((k : ℝ) - 1) / k := by
-    rw [le_div_iff₀ (by linarith)]
-    linarith
+  have hr : 1 ≤ 2 * ((k : ℝ) - 1) / k := (le_div_iff₀ (by linarith)).mpr (by linarith)
   have hrn : 1 ≤ (2 * ((k : ℝ) - 1) / k) ^ n := one_le_pow₀ hr
   have hq := div_sub_one_pow_le_three hk
-  have hq0 : 0 ≤ ((k : ℝ) / ((k : ℝ) - 1)) ^ (k - 3) := by
-    apply pow_nonneg; apply div_nonneg <;> linarith
+  have hq0 : 0 ≤ ((k : ℝ) / ((k : ℝ) - 1)) ^ (k - 3) :=
+    pow_nonneg (div_nonneg (by positivity) (by linarith)) _
   set A := (3 * n + 1 : ℝ) * (2 * ((k : ℝ) - 1) / k) ^ n * ((k : ℝ) / ((k : ℝ) - 1)) ^ (k - 3)
-  have hA0 : 0 ≤ A := by positivity
   have hA : A ≤ 3 * (3 * n + 1) * (2 * ((k : ℝ) - 1) / k) ^ n := by
-    have : (3 * n + 1 : ℝ) * (2 * ((k : ℝ) - 1) / k) ^ n * ((k : ℝ) / ((k : ℝ) - 1)) ^ (k - 3) ≤
-        (3 * n + 1 : ℝ) * (2 * ((k : ℝ) - 1) / k) ^ n * 3 := by gcongr
-    linarith
+    linarith [mul_le_mul_of_nonneg_left hq
+      (by positivity : (0 : ℝ) ≤ (3 * n + 1) * (2 * ((k : ℝ) - 1) / k) ^ n)]
   have hceil : (⌈A⌉₊ : ℝ) ≤ (9 * n + 4) * (2 * ((k : ℝ) - 1) / k) ^ n := by
-    have := Nat.ceil_lt_add_one hA0
-    nlinarith
+    nlinarith [Nat.ceil_lt_add_one (by positivity : 0 ≤ A)]
   rw [schoeningTrials]
   push_cast
   exact mul_le_mul_of_nonneg_right hceil (Nat.cast_nonneg c)

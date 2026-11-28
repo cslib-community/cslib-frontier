@@ -133,36 +133,31 @@ positive length. -/
 theorem half_le_succProbability_inversionGame_id (f : List Bool → List Bool) (n : ℕ) :
     1 / 2 ≤ Game.succProbability
       (ProbComp.eval (inversionGame (easyHalf f) (fun _ image => pure image) (n + 1))) := by
-  have h : (2⁻¹ : ℝ≥0∞) ≤
-      ProbComp.eval (inversionGame (easyHalf f) (fun _ image => pure image) (n + 1)) true := by
-    simp only [inversionGame, inversionExperiment, ProbComp.eval_bind, ProbComp.eval_pure,
-      BitString.eval_sampleList, BitString.uniformList_succ, PMF.bind_bind, PMF.bind_map]
-    rw [PMF.bind_apply, tsum_bool]
-    simp [PMF.uniformOfFintype_apply]
   calc (1 / 2 : ℝ≥0) = (2⁻¹ : ℝ≥0∞).toNNReal := by simp [ENNReal.toNNReal_ofNat]
-    _ ≤ _ := ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) h
+    _ ≤ _ := ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) <| by
+      simp only [inversionGame, inversionExperiment, ProbComp.eval_bind, ProbComp.eval_pure,
+        BitString.eval_sampleList, BitString.uniformList_succ, PMF.bind_bind, PMF.bind_map]
+      rw [PMF.bind_apply, tsum_bool]
+      simp [PMF.uniformOfFintype_apply]
 
 /-- `easyHalf f` is weakly one-way when `f` is one-way: every efficient inverter fails with
 probability strictly greater than `1/4` from some length on. -/
 theorem weakOneWay {f : List Bool → List Bool} (hf : OneWay f) : WeakOneWay (easyHalf f) := by
-  refine ⟨Polynomial.C 4, fun _ => by simp, ⟨computableInPolyTime_easyHalf hf.polyTime, ?_⟩⟩
-  intro adversary ha
-  obtain ⟨m, hm⟩ := eventually_atTop.1
-    (hf.weakOneWayAt_half.weak _ (isPPT_tailInverter ha))
+  refine ⟨Polynomial.C 4, fun _ => by simp, ⟨computableInPolyTime_easyHalf hf.polyTime,
+    fun adversary ha => ?_⟩⟩
+  obtain ⟨m, hm⟩ := eventually_atTop.1 (hf.weakOneWayAt_half.weak _ (isPPT_tailInverter ha))
   filter_upwards [eventually_ge_atTop (m + 1)] with N hN
   obtain ⟨n, rfl⟩ : ∃ n, N = n + 1 := ⟨N - 1, by omega⟩
-  have hsmall := hm n (by omega)
   simp only [Polynomial.eval_C, Nat.cast_ofNat]
-  linarith [succProbability_inversionGame_succ_le f adversary n]
+  linarith [hm n (by omega), succProbability_inversionGame_succ_le f adversary n]
 
 /-- `easyHalf f` is not one-way, for every `f`: returning the challenge succeeds with probability
 at least one half. -/
 theorem not_oneWay (f : List Bool → List Bool) : ¬ OneWay (easyHalf f) := fun hf => by
   obtain ⟨m, hm⟩ := (negligible_iff _).1
     (hf.inversion_negligible (fun _ image => pure image) (by ppt)) 0 (1 / 2) (by norm_num)
-  have := hm (m + 1) (by omega)
-  rw [pow_zero, one_mul] at this
-  exact (half_le_succProbability_inversionGame_id f m).not_gt this
+  exact (half_le_succProbability_inversionGame_id f m).not_gt
+    (by simpa only [pow_zero, one_mul] using hm (m + 1) (by omega))
 
 end OneWayEasyHalf
 

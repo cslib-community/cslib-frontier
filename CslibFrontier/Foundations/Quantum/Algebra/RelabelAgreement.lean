@@ -44,15 +44,10 @@ theorem expect_agreement_map_le [Nonempty X] (φ : AlgState A) (P Q : Measuremen
   have htotal : (∑ a, ∑ b, w a b) = 1 := sum_re_effect_mul_effect φ P Q
   have hcoef (a b : α) :
       (𝔼 x, if f x a = f x b then w a b else 0) ≤ (if a = b then w a b else 0) + c * w a b := by
-    by_cases he : a = b
-    · subst b
-      simpa only [ite_eq_left rfl, Fintype.expect_const] using
-        le_add_of_nonneg_right (mul_nonneg hc (hw a a))
-    · have hind (x : X) :
-          (if f x a = f x b then w a b else 0) =
-            (if f x a = f x b then (1 : ℝ) else 0) * w a b := by
-        split_ifs <;> simp
-      simp only [hind, ← expect_mul, he, ite_false, zero_add]
+    rcases eq_or_ne a b with rfl | he
+    · simpa [Fintype.expect_const] using mul_nonneg hc (hw a a)
+    · rw [expect_congr rfl fun x _ => (boole_mul (f x a = f x b) (w a b)).symm, ← expect_mul,
+        ite_eq_right he, zero_add]
       exact mul_le_mul_of_nonneg_right (hcollision a b he) (hw a b)
   simp only [agreement_map_map, expect_sum_comm]
   calc

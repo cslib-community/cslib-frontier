@@ -14,6 +14,7 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Tactic.PMFSwap
+import CslibFrontier.Tactic.UniformRelabel
 import Mathlib.Data.Fin.Tuple.Basic
 
 /-!
@@ -185,10 +186,9 @@ theorem setParity_eq_add_backupParity [Fintype Chunk] [DecidableEq Chunk]
 @[simp]
 theorem backupParity_replaceInChunk_self [Fintype Chunk] [DecidableEq Chunk]
     (db : Chunk × Offset → Bool) (jStar : Chunk) (S : Chunk → Offset) (δ : Offset) :
-    backupParity db jStar (replaceInChunk S jStar δ) = backupParity db jStar S := by
-  apply Finset.sum_congr rfl
-  intro j hj
-  rw [replaceInChunk_of_ne _ _ (Finset.ne_of_mem_erase hj)]
+    backupParity db jStar (replaceInChunk S jStar δ) = backupParity db jStar S :=
+  Finset.sum_congr rfl fun j hj =>
+    congrArg (fun d => db (j, d)) (replaceInChunk_of_ne _ _ (Finset.ne_of_mem_erase hj))
 
 /-- The full parity of `replaceInChunk S jStar δ` equals `db (jStar, δ)` plus the punctured backup
 parity of `S` outside `jStar`. -/
@@ -209,8 +209,7 @@ theorem setParity_replaceInChunk [Fintype Chunk] [DecidableEq Chunk]
   pBak + β
 
 private theorem bool_xor_cancel (a b c : Bool) : a + b + (c + b) + a = c := by
-  revert a b c
-  decide
+  cases a <;> cases b <;> cases c <;> rfl
 
 /-- **Online reconstruction identity**: if primary set `S` contains `x` (`S x.1 = x.2`), then
 combining the server answer `setParity db (replaceInChunk S x.1 r)`, the stored primary parity
@@ -221,8 +220,7 @@ theorem reconstructBit_setParity_eq [Fintype Chunk] [DecidableEq Chunk]
     reconstructBit (setParity db (replaceInChunk S x.1 r)) (setParity db S) (db (x.1, r)) =
       db x := by
   rw [reconstructBit, setParity_replaceInChunk, setParity_eq_add_backupParity db x.1 S, hS,
-    Prod.mk.eta]
-  exact bool_xor_cancel _ _ _
+    Prod.mk.eta, bool_xor_cancel]
 
 /-- **Online refresh parity identity**: XORing the punctured backup parity `backupParity db x.1 B`
 with `db x` yields the exact full parity `setParity db (replaceInChunk B x.1 x.2)` of the promoted
@@ -260,11 +258,9 @@ theorem findHint_update_self [DecidableEq Offset] (T : Fin M₁ → Chunk → Of
     (x : Chunk × Offset) (i : Fin M₁) (S' : Chunk → Offset) (hfind : findHint T x = some i)
     (hS' : S' x.1 = x.2) :
     findHint (Function.update T i S') x = some i := by
-  have hTi : T i x.1 = x.2 := findHint_eq_some hfind
   have hpred : (fun k : Fin M₁ => decide (Function.update T i S' k x.1 = x.2)) =
-      (fun k : Fin M₁ => decide (T k x.1 = x.2)) := by
-    funext k
-    by_cases hk : k = i <;> simp [hk, hTi, hS']
+      (fun k : Fin M₁ => decide (T k x.1 = x.2)) :=
+    funext fun k => by by_cases hk : k = i <;> simp [hk, findHint_eq_some hfind, hS']
   simpa [findHint, hpred] using hfind
 
 /-- The joint transformation of the primary set table `T : Fin M₁ → Chunk → Offset` and the active
@@ -295,12 +291,9 @@ theorem pianoStepSets_involutive [DecidableEq Chunk] [DecidableEq Offset] (x : C
   | none =>
     simp [h]
   | some i =>
-    have hTi : T i x.1 = x.2 := findHint_eq_some h
-    have hfind' : findHint (Function.update T i (replaceInChunk B x.1 x.2)) x = some i :=
-      findHint_update_self T x i (replaceInChunk B x.1 x.2) h (replaceInChunk_self B x.1 x.2)
-    simp only [hfind']
+    simp only [findHint_update_self T x i _ h (replaceInChunk_self B x.1 x.2)]
     ext1
-    · rw [replaceInChunk_idem, ← hTi, replaceInChunk_eq_self, Function.update_idem,
+    · rw [replaceInChunk_idem, ← findHint_eq_some h, replaceInChunk_eq_self, Function.update_idem,
         Function.update_eq_self]
     · simp only [Function.update_self, replaceInChunk_self, replaceInChunk_idem,
         replaceInChunk_eq_self]
@@ -317,23 +310,6 @@ theorem pianoStepSetsEquiv_apply [DecidableEq Chunk] [DecidableEq Offset] (x : C
     pianoStepSetsEquiv x tb = pianoStepSets x tb :=
   rfl
 
-/-- Reparametrizing two independent uniform draws `(a, b)` by an equivalence `e : α × β ≃ γ × δ`
-yields two independent uniform draws `(c, d)`. -/
-private theorem uniformOfFintype_bind_bind_equiv {α β γ δ ε : Type*} [Fintype α] [Nonempty α]
-    [Fintype β] [Nonempty β] [Fintype γ] [Nonempty γ] [Fintype δ] [Nonempty δ]
-    (e : α × β ≃ γ × δ) (f : γ × δ → PMF ε) :
-    ((PMF.uniformOfFintype α).bind fun a => (PMF.uniformOfFintype β).bind fun b =>
-      f (e (a, b))) =
-      (PMF.uniformOfFintype γ).bind fun c => (PMF.uniformOfFintype δ).bind fun d => f (c, d) := by
-  calc _ = (PMF.uniformOfFintype (α × β)).bind (fun ab => f (e ab)) := by
-        simp only [← PMF.uniformOfFintype_prod, pmf_norm]
-    _ = ((PMF.uniformOfFintype (α × β)).map e).bind f := by
-        simp only [pmf_norm]
-    _ = (PMF.uniformOfFintype (γ × δ)).bind f := by
-        rw [PMF.uniformOfFintype_map_equiv]
-    _ = _ := by
-        simp only [← PMF.uniformOfFintype_prod, pmf_norm]
-
 section IdealUniform
 
 variable [Fintype Chunk] [DecidableEq Chunk] [Fintype Offset] [DecidableEq Offset] [Nonempty Offset]
@@ -348,8 +324,8 @@ theorem uniformOfFintype_bind_bind_pianoStepSets {ε : Type*} (x : Chunk × Offs
       (PMF.uniformOfFintype (Chunk → Offset)).bind fun B =>
         f (pianoStepSets x (T, B))) =
       (PMF.uniformOfFintype (Fin M₁ → Chunk → Offset)).bind fun T' =>
-        (PMF.uniformOfFintype (Chunk → Offset)).bind fun Q => f (T', Q) :=
-  uniformOfFintype_bind_bind_equiv (pianoStepSetsEquiv x) f
+        (PMF.uniformOfFintype (Chunk → Offset)).bind fun Q => f (T', Q) := by
+  relabel_uniform (pianoStepSetsEquiv x)
 
 /-- The joint distribution of `(refreshedPrimarySets, serverQuery)` in one Piano step is the
 uniform product distribution on `(Fin M₁ → Chunk → Offset) × (Chunk → Offset)`,
@@ -361,8 +337,7 @@ theorem eval_pianoStepSets_uniform (x : Chunk × Offset) :
       pure (pianoStepSets x (T, B))) =
       PMF.uniformOfFintype ((Fin M₁ → Chunk → Offset) × (Chunk → Offset)) := by
   simp only [pmf_norm, ProbComp.eval_uniform]
-  rw [uniformOfFintype_bind_bind_pianoStepSets x PMF.pure, ← PMF.uniformOfFintype_prod]
-  rfl
+  rw [uniformOfFintype_bind_bind_pianoStepSets x PMF.pure, ← PMF.uniformOfFintype_prod]; rfl
 
 /-- **Primary table distribution invariant** (Theorem 3.2 of
 [Zhou, Park, Zheng and Shi][ZhouParkZhengShi2024]): after refreshing the consumed hint with a
@@ -374,8 +349,7 @@ theorem eval_pianoRefreshedTable_uniform (x : Chunk × Offset) :
       pure (pianoStepSets x (T, B)).1) =
       PMF.uniformOfFintype (Fin M₁ → Chunk → Offset) := by
   simp only [pmf_norm, ProbComp.eval_uniform]
-  rw [uniformOfFintype_bind_bind_pianoStepSets x (fun p => PMF.pure p.1)]
-  simp [PMF.bind_const]
+  simp [uniformOfFintype_bind_bind_pianoStepSets x (fun p => PMF.pure p.1), PMF.bind_const]
 
 /-- **Single-query server view privacy** (Theorem 3.2 of
 [Zhou, Park, Zheng and Shi][ZhouParkZhengShi2024]): for any queried index `x`, the set sent to the
@@ -387,8 +361,7 @@ theorem eval_pianoServerQuery_uniform (x : Chunk × Offset) :
       pure (pianoStepSets x (T, B)).2) =
       PMF.uniformOfFintype (Chunk → Offset) := by
   simp only [pmf_norm, ProbComp.eval_uniform]
-  rw [uniformOfFintype_bind_bind_pianoStepSets x (fun p => PMF.pure p.2)]
-  simp [PMF.bind_const]
+  simp [uniformOfFintype_bind_bind_pianoStepSets x (fun p => PMF.pure p.2), PMF.bind_const]
 
 omit [DecidableEq Offset] in
 /-- Overwriting chunk `j` of a uniform set `B : Chunk → Offset` with an independent uniform offset
@@ -420,9 +393,8 @@ the queried chunk `jStar` from `S : Fin (m + 1) → Offset` via `Fin.succAbove`,
 @[simp]
 theorem compactedOffsets_replaceInChunk_self {m : ℕ} (S : Fin (m + 1) → Offset)
     (jStar : Fin (m + 1)) (δ : Offset) :
-    compactedOffsets (replaceInChunk S jStar δ) jStar = compactedOffsets S jStar := by
-  ext k
-  exact replaceInChunk_of_ne S δ (Fin.succAbove_ne jStar k)
+    compactedOffsets (replaceInChunk S jStar δ) jStar = compactedOffsets S jStar :=
+  funext fun k => replaceInChunk_of_ne S δ (Fin.succAbove_ne jStar k)
 
 /-- Whenever `findHint T x = some i`, the compacted punctured server query is the matched hint set
 `T i` with the queried chunk's element removed. -/
@@ -438,16 +410,12 @@ theorem uniformOfFintype_map_compactedOffsets {m : ℕ} [Fintype Offset] [Nonemp
     (jStar : Fin (m + 1)) :
     (PMF.uniformOfFintype (Fin (m + 1) → Offset)).map (fun S => compactedOffsets S jStar) =
       PMF.uniformOfFintype (Fin m → Offset) := by
-  let e : (Fin (m + 1) → Offset) ≃ (Fin m → Offset) × Offset :=
-    (Fin.insertNthEquiv (fun _ : Fin (m + 1) => Offset) jStar).symm.trans (Equiv.prodComm _ _)
-  calc (PMF.uniformOfFintype (Fin (m + 1) → Offset)).map (fun S => compactedOffsets S jStar)
-      = ((PMF.uniformOfFintype (Fin (m + 1) → Offset)).map e).map Prod.fst := by
-          rw [PMF.map_comp]
-          rfl
-    _ = (PMF.uniformOfFintype ((Fin m → Offset) × Offset)).map Prod.fst := by
-          rw [PMF.uniformOfFintype_map_equiv e]
-    _ = PMF.uniformOfFintype (Fin m → Offset) :=
-          Cslib.Probability.PMF.uniformOfFintype_prod_map_fst
+  conv_rhs =>
+    rw [← Cslib.Probability.PMF.uniformOfFintype_prod_map_fst
+      (α := Fin m → Offset) (β := Offset)]
+  relabel_uniform
+    ((Fin.insertNthEquiv (fun _ : Fin (m + 1) => Offset) jStar).symm.trans
+      (Equiv.prodComm Offset (Fin m → Offset)))
 
 /-- **Compacted punctured query privacy** (the observation in
 [Zhou, Park, Zheng and Shi, Appendix A][ZhouParkZhengShi2024] that the compacted offset vector
@@ -560,17 +528,12 @@ theorem streamChunk_streamUpTo [DecidableEq Chunk] (db : Chunk × Offset → Boo
   · rfl
   · simp [streamChunk, streamUpTo, Finset.sum_insert hj]
   · rfl
-  · by_cases hjeq : i = j
-    · subst hjeq
-      simp [streamChunk, streamUpTo]
-    · simp [streamChunk, streamUpTo, hjeq]
+  · by_cases hjeq : i = j <;> simp [streamChunk, streamUpTo, hjeq]
   · rfl
   · by_cases hjeq : i = j
-    · subst hjeq
-      simp [streamChunk, streamUpTo, Finset.erase_insert hj, Finset.erase_eq_of_notMem hj]
-    · have hmem : j ∉ s.erase i := fun h => hj (Finset.mem_of_mem_erase h)
-      simp [streamChunk, streamUpTo, hjeq, Finset.erase_insert_of_ne (Ne.symm hjeq),
-        Finset.sum_insert hmem]
+    · simp [hjeq, streamChunk, streamUpTo, Finset.erase_insert hj, Finset.erase_eq_of_notMem hj]
+    · simp [streamChunk, streamUpTo, hjeq, Finset.erase_insert_of_ne (Ne.symm hjeq),
+        Finset.sum_insert (mt Finset.mem_of_mem_erase hj)]
   · rfl
 
 /-- Folding `streamChunk` over any duplicate-free list of chunks `js` starting from
@@ -585,9 +548,9 @@ theorem foldr_streamChunk_eq_streamUpTo [DecidableEq Chunk] (db : Chunk × Offse
   | nil =>
     simp only [List.foldr_nil, List.toFinset_nil, streamUpTo_empty]
   | cons j js ih =>
-    rw [List.nodup_cons] at hnd
-    have hj : j ∉ js.toFinset := by simpa using hnd.1
-    simp only [List.foldr_cons, ih hnd.2, List.toFinset_cons, streamChunk_streamUpTo db hj]
+    obtain ⟨hj, hnd⟩ := List.nodup_cons.mp hnd
+    simp only [List.foldr_cons, ih hnd, List.toFinset_cons,
+      streamChunk_streamUpTo db (List.mem_toFinset.not.mpr hj)]
 
 /-- **Offline single-pass streaming correctness**: folding `streamChunk` once over all chunks
 `Finset.univ.toList` starting from `initHintTable` produces `streamPreprocess`. -/
@@ -665,21 +628,16 @@ theorem onlineStep_correct [Fintype Chunk] [DecidableEq Chunk] [DecidableEq Offs
     (hvalid : t.Valid db) (hcan : t.CanAnswer x) :
     (t.onlineStep db x).2 = db x ∧ (t.onlineStep db x).1.Valid db := by
   obtain ⟨hex, hk⟩ := hcan
-  have hisome : (findHint t.primarySets x).isSome := (findHint_isSome_iff t.primarySets x).mpr hex
-  obtain ⟨i, hi⟩ := Option.isSome_iff_exists.mp hisome
-  have hTi : t.primarySets i x.1 = x.2 := findHint_eq_some hi
+  obtain ⟨i, hi⟩ := Option.isSome_iff_exists.mp ((findHint_isSome_iff t.primarySets x).mpr hex)
   simp only [onlineStep, hi, ↓reduceDIte, hk]
   have hβ : reconstructBit
       (setParity db (replaceInChunk (t.primarySets i) x.1 (t.replOffsets x.1 ⟨t.used x.1, hk⟩)))
       (t.primaryParities i) (t.replValues x.1 ⟨t.used x.1, hk⟩) = db x := by
     rw [hvalid.valid_primary i, hvalid.valid_repl x.1 ⟨t.used x.1, hk⟩,
-      reconstructBit_setParity_eq db (t.primarySets i) x (t.replOffsets x.1 ⟨t.used x.1, hk⟩) hTi]
-  refine ⟨hβ, ?_⟩
-  refine ⟨fun i' => ?_, hvalid.valid_repl, hvalid.valid_backup⟩
+      reconstructBit_setParity_eq db _ x _ (findHint_eq_some hi)]
+  refine ⟨hβ, fun i' => ?_, hvalid.valid_repl, hvalid.valid_backup⟩
   by_cases hieq : i' = i
-  · subst hieq
-    simp only [Function.update_self, hβ, hvalid.valid_backup x.1 ⟨t.used x.1, hk⟩,
-      refreshParity_eq_setParity]
+  · simp only [hieq, Function.update_self, hβ, hvalid.valid_backup, refreshParity_eq_setParity]
   · simp only [Function.update_of_ne hieq, hvalid.valid_primary i']
 
 /-- **The full client moves its sets by `pianoStepSets`.** Suppose primary hint `i` is the first
@@ -731,9 +689,8 @@ theorem runOnlineSteps_correct [Fintype Chunk] [DecidableEq Chunk] [DecidableEq 
   | nil =>
     exact ⟨rfl, hvalid⟩
   | cons x xs ih =>
-    obtain ⟨hx, hxs⟩ := hcan
-    obtain ⟨hβ, hvalid'⟩ := onlineStep_correct hvalid hx
-    obtain ⟨hβs, hvalid''⟩ := ih hvalid' hxs
+    obtain ⟨hβ, hvalid'⟩ := onlineStep_correct hvalid hcan.1
+    obtain ⟨hβs, hvalid''⟩ := ih hvalid' hcan.2
     exact ⟨by simp [runOnlineSteps, hβ, hβs], hvalid''⟩
 
 end HintTable
@@ -843,10 +800,8 @@ server's view in the hybrid only. The PRF step and the correct `HintTable` clien
 theorem isPerfectlyPrivateWith_pianoHybridScheme :
     (pianoHybridScheme M₁ Chunk Offset).IsPerfectlyPrivateWith
       (ProbComp.uniform (Chunk → Offset)) := by
-  apply Scheme.isPerfectlyPrivateWith_of_invariant
-    (proj := PianoHint.primarySets)
-    (inv := PMF.uniformOfFintype (Fin M₁ → Chunk → Offset))
-    (sim := ProbComp.uniform (Chunk → Offset))
+  apply Scheme.isPerfectlyPrivateWith_of_invariant (proj := PianoHint.primarySets)
+    (inv := PMF.uniformOfFintype (Fin M₁ → Chunk → Offset)) (sim := ProbComp.uniform _)
     (stepS := fun adv => pianoAdaptiveStepSets adv)
   · intro db
     simp only [pmf_norm, ProbComp.eval_uniform, pianoHybridScheme]
@@ -887,12 +842,9 @@ theorem eval_queryTranscript_pianoHybridScheme (db : Chunk × Offset → Bool)
     (xs : List (Chunk × Offset)) :
     ProbComp.eval ((pianoHybridScheme M₁ Chunk Offset).queryTranscript db xs) =
       ProbComp.eval (simTranscript (ProbComp.uniform (Chunk → Offset)) xs.length) := by
-  apply Scheme.eval_queryTranscript_eq_of_invariant
-    (proj := PianoHint.primarySets)
-    (inv := PMF.uniformOfFintype (Fin M₁ → Chunk → Offset))
-    (sim := ProbComp.uniform (Chunk → Offset))
-    (stepQ := fun T x =>
-      (PMF.uniformOfFintype (Chunk → Offset)).map fun B => pianoStepSets x (T, B))
+  apply Scheme.eval_queryTranscript_eq_of_invariant (proj := PianoHint.primarySets)
+    (inv := PMF.uniformOfFintype (Fin M₁ → Chunk → Offset)) (sim := ProbComp.uniform _)
+    (stepQ := fun T x => (PMF.uniformOfFintype _).map fun B => pianoStepSets x (T, B))
   · simp only [pmf_norm, ProbComp.eval_uniform, pianoHybridScheme]
   · intro h x
     simp only [pmf_norm, ProbComp.eval_uniform, Scheme.queryStep, pianoHybridScheme, PMF.map]

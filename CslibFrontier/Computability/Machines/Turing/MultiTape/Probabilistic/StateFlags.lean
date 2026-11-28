@@ -66,14 +66,12 @@ private theorem step_flag (bit : Bool) (c : Cfg k Symbol State input) (w : List 
       ((machine.flag φ).withCoin bit).toTM.step { c with output := w } =
         { (machine.withCoin bit).toTM.step c with output := w' } := by
   rcases Option.eq_none_or_eq_some c.state with hs | ⟨q, hs⟩
-  · refine ⟨w, ?_, ?_⟩
-    · rw [MultiTapeTM.step_of_halt hs, hw]
-    · rw [MultiTapeTM.step_of_halt (cfg := { c with output := w }) hs,
-        MultiTapeTM.step_of_halt hs]
+  · refine ⟨w, by rw [MultiTapeTM.step_of_halt hs, hw], ?_⟩
+    rw [MultiTapeTM.step_of_halt (cfg := { c with output := w }) hs,
+      MultiTapeTM.step_of_halt hs]
   · let a := Action.emptyOracleEquiv (machine.tr q c.inputSymbol c.workTapeSymbols Empty.elim bit)
     have h₁ : (machine.withCoin bit).toTM.step c = a.apply c := by
-      rw [MultiTapeTM.step_of_state hs, MultiTapeMachine.toTM, MultiTapeTM.tr_ofTr]
-      rfl
+      rw [MultiTapeTM.step_of_state hs, MultiTapeMachine.toTM, MultiTapeTM.tr_ofTr]; rfl
     have h₂ : ((machine.flag φ).withCoin bit).toTM.step { c with output := w } =
         (⟨a.inputTape, a.workTapes, some (φ a.state), a.state⟩ : Turing.Action k Symbol State).apply
           { c with output := w } := by
@@ -81,10 +79,8 @@ private theorem step_flag (bit : Bool) (c : Cfg k Symbol State input) (w : List 
         MultiTapeTM.tr_ofTr]
       rfl
     refine ⟨w ++ [φ a.state], ?_, ?_⟩
-    · rw [h₁, List.getLastD_concat]
-      rfl
-    · rw [h₁, h₂]
-      rfl
+    · rw [h₁, List.getLastD_concat]; rfl
+    · rw [h₁, h₂]; rfl
 
 /-- Replaying coins on the flag table, from a configuration whose output ends with the flag of its
 state, keeps the tapes of `machine` and ends with the flag of the state reached. -/
@@ -98,8 +94,7 @@ private theorem stepCoins_flag (coins : List Bool) (c : Cfg k Symbol State input
   | cons bit coins ih =>
     obtain ⟨w₁, hw₁, h₁⟩ := machine.step_flag φ bit c w hw
     obtain ⟨w₂, hw₂, h₂⟩ := ih _ w₁ hw₁
-    refine ⟨w₂, hw₂, ?_⟩
-    rw [stepCoins_cons, h₁, h₂, stepCoins_cons]
+    exact ⟨w₂, hw₂, by rw [stepCoins_cons, h₁, h₂, stepCoins_cons]⟩
 
 /-- **The last flag of the replay is the flag of the state reached**: the last symbol of the replay
 of the flag table, `φ` of the initial state when it is empty, is `φ` of the state that `machine`
@@ -109,10 +104,9 @@ theorem getLastD_runClosedCoins_flag (machine : MultiTapePTM k Bool State)
     ((machine.flag φ).runClosedCoins coins input).getLastD (φ (some machine.initial)) =
       φ (machine.stepCoins coins (Cfg.init machine.initial input)).state := by
   obtain ⟨w, hw, h⟩ := machine.stepCoins_flag φ coins (Cfg.init machine.initial input) [] rfl
-  rw [runClosedCoins_eq_output_stepCoins]
-  change ((machine.flag φ).stepCoins coins
-    { Cfg.init machine.initial input with output := [] }).output.getLastD _ = _
-  rw [h]
+  have h' : (machine.flag φ).stepCoins coins (Cfg.init (machine.flag φ).initial input) =
+      { machine.stepCoins coins (Cfg.init machine.initial input) with output := w } := h
+  rw [runClosedCoins_eq_output_stepCoins, h']
   exact hw
 
 end Turing.MultiTapePTM

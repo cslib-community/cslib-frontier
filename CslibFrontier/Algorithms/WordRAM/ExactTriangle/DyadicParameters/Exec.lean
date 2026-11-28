@@ -40,10 +40,7 @@ private def Ready (n : ℕ) (x : Data 16) : Prop := x.regs Reg.side = n ∧
 private theorem offset7_injective {r : ℕ} {f : Fin r → Fin 16}
     (hf : ∀ i, (f i).val = i.val + 7) : Function.Injective f := by
   intro i j h
-  apply Fin.ext
-  have hv := congrArg Fin.val h
-  rw [hf, hf] at hv
-  omega
+  exact Fin.ext (Nat.add_right_cancel ((hf i).symm.trans ((congrArg Fin.val h).trans (hf j))))
 
 private theorem offset7_preserves {r : ℕ} (c : Code .standard r) (f : Fin r → Fin 16)
     (hf : ∀ i, (f i).val = i.val + 7) (i : Fin 16) (hi : i.val < 7 ∨ 7 + r ≤ i.val) :
@@ -84,10 +81,8 @@ private theorem exec_finish {w n : ℕ} (x : Data 16)
     (fun i hi => finish_preserves i hi.1 hi.2) ?_
   unfold finish
   wram_exec [hb, hv]
-  · intro hpres
-    exact ⟨by wram_simp, by wram_simp [hc], rfl, fun i hw hfast => hpres i ⟨hw, hfast⟩⟩
-  · intro hpres
-    exact ⟨by wram_simp, by wram_simp [hc], rfl, fun i hw hfast => hpres i ⟨hw, hfast⟩⟩
+  all_goals exact fun hpres =>
+    ⟨by wram_simp, by wram_simp [hc], rfl, fun i hw hfast => hpres i ⟨hw, hfast⟩⟩
 
 /-- Computed dyadic parameters, original dimension and unchanged memory. -/
 @[expose] def Post (n : ℕ) (x y : Data 16) : Prop :=
@@ -161,16 +156,13 @@ theorem exec {w n : ℕ} (x : Data 16) (hn : x.regs Reg.side = n)
   have fg : f.regs Reg.groups = ParameterChoice.groups n :=
     (hf.regs_eq (power_preserves Reg.groups (by decide))).trans eg
   obtain ⟨y, hy, yD, yflag, ymem, yr⟩ := exec_finish f fReady.2.1 fD hfit
-  have yReady : Ready n y := fReady.of_frame fun i hi =>
-    yr i (by rcases hi with rfl | rfl | rfl | rfl | rfl <;> decide)
-      (by rcases hi with rfl | rfl | rfl | rfl | rfl <;> decide)
+  have yReady : Ready n y := fReady.of_frame fun i hi => by
+    rcases hi with rfl | rfl | rfl | rfl | rfl <;> exact yr _ (by decide) (by decide)
   have full := copy.seq (hb.seq (prep.seq (hd.seq (next.seq (hf.seq hy)))))
   refine ⟨y, full.mono ?_, yReady.1, yReady.2.1, yReady.2.2.1, yD,
     (yr Reg.groups (by decide) (by decide)).trans fg, yReady.2.2.2.1, yflag,
     ymem.trans (fmem.trans (emem.trans (dmem.trans (cmem.trans bmem))))⟩
-  change 1 + (4 * Nat.log 2 n + 5 + (9 + (4 * (2 * ParameterChoice.blocks n) + 5 +
-    (3 + (4 * ParameterChoice.level n + 5 + 5))))) ≤ timeBound n
-  unfold timeBound
+  rw [show a.regs (logRegisters NatLog.arg) = n from rfl, timeBound]
   omega
 
 /-- Actual execution is logarithmic, even using conservative bounds for both power calls. -/

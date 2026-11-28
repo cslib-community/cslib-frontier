@@ -36,10 +36,12 @@ We prove the concrete per-group step of [KatzLindell2020], Theorem 12.22 (p. 435
 asymptotic theorem is `Cslib.Crypto.DecodablePrimeOrderGroupFamily.GapCDH.dhKEMROMINDCCA` in
 `CslibFrontier.Crypto.Computational.DiffieHellman.GapCDH.Decodable`. The distinguishing
 advantage of every CCA adversary against the KEM is at most the success probability of an
-explicit gap-CDH adversary `dhKEMToGapCDH`. The reduction runs the KEM adversary, answering hash
-and decapsulation queries consistently from a table of past queries by asking the DDH oracle
-whether a hash point `z` and a ciphertext `c` satisfy `z = x • c`; it then outputs the first hash
-point `z` with `z = x • c⋆` for the challenge ciphertext `c⋆`.
+explicit gap-CDH adversary `dhKEMToGapCDH` (`advantage_dhKEMCCAGame_le_ideal`). Its exponents are
+drawn exactly uniformly, so it is an ideal-sampling step toward the cited theorem. The reduction
+runs the KEM adversary, answering hash and decapsulation queries consistently from a table of past
+queries by asking the DDH oracle whether a hash point `z` and a ciphertext `c` satisfy
+`z = x • c`; it then outputs the first hash point `z` with `z = x • c⋆` for the challenge
+ciphertext `c⋆`.
 
 ## Main definitions
 
@@ -54,8 +56,6 @@ point `z` with `z = x • c⋆` for the challenge ciphertext `c⋆`.
 ## Main results
 
 * `Cslib.Crypto.PrimeOrderGroupFamily.dhKEMDecaps_encaps`: decapsulation recovers the key.
-* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_dhKEMCCAGame_le`: the CCA advantage is at most
-  the gap-CDH success probability of `dhKEMToGapCDH`.
 
 ## Implementation notes
 
@@ -277,10 +277,8 @@ theorem runDDH_run_interpret {σ ι : Type} {spec : OracleSpec ι} (y : ZMod (F.
   induction program using OracleComp.induction generalizing s with
   | pure a => rfl
   | query_bind q cont ih =>
-    rw [PFunctor.FreeM.bind_eq_bind, OracleComp.run_interpret_bind,
-      OracleComp.run_interpret_bind, runDDH_bind,
-      OracleComp.run_interpret_query, OracleComp.run_interpret_query]
-    simp only [ih]
+    simp only [PFunctor.FreeM.bind_eq_bind, OracleComp.run_interpret_bind, runDDH_bind,
+      OracleComp.run_interpret_query, ih]
     rfl
 
 private theorem runDDH_findEntry {L : Type} (y : ZMod (F.order d))
@@ -349,9 +347,8 @@ private theorem tableCache_cons (x : ZMod (F.order d)) (label : F.Carrier d ⊕ 
     F.tableCache d x ((label, key) :: table) =
       Function.update (F.tableCache d x table) (F.entryPoint d x label) (some key) := by
   funext z
-  by_cases h : F.entryPoint d x label = z
-  · subst h
-    simp [tableCache]
+  rcases eq_or_ne (F.entryPoint d x label) z with rfl | h
+  · simp [tableCache]
   · simp [tableCache, h, Function.update_of_ne (Ne.symm h)]
 
 private theorem smul_inj (x : ZMod (F.order d)) (hx : x ≠ 0) {c c' : F.Carrier d} :
@@ -394,9 +391,7 @@ private theorem simLookup_step (x : ZMod (F.order d)) (sampleKey : ProbComp K)
     rw [F.runDDH_simLookup_of_none d x sampleKey test _ htest label table hfind, PMF.map_comp,
       RandomOracle.answer_of_none (fun _ => ProbComp.eval sampleKey) (F.tableCache d x table) point
         hfind]
-    congr 1
-    funext key
-    simp [tableCache_cons, hlabel]
+    exact congrArg _ (funext fun key => by simp [tableCache_cons, hlabel])
 
 /-- Tables that never record the challenge ciphertext. -/
 private def NoChallengeEntry (challenge : F.Carrier d) (table : F.SimTable d K) : Prop :=
@@ -444,10 +439,8 @@ private theorem lowerHandler_noChallenge (x : ZMod (F.order d)) (hx : x ≠ 0)
   | hash z =>
     rcases F.simLookup_support d x sampleKey _ _ (F.runDDH_hashTest d x z) (.inl z) table _
       h with h' | h'
-    · rw [show table' = table from h']
-      exact htable
-    · rw [show table' = _ from h']
-      exact List.forall_mem_cons.mpr ⟨Sum.inl_ne_inr, htable⟩
+    · exact (show table' = table from h') ▸ htable
+    · exact (show table' = _ from h') ▸ List.forall_mem_cons.mpr ⟨Sum.inl_ne_inr, htable⟩
   | decaps c =>
     by_cases hc : c = challenge
     · rw [hc, lowerHandler_decaps_self, PMF.mem_support_pure_iff] at h
@@ -457,10 +450,8 @@ private theorem lowerHandler_noChallenge (x : ZMod (F.order d)) (hx : x ≠ 0)
       rw [show table' = r.2 from (Prod.mk.inj hra).2.symm]
       rcases F.simLookup_support d x sampleKey _ _ (F.runDDH_decapsTest d x hx c) (.inr c) table
         r hr with h' | h'
-      · rw [h']
-        exact htable
-      · rw [h']
-        exact List.forall_mem_cons.mpr ⟨fun h => hc (Sum.inr_injective h), htable⟩
+      · exact h' ▸ htable
+      · exact h' ▸ List.forall_mem_cons.mpr ⟨fun h => hc (Sum.inr_injective h), htable⟩
 
 /-- A simulated query is the lazy random-oracle answer on the represented cache. -/
 private theorem lowerHandler_step (x : ZMod (F.order d)) (hx : x ≠ 0) (sampleKey : ProbComp K)
@@ -612,15 +603,13 @@ private theorem answer_support {Q : Type} [DecidableEq Q] {law : Q → PMF K} {q
   cases hs : s q with
   | some v =>
     rw [RandomOracle.answer_of_some law s q v hs, PMF.mem_support_pure_iff] at hr
-    subst hr
-    exact ⟨hs, fun _ hz => hz⟩
+    exact hr ▸ ⟨hs, fun _ hz => hz⟩
   | none =>
     rw [RandomOracle.answer_of_none law s q hs, PMF.support_map] at hr
     obtain ⟨v, -, rfl⟩ := hr
     refine ⟨by simp, fun z hz => ?_⟩
-    by_cases hzq : z = q
-    · subst hzq
-      simp
+    rcases eq_or_ne z q with rfl | hzq
+    · simp
     · simpa [Function.update_of_ne hzq] using hz
 
 /-- The key distribution with the point `point` programmed to `key`. -/
@@ -722,10 +711,11 @@ private theorem programmed_bounds (law : PMF K)
     simp only [real, ← hrep, PMF.map_comp]
     rfl
   have hU := F.identicalUntilBad_programmedLaw d law point key
-  have h1 := hU.bind_apply_le program (fun _ => none) (PMF.pure ∘ Prod.fst) true
-  have h2 := hU.symm.bind_apply_le program (fun _ => none) (PMF.pure ∘ Prod.fst) true
-  rw [hU.bad_eq] at h1
-  exact ⟨hreal ▸ h1, hreal ▸ h2⟩
+  refine ⟨?_, hreal ▸ hU.symm.bind_apply_le program (fun _ => none) (PMF.pure ∘ Prod.fst) true⟩
+  rw [hreal]
+  dsimp only [bad]
+  rw [← hU.bad_eq program (fun _ => none)]
+  exact hU.bind_apply_le program (fun _ => none) (PMF.pure ∘ Prod.fst) true
 
 end Programming
 
@@ -889,13 +879,14 @@ private theorem ccaAt_bound (sampleKey : ProbComp K) (adversary : F.DHKEMAdversa
   have hbad := F.bad_le_extract d x hx sampleKey adversary y key
   exact ⟨h1.trans (add_le_add le_rfl hbad), h2.trans (add_le_add le_rfl hbad)⟩
 
-/-- Concrete per-group step of [KatzLindell2020], Theorem 12.22 (p. 435); the asymptotic theorem
-is `Cslib.Crypto.DecodablePrimeOrderGroupFamily.GapCDH.dhKEMROMINDCCA`
+/-- Concrete per-group ideal-sampling step of [KatzLindell2020], Theorem 12.22 (p. 435), not the
+cited result (exponents are drawn from `PMF.uniformOfFintype (ZMod (F.order d))`); the asymptotic
+fair-coin theorem is `Cslib.Crypto.DecodablePrimeOrderGroupFamily.GapCDH.dhKEMROMINDCCA`
 (`CslibFrontier/Crypto/Computational/DiffieHellman/GapCDH/Decodable.lean`).
-The CCA advantage of every adversary against the random-oracle Diffie–Hellman KEM
-(Construction 12.19) is at most the success probability of the gap-CDH adversary `dhKEMToGapCDH`
-built from it. -/
-theorem advantage_dhKEMCCAGame_le (sampleKey : ProbComp K) (adversary : F.DHKEMAdversary d K) :
+The CCA advantage of every adversary against `dhKEMCCAGame` is at most the success probability of
+the gap-CDH adversary `dhKEMToGapCDH` built from it. -/
+theorem advantage_dhKEMCCAGame_le_ideal (sampleKey : ProbComp K)
+    (adversary : F.DHKEMAdversary d K) :
     Game.advantage (F.dhKEMCCAGame d sampleKey adversary true)
         (F.dhKEMCCAGame d sampleKey adversary false) ≤
       Game.succProbability (F.gapCDHGame d (F.dhKEMToGapCDH d sampleKey adversary)) := by

@@ -442,44 +442,10 @@ theorem IsPPTOn.exists_multiTapePTM_iterateWith_binary {initial : α → σ} {co
   let fullTime (a : α) : ℕ := midTime a + (midTime a + 4 + te a)
   let fullSpace (a : α) : ℕ :=
     (ke + kMid + 2) * (2 * max (max (midSpace a) (extSpace a)) (bound a + 2) + 1)
-  have htpPoly : PolyBounded (fun a => (input a).length) tp :=
-    .of_forall_le cp dp fun _ => le_rfl
-  have hcountLenPoly : PolyBounded (fun a => (input a).length)
-      (fun a => (encNat (count a)).length) := hcount.polyBounded_length
-  have hboundPoly : PolyBounded (fun a => (input a).length) bound :=
-    (((PolyBounded.const 2).mul hcountLenPoly).add (.const 1)).add
-      ((((PolyBounded.const 2).mul .self).add (.const 1)).add hsize)
-  have hroundPoly : PolyBounded (fun a => (input a).length) roundTime :=
-    PolyBounded.comp (size' := id) (v := fun n => cB * (n + 1) ^ dB)
-      (.of_forall_le cB dB fun _ => le_rfl) hboundPoly
-  have htePoly : PolyBounded (fun a => (input a).length) te :=
-    PolyBounded.comp (size' := id) (v := fun n => ce * (n + 1) ^ de)
-      (.of_forall_le ce de fun _ => le_rfl) hboundPoly
-  have hprepSpacePoly : PolyBounded (fun a => (input a).length) prepSpace :=
-    (PolyBounded.const kp).mul (((PolyBounded.const 2).mul htpPoly).add (.const 1))
-  have hloopSpacePoly : PolyBounded (fun a => (input a).length) loopSpace :=
-    (PolyBounded.const (kB + 1 + 2)).mul
-      (((PolyBounded.const 2).mul
-        ((hroundPoly.add ((PolyBounded.const 10).mul hboundPoly)).add (.const 22))).add (.const 1))
-  have hmidSpacePoly : PolyBounded (fun a => (input a).length) midSpace :=
-    (PolyBounded.const ((kB + 1 + 2) + kp + 2)).mul
-      (((PolyBounded.const 2).mul
-        (PolyBounded.max (PolyBounded.max hprepSpacePoly hloopSpacePoly)
-          (hboundPoly.add (.const 2)))).add (.const 1))
-  have hextSpacePoly : PolyBounded (fun a => (input a).length) extSpace :=
-    (PolyBounded.const ke).mul (((PolyBounded.const 2).mul htePoly).add (.const 1))
-  have hfullSpacePoly : PolyBounded (fun a => (input a).length) fullSpace :=
-    (PolyBounded.const (ke + kMid + 2)).mul
-      (((PolyBounded.const 2).mul
-        (PolyBounded.max (PolyBounded.max hmidSpacePoly hextSpacePoly)
-          (hboundPoly.add (.const 2)))).add (.const 1))
+  have hfullSpacePoly : PolyBounded (fun a => (input a).length) fullSpace := by growth_poly
   let polyFactor (a : α) : ℕ :=
     4 * tp a + 4 * (roundTime a + 10 * bound a + 23) + 16 * bound a + te a + 46
-  have hpolyFactor : PolyBounded (fun a => (input a).length) polyFactor :=
-    (((((PolyBounded.const 4).mul htpPoly).add
-      ((PolyBounded.const 4).mul
-        ((hroundPoly.add ((PolyBounded.const 10).mul hboundPoly)).add (.const 23)))).add
-      ((PolyBounded.const 16).mul hboundPoly)).add htePoly).add (.const 46)
+  have hpolyFactor : PolyBounded (fun a => (input a).length) polyFactor := by growth_poly
   exact ExpIterateInternal.exists_envelope_closed fullM input count fullTime fullSpace polyFactor
     (fun a => (ProbComp.eval (OracleComp.iterate (count a) (step a) (initial a))).map stateEncoding)
     hpolyFactor hfullSpacePoly

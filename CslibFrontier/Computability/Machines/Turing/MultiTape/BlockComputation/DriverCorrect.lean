@@ -39,14 +39,12 @@ variable {k : ℕ} {Q : Type} (E : ScheduleSearch.Evaluator) (P : OuterSearch.Pa
 theorem runFrom_inr (w : List Bool) (state : OuterSearch.State E) (t : ℕ) :
     (machine E k P).runFrom w (.inr state) t =
       .inr ((OuterSearch.machine E k P).runFrom w state t) := by
-  have hstep (q : OuterSearch.State E) :
-      (machine E k P).step w (.inr q) = .inr ((OuterSearch.machine E k P).step w q) := by
-    simp only [QueryMachine.step, QueryMachine.read, machine, Sum.elim_inr]
-    by_cases h : (OuterSearch.machine E k P).halted q = true <;>
-      simp only [h, Bool.false_eq_true, ↓reduceIte]
   induction t with
   | zero => rfl
-  | succ t ih => rw [QueryMachine.runFrom_succ, ih, hstep, QueryMachine.runFrom_succ]
+  | succ t ih =>
+    rw [QueryMachine.runFrom_succ, ih, QueryMachine.runFrom_succ]
+    simp only [QueryMachine.step, QueryMachine.read, machine, Sum.elim_inr]
+    split_ifs <;> rfl
 
 /-- Every scan clock reproduces the existing native length scanner. -/
 theorem run_scan (w : List Bool) (j : ℕ) (hj : j ≤ w.length + 1) :
@@ -54,10 +52,9 @@ theorem run_scan (w : List Bool) (j : ℕ) (hj : j ≤ w.length + 1) :
   induction j with
   | zero => rfl
   | succ j ih =>
-    have hpre := QueryMachine.InputLength.live w (show j < w.length + 1 by omega)
     rw [QueryMachine.run_succ, ih (by omega), QueryMachine.run_succ]
-    simp only [QueryMachine.step, QueryMachine.read, machine, Sum.elim_inl, hpre,
-      Bool.false_eq_true, ↓reduceIte]
+    simp [QueryMachine.step, QueryMachine.read, machine,
+      QueryMachine.InputLength.live w (show j < w.length + 1 by omega)]
 
 /-- The first clock after measuring length starts the actual outer search. -/
 theorem run_entry (w : List Bool) :
@@ -111,34 +108,26 @@ theorem exists_first_decision {M : MultiTapeTM k Bool Q} {A : ℕ → ℕ → �
       (.inl (w.length, guess,
         some (decide ((M.runFrom (Cfg.init M.q₀ w) τ).output = [true])))) := by
     rw [run_after_entry, hrun]
-  have hbefore : ∀ t < T, (machine E k P).halted ((machine E k P).run w t) = false := by
-    intro t ht
+  have hbefore (t) (ht : t < T) : (machine E k P).halted ((machine E k P).run w t) = false := by
     by_cases hscan : t ≤ w.length + 1
-    · rw [run_scan E P w t hscan]
-      rfl
+    · rw [run_scan E P w t hscan]; rfl
     · obtain ⟨u, rfl⟩ := Nat.exists_eq_add_of_le (show w.length + 2 ≤ t by omega)
       rw [run_after_entry]
       exact hpre u (by dsimp only [T] at ht; omega)
-  refine ⟨T, hbefore, ?_, ?_, ?_⟩
-  · rw [hfinal]
-    rfl
+  refine ⟨T, hbefore, by rw [hfinal]; rfl, ?_, fun t ht => ?_⟩
   · rw [QueryMachine.output_eq_of_not_halted _ _ hbefore]
-    have hemit : (machine E k P).emit = fun _ => [] := rfl
-    simp only [hemit, List.map_const', List.flatten_replicate_nil, List.nil_append]
-    rw [hfinal]
+    simp only [show (machine E k P).emit = fun _ => [] from rfl, List.map_const',
+      List.flatten_replicate_nil, List.nil_append, hfinal]
     rfl
-  · intro t ht
-    by_cases hscan : t ≤ w.length + 1
-    · have hs := length_run_scan_le (k := k) E P w t hscan
-      dsimp only [space]
-      omega
+  · by_cases hscan : t ≤ w.length + 1
+    · have := length_run_scan_le (k := k) E P w t hscan
+      dsimp only [space]; omega
     · obtain ⟨u, rfl⟩ := Nat.exists_eq_add_of_le (show w.length + 2 ≤ t by omega)
       rw [run_after_entry]
       change (OuterSearch.encState E ((OuterSearch.machine E k P).runFrom w
         (OuterSearch.initial E w.length) u)).length + 1 ≤ _
-      have hs := hspace u (show u ≤ U by dsimp only [T] at ht; omega)
-      dsimp only [space]
-      omega
+      have := hspace u (by dsimp only [T] at ht; omega)
+      dsimp only [space]; omega
 
 /-- The complete driver storage is linear in any common bound `X` on the evaluator allowance,
 the binary block width and the horizon of every guess through the largest one. -/
@@ -147,11 +136,8 @@ theorem space_le_of_le (k : ℕ) (A : ℕ → ℕ → ℕ → ℕ) (P : OuterSea
       A N (P.blockWidth guess) (P.horizon guess) + (P.blockWidth guess).size +
         P.horizon guess ≤ X) :
     space k A P N τ ≤ 64 * (k + 2) * (X + N.size + (max (N + 1) τ).size + 1) := by
-  have hlog := Nat.log2_le_size N
   have hcandidate : OuterSearch.candidateSpace k A P N (max (N + 1) τ) ≤
-      32 * N.size + (32 * k + 48) * X + 50 := by
-    apply Finset.sup_le
-    intro guess hguess
+      32 * N.size + (32 * k + 48) * X + 50 := Finset.sup_le fun guess hguess => by
     have hle := hX guess (Nat.lt_succ_iff.mp (Finset.mem_range.mp hguess))
     have hhs : (P.horizon guess).size ≤ P.horizon guess := by
       simpa only [length_encNat_eq_size] using length_encNat_le_self (P.horizon guess)
@@ -160,7 +146,6 @@ theorem space_le_of_le (k : ℕ) (A : ℕ → ℕ → ℕ → ℕ) (P : OuterSea
       length_encPair, length_encNat_eq_size]
     nlinarith
   simp only [space, OuterSearch.space, OuterSearch.callerSpace, length_encNat_eq_size]
-  have hk : 0 ≤ k * X := Nat.zero_le _
-  nlinarith
+  nlinarith [Nat.log2_le_size N, Nat.zero_le (k * X)]
 
 end Turing.MultiTapePTM.BlockComputation.Driver

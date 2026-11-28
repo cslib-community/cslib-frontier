@@ -147,21 +147,10 @@ def internalSum (i : Fin g) (z : Fin g → Bool) : ℝ :=
 def score (x : Fin n → Bool) (z : Fin g → Bool) (i : Fin g) : ℝ :=
   P.inputSum i x + P.internalSum i z - P.threshold i
 
-/-- Every gate score has absolute value at least `1`. -/
-private theorem one_le_abs_score' (x : Fin n → Bool) (z : Fin g → Bool) (i : Fin g) :
-    1 ≤ |P.score x z i| :=
-  P.one_le_abs_score x z i
-
 /-- Every gate score is either at most `-1` or at least `1`. -/
 private theorem score_le_neg_one_or_one_le (x : Fin n → Bool) (z : Fin g → Bool) (i : Fin g) :
-    P.score x z i ≤ -1 ∨ 1 ≤ P.score x z i := by
-  have h := P.one_le_abs_score' x z i
-  rcases le_total 0 (P.score x z i) with h0 | h0
-  · right
-    rwa [abs_of_nonneg h0] at h
-  · left
-    rw [abs_of_nonpos h0] at h
-    linarith
+    P.score x z i ≤ -1 ∨ 1 ≤ P.score x z i :=
+  le_abs'.mp (P.one_le_abs_score x z i)
 
 /-- No gate score vanishes. -/
 theorem score_ne_zero (x : Fin n → Bool) (z : Fin g → Bool) (i : Fin g) :
@@ -171,16 +160,12 @@ theorem score_ne_zero (x : Fin n → Bool) (z : Fin g → Bool) (i : Fin g) :
 /-- By the unit margin, `0 < Q_i(x, z)` is equivalent to `1 ≤ Q_i(x, z)`. -/
 theorem pos_score_iff_one_le (x : Fin n → Bool) (z : Fin g → Bool) (i : Fin g) :
     0 < P.score x z i ↔ 1 ≤ P.score x z i := by
-  rcases P.score_le_neg_one_or_one_le x z i with h | h
-  · exact ⟨fun hpos => by linarith, fun h1 => by linarith⟩
-  · exact ⟨fun _ => h, fun _ => by linarith⟩
+  rcases P.score_le_neg_one_or_one_le x z i with h | h <;> constructor <;> intro <;> linarith
 
 /-- By the unit margin, `0 < Q_i(x, z)` is equivalent to `0 ≤ Q_i(x, z)`. -/
 theorem pos_score_iff_nonneg (x : Fin n → Bool) (z : Fin g → Bool) (i : Fin g) :
     0 < P.score x z i ↔ 0 ≤ P.score x z i := by
-  rcases P.score_le_neg_one_or_one_le x z i with h | h
-  · exact ⟨fun hpos => by linarith, fun h0 => by linarith⟩
-  · exact ⟨fun _ => by linarith, fun _ => by linarith⟩
+  rcases P.score_le_neg_one_or_one_le x z i with h | h <;> constructor <;> intro <;> linarith
 
 /-- Gate `i`'s internal sum depends only on earlier coordinates `j < i`. -/
 theorem internalSum_congr_lt {z₁ z₂ : Fin g → Bool} {i : Fin g}
@@ -553,46 +538,26 @@ theorem priority_le_pow {W : ℝ} (hW0 : 0 ≤ W)
     P.priority i ≤ (W + 1) ^ (g - 1 - i.val) := by
   fun_induction P.priority i with
   | case1 i ih =>
-    set m := g - 1 - i.val with him
     simp only [dite_eq_ite]
     rw [sum_attach univ fun j => if i < j then P.priority j * |P.gateWeight j i| else 0,
-      ← one_add_mul_sum_geom W m]
-    have hsum : (∑ j : Fin g, if i < j then P.priority j * |P.gateWeight j i| else 0) ≤
-        ∑ j ∈ univ.filter (fun j : Fin g => i < j), W * (W + 1) ^ (g - 1 - j.val) := by
-      rw [← sum_filter]
-      apply sum_le_sum
-      intro j hj
-      have hij : i < j := (mem_filter.mp hj).2
-      have hjp : P.priority j ≤ (W + 1) ^ (g - 1 - j.val) :=
-        ih ⟨j, mem_univ j⟩ hij
-      calc P.priority j * |P.gateWeight j i|
-          ≤ (W + 1) ^ (g - 1 - j.val) * W :=
-            mul_le_mul hjp (hW j i hij) (abs_nonneg _) (pow_nonneg (by linarith) _)
-        _ = W * (W + 1) ^ (g - 1 - j.val) := mul_comm _ _
-    let f : Fin g → ℕ := fun j => g - 1 - j.val
-    have hmaps : ∀ j ∈ univ.filter (fun j : Fin g => i < j), f j ∈ range m := by
-      intro j hj
-      have hij : i < j := (mem_filter.mp hj).2
-      simp only [f, mem_range]
-      have := j.isLt
-      omega
-    have hinj_on : Set.InjOn f (univ.filter fun j : Fin g => i < j) := by
-      intro j₁ _ j₂ _ heq
+      ← sum_filter, ← one_add_mul_sum_geom W, mul_sum]
+    refine add_le_add_right (sum_le_sum_of_injOn (fun j : Fin g => g - 1 - j.val) ?_ ?_ ?_
+      fun _ _ _ => mul_nonneg hW0 (pow_nonneg (by linarith) _)) 1
+    · intro j₁ _ j₂ _ heq
       have h₁ := j₁.isLt
       have h₂ := j₂.isLt
-      simp only [f] at heq
-      exact Fin.ext (by omega)
-    have hinj : (∑ j ∈ univ.filter (fun j : Fin g => i < j), W * (W + 1) ^ f j) ≤
-        W * ∑ k ∈ range m, (W + 1) ^ k := by
-      calc (∑ j ∈ univ.filter (fun j : Fin g => i < j), W * (W + 1) ^ f j)
-          = ∑ k ∈ (univ.filter (fun j : Fin g => i < j)).image f, W * (W + 1) ^ k :=
-            (sum_image (f := fun k => W * (W + 1) ^ k) hinj_on).symm
-        _ ≤ ∑ k ∈ range m, W * (W + 1) ^ k := by
-            apply sum_le_sum_of_subset_of_nonneg (image_subset_iff.mpr hmaps)
-            intro k _ _
-            exact mul_nonneg hW0 (pow_nonneg (by linarith) _)
-        _ = W * ∑ k ∈ range m, (W + 1) ^ k := (mul_sum _ _ _).symm
-    exact add_le_add_right (hsum.trans hinj) 1
+      exact Fin.ext (by simp only at heq; omega)
+    · intro k hk
+      obtain ⟨j, hj, rfl⟩ := mem_image.mp hk
+      have hij : i < j := (mem_filter.mp hj).2
+      have := j.isLt
+      simp only [mem_range]
+      omega
+    · intro j hj
+      have hij : i < j := (mem_filter.mp hj).2
+      rw [mul_comm W]
+      exact mul_le_mul (ih ⟨j, mem_univ j⟩ hij) (hW j i hij) (abs_nonneg _)
+        (pow_nonneg (by linarith) _)
 
 /-- Quadratic Boolean energy `E_x(z) = - ∑ i, λ_i z_i Q_i(x, z)` (equation (26)). -/
 def energy (x : Fin n → Bool) (z : Fin g → Bool) : ℝ :=
@@ -602,14 +567,7 @@ private theorem internalSum_update_true_sub_false (z : Fin g → Bool) (j i : Fi
     P.internalSum j (Function.update z i true) - P.internalSum j (Function.update z i false) =
       P.gateWeight j i := by
   simp only [internalSum, ← sum_sub_distrib, ← mul_sub]
-  rw [← add_sum_erase _ _ (mem_univ i)]
-  have hzero : ∑ k ∈ univ.erase i, P.gateWeight j k *
-      (((Function.update z i true k).toNat : ℝ) - (Function.update z i false k).toNat) = 0 := by
-    apply sum_eq_zero
-    intro k hk
-    have hki : k ≠ i := ne_of_mem_erase hk
-    simp [Function.update_of_ne hki]
-  rw [hzero, add_zero]
+  rw [sum_eq_single i (fun k _ hki => by simp [Function.update_of_ne hki]) (by simp)]
   simp
 
 private theorem score_update_true_sub_false (x : Fin n → Bool) (z : Fin g → Bool) (j i : Fin g) :
@@ -625,41 +583,24 @@ theorem energy_update_true_sub_false (x : Fin n → Bool) (z : Fin g → Bool) (
     P.energy x (Function.update z i true) - P.energy x (Function.update z i false) =
       - P.priority i * P.score x z i -
         ∑ j : Fin g, if i < j then P.priority j * P.gateWeight j i * (z j).toNat else 0 := by
-  have hsum : (∑ j : Fin g, P.priority j * ((Function.update z i true j).toNat : ℝ) *
-        P.score x (Function.update z i true) j) -
-      (∑ j : Fin g, P.priority j * ((Function.update z i false j).toNat : ℝ) *
-        P.score x (Function.update z i false) j) =
-      P.priority i * P.score x z i +
-        ∑ j : Fin g, if i < j then P.priority j * P.gateWeight j i * (z j).toNat else 0 := by
-    rw [← sum_sub_distrib, ← add_sum_erase _ _ (mem_univ i),
-      ← add_sum_erase _
-        (fun j => if i < j then P.priority j * P.gateWeight j i * (z j).toNat else 0)
-        (mem_univ i)]
-    have hi : P.priority i * ((Function.update z i true i).toNat : ℝ) *
-          P.score x (Function.update z i true) i -
-        P.priority i * ((Function.update z i false i).toNat : ℝ) *
-          P.score x (Function.update z i false) i =
-        P.priority i * P.score x z i := by
-      rw [P.score_update_of_le x z le_rfl true, P.score_update_of_le x z le_rfl false]
+  have key : ∀ j, P.priority j * ((Function.update z i true j).toNat : ℝ) *
+        P.score x (Function.update z i true) j -
+      P.priority j * ((Function.update z i false j).toNat : ℝ) *
+        P.score x (Function.update z i false) j =
+      (if i = j then P.priority i * P.score x z i else 0) +
+        if i < j then P.priority j * P.gateWeight j i * (z j).toNat else 0 := by
+    intro j
+    rcases eq_or_ne j i with rfl | hji
+    · rw [P.score_update_of_le x z le_rfl true, P.score_update_of_le x z le_rfl false]
       simp
-    have hrest : (∑ j ∈ univ.erase i,
-        (P.priority j * ((Function.update z i true j).toNat : ℝ) *
-            P.score x (Function.update z i true) j -
-          P.priority j * ((Function.update z i false j).toNat : ℝ) *
-            P.score x (Function.update z i false) j)) =
-        ∑ j ∈ univ.erase i,
-          if i < j then P.priority j * P.gateWeight j i * (z j).toNat else 0 := by
-      apply sum_congr rfl
-      intro j hj
-      have hji : j ≠ i := ne_of_mem_erase hj
-      rw [Function.update_of_ne hji, Function.update_of_ne hji, ← mul_sub,
-        P.score_update_true_sub_false x z j i]
+    · rw [Function.update_of_ne hji, Function.update_of_ne hji, ← mul_sub,
+        P.score_update_true_sub_false x z j i, ite_eq_right hji.symm, zero_add]
       split_ifs with hij
       · ring
       · rw [P.gateWeight_eq_zero_of_le j i (le_of_not_gt hij)]
         ring
-    rw [hi, hrest]
-    simp
+  have hsum := sum_congr rfl fun j (_ : j ∈ univ) => key j
+  simp only [sum_sub_distrib, sum_add_distrib, sum_ite_eq, mem_univ, ite_true] at hsum
   unfold energy
   linarith
 
@@ -696,27 +637,12 @@ gate `i`'s local threshold rule. -/
 theorem energy_le_update_not_iff (x : Fin n → Bool) (z : Fin g → Bool) (i : Fin g) :
     P.energy x z ≤ P.energy x (Function.update z i (!(z i))) ↔
       z i = decide (0 < P.score x z i) := by
+  have hz := Function.update_eq_self i z
   by_cases hpos : 0 < P.score x z i
   · have hstep := P.energy_update_true_add_one_le_false hpos
-    cases hzi : z i
-    · have h0 : P.energy x (Function.update z i false) = P.energy x z := by
-        rw [← hzi, Function.update_eq_self]
-      rw [decide_eq_true hpos]
-      exact ⟨fun hle => by simp only [Bool.not_false] at hle; linarith, fun h => Bool.noConfusion h⟩
-    · have h1 : P.energy x (Function.update z i true) = P.energy x z := by
-        rw [← hzi, Function.update_eq_self]
-      rw [decide_eq_true hpos]
-      exact ⟨fun _ => rfl, fun _ => by simp only [Bool.not_true]; linarith⟩
+    cases hzi : z i <;> simp only [hzi] at hz <;> simp [hpos, hz] at hstep ⊢ <;> linarith
   · have hstep := P.energy_update_false_add_one_le_true hpos
-    cases hzi : z i
-    · have h0 : P.energy x (Function.update z i false) = P.energy x z := by
-        rw [← hzi, Function.update_eq_self]
-      rw [decide_eq_false hpos]
-      exact ⟨fun _ => rfl, fun _ => by simp only [Bool.not_false]; linarith⟩
-    · have h1 : P.energy x (Function.update z i true) = P.energy x z := by
-        rw [← hzi, Function.update_eq_self]
-      rw [decide_eq_false hpos]
-      exact ⟨fun hle => by simp only [Bool.not_true] at hle; linarith, fun h => Bool.noConfusion h⟩
+    cases hzi : z i <;> simp only [hzi] at hz <;> simp [hpos, hz] at hstep ⊢ <;> linarith
 
 /-- Flipping coordinate `i` strictly decreases `P.energy x` if and only if `z i` violates gate
 `i`'s local threshold rule. -/
@@ -761,23 +687,10 @@ private theorem energy_faceStep_le {fixed : Finset (Fin g)} {val : Fin g → Boo
   unfold faceStep
   split_ifs with hi
   · rw [← hfix hi, Function.update_eq_self]
-  · by_cases hpos : 0 < P.score x z i
-    · rw [decide_eq_true hpos]
-      cases hzi : z i
-      · have hstep := P.energy_update_true_add_one_le_false hpos
-        have h0 : P.energy x (Function.update z i false) = P.energy x z := by
-          rw [← hzi, Function.update_eq_self]
-        linarith
-      · have h1 : Function.update z i true = z := by rw [← hzi, Function.update_eq_self]
-        rw [h1]
-    · rw [decide_eq_false hpos]
-      cases hzi : z i
-      · have h0 : Function.update z i false = z := by rw [← hzi, Function.update_eq_self]
-        rw [h0]
-      · have hstep := P.energy_update_false_add_one_le_true hpos
-        have h1 : P.energy x (Function.update z i true) = P.energy x z := by
-          rw [← hzi, Function.update_eq_self]
-        linarith
+  · by_cases h : z i = decide (0 < P.score x z i)
+    · rw [← h, Function.update_eq_self]
+    · rw [← Bool.not_eq.mpr h]
+      exact ((P.energy_update_not_lt_iff x z i).mpr h).le
 
 /-- Sweeping preserves agreement with `val` on `fixed`. -/
 theorem sweep_mem_fixed {fixed : Finset (Fin g)} {val : Fin g → Bool} {x : Fin n → Bool}

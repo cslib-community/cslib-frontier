@@ -98,27 +98,19 @@ theorem crownShift_ne_self {n : ℕ} (hn : 2 ≤ n) (p : Fin n) : crownShift hn 
   intro heq
   have hval : (p.val + 1) % n = p.val := congrArg Fin.val heq
   by_cases hlt : p.val + 1 < n
-  · rw [Nat.mod_eq_of_lt hlt] at hval
-    omega
-  · have hp : p.val + 1 = n := by omega
-    rw [hp, Nat.mod_self] at hval
-    omega
+  · rw [Nat.mod_eq_of_lt hlt] at hval; omega
+  · rw [Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt (by omega)] at hval; omega
 
 /-- `crownShift hn` is injective on `Fin n`. -/
 theorem crownShift_injective {n : ℕ} (hn : 2 ≤ n) : Function.Injective (crownShift hn) := by
   intro p₁ p₂ heq
+  have hm (p : Fin n) : (p.val + 1) % n = if p.val + 1 < n then p.val + 1 else 0 := by
+    split_ifs with h
+    · exact Nat.mod_eq_of_lt h
+    · rw [Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt (by omega)]; omega
   have hval : (p₁.val + 1) % n = (p₂.val + 1) % n := congrArg Fin.val heq
-  ext
-  by_cases h₁ : p₁.val + 1 < n <;> by_cases h₂ : p₂.val + 1 < n
-  · rw [Nat.mod_eq_of_lt h₁, Nat.mod_eq_of_lt h₂] at hval
-    omega
-  · have hp₂ : p₂.val + 1 = n := by omega
-    rw [Nat.mod_eq_of_lt h₁, hp₂, Nat.mod_self] at hval
-    omega
-  · have hp₁ : p₁.val + 1 = n := by omega
-    rw [hp₁, Nat.mod_self, Nat.mod_eq_of_lt h₂] at hval
-    omega
-  · omega
+  rw [hm p₁, hm p₂] at hval
+  split_ifs at hval <;> exact Fin.ext (by omega)
 
 /-- Step `i` (`0 ≤ i < 2 * n + 2 * (n * n)`) of the 4-block crown execution `crownFin` on `Fin n`:
 * `[0, n)`: Phase-1 initial internal step `a_p` on each `p`,
@@ -156,33 +148,9 @@ private theorem crownStep_eq_recv {n : ℕ} {hn : 2 ≤ n} {i : ℕ}
       let q : Fin n := ⟨m % n, Nat.mod_lt m hn_pos⟩
       (q ≠ p ∧ q ≠ crownShift hn p) ∧ r = q := by
   dsimp only [crownStep] at h
-  by_cases hi₀ : i < n
-  · simp only [hi₀, ↓reduceDIte] at h; cases h
-  · simp only [hi₀, ↓reduceDIte] at h
-    by_cases hi₁ : i < n + n * n
-    · simp only [hi₁, ↓reduceDIte] at h
-      by_cases hc :
-          (⟨(i - n) % n, Nat.mod_lt _ (by omega)⟩ : Fin n) ≠
-            ⟨(i - n) / n, (Nat.div_lt_iff_lt_mul (by omega)).mpr (by omega)⟩ ∧
-          (⟨(i - n) % n, Nat.mod_lt _ (by omega)⟩ : Fin n) ≠
-            crownShift hn ⟨(i - n) / n, (Nat.div_lt_iff_lt_mul (by omega)).mpr (by omega)⟩
-      · simp only [eq_true hc, ↓reduceIte] at h; cases h
-      · simp only [eq_false hc, ↓reduceIte] at h; cases h
-    · simp only [hi₁, ↓reduceDIte] at h
-      by_cases hi₂ : i < n + 2 * (n * n)
-      · simp only [hi₂, ↓reduceDIte] at h
-        by_cases hcond :
-            (⟨(i - (n + n * n)) % n, Nat.mod_lt _ (by omega)⟩ : Fin n) ≠
-              ⟨(i - (n + n * n)) / n,
-                (Nat.div_lt_iff_lt_mul (by omega)).mpr (by omega)⟩ ∧
-            (⟨(i - (n + n * n)) % n, Nat.mod_lt _ (by omega)⟩ : Fin n) ≠
-              crownShift hn ⟨(i - (n + n * n)) / n,
-                (Nat.div_lt_iff_lt_mul (by omega)).mpr (by omega)⟩
-        · simp only [eq_true hcond, ↓reduceIte] at h
-          injection h with hq hs
-          exact ⟨by omega, hi₂, hs.symm, hcond, hq.symm⟩
-        · simp only [eq_false hcond, ↓reduceIte] at h; cases h
-      · simp only [hi₂, ↓reduceDIte] at h; cases h
+  split_ifs at h
+  cases h
+  exact ⟨by omega, by omega, rfl, ‹_›, rfl⟩
 
 private theorem crownStep_send_at {n : ℕ} (hn : 2 ≤ n) {m : ℕ} (hm : m < n * n)
     (hcond :
@@ -192,13 +160,8 @@ private theorem crownStep_send_at {n : ℕ} (hn : 2 ≤ n) {m : ℕ} (hm : m < n
     crownStep n hn ⟨n + m, by omega⟩ =
       .send ⟨m / n, (Nat.div_lt_iff_lt_mul (by omega)).mpr hm⟩
         ⟨m % n, Nat.mod_lt m (by omega)⟩ := by
-  have hs₀ : ¬ n + m < n := by omega
-  have hs₁ : n + m < n + n * n := by omega
-  have hsub : n + m - n = m := by omega
-  dsimp only [crownStep]
-  simp only [hs₀, hs₁, ↓reduceDIte, hsub]
-  dsimp only at hcond
-  simp only [eq_true hcond, ↓reduceIte]
+  simp only [crownStep, Nat.not_lt.mpr (Nat.le_add_right n m), Nat.add_lt_add_left hm, ↓reduceDIte,
+    Nat.add_sub_cancel_left, eq_true hcond, ↓reduceIte]
 
 /-- Explicit 4-block unicast crown execution on `Fin n` (`2 ≤ n`), containing
 `2 * n + 2 * (n * n)` events (a crown-poset step after [CharronBost1991] toward #7203). -/
@@ -230,9 +193,8 @@ private theorem crownStep_send_at {n : ℕ} (hn : 2 ≤ n) {m : ℕ} (hm : m < n
 
 private theorem crownEvent_step_eq {n : ℕ} (hn : 2 ≤ n) (e : (crownFin n hn).Event) :
     e.step = crownStep n hn ⟨e.idx.val,
-      by simpa only [crownFin, List.length_ofFn] using e.idx.isLt⟩ := by
-  change (List.ofFn (crownStep n hn))[e.idx.val] = _
-  exact List.getElem_ofFn _
+      by simpa only [crownFin, List.length_ofFn] using e.idx.isLt⟩ :=
+  List.getElem_ofFn _
 
 /-- Phase-1 event `a_p` on process `p` in `crownFin n hn` (at trace index `p.val`). -/
 @[expose] def crownPhase1 {n : ℕ} (hn : 2 ≤ n) (p : Fin n) : (crownFin n hn).Event :=
@@ -244,21 +206,14 @@ private theorem crownEvent_step_eq {n : ℕ} (hn : 2 ≤ n) (e : (crownFin n hn)
 
 private theorem crownStep_actor_phase1 {n : ℕ} (hn : 2 ≤ n) (p : Fin n) :
     (crownPhase1 hn p).actor = p := by
-  unfold Execution.Event.actor
-  rw [crownEvent_step_eq]
-  simp only [crownPhase1, crownStep, p.isLt, ↓reduceDIte, Step.actor_internal]
+  simp only [Execution.Event.actor, crownEvent_step_eq, crownPhase1, crownStep, p.isLt, ↓reduceDIte,
+    Step.actor_internal]
 
 private theorem crownStep_actor_phase2 {n : ℕ} (hn : 2 ≤ n) (q : Fin n) :
     (crownPhase2 hn q).actor = q := by
-  have h₀ : ¬ n + 2 * (n * n) + q.val < n := by omega
-  have h₁ : ¬ n + 2 * (n * n) + q.val < n + n * n := by omega
-  have h₂ : ¬ n + 2 * (n * n) + q.val < n + 2 * (n * n) := by omega
-  have hsub : n + 2 * (n * n) + q.val - (n + 2 * (n * n)) = q.val := by omega
-  unfold Execution.Event.actor
-  rw [crownEvent_step_eq]
-  simp only [crownPhase2, crownStep, h₀, h₁, h₂, ↓reduceDIte, Step.actor_internal]
-  ext
-  exact hsub
+  simp only [Execution.Event.actor, crownEvent_step_eq, crownPhase2, crownStep]
+  rw [dite_eq_right (by omega), dite_eq_right (by omega), dite_eq_right (by omega)]
+  exact Fin.ext (Nat.add_sub_cancel_left _ _)
 
 /-- Reachability invariant from `crownPhase1 hn p`: in Phase 1 (`idx < n + n²`) only process `p`
 is reached, and in Phase 2 (`idx ≥ n + n²`) process `crownShift hn p` is never reached. -/
@@ -274,37 +229,24 @@ private theorem crownAllowed_preserved {n : ℕ} {hn : 2 ≤ n} {p : Fin n}
   · split_ifs at hx ⊢ with hy_ph hx_ph hx_ph₂
     · exact hact.symm.trans hx
     · omega
-    · rw [← hact, hx]
-      exact (crownShift_ne_self hn p).symm
-    · rw [← hact]
-      exact hx
-  · have hy_step : y.step = .recv y.actor x.idx.val := hmsg
-    rw [crownEvent_step_eq] at hy_step
-    obtain ⟨hge, hlt, hx_idx, hcond, hy_act⟩ := crownStep_eq_recv hy_step
+    · exact (hact.symm.trans hx).trans_ne (crownShift_ne_self hn p).symm
+    · exact hact ▸ hx
+  · obtain ⟨hge, hlt, hx_idx, hcond, hy_act⟩ :=
+      crownStep_eq_recv ((crownEvent_step_eq hn y).symm.trans hmsg)
     have hm_lt : y.idx.val - (n + n * n) < n * n := by omega
     have hx_ph : x.idx.val < n + n * n := by omega
-    simp only [hx_ph, ↓reduceIte] at hx
     have hy_not_ph : ¬ y.idx.val < n + n * n := by omega
-    simp only [hy_not_ph, ↓reduceIte]
+    simp only [hx_ph, hy_not_ph, ↓reduceIte] at hx ⊢
     have hx_step : x.step =
         .send ⟨(y.idx.val - (n + n * n)) / n,
           (Nat.div_lt_iff_lt_mul (by omega)).mpr hm_lt⟩
-          ⟨(y.idx.val - (n + n * n)) % n, Nat.mod_lt _ (by omega)⟩ := by
-      rw [crownEvent_step_eq]
-      have hx_fin : (⟨x.idx.val, by simpa only [crownFin, List.length_ofFn] using x.idx.isLt⟩ :
-          Fin (2 * n + 2 * (n * n))) = ⟨n + (y.idx.val - (n + n * n)), by omega⟩ :=
-        Fin.ext hx_idx
-      rw [hx_fin]
-      exact crownStep_send_at hn hm_lt hcond
-    have hx_act_eq : x.actor =
-        ⟨(y.idx.val - (n + n * n)) / n, (Nat.div_lt_iff_lt_mul (by omega)).mpr hm_lt⟩ := by
-      unfold Execution.Event.actor
-      rw [hx_step, Step.actor_send]
+          ⟨(y.idx.val - (n + n * n)) % n, Nat.mod_lt _ (by omega)⟩ :=
+      (crownEvent_step_eq hn x).trans
+        ((congrArg (crownStep n hn) (Fin.ext hx_idx)).trans (crownStep_send_at hn hm_lt hcond))
     have hp_eq : (⟨(y.idx.val - (n + n * n)) / n,
-        (Nat.div_lt_iff_lt_mul (by omega)).mpr hm_lt⟩ : Fin n) = p :=
-      hx_act_eq.symm.trans hx
-    rw [hy_act, ← hp_eq]
-    exact hcond.2
+        (Nat.div_lt_iff_lt_mul (by omega)).mpr hm_lt⟩ : Fin n) = p := by
+      rw [← hx, Execution.Event.actor, hx_step, Step.actor_send]
+    exact hp_eq ▸ hy_act ▸ hcond.2
 
 /-- Crown-poset causality step in `crownFin` (toward #7203, after [CharronBost1991], not the
 uninspected paper endpoint): Phase-1 event `a_p` causally precedes or equals Phase-2 event `b_q`
@@ -313,96 +255,62 @@ theorem crownFin_happensBeforeLe_iff {n : ℕ} (hn : 2 ≤ n) (p q : Fin n) :
     (crownFin n hn).HappensBeforeLe (crownPhase1 hn p) (crownPhase2 hn q) ↔
       q ≠ crownShift hn p := by
   constructor
-  · intro hle hq
+  · intro hle
     have hinit : CrownAllowed hn p (crownPhase1 hn p) := by
-      unfold CrownAllowed
-      have hlt : (crownPhase1 hn p).idx.val < n + n * n := by
-        simp only [crownPhase1]; omega
-      simp only [hlt, ↓reduceIte, crownStep_actor_phase1]
-    have hreach : ∀ x y, (crownFin n hn).HappensBeforeLe x y →
-        CrownAllowed hn p x → CrownAllowed hn p y := by
-      intro x y hxy hx
-      induction hxy with
-      | refl => exact hx
+      have hlt : (crownPhase1 hn p).idx.val < n + n * n := by simp only [crownPhase1]; omega
+      simp only [CrownAllowed, hlt, ↓reduceIte, crownStep_actor_phase1]
+    have hend : CrownAllowed hn p (crownPhase2 hn q) := by
+      generalize crownPhase2 hn q = y at hle ⊢
+      induction hle with
+      | refl => exact hinit
       | tail _ hcs ih => exact crownAllowed_preserved ih hcs
-    have hend := hreach _ _ hle hinit
-    unfold CrownAllowed at hend
-    have hnot_lt : ¬ (crownPhase2 hn q).idx.val < n + n * n := by
-      simp only [crownPhase2]; omega
-    simp only [hnot_lt, ↓reduceIte, crownStep_actor_phase2] at hend
-    exact hend hq
+    have hnot_lt : ¬ (crownPhase2 hn q).idx.val < n + n * n := by simp only [crownPhase2]; omega
+    simpa only [CrownAllowed, hnot_lt, ↓reduceIte, crownStep_actor_phase2] using hend
   · intro hq_ne
-    by_cases hqp : q = p
-    · subst hqp
-      refine (crownFin n hn).programOrder_happensBeforeLe ?_ ?_
-      · rw [crownStep_actor_phase1, crownStep_actor_phase2]
-      · simp only [crownPhase1, crownPhase2, Fin.le_def]; omega
+    rcases eq_or_ne q p with rfl | hqp
+    · exact (crownFin n hn).programOrder_happensBeforeLe
+        (by rw [crownStep_actor_phase1, crownStep_actor_phase2])
+        (by simp only [crownPhase1, crownPhase2, Fin.le_def]; omega)
     · let m := p.val * n + q.val
       have hm_lt : m < n * n := by
         calc p.val * n + q.val
           _ < p.val * n + n := Nat.add_lt_add_left q.isLt _
           _ = (p.val + 1) * n := (Nat.succ_mul p.val n).symm
           _ ≤ n * n := Nat.mul_le_mul_right n p.isLt
-      have hm_div : m / n = p.val := by
-        dsimp only [m]
-        rw [Nat.add_comm, Nat.add_mul_div_right _ _ (by omega), Nat.div_eq_of_lt q.isLt,
-          Nat.zero_add]
-      have hm_mod : m % n = q.val := by
-        dsimp only [m]
-        rw [Nat.add_comm, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt q.isLt]
       have hp_fin : (⟨m / n, (Nat.div_lt_iff_lt_mul (by omega)).mpr hm_lt⟩ : Fin n) = p :=
-        Fin.ext hm_div
+        Fin.ext (by simp [m, Nat.add_comm (p.val * n),
+          Nat.add_mul_div_right _ _ (Nat.zero_lt_of_lt hn), Nat.div_eq_of_lt q.isLt])
       have hq_fin : (⟨m % n, Nat.mod_lt m (by omega)⟩ : Fin n) = q :=
-        Fin.ext hm_mod
+        Fin.ext (by simp [m, Nat.add_comm (p.val * n), Nat.mod_eq_of_lt q.isLt])
       have hcond_m :
           let p' : Fin n := ⟨m / n, (Nat.div_lt_iff_lt_mul (by omega)).mpr hm_lt⟩
           let q' : Fin n := ⟨m % n, Nat.mod_lt m (by omega)⟩
           q' ≠ p' ∧ q' ≠ crownShift hn p' := by
-        dsimp only
-        rw [hp_fin, hq_fin]
-        exact ⟨hqp, hq_ne⟩
+        simpa only [hp_fin, hq_fin] using ⟨hqp, hq_ne⟩
       have hlen_eq : (crownFin n hn).steps.length = 2 * n + 2 * (n * n) := by
         simp only [crownFin, List.length_ofFn]
       let eSend : (crownFin n hn).Event := ⟨⟨n + m, by rw [hlen_eq]; omega⟩⟩
       let eRecv : (crownFin n hn).Event := ⟨⟨n + n * n + m, by rw [hlen_eq]; omega⟩⟩
       have hsend_step : eSend.step = .send p q := by
         rw [crownEvent_step_eq]
-        simp only [eSend]
-        rw [crownStep_send_at hn hm_lt hcond_m, hp_fin, hq_fin]
+        simpa only [eSend, hp_fin, hq_fin] using crownStep_send_at hn hm_lt hcond_m
       have hrecv_step : eRecv.step = .recv q eSend.idx.val := by
-        have heSend_idx : eSend.idx.val = n + m := rfl
-        have heRecv_idx : eRecv.idx.val = n + n * n + m := rfl
-        rw [heSend_idx, crownEvent_step_eq]
-        have hfin : (⟨eRecv.idx.val,
-            by simpa only [crownFin, List.length_ofFn] using eRecv.idx.isLt⟩ :
-            Fin (2 * n + 2 * (n * n))) = ⟨n + n * n + m, by omega⟩ := Fin.ext heRecv_idx
-        rw [hfin]
-        have h₀ : ¬ n + n * n + m < n := by omega
-        have h₁ : ¬ n + n * n + m < n + n * n := by omega
-        have h₂ : n + n * n + m < n + 2 * (n * n) := by omega
-        have hsub : n + n * n + m - (n + n * n) = m := by omega
-        dsimp only [crownStep]
-        simp only [h₀, h₁, h₂, ↓reduceDIte, hsub]
-        simp only [hp_fin, hq_fin]
-        simp only [eq_true (⟨hqp, hq_ne⟩ : q ≠ p ∧ q ≠ crownShift hn p), ↓reduceIte]
-      have h1 : (crownFin n hn).HappensBefore (crownPhase1 hn p) eSend := by
-        refine (crownFin n hn).programOrder_happensBefore ?_ ?_
-        · rw [crownStep_actor_phase1]
-          unfold Execution.Event.actor
-          rw [hsend_step, Step.actor_send]
-        · simp only [crownPhase1, eSend, Fin.lt_def]
-          have := p.isLt
-          omega
+        rw [crownEvent_step_eq]
+        dsimp only [eRecv, eSend, crownStep]
+        rw [dite_eq_right (by omega), dite_eq_right (by omega), dite_eq_left (by omega)]
+        simp only [Nat.add_sub_cancel_left, hp_fin, hq_fin,
+          eq_true (⟨hqp, hq_ne⟩ : q ≠ p ∧ q ≠ crownShift hn p), ↓reduceIte]
+      have h1 : (crownFin n hn).HappensBefore (crownPhase1 hn p) eSend :=
+        (crownFin n hn).programOrder_happensBefore
+          (by rw [crownStep_actor_phase1, Execution.Event.actor, hsend_step, Step.actor_send])
+          (by simp only [crownPhase1, eSend, Fin.lt_def]; have := p.isLt; omega)
       have h2 : (crownFin n hn).HappensBefore eSend eRecv :=
         (crownFin n hn).messageOrder_happensBefore
           ((crownFin n hn).messageOrder_of_recv hrecv_step)
-      have h3 : (crownFin n hn).HappensBefore eRecv (crownPhase2 hn q) := by
-        refine (crownFin n hn).programOrder_happensBefore ?_ ?_
-        · rw [crownStep_actor_phase2]
-          unfold Execution.Event.actor
-          rw [hrecv_step, Step.actor_recv]
-        · simp only [eRecv, crownPhase2, Fin.lt_def]
-          omega
+      have h3 : (crownFin n hn).HappensBefore eRecv (crownPhase2 hn q) :=
+        (crownFin n hn).programOrder_happensBefore
+          (by rw [crownStep_actor_phase2, Execution.Event.actor, hrecv_step, Step.actor_recv])
+          (by simp only [eRecv, crownPhase2, Fin.lt_def]; omega)
       exact ((h1.trans h2).trans h3).happensBeforeLe
 
 /-! ### Dimension lower bound and sharp characterization -/
@@ -415,37 +323,17 @@ theorem crownFin_dim_lower_bound {n : ℕ} (hn : 2 ≤ n) {α : Type v} [LinearO
     (hf : ∀ e₁ e₂, (crownFin n hn).HappensBeforeLe e₁ e₂ ↔ f e₁ ≤ f e₂) :
     n ≤ d := by
   have hex : ∀ p : Fin n, ∃ i : Fin d,
-      f (crownPhase2 hn (crownShift hn p)) i < f (crownPhase1 hn p) i := by
-    intro p
-    have hnot : ¬ (crownFin n hn).HappensBeforeLe (crownPhase1 hn p)
-        (crownPhase2 hn (crownShift hn p)) := by
-      rw [crownFin_happensBeforeLe_iff]
-      exact not_not.mpr rfl
-    have hnot_le : ¬ f (crownPhase1 hn p) ≤ f (crownPhase2 hn (crownShift hn p)) :=
-      mt (hf _ _).mpr hnot
-    rw [Pi.le_def] at hnot_le
-    push Not at hnot_le
-    exact hnot_le
-  let coord : Fin n → Fin d := fun p => Classical.choose (hex p)
-  have hcoord : ∀ p : Fin n,
-      f (crownPhase2 hn (crownShift hn p)) (coord p) < f (crownPhase1 hn p) (coord p) :=
-    fun p => Classical.choose_spec (hex p)
+      f (crownPhase2 hn (crownShift hn p)) i < f (crownPhase1 hn p) i := fun p => by
+    simpa [Pi.le_def] using mt (hf _ _).mpr (mt (crownFin_happensBeforeLe_iff hn _ _).mp (· rfl))
+  choose coord hcoord using hex
   have hinj : Function.Injective coord := by
     intro p₁ p₂ heq
     by_contra hp_ne
-    have hσ₁₂ : crownShift hn p₂ ≠ crownShift hn p₁ :=
+    have hσ : crownShift hn p₂ ≠ crownShift hn p₁ :=
       fun h => hp_ne (crownShift_injective hn h.symm)
-    have hle₁₂ : f (crownPhase1 hn p₁) (coord p₁) ≤
-        f (crownPhase2 hn (crownShift hn p₂)) (coord p₁) :=
-      (hf _ _).mp ((crownFin_happensBeforeLe_iff hn p₁ (crownShift hn p₂)).mpr hσ₁₂) (coord p₁)
-    have hle₂₁ : f (crownPhase1 hn p₂) (coord p₁) ≤
-        f (crownPhase2 hn (crownShift hn p₁)) (coord p₁) :=
-      (hf _ _).mp ((crownFin_happensBeforeLe_iff hn p₂ (crownShift hn p₁)).mpr hσ₁₂.symm)
-        (coord p₁)
-    have hlt₂ := heq ▸ hcoord p₂
-    have hlt₁ := hcoord p₁
-    exact lt_irrefl (f (crownPhase1 hn p₁) (coord p₁))
-      (lt_trans (lt_of_le_of_lt hle₁₂ hlt₂) (lt_of_le_of_lt hle₂₁ hlt₁))
+    have hle₁₂ := (hf _ _).mp ((crownFin_happensBeforeLe_iff hn p₁ _).mpr hσ) (coord p₁)
+    have hle₂₁ := (hf _ _).mp ((crownFin_happensBeforeLe_iff hn p₂ _).mpr hσ.symm) (coord p₁)
+    exact lt_irrefl _ ((hle₁₂.trans_lt (heq ▸ hcoord p₂)).trans (hle₂₁.trans_lt (hcoord p₁)))
   simpa only [Fintype.card_fin] using Fintype.card_le_of_injective coord hinj
 
 /-- Single-execution dimension lower-bound step over finite unicast traces `Execution P` (toward
@@ -465,23 +353,16 @@ theorem exists_unicast_execution_dim_lower_bound (P : Type u) [Fintype P] :
     refine ⟨E, fun {α} _ {d} f hf => ?_⟩
     let e₀ : E.Event := ⟨⟨0, Nat.zero_lt_succ 1⟩⟩
     let e₁ : E.Event := ⟨⟨1, Nat.lt_succ_self 1⟩⟩
-    have hnot : ¬ E.HappensBeforeLe e₁ e₀ := by
-      intro hle
-      have hidx : e₁.idx.val ≤ e₀.idx.val := E.happensBeforeLe_idx_le hle
-      exact Nat.not_succ_le_zero 0 hidx
-    have hnot_le : ¬ f e₁ ≤ f e₀ := mt (hf e₁ e₀).mpr hnot
-    rw [Pi.le_def] at hnot_le
-    push Not at hnot_le
-    obtain ⟨i, _⟩ := hnot_le
-    have hi := i.isLt
-    omega
+    have hnot : ¬ E.HappensBeforeLe e₁ e₀ := fun hle =>
+      Nat.not_succ_le_zero 0 (E.happensBeforeLe_idx_le hle)
+    obtain ⟨i, _⟩ : ∃ i, ¬ f e₁ i ≤ f e₀ i := by
+      simpa [Pi.le_def] using mt (hf e₁ e₀).mpr hnot
+    exact Nat.zero_lt_of_lt i.isLt
   · have hn : 2 ≤ k + 2 := by omega
     let equiv : Fin (k + 2) ≃ P := (Fintype.equivOfCardEq (by simp [hcard])).symm
-    let E : Execution P := (crownFin (k + 2) hn).map equiv
-    refine ⟨E, fun {α} _ {d} f hf => ?_⟩
-    refine crownFin_dim_lower_bound hn (fun e => f ((crownFin (k + 2) hn).mapEvent equiv e)) ?_
-    intro e₁ e₂
-    rw [← hf, Execution.map_happensBeforeLe_iff equiv.injective]
+    refine ⟨(crownFin (k + 2) hn).map equiv, fun {α} _ {d} f hf =>
+      crownFin_dim_lower_bound hn (fun e => f ((crownFin (k + 2) hn).mapEvent equiv e))
+        fun e₁ e₂ => by rw [← hf, Execution.map_happensBeforeLe_iff equiv.injective]⟩
 
 /-- Clock-dimension lower-bound step over finite unicast executions `Execution P` (toward #7203,
 after [CharronBost1991], whose primary text was not inspected; not the cited endpoint): if every
@@ -490,10 +371,8 @@ after [CharronBost1991], whose primary text was not inspected; not the cited end
 theorem unicast_clock_dim_lower_bound {P : Type u} [Fintype P] {α : Type v} [LinearOrder α]
     {d : ℕ} (h : ∀ E : Execution P, ∃ f : E.Event → (Fin d → α),
       ∀ e₁ e₂ : E.Event, E.HappensBeforeLe e₁ e₂ ↔ f e₁ ≤ f e₂) :
-    Fintype.card P ≤ d := by
-  obtain ⟨E, hE⟩ := exists_unicast_execution_dim_lower_bound P
-  obtain ⟨f, hf⟩ := h E
-  exact hE f hf
+    Fintype.card P ≤ d :=
+  (exists_unicast_execution_dim_lower_bound P).elim fun E hE => (h E).elim hE
 
 /-- Sharp `Fin d → ℕ` clock-dimension step over finite unicast executions `Execution P` (toward
 #7203, combining `unicast_clock_dim_lower_bound` after [CharronBost1991] with Mattern's
@@ -503,27 +382,17 @@ theorem exists_unicast_orderEmbedding_clock_iff {P : Type u} [Fintype P] {d : �
     (∀ E : Execution P, ∃ f : E.Event → (Fin d → ℕ),
       ∀ e₁ e₂ : E.Event, E.HappensBeforeLe e₁ e₂ ↔ f e₁ ≤ f e₂) ↔
       Fintype.card P ≤ d := by
-  constructor
-  · exact unicast_clock_dim_lower_bound
-  · intro hd E
-    let _ : DecidableEq P := Classical.decEq P
-    let equiv : P ≃ Fin (Fintype.card P) := Fintype.equivFin P
-    refine ⟨fun e i => if hi : i.val < Fintype.card P then
-        E.vc e (equiv.symm ⟨i.val, hi⟩) else 0, fun e₁ e₂ => ?_⟩
-    rw [E.happensBeforeLe_iff_vc_le]
-    constructor
-    · intro hle i
-      dsimp only
-      split_ifs with hi
-      · exact hle _
-      · exact le_rfl
-    · intro hle p
-      let j : Fin d := ⟨(equiv p).val, (equiv p).isLt.trans_le hd⟩
-      have hj : j.val < Fintype.card P := (equiv p).isLt
-      have hval := hle j
-      dsimp only at hval
-      simp only [hj, ↓reduceDIte] at hval
-      have hjp : equiv.symm ⟨j.val, hj⟩ = p := equiv.symm_apply_apply p
-      rwa [hjp] at hval
+  refine ⟨unicast_clock_dim_lower_bound, fun hd E => ?_⟩
+  let _ : DecidableEq P := Classical.decEq P
+  let equiv : P ≃ Fin (Fintype.card P) := Fintype.equivFin P
+  refine ⟨fun e i => if hi : i.val < Fintype.card P then
+      E.vc e (equiv.symm ⟨i.val, hi⟩) else 0, fun e₁ e₂ => ?_⟩
+  rw [E.happensBeforeLe_iff_vc_le]
+  refine ⟨fun hle i => ?_, fun hle p => by
+    simpa only [(equiv p).isLt, ↓reduceDIte, equiv.symm_apply_apply] using
+      hle ⟨(equiv p).val, (equiv p).isLt.trans_le hd⟩⟩
+  dsimp only
+  split_ifs with hi
+  exacts [hle _, le_rfl]
 
 end Cslib.Distributed.VectorClock

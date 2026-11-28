@@ -72,11 +72,9 @@ theorem PPolyOn.of_computableInPolyTime {α : Type} {enc : α ↪ List Bool}
 theorem PPolyOn.imp {α : Type} {enc : α ↪ List Bool} {P Q : α → Prop}
     (hP : {a | P a} ∈ PPolyOn enc) (hQ : {a | Q a} ∈ PPolyOn enc) :
     {a | P a → Q a} ∈ PPolyOn enc := by
-  have h : {a | P a → Q a} = {a | P a}ᶜ ∪ {a | Q a} := by
-    ext a
-    simp [imp_iff_not_or]
-  rw [h]
-  exact PPolyOn.sup (PPolyOn.compl hP) hQ
+  convert PPolyOn.sup (PPolyOn.compl hP) hQ using 1
+  ext a
+  simp [imp_iff_not_or]
 
 end Cslib.Circuits.Boolean
 
@@ -103,8 +101,7 @@ theorem PolyTimeReducible.mem_PPolyOn {β : Type} {encB : β ↪ List Bool} {A :
   let N : Polynomial ℕ := Polynomial.C c' * (Polynomial.X + 1) ^ d'
   obtain ⟨S, W, _, α_adv, -, hα, h_eval⟩ := PPoly.exists_evalAdvice hL_B N
   have hN (a : α) : (encB (f a)).length ≤ N.eval (enc a).length := by
-    refine (hf' a).trans (le_of_eq ?_)
-    simp [N]
+    simpa [N] using hf' a
   let g : List Bool × α → Bool := fun x =>
     evalAdvice (S.eval (enc x.2).length) (W.eval (enc x.2).length) x.1 (encB (f x.2))
   have hg : ComputableInPolyTime g (encPair encBits enc) encBool := by fun_prop
@@ -182,13 +179,9 @@ theorem PPolyOn.forall_of_computableInPolyTime_length
     (hN : ComputableInPolyTime N enc encUnary) {P : α → List Bool → Prop}
     (hP : {p : α × List Bool | P p.1 p.2} ∈ PPolyOn (encPair enc encBits)) :
     {a : α | ∀ u : List Bool, u.length = N a → P a u} ∈ PPolyOn enc := by
-  have hex : {a : α | ∃ u : List Bool, u.length = N a ∧ ¬ P a u} ∈ PPolyOn enc :=
-    PPolyOn.exists_of_computableInPolyTime_length hNP hN (PPolyOn.compl hP)
-  have h_eq : {a : α | ∀ u : List Bool, u.length = N a → P a u} =
-      {a : α | ∃ u : List Bool, u.length = N a ∧ ¬ P a u}ᶜ := by
-    ext a
-    simp
-  rw [h_eq]
-  exact PPolyOn.compl hex
+  convert PPolyOn.compl (PPolyOn.exists_of_computableInPolyTime_length
+    (P := fun a u => ¬ P a u) hNP hN (PPolyOn.compl hP)) using 1
+  ext a
+  simp
 
 end Cslib.Complexity

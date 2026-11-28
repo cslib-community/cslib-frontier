@@ -63,12 +63,9 @@ theorem exec_prepare {w p k A B a b out scratch frames frame a₁ a₂ b₁ b₂
   have hbbefore : b + 4 * q ≤ scratch := by simpa only [hsize] using hl.right_before
   have hsbefore : scratch + 4 * q ≤ frames := by simpa only [hsize] using hl.scratch_before
   have hfbefore := hl.frames_before
-  have hfitA : GenericRAM.Signed.Fits w ((A + A : ℕ) : ℤ) := hmag.of_natAbs_le (by
-    rw [Int.natAbs_natCast]
-    exact (forms_le_magnitudeBound p A B (k + 1)).1)
-  have hfitB : GenericRAM.Signed.Fits w ((B + B : ℕ) : ℤ) := hmag.of_natAbs_le (by
-    rw [Int.natAbs_natCast]
-    exact (forms_le_magnitudeBound p A B (k + 1)).2)
+  obtain ⟨hA, hB⟩ := forms_le_magnitudeBound p A B (k + 1)
+  have hfitA := hmag.of_natAbs_le ((Int.natAbs_natCast (A + A)).trans_le hA)
+  have hfitB := hmag.of_natAbs_le ((Int.natAbs_natCast (B + B)).trans_le hB)
   obtain ⟨s, hs, leftValues, leftFrame, leftRegs⟩ := exec_form Reg.inputA Reg.formA asign x u
     (by decide) (by decide) (by decide) (by decide) hc.quarter_eq ha₁ ha₂ hfitA
     (by simpa only [hsize] using hu)
@@ -123,10 +120,7 @@ theorem exec_prepare {w p k A B a b out scratch frames frame a₁ a₂ b₁ b₂
       rightFrame _ (Or.inl (by rw [hsc.formB_eq]; change scratch + j < scratch + q; omega))]
     simpa only [hc.formA_eq] using leftValues j hj
   · intro j hj
-    rw [hyframe _ (Or.inl (by
-      rw [hrh.frame_eq]
-      change scratch + q + j < frame + 6
-      omega))]
+    rw [hyframe _ (Or.inl (by rw [hrh.frame_eq]; change scratch + q + j < frame + 6; omega))]
     simpa only [hsc.formB_eq] using rightValues j hj
   · simpa only [hrh.frame_eq, next] using hyparent
   · intro d hd hdf
@@ -158,22 +152,12 @@ theorem exec_prepareChild {w p k A B a b out scratch frames frame : ℕ}
       y.mem (frame + 6) = phase.val + 1 ∧
       ∀ q, (q < scratch ∨ scratch + 2 * (4 ^ k * p) ≤ q) →
         (q < frame + 6 ∨ frame + 14 ≤ q) → y.mem q = x.mem q := by
-  fin_cases phase
-  all_goals simp only [prepareChild]
+  have h (ph : Fin 7) (as bs : ℤ) {a₁ a₂ b₁ b₂ : ℕ} (ha₁ : a₁ < 4 := by decide)
+      (ha₂ : a₂ < 4 := by decide) (hb₁ : b₁ < 4 := by decide) (hb₂ : b₂ < 4 := by decide) :=
+    exec_prepare ph as bs x u v hx hc hl ha₁ ha₂ hb₁ hb₂ hu hv hleft hright hmag haddr
+  fin_cases phase <;> simp only [prepareChild]
   all_goals first
-    | exact exec_prepare 0 1 1 x u v hx hc hl (by decide) (by decide) (by decide)
-        (by decide) hu hv hleft hright hmag haddr
-    | exact exec_prepare 1 1 0 x u v hx hc hl (by decide) (by decide) (by decide)
-        (by decide) hu hv hleft hright hmag haddr
-    | exact exec_prepare 2 0 (-1) x u v hx hc hl (by decide) (by decide) (by decide)
-        (by decide) hu hv hleft hright hmag haddr
-    | exact exec_prepare 3 0 (-1) x u v hx hc hl (by decide) (by decide) (by decide)
-        (by decide) hu hv hleft hright hmag haddr
-    | exact exec_prepare 4 1 0 x u v hx hc hl (by decide) (by decide) (by decide)
-        (by decide) hu hv hleft hright hmag haddr
-    | exact exec_prepare 5 (-1) 1 x u v hx hc hl (by decide) (by decide) (by decide)
-        (by decide) hu hv hleft hright hmag haddr
-    | exact exec_prepare 6 (-1) 1 x u v hx hc hl (by decide) (by decide) (by decide)
-        (by decide) hu hv hleft hright hmag haddr
+    | exact h 0 1 1 | exact h 1 1 0 | exact h 2 0 (-1) | exact h 3 0 (-1) | exact h 4 1 0
+    | exact h 5 (-1) 1 | exact h 6 (-1) 1
 
 end Cslib.Algorithms.WordRAM.Strassen

@@ -42,8 +42,6 @@ theorem exec_storeFrame {w : ℕ} (x : Data 64) (h1 : x.regs Reg.one = 1)
       (∀ j : Fin 7, y.mem (x.regs Reg.frame + j.val) = x.regs (field j)) ∧
       (∀ a, a < x.regs Reg.frame ∨ x.regs Reg.frame + 7 ≤ a → y.mem a = x.mem a) ∧
       ∀ i, i ≠ Reg.address → y.regs i = x.regs i := by
-  have hcode : storeFrame = storeRecord Reg.frame Reg.address Reg.one field := rfl
-  rw [hcode]
   obtain ⟨y, hy, hymem, hymod, _, hyregs⟩ :=
     storeRecord_exec Reg.frame Reg.address Reg.one field x
       (by decide) (by decide) h1 (hfit.of_le (by omega))
@@ -62,8 +60,6 @@ theorem exec_loadFrame {w : ℕ} (x : Data 64) (h1 : x.regs Reg.one = 1)
     ∃ y, ExecWithin w loadFrame x y 14 ∧ y.mem = x.mem ∧
       (∀ j : Fin 7, y.regs (field j) = x.mem (x.regs Reg.frame + j.val)) ∧
       ∀ i, ¬LoadLocal i → y.regs i = x.regs i := by
-  have hcode : loadFrame = loadRecord Reg.frame Reg.address Reg.one field := rfl
-  rw [hcode]
   obtain ⟨y, hy, hymem, hyfields, _, hyregs⟩ :=
     loadRecord_exec Reg.frame Reg.address Reg.one field x
       (by decide) (by decide) (by decide) (by decide) h1 (hfit.of_le (by omega))
@@ -79,8 +75,6 @@ theorem exec_loadCurrent {w : ℕ} (x : Data 64) (h1 : x.regs Reg.one = 1)
     (hframe : ∀ j : Fin 7, x.mem (x.regs Reg.frame + j.val) = x.regs (field j)) :
     ∃ y, ExecWithin w loadFrame x y 14 ∧ y.mem = x.mem ∧
       ∀ i, i ≠ Reg.address → y.regs i = x.regs i := by
-  have hcode : loadFrame = loadRecord Reg.frame Reg.address Reg.one field := rfl
-  rw [hcode]
   obtain ⟨y, hy, hymem, hyregs⟩ :=
     loadRecord_exec_self Reg.frame Reg.address Reg.one field x
       (by decide) (by decide) (by decide) (by decide) h1 hframe (hfit.of_le (by omega))

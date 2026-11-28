@@ -113,14 +113,9 @@ public theorem query_address_lt {m N Q i s : ℕ} (hi : i < Q) (hs : s < 2) :
 /-- For any tensor level `L`, the reconstructed output slice lies within the word budget. -/
 public theorem outputBase_le_wordBudget (L m N Q : ℕ) :
     outputBase L m N Q ≤ wordBudget L m N Q := by
-  have hout : outputBase L m N Q ≤ memoryEnd L m N Q := by
-    unfold memoryEnd stampBase scratchBase
-    have hten := Nat.zero_le (10 ^ L)
-    have hframes := Nat.zero_le (2 * (L + 1) * 10 ^ L)
-    omega
-  have hword : memoryEnd L m N Q ≤ wordBudget L m N Q := by
-    unfold wordBudget
-    omega
-  exact hout.trans hword
+  have := Nat.zero_le (10 ^ L)
+  have := Nat.zero_le (2 * (L + 1) * 10 ^ L)
+  unfold wordBudget memoryEnd stampBase scratchBase
+  omega
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct

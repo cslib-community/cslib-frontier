@@ -46,21 +46,22 @@ abbrev encMachineState (encG : γ ↪ List Bool) (encT : τ ↪ List Bool) :
 /-- A completed-call prefix stores only its parameters and binary counters. In particular,
 the number of table assignments does not multiply the retained point or context. -/
 theorem sumState_encoding_le (encG : γ ↪ List Bool) (q : Params γ)
-    (table : ℕ → ℕ) (j : ℕ) (hj : j ≤ q.2.2.2) (hp : 0 < q.2.1.1) :
+    (table : ℕ → ℕ) (j : ℕ) (hj : j ≤ q.limit) (hp : 0 < q.modulus) :
     (encState encG (sumState q table j)).length ≤
       8 * ((encParams encG q).length + 1) := by
   have hk := length_encNat_mono hj
   have ha := length_encNat_mono (sumState_acc_lt q table j hp).le
-  change (encNat (sumState q table j).2.2).length ≤ (encNat q.2.1.1).length at ha
+  have hc : (sumState q table j).2.1 = j := sumState_counter q table j
   have hpar : (sumState q table j).1 = q := rfl
-  enc_len [encState, encParams, encNat3, hpar, sumState_counter]
+  dsimp only [Params.limit, Params.modulus, State.acc] at hk ha
+  enc_len [encState, encParams, encNat3, hpar, hc]
 
 /-- Every physical prefix of one returned table call pays for one caller and the actual
 callee state. The retained point and context are not multiplied by the number of assignments. -/
 theorem runFrom_one_encoding_le (encG : γ ↪ List Bool) (encT : τ ↪ List Bool)
     (q : Params γ) (N : QueryMachine τ) (start : State γ → τ) (answer : τ → ℕ)
-    (w : List Bool) (table : ℕ → ℕ) (j T B : ℕ) (hj : j < q.2.2.2)
-    (hp : 0 < q.2.1.1)
+    (w : List Bool) (table : ℕ → ℕ) (j T B : ℕ) (hj : j < q.limit)
+    (hp : 0 < q.modulus)
     (hpre : ∀ i < T, N.halted (N.runFrom w (start (sumState q table j)) i) = false)
     (hhalt : N.halted (N.runFrom w (start (sumState q table j)) T) = true)
     (hanswer : answer (N.runFrom w (start (sumState q table j)) T) = table j)
@@ -76,10 +77,10 @@ theorem runFrom_one_encoding_le (encG : γ ↪ List Bool) (encT : τ ↪ List Bo
   refine (QueryMachine.withCalls_runFrom_call_encoding_le (controller q) N (request start)
     (resume answer) w (encState encG) encT ?_ ?_ hpre hhalt hcaller hnext hsize i hi).trans
     (by omega)
-  · change decide (q.2.2.2 ≤ (sumState q table j).2.1) = false
+  · change decide (q.limit ≤ (sumState q table j).counter) = false
     rw [sumState_counter]
     exact decide_eq_false (by omega)
-  · change (if (sumState q table j).2.1 < q.2.2.2 then
+  · change (if (sumState q table j).counter < q.limit then
       some (start (sumState q table j)) else none) = _
     rw [sumState_counter]
     simp only [hj, ↓reduceIte]
@@ -89,13 +90,13 @@ assignment loop, including all callee steps rather than only completed-call boun
 theorem exists_runFrom_sumState_encoding_le (encG : γ ↪ List Bool)
     (encT : τ ↪ List Bool) (q : Params γ) (N : QueryMachine τ)
     (start : State γ → τ) (answer : τ → ℕ) (w : List Bool) (table : ℕ → ℕ)
-    (B : ℕ) (hp : 0 < q.2.1.1)
-    (hsupplier : ∀ j < q.2.2.2, ∃ T,
+    (B : ℕ) (hp : 0 < q.modulus)
+    (hsupplier : ∀ j < q.limit, ∃ T,
       (∀ i < T, N.halted (N.runFrom w (start (sumState q table j)) i) = false) ∧
       N.halted (N.runFrom w (start (sumState q table j)) T) = true ∧
       answer (N.runFrom w (start (sumState q table j)) T) = table j ∧
       (∀ i ≤ T, (encT (N.runFrom w (start (sumState q table j)) i)).length ≤ B))
-    (j : ℕ) (hj : j ≤ q.2.2.2) :
+    (j : ℕ) (hj : j ≤ q.limit) :
     ∃ T, (machine q N start answer).runFrom w (.inl (initial q)) T =
       .inl (sumState q table j) ∧
       ∀ i ≤ T, (encMachineState encG encT

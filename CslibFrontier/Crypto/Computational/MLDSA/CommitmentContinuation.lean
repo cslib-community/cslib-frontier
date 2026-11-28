@@ -49,14 +49,9 @@ private theorem query_change_event (H : Xofs) (s : Level) (A : PublicMatrix s)
   let mask := signingMaskLaw s.params (by cases s <;> decide)
   have mass := maskCommitmentAddress_mass_le s A m (Xofs.digestLookup s x)
   rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply] at mass
-  refine le_trans (mask.toOuterMeasure.mono ?_) mass
-  rintro y ⟨v, hv⟩
-  by_contra off
-  apply hv
-  have ne : Xofs.digestLookup s x ≠ maskCommitmentAddress s A m y := fun h => off h.symm
-  rw [queryTable_register, queryTable_register]
-  dsimp only
-  rw [Function.update_of_ne ne]
+  refine le_trans (mask.toOuterMeasure.mono fun y ⟨v, hv⟩ =>
+    Classical.byContradiction fun off => hv ?_) mass
+  simp only [queryTable_register, Function.update_of_ne (Ne.symm off)]
 
 private theorem mean_query_sqrt_le {ι κ σ α : Type} [Fintype ι] [Fintype κ] [DecidableEq κ]
     [Fintype α] {a b w : ℕ} (μ : PMF ι) (base : Xofs) (write : ι → Xofs)
@@ -68,13 +63,10 @@ private theorem mean_query_sqrt_le {ι κ σ α : Type} [Fintype ι] [Fintype κ
       (st.instruction (H.queryTable a b) .query).density outcome
     ∑ y, (μ y).toReal * (√(p y (write y)) - √(p y base)) ^ 2 ≤ 4 * δ := by
   intro p
-  apply (st.mean_sq_sqrt_query_readout_sub_le μ M outcome _ _).trans
-  apply mean_xorQueryDisturbance_le μ _ _ _ st.isDensityMatrix
-  intro x
+  refine (st.mean_sq_sqrt_query_readout_sub_le μ M outcome _ _).trans
+    (mean_xorQueryDisturbance_le μ _ _ _ st.isDensityMatrix fun x => ?_)
   rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
-  convert hit x using 4
-  ext y
-  exact decide_eq_true_iff
+  simpa only [Set.preimage, Set.mem_singleton_iff, decide_eq_true_eq] using hit x
 
 /-- Mean squared change of the square root of an observable probability after one coherent
 SHAKE query when a fresh ML-DSA mask selects the digest to change. The final measurement may
@@ -95,15 +87,12 @@ theorem Xofs.sq_sqrt_readout_after_maskCommitment_le
       4 * (commitmentGuessProbability s.params (by cases s <;> decide) A).toReal := by
   classical
   intro μ base write p
-  apply mean_query_sqrt_le μ (H.withDigestRegister s D)
+  refine mean_query_sqrt_le μ (H.withDigestRegister s D)
     (fun y => H.withDigestRegister s (Function.update D (maskCommitmentAddress s A m y)
-      (replacement y))) st M outcome
-  intro x
-  have finite : commitmentGuessProbability s.params (by cases s <;> decide) A ≠ ⊤ :=
-    ne_top_of_le_ne_top ENNReal.one_ne_top (iSup_le fun _ => PMF.coe_le_one _ _)
-  apply ENNReal.toReal_mono finite
-  apply le_trans (μ.toOuterMeasure.mono ?_) (query_change_event H s A m D a b x)
-  exact fun y hy => ⟨replacement y, hy⟩
+      (replacement y))) st M outcome fun x => ENNReal.toReal_mono
+    (ne_top_of_le_ne_top ENNReal.one_ne_top (iSup_le fun _ => PMF.coe_le_one _ _)) <|
+    (query_change_event H s A m D a b x).trans'
+      (μ.toOuterMeasure.mono fun y hy => ⟨replacement y, hy⟩)
 
 namespace QuantumSigningForger
 
@@ -116,27 +105,22 @@ private theorem mean_abs_of_root {ι : Type} [Fintype ι] (μ : PMF ι) (p q : �
   let root y := |√(prob (p y)) - √(prob (q y))|
   have avg := Real.pow_arith_mean_le_arith_mean_pow Finset.univ (fun y => (μ y).toReal) root
     (fun _ _ => ENNReal.toReal_nonneg) (PMF.sum_toReal μ) (fun _ _ => abs_nonneg _) 2
-  have avg_le : ∑ y, (μ y).toReal * root y ≤ B := by
-    apply le_of_abs_le
-    rw [← Real.sqrt_sq_eq_abs]
-    exact (Real.sqrt_le_sqrt (avg.trans (by simpa only [root, sq_abs] using h))).trans_eq
-      (Real.sqrt_sq hB)
+  have avg_le : ∑ y, (μ y).toReal * root y ≤ B :=
+    (abs_le_of_sq_le_sq' (avg.trans (by simpa only [root, sq_abs] using h)) hB).2
   have each (y) : |prob (p y) - prob (q y)| ≤ 2 * root y := by
     let u := √(prob (p y))
     let v := √(prob (q y))
     have hu : u ≤ 1 := (Real.sqrt_le_one).mpr (PMF.toReal_apply_le_one ..)
     have hv : v ≤ 1 := (Real.sqrt_le_one).mpr (PMF.toReal_apply_le_one ..)
     have eq : prob (p y) - prob (q y) = (u + v) * (u - v) := by
-      nlinarith only [Real.sq_sqrt (show 0 ≤ prob (p y) from ENNReal.toReal_nonneg),
-        Real.sq_sqrt (show 0 ≤ prob (q y) from ENNReal.toReal_nonneg)]
+      nlinarith only [Real.sq_sqrt (x := prob (p y)) ENNReal.toReal_nonneg,
+        Real.sq_sqrt (x := prob (q y)) ENNReal.toReal_nonneg]
     rw [eq, abs_mul, abs_of_nonneg (add_nonneg (Real.sqrt_nonneg _) (Real.sqrt_nonneg _))]
     exact mul_le_mul_of_nonneg_right (by linarith : u + v ≤ 2) (abs_nonneg _)
   calc
     _ ≤ ∑ y, (μ y).toReal * (2 * root y) :=
       Finset.sum_le_sum fun y _ => mul_le_mul_of_nonneg_left (each y) ENNReal.toReal_nonneg
-    _ = 2 * ∑ y, (μ y).toReal * root y := by
-      rw [Finset.mul_sum]
-      exact Finset.sum_congr rfl fun _ _ => mul_left_comm ..
+    _ = 2 * ∑ y, (μ y).toReal * root y := by simp_rw [Finset.mul_sum, mul_left_comm]
     _ ≤ _ := mul_le_mul_of_nonneg_left avg_le (by norm_num)
 
 private theorem meanGap_of_agree {ι : Type} [Fintype ι] (μ : PMF ι) (p q : ι → PMF Bool)
@@ -147,10 +131,10 @@ private theorem meanGap_of_agree {ι : Type} [Fintype ι] (μ : PMF ι) (p q : �
   refine Finset.sum_le_sum fun y _ => mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
   by_cases h : y ∈ bad
   · simp only [h, ↓reduceIte, abs_le]
-    constructor <;> linarith [PMF.toReal_apply_le_one (p y) true,
-      PMF.toReal_apply_le_one (q y) true,
-      show 0 ≤ prob (p y) from ENNReal.toReal_nonneg,
-      show 0 ≤ prob (q y) from ENNReal.toReal_nonneg]
+    have hp0 : 0 ≤ prob (p y) := ENNReal.toReal_nonneg
+    have hq0 : 0 ≤ prob (q y) := ENNReal.toReal_nonneg
+    constructor <;>
+      linarith [PMF.toReal_apply_le_one (p y) true, PMF.toReal_apply_le_one (q y) true]
   · simp [h, same y h]
 
 private noncomputable abbrev stepState {C : QuantumSigningForger} (H : Xofs) (d : Device C) :=
@@ -166,13 +150,13 @@ private theorem mean_query_gap_of_root {C : QuantumSigningForger} {ι : Type} [F
       ∑ y, (μ y).toReal * (√(p y (write y)) - √(p y base)) ^ 2 ≤ 4 * δ) :
     PMF.meanAbsDiffAt μ true (fun y => observe (M y) (stepState (write y) d))
       (fun y => observe (M y) (stepState base d)) ≤ 4 * √δ := by
-  apply (mean_abs_of_root μ _ _ (2 * √δ) (by positivity) ?_).trans_eq
-  · ring
-  · have born (T : Xofs) (y) : prob (observe (M y) (stepState T d)) =
-        (M y).densityProb (stepState T d).density true := by
-      rw [prob, observe, POVM.measureDensity_apply, ENNReal.toReal_ofReal
-        ((M y).densityProb_nonneg (stepState T d).isDensityMatrix.posSemidef true)]
-    simpa only [born, mul_pow, Real.sq_sqrt hn, show (2 : ℝ) ^ 2 = 4 by norm_num] using bound
+  refine (mean_abs_of_root μ _ _ (2 * √δ) (by positivity) ?_).trans_eq (by ring)
+  have born (T : Xofs) (y) : prob (observe (M y) (stepState T d)) =
+      (M y).densityProb (stepState T d).density true := by
+    rw [prob, observe, POVM.measureDensity_apply, ENNReal.toReal_ofReal
+      ((M y).densityProb_nonneg (stepState T d).isDensityMatrix.posSemidef true)]
+  rw [mul_pow, Real.sq_sqrt hn]
+  simpa only [born] using bound.trans_eq (by ring)
 
 private theorem device_meanGap_le {C : QuantumSigningForger} {ι σ : Type} [Fintype ι]
     (μ : PMF ι) (base : Xofs) (write : ι → Xofs) (cmd : DeviceRequest (Width C) Empty)
@@ -236,36 +220,30 @@ private theorem scored_meanGap_le {C : QuantumSigningForger} {α V ι : Type} [Z
     · simp only [scored_eq_measured, measured_coin (C := C) (coin := coin) (k := k), isXofQuery,
         Bool.toNat_false, Nat.add_zero]
       simp only [← scored_eq_measured]
-      apply PMF.meanAbsDiffAt_bind_le μ (ProbComp.unifOracle coin) true
-      exact fun i => ih i (cont i) d log tape
+      exact PMF.meanAbsDiffAt_bind_le μ (ProbComp.unifOracle coin) true _ _
+        fun i => ih i (cont i) d log tape
     · simp only [scored_eq_measured, measured_device (C := C) (cmd := cmd) (k := k)]
       simp only [← scored_eq_measured]
       let left y r dev := scored (k r) (write y) (sign' y) (test' y) dev log tape
       let right y r dev := scored (k r) base sign (test y) dev log tape
-      apply (device_meanGap_le μ base write cmd left right d (log, tape)
-        (B := m * Q + n * S + T) (fun y r => scored_readout ..) (coherent d) ?_).trans_eq
-      · rw [Nat.cast_add]
-        ring
-      · intro r st
-        simpa only [left, right, isSigningCall, Sum.elim_inr, Sum.elim_inl, Bool.toNat_false,
-          Nat.sub_zero] using ih r (cont r) st log tape
+      refine (device_meanGap_le μ base write cmd left right d (log, tape)
+        (B := m * Q + n * S + T) (fun _ _ => scored_readout ..) (coherent d)
+        fun r st => ?_).trans_eq (by rw [Nat.cast_add]; ring)
+      simpa only [left, right, isSigningCall, Sum.elim_inr, Sum.elim_inl, Bool.toNat_false,
+        Nat.sub_zero] using ih r (cont r) st log tape
     · let sig := sign (tape.headD 0) ask
       let sig' y := sign' y (tape.headD 0) ask
       let tail y v := scored (k v) (write y) (sign' y) (test' y) d (ask.logReply v log) tape.tail
       have one : PMF.meanAbsDiffAt μ true (fun y => tail y (sig' y)) (fun y => tail y sig) ≤ S :=
-        (meanGap_of_agree μ _ _ {y | sig' y ≠ sig} fun y h => by
-          rw [show sig' y = sig from not_not.mp h]).trans (signing _ ask)
+        (meanGap_of_agree μ _ _ {y | sig' y ≠ sig} fun _ h =>
+          congrArg (tail _) (of_not_not h)).trans (signing _ ask)
       have rest := ih sig (cont sig) d (ask.logReply sig log) tape.tail
       simp only [scored_eq_measured, measured_sign (C := C) (ask := ask) (k := k), tapeReply,
         PMF.pure_bind, isXofQuery, Bool.toNat_false, Nat.add_zero]
       simp only [← scored_eq_measured]
-      have len : n = n - 1 + 1 := by
-        change 1 ≤ n at fits
-        lia
-      have eq : S + (m * Q + (n - 1 : ℕ) * S + T) = m * Q + n * S + T := by
-        conv_rhs => rw [len, Nat.cast_add_one]
-        ring
-      exact (PMF.meanAbsDiffAt_triangle μ true _ _ _).trans ((add_le_add one rest).trans_eq eq)
+      refine (PMF.meanAbsDiffAt_triangle μ true _ _ _).trans ((add_le_add one rest).trans_eq ?_)
+      rw [Nat.cast_sub fits]
+      simp only [isSigningCall, Sum.elim_inr, Bool.toNat_true, Nat.cast_one]; ring
 
 private theorem prob_row_changes (H : Xofs) (s : Level) (A : PublicMatrix s) (m : BitString 512)
     (D) (key : List Byte) (q : SigningQuery) (row : ExpansionRow (maskPolyBytes s)) :
@@ -305,17 +283,12 @@ private theorem mean_verify_gap_le (s : Level) (H : Xofs) (A : PublicMatrix s)
     base.verify s pk f.message f.context f.signature}
   refine (meanGap_of_agree μ _ _ bad ?_).trans ?_
   · intro y off
-    have eq : (write y).verify s pk f.message f.context f.signature =
-        base.verify s pk f.message f.context f.signature := not_not.mp off
     simp only [score, SignedMatrixTrial.newDigestWin, SignedMatrixTrial.wins, Xofs.winsForgery,
-      SignedMatrixTrial.repeatsDigest, eq]
-  · have h := H.prob_verify_changes_at_maskCommitment_le s A m D pk f
-    have le : μ.toOuterMeasure bad ≤
-        2 * commitmentGuessProbability s.params (by cases s <;> decide) A := by
-      refine le_trans (μ.toOuterMeasure.mono ?_) h
-      exact fun y hy => ⟨replacement y, hy⟩
-    simpa only [δ, ENNReal.toReal_mul, ENNReal.toReal_ofNat] using
-      ENNReal.toReal_mono (ENNReal.mul_ne_top (by simp) finite) le
+      SignedMatrixTrial.repeatsDigest, not_not.mp off]
+  · simpa only [δ, ENNReal.toReal_mul, ENNReal.toReal_ofNat] using
+      ENNReal.toReal_mono (ENNReal.mul_ne_top (by simp) finite)
+        ((H.prob_verify_changes_at_maskCommitment_le s A m D pk f).trans'
+          (μ.toOuterMeasure_mono fun y hy => ⟨replacement y, hy.1⟩))
 
 /-- For any remaining adaptive program, changing the digest at one fresh mask commitment changes
 the probability of a verified fresh-digest strong forgery by at most the coherent-query, signing
@@ -344,34 +317,28 @@ theorem mean_expansionContinuation_gap_le (C : QuantumSigningForger) (s : Level)
     ne_top_of_le_ne_top ENNReal.one_ne_top (iSup_le fun _ => PMF.coe_le_one _ _)
   simp only [win, Game.coe_succProbability]
   change PMF.meanAbsDiffAt μ true _ _ ≤ _
-  have bound := scored_meanGap_le (C := C) μ base write
+  refine (scored_meanGap_le (C := C) μ base write
     (fun row q => base.signWithExpansionRow s keys.secretKey q row)
     (fun y row q => (write y).signWithExpansionRow s keys.secretKey q row)
     (fun _ f history _ => POVM.const (SignedMatrixTrial.newDigestWin
       ⟨base, A, keys.publicKey, f, history⟩))
     (fun y f history _ => POVM.const (SignedMatrixTrial.newDigestWin
       ⟨write y, A, keys.publicKey, f, history⟩))
-    (Q := 4 * √δ) (S := 815 * δ) (T := 2 * δ) (by positivity) (by positivity)
-    (prog := prog) (m := qH) (n := qS) (d := d) (log := log) (tape := tape)
-  apply le_trans (bound ?_ ?_ ?_ hash calls)
-  · ring_nf
-    rfl
-  · intro dev M
-    exact mean_query_gap_of_root μ base write dev M ENNReal.toReal_nonneg
+    (Q := 4 * √δ) (S := 815 * δ) (T := 2 * δ)
+    (mul_nonneg (by norm_num) (Real.sqrt_nonneg δ))
+    (mul_nonneg (by norm_num) ENNReal.toReal_nonneg)
+    (fun dev M => mean_query_gap_of_root μ base write dev M ENNReal.toReal_nonneg
       (H.sq_sqrt_readout_after_maskCommitment_le s A m D replacement C.addressBits
-        C.responseBytes C.workQubits dev M true)
-  · intro row q
-    have h := prob_row_changes H s A m D keys.secretKey q row
-    have le : μ.toOuterMeasure {y | (write y).signWithExpansionRow s keys.secretKey q row ≠
-        base.signWithExpansionRow s keys.secretKey q row} ≤
-        815 * commitmentGuessProbability s.params (by cases s <;> decide) A := by
-      refine le_trans (μ.toOuterMeasure.mono ?_) h
-      exact fun y hy => ⟨replacement y, hy⟩
-    simpa only [δ, ENNReal.toReal_mul, ENNReal.toReal_ofNat] using
-      ENNReal.toReal_mono (ENNReal.mul_ne_top (by simp) finite) le
-  · intro f history rest dev
-    simpa only [observe, POVM.measureDensity_const] using
-      mean_verify_gap_le s H A m D replacement keys.publicKey f history
+        C.responseBytes C.workQubits dev M true)) ?_
+    (fun f history _ _ => by
+      simpa only [observe, POVM.measureDensity_const] using
+        mean_verify_gap_le s H A m D replacement keys.publicKey f history)
+    hash calls d log tape).trans (by linarith)
+  intro row q
+  simpa only [δ, ENNReal.toReal_mul, ENNReal.toReal_ofNat] using
+    ENNReal.toReal_mono (ENNReal.mul_ne_top (by simp) finite)
+      ((prob_row_changes H s A m D keys.secretKey q row).trans'
+        (μ.toOuterMeasure_mono fun y hy => ⟨replacement y, hy.1⟩))
 
 /-- Running the resumed comparison at the initial device with independent mask-expansion
 rows gives the fresh-digest game in the original forgery bound, including failed key
@@ -387,25 +354,20 @@ theorem freshExpansionGame_eq_expansionContinuation (C : QuantumSigningForger) (
       C.expansionContinuation s H A keys (C.program keys.publicKey) C.initialDevice []
         (List.ofFn rows)) := by
   simp only [freshExpansionGame, PMF.monad_bind_eq_bind]
-  apply congrArg (PMF.bind (base.uniformPrefixes a b) ·)
-  funext H
-  apply congrArg (PMF.bind (PMF.uniformOfFintype (FixedBytes 32)) ·)
-  funext seed
+  refine congrArg (PMF.bind (base.uniformPrefixes a b)) (funext fun H =>
+    congrArg (PMF.bind (PMF.uniformOfFintype (FixedBytes 32))) (funext fun seed => ?_))
   simp only [scoreTranscript, withTrialSetup]
-  cases key : H.keyGen s seed with
-  | none => rfl
-  | some keys =>
-    dsimp only
-    cases mat : H.expandA s (keys.publicKey.take 32) with
-    | none => rfl
-    | some A =>
-      dsimp only
+  rcases H.keyGen s seed with _ | keys
+  · rfl
+  · dsimp only
+    rcases H.expandA s (keys.publicKey.take 32) with _ | A
+    · rfl
+    · dsimp only
       rw [freshExpansionTranscript, ← C.uniform_signingTapeTranscript _ _ _ hn, PMF.map_bind]
-      apply congrArg (PMF.bind _ ·)
-      funext rows
-      simp only [expansionContinuation, scored, signingTapeTranscript, POVM.measureDensity_const,
-        PMF.map_comp, Function.comp_def]
-      rfl
+      exact congrArg (PMF.bind _) (funext fun _ => by
+        simp only [expansionContinuation, scored, signingTapeTranscript, POVM.measureDensity_const,
+          PMF.map_comp, Function.comp_def]
+        rfl)
 
 end QuantumSigningForger
 end Cslib.Crypto.MLDSA.FIPS204

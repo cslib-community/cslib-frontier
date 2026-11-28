@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Compression
 import CslibFrontier.Computability.Circuit.Frontier.Layouts.Core
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Combinatorics.SimpleGraph.Acyclic
 import Mathlib.Tactic.Linarith
 
@@ -145,8 +146,7 @@ theorem layoutBound_one (d : ℕ) : LayoutBound d 1 :=
   LayoutBound.of_natLog (D := d) fun η hη => ⟨0, fun V E _ _ G hG _ hd => by
     obtain ⟨π, hπ⟩ := G.exists_width_le_cycleRank_add hG hd
     refine ⟨π, ?_⟩
-    have : (G.width π : ℝ) ≤ G.cycleRank + d * Nat.log 2 (Nat.card V) := by exact_mod_cast hπ
     have := mul_nonneg hη.le (Nat.cast_nonneg (α := ℝ) G.cycleRank)
-    linarith⟩
+    cast_linarith [hπ]⟩
 
 end Cslib.Circuits.Frontier

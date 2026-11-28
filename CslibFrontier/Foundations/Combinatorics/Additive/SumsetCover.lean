@@ -58,31 +58,22 @@ theorem exists_add_cover_of_degree (A B : Finset (ι → Bool)) (p q : ℕ) :
   have hdecomp := (hasSliceDecomposition_add (K := ZMod 2) (ι := ι) p q).comp
     (fun a : A => a.1) (fun b : B => b.1)
   obtain ⟨s, t, hcard, hcover⟩ := exists_image_cover hdecomp
-  refine ⟨s.image Subtype.val, t.image Subtype.val, ?_, ?_, ?_, ?_⟩
-  · intro a ha
-    obtain ⟨a', _, rfl⟩ := mem_image.mp ha
-    exact a'.2
-  · intro b hb
-    obtain ⟨b', _, rfl⟩ := mem_image.mp hb
-    exact b'.2
+  refine ⟨s.image Subtype.val, t.image Subtype.val, image_subset_iff.mpr fun a _ => a.2,
+    image_subset_iff.mpr fun b _ => b.2, ?_, ?_⟩
   · ext x
     constructor
     · intro hx
       obtain ⟨a, ha, b, hb, hab⟩ := mem_add.mp hx
-      rcases hcover ⟨a, ha⟩ ⟨b, hb⟩ with hleft | hright
-      · obtain ⟨a', ha', b', hab'⟩ := hleft
-        exact mem_union_left _ (mem_add.mpr
+      rcases hcover ⟨a, ha⟩ ⟨b, hb⟩ with ⟨a', ha', b', hab'⟩ | ⟨b', hb', a', hab'⟩
+      · exact mem_union_left _ (mem_add.mpr
           ⟨a'.1, mem_image.mpr ⟨a', ha', rfl⟩, b'.1, b'.2, hab'.trans hab⟩)
-      · obtain ⟨b', hb', a', hab'⟩ := hright
-        exact mem_union_right _ (mem_add.mpr
+      · exact mem_union_right _ (mem_add.mpr
           ⟨a'.1, a'.2, b'.1, mem_image.mpr ⟨b', hb', rfl⟩, hab'.trans hab⟩)
     · intro hx
-      rcases mem_union.mp hx with hx | hx
-      · obtain ⟨a, ha, b, hb, hab⟩ := mem_add.mp hx
-        obtain ⟨a', _, rfl⟩ := mem_image.mp ha
+      rcases mem_union.mp hx with hx | hx <;> obtain ⟨a, ha, b, hb, hab⟩ := mem_add.mp hx
+      · obtain ⟨a', _, rfl⟩ := mem_image.mp ha
         exact mem_add.mpr ⟨a'.1, a'.2, b, hb, hab⟩
-      · obtain ⟨a, ha, b, hb, hab⟩ := mem_add.mp hx
-        obtain ⟨b', _, rfl⟩ := mem_image.mp hb
+      · obtain ⟨b', _, rfl⟩ := mem_image.mp hb
         exact mem_add.mpr ⟨a, ha, b'.1, b'.2, hab⟩
   · have hA := Submodule.finrank_map_le restrictA (lowDegree (ZMod 2) ι p)
     have hB := Submodule.finrank_map_le restrictB (lowDegree (ZMod 2) ι q)

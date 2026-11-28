@@ -52,16 +52,13 @@ private theorem flow_clear_between
     (left_rule : after lower ≠ .forward) (right_rule : before upper ≠ .backward) :
     before position = .none ∧ after position = .none := by
   have first : after lower = .none := by
-    cases h : after lower with
-    | none => rfl
-    | forward => exact (left_rule h).elim
-    | backward =>
-      have whole := value_between (fun x => x) after before (hleft.trans hright)
-        (fun x _ _ => matching x) transmit
-      exact (right_rule (whole.symm.trans h)).elim
-  have segment := value_between (fun x => x) after before hleft
-    (fun x _ _ => matching x) (fun x hl hx => transmit x hl (hx.trans hright))
-  have at_position := segment.symm.trans first
+    cases h : after lower
+    · rfl
+    · exact (left_rule h).elim
+    · exact (right_rule ((value_between id after before (hleft.trans hright)
+        (fun x _ _ => matching x) transmit).symm.trans h)).elim
+  have at_position := (value_between id after before hleft (fun x _ _ => matching x)
+    fun x hl hx => transmit x hl (hx.trans hright)).symm.trans first
   exact ⟨at_position, (transmit position hleft hright).symm.trans at_position⟩
 
 private theorem flow_blocked_of_boundary
@@ -88,12 +85,11 @@ private theorem flow_blocked_of_boundary
   rcases boundary with here | ⟨bound, hbound, _, selected_bound, between⟩ |
       ⟨bound, _, hbound, selected_bound, between⟩
   · have local_rule := allowed position
-    cases h : coding (selected position) with
-    | none =>
-      cases hs : selected position with
-      | none => exact here hs
-      | some d => exact coding_live d (hs ▸ h)
-    | some b => cases b <;> simp [h, flowAllowed, clear.1, clear.2] at local_rule
+    rcases h : coding (selected position) with _ | (_ | _)
+    · rcases hs : selected position with _ | d
+      · exact here hs
+      · exact coding_live d (hs ▸ h)
+    all_goals simp [h, flowAllowed, clear.1, clear.2] at local_rule
   · have local_rule := allowed bound
     simp only [selected_bound, coding_positive, flowAllowed, decide_eq_true_eq] at local_rule
     exact local_rule.1 ((step_eq hbound between).symm.trans clear.2)
@@ -200,23 +196,16 @@ private theorem CycleShade.clear_at_free_row
     (free : IsFreeRow indexGrid shadeGrid west east y)
     (hw : quarterWest west < x) (he : x < quarterEast east) :
     (signalGrid x y).west = .none ∧ (signalGrid x y).east = .none := by
-  refine flow_clear_between (fun x => (signalGrid x y).west)
+  have hend (b : Bool) := by
+    have h := valid.horizontal_allowed (if b then quarterWest west else quarterEast east) y
+    rw [shaded.vertical_selected cycle valid b hs hn] at h
+    exact h
+  exact flow_clear_between (fun x => (signalGrid x y).west)
     (fun x => (signalGrid x y).east) hw he (fun x => valid.horizontal x y)
     (fun x hxw hxe => flow_transmits (by
       simpa only [free x hxw hxe, SignalState.horizontalAllowed, horizontalInteriorCode]
-        using valid.horizontal_allowed x y)) ?_ ?_
-  · have h := valid.horizontal_allowed (quarterWest west) y
-    have sel := shaded.vertical_selected cycle valid true hs hn
-    simp only [↓reduceIte] at sel
-    simp only [sel, SignalState.horizontalAllowed, horizontalInteriorCode, flowAllowed,
-      decide_eq_true_eq] at h
-    exact h.2
-  · have h := valid.horizontal_allowed (quarterEast east) y
-    have sel := shaded.vertical_selected cycle valid false hs hn
-    simp only [Bool.false_eq_true, ↓reduceIte] at sel
-    simp only [sel, SignalState.horizontalAllowed, horizontalInteriorCode, flowAllowed,
-      decide_eq_true_eq] at h
-    exact h.2
+        using valid.horizontal_allowed x y))
+    (of_decide_eq_true (hend true)).2 (of_decide_eq_true (hend false)).2
 
 /-- Both vertical signal edges vanish at each strict interior point of a free board column. -/
 private theorem CycleShade.clear_at_free_column
@@ -227,23 +216,16 @@ private theorem CycleShade.clear_at_free_column
     (free : IsFreeColumn indexGrid shadeGrid south north x)
     (hs : quarterSouth south < y) (hn : y < quarterNorth north) :
     (signalGrid x y).south = .none ∧ (signalGrid x y).north = .none := by
-  refine flow_clear_between (fun y => (signalGrid x y).south)
+  have hend (b : Bool) := by
+    have h := valid.vertical_allowed x (if b then quarterSouth south else quarterNorth north)
+    rw [shaded.horizontal_selected cycle valid b hw he] at h
+    exact h
+  exact flow_clear_between (fun y => (signalGrid x y).south)
     (fun y => (signalGrid x y).north) hs hn (fun y => valid.vertical x y)
     (fun y hys hyn => flow_transmits (by
       simpa only [free y hys hyn, SignalState.verticalAllowed, verticalInteriorCode]
-        using valid.vertical_allowed x y)) ?_ ?_
-  · have h := valid.vertical_allowed x (quarterSouth south)
-    have sel := shaded.horizontal_selected cycle valid true hw he
-    simp only [↓reduceIte] at sel
-    simp only [sel, SignalState.verticalAllowed, verticalInteriorCode, flowAllowed,
-      decide_eq_true_eq] at h
-    exact h.2
-  · have h := valid.vertical_allowed x (quarterNorth north)
-    have sel := shaded.horizontal_selected cycle valid false hw he
-    simp only [Bool.false_eq_true, ↓reduceIte] at sel
-    simp only [sel, SignalState.verticalAllowed, verticalInteriorCode, flowAllowed,
-      decide_eq_true_eq] at h
-    exact h.2
+        using valid.vertical_allowed x y))
+    (of_decide_eq_true (hend true)).2 (of_decide_eq_true (hend false)).2
 
 /-- Every crossing of free rows and columns has all four obstruction signals absent. -/
 private theorem CycleShade.clear_at_free_crossing
@@ -255,12 +237,10 @@ private theorem CycleShade.clear_at_free_crossing
     (row : IsFreeRow indexGrid shadeGrid west east y)
     (column : IsFreeColumn indexGrid shadeGrid south north x) :
     signalGrid x y = SignalState.clear := by
-  have ⟨hw', he'⟩ := CycleShade.clear_at_free_row shaded cycle valid hs hn row hw he
-  have ⟨hs', hn'⟩ := CycleShade.clear_at_free_column shaded cycle valid hw he column hs hn
-  cases h : signalGrid x y with
-  | mk w e s n =>
-    simp only [h] at hw' he' hs' hn'
-    simp [SignalState.clear, hw', he', hs', hn']
+  obtain ⟨hw', he'⟩ := shaded.clear_at_free_row cycle valid hs hn row hw he
+  obtain ⟨hs', hn'⟩ := shaded.clear_at_free_column cycle valid hw he column hs hn
+  cases h : signalGrid x y
+  simp_all [SignalState.clear]
 
 end
 
@@ -291,26 +271,21 @@ private theorem Geometry.crossingObstruction
     {signalGrid : ℕ → ℕ → SignalState} {west east south north : ℕ}
     (geometry : Geometry indexGrid shadeGrid west east south north)
     (valid : ValidSignalGrid indexGrid shadeGrid signalGrid) :
-    CrossingObstruction indexGrid shadeGrid signalGrid west east south north := by
-  constructor
-  · intro column row hw he hs hn free not_free
-    exact flow_blocked_of_boundary
+    CrossingObstruction indexGrid shadeGrid signalGrid west east south north :=
+  ⟨fun hw he hs hn free not_free => flow_blocked_of_boundary
       (fun y => selectedHorizontalFor
-        (componentAt indexGrid column y) (quadrantAt column y) (shadeGrid column y))
-      verticalInteriorCode .north .south rfl
-      (by intro direction; cases direction <;> decide) rfl rfl
-      (fun y => (signalGrid column y).south) (fun y => (signalGrid column y).north)
-      (fun y => valid.vertical column y) (fun y => valid.vertical_allowed column y)
-      (geometry.verticalBoundary hw he hs hn free not_free)
-  · intro column row hw he hs hn free not_free
-    exact flow_blocked_of_boundary
+        (componentAt indexGrid _ y) (quadrantAt _ y) (shadeGrid _ y))
+      verticalInteriorCode .north .south rfl (by rintro (_ | _) <;> decide) rfl rfl
+      (fun y => (signalGrid _ y).south) (fun y => (signalGrid _ y).north)
+      (fun y => valid.vertical _ y) (fun y => valid.vertical_allowed _ y)
+      (geometry.verticalBoundary hw he hs hn free not_free),
+    fun hw he hs hn free not_free => flow_blocked_of_boundary
       (fun x => selectedVerticalFor
-        (componentAt indexGrid x row) (quadrantAt x row) (shadeGrid x row))
-      horizontalInteriorCode .east .west rfl
-      (by intro direction; cases direction <;> decide) rfl rfl
-      (fun x => (signalGrid x row).west) (fun x => (signalGrid x row).east)
-      (fun x => valid.horizontal x row) (fun x => valid.horizontal_allowed x row)
-      (geometry.horizontalBoundary hw he hs hn free not_free)
+        (componentAt indexGrid x _) (quadrantAt x _) (shadeGrid x _))
+      horizontalInteriorCode .east .west rfl (by rintro (_ | _) <;> decide) rfl rfl
+      (fun x => (signalGrid x _).west) (fun x => (signalGrid x _).east)
+      (fun x => valid.horizontal x _) (fun x => valid.horizontal_allowed x _)
+      (geometry.horizontalBoundary hw he hs hn free not_free)⟩
 
 end
 

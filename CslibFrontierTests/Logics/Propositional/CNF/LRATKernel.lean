@@ -16,8 +16,9 @@ public meta import CslibFrontierTests.Logics.Propositional.CNF.LRAT
 The kernel evaluates `CNF.checkLRATKernel` with `decide +kernel`. It accepts CaDiCaL's certificate
 for the pigeonhole formula PHP(5, 4) from the tests of `CNF.checkLRAT`, and rejects each failing
 certificate of those tests: hints that do not propagate to a conflict, a certificate without an
-empty-clause step, a RAT step, a hint naming a deleted clause or no clause, and a RUP step whose
-hint leaves two literals open.
+empty-clause step, a RAT step without the hints its candidates need, a hint naming a deleted
+clause or no clause, and a RUP step whose hint leaves two literals open. Its tests with RAT steps
+are those of `CNF.checkLRATRat`.
 
 Each step starts from an empty trail, and the edge cases of the tests of `CNF.checkLRATFast` are
 checked here too: a clause containing both polarities of a variable, a reused clause number, and
@@ -35,8 +36,8 @@ open CslibFrontierTests.Logics.Propositional.CNF.LRAT (php phpCert)
 example : php.checkLRATKernel phpCert = true := by decide +kernel
 
 example : ¬ php.Satisfiable :=
-  CNF.not_satisfiable_of_checkLRAT (cert := phpCert)
-    ((CNF.checkLRATKernel_eq_checkLRAT _ _).symm.trans (by decide +kernel))
+  CNF.not_satisfiable_of_checkLRATRat (cert := phpCert)
+    ((CNF.checkLRATKernel_eq_checkLRATRat _ _).symm.trans (by decide +kernel))
 
 /-- Every clause over two variables, as in the tests of `CNF.checkLRAT`. -/
 private abbrev φ : CNF ℕ :=
@@ -66,7 +67,7 @@ example : φ.checkLRATKernel #[.addEmpty 5 #[3, 4]] = false := by decide +kernel
 -- A certificate that does not reach an empty-clause step.
 example : φ.checkLRATKernel #[.addRup 5 #[1] #[1, 2]] = false := by decide +kernel
 
--- A RAT step.
+-- A RAT step on `a` whose candidates `¬a ∨ b` and `¬a ∨ ¬b` have no RAT hints.
 example : φ.checkLRATKernel #[.addRat 5 #[1] (0, true) #[] #[], .addEmpty 6 #[5, 3, 4]] =
     false := by
   decide +kernel

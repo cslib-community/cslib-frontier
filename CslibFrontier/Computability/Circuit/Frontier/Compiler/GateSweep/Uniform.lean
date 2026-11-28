@@ -15,6 +15,7 @@ import CslibFrontier.Foundations.Data.Finset.Expect
 import CslibFrontier.Foundations.Data.Nat.Card
 import CslibFrontier.Foundations.Data.Set.Card
 import CslibFrontier.Foundations.Probability.EfronStein
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Expect
@@ -105,8 +106,7 @@ theorem one_sub_two_pow_le_tangent (k₀ : ℕ) {k : ℕ} (hk : 1 ≤ k) :
       have hd : d + 1 ≤ 2 ^ d := Nat.succ_le_of_lt d.lt_two_pow_self
       have hnat : k₀ + 2 ≤ 2 ^ d + k := by omega
       have hreal : (k₀ + 2 : ℝ) ≤ ((2 ^ d + k : ℕ) : ℝ) := by exact_mod_cast hnat
-      push_cast at hreal
-      linarith
+      cast_linarith
   have hdiv : ((k₀ : ℝ) + 2) / (2 : ℝ) ^ k₀ ≤ (1 / 2 : ℝ) ^ (k - 1) + (k : ℝ) / (2 : ℝ) ^ k₀ := by
     rw [← mul_div_cancel_left₀ ((1 / 2 : ℝ) ^ (k - 1)) hpos.ne', ← add_div]
     exact div_le_div_of_nonneg_right hcore hpos.le
@@ -247,11 +247,7 @@ private theorem abs_card_filter_sub_le {α : Type*} [Fintype α]
     (Finset.card_le_card hsub₁).trans (Finset.card_union_le _ _)
   have h2 : (Finset.univ.filter q).card ≤ (Finset.univ.filter p).card + T.card :=
     (Finset.card_le_card hsub₂).trans (Finset.card_union_le _ _)
-  have h1R : ((Finset.univ.filter p).card : ℝ) ≤ (Finset.univ.filter q).card + T.card := by
-    exact_mod_cast h1
-  have h2R : ((Finset.univ.filter q).card : ℝ) ≤ (Finset.univ.filter p).card + T.card := by
-    exact_mod_cast h2
-  exact abs_le.mpr ⟨by linarith, by linarith⟩
+  exact abs_le.mpr ⟨by cast_linarith [h2, h1], by cast_linarith⟩
 
 /-- Updating coordinate `u` of `ω` changes `# {x | P x ω}` by at most `# {x | u ∈ S x}` whenever
 `P x` depends only on `S x`. -/
@@ -422,12 +418,9 @@ private theorem exists_forest_pieces {V : Type*} [Fintype V] [DecidableEq V]
     have hkids : kids.card ≤ 2 :=
       (Finset.card_le_card fun v hv =>
         Finset.mem_filter.mpr ⟨Finset.mem_univ v, (Finset.mem_filter.mp hv).2.1⟩).trans (hdeg u)
+    have := Finset.card_biUnion_le_card_mul kids sc B fun v hv => (Finset.mem_filter.mp hv).2.2
     calc (insert u (kids.biUnion sc)).card
-        ≤ 1 + (kids.biUnion sc).card := (Finset.card_insert_le _ _).trans_eq (Nat.add_comm _ 1)
-      _ ≤ 1 + ∑ v ∈ kids, (sc v).card := Nat.add_le_add_left Finset.card_biUnion_le 1
-      _ ≤ 1 + ∑ _v ∈ kids, B :=
-          Nat.add_le_add_left (Finset.sum_le_sum fun v hv => (Finset.mem_filter.mp hv).2.2) 1
-      _ = 1 + kids.card * B := by rw [Finset.sum_const, smul_eq_mul]
+        ≤ (kids.biUnion sc).card + 1 := Finset.card_insert_le _ _
       _ ≤ 2 * B + 1 := by nlinarith
   have hmem_rt : ∀ (k : ℕ) (u : V), rank u < k → ∀ x ∈ sc u, rt x = rt u := by
     intro k
@@ -479,17 +472,13 @@ private theorem exists_forest_pieces {V : Type*} [Fintype V] [DecidableEq V]
         · rw [hrt]
   refine ⟨rt, fun r => ?_, ?_⟩
   · have hsub : {x : V | rt x = r} ⊆ (sc r : Set V) := by
-      intro x hx
-      rw [mem_ofPred_eq] at hx
-      rw [← hx]
-      have hx_self : x ∈ sc x := by
-        dsimp only [sc]
-        rw [subComp_eq]
-        exact Finset.mem_insert_self x _
-      have hf : Finset.univ.sup rank < rank x + (Finset.univ.sup rank + 1) := by
-        have := Finset.le_sup (f := rank) (Finset.mem_univ x)
-        omega
-      exact hsub_rt _ x hf hx_self
+      intro x (hx : rt x = r)
+      subst hx
+      refine hsub_rt (Finset.univ.sup rank + 1) x
+        (by have := Finset.le_sup (f := rank) (Finset.mem_univ x); omega) ?_
+      dsimp only [sc]
+      rw [subComp_eq]
+      exact Finset.mem_insert_self x _
     exact (ncard_le_ncard hsub (toFinite _)).trans ((ncard_coe_finset (sc r)).trans_le (hcard_sc r))
   · have hheavy : {v : V | ∃ u, parent v = some u ∧ rt v ≠ rt u} ⊆
         {r : V | B + 1 ≤ {x ∈ (univ : Set V) | rt x = r}.ncard} := by
@@ -562,84 +551,36 @@ theorem exists_layout_signalWidth_of_piece (c : Circuit σ n m) {r : ℕ} (hfan 
         (exists_congr fun z => and_congr_right fun hz => by rw [hag z hz]))
       (exists_congr fun z => and_congr_right fun hz => by rw [hag z hz])
   have hT_le (u : κ) : (T u).card ≤ (r + 1) * {v : Node c | piece v = u}.ncard := by
-    let fib : Finset (Node c) := Finset.univ.filter fun v => piece v = u
-    have hfib_card : fib.card = {v : Node c | piece v = u}.ncard := by
-      rw [← ncard_coe_finset]
-      congr 1
-      ext v
-      simp [fib]
-    have hsub : T u ⊆ fib.biUnion fun v =>
+    have hsub : T u ⊆ (Finset.univ.filter fun v => piece v = u).biUnion fun v =>
         Finset.univ.filter fun w : ActiveSignal c => v ∈ support c w := by
       intro w hw
-      have huP : u ∈ P w := (Finset.mem_filter.mp hw).2
-      obtain ⟨v, hv, hpv⟩ := (toFinite _).mem_toFinset.mp huP
-      exact Finset.mem_biUnion.mpr ⟨v, Finset.mem_filter.mpr ⟨Finset.mem_univ v, hpv⟩,
-        Finset.mem_filter.mpr ⟨Finset.mem_univ w, hv⟩⟩
-    calc (T u).card
-        ≤ ∑ v ∈ fib, (Finset.univ.filter fun w : ActiveSignal c => v ∈ support c w).card :=
-          (Finset.card_le_card hsub).trans Finset.card_biUnion_le
-      _ ≤ ∑ _v ∈ fib, (r + 1) := Finset.sum_le_sum fun v _ => by
-          have heq : (Finset.univ.filter fun w : ActiveSignal c => v ∈ support c w).card =
-              {w : ActiveSignal c | v ∈ support c w}.ncard := by
-            rw [← ncard_coe_finset]
-            congr 1
-            ext w
-            simp
-          rw [heq]
-          exact ncard_activeSignal_mem_support_le hfan v
-      _ = (r + 1) * {v : Node c | piece v = u}.ncard := by
-          rw [Finset.sum_const, smul_eq_mul, mul_comm, hfib_card]
+      obtain ⟨v, hv, hpv⟩ := (toFinite _).mem_toFinset.mp (Finset.mem_filter.mp hw).2
+      simpa using ⟨v, hpv, hv⟩
+    refine (Finset.card_le_card hsub).trans (Finset.card_biUnion_le.trans ?_)
+    rw [ncard_eq_toFinset_card', toFinset_ofPred, mul_comm, ← smul_eq_mul, ← Finset.sum_const]
+    refine Finset.sum_le_sum fun v _ => ?_
+    simpa [ncard_eq_toFinset_card'] using ncard_activeSignal_mem_support_le hfan v
   have hsum_sq : ∑ _j : Fin M, ∑ u : κ, ((T u).card : ℝ) ^ 2 ≤
       ((r + 1 : ℝ) ^ 2) * (M * R * Nat.card (Node c)) := by
     have hfib_sum : ∑ u : κ, ({v : Node c | piece v = u}.ncard : ℝ) = Nat.card (Node c) := by
-      have h1 : ∑ u : κ, {v : Node c | piece v = u}.ncard = Fintype.card (Node c) := by
-        have hpart := Finset.card_eq_sum_card_fiberwise (s := (Finset.univ : Finset (Node c)))
-          (f := piece) (t := Finset.univ) (fun _ _ => Finset.mem_univ _)
-        rw [Finset.card_univ] at hpart
-        rw [hpart]
-        refine Finset.sum_congr rfl fun u _ => ?_
-        rw [← ncard_coe_finset]
-        congr 1
-        ext v
-        simp
-      rw [← Nat.cast_sum, h1, Nat.card_eq_fintype_card]
-    have hinner : ∑ u : κ, ((T u).card : ℝ) ^ 2 ≤
-        ((r + 1 : ℝ) ^ 2 * R) * Nat.card (Node c) := by
-      calc ∑ u : κ, ((T u).card : ℝ) ^ 2
-          ≤ ∑ u : κ, ((r + 1 : ℝ) * {v : Node c | piece v = u}.ncard) ^ 2 :=
-            Finset.sum_le_sum fun u _ =>
-              pow_le_pow_left₀ (Nat.cast_nonneg _) (by exact_mod_cast hT_le u) 2
-        _ ≤ ∑ u : κ, ((r + 1 : ℝ) ^ 2 * R) * {v : Node c | piece v = u}.ncard :=
-            Finset.sum_le_sum fun u _ => by
-              have huR : ({v : Node c | piece v = u}.ncard : ℝ) ≤ R := by exact_mod_cast hR u
-              have hunn : (0 : ℝ) ≤ {v : Node c | piece v = u}.ncard := Nat.cast_nonneg _
-              calc ((r + 1 : ℝ) * {v : Node c | piece v = u}.ncard) ^ 2
-                  = (r + 1 : ℝ) ^ 2 *
-                      (({v : Node c | piece v = u}.ncard : ℝ) *
-                        {v : Node c | piece v = u}.ncard) := by ring
-                _ ≤ (r + 1 : ℝ) ^ 2 * ((R : ℝ) * {v : Node c | piece v = u}.ncard) :=
-                    mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right huR hunn) (sq_nonneg _)
-                _ = ((r + 1 : ℝ) ^ 2 * R) * {v : Node c | piece v = u}.ncard := by ring
-        _ = ((r + 1 : ℝ) ^ 2 * R) * Nat.card (Node c) := by
-            rw [← Finset.mul_sum, hfib_sum]
-    calc ∑ _j : Fin M, ∑ u : κ, ((T u).card : ℝ) ^ 2
-        ≤ ∑ _j : Fin M, ((r + 1 : ℝ) ^ 2 * R) * Nat.card (Node c) :=
-          Finset.sum_le_sum fun _ _ => hinner
-      _ = ((r + 1 : ℝ) ^ 2) * (M * R * Nat.card (Node c)) := by
-          rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
-          ring
+      rw [Nat.card_eq_fintype_card, ← Finset.card_univ,
+        Finset.card_eq_sum_card_fiberwise fun v _ => Finset.mem_univ (piece v), Nat.cast_sum]
+      simp only [ncard_eq_toFinset_card', toFinset_ofPred]
+    have hinner : ∑ u : κ, ((T u).card : ℝ) ^ 2 ≤ ((r + 1 : ℝ) ^ 2 * R) * Nat.card (Node c) := by
+      rw [← hfib_sum, Finset.mul_sum]
+      refine Finset.sum_le_sum fun u _ => ?_
+      have hT : ((T u).card : ℝ) ≤ (r + 1) * {v : Node c | piece v = u}.ncard := by
+        exact_mod_cast hT_le u
+      have huR : ({v : Node c | piece v = u}.ncard : ℝ) ≤ R := by exact_mod_cast hR u
+      nlinarith [pow_le_pow_left₀ (Nat.cast_nonneg _) hT 2, mul_nonneg (mul_nonneg
+        (sq_nonneg ((r : ℝ) + 1)) (Nat.cast_nonneg {v : Node c | piece v = u}.ncard))
+        (sub_nonneg.2 huR)]
+    simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+    nlinarith [mul_le_mul_of_nonneg_left hinner (Nat.cast_nonneg (α := ℝ) M)]
   have hexp_f (j : Fin M) :
       (𝔼 ω : κ → Fin M, f j ω) ≤
         (∑ w : ActiveSignal c, (1 - (1 / 2 : ℝ) ^ ((P w).card - 1))) +
         ((r + 1) * Nat.card (Node c) : ℝ) / M := by
-    have hf_sum (ω : κ → Fin M) :
-        f j ω = ∑ w : ActiveSignal c, if bad j ω w then (1 : ℝ) else 0 := by
-      dsimp only [f]
-      rw [Finset.sum_boole]
-    have hexp_comm : (𝔼 ω : κ → Fin M, f j ω) =
-        ∑ w : ActiveSignal c, 𝔼 ω : κ → Fin M, if bad j ω w then (1 : ℝ) else 0 := by
-      simp_rw [hf_sum, Fintype.expect_eq_sum_div_card]
-      rw [Finset.sum_comm, Finset.sum_div]
     have hterm (w : ActiveSignal c) :
         (𝔼 ω : κ → Fin M, if bad j ω w then (1 : ℝ) else 0) ≤
           (1 - (1 / 2 : ℝ) ^ ((P w).card - 1)) + ((P w).card : ℝ) / M := by
@@ -649,59 +590,40 @@ theorem exists_layout_signalWidth_of_piece (c : Circuit σ n m) {r : ℕ} (hfan 
               (if ∀ u ∈ P w, j.1 ≤ (ω u : ℕ) then (1 : ℝ) else 0)) +
             ∑ u ∈ P w, if (ω u : ℕ) = j.1 then (1 : ℝ) else 0 := by
         obtain ⟨u₀, hu₀⟩ := hP_ne w
-        have hnot_both : ¬ ((∀ u ∈ P w, (ω u : ℕ) < j.1) ∧ (∀ u ∈ P w, j.1 ≤ (ω u : ℕ))) := by
-          rintro ⟨h₁, h₂⟩
-          exact absurd (lt_of_lt_of_le (h₁ u₀ hu₀) (h₂ u₀ hu₀)) (lt_irrefl _)
-        have hsum_nn : (0 : ℝ) ≤ ∑ u ∈ P w, if (ω u : ℕ) = j.1 then (1 : ℝ) else 0 :=
-          Finset.sum_nonneg fun _ _ => by split_ifs <;> norm_num
-        by_cases hb : bad j ω w <;>
-          by_cases ha1 : ∀ u ∈ P w, (ω u : ℕ) < j.1 <;>
-          by_cases ha2 : ∀ u ∈ P w, j.1 ≤ (ω u : ℕ)
-        · exact absurd ⟨ha1, ha2⟩ hnot_both
-        · rcases hb with ⟨_, u₂, hu₂, hge⟩ | ⟨u₁, hu₁, heq⟩
-          · exact absurd (lt_of_lt_of_le (ha1 u₂ hu₂) hge) (lt_irrefl _)
-          · exact absurd (heq ▸ ha1 u₁ hu₁) (lt_irrefl _)
-        · simp only [hb, ha1, eq_true ha2, ↓reduceIte]
-          rcases hb with ⟨⟨u₁, hu₁, hlt⟩, _⟩ | ⟨u₁, hu₁, heq⟩
-          · exact absurd (lt_of_lt_of_le hlt (ha2 u₁ hu₁)) (lt_irrefl _)
-          · have h1 := Finset.single_le_sum (f := fun u => if (ω u : ℕ) = j.1 then (1 : ℝ) else 0)
-              (fun _ _ => by split_ifs <;> norm_num) hu₁
-            simp only [heq, ↓reduceIte] at h1
-            linarith
-        · simp only [hb, ha1, ha2, ↓reduceIte]
+        have hS0 : (0 : ℝ) ≤ ∑ u ∈ P w, if (ω u : ℕ) = j.1 then (1 : ℝ) else 0 :=
+          Finset.sum_nonneg fun _ _ => by positivity
+        by_cases ha1 : ∀ u ∈ P w, (ω u : ℕ) < j.1
+        · have ha2 : ¬∀ u ∈ P w, j.1 ≤ (ω u : ℕ) := fun h => (h u₀ hu₀).not_gt (ha1 u₀ hu₀)
+          have hb : ¬bad j ω w := by
+            rintro (⟨_, u, hu, h⟩ | ⟨u, hu, h⟩) <;> have := ha1 u hu <;> omega
+          simp only [hb, eq_true ha1, ha2, ↓reduceIte]
           linarith
-        · exact absurd ⟨ha1, ha2⟩ hnot_both
-        · simp only [hb, eq_true ha1, ha2, ↓reduceIte]
-          linarith
-        · simp only [hb, ha1, eq_true ha2, ↓reduceIte]
-          linarith
-        · simp only [hb, ha1, ha2, ↓reduceIte]
-          linarith
+        by_cases ha2 : ∀ u ∈ P w, j.1 ≤ (ω u : ℕ)
+        · simp only [ha1, eq_true ha2, ↓reduceIte]
+          split_ifs with hb
+          · obtain ⟨⟨u, hu, h⟩, _⟩ | ⟨u, hu, h⟩ := hb
+            · exact absurd (ha2 u hu) (by omega)
+            · have h1 := Finset.single_le_sum (f := fun u => if (ω u : ℕ) = j.1 then (1 : ℝ) else 0)
+                (fun _ _ => by positivity) hu
+              simp only [h, ↓reduceIte] at h1
+              linarith
+          · linarith
+        · simp only [ha1, ha2, ↓reduceIte]
+          split_ifs <;> linarith
       have hexp_le₁ := Finset.expect_le_expect fun ω (_ : ω ∈ Finset.univ) => hpwise ω
       rw [Finset.expect_add_distrib, Finset.expect_sub_distrib, Finset.expect_sub_distrib,
         Fintype.expect_const, expect_all_apply (P w) (fun a : Fin M => (a : ℕ) < j.1),
         expect_all_apply (P w) (fun a : Fin M => j.1 ≤ (a : ℕ)),
-        expect_fin_lt j.isLt.le, expect_fin_ge j.isLt.le] at hexp_le₁
-      have hexp_hit :
-          (𝔼 ω : κ → Fin M, ∑ u ∈ P w, if (ω u : ℕ) = j.1 then (1 : ℝ) else 0) =
-            ((P w).card : ℝ) / M := by
-        have hcomm : (𝔼 ω : κ → Fin M, ∑ u ∈ P w, if (ω u : ℕ) = j.1 then (1 : ℝ) else 0) =
-            ∑ u ∈ P w, 𝔼 ω : κ → Fin M, if (ω u : ℕ) = j.1 then (1 : ℝ) else 0 := by
-          simp only [Fintype.expect_eq_sum_div_card]
-          rw [Finset.sum_comm, Finset.sum_div]
-        have hone (u : κ) :
-            (𝔼 ω : κ → Fin M, if (ω u : ℕ) = j.1 then (1 : ℝ) else 0) = 1 / (M : ℝ) := by
-          rw [← Fintype.expect_expect_update
-            (fun ω : κ → Fin M => if (ω u : ℕ) = j.1 then (1 : ℝ) else 0) u]
-          simp only [Function.update_self, expect_fin_eq j.isLt, Fintype.expect_const]
-        rw [hcomm, Finset.sum_congr rfl fun u _ => hone u, Finset.sum_const, nsmul_eq_mul]
-        ring
-      rw [hexp_hit] at hexp_le₁
-      have hα0 : 0 ≤ (j.1 : ℝ) / M := by positivity
-      have hα1 : (j.1 : ℝ) / M ≤ 1 :=
-        (div_le_one (by positivity)).mpr (by exact_mod_cast j.isLt.le)
-      have hk1 : 1 ≤ (P w).card := Finset.card_pos.mpr (hP_ne w)
-      have hconv := one_sub_pow_add_pow_le hα0 hα1 hk1
+        expect_fin_lt j.isLt.le, expect_fin_ge j.isLt.le, Finset.expect_sum_comm] at hexp_le₁
+      have hone (u : κ) :
+          (𝔼 ω : κ → Fin M, if (ω u : ℕ) = j.1 then (1 : ℝ) else 0) = 1 / (M : ℝ) := by
+        rw [← Fintype.expect_expect_update
+          (fun ω : κ → Fin M => if (ω u : ℕ) = j.1 then (1 : ℝ) else 0) u]
+        simp only [Function.update_self, expect_fin_eq j.isLt, Fintype.expect_const]
+      rw [Finset.sum_congr rfl fun u _ => hone u, Finset.sum_const, nsmul_eq_mul,
+        mul_one_div] at hexp_le₁
+      have h1 : (j.1 : ℝ) / M ≤ 1 := (div_le_one (by positivity)).mpr (by exact_mod_cast j.isLt.le)
+      have hconv := one_sub_pow_add_pow_le (by positivity) h1 (Finset.card_pos.mpr (hP_ne w))
       linarith
     have hinc : ∑ w : ActiveSignal c, ((P w).card : ℝ) ≤ (r + 1) * Nat.card (Node c) := by
       have h1 : ∑ w : ActiveSignal c, (P w).card ≤ (r + 1) * Nat.card (Node c) := by
@@ -709,14 +631,12 @@ theorem exists_layout_signalWidth_of_piece (c : Circuit σ n m) {r : ℕ} (hfan 
             ≤ ∑ w : ActiveSignal c, (support c w).ncard :=
               Finset.sum_le_sum fun w _ => hP_card_le w
           _ ≤ (r + 1) * Nat.card (InnerGate c) + m := sum_ncard_support_le_card_innerGate hfan
-          _ ≤ (r + 1) * (Nat.card (InnerGate c) + m) := by
-              rw [Nat.mul_add]
-              exact Nat.add_le_add_left (Nat.le_mul_of_pos_left m (Nat.succ_pos r)) _
+          _ ≤ (r + 1) * (Nat.card (InnerGate c) + m) := by nlinarith
           _ = (r + 1) * Nat.card (Node c) := by
               rw [Nat.card_congr (Node.equiv c), Nat.card_sum,
                 Nat.card_eq_fintype_card (α := Fin m), Fintype.card_fin]
       exact_mod_cast h1
-    rw [hexp_comm]
+    simp only [f, Finset.natCast_card_filter, Finset.expect_sum_comm]
     have hsum1 := Finset.sum_le_sum fun w (_ : w ∈ Finset.univ) => hterm w
     rw [Finset.sum_add_distrib, ← Finset.sum_div] at hsum1
     have hdiv := div_le_div_of_nonneg_right hinc (Nat.cast_nonneg M)
@@ -737,11 +657,7 @@ theorem exists_layout_signalWidth_of_piece (c : Circuit σ n m) {r : ℕ} (hfan 
       ((r + 1) * Nat.card (Node c) : ℝ) / M +
       (r + 1 : ℝ) * √((M * R * Nat.card (Node c) : ℝ)) := by
     have hsum_nn : 0 ≤ ∑ w : ActiveSignal c, (1 - (1 / 2 : ℝ) ^ ((P w).card - 1)) :=
-      Finset.sum_nonneg fun w _ => by
-        have hp : (1 / 2 : ℝ) ^ ((P w).card - 1) ≤ (1 : ℝ) ^ ((P w).card - 1) :=
-          pow_le_pow_left₀ (by norm_num) (by norm_num) _
-        rw [one_pow] at hp
-        linarith
+      Finset.sum_nonneg fun w _ => sub_nonneg.2 (pow_le_one₀ (by norm_num) (by norm_num))
     positivity
   refine (steinerGraph c π).width_le_of_ncard_frontier_le π hB_nn fun t ht => ?_
   rw [ncard_frontier_steinerGraph_eq]
@@ -749,46 +665,24 @@ theorem exists_layout_signalWidth_of_piece (c : Circuit σ n m) {r : ℕ} (hfan 
   · rw [Layout.initial_zero, signalFrontier_empty, ncard_empty, Nat.cast_zero]
     exact hB_nn
   · obtain ⟨μ, hlo, hhi⟩ := hπ t ht
-    have hv₀_mem : π.symm ⟨0, ht0.trans ht⟩ ∈ π.initial t := by
+    have hμ0 : 0 ≤ μ := (Nat.cast_nonneg _).trans (hlo (π.symm ⟨0, ht0.trans ht⟩) (by
       rw [Layout.mem_initial, π.apply_symm_apply]
-      exact ht0
-    have hv₁_nmem : π.symm ⟨t, ht⟩ ∉ π.initial t := by
+      exact ht0))
+    have hμM : μ < M := (hhi (π.symm ⟨t, ht⟩) (by
       rw [Layout.mem_initial, π.apply_symm_apply]
-      exact Nat.lt_irrefl t
-    have hμ0 : 0 ≤ μ := (Nat.cast_nonneg _).trans (hlo _ hv₀_mem)
-    have hscore_lt : score (π.symm ⟨t, ht⟩) < M := by
-      dsimp only [score]
-      exact_mod_cast (ω _).isLt
-    have hμM : μ < M := (hhi _ hv₁_nmem).trans_lt hscore_lt
-    let jIdx : ℕ := ⌊μ⌋₊
-    have hj_le : (jIdx : ℝ) ≤ μ := Nat.floor_le hμ0
-    have hj_gt : μ < (jIdx : ℝ) + 1 := Nat.lt_floor_add_one μ
-    have hj_lt : jIdx < M := by exact_mod_cast hj_le.trans_lt hμM
-    let j : Fin M := ⟨jIdx, hj_lt⟩
+      exact Nat.lt_irrefl t)).trans_lt (by simp only [score]; exact_mod_cast (ω _).isLt)
+    let j : Fin M := ⟨⌊μ⌋₊, (Nat.floor_lt hμ0).2 hμM⟩
     have hfront_le : ((signalFrontier c (π.initial t)).ncard : ℝ) ≤ f j ω := by
-      have hsub : (toFinite (signalFrontier c (π.initial t))).toFinset ⊆
-          Finset.univ.filter fun w : ActiveSignal c => bad j ω w := by
-        intro w hw
-        obtain ⟨⟨u, hu, huP⟩, ⟨v, hv, hvPc⟩⟩ := (toFinite _).mem_toFinset.mp hw
-        have hu_le : (ω (piece u) : ℕ) ≤ jIdx := by
-          have : ((ω (piece u) : ℕ) : ℝ) < (jIdx : ℝ) + 1 := (hlo u huP).trans_lt hj_gt
-          have hnat : (ω (piece u) : ℕ) < jIdx + 1 := by exact_mod_cast this
-          omega
-        have hv_ge : jIdx ≤ (ω (piece v) : ℕ) := by
-          have : (jIdx : ℝ) ≤ ((ω (piece v) : ℕ) : ℝ) := hj_le.trans (hhi v hvPc)
-          exact_mod_cast this
-        have huP' : piece u ∈ P w := (toFinite _).mem_toFinset.mpr ⟨u, hu, rfl⟩
-        have hvP' : piece v ∈ P w := (toFinite _).mem_toFinset.mpr ⟨v, hv, rfl⟩
-        refine Finset.mem_filter.mpr ⟨Finset.mem_univ w, ?_⟩
-        rcases lt_or_eq_of_le hu_le with hlt | heq
-        · exact Or.inl ⟨⟨piece u, huP', hlt⟩, ⟨piece v, hvP', hv_ge⟩⟩
-        · exact Or.inr ⟨piece u, huP', heq⟩
-      have hcard := Finset.card_le_card hsub
-      rw [← ncard_eq_toFinset_card _ (toFinite _)] at hcard
-      dsimp only [f]
-      exact_mod_cast hcard
-    have hj_bound := (le_abs_self _).trans (hω j)
-    linarith [hexp_f j]
+      rw [ncard_eq_toFinset_card _ (toFinite _)]
+      refine Nat.cast_le.mpr (Finset.card_le_card fun w hw => ?_)
+      obtain ⟨⟨u, hu, huP⟩, ⟨v, hv, hvPc⟩⟩ := (toFinite _).mem_toFinset.mp hw
+      have huP' : piece u ∈ P w := (toFinite _).mem_toFinset.mpr ⟨u, hu, rfl⟩
+      have hvP' : piece v ∈ P w := (toFinite _).mem_toFinset.mpr ⟨v, hv, rfl⟩
+      refine Finset.mem_filter.mpr ⟨Finset.mem_univ w, ?_⟩
+      rcases (Nat.le_floor (hlo u huP)).lt_or_eq with hlt | heq
+      · exact Or.inl ⟨⟨piece u, huP', hlt⟩, ⟨piece v, hvP', Nat.floor_le_of_le (hhi v hvPc)⟩⟩
+      · exact Or.inr ⟨piece u, huP', heq⟩
+    linarith [hexp_f j, (le_abs_self _).trans (hω j)]
 
 /-- **Discrete uniform gate-sweep layout.** For any `M ≥ 1` and circuit `c` of fan-in at most `r`,
 some layout `π : Layout (Node c)` satisfies
@@ -843,28 +737,20 @@ theorem exists_layout_signalWidth_reuse_le (c : Circuit σ n m) (hfan : c.FanInA
       obtain rfl := Option.some.inj h
       have hspec := (exists_support_eq_pair_of_isUnitGateSignal hg).choose_spec
       exact ⟨g, hg, rfl, hspec.1, hspec.2⟩
-  have hrank : ∀ v u, parent v = some u → v.rank < u.rank := by
-    intro v u h
-    obtain ⟨g, _, rfl, hlt, _⟩ := hparent_spec v u h
-    exact hlt
+  have hrank : ∀ v u, parent v = some u → v.rank < u.rank := fun v u h =>
+    let ⟨_, _, hv, hlt, _⟩ := hparent_spec v u h; hv ▸ hlt
   have hdeg : ∀ u : Node c, (Finset.univ.filter fun v => parent v = some u).card ≤ 2 := by
     intro u
     have hsub : (Finset.univ.filter fun v => parent v = some u : Set (Node c)) ⊆
         Node.gate '' {g : InnerGate c | u ∈ support c (.gate g) ∧ Node.gate g ≠ u} := by
       intro v hv
-      have hvu : parent v = some u := (Finset.mem_filter.mp hv).2
-      obtain ⟨g, _, rfl, hlt, hsup⟩ := hparent_spec v u hvu
+      obtain ⟨g, _, rfl, hlt, hsup⟩ := hparent_spec v u (Finset.mem_filter.mp hv).2
       refine ⟨g, ⟨?_, fun heq => lt_irrefl _ (heq ▸ hlt)⟩, rfl⟩
       rw [hsup]
       exact mem_insert_of_mem _ (mem_singleton u)
-    calc (Finset.univ.filter fun v => parent v = some u).card
-        = (Finset.univ.filter fun v => parent v = some u : Set (Node c)).ncard :=
-          (ncard_coe_finset _).symm
-      _ ≤ (Node.gate '' {g : InnerGate c | u ∈ support c (.gate g) ∧ Node.gate g ≠ u}).ncard :=
-          ncard_le_ncard hsub (toFinite _)
-      _ = {g : InnerGate c | u ∈ support c (.gate g) ∧ Node.gate g ≠ u}.ncard :=
-          ncard_image_of_injective _ fun _ _ h => Node.gate.inj h
-      _ ≤ 2 := (ncard_gate_mem_support_ne_le hfan u).trans_eq (by decide)
+    rw [← ncard_coe_finset]
+    exact (ncard_le_ncard hsub).trans <| (ncard_image_le (toFinite _)).trans <|
+      (ncard_gate_mem_support_ne_le hfan u).trans_eq (by decide)
   obtain ⟨piece, hR, hsev⟩ := exists_forest_pieces parent Node.rank hrank hdeg B
   obtain ⟨π, hπ⟩ := exists_layout_signalWidth_of_piece c hfan piece hR hM
   refine ⟨π, hπ.trans ?_⟩
@@ -875,13 +761,12 @@ theorem exists_layout_signalWidth_reuse_le (c : Circuit σ n m) (hfan : c.FanInA
       (1 - (1 / 2 : ℝ) ^ ((P w).card - 1)) ≤
       ∑ w : ActiveSignal c with ¬IsUnitGateSignal c w,
         (1 - (1 / 2 : ℝ) ^ ((support c w).ncard - 1)) := by
-    refine Finset.sum_le_sum fun w _ => ?_
+    refine Finset.sum_le_sum fun w _ =>
+      sub_le_sub_left (pow_le_pow_of_le_one (by norm_num) (by norm_num) ?_) 1
     have hle : (P w).card ≤ (support c w).ncard := by
       rw [← ncard_eq_toFinset_card _ (toFinite _)]
       exact ncard_image_le (toFinite _)
-    have hp : (1 / 2 : ℝ) ^ ((support c w).ncard - 1) ≤ (1 / 2 : ℝ) ^ ((P w).card - 1) :=
-      pow_le_pow_of_le_one (by norm_num) (by norm_num) (by omega)
-    linarith
+    omega
   have hUnit : ∑ w : ActiveSignal c with IsUnitGateSignal c w,
       (1 - (1 / 2 : ℝ) ^ ((P w).card - 1)) ≤
       (Nat.card (Node c) : ℝ) / (2 * (B + 1)) := by
@@ -918,10 +803,8 @@ theorem exists_layout_signalWidth_reuse_le (c : Circuit σ n m) (hfan : c.FanInA
           have hcard_le : (P (.gate g)).card ≤ 2 := by
             rw [← ncard_eq_toFinset_card _ (toFinite _)]
             exact (ncard_image_le (toFinite _)).trans_eq (ncard_support_gate_eq_two huw)
-          have hp : (1 / 2 : ℝ) ≤ (1 / 2 : ℝ) ^ ((P (.gate g)).card - 1) := by
-            have := pow_le_pow_of_le_one (a := (1 / 2 : ℝ)) (by norm_num) (by norm_num)
-              (m := (P (.gate g)).card - 1) (n := 1) (by omega)
-            simpa using this
+          have hp : (1 / 2 : ℝ) ≤ (1 / 2 : ℝ) ^ ((P (.gate g)).card - 1) :=
+            (pow_one _).symm.trans_le (pow_le_pow_of_le_one (by norm_num) (by norm_num) (by omega))
           simp only [hmem, ↓reduceIte]
           linarith
     have hsev_card : sevSet.card ≤
@@ -929,28 +812,18 @@ theorem exists_layout_signalWidth_reuse_le (c : Circuit σ n m) (hfan : c.FanInA
       let toOpt : ActiveSignal c → Option (Node c)
         | .gate g => some (.gate g)
         | .input _ _ => none
-      have hinj : InjOn toOpt (sevSet : Set (ActiveSignal c)) := by
-        intro w₁ hw₁ w₂ hw₂ h
-        obtain ⟨_, g₁, _, rfl, _, _⟩ := (Finset.mem_filter.mp hw₁).2
-        obtain ⟨_, g₂, _, rfl, _, _⟩ := (Finset.mem_filter.mp hw₂).2
+      rw [← ncard_coe_finset]
+      refine (ncard_le_ncard_of_injOn toOpt (fun w hw => ?_) (fun a ha b hb h => ?_)).trans_eq
+        (ncard_image_of_injective _ (Option.some_injective _))
+      · obtain ⟨_, g, u, rfl, hp, hne⟩ := (Finset.mem_filter.mp hw).2
+        exact ⟨.gate g, ⟨u, hp, hne⟩, rfl⟩
+      · obtain ⟨_, g₁, _, rfl, _, _⟩ := (Finset.mem_filter.mp ha).2
+        obtain ⟨_, g₂, _, rfl, _, _⟩ := (Finset.mem_filter.mp hb).2
         cases Node.gate.inj (Option.some.inj h)
         rfl
-      have himg : toOpt '' (sevSet : Set (ActiveSignal c)) ⊆
-          some '' {v : Node c | ∃ u, parent v = some u ∧ piece v ≠ piece u} := by
-        rintro _ ⟨w, hw, rfl⟩
-        obtain ⟨_, g, u, rfl, hp, hne⟩ := (Finset.mem_filter.mp hw).2
-        exact ⟨.gate g, ⟨u, hp, hne⟩, rfl⟩
-      calc sevSet.card = (sevSet : Set (ActiveSignal c)).ncard := (ncard_coe_finset sevSet).symm
-        _ = (toOpt '' (sevSet : Set (ActiveSignal c))).ncard := hinj.ncard_image.symm
-        _ ≤ (some '' {v : Node c | ∃ u, parent v = some u ∧ piece v ≠ piece u}).ncard :=
-            ncard_le_ncard himg (toFinite _)
-        _ = {v : Node c | ∃ u, parent v = some u ∧ piece v ≠ piece u}.ncard :=
-            ncard_image_of_injective _ (Option.some_injective (Node c))
     have hsevR : ((B + 1 : ℝ)) * sevSet.card ≤ Nat.card (Node c) := by
-      have hnat : (B + 1) * sevSet.card ≤ Nat.card (Node c) := by
-        rw [Nat.card_eq_fintype_card]
-        exact (Nat.mul_le_mul_left (B + 1) hsev_card).trans hsev
-      exact_mod_cast hnat
+      rw [Nat.card_eq_fintype_card]
+      exact_mod_cast (Nat.mul_le_mul_left (B + 1) hsev_card).trans hsev
     have hBpos : (0 : ℝ) < 2 * (B + 1) := by positivity
     calc ∑ w : ActiveSignal c with IsUnitGateSignal c w, (1 - (1 / 2 : ℝ) ^ ((P w).card - 1))
         ≤ ∑ w ∈ Finset.univ.filter (IsUnitGateSignal c),
@@ -1039,34 +912,21 @@ theorem exists_node_cut_margin (c : Circuit σ n m) {r : ℕ} (hfan : c.FanInAtM
     (fun _ _ => Nat.cast_nonneg _) hosc
   have hdev : √(∑ _j : Fin 3, ∑ u : Node c, (deg u : ℝ) ^ 2) ≤
       (r + 1 : ℝ) * √(3 * (Nat.card (Node c) : ℝ)) := by
-    have hsum_le : ∑ _j : Fin 3, ∑ u : Node c, (deg u : ℝ) ^ 2 ≤
-        ((r + 1 : ℝ) ^ 2) * (3 * (Nat.card (Node c) : ℝ)) := by
-      calc ∑ _j : Fin 3, ∑ u : Node c, (deg u : ℝ) ^ 2
-          ≤ ∑ _j : Fin 3, ∑ _u : Node c, (r + 1 : ℝ) ^ 2 :=
-            Finset.sum_le_sum fun _ _ => Finset.sum_le_sum fun u _ =>
-              pow_le_pow_left₀ (Nat.cast_nonneg _) (by exact_mod_cast hdeg_le u) 2
-        _ = ((r + 1 : ℝ) ^ 2) * (3 * (Nat.card (Node c) : ℝ)) := by
-            simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul,
-              Nat.card_eq_fintype_card]
-            ring
-    calc √(∑ _j : Fin 3, ∑ u : Node c, (deg u : ℝ) ^ 2)
-        ≤ √(((r + 1 : ℝ) ^ 2) * (3 * (Nat.card (Node c) : ℝ))) := Real.sqrt_le_sqrt hsum_le
-      _ = (r + 1 : ℝ) * √(3 * (Nat.card (Node c) : ℝ)) := by
-          rw [Real.sqrt_mul (by positivity), Real.sqrt_sq (by positivity)]
+    refine Real.sqrt_le_iff.mpr ⟨by positivity, ?_⟩
+    rw [mul_pow, Real.sq_sqrt (by positivity)]
+    refine (Finset.sum_le_sum fun _ _ => Finset.sum_le_sum fun u _ =>
+      pow_le_pow_left₀ (Nat.cast_nonneg _) (by exact_mod_cast hdeg_le u : (deg u : ℝ) ≤ r + 1)
+        2).trans_eq ?_
+    simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul,
+      Nat.card_eq_fintype_card]
+    ring
   have hexp0 (b : Bool) :
       (𝔼 ω' : Node c → Bool,
         ((Finset.univ.filter fun x : {i : Fin n // Reach c (.input i)} =>
           ∀ v ∈ S_in x, ω' v = b).card : ℝ)) =
         ∑ x : {i : Fin n // Reach c (.input i)},
           (1 / 2 : ℝ) ^ (support c (.input x.1 x.2)).ncard := by
-    have hcomm : (𝔼 ω' : Node c → Bool,
-        ((Finset.univ.filter fun x : {i : Fin n // Reach c (.input i)} =>
-          ∀ v ∈ S_in x, ω' v = b).card : ℝ)) =
-        ∑ x : {i : Fin n // Reach c (.input i)},
-          𝔼 ω' : Node c → Bool, if ∀ v ∈ S_in x, ω' v = b then (1 : ℝ) else 0 := by
-      simp_rw [← Finset.sum_boole, Fintype.expect_eq_sum_div_card]
-      rw [Finset.sum_comm, Finset.sum_div]
-    rw [hcomm]
+    simp only [Finset.natCast_card_filter, Finset.expect_sum_comm]
     refine Finset.sum_congr rfl fun x _ => ?_
     rw [expect_all_apply (S_in x) (fun a : Bool => a = b), Fintype.expect_bool,
       ← ncard_eq_toFinset_card _ (toFinite (support c (.input x.1 x.2)))]
@@ -1074,13 +934,8 @@ theorem exists_node_cut_margin (c : Circuit σ n m) {r : ℕ} (hfan : c.FanInAtM
   have hexp2 :
       (𝔼 ω' : Node c → Bool, f ⟨2, by decide⟩ ω') =
         ∑ g : InnerGate c, (1 - (1 / 2 : ℝ) ^ ((support c (.gate g)).ncard - 1)) := by
-    have hcomm : (𝔼 ω' : Node c → Bool, f ⟨2, by decide⟩ ω') =
-        ∑ g : InnerGate c, 𝔼 ω' : Node c → Bool,
-          if (∃ v ∈ S_gt g, ω' v = false) ∧ (∃ v ∈ S_gt g, ω' v = true) then (1 : ℝ) else 0 := by
-      dsimp only [f]
-      simp_rw [← Finset.sum_boole, Fintype.expect_eq_sum_div_card]
-      rw [Finset.sum_comm, Finset.sum_div]
-    rw [hcomm]
+    dsimp only [f]
+    simp only [Finset.natCast_card_filter, Finset.expect_sum_comm]
     refine Finset.sum_congr rfl fun g _ => ?_
     obtain ⟨v₀, hv₀⟩ := support_nonempty (.gate g)
     have hv₀' : v₀ ∈ S_gt g := (toFinite _).mem_toFinset.mpr hv₀
@@ -1088,32 +943,22 @@ theorem exists_node_cut_margin (c : Circuit σ n m) {r : ℕ} (hfan : c.FanInAtM
         (if (∃ v ∈ S_gt g, ω' v = false) ∧ (∃ v ∈ S_gt g, ω' v = true) then (1 : ℝ) else 0) =
           1 - (if ∀ v ∈ S_gt g, ω' v = false then (1 : ℝ) else 0) -
             (if ∀ v ∈ S_gt g, ω' v = true then (1 : ℝ) else 0) := by
-      by_cases hf0 : ∀ v ∈ S_gt g, ω' v = false <;>
-        by_cases hf1 : ∀ v ∈ S_gt g, ω' v = true
-      · have := (hf0 v₀ hv₀').symm.trans (hf1 v₀ hv₀')
-        cases this
-      · have hn : ¬ ((∃ v ∈ S_gt g, ω' v = false) ∧ (∃ v ∈ S_gt g, ω' v = true)) := by
-          rintro ⟨_, v, hv, hvt⟩
-          have := (hf0 v hv).symm.trans hvt
-          cases this
+      by_cases hf0 : ∀ v ∈ S_gt g, ω' v = false
+      · have hf1 : ¬∀ v ∈ S_gt g, ω' v = true := fun h => by simpa [hf0 v₀ hv₀'] using h v₀ hv₀'
+        have hn : ¬((∃ v ∈ S_gt g, ω' v = false) ∧ ∃ v ∈ S_gt g, ω' v = true) :=
+          fun ⟨_, v, hv, h⟩ => by simp [hf0 v hv] at h
         simp only [hn, eq_true hf0, hf1, ↓reduceIte]
         norm_num
-      · have hn : ¬ ((∃ v ∈ S_gt g, ω' v = false) ∧ (∃ v ∈ S_gt g, ω' v = true)) := by
-          rintro ⟨⟨v, hv, hvf⟩, _⟩
-          have := (hf1 v hv).symm.trans hvf
-          cases this
+      by_cases hf1 : ∀ v ∈ S_gt g, ω' v = true
+      · have hn : ¬((∃ v ∈ S_gt g, ω' v = false) ∧ ∃ v ∈ S_gt g, ω' v = true) :=
+          fun ⟨⟨v, hv, h⟩, _⟩ => by simp [hf1 v hv] at h
         simp only [hn, hf0, eq_true hf1, ↓reduceIte]
         norm_num
-      · push Not at hf0 hf1
-        obtain ⟨v₁, hv₁, h₁⟩ := hf0
-        obtain ⟨v₂, hv₂, h₂⟩ := hf1
-        have hb1 : ω' v₁ = true := by cases h : ω' v₁ <;> simp_all
-        have hb2 : ω' v₂ = false := by cases h : ω' v₂ <;> simp_all
-        have hy : (∃ v ∈ S_gt g, ω' v = false) ∧ (∃ v ∈ S_gt g, ω' v = true) :=
-          ⟨⟨v₂, hv₂, hb2⟩, ⟨v₁, hv₁, hb1⟩⟩
-        have hnf0 : ¬ ∀ v ∈ S_gt g, ω' v = false := fun h => h₁ (h v₁ hv₁)
-        have hnf1 : ¬ ∀ v ∈ S_gt g, ω' v = true := fun h => h₂ (h v₂ hv₂)
-        simp only [hy, hnf0, hnf1, ↓reduceIte]
+      · have hy : (∃ v ∈ S_gt g, ω' v = false) ∧ ∃ v ∈ S_gt g, ω' v = true := by
+          push Not at hf0 hf1
+          simp only [ne_eq, Bool.not_eq_true, Bool.not_eq_false] at hf0 hf1
+          exact ⟨hf1, hf0⟩
+        simp only [hy, hf0, hf1, ↓reduceIte]
         norm_num
     simp_rw [hstr]
     rw [Finset.expect_sub_distrib, Finset.expect_sub_distrib, Fintype.expect_const,

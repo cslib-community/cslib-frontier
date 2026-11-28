@@ -209,12 +209,9 @@ theorem writeIndexedChildren_frame (F k c u e p cp n : ℕ) (ds : List (Fin 9))
   induction ds generalizing n μ with
   | nil => rfl
   | cons d ds ih =>
-    rw [writeIndexedChildren, ih]
-    · exact writeTask_frame _ _ _ _ _ _ _ _ _ (by
-        simp only [List.length_cons] at hq
-        omega)
-    · simp only [List.length_cons] at hq
-      omega
+    simp only [List.length_cons] at hq
+    rw [writeIndexedChildren, ih _ _ (by omega)]
+    exact writeTask_frame _ _ _ _ _ _ _ _ _ (by omega)
 
 /-- Each indexed task is read back at its actual consecutive stack position, in push order. -/
 theorem writeIndexedChildren_read (F k c u e p cp n : ℕ) (ds : List (Fin 9))
@@ -259,12 +256,9 @@ theorem exec_p0Child {w F n k c u e p cp : ℕ} (x : Data registers)
     (by regs_frame) (by regs_frame) (by regs_frame) ac au ae
     (by regs_frame) (by regs_frame) (by regs_frame) (hfit.of_le (by omega))
   have hex : ExecWithin w p0Child x y 18 := ha.seq hy
-  refine ⟨y, hex, yn, ?_, ?_⟩
-  · simpa only [am] using ym
-  · intro i hi
-    apply hex.regs_eq
-    exact ⟨p0Setup_preserves i (fun h => hi (Or.inl h)),
-      push_preserves i (fun h => hi (Or.inr h))⟩
+  exact ⟨y, hex, yn, by simpa only [am] using ym, fun i hi =>
+    hex.regs_eq ⟨p0Setup_preserves i (fun h => hi (Or.inl h)),
+      push_preserves i (fun h => hi (Or.inr h))⟩⟩
 
 /-- The sole private child at an outer coordinate is computed and stored in sixteen steps. -/
 theorem exec_privateChild {w F n k c u e p cp d : ℕ} (x : Data registers) (hd : d ≤ 9)
@@ -284,11 +278,8 @@ theorem exec_privateChild {w F n k c u e p cp d : ℕ} (x : Data registers) (hd 
     (by regs_frame) (by regs_frame) (by regs_frame) ac au ae
     (by regs_frame) (by regs_frame) (by regs_frame) (hfit.of_le (by omega))
   have hex : ExecWithin w privateChild x y 16 := ha.seq hy
-  refine ⟨y, hex, yn, ?_, ?_⟩
-  · simpa only [am] using ym
-  · intro i hi
-    apply hex.regs_eq
-    exact ⟨privateSetup_preserves i (fun h => hi (Or.inl h)),
-      push_preserves i (fun h => hi (Or.inr h))⟩
+  exact ⟨y, hex, yn, by simpa only [am] using ym, fun i hi =>
+    hex.regs_eq ⟨privateSetup_preserves i (fun h => hi (Or.inl h)),
+      push_preserves i (fun h => hi (Or.inr h))⟩⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery

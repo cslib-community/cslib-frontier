@@ -72,17 +72,13 @@ all of the last `length - i` entries. -/
 theorem Pairwise.length_sub_le_countP [IsTrans α r] {s : List α} (hs : s.Pairwise r) {i : ℕ}
     (hi : i < s.length) {p : α} (hp : r p s[i]) :
     s.length - i ≤ s.countP (fun x => r p x) := by
-  have hdrop : (s.drop i).countP (fun x => r p x) = s.length - i := by
-    rw [countP_eq_length.mpr, length_drop]
-    intro x hx
-    rw [drop_eq_getElem_cons hi, mem_cons] at hx
+  rw [← length_drop (i := i), ← countP_eq_length.mpr fun x hx => ?_]
+  · exact (drop_sublist _ _).countP_le
+  · rw [drop_eq_getElem_cons hi, mem_cons] at hx
     rcases hx with rfl | hx
     · simpa using hp
-    · have hpair : (s.drop i).Pairwise r := hs.sublist (drop_sublist _ _)
-      rw [drop_eq_getElem_cons hi, pairwise_cons] at hpair
-      simpa using _root_.trans hp (hpair.1 x hx)
-  rw [← hdrop]
-  exact (drop_sublist _ _).countP_le
+    · have hpair := drop_eq_getElem_cons hi ▸ hs.sublist (drop_sublist i s)
+      simpa using _root_.trans hp ((pairwise_cons.mp hpair).1 x hx)
 
 /-- In a list sorted by a transitive relation, an element `p` above the `i`-th entry is above
 all of the first `i + 1` entries. -/
@@ -90,21 +86,16 @@ theorem Pairwise.add_one_le_countP [IsTrans α r] {s : List α} (hs : s.Pairwise
     (hi : i < s.length) {p : α} (hp : r s[i] p) :
     i + 1 ≤ s.countP (fun x => r x p) := by
   have htake : (s.take (i + 1)).countP (fun x => r x p) = i + 1 := by
-    rw [countP_eq_length.mpr, length_take]
+    rw [countP_eq_length.mpr fun x hx => ?_, length_take]
     · omega
-    intro x hx
-    rw [mem_iff_getElem] at hx
-    obtain ⟨j, hj, rfl⟩ := hx
-    rw [length_take] at hj
-    rw [getElem_take]
-    rcases Nat.lt_or_ge j i with hji | hji
-    · have := pairwise_iff_getElem.mp hs j i (by omega) hi hji
-      simpa using _root_.trans this hp
-    · have hji' : j = i := by omega
-      subst hji'
-      simpa using hp
-  rw [← htake]
-  exact (take_sublist _ _).countP_le
+    · obtain ⟨j, hj, rfl⟩ := mem_iff_getElem.mp hx
+      rw [length_take] at hj
+      rw [getElem_take]
+      rcases Nat.lt_or_ge j i with hji | hji
+      · simpa using _root_.trans (pairwise_iff_getElem.mp hs j i (by omega) hi hji) hp
+      · obtain rfl : j = i := by omega
+        simpa using hp
+  exact htake ▸ (take_sublist _ _).countP_le
 
 /-- The `k`-th entry of a sorted permutation of `xs` is an order statistic of rank `k`. -/
 theorem isOrderStatistic_getElem_of_perm [Std.Total r] [IsTrans α r] {xs s : List α}
@@ -113,16 +104,13 @@ theorem isOrderStatistic_getElem_of_perm [Std.Total r] [IsTrans α r] {xs s : Li
   mem := hperm.subset (getElem_mem hk)
   countP_lt_le := by
     rw [← hperm.countP_eq]
-    have hrefl : r s[k] s[k] := (Std.Total.total s[k] s[k]).elim id id
-    have h := hs.length_sub_le_countP hk hrefl
+    have h := hs.length_sub_le_countP hk ((Std.Total.total s[k] s[k]).elim id id)
     have hsum := s.length_eq_countP_add_countP (fun x => decide (r s[k] x))
     simp only [Bool.decide_eq_true, decide_not] at hsum ⊢
     omega
   lt_countP_le := by
     rw [← hperm.countP_eq]
-    have hrefl : r s[k] s[k] := (Std.Total.total s[k] s[k]).elim id id
-    have h := hs.add_one_le_countP hk hrefl
-    omega
+    exact hs.add_one_le_countP hk ((Std.Total.total s[k] s[k]).elim id id)
 
 /-- Two order statistics of the same rank are related, so under a total preorder they are
 equivalent. -/
@@ -150,14 +138,11 @@ theorem IsOrderStatistic.of_filter {q : α → Prop} [DecidablePred q] {xs : Lis
     {y : α} (h : (xs.filter (fun x => q x)).IsOrderStatistic r k y)
     (hq : ∀ x ∈ xs, ¬ r y x → q x) : xs.IsOrderStatistic r k y where
   mem := (mem_filter.mp h.mem).1
-  countP_lt_le := by
-    have h1 := h.countP_lt_le
-    rw [countP_filter] at h1
-    refine le_of_eq_of_le (countP_congr fun x hx => ?_) h1
+  countP_lt_le := (le_of_eq (countP_congr fun x hx => by
     simp only [decide_not, Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true,
       decide_eq_false_iff_not, decide_eq_true_eq, iff_self_and]
-    exact hq x hx
-  lt_countP_le := h.lt_countP_le.trans_le (filter_sublist).countP_le
+    exact hq x hx)).trans (countP_filter .. ▸ h.countP_lt_le)
+  lt_countP_le := h.lt_countP_le.trans_le filter_sublist.countP_le
 
 /-- An order statistic of `xs.filter q` is an order statistic of `xs` whose rank is shifted by
 the number of rejected elements, when every rejected element is at or below it. -/
@@ -168,38 +153,30 @@ theorem IsOrderStatistic.of_filter_add {q : α → Prop} [DecidablePred q] {xs :
   mem := (mem_filter.mp h.mem).1
   countP_lt_le := by
     -- split `xs` into the kept and the rejected elements
-    have hrej : (xs.filter fun x => !decide (q x)).countP (fun x => ¬ r y x) ≤
-        xs.countP (fun x => ¬ q x) := by
-      rw [countP_eq_length_filter (l := xs)]
-      simpa only [decide_not] using countP_le_length
     rw [countP_eq_countP_filter_add xs (fun x => decide ¬ r y x) fun x => decide (q x)]
-    exact Nat.add_le_add h.countP_lt_le hrej
+    refine Nat.add_le_add h.countP_lt_le ?_
+    rw [countP_eq_length_filter (l := xs)]
+    simpa only [decide_not] using countP_le_length
   lt_countP_le := by
-    have hrej : (xs.filter fun x => !decide (q x)).countP (fun x => r x y) =
-        xs.countP (fun x => ¬ q x) := by
-      rw [countP_eq_length.mpr fun x hx => ?_, countP_eq_length_filter]
-      · simp
-      · simp only [mem_filter, Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_false_iff_not] at hx
-        simpa using hq x hx.1 hx.2
-    rw [countP_eq_countP_filter_add xs (fun x => decide (r x y)) fun x => decide (q x), hrej]
-    exact Nat.add_lt_add_right h.lt_countP_le _
+    rw [countP_eq_countP_filter_add xs (fun x => decide (r x y)) fun x => decide (q x),
+      (countP_eq_length (l := xs.filter fun x => !decide (q x))).mpr fun x hx => by
+        simp only [mem_filter, Bool.not_eq_eq_eq_not, Bool.not_true,
+          decide_eq_false_iff_not] at hx
+        simpa using hq x hx.1 hx.2,
+      countP_eq_length_filter (l := xs)]
+    simpa only [decide_not] using Nat.add_lt_add_right h.lt_countP_le _
 
 /-- In a linear order, the rank-`k` order statistic of `xs` is the `k`-th entry of
 `xs.mergeSort`. -/
 theorem isOrderStatistic_iff_mergeSort {β : Type*} [LinearOrder β] {xs : List β} {k : ℕ}
     {y : β} : xs.IsOrderStatistic (· ≤ ·) k y ↔ xs.mergeSort[k]? = some y := by
-  have hperm : (xs.mergeSort).Perm xs := mergeSort_perm xs _
-  have hsorted : (xs.mergeSort).Pairwise (· ≤ ·) := by
-    simpa using pairwise_mergeSort' (· ≤ ·) xs
-  constructor
-  · intro h
-    have hk : k < xs.mergeSort.length := by
-      rw [hperm.length_eq]
-      exact h.lt_length
-    rw [getElem?_eq_getElem hk, Option.some_inj]
-    exact (isOrderStatistic_getElem_of_perm hperm hsorted hk).unique h
-  · intro h
-    obtain ⟨hk, rfl⟩ := getElem?_eq_some_iff.mp h
+  have hperm : xs.mergeSort.Perm xs := mergeSort_perm xs _
+  have hsorted : xs.mergeSort.Pairwise (· ≤ ·) := by simpa using pairwise_mergeSort' (· ≤ ·) xs
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · have hk : k < xs.mergeSort.length := h.lt_length.trans_eq hperm.length_eq.symm
+    exact (getElem?_eq_getElem hk).trans
+      (congrArg some ((isOrderStatistic_getElem_of_perm hperm hsorted hk).unique h))
+  · obtain ⟨hk, rfl⟩ := getElem?_eq_some_iff.mp h
     exact isOrderStatistic_getElem_of_perm hperm hsorted hk
 
 end List

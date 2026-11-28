@@ -111,45 +111,35 @@ theorem realize_haltSentence {I : ℕ → List M → Prop} {v : ℕ → M} (c : 
         ∀ d : Code, encode d ≤ encode c → (evAx d).Realize I v := by
   simp only [haltSentence, realize_bigConj, List.mem_append, List.mem_cons, List.mem_map,
     List.mem_range]
-  constructor
-  · intro h
-    refine ⟨realize_arithAxioms.1 fun φ hφ => h φ (Or.inl hφ),
-      (realize_goalF _).1 (h _ (Or.inr (Or.inl rfl))), fun d hd => ?_⟩
-    exact h _ (Or.inr (Or.inr ⟨encode d, by omega, by rw [Denumerable.ofNat_encode]⟩))
-  · rintro ⟨h1, h2, h3⟩ φ (hφ | rfl | ⟨m, hm, rfl⟩)
-    · exact realize_arithAxioms.2 h1 φ hφ
-    · exact (realize_goalF _).2 h2
-    · exact h3 _ (by rw [Denumerable.encode_ofNat]; omega)
+  refine ⟨fun h => ⟨realize_arithAxioms.1 fun φ hφ => h φ (Or.inl hφ),
+    (realize_goalF _).1 (h _ (Or.inr (Or.inl rfl))), fun d hd =>
+      h _ (Or.inr (Or.inr ⟨encode d, by omega, congrArg evAx (Denumerable.ofNat_encode d)⟩))⟩, ?_⟩
+  rintro ⟨h1, h2, h3⟩ φ (hφ | rfl | ⟨m, hm, rfl⟩)
+  · exact realize_arithAxioms.2 h1 φ hφ
+  · exact (realize_goalF _).2 h2
+  · exact h3 _ (by rw [Denumerable.encode_ofNat]; omega)
 
 /-- **The reduction.** A code halts on input `0` iff its sentence has a finite model. -/
 theorem eval_dom_iff_finSat (c : Code) : (Code.eval c 0).Dom ↔ FinSat (haltSentence c) := by
   constructor
   · intro h
-    obtain ⟨K, hK⟩ := Code.evaln_complete.1 (Part.get_mem h)
-    have hK' : Code.evaln K c 0 = some ((Code.eval c 0).get h) := hK
+    obtain ⟨K, hK : Code.evaln K c 0 = some ((Code.eval c 0).get h)⟩ :=
+      Code.evaln_complete.1 (Part.get_mem h)
     let N := K + outBound K (encode c) + 1
-    have hKN : K < N := by omega
     refine ⟨Fin N, inferInstance, ⟨⟨0, by omega⟩⟩, stdInterp N K, fun _ => ⟨0, by omega⟩, ?_⟩
     rw [realize_haltSentence]
-    refine ⟨arithModel_stdInterp, ?_, fun d hd => ?_⟩
-    · have hx : (Code.eval c 0).get h < N := by
-        have := le_outBound le_rfl le_rfl hK'
-        omega
-      refine ⟨⟨K, hKN⟩, ⟨0, by omega⟩, ⟨_, hx⟩, (stdInterp_zero _).2 rfl, ?_⟩
-      rw [stdInterp_ev]
-      exact ⟨le_rfl, hK'⟩
-    · rw [realize_evAx]
-      exact stdInterp_caseSem (by omega) d hd
+    refine ⟨arithModel_stdInterp, ⟨⟨K, by omega⟩, ⟨0, by omega⟩,
+      ⟨(Code.eval c 0).get h, by have := le_outBound le_rfl le_rfl hK; omega⟩,
+      (stdInterp_zero _).2 rfl, ?_⟩,
+      fun d hd => (realize_evAx _).2 (stdInterp_caseSem (by omega) d hd)⟩
+    exact (stdInterp_ev ..).2 ⟨le_rfl, hK⟩
   · rintro ⟨M, _, _, I, v, h⟩
-    rw [realize_haltSentence] at h
-    obtain ⟨hA, ⟨k, z, x, hz, hI⟩, hE⟩ := h
+    obtain ⟨hA, ⟨k, z, x, hz, hI⟩, hE⟩ := (realize_haltSentence c).1 h
     obtain ⟨N, e, hlt, hz', hs, hp⟩ := arithModel_faithful hA
-    have hax : ∀ d : Code, encode d ≤ encode c → ∀ k n x, I (encode d + 4) [k, n, x] →
-        I 0 [n, k] ∧ CaseSem I d k n x := fun d hd => (realize_evAx d).1 (hE d hd)
     have H : Code.evaln (e k) c (e z) = some (e x) :=
-      evaln_of_model (fun a => (e a : ℕ)) hlt hz' hs hp hax c le_rfl k z x hI
-    rw [(hz' z).1 hz] at H
-    exact Part.dom_iff_mem.2 ⟨_, Code.evaln_sound H⟩
+      evaln_of_model (fun a => (e a : ℕ)) hlt hz' hs hp
+        (fun d hd => (realize_evAx d).1 (hE d hd)) c le_rfl k z x hI
+    exact Part.dom_iff_mem.2 ⟨_, Code.evaln_sound ((hz' z).1 hz ▸ H)⟩
 
 /-! ### Computability of the reduction -/
 

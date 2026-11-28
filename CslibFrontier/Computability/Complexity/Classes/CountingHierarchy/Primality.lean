@@ -56,19 +56,10 @@ theorem prime_iff_divisorIndices (p : ℕ) :
   constructor
   · intro hp w
     refine ⟨hp.two_le, ?_⟩
-    by_cases hsmall : BitString.binaryValue (List.ofFn w) < 2
-    · exact Or.inl hsmall
-    · by_cases hlarge : p ≤ BitString.binaryValue (List.ofFn w)
-      · exact Or.inr (Or.inl hlarge)
-      · refine Or.inr (Or.inr ?_)
-        intro hzero
-        exact (Nat.prime_def_lt'.mp hp).2 _ (by omega) (by omega)
-          (Nat.dvd_of_mod_eq_zero hzero)
+    by_contra! h
+    exact (Nat.prime_def_lt'.mp hp).2 _ h.1 h.2.1 (Nat.dvd_of_mod_eq_zero h.2.2)
   · intro h
-    have hp2 := (h (fun _ => false)).1
-    apply Nat.prime_def_lt'.mpr
-    refine ⟨hp2, ?_⟩
-    intro d hd hdp hdvd
+    refine Nat.prime_def_lt'.mpr ⟨(h fun _ => false).1, fun d hd hdp hdvd => ?_⟩
     obtain ⟨w, hw⟩ := BitString.exists_binaryValue_eq (hdp.trans (Nat.lt_size_self p))
     have hchecks := (h w).2
     rw [hw, Nat.mod_eq_zero_of_dvd hdvd] at hchecks

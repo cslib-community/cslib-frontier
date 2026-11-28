@@ -50,13 +50,8 @@ theorem EdgeInstance.mem_selectedVariables_iff (hF : EdgeInstance F)
     (f : OccurrenceLabeling F Bool) (o : Occurrence F) :
     o.var ∈ selectedVariables f ↔ f o = true ∧ f (hF.partner o) = true := by
   rw [mem_selectedVariables, and_iff_right o.var_mem]
-  constructor
-  · intro h
-    exact ⟨h o rfl, h _ (hF.partner_variable o).symm⟩
-  · intro h p hp
-    rcases hF.eq_or_eq_partner hp with rfl | rfl
-    · exact h.1
-    · exact h.2
+  exact ⟨fun h => ⟨h o rfl, h _ (hF.partner_variable o).symm⟩, fun h p hp =>
+    (hF.eq_or_eq_partner hp).elim (· ▸ h.1) (· ▸ h.2)⟩
 
 /-- True endpoints split into twice the mutually selected edges and the defective edges. -/
 theorem EdgeInstance.card_true_eq (hF : EdgeInstance F) (f : OccurrenceLabeling F Bool) :
@@ -73,24 +68,20 @@ theorem EdgeInstance.card_true_eq (hF : EdgeInstance F) (f : OccurrenceLabeling 
         ({o, hF.partner o} : Finset (Occurrence F)).filter fun p => f p = true := by
       ext p
       simp only [T, mem_filter, mem_univ, true_and, mem_insert, mem_singleton]
-      constructor
-      · exact fun ⟨hp, hv⟩ => ⟨hF.eq_or_eq_partner hv, hp⟩
-      · rintro ⟨rfl | rfl, hp⟩
-        · exact ⟨hp, rfl⟩
-        · exact ⟨hp, (hF.partner_variable o).symm⟩
+      exact and_comm.trans (and_congr_left' ⟨hF.eq_or_eq_partner, fun h =>
+        h.elim (congrArg Occurrence.var) (·.symm ▸ (hF.partner_variable o).symm)⟩)
     rw [he]
     simp only [hF.mem_selectedVariables_iff, mem_defects, hF.inconsistent_iff]
     have hn := hF.partner_ne o
-    grind [Finset.filter_insert, Finset.filter_singleton]
+    cases h1 : f o <;> cases h2 : f (hF.partner o) <;>
+      simp [Finset.filter_insert, Finset.filter_singleton, hn, h1, h2]
   have hsum : T.card = ∑ v ∈ F.vars.toFinset, (T.filter fun o => o.var = v).card :=
     card_eq_sum_card_fiberwise fun o _ => List.mem_toFinset.mpr o.var_mem
   rw [hsum, sum_congr rfl hfiber, sum_add_distrib]
   have hs : selectedVariables f ⊆ F.vars.toFinset := fun v hv =>
     List.mem_toFinset.mpr (mem_selectedVariables.mp hv).1
-  have hd : defects f ⊆ F.vars.toFinset := by
-    intro v hv
-    obtain ⟨o, _, ho, _, _⟩ := mem_defects.mp hv
-    exact List.mem_toFinset.mpr (ho ▸ o.var_mem)
+  have hd : defects f ⊆ F.vars.toFinset := fun v hv =>
+    let ⟨o, _, ho, _, _⟩ := mem_defects.mp hv; List.mem_toFinset.mpr (ho ▸ o.var_mem)
   simp only [sum_ite_mem, inter_eq_right.mpr hs, inter_eq_right.mpr hd, sum_const,
     smul_eq_mul, mul_comm, Nat.one_mul]
 

@@ -160,15 +160,6 @@ private theorem preimage_insert_equiv {k' : ℕ} (σ : Fin k' ≃ Fin k) (i : Fi
   ext j
   simp only [Set.mem_insert_iff, Set.mem_preimage, σ.injective.eq_iff]
 
-private theorem update_comp_equiv {α : Type*} {k' : ℕ} (σ : Fin k' ≃ Fin k) (a : Fin k → α)
-    (i : Fin k') (c : α) : Function.update (a ∘ σ) i c = Function.update a (σ i) c ∘ σ := by
-  ext j
-  by_cases h : j = i
-  · subst h
-    simp only [Function.update_self, Function.comp_apply]
-  · simp only [Function.update_of_ne h, Function.comp_apply,
-      Function.update_of_ne (σ.injective.ne h)]
-
 /-- Reindexing pebble names along a bijection preserves winning positions of the bijective game. -/
 theorem bijPebbleWins_comp_equiv_iff {k' : ℕ} (σ : Fin k' ≃ Fin k) :
     ∀ {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N},
@@ -179,7 +170,7 @@ theorem bijPebbleWins_comp_equiv_iff {k' : ℕ} (σ : Fin k' ≃ Fin k) :
     rw [bijPebbleWins_succ, bijPebbleWins_succ, partialIsoOn_comp_equiv_iff]
     refine and_congr Iff.rfl (σ.forall_congr fun i => exists_congr fun f =>
       forall_congr' fun c => ?_)
-    rw [preimage_insert_equiv, update_comp_equiv, update_comp_equiv,
+    simp only [preimage_insert_equiv, ← Function.update_comp_eq_of_injective _ σ.injective,
       bijPebbleWins_comp_equiv_iff σ]
 
 theorem BijPebbleWins.refl : ∀ (n : ℕ) (S : Set (Fin k)) (a : Fin k → M), BijPebbleWins L n S a a
@@ -193,9 +184,7 @@ theorem BijPebbleWins.symm : ∀ {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {
   | _ + 1, _, a, b, h => by
     refine bijPebbleWins_succ.2 ⟨h.partialIsoOn.symm, fun i => ?_⟩
     obtain ⟨f, hf⟩ := h.move i
-    refine ⟨f.symm, fun d => ?_⟩
-    have := (hf (f.symm d)).symm
-    rwa [Equiv.apply_symm_apply] at this
+    exact ⟨f.symm, fun d => by simpa only [Equiv.apply_symm_apply] using (hf (f.symm d)).symm⟩
 
 theorem BijPebbleWins.trans :
     ∀ {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N} {c : Fin k → P},
@@ -219,9 +208,7 @@ theorem BijPebbleWins.pebbleWins :
     · obtain ⟨f, hf⟩ := h.move i
       exact ⟨f c, (hf c).pebbleWins⟩
     · obtain ⟨f, hf⟩ := h.move i
-      refine ⟨f.symm d, ?_⟩
-      have := (hf (f.symm d)).pebbleWins
-      rwa [Equiv.apply_symm_apply] at this
+      exact ⟨f.symm d, by simpa only [Equiv.apply_symm_apply] using (hf (f.symm d)).pebbleWins⟩
 
 /-! ### Back-and-forth invariants and the infinite game -/
 
@@ -284,9 +271,7 @@ theorem BijPebbleWinsForever.pebbleWinsForever {S : Set (Fin k)} {a : Fin k → 
   · obtain ⟨f, hf⟩ := hI.move h i
     exact ⟨f c, hf c⟩
   · obtain ⟨f, hf⟩ := hI.move h i
-    refine ⟨f.symm d, ?_⟩
-    have := hf (f.symm d)
-    rwa [Equiv.apply_symm_apply] at this
+    exact ⟨f.symm d, by simpa only [Equiv.apply_symm_apply] using hf (f.symm d)⟩
 
 /-- **The infinite bijective game on finite structures.** When `M` is finite, Duplicator wins the
 bijective `k`-pebble game that continues forever exactly when she wins the `n`-round game for every

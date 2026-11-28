@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test)
 
-import CslibFrontier.Computability.Circuit.Boolean.RepeatedSquaring
+import CslibFrontier.Computability.Circuit.Boolean.RepeatedSquaring.Encoding
 import CslibFrontier.Computability.Circuit.Simps
 
 /-!
@@ -26,6 +26,13 @@ set_option linter.privateModule false
 namespace CslibFrontierTests.RepeatedSquaring
 
 open Cslib Cslib.Circuits Cslib.Circuits.Boolean Relation
+
+/-- In the second round on a two-vertex graph, the first cell reads three
+first-round results, including the repeated diagonal address. -/
+example : (((squareCircuit 2).iterate 2).code.1.drop 12).take 3 =
+    [(Unbounded.Op.and 2, [6, 6]), (.and 2, [9, 12]), (.or 2, [16, 17])] := by
+  rw [code_iterate_squareCircuit]
+  decide
 
 -- Automation checks: `circuit_bound` composes `Circuit.depth_iterate_le` with
 -- `depth_squareCircuit_le`, and `circuit_simps` normalizes iterated gate counts.

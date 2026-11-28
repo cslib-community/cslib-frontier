@@ -106,7 +106,7 @@ private theorem ot14WordHandler_encodeOT14Query (q : (s : Fin 2) → ot14Spec.Qu
           false) = q 1 := by
     simpa using boolPairToFin4_fin4ToBoolPair (q 1)
   rw [h45]
-  rcases hq : q 1 with ⟨val, isLt⟩
+  rcases q 1 with ⟨val, isLt⟩
   interval_cases val <;> rfl
 
 /-- Decode a 1-bit word-oracle reply `rep : List Bool` into an `ot14Spec` answer tuple:
@@ -203,11 +203,8 @@ theorem Protocol.eval_runEncoded_eq_evalWith_map {m : ℕ} {sc : Schedule m ot14
     (steps : Steps State' Out sc) (st : (i : Fin m) → State i) :
     (steps.mapState f).runEncoded st = steps.runEncoded (fun i => f i (st i)) := by
   induction steps generalizing State with
-  | done output => rfl
-  | message send next ih =>
-    simp [Steps.mapState, Steps.runEncoded, ih]
-  | oracle query next ih =>
-    simp [Steps.mapState, Steps.runEncoded, ih]
+  | done => rfl
+  | message _ _ ih | oracle _ _ ih => simp [Steps.mapState, Steps.runEncoded, ih]
 
 /-- `Steps.runEncoded` of concatenated steps runs the two parts in sequence. -/
 @[simp] theorem Steps.runEncoded_append {m : ℕ} {State Mid Out : Fin m → Type}
@@ -220,14 +217,9 @@ theorem Protocol.eval_runEncoded_eq_evalWith_map {m : ℕ} {sc : Schedule m ot14
       let r₂ ← steps₂.runEncoded (fun i => steps₁.outputAt i (st i) (r₁ i))
       return fun i => Schedule.Received.append (r₁ i) (r₂ i)) := by
   induction steps₁ with
-  | done output =>
-    simp [Steps.append, Steps.runEncoded, Steps.outputAt, Schedule.Received.append]
-  | message send next ih =>
-    simp [Steps.append, Steps.runEncoded, ih, Steps.outputAt,
-      Schedule.Received.append]
-  | oracle query next ih =>
-    simp [Steps.append, Steps.runEncoded, ih, Steps.outputAt,
-      Schedule.Received.append]
+  | done => simp [Steps.append, Steps.runEncoded, Steps.outputAt, Schedule.Received.append]
+  | message _ _ ih | oracle _ _ ih =>
+    simp [Steps.append, Steps.runEncoded, ih, Steps.outputAt, Schedule.Received.append]
 
 /-- `Steps.runEncoded` of an embedded sub-protocol runs the sub-protocol and pushes its
 received messages to the embedded parties. -/
@@ -239,16 +231,14 @@ received messages to the embedded parties. -/
       Composition.pushScheduleReceived parties sc <$>
         steps.runEncoded (fun s => (st (parties s)).2 s rfl) := by
   induction steps with
-  | done output =>
-    simp [Composition.Steps.embed, Steps.runEncoded, Composition.pushScheduleReceived]
-  | @message _ _ s₀ r₀ Msg _ send next ih =>
+  | done => simp [Composition.Steps.embed, Steps.runEncoded, Composition.pushScheduleReceived]
+  | message _ _ ih =>
     simp only [Composition.Steps.embed, Steps.runEncoded, Steps.runEncoded_mapState, ih,
       bind_pure_comp, Functor.map_map]
     rfl
-  | @oracle _ _ op subParties _ query next ih =>
+  | oracle _ _ ih =>
     simp only [Composition.Steps.embed, Steps.runEncoded, Steps.runEncoded_mapState, ih,
       bind_pure_comp, Functor.map_map, map_bind, bind_map_left]
-    refine congrArg (Bind.bind _) (funext fun rep => ?_)
-    rfl
+    exact congrArg (Bind.bind _) (funext fun _ => rfl)
 
 end Cslib.Crypto.Protocols.MPC

@@ -119,11 +119,7 @@ theorem pigouBound_le {C : Set (ℝ → ℝ)} {a : ℝ≥0∞}
 theorem lt_pigouBound_iff {C : Set (ℝ → ℝ)} {a : ℝ≥0∞} :
     a < pigouBound C ↔ ∃ c ∈ C, ∃ r x : ℝ, 0 ≤ r ∧ 0 ≤ x ∧ a < pigouRatio c r x := by
   simp only [pigouBound, lt_iSup_iff, exists_prop, ge_iff_le]
-  constructor
-  · rintro ⟨c, hc, r, hr, x, hx, h⟩
-    exact ⟨c, hc, r, x, hr, hx, h⟩
-  · rintro ⟨c, hc, r, x, hr, hx, h⟩
-    exact ⟨c, hc, r, hr, x, hx, h⟩
+  exact exists_congr fun _ => and_congr_right' (exists_congr fun _ => exists_and_left.symm)
 
 /-- The Pigou bound is at least `1` as soon as some `c ∈ C` and `r ≥ 0` have `r c(r) > 0`: the
 ratio at `x = r` is `1`. -/
@@ -200,29 +196,17 @@ theorem mem_polynomialLatencies {d : ℕ} {c : ℝ → ℝ} :
   Iff.rfl
 
 /-- The monomial `x ^ d` is a polynomial latency of degree at most `d`. -/
-theorem pow_mem_polynomialLatencies (d : ℕ) : (fun x : ℝ => x ^ d) ∈ polynomialLatencies d := by
-  refine ⟨Pi.single (Fin.last d) 1, fun i => ?_, fun x => ?_⟩
-  · by_cases h : i = Fin.last d
-    · subst h; simp
-    · simp [h]
-  · rw [Finset.sum_eq_single (Fin.last d)]
-    · simp
-    · intro i _ hi
-      simp [hi]
-    · simp
+theorem pow_mem_polynomialLatencies (d : ℕ) : (fun x : ℝ => x ^ d) ∈ polynomialLatencies d :=
+  ⟨Pi.single (Fin.last d) 1,
+    fun i => by by_cases h : i = Fin.last d <;> simp [h],
+    fun x => by simp [Pi.single_apply]⟩
 
 /-- Nonnegative constant functions are polynomial latencies of every degree. -/
 theorem const_mem_polynomialLatencies {d : ℕ} (a : ℝ) (ha : 0 ≤ a) :
-    (fun _ : ℝ => a) ∈ polynomialLatencies d := by
-  refine ⟨Pi.single 0 a, fun i => ?_, fun x => ?_⟩
-  · by_cases h : i = 0
-    · subst h; simpa using ha
-    · simp [h]
-  · rw [Finset.sum_eq_single 0]
-    · simp
-    · intro i _ hi
-      simp [hi]
-    · simp
+    (fun _ : ℝ => a) ∈ polynomialLatencies d :=
+  ⟨Pi.single 0 a,
+    fun i => by by_cases h : i = 0 <;> simp [h, ha],
+    fun x => by simp [Pi.single_apply]⟩
 
 /-- Polynomial latencies with nonnegative coefficients are nonnegative on `[0, ∞)`. -/
 theorem nonneg_of_mem_polynomialLatencies {d : ℕ} {c : ℝ → ℝ} (hc : c ∈ polynomialLatencies d)
@@ -459,12 +443,9 @@ theorem pigouNetwork_cost (c : ℝ → ℝ) (r : ℝ) (f : Fin 2 → ℝ) :
 /-- Routing `x ∈ [0, r]` units over the first link of a Pigou-like network, and the rest over the
 second, is feasible. -/
 theorem pigouNetwork_isFeasible (c : ℝ → ℝ) {r x : ℝ} (hx : 0 ≤ x) (hxr : x ≤ r) :
-    (pigouNetwork c r).IsFeasible ![x, r - x] := by
-  refine ⟨fun p => ?_, fun _ => ?_⟩
-  · fin_cases p
-    · exact hx
-    · simpa using hxr
-  · simp [pigouNetwork, Fin.sum_univ_two]
+    (pigouNetwork c r).IsFeasible ![x, r - x] :=
+  ⟨Fin.forall_fin_two.2 ⟨hx, sub_nonneg.2 hxr⟩,
+    fun _ => by simp [pigouNetwork, Fin.sum_univ_two]⟩
 
 /-- In a Pigou-like network, routing all traffic over the first link is a Wardrop equilibrium. -/
 theorem pigouNetwork_isWardrop (c : ℝ → ℝ) {r : ℝ} (hr : 0 ≤ r) :
@@ -488,11 +469,9 @@ theorem exists_lt_cost_of_lt_pigouBound {C : Set (ℝ → ℝ)} (hC : ∀ c ∈ 
       (∀ e, G.latency e ∈ C) ∧ G.IsWardrop f ∧ G.IsFeasible g ∧ 0 < G.cost g ∧
         β * G.cost g < G.cost f := by
   rcases lt_or_ge β 1 with hβ1 | hβ1
-  · refine ⟨pigouNetwork (fun _ => 1) 1, ![1, 0], ![1, 0], fun e => ?_,
+  · refine ⟨pigouNetwork (fun _ => 1) 1, ![1, 0], ![1, 0],
+      Fin.forall_fin_two.2 ⟨hconst 1 zero_le_one, hconst 1 zero_le_one⟩,
       pigouNetwork_isWardrop _ zero_le_one, (pigouNetwork_isWardrop _ zero_le_one).1, ?_, ?_⟩
-    · fin_cases e
-      · exact hconst 1 zero_le_one
-      · exact hconst 1 zero_le_one
     · rw [pigouNetwork_cost]; norm_num
     · rw [pigouNetwork_cost]; norm_num [hβ1]
   obtain ⟨c, hc, r, x, hr, hx, hlt⟩ := lt_pigouBound_iff.1 hβ
@@ -502,21 +481,17 @@ theorem exists_lt_cost_of_lt_pigouBound {C : Set (ℝ → ℝ)} (hC : ∀ c ∈ 
   have hcx := hC c hc x hx
   have hD : 0 < x * c x + (r - x) * c r := by
     by_contra hD
-    rw [div_eq_zero_iff.2 (Or.inr (le_antisymm (not_lt.1 hD) ?_))] at hpos
-    · exact lt_irrefl 0 hpos
-    · obtain ⟨-, h2⟩ := pigou_num_eq_zero_of_denom_nonpos (hC c hc) (hCm c hc) hr hx (not_lt.1 hD)
-      exact h2.ge
+    have hzero := (pigou_num_eq_zero_of_denom_nonpos (hC c hc) (hCm c hc) hr hx (not_lt.1 hD)).2
+    simp [hzero] at hpos
   have hxr : x < r := by
     by_contra hrx
     have hle : c r ≤ c x := hCm c hc hr hx (not_lt.1 hrx)
     have : r * c r ≤ x * c x + (r - x) * c r := by
       nlinarith [mul_nonneg hx (sub_nonneg.2 hle)]
     linarith [(div_le_one hD).2 this]
-  refine ⟨pigouNetwork c r, ![r, 0], ![x, r - x], fun e => ?_, pigouNetwork_isWardrop c hr,
+  refine ⟨pigouNetwork c r, ![r, 0], ![x, r - x],
+    Fin.forall_fin_two.2 ⟨hc, hconst _ hcr⟩, pigouNetwork_isWardrop c hr,
     pigouNetwork_isFeasible c hx hxr.le, ?_, ?_⟩
-  · fin_cases e
-    · exact hc
-    · exact hconst _ hcr
   · rw [pigouNetwork_cost]; simpa using hD
   · rw [pigouNetwork_cost, pigouNetwork_cost]
     simp only [Matrix.cons_val_zero, Matrix.cons_val_one, zero_mul, add_zero]
@@ -572,11 +547,10 @@ theorem exists_cost_eq_mul_of_mem_polynomialLatencies (d : ℕ) :
     simp only [Matrix.cons_val_zero, Matrix.cons_val_one, one_pow, mul_one]
     rw [pow_succ]
     linear_combination t * htd
-  refine ⟨pigouNetwork (fun x => x ^ d) 1, ![1, 0], ![t, 1 - t], fun e => ?_,
+  refine ⟨pigouNetwork (fun x => x ^ d) 1, ![1, 0], ![t, 1 - t],
+    Fin.forall_fin_two.2 ⟨pow_mem_polynomialLatencies d,
+      const_mem_polynomialLatencies _ (pow_nonneg zero_le_one d)⟩,
     pigouNetwork_isWardrop _ zero_le_one, pigouNetwork_isFeasible _ ht0.le ht1, ?_, ?_⟩
-  · fin_cases e
-    · exact pow_mem_polynomialLatencies d
-    · exact const_mem_polynomialLatencies _ (pow_nonneg zero_le_one d)
   · rw [hcost]; exact hpos
   · rw [hcost, inv_mul_cancel₀ hpos.ne', pigouNetwork_cost]
     simp
@@ -588,14 +562,11 @@ omit [Fintype P] [DecidableEq E] in
 theorem HasAffineLatencies.latency_mem_polynomialLatencies (hG : G.HasAffineLatencies) (e : E) :
     G.latency e ∈ polynomialLatencies 1 := by
   obtain ⟨a, b, ha, hb, hl⟩ := hG
-  refine ⟨![b e, a e], fun i => ?_, fun x => ?_⟩
-  · fin_cases i
-    · exact hb e
-    · exact ha e
-  · rw [hl, Fin.sum_univ_two]
-    simp only [Matrix.cons_val_zero, Matrix.cons_val_one, Fin.val_zero,
-      Fin.val_one, pow_zero, pow_one]
-    ring
+  refine ⟨![b e, a e], Fin.forall_fin_two.2 ⟨hb e, ha e⟩, fun x => ?_⟩
+  rw [hl, Fin.sum_univ_two]
+  simp only [Matrix.cons_val_zero, Matrix.cons_val_one, Fin.val_zero,
+    Fin.val_one, pow_zero, pow_one]
+  ring
 
 /-- **The price of anarchy of selfish routing with affine latencies is at most `4/3`**
 ([RoughgardenTardos2002], Theorem 4.5): if the latencies are affine with nonnegative coefficients,

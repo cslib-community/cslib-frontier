@@ -14,6 +14,7 @@ import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.StatisticalDistance.ClosedForm
 import CslibFrontier.Probability.StatisticalDistance.OptimalCoupling
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Glauber dynamics for proper colorings
@@ -133,26 +134,15 @@ theorem recolor_apply {x : V → Fin q} {w : V} (h : (G.allowedColors x w).Nonem
       if Function.update x w (y w) = y ∧ y w ∈ G.allowedColors x w then
         ((G.allowedColors x w).card : ℝ≥0∞)⁻¹ else 0 := by
   rw [recolor_of_nonempty G h, PMF.map_apply, tsum_eq_single (y w)]
-  · by_cases hy : Function.update x w (y w) = y
-    · rw [ite_eq_left hy.symm, uniformOfFinset_apply]
-      by_cases hm : y w ∈ G.allowedColors x w
-      · rw [ite_eq_left hm, ite_eq_left ⟨hy, hm⟩]
-      · rw [ite_eq_right hm, ite_eq_right fun h => hm h.2]
-    · rw [ite_eq_right (Ne.symm hy), ite_eq_right fun h => hy h.1]
-  · intro c hc
-    rw [ite_eq_right]
-    intro hyc
-    exact hc (by rw [hyc, Function.update_self])
+  · rw [uniformOfFinset_apply]
+    by_cases hy : Function.update x w (y w) = y <;> by_cases hm : y w ∈ G.allowedColors x w <;>
+      simp [hy, Ne.symm, hm]
+  · exact fun c hc => ite_eq_right fun hyc => hc (by rw [hyc, Function.update_self])
 
 /-- The heat-bath update at `w` changes only the color of `w`. -/
 theorem eq_of_mem_support_recolor {x y : V → Fin q} {w : V} (hy : y ∈ (recolor G x w).support)
     {u : V} (hu : u ≠ w) : y u = x u := by
-  unfold recolor at hy
-  split_ifs at hy with h
-  · obtain ⟨c, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).1 hy
-    exact Function.update_of_ne hu _ _
-  · rw [PMF.support_pure, Set.mem_singleton_iff] at hy
-    rw [hy]
+  supp_cases hy [recolor] <;> simp [Function.update_of_ne hu]
 
 /-! ### Stationarity -/
 
@@ -162,33 +152,27 @@ private theorem recolor_balance {T : Finset (V → Fin q)} (hT : T.Nonempty)
     (hTp : ∀ x ∈ T, G.IsProperColoring x) {w : V}
     (hTw : ∀ x ∈ T, ∀ c ∈ G.allowedColors x w, Function.update x w c ∈ T) (x y : V → Fin q) :
     uniformOfFinset T hT x * recolor G x w y = uniformOfFinset T hT y * recolor G y w x := by
-  have hπ (z : V → Fin q) (hz : z ∉ T) : uniformOfFinset T hT z = 0 := by
-    rw [uniformOfFinset_apply, ite_eq_right fun h => hz h]
   have hzero {x y : V → Fin q} (hx : x ∈ T) (hy : y ∉ T) : recolor G x w y = 0 := by
     rw [recolor_apply G ⟨x w, (hTp x hx).mem_allowedColors w⟩, ite_eq_right]
-    rintro ⟨hupd, hmem⟩
-    exact hy (hupd ▸ hTw x hx _ hmem)
+    exact fun ⟨hupd, hmem⟩ => hy (hupd ▸ hTw x hx _ hmem)
   by_cases hx : x ∈ T <;> by_cases hy : y ∈ T
-  · rw [uniformOfFinset_apply, uniformOfFinset_apply, ite_eq_left hx, ite_eq_left hy]
+  · simp only [uniformOfFinset_apply, hx, hy, ↓reduceIte]
     congr 1
     rw [recolor_apply G ⟨x w, (hTp x hx).mem_allowedColors w⟩,
       recolor_apply G ⟨y w, (hTp y hy).mem_allowedColors w⟩]
     by_cases hxy : Function.update x w (y w) = y
     · have hyx : Function.update y w (x w) = x := by
         rw [← hxy, Function.update_idem, Function.update_eq_self]
-      have hA : G.allowedColors x w = G.allowedColors y w :=
-        G.allowedColors_congr fun u hu => by
-          rw [← hxy, Function.update_of_ne (G.ne_of_adj hu).symm]
-      have hxA : x w ∈ G.allowedColors y w := by
-        rw [← hA]
-        exact (hTp x hx).mem_allowedColors w
-      rw [hA, ite_eq_left ⟨hxy, (hTp y hy).mem_allowedColors w⟩, ite_eq_left ⟨hyx, hxA⟩]
+      have hA : G.allowedColors x w = G.allowedColors y w := G.allowedColors_congr fun u hu => by
+        rw [← hxy, Function.update_of_ne (G.ne_of_adj hu).symm]
+      rw [hA, ite_eq_left ⟨hxy, (hTp y hy).mem_allowedColors w⟩,
+        ite_eq_left ⟨hyx, hA ▸ (hTp x hx).mem_allowedColors w⟩]
     · have hyx : Function.update y w (x w) ≠ x := fun h =>
         hxy (by rw [← h, Function.update_idem, Function.update_eq_self])
-      rw [ite_eq_right fun h => hxy h.1, ite_eq_right fun h => hyx h.1]
-  · rw [hzero hx hy, hπ y hy, mul_zero, zero_mul]
-  · rw [hzero hy hx, hπ x hx, mul_zero, zero_mul]
-  · rw [hπ x hx, hπ y hy, zero_mul, zero_mul]
+      simp [hxy, hyx]
+  · simp [uniformOfFinset_apply, hy, hzero hx hy]
+  · simp [uniformOfFinset_apply, hx, hzero hy hx]
+  · simp [uniformOfFinset_apply, hx, hy]
 
 /-- Proper colorings are closed under recoloring a vertex with an allowed color. -/
 private theorem properColorings_closed {w : V} :
@@ -355,28 +339,23 @@ theorem exists_coupling_glauberColoringOn (hq : G.maxDegree < q) {U : Finset V}
     have hupd (c : Fin q × Fin q) :
         (hammingDist (Function.update x w c.1) (Function.update y w c.2) : ℝ) =
           (1 - if x w ≠ y w then 1 else 0) + 1 * if c.1 ≠ c.2 then 1 else 0 := by
-      have := hammingDist_update_update x y w c.1 c.2
-      rw [hxy] at this
       have h' : ((hammingDist (Function.update x w c.1) (Function.update y w c.2) : ℕ) : ℝ) +
-          ((if x w ≠ y w then 1 else 0 : ℕ) : ℝ) =
-            1 + ((if c.1 ≠ c.2 then 1 else 0 : ℕ) : ℝ) := by
-        exact_mod_cast this
-      push_cast at h'
-      linarith
+          ((if x w ≠ y w then 1 else 0 : ℕ) : ℝ) = 1 + ((if c.1 ≠ c.2 then 1 else 0 : ℕ) : ℝ) :=
+        mod_cast (hxy ▸ hammingDist_update_update x y w c.1 c.2)
+      push_cast at h'; linarith
     simp only [hupd]
     rw [sum_affine (γ w) _ 1, one_mul]
     have hev : ∑ c, ((γ w) c).toReal * (if c.1 ≠ c.2 then (1 : ℝ) else 0) =
         ((γ w).toOuterMeasure {c | c.1 ≠ c.2}).toReal := by
       rw [toOuterMeasure_apply_toReal]
-      refine Finset.sum_congr rfl fun c _ => ?_
-      by_cases hc : c.1 ≠ c.2 <;> simp [hc]
+      exact Finset.sum_congr rfl fun c _ => by by_cases hc : c.1 ≠ c.2 <;> simp [hc]
     rw [hev, hγ3 w]
     exact add_le_add le_rfl (dist_allowedColors_le G hq hv w)
   have h1 : ∑ w ∈ U, (if x w ≠ y w then (1 : ℝ) else 0) = 1 := by
     rw [Finset.sum_eq_single v (fun w _ hwv => ite_eq_right (not_not.2 (hv w hwv)))
       (fun h => absurd hvU h), ite_eq_left hvne]
   have h2 : ∑ w ∈ U, (if G.Adj v w then 1 / ((q - G.maxDegree : ℕ) : ℝ) else 0) ≤
-      G.maxDegree * (1 / ((q - G.maxDegree : ℕ) : ℝ)) := by
+      G.maxDegree * (1 / ((q - G.maxDegree : ℕ) : ℝ)) :=
     calc ∑ w ∈ U, (if G.Adj v w then 1 / ((q - G.maxDegree : ℕ) : ℝ) else 0)
         ≤ ∑ w, (if G.Adj v w then 1 / ((q - G.maxDegree : ℕ) : ℝ) else 0) :=
           Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ U)
@@ -384,10 +363,9 @@ theorem exists_coupling_glauberColoringOn (hq : G.maxDegree < q) {U : Finset V}
       _ = G.degree v * (1 / ((q - G.maxDegree : ℕ) : ℝ)) := by
           rw [← Finset.sum_filter, ← SimpleGraph.neighborFinset_eq_filter, Finset.sum_const,
             SimpleGraph.card_neighborFinset_eq_degree, nsmul_eq_mul]
-      _ ≤ G.maxDegree * (1 / ((q - G.maxDegree : ℕ) : ℝ)) := by
-          have hdeg : (G.degree v : ℝ) ≤ G.maxDegree := by
-            exact_mod_cast G.degree_le_maxDegree v
-          exact mul_le_mul_of_nonneg_right hdeg (div_nonneg zero_le_one hD.le)
+      _ ≤ G.maxDegree * (1 / ((q - G.maxDegree : ℕ) : ℝ)) :=
+          mul_le_mul_of_nonneg_right (mod_cast G.degree_le_maxDegree v)
+            (div_nonneg zero_le_one hD.le)
   have hunif (w : V) : ((uniformOfFinset U hU) w).toReal =
       if w ∈ U then (U.card : ℝ)⁻¹ else 0 := by
     rw [uniformOfFinset_apply]
@@ -409,9 +387,7 @@ theorem exists_coupling_glauberColoringOn (hq : G.maxDegree < q) {U : Finset V}
         rw [Finset.sum_add_distrib, Finset.sum_sub_distrib, h1, Finset.sum_const, nsmul_eq_mul,
           mul_one]
         exact mul_le_mul_of_nonneg_left (add_le_add le_rfl h2) (inv_nonneg.2 hn.le)
-    _ = 1 - (1 - G.maxDegree / ((q - G.maxDegree : ℕ) : ℝ)) / U.card := by
-        field_simp
-        ring
+    _ = 1 - (1 - G.maxDegree / ((q - G.maxDegree : ℕ) : ℝ)) / U.card := by field_simp; ring
 
 /-- **One-step contraction for colorings** ([LevinPeres2017], (14.18) and (14.19)): if `Δ < q`,
 two colorings at Hamming distance one admit a coupling of one Glauber step under which the
@@ -434,21 +410,18 @@ theorem distToStationary_glauberColoring_le [Nonempty V] (hq : 2 * G.maxDegree <
     (glauberColoring G q).distToStationary (uniformOfFinset (G.properColorings q) hne) t ≤
       (1 - ((q - 2 * G.maxDegree : ℕ) : ℝ) / ((q - G.maxDegree : ℕ) : ℝ) /
         Fintype.card V) ^ t * Fintype.card V := by
-  have hq' : G.maxDegree < q := by omega
-  have hn : (1 : ℝ) ≤ Fintype.card V := by exact_mod_cast Fintype.card_pos
-  have hD : (0 : ℝ) < ((q - G.maxDegree : ℕ) : ℝ) := Nat.cast_pos.2 (by omega)
-  have hc1 : ((q - 2 * G.maxDegree : ℕ) : ℝ) / ((q - G.maxDegree : ℕ) : ℝ) ≤ 1 := by
-    rw [div_le_one hD]
-    exact_mod_cast (by omega : q - 2 * G.maxDegree ≤ q - G.maxDegree)
   have hκ : 0 ≤ 1 - ((q - 2 * G.maxDegree : ℕ) : ℝ) / ((q - G.maxDegree : ℕ) : ℝ) /
       Fintype.card V := by
-    rw [sub_nonneg, div_le_one (by linarith)]
-    linarith
+    have hD : (0 : ℝ) < ((q - G.maxDegree : ℕ) : ℝ) := Nat.cast_pos.2 (by omega)
+    have hc1 : ((q - 2 * G.maxDegree : ℕ) : ℝ) / ((q - G.maxDegree : ℕ) : ℝ) ≤ 1 :=
+      (div_le_one hD).2 (mod_cast (by omega))
+    exact sub_nonneg.2 ((div_le_one (Nat.cast_pos.2 Fintype.card_pos)).2
+      (hc1.trans (mod_cast Fintype.card_pos)))
   refine (isStationary_glauberColoring G hne).distToStationary_le_of_pathCoupling
     (isPathMetric_hammingDist (β := fun _ : V => Fin q)) hκ (fun x y hxy => ?_)
-    (fun x y => by exact_mod_cast hammingDist_le_card_fintype) t
+    (fun _ _ => mod_cast hammingDist_le_card_fintype) t
   rw [← one_sub_div_eq G hq]
-  exact exists_coupling_glauberColoring G hq' hxy
+  exact exists_coupling_glauberColoring G (by omega) hxy
 
 /-- **Rapid mixing of Glauber dynamics for colorings** ([LevinPeres2017], Theorem 14.10): for a
 graph with `n` vertices and maximum degree `Δ`, if `q > 2Δ` then
@@ -458,34 +431,29 @@ theorem mixingTime_glauberColoring_le [Nonempty V] (hq : 2 * G.maxDegree < q)
     (glauberColoring G q).mixingTime (uniformOfFinset (G.properColorings q) hne) ε ≤
       (⌈((q - G.maxDegree : ℕ) : ℝ) / ((q - 2 * G.maxDegree : ℕ) : ℝ) * Fintype.card V *
         (Real.log (Fintype.card V) - Real.log ε)⌉₊ : ℕ) := by
-  have hq' : G.maxDegree < q := by omega
-  have hn : (1 : ℝ) ≤ Fintype.card V := by exact_mod_cast Fintype.card_pos
+  have hn : (1 : ℝ) ≤ Fintype.card V := mod_cast Fintype.card_pos
   have hD : (0 : ℝ) < ((q - G.maxDegree : ℕ) : ℝ) := Nat.cast_pos.2 (by omega)
   have hE : (0 : ℝ) < ((q - 2 * G.maxDegree : ℕ) : ℝ) := Nat.cast_pos.2 (by omega)
-  have hc1 : ((q - 2 * G.maxDegree : ℕ) : ℝ) / ((q - G.maxDegree : ℕ) : ℝ) ≤ 1 := by
-    rw [div_le_one hD]
-    exact_mod_cast (by omega : q - 2 * G.maxDegree ≤ q - G.maxDegree)
+  have hc1 : ((q - 2 * G.maxDegree : ℕ) : ℝ) / ((q - G.maxDegree : ℕ) : ℝ) ≤ 1 :=
+    (div_le_one hD).2 (mod_cast (by omega))
   set α := ((q - 2 * G.maxDegree : ℕ) : ℝ) / ((q - G.maxDegree : ℕ) : ℝ) / Fintype.card V
     with hα_def
   have hα : 0 < α := by positivity
-  have hα1 : α ≤ 1 := by
-    rw [hα_def, div_le_one (by linarith)]
-    linarith
-  have h := (isStationary_glauberColoring G hne).mixingTime_le_of_pathCoupling
-    (isPathMetric_hammingDist (β := fun _ : V => Fin q)) (κ := 1 - α)
-    (D := (Fintype.card V : ℝ)) (by linarith) hα
-    (by linarith [Real.add_one_le_exp (-α)])
-    (fun x y hxy => by
-      rw [hα_def, ← one_sub_div_eq G hq]
-      exact exists_coupling_glauberColoring G hq' hxy)
-    (by linarith) (fun x y => by exact_mod_cast hammingDist_le_card_fintype) hε
+  have hα1 : α ≤ 1 := (div_le_one (by linarith)).2 (by linarith)
   have heq : ((q - G.maxDegree : ℕ) : ℝ) / ((q - 2 * G.maxDegree : ℕ) : ℝ) * Fintype.card V *
       (Real.log (Fintype.card V) - Real.log ε) =
-        (Real.log (Fintype.card V) - Real.log ε) / α := by
+      (Real.log (Fintype.card V) - Real.log ε) / α := by
     rw [hα_def]
     field_simp
   rw [heq]
-  exact h
+  exact (isStationary_glauberColoring G hne).mixingTime_le_of_pathCoupling
+    (isPathMetric_hammingDist (β := fun _ : V => Fin q)) (κ := 1 - α)
+    (D := (Fintype.card V : ℝ)) (by linarith) hα
+    (by linarith [Real.add_one_le_exp (-α)])
+    (fun _ _ hxy => by
+      rw [hα_def, ← one_sub_div_eq G hq]
+      exact exists_coupling_glauberColoring G (by omega) hxy)
+    (by linarith) (fun _ _ => mod_cast hammingDist_le_card_fintype) hε
 
 /-! ### Mixing with a frozen boundary -/
 
@@ -499,44 +467,26 @@ theorem dist_glauberColoringOn_frozen_le (hq : 2 * G.maxDegree < q) {U : Finset 
     dist ((glauberColoringOn G q U hU ^ t) x) (uniformOfFinset (frozenColorings G q U b) hne) ≤
       (1 - ((q - 2 * G.maxDegree : ℕ) : ℝ) / ((q - G.maxDegree : ℕ) : ℝ) / U.card) ^ t *
         U.card := by
-  have hq' : G.maxDegree < q := by omega
-  have hn : (1 : ℝ) ≤ U.card := by exact_mod_cast hU.card_pos
   have hD : (0 : ℝ) < ((q - G.maxDegree : ℕ) : ℝ) := Nat.cast_pos.2 (by omega)
-  have hc1 : ((q - 2 * G.maxDegree : ℕ) : ℝ) / ((q - G.maxDegree : ℕ) : ℝ) ≤ 1 := by
-    rw [div_le_one hD]
-    exact_mod_cast (by omega : q - 2 * G.maxDegree ≤ q - G.maxDegree)
-  have hκ : 0 ≤ 1 - ((q - 2 * G.maxDegree : ℕ) : ℝ) / ((q - G.maxDegree : ℕ) : ℝ) /
-      U.card := by
-    rw [sub_nonneg, div_le_one (by linarith)]
-    linarith
-  set C : Set (V → Fin q) := {z | ∀ u ∉ U, z u = b u} with hC
+  have hc1 : ((q - 2 * G.maxDegree : ℕ) : ℝ) / ((q - G.maxDegree : ℕ) : ℝ) ≤ 1 :=
+    (div_le_one hD).2 (mod_cast (by omega))
+  have hκ : 0 ≤ 1 - ((q - 2 * G.maxDegree : ℕ) : ℝ) / ((q - G.maxDegree : ℕ) : ℝ) / U.card :=
+    sub_nonneg.2 ((div_le_one (Nat.cast_pos.2 hU.card_pos)).2 (hc1.trans (mod_cast hU.card_pos)))
   refine (isStationary_glauberColoringOn_frozen G hU hne).dist_le_of_pathCoupling_on
-    (C := C) ?_ (isPathMetricOn_hammingDist ?_) ?_ hκ ?_ (D := (U.card : ℝ)) ?_ t hx
-  · intro z hz
-    exact (mem_frozenColorings.1 ((mem_support_uniformOfFinset_iff hne z).1 hz)).2
-  · intro z hz z' hz' i u hu
-    by_cases hui : u = i
-    · subst hui
-      rw [Function.update_self]
-      exact hz' u hu
-    · rw [Function.update_of_ne hui]
-      exact hz u hu
-  · intro z hz z' hz' u hu
-    rw [glauberColoringOn_apply] at hz'
-    obtain ⟨w, hw, hz'w⟩ := (PMF.mem_support_bind_iff _ _ _).1 hz'
-    have hwU : w ∈ U := (mem_support_uniformOfFinset_iff hU w).1 hw
-    rw [eq_of_mem_support_recolor G hz'w (show u ≠ w from fun h => hu (h ▸ hwU))]
-    exact hz u hu
-  · intro z hz z' hz' hzz'
-    rw [← one_sub_div_eq G hq]
-    exact exists_coupling_glauberColoringOn G hq' hU hzz'
-      fun u hu => (hz u hu).trans (hz' u hu).symm
-  · intro z hz z' hz'
-    have hsub : (Finset.univ.filter fun u => z u ≠ z' u) ⊆ U := by
-      intro u hu
-      by_contra h
-      exact (Finset.mem_filter.1 hu).2 ((hz u h).trans (hz' u h).symm)
-    exact_mod_cast Finset.card_le_card hsub
+    (C := {z | ∀ u ∉ U, z u = b u})
+    (fun z hz => (mem_frozenColorings.1 ((mem_support_uniformOfFinset_iff hne z).1 hz)).2)
+    (isPathMetricOn_hammingDist fun z hz z' hz' i u hu => by
+      rcases eq_or_ne u i with rfl | hui
+      · simpa using hz' u hu
+      · simpa [hui] using hz u hu)
+    (fun z hz z' hz' u hu => ?_) hκ
+    (fun z hz z' hz' hzz' => one_sub_div_eq G hq ▸ exists_coupling_glauberColoringOn G (by omega)
+      hU hzz' fun u hu => (hz u hu).trans (hz' u hu).symm)
+    (D := (U.card : ℝ)) (fun z hz z' hz' => mod_cast Finset.card_le_card fun u hu =>
+      by_contra fun h => (Finset.mem_filter.1 hu).2 ((hz u h).trans (hz' u h).symm)) t hx
+  obtain ⟨w, hw, hz'w⟩ := (PMF.mem_support_bind_iff _ _ _).1 hz'
+  have hwU : w ∈ U := (mem_support_uniformOfFinset_iff hU w).1 hw
+  exact (eq_of_mem_support_recolor G hz'w fun h : u = w => hu (h ▸ hwU)).trans (hz u hu)
 
 /-- **Frozen-boundary sampling time** ([LevinPeres2017], (14.23)): if `2Δ < q`, `|U| ≤ n` and
 `t ≥ ((q - Δ) / (q - 2Δ)) n (log n - log δ)`, then from any coloring that agrees with `b` off `U`,
@@ -556,38 +506,27 @@ theorem dist_glauberColoringOn_frozen_le_of_le (hq : 2 * G.maxDegree < q) {U : F
   set c := ((q - 2 * G.maxDegree : ℕ) : ℝ) / ((q - G.maxDegree : ℕ) : ℝ) with hc_def
   have hc : 0 < c := div_pos hE hD
   have hk : (0 : ℝ) < U.card := Nat.cast_pos.2 hU.card_pos
-  have hkn : (U.card : ℝ) ≤ n := by exact_mod_cast hn
+  have hkn : (U.card : ℝ) ≤ n := mod_cast hn
   have hn0 : (0 : ℝ) < n := hk.trans_le hkn
-  have hc1 : c ≤ 1 := by
-    rw [hc_def, div_le_one hD]
-    exact_mod_cast (by omega : q - 2 * G.maxDegree ≤ q - G.maxDegree)
-  have hck : c / U.card ≤ 1 := by
-    rw [div_le_one hk]
-    exact hc1.trans (by exact_mod_cast hU.card_pos)
-  have ht' : n * (Real.log n - Real.log δ) ≤ c * t := by
-    have h1 : ((q - G.maxDegree : ℕ) : ℝ) / ((q - 2 * G.maxDegree : ℕ) : ℝ) = c⁻¹ := by
-      rw [hc_def, inv_div]
-    rw [h1] at ht
-    have := mul_le_mul_of_nonneg_left ht hc.le
-    calc n * (Real.log n - Real.log δ) = c * (c⁻¹ * n * (Real.log n - Real.log δ)) := by
-          field_simp
-      _ ≤ c * t := this
+  have hck : c / U.card ≤ 1 := (div_le_one hk).2
+    (((div_le_one hD).2 (mod_cast (by omega))).trans (mod_cast hU.card_pos))
+  have ht' : n * (Real.log n - Real.log δ) ≤ c * t :=
+    calc n * (Real.log n - Real.log δ)
+        = c * (c⁻¹ * n * (Real.log n - Real.log δ)) := by field_simp
+      _ = c * (((q - G.maxDegree : ℕ) : ℝ) / ((q - 2 * G.maxDegree : ℕ) : ℝ) * n *
+            (Real.log n - Real.log δ)) := by rw [hc_def, inv_div]
+      _ ≤ c * t := mul_le_mul_of_nonneg_left ht hc.le
   calc (1 - c / U.card) ^ t * U.card
       ≤ Real.exp (-(c / U.card)) ^ t * U.card := by
         gcongr; linarith [Real.add_one_le_exp (-(c / U.card))]
-    _ = Real.exp (-(c * t / U.card)) * U.card := by
-        rw [← Real.exp_nat_mul]
-        ring_nf
-    _ ≤ Real.exp (-(c * t / n)) * n := by
-        refine mul_le_mul (Real.exp_le_exp.2 ?_) hkn hk.le (Real.exp_pos _).le
-        rw [neg_le_neg_iff]
-        exact div_le_div_of_nonneg_left (by positivity) hk hkn
-    _ ≤ Real.exp (-(Real.log n - Real.log δ)) * n := by
-        refine mul_le_mul_of_nonneg_right (Real.exp_le_exp.2 ?_) hn0.le
-        rw [neg_le_neg_iff, le_div_iff₀ hn0]
-        linarith
-    _ = δ := by
-        rw [neg_sub, Real.exp_sub, Real.exp_log hδ, Real.exp_log hn0]
-        field_simp
+    _ = Real.exp (-(c * t / U.card)) * U.card := by rw [← Real.exp_nat_mul]; ring_nf
+    _ ≤ Real.exp (-(c * t / n)) * n :=
+        mul_le_mul
+          (Real.exp_le_exp.2 (neg_le_neg (div_le_div_of_nonneg_left (by positivity) hk hkn)))
+          hkn hk.le (Real.exp_pos _).le
+    _ ≤ Real.exp (-(Real.log n - Real.log δ)) * n :=
+        mul_le_mul_of_nonneg_right
+          (Real.exp_le_exp.2 (neg_le_neg ((le_div_iff₀ hn0).2 (by linarith)))) hn0.le
+    _ = δ := by rw [neg_sub, Real.exp_sub, Real.exp_log hδ, Real.exp_log hn0]; field_simp
 
 end Cslib.Probability.MarkovChain

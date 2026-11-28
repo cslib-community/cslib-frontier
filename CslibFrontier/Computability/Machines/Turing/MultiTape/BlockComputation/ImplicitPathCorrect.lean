@@ -64,18 +64,13 @@ theorem child_eq {k q : ℕ} (σ : ℕ) (n : ℕ) (j : Fin (k * 3 + 1)) :
   | succ n =>
     by_cases hn : n < q
     · simp only [child, hn, j.isLt, and_self, ↓reduceIte, BlockComputation.child]
-      refine Fin.cases ?_ (fun p => ?_) j
-      · simp
-      · simp only [Fin.val_succ, Fin.cases_succ, Nat.add_sub_cancel_right]
-        have hp : (p.val + 1 ≠ 0) := by omega
-        simp only [hp, ↓reduceIte, providers]
-        rw [List.getD_ofFn_of_lt _ p.isLt]
-        unfold provider
-        rcases hd : finProdFinEquiv.symm p with ⟨h, δ⟩
-        simp only [↓reduceDIte]
-        rw [ScheduleRead.search_eq_lastBefore σ ⟨n, hn⟩ h δ]
-        cases lastBefore (InWindow (scheduleOfNat k q σ) h
-          (portBlock (scheduleOfNat k q σ) ⟨n, hn⟩ h δ)) ⟨n, hn⟩ <;> rfl
+      refine Fin.cases (by simp) (fun p => ?_) j
+      simp only [Fin.val_succ, Fin.cases_succ, Nat.add_sub_cancel_right, Nat.succ_ne_zero,
+        ↓reduceIte, providers, List.getD_ofFn_of_lt _ p.isLt, provider]
+      rcases finProdFinEquiv.symm p with ⟨h, δ⟩
+      simp only [↓reduceDIte, ScheduleRead.search_eq_lastBefore σ ⟨n, hn⟩ h δ]
+      cases lastBefore (InWindow (scheduleOfNat k q σ) h
+        (portBlock (scheduleOfNat k q σ) ⟨n, hn⟩ h δ)) ⟨n, hn⟩ <;> rfl
     · simp [child, hn, BlockComputation.child]
 
 private theorem foldl_child_eq {k q : ℕ} (σ : ℕ) (path : List (Fin (k * 3 + 1))) (n : ℕ) :

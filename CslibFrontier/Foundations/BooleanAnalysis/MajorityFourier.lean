@@ -123,29 +123,24 @@ private theorem sum_powersetCard_chi (s : Finset ι) (x : ι → Bool) (m j : �
     (htrue : #{l ∈ s | x l = true} = m) (hfalse : #{l ∈ s | x l = false} = m) :
     ∑ T ∈ s.powersetCard (2 * j), chi ℝ T x = (-1) ^ j * m.choose j := by
   have hs : #s = 2 * m := by
-    rw [← card_filter_add_card_filter_not (s := s) (fun l => x l = true)]
-    simp only [Bool.not_eq_true, htrue, hfalse]
-    omega
+    have hcard := card_filter_add_card_filter_not (s := s) (fun l => x l = true)
+    simp only [Bool.not_eq_true, htrue, hfalse] at hcard; omega
   rcases lt_or_ge m j with hjm | hjm
-  · rw [powersetCard_eq_empty.2 (by omega), sum_empty, Nat.choose_eq_zero_of_lt hjm]
-    simp
+  · simp [powersetCard_eq_empty.2 (hs ▸ Nat.mul_lt_mul_of_pos_left hjm two_pos),
+      Nat.choose_eq_zero_of_lt hjm]
   have hV := Finset.prod_X_add_C_coeff s (fun l => ((-1 : ℝ) ^ (x l).toNat)) (k := #s - 2 * j)
     (by omega)
   rw [show #s - (#s - 2 * j) = 2 * j by omega] at hV
-  simp only [chi]
-  rw [← hV]
+  simp only [chi, ← hV]
   have hprod : ∏ l ∈ s, (X + C ((-1 : ℝ) ^ (x l).toNat)) =
       expand ℝ 2 ((X + C (-1)) ^ m) := by
     have h (b : Bool) : ∏ l ∈ s with x l = b, (X + C ((-1 : ℝ) ^ (x l).toNat)) =
         (X + C ((-1) ^ b.toNat)) ^ #{l ∈ s | x l = b} :=
       prod_eq_pow_card fun l hl => by rw [(mem_filter.1 hl).2]
     rw [← prod_filter_mul_prod_filter_not s (fun l => x l = true)]
-    simp only [Bool.not_eq_true]
-    rw [h, h, htrue, hfalse, ← mul_pow, map_pow (expand ℝ 2)]
+    simp only [Bool.not_eq_true, h, htrue, hfalse, ← mul_pow, map_pow (expand ℝ 2)]
     congr 1
-    simp only [Bool.toNat_true, Bool.toNat_false, pow_one, pow_zero, map_add, expand_X, map_neg,
-      map_one]
-    ring
+    simp [Bool.toNat_true, Bool.toNat_false, expand_X]; ring
   rw [hprod, coeff_expand two_pos, ite_eq_left ⟨m - j, by omega⟩,
     show (#s - 2 * j) / 2 = m - j by omega, coeff_X_add_C_pow,
     show m - (m - j) = j by omega, Nat.choose_symm hjm]
@@ -166,35 +161,22 @@ theorem fourierCoeff_signVal_majority_two_mul_empty (m : ℕ) :
     Fintype.expect_equiv (Equiv.addRight (fun _ : Fin (2 * m) => true)) _ _ fun _ => rfl
   have hpair (x : Fin (2 * m) → Bool) :
       f x + f (x + fun _ => true) = (-2 : ℝ) * (if weight x = m then 1 else 0) := by
-    have hnot := weight_not_add x
-    simp only [Fintype.card_fin] at hnot
+    have hnot : weight (fun i => !x i) + weight x = 2 * m := by simpa using weight_not_add x
     have hhalf : (2 * m + 1) / 2 = m := by omega
-    change signVal (majority (2 * m) x) +
-      signVal (majority (2 * m) (x + fun _ => true)) = _
-    rw [show (x + fun _ => true) = (fun i => !x i) from
-      funext fun i => Bool.xor_true (x i)]
-    rcases lt_trichotomy (weight x) m with hlt | heq | hgt
-    · simp [majority, threshold_apply, hhalf, show ¬m ≤ weight x by omega,
-        show m ≤ weight (fun i => !x i) by omega, ne_of_lt hlt]
-    · norm_num [majority, threshold_apply, hhalf, heq,
-        show m ≤ weight (fun i => !x i) by omega]
-    · simp [majority, threshold_apply, hhalf, show m ≤ weight x by omega,
-        show ¬m ≤ weight (fun i => !x i) by omega, ne_of_gt hgt]
-  have htie :
-      (𝔼 x : Fin (2 * m) → Bool, if weight x = m then (1 : ℝ) else 0) =
-        (2 * m).choose m / (4 : ℝ) ^ m := by
-    change (𝔼 x : Fin (2 * m) → Bool,
-      if #{i ∈ univ | x i = true} = m then (1 : ℝ) else 0) = _
-    rw [expect_ite_card_filter_eq, card_univ, Fintype.card_fin, pow_mul]
-    norm_num
+    have hcomp_eq : (x + fun _ => true) = fun i => !x i := funext fun i => Bool.xor_true (x i)
+    simp only [f, hcomp_eq, majority, threshold_apply, hhalf, signVal, decide_eq_true_eq]
+    split_ifs <;> first | omega | norm_num
+  have htie : (𝔼 x : Fin (2 * m) → Bool, if weight x = m then (1 : ℝ) else 0) =
+      (2 * m).choose m / (4 : ℝ) ^ m := by
+    change (𝔼 x : Fin (2 * m) → Bool, if #{i ∈ univ | x i = true} = m then (1 : ℝ) else 0) = _
+    rw [expect_ite_card_filter_eq, card_univ, Fintype.card_fin, pow_mul]; norm_num
   have hmean : (𝔼 x, f x) + (𝔼 x, f x) =
       (-2 : ℝ) * ((2 * m).choose m / (4 : ℝ) ^ m) := by
     calc
       _ = 𝔼 x, (f x + f (x + fun _ => true)) := by rw [expect_add_distrib, hcomp]
       _ = (-2 : ℝ) * ((2 * m).choose m / (4 : ℝ) ^ m) := by
         simp only [hpair, ← mul_expect, htie]
-  rw [fourierCoeff_empty]
-  change (𝔼 x, f x) = _
+  simp only [fourierCoeff_empty, f] at hmean ⊢
   linarith
 
 /-- **The derivative of majority** in `i`, read as signs, is the indicator that exactly half of
@@ -205,12 +187,11 @@ theorem derivative_signVal_majority (m : ℕ) (i : Fin (2 * m + 1)) (x : Fin (2 
       if #{l ∈ univ.erase i | x l = true} = m then 1 else 0 := by
   have ht : weight (update x i true) = weight (update x i false) + 1 := by
     rw [← weight_update_true (x := update x i false) (i := i) (by simp), update_idem]
+  have hhalf : (2 * m + 1 + 1) / 2 = m + 1 := by omega
   rw [derivative, card_filter_erase_eq_weight_update_false, majority, threshold_apply,
-    threshold_apply, ht, show (2 * m + 1 + 1) / 2 = m + 1 by omega]
-  generalize weight (update x i false) = w
-  by_cases h : w = m
-  · simp [h]
-  · simp [h, show m + 1 ≤ w + 1 ↔ m + 1 ≤ w by omega]
+    threshold_apply, ht, hhalf]
+  simp only [signVal, decide_eq_true_eq]
+  split_ifs <;> first | omega | norm_num
 
 /-- **The even Fourier coefficients of majority vanish** [O'Donnell, Theorem 5.19][ODonnell2014]:
 majority of an odd number of bits, read as signs, is odd. -/
@@ -259,8 +240,7 @@ theorem fourierCoeff_signVal_majority_of_card_eq (m j : ℕ) {S : Finset (Fin (2
     norm_num
   rw [sum_congr rfl hT, sum_const, card_powersetCard, card_erase_of_mem (mem_univ i), card_univ,
     Fintype.card_fin, show 2 * m + 1 - 1 = 2 * m by omega, nsmul_eq_mul] at hsum
-  rw [div_mul_eq_mul_div, eq_div_iff (Nat.cast_ne_zero.2 (Nat.choose_pos hjm).ne'), mul_comm]
-  exact hsum
+  rwa [div_mul_eq_mul_div, eq_div_iff (Nat.cast_ne_zero.2 (Nat.choose_pos hjm).ne'), mul_comm]
 
 /-! ### Levels of majority -/
 
@@ -280,28 +260,24 @@ theorem levelWeight_signVal_majority_of_odd (m j : ℕ) :
     levelWeight (2 * j + 1) (fun x => signVal (majority (2 * m + 1) x)) =
       (2 * m + 1).choose (2 * j + 1) *
         ((m.choose j : ℝ) / (2 * m).choose (2 * j) * ((2 * m).choose m / 4 ^ m)) ^ 2 := by
-  rw [levelWeight, sum_congr rfl fun S hS => by
-    rw [fourierCoeff_signVal_majority_of_card_eq m j (mem_filter.1 hS).2]]
-  have hc : #{S : Finset (Fin (2 * m + 1)) | #S = 2 * j + 1} =
-      (2 * m + 1).choose (2 * j + 1) := by simp
-  rw [sum_const, hc, nsmul_eq_mul]
+  rw [levelWeight, sum_congr rfl fun S hS =>
+    congrArg (· ^ 2) (fourierCoeff_signVal_majority_of_card_eq m j (mem_filter.1 hS).2),
+    sum_const, nsmul_eq_mul]
   congr 1
-  rw [mul_div_assoc, mul_assoc, mul_pow, ← pow_mul, mul_comm j 2, pow_mul]
-  norm_num
+  · simp
+  · rw [mul_div_assoc, mul_assoc, mul_pow, ← pow_mul, mul_comm j 2, pow_mul]; norm_num
 
 /-- Majority has no Fourier weight on the levels of even size. -/
 theorem levelWeight_signVal_majority_of_even (m : ℕ) {k : ℕ} (hk : Even k) :
     levelWeight k (fun x => signVal (majority (2 * m + 1) x)) = 0 :=
   sum_eq_zero fun S hS => by
-    rw [fourierCoeff_signVal_majority_of_even m ((mem_filter.1 hS).2 ▸ hk)]
-    norm_num
+    simp [fourierCoeff_signVal_majority_of_even m ((mem_filter.1 hS).2 ▸ hk)]
 
 /-- The Fourier coefficient of majority of `2 m + 1` bits, read as signs, on a singleton is
 `C(2 m, m) / 4 ^ m`. -/
 theorem fourierCoeff_signVal_majority_singleton (m : ℕ) (i : Fin (2 * m + 1)) :
     fourierCoeff (fun x => signVal (majority (2 * m + 1) x)) {i} = (2 * m).choose m / 4 ^ m := by
-  rw [fourierCoeff_signVal_majority_of_card_eq m 0 (card_singleton i)]
-  simp
+  simpa using fourierCoeff_signVal_majority_of_card_eq m 0 (card_singleton i)
 
 /-- **The largest Fourier coefficients of majority are on singletons**
 [O'Donnell, Exercise 5.21][ODonnell2014]: `‖Maĵ‖_∞ = Maĵ({i})`. Every coefficient of majority of
@@ -319,12 +295,10 @@ theorem abs_fourierCoeff_signVal_majority_le_singleton (m : ℕ) (S : Finset (Fi
     abs_pow, abs_neg, abs_one, one_pow, one_mul, abs_of_nonneg (by positivity),
     abs_of_nonneg (by positivity)]
   refine mul_le_of_le_one_left (by positivity) (div_le_one_of_le₀ ?_ (by positivity))
-  have hc : m.choose j ≤ (2 * m).choose (2 * j) := by
-    rcases le_or_gt j m with hjm | hjm
-    · rw [two_mul j]
-      exact (Nat.choose_le_choose_add_add m j j).trans (Nat.choose_le_choose _ (by omega))
-    · simp [Nat.choose_eq_zero_of_lt hjm]
-  exact_mod_cast hc
+  rcases le_or_gt j m with hjm | hjm
+  · exact_mod_cast two_mul j ▸
+      (Nat.choose_le_choose_add_add m j j).trans (Nat.choose_le_choose _ (by omega))
+  · simp [Nat.choose_eq_zero_of_lt hjm]
 
 /-- One step of the decrease: from level `2 j + 1 ≤ m` to level `2 j + 3`, the coefficients of
 majority shrink by the factor `(2 j + 1) / (2 m - 2 j - 1) ≤ 1`. -/
@@ -339,10 +313,8 @@ private theorem choose_div_choose_succ_le {m j : ℕ} (hjm : 2 * j + 1 ≤ m) :
     show j + 1 + r - (j + 1) = r by omega, show j + 1 + r - j = r + 1 by omega]
   simp only [mul_add, mul_one, Nat.factorial_succ]
   push_cast
-  have hq : (2 * (j : ℝ) + 1) / (2 * r + 1) ≤ 1 := by
-    rw [div_le_one (by positivity)]
-    have : (j : ℝ) ≤ r := by exact_mod_cast (by omega : j ≤ r)
-    linarith
+  have hq : (2 * (j : ℝ) + 1) / (2 * r + 1) ≤ 1 :=
+    (div_le_one (by positivity)).2 (by gcongr; omega)
   refine le_of_eq_of_le ?_ (mul_le_of_le_one_right (by positivity) hq)
   field_simp
   ring
@@ -379,16 +351,16 @@ theorem fourierCoeff_signVal_majority_of_card_add_card (m : ℕ) {S T : Finset (
     (h : #S + #T = 2 * m + 2) :
     fourierCoeff (fun x => signVal (majority (2 * m + 1) x)) T =
       (-1) ^ m * fourierCoeff (fun x => signVal (majority (2 * m + 1) x)) S := by
-  rcases Nat.even_or_odd #S with hS | ⟨j, hS⟩
-  · obtain ⟨a, ha⟩ := hS
-    rw [fourierCoeff_signVal_majority_of_even m ⟨a, ha⟩,
+  rcases Nat.even_or_odd #S with ⟨a, ha⟩ | ⟨j, hS⟩
+  · rw [fourierCoeff_signVal_majority_of_even m ⟨a, ha⟩,
       fourierCoeff_signVal_majority_of_even m ⟨m + 1 - a, by omega⟩, mul_zero]
   obtain ⟨r, rfl⟩ : ∃ r, m = j + r := ⟨m - j, by omega⟩
+  have hT : #T = 2 * r + 1 := by omega
+  have hpow : ((-1 : ℝ)) ^ r = (-1) ^ (j + r) * (-1) ^ j := by
+    rw [pow_add, mul_right_comm, ← pow_add, Even.neg_one_pow ⟨j, rfl⟩, one_mul]
   rw [fourierCoeff_signVal_majority_of_card_eq _ j hS,
-    fourierCoeff_signVal_majority_of_card_eq _ r (by omega : #T = 2 * r + 1),
-    ← Nat.choose_symm_add (a := j) (b := r), mul_add, ← Nat.choose_symm_add (a := 2 * j),
-    ← mul_add, show ((-1 : ℝ)) ^ r = (-1) ^ (j + r) * (-1) ^ j by
-      rw [pow_add, mul_right_comm, ← pow_add, Even.neg_one_pow ⟨j, rfl⟩, one_mul]]
+    fourierCoeff_signVal_majority_of_card_eq _ r hT, ← Nat.choose_symm_add (a := j) (b := r),
+    mul_add, ← Nat.choose_symm_add (a := 2 * j), ← mul_add, hpow]
   ring
 
 /-- **Complementary level weights of majority** [O'Donnell, Corollary 5.20][ODonnell2014]: for
@@ -459,9 +431,8 @@ theorem noiseStability_signVal_majority_succ_lt (m : ℕ) {ρ : ℝ} (h0 : 0 < �
     rw [noiseStability_eq_sum_levelWeight, Fintype.card_fin]
     exact hext hn _
   have hone {n : ℕ} (hn : n < 2 * m + 4) : ∑ k ∈ range (2 * m + 4), W n k = 1 := by
-    have h := sum_levelWeight_signVal (majority n)
-    rw [Fintype.card_fin] at h
-    simpa using (hext hn fun _ => 1).symm.trans (by simpa using h)
+    simpa using (hext hn fun _ => 1).symm.trans
+      (by simpa [Fintype.card_fin] using sum_levelWeight_signVal (majority n))
   rw [hstab (by omega), hstab (by omega), ← sub_pos, ← sum_sub_distrib]
   -- `∑ ρ ^ n (a k - b k) = 0`, and `(ρ ^ k - ρ ^ n) (a k - b k) ≥ 0` on every level, with strict
   -- inequality on the new top level
@@ -477,18 +448,16 @@ theorem noiseStability_signVal_majority_succ_lt (m : ℕ) {ρ : ℝ} (h0 : 0 < �
       rcases Nat.even_or_odd k with he | ⟨j, rfl⟩
       · simp only [hW, levelWeight_signVal_majority_of_even _ he, le_refl]
       · exact (levelWeight_signVal_majority_succ_lt m j (by omega)).le
-    · have ha : W (2 * m + 1) k = 0 := levelWeight_eq_zero_of_card_lt (by simpa using hk) _
-      rw [ha]
+    · rw [show W (2 * m + 1) k = 0 from levelWeight_eq_zero_of_card_lt (by simpa using hk) _]
       nlinarith [pow_le_pow_of_le_one h0.le h1.le hk.le, levelWeight_nonneg k
         fun x : Fin (2 * (m + 1) + 1) → Bool => signVal (majority (2 * (m + 1) + 1) x)]
-  · have ha : W (2 * m + 1) (2 * (m + 1) + 1) = 0 :=
-      levelWeight_eq_zero_of_card_lt (by simp) _
+  · rw [show W (2 * m + 1) (2 * (m + 1) + 1) = 0 from
+      levelWeight_eq_zero_of_card_lt (by simp) _]
     have hb : 0 < W (2 * (m + 1) + 1) (2 * (m + 1) + 1) := by
       simp only [hW, levelWeight_signVal_majority_of_odd, Nat.choose_self, Nat.cast_one, div_one,
         one_mul]
       have := Nat.choose_pos (by omega : m + 1 ≤ 2 * (m + 1))
       positivity
-    rw [ha]
     nlinarith
 
 end Cslib.BitString

@@ -57,12 +57,7 @@ variable {Γ : List Color → List Color → Type} (I : Interp Γ) {a b : List C
 private theorem legal_finiteGraph (D : Diagram Γ a b) (s : Fin (a.length + D.innerCount) → Bool) :
     (finiteGraph I D).Legal s ↔ (D.graph I).Legal (s ∘ D.numEquiv) := by
   rw [finiteGraph, ConstraintGraph.legal_map, ← forall_vertexList_iff]
-  constructor
-  · intro h v hv
-    obtain ⟨i, rfl⟩ := List.get_of_mem hv
-    exact h i
-  · intro h i
-    exact h _ (List.get_mem _ i)
+  simp only [ConstraintGraph.Legal, List.mem_iff_get, forall_exists_index, forall_apply_eq_imp_iff]
 
 /-- Finite numbering is an exact simulation of the diagram. -/
 @[expose] def finiteSimulation (D : Diagram Γ a b) :
@@ -73,18 +68,14 @@ private theorem legal_finiteGraph (D : Diagram Γ a b) (s : Fin (a.length + D.in
 
 /-- Finite numbering preserves the AND/OR vertex property. -/
 theorem finiteGraph_isAndOr (D : Diagram Γ a b) (h : (D.graph I).IsAndOr) :
-    (finiteGraph I D).IsAndOr := by
-  intro i
-  have hv := (forall_mem_vertexList_iff (I := I) D (fun v => v.IsAndOr)).2 h _ (List.get_mem _ i)
-  exact hv.map D.numEquiv
+    (finiteGraph I D).IsAndOr :=
+  fun i => ((forall_mem_vertexList_iff (I := I) D _).2 h _ (List.get_mem _ i)).map D.numEquiv
 
 /-- Finite numbering preserves loop-freedom. -/
 theorem finiteGraph_loopFree (D : Diagram Γ a b) (h : (D.graph I).LoopFree) :
     (finiteGraph I D).LoopFree := by
-  have hv : ConstraintGraph.LoopFree
-      (fun i : Fin (vertexList I D).length => (vertexList I D).get i) := by
-    intro i
-    exact (forall_mem_vertexList_iff (I := I) D
+  have hv : ConstraintGraph.LoopFree (vertexList I D).get := fun i =>
+    (forall_mem_vertexList_iff (I := I) D
       (fun v => (v.ports.map (fun p : WeightedPort D.Edge => p.port.edge)).Nodup)).2
         h _ (List.get_mem _ i)
   exact hv.map D.numEquiv.injective
@@ -92,12 +83,9 @@ theorem finiteGraph_loopFree (D : Diagram Γ a b) (h : (D.graph I).LoopFree) :
 /-- Finite numbering preserves exact endpoint multiplicities and their common weights. -/
 theorem finiteGraph_wellFormed (D : Diagram Γ a b) (h : (D.graph I).WellFormed) :
     (finiteGraph I D).WellFormed := by
-  have hv : ConstraintGraph.WellFormed
-      (fun i : Fin (vertexList I D).length => (vertexList I D).get i) := by
-    obtain ⟨weight, hw⟩ := h
-    refine ⟨weight, ?_⟩
-    rw [ConstraintGraph.portMultiset_get, ← portMultiset_vertexList]
-    exact hw
+  obtain ⟨weight, hw⟩ := h
+  have hv : ConstraintGraph.WellFormed (vertexList I D).get :=
+    ⟨weight, by rwa [ConstraintGraph.portMultiset_get, ← portMultiset_vertexList]⟩
   exact hv.map D.numEquiv
 
 /-- Reachability between numbered configurations agrees with diagram reachability. -/
@@ -134,11 +122,9 @@ private theorem map_val_finiteVertexList (D : Diagram Γ a b) :
 theorem run_toWord_finite (D : Diagram Γ [] []) :
     Word.run (D.toWord I 0) ⟨[], 0, []⟩ =
       ⟨[], D.innerCount, (finiteVertexList I D).map (Vertex.map Fin.val)⟩ := by
-  have hn : D.name Fin.elim0 0 = D.num := by
-    funext e
-    rcases e with i | e
-    · exact Fin.elim0 i
-    · rfl
+  have hn : D.name Fin.elim0 0 = D.num := funext fun
+    | .inl i => Fin.elim0 i
+    | .inr _ => rfl
   rw [run_toWord_closed, hn, map_val_finiteVertexList]
 
 variable {I}
@@ -152,9 +138,7 @@ def bits (D : Diagram Γ a b) (s : D.Edge → Bool) : List Bool := List.ofFn (s 
 
 /-- Reading a serialized configuration gives the corresponding numbered direction. -/
 theorem get_bits (D : Diagram Γ a b) (s : D.Edge → Bool) (i : Fin (a.length + D.innerCount)) :
-    (D.bits s).get (i.cast (length_bits D s).symm) = s (D.numEquiv.symm i) := by
-  unfold bits
-  rw [List.get_ofFn]
-  rfl
+    (D.bits s).get (i.cast (length_bits D s).symm) = s (D.numEquiv.symm i) :=
+  List.get_ofFn _ _
 
 end Cslib.Complexity.NCL.Diagram

@@ -61,14 +61,10 @@ theorem values_eq_ofFn (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) (limit m r :
 /-- Source coordinates have bounded encoded size independently of runtime chunk metadata. -/
 theorem length_chunk_le (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) (m j : ℕ) :
     (encNat (InitialChunk.chunk M e (m, j))).length ≤ (InitialChunk.headerWord M e).length := by
-  have h := length_encNat_ofBits_le
-    (((InitialChunk.headerWord M e).drop (j * m)).take m)
-  change (encNat (InitialChunk.chunk M e (m, j))).length ≤ _ at h
-  have hl : (((InitialChunk.headerWord M e).drop (j * m)).take m).length ≤
-      (InitialChunk.headerWord M e).length := by
-    simp only [List.length_take, List.length_drop]
-    omega
-  exact h.trans hl
+  refine (length_encNat_ofBits_le
+    (((InitialChunk.headerWord M e).drop (j * m)).take m)).trans ?_
+  simp only [List.length_take, List.length_drop]
+  omega
 
 private abbrev BuildState := ℕ × ℕ × List ℕ
 private noncomputable def encBuildState : BuildState ↪ List Bool :=
@@ -93,10 +89,9 @@ private theorem buildStep_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
       (fun a => (encBuildState a).length) := by
   have hm := fst encNat (encPair encNat (encList encNat))
   have hr := snd encNat (encPair encNat (encList encNat))
-  have hj := hr.fst'
-  have hout := hr.snd'
-  have hchunk := budget_comp_linear (InitialChunk.chunk_inSpace M e) (budget_prod hm hj)
-  exact budget_prod hm (budget_prod (budget_natSucc hj) (budget_snoc hout hchunk))
+  exact budget_prod hm (budget_prod (budget_natSucc hr.fst')
+    (budget_snoc hr.snd' (budget_comp_linear (InitialChunk.chunk_inSpace M e)
+      (budget_prod hm hr.fst'))))
 
 /-- Initial vector construction is native and linear in actual binary capacity storage.
 The constant may depend on the fixed machine/control prefix, never on runtime lengths. -/
@@ -106,12 +101,8 @@ theorem values_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
   let H := (InitialChunk.headerWord M e).length
   have hlimit := fst encNat (encPair encNat encNat)
   have hr := snd encNat (encPair encNat encNat)
-  have hm := hr.fst'
-  have hrequested := hr.snd'
-  have hsize := budget_comp_linear natSize hlimit
-  have hn := budget_natMin hrequested hsize
-  have hinit := budget_prod hm (budget_prod
-    (budget_const (encB := encNat) 0)
+  have hn := budget_natMin hr.snd' (budget_comp_linear natSize hlimit)
+  have hinit := budget_prod hr.fst' (budget_prod (budget_const (encB := encNat) 0)
     (budget_const (encB := encList encNat) []))
   have hstates (a : Args) (i : ℕ) (hi : i ≤ min a.2.2 a.1.size) :
       (encBuildState ((buildStep M e)^[i] (a.2.1, 0, []))).length ≤

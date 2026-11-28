@@ -105,32 +105,20 @@ theorem lightest_eq_some_iff {u v : Fin G.n} {c : ℕ} :
     G.lightest u v = some c ↔ (v, c) ∈ G.adj u ∧ ∀ c', (v, c') ∈ G.adj u → c ≤ c' := by
   simp only [lightest, List.min?_eq_some_iff, List.mem_filterMap, Option.ite_none_right_eq_some,
     Option.some.injEq, Prod.exists]
-  constructor
-  · rintro ⟨⟨a, b, hab, rfl, rfl⟩, hle⟩
-    exact ⟨hab, fun c' hc' => hle c' ⟨a, c', hc', rfl, rfl⟩⟩
-  · rintro ⟨hc, hle⟩
-    refine ⟨⟨v, c, hc, rfl, rfl⟩, ?_⟩
-    rintro b ⟨a, b', hab, rfl, rfl⟩
-    exact hle b' hab
+  exact ⟨fun ⟨⟨_, _, hab, rfl, rfl⟩, hle⟩ => ⟨hab, fun c' hc' => hle c' ⟨_, c', hc', rfl, rfl⟩⟩,
+    fun ⟨hc, hle⟩ => ⟨⟨v, c, hc, rfl, rfl⟩, fun _ ⟨_, _, hab, rfl, rfl⟩ => hle _ hab⟩⟩
 
 /-- The matrix entry of `u` and `v` is absent exactly when there is no edge from `u` to `v`. -/
 theorem lightest_eq_none_iff {u v : Fin G.n} :
     G.lightest u v = none ↔ ∀ c, (v, c) ∉ G.adj u := by
-  simp only [lightest, List.min?_eq_none_iff, List.filterMap_eq_nil_iff]
-  constructor
-  · intro h c hc
-    simpa using h _ hc
-  · rintro h ⟨a, b⟩ hab
-    simp only [ite_eq_right_iff, reduceCtorEq, imp_false]
-    rintro rfl
-    exact h b hab
+  simp only [lightest, List.min?_eq_none_iff, List.filterMap_eq_nil_iff, Prod.forall,
+    ite_eq_right_iff, reduceCtorEq, imp_false]
+  exact ⟨fun h c hc => h v c hc rfl, fun h _ b hab ha => h b (ha ▸ hab)⟩
 
 /-- Every edge weight is at most the largest weight. -/
-theorem le_maxWeight {u : Fin G.n} {e : Fin G.n × ℕ} (he : e ∈ G.adj u) : e.2 ≤ G.maxWeight := by
-  have h1 : e.2 ≤ ((G.adj u).map Prod.snd).foldr max 0 :=
-    List.le_max_of_le (List.mem_map_of_mem he) le_rfl
-  exact h1.trans (Finset.le_sup (f := fun u => ((G.adj u).map Prod.snd).foldr max 0)
-    (Finset.mem_univ u))
+theorem le_maxWeight {u : Fin G.n} {e : Fin G.n × ℕ} (he : e ∈ G.adj u) : e.2 ≤ G.maxWeight :=
+  (List.le_max_of_le (List.mem_map_of_mem he) le_rfl).trans
+    (Finset.le_sup (f := fun u => ((G.adj u).map Prod.snd).foldr max 0) (Finset.mem_univ u))
 
 /-- The largest weight of the weight-matrix instance is at most the largest edge weight. -/
 theorem toInstance_maxWeight_le : G.toInstance.maxWeight ≤ G.maxWeight := by
@@ -138,7 +126,7 @@ theorem toInstance_maxWeight_le : G.toInstance.maxWeight ≤ G.maxWeight := by
   change (G.lightest uv.1 uv.2).getD 0 ≤ G.maxWeight
   cases h : G.lightest uv.1 uv.2 with
   | none => simp
-  | some c => exact G.le_maxWeight ((G.lightest_eq_some_iff.mp h).1)
+  | some c => exact G.le_maxWeight (G.lightest_eq_some_iff.mp h).1
 
 /-- The tentative distance `d` of `v` after scanning the edges of `es` in order from a vertex at
 tentative distance `b`: each edge `(v, c)` lowers it to at most `b + c`. -/
@@ -158,7 +146,7 @@ private theorem relaxEdges_eq_match {N : ℕ} (b : ℕ∞) (es : List (Fin N × 
     rw [relaxEdges, List.foldl_cons, ← relaxEdges, ih]
     by_cases he : e.1 = v
     · simp only [List.filterMap_cons, he, ↓reduceIte, List.min?_cons]
-      cases es.filterMap (fun e => if e.1 = v then some e.2 else none) |>.min? with
+      cases (es.filterMap fun e => if e.1 = v then some e.2 else none).min? with
       | none => rfl
       | some c =>
         simp only [Option.elim_some]

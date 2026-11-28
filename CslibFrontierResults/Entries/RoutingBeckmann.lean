@@ -72,9 +72,10 @@ register_result "pigou-linear-price-of-stability" where
   sources := [
     { paper := RoughgardenTardos2007,
       theorem := "Example 17.1",
-      locator := "Section 17.2.1, pp. 447–448" }
+      locator := "Section 17.2.1, pp. 447–448 (CUP 2007; p. 445 in the author chapter PDF)" }
   ]
   theorems := [
+    NonatomicCongestionGame.pigouNetwork_id_isWardrop_iff,
     NonatomicCongestionGame.pigouNetwork_id_priceOfStability
   ]
   scope := "Two-link unit-rate Pigou network with latencies x and 1: ![1/2, 1/2] minimizes total \

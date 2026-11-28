@@ -57,28 +57,19 @@ theorem graphData_loopFree (x : PrenexCNF) : (graphData x).graph.LoopFree := by
   exact (Diagram.finiteGraph_loopFree Prim.interp (diagram x) (loopFree x)) _
 
 /-- The planar output record has creation-order edge number four. -/
-theorem num_output (x : PrenexCNF) : (diagram x).num (output x) = 4 := by
-  change (Planar.Circuit.diagram (OutputLatch.diagram.comp _)).num
-    (Planar.Circuit.edge (OutputLatch.diagram.comp _)
-      (compLeft OutputLatch.diagram _ OutputLatch.mem)) = 4
-  rw [Planar.Circuit.num_edge_compLeft]
-  decide +kernel
+theorem num_output (x : PrenexCNF) : (diagram x).num (output x) = 4 :=
+  (Planar.Circuit.num_edge_compLeft OutputLatch.diagram _ OutputLatch.mem).trans
+    (by decide +kernel)
 
 /-- The tracked planar try input has creation-order edge number six. -/
-theorem num_tryIn (x : PrenexCNF) : (diagram x).num (tryIn x) = 6 := by
-  change (Planar.Circuit.diagram (OutputLatch.diagram.comp _)).num
-    (Planar.Circuit.edge (OutputLatch.diagram.comp _)
-      (compLeft OutputLatch.diagram _ OutputLatch.attempt)) = 6
-  rw [Planar.Circuit.num_edge_compLeft]
-  decide +kernel
+theorem num_tryIn (x : PrenexCNF) : (diagram x).num (tryIn x) = 6 :=
+  (Planar.Circuit.num_edge_compLeft OutputLatch.diagram _ OutputLatch.attempt).trans
+    (by decide +kernel)
 
 /-- The tracked planar satisfied output has creation-order edge number zero. -/
-theorem num_satOut (x : PrenexCNF) : (diagram x).num (satOut x) = 0 := by
-  change (Planar.Circuit.diagram (OutputLatch.diagram.comp _)).num
-    (Planar.Circuit.edge (OutputLatch.diagram.comp _)
-      (compLeft OutputLatch.diagram _ OutputLatch.sat)) = 0
-  rw [Planar.Circuit.num_edge_compLeft]
-  decide +kernel
+theorem num_satOut (x : PrenexCNF) : (diagram x).num (satOut x) = 0 :=
+  (Planar.Circuit.num_edge_compLeft OutputLatch.diagram _ OutputLatch.sat).trans
+    (by decide +kernel)
 
 end Cslib.Complexity.NCL.QBF.Planarized
 

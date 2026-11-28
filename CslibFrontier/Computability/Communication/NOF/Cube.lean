@@ -73,9 +73,8 @@ omit [Fintype ι] [∀ i, Fintype (X i)] in
 private theorem piecewise_update_update {S : Finset ι} {j : ι} (hj : j ∉ S) (a b : ∀ i, X i)
     (c d : X j) : S.piecewise (update b j d) (update a j c) = update (S.piecewise b a) j c := by
   funext i
-  by_cases hij : i = j
-  · subst hij
-    simp [hj]
+  rcases eq_or_ne i j with rfl | hij
+  · simp [hj]
   · by_cases hi : i ∈ S <;> simp [hi, hij]
 
 omit [Fintype ι] [∀ i, Fintype (X i)] in
@@ -93,19 +92,15 @@ theorem pow_expect_mul_prod_le (T : Finset ι) (F : (∀ i, X i) → ℝ)
     (𝔼 x, F x * ∏ i ∈ T, g i x) ^ (2 ^ #T) ≤
       𝔼 a, 𝔼 b, ∏ S ∈ T.powerset, F (S.piecewise b a) := by
   induction T using Finset.induction_on generalizing F g with
-  | empty =>
-    rcases isEmpty_or_nonempty (∀ i, X i) with h | h
-    · simp
-    · simp
+  | empty => rcases isEmpty_or_nonempty (∀ i, X i) with h | h <;> simp
   | @insert j T hj ih =>
     rw [card_insert_of_notMem hj, pow_succ', pow_mul]
     -- Resample player `j`'s part, on which `g j` does not depend.
     have hres : 𝔼 x, F x * ∏ i ∈ insert j T, g i x =
         𝔼 x, g j x * 𝔼 c : X j, F (update x j c) * ∏ i ∈ T, g i (update x j c) := by
       rw [← Fintype.expect_expect_update_pi _ j]
-      refine Finset.expect_congr rfl fun x _ => ?_
-      rw [Finset.mul_expect]
-      refine Finset.expect_congr rfl fun c _ => ?_
+      refine Finset.expect_congr rfl fun x _ => (Finset.expect_congr rfl fun c _ => ?_).trans
+        (Finset.mul_expect ..).symm
       rw [prod_insert hj, hg j (mem_insert_self j T) x c]
       ring
     -- Cauchy–Schwarz, with `g j ^ 2 ≤ 1`.
@@ -116,9 +111,8 @@ theorem pow_expect_mul_prod_le (T : Finset ι) (F : (∀ i, X i) → ℝ)
       refine mul_le_of_le_one_left (Finset.expect_nonneg fun _ _ => sq_nonneg _) ?_
       rcases isEmpty_or_nonempty (∀ i, X i) with h | h
       · simp
-      · refine Finset.expect_le Finset.univ_nonempty fun x _ => ?_
-        rw [← sq_abs]
-        exact pow_le_one₀ (abs_nonneg _) (hg1 j (mem_insert_self j T) x)
+      · exact Finset.expect_le Finset.univ_nonempty fun x _ =>
+          (sq_abs _).symm.trans_le (pow_le_one₀ (abs_nonneg _) (hg1 j (mem_insert_self j T) x))
     -- Expanding the square over two independent copies `c`, `d` of player `j`'s part.
     have hexp : 𝔼 x, (𝔼 c : X j, F (update x j c) * ∏ i ∈ T, g i (update x j c)) ^ 2 =
         𝔼 c : X j, 𝔼 d : X j, 𝔼 x, (F (update x j c) * F (update x j d)) *
@@ -135,18 +129,16 @@ theorem pow_expect_mul_prod_le (T : Finset ι) (F : (∀ i, X i) → ℝ)
         _ = _ := Finset.expect_congr rfl fun c _ => Finset.expect_comm _ _ _
     -- The induction hypothesis, for the pair `F (x[j := c]) F (x[j := d])` and the functions
     -- `g i (x[j := c]) g i (x[j := d])`.
-    have hih : ∀ c d : X j,
+    have hih (c d : X j) :
         (𝔼 x, (F (update x j c) * F (update x j d)) *
           ∏ i ∈ T, (g i (update x j c) * g i (update x j d))) ^ (2 ^ #T) ≤
         𝔼 a, 𝔼 b, ∏ S ∈ T.powerset,
           (F (update (S.piecewise b a) j c) * F (update (S.piecewise b a) j d)) := by
-      intro c d
       refine ih (fun x => F (update x j c) * F (update x j d))
         (fun i x => g i (update x j c) * g i (update x j d)) (fun i hi x e => ?_)
         (fun i hi x => ?_)
-      · by_cases hij : i = j
-        · subst hij
-          simp only [update_idem]
+      · rcases eq_or_ne i j with rfl | hij
+        · simp only [update_idem]
         · rw [update_comm hij e c x, update_comm hij e d x, hg i (mem_insert_of_mem hi),
             hg i (mem_insert_of_mem hi)]
       · rw [abs_mul]
@@ -176,9 +168,8 @@ theorem pow_expect_mul_prod_le (T : Finset ι) (F : (∀ i, X i) → ℝ)
             rw [piecewise_update_update hjS, piecewise_insert_update_update hjS]
     calc ((𝔼 x, F x * ∏ i ∈ insert j T, g i x) ^ 2) ^ (2 ^ #T)
         ≤ (𝔼 c : X j, 𝔼 d : X j, 𝔼 x, (F (update x j c) * F (update x j d)) *
-            ∏ i ∈ T, (g i (update x j c) * g i (update x j d))) ^ (2 ^ #T) := by
-          rw [← hexp]
-          exact pow_le_pow_left₀ (sq_nonneg _) hcs _
+            ∏ i ∈ T, (g i (update x j c) * g i (update x j d))) ^ (2 ^ #T) :=
+          hexp ▸ pow_le_pow_left₀ (sq_nonneg _) hcs _
       _ ≤ 𝔼 c : X j, 𝔼 d : X j, (𝔼 x, (F (update x j c) * F (update x j d)) *
             ∏ i ∈ T, (g i (update x j c) * g i (update x j d))) ^ (2 ^ #T) := by
           refine (pow_two_pow_expect_le_expect_pow_two_pow _ _ _).trans ?_
@@ -221,11 +212,11 @@ theorem discrepancy_uniformOfFintype_pow_le [Nonempty ι] [∀ i, Nonempty (X i)
       rw [prod_eq_zero (mem_univ i) (ite_eq_right hi)]
       ring
   rw [hsum]
-  have h := pow_expect_mul_prod_le univ (fun x => signVal (f x))
-    (fun i x => if φ i (view i x) = true then (1 : ℝ) else 0)
-    (fun i _ x e => by rw [view_update_self]) (fun i _ x => by split_ifs <;> simp)
-  rw [card_univ, powerset_univ] at h
-  exact h
+  simpa only [cubeExpectation, card_univ, powerset_univ] using
+    pow_expect_mul_prod_le univ (fun x => signVal (f x))
+      (fun i x => if φ i (view i x) = true then (1 : ℝ) else 0)
+      (fun i _ x e => by rw [view_update_self])
+      (fun i _ x => by split_ifs <;> simp)
 
 end Cube
 

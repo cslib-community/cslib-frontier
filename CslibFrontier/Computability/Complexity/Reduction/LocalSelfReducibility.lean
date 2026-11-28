@@ -67,19 +67,15 @@ instance (x y : List Bool) : Decidable (LocalSelfReductionQuery x y) :=
 /-- Strict lexicographic descent forbids a self-query. -/
 theorem LocalSelfReductionQuery.ne {x y : List Bool} (h : LocalSelfReductionQuery x y) :
     y ≠ x := by
-  intro heq
-  have hlex := h.2.1
-  rw [heq] at hlex
-  exact List.lex_irrefl (fun b => lt_irrefl b) x hlex
+  rintro rfl
+  exact List.lex_irrefl (fun b => lt_irrefl b) y h.2.1
 
 /-- Consecutive permitted queries stay within the original suffix window. -/
 theorem LocalSelfReductionQuery.trans {x y z : List Bool}
     (hxy : LocalSelfReductionQuery x y) (hyz : LocalSelfReductionQuery y z) :
     LocalSelfReductionQuery x z := by
-  refine ⟨hyz.1.trans hxy.1, List.lex_trans (fun h₁ h₂ => lt_trans h₁ h₂) hyz.2.1 hxy.2.1, ?_⟩
-  have hp := hyz.2.2
-  rw [hxy.1] at hp
-  exact hp.trans hxy.2.2
+  refine ⟨hyz.1.trans hxy.1, List.lex_trans (fun h₁ h₂ => lt_trans h₁ h₂) hyz.2.1 hxy.2.1,
+    (hxy.1 ▸ hyz.2.2).trans hxy.2.2⟩
 
 /-- Strict local descent terminates. Equal lengths are essential: unrestricted lexicographic
 order on finite words is not well-founded. This supplies semantic termination only. -/
@@ -207,11 +203,8 @@ theorem truthTableUnaryDependency_actual (x : α) (r : β → ℕ) (q : β × �
   unfold truthTableUnaryDependency
   rw [truthTableAnswers_eq_map_range]
   congr 2
-  apply List.map_congr_left
-  intro i _
-  split_ifs with heq
-  · simp only [heq, Set.mem_preimage]
-  · rfl
+  refine List.map_congr_left fun i _ => ?_
+  split_ifs with heq <;> simp [heq]
 
 /-- Correctness of the reduction supplies the paper's semantic dependency equation. -/
 theorem truthTableUnaryDependency_spec {B : Set β} (x : α) (r : β → ℕ)

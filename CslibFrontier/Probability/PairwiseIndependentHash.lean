@@ -205,6 +205,14 @@ theorem expect_card_filter_mul_card_filter_sub_one [Field 𝕜] [CharZero 𝕜]
     Nat.cast_sub (Nat.le_mul_self _), Nat.cast_mul]
   ring
 
+private theorem expect_cell_sub_factorialMoment_div [Field 𝕜] [CharZero 𝕜]
+    (hh : IsPairwiseIndependentHash h) (S : Finset X) (y : Y) (d : 𝕜) :
+    𝔼 i, ((#{x ∈ S | h i x = y} : 𝕜) -
+      #{x ∈ S | h i x = y} * (#{x ∈ S | h i x = y} - 1) / d) =
+      #S / Fintype.card Y - #S * (#S - 1) / (d * Fintype.card Y ^ 2) := by
+  rw [expect_sub_distrib, ← expect_div, hh.expect_card_filter_apply_eq,
+    hh.expect_card_filter_mul_card_filter_sub_one, div_div, mul_comm (_ ^ 2)]
+
 /-- **The variance of the cell size**: `#{x ∈ S | h i x = y}` has variance
 `#S / |Y| * (1 - 1 / |Y|)`. -/
 theorem expect_card_filter_sub_sq [Field 𝕜] [CharZero 𝕜] (hh : IsPairwiseIndependentHash h)
@@ -349,17 +357,10 @@ theorem sub_le_dens_filter_mem_image [Field 𝕜] [LinearOrder 𝕜] [IsStrictOr
     (hh : IsPairwiseIndependentHash h) (S : Finset X) (y : Y) :
     (#S : 𝕜) / Fintype.card Y - #S * (#S - 1) / (2 * Fintype.card Y ^ 2) ≤
       (dens {i | y ∈ S.image (h i)} : 𝕜) := by
-  calc (#S : 𝕜) / Fintype.card Y - #S * (#S - 1) / (2 * Fintype.card Y ^ 2)
-      = 𝔼 i, ((#{x ∈ S | h i x = y} : 𝕜) -
-          #{x ∈ S | h i x = y} * (#{x ∈ S | h i x = y} - 1) / 2) := by
-        rw [expect_sub_distrib, ← expect_div, hh.expect_card_filter_apply_eq,
-          hh.expect_card_filter_mul_card_filter_sub_one]
-        ring
-    _ ≤ 𝔼 i, (if y ∈ S.image (h i) then 1 else 0 : 𝕜) := by
-        refine expect_le_expect fun i _ => ?_
-        simp only [mem_image_iff_card_filter_pos]
-        exact natCast_sub_mul_sub_one_div_two_le _
-    _ = _ := Fintype.expect_boole _
+  rw [← hh.expect_cell_sub_factorialMoment_div S y 2, ← Fintype.expect_boole]
+  refine expect_le_expect fun i _ => ?_
+  simpa only [mem_image_iff_card_filter_pos] using
+    (natCast_sub_mul_sub_one_div_two_le (𝕜 := 𝕜) #{x ∈ S | h i x = y})
 
 /-- **The hashing bound in the analysis of the set lower bound protocol** of Goldwasser and Sipser:
 if `2 #S ≤ |Y|`, then `S` hits `y` with probability at least three quarters of the mean cell size
@@ -385,14 +386,10 @@ theorem sub_le_dens_filter_card_filter_eq_one [Field 𝕜] [LinearOrder 𝕜] [I
     (hh : IsPairwiseIndependentHash h) (S : Finset X) (y : Y) :
     (#S : 𝕜) / Fintype.card Y - #S * (#S - 1) / Fintype.card Y ^ 2 ≤
       (dens {i | #{x ∈ S | h i x = y} = 1} : 𝕜) := by
-  calc (#S : 𝕜) / Fintype.card Y - #S * (#S - 1) / Fintype.card Y ^ 2
-      = 𝔼 i, ((#{x ∈ S | h i x = y} : 𝕜) -
-          #{x ∈ S | h i x = y} * (#{x ∈ S | h i x = y} - 1)) := by
-        rw [expect_sub_distrib, hh.expect_card_filter_apply_eq,
-          hh.expect_card_filter_mul_card_filter_sub_one]
-    _ ≤ 𝔼 i, (if #{x ∈ S | h i x = y} = 1 then 1 else 0 : 𝕜) :=
-        expect_le_expect fun i _ => natCast_sub_mul_sub_one_le _
-    _ = _ := Fintype.expect_boole _
+  have hmean := hh.expect_cell_sub_factorialMoment_div S y (1 : 𝕜)
+  simp only [one_mul, div_one] at hmean
+  rw [← hmean, ← Fintype.expect_boole]
+  exact expect_le_expect fun i _ => natCast_sub_mul_sub_one_le _
 
 /-- **The Valiant–Vazirani lemma**: if `|Y| ≤ 4 #S ≤ 2 |Y|`, then exactly one element of `S` hits
 `y` with probability at least `3 / 16` [Arora and Barak, Section 17.4][AroraBarak09]. -/

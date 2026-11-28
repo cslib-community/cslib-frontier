@@ -117,15 +117,12 @@ private theorem ordered_splitMin {a : α} {l r : BinaryTree α} (ht : Ordered (.
   | node b ll lr il _ =>
     obtain ⟨hl, hr, hla, har⟩ := ht
     obtain ⟨ho, hlt⟩ := il hl
-    have he := elements_splitMin b ll lr
     have hm : (splitMin b ll lr).1 < a :=
-      hla _ (he ▸ Finset.mem_insert_self _ _)
-    refine ⟨⟨ho, hr, fun y hy => hla y (he ▸ Finset.mem_insert_of_mem hy), har⟩, ?_⟩
-    intro y hy
+      hla _ (elements_splitMin b ll lr ▸ Finset.mem_insert_self _ _)
+    refine ⟨⟨ho, hr, fun y hy => hla y
+      (elements_splitMin b ll lr ▸ Finset.mem_insert_of_mem hy), har⟩, fun y hy => ?_⟩
     rcases mem_elements_node.mp hy with rfl | hy | hy
-    · exact hm
-    · exact hlt y hy
-    · exact lt_trans hm (har y hy)
+    exacts [hm, hlt y hy, lt_trans hm (har y hy)]
 
 /-- Gluing the subtrees of an ordered node yields an ordered tree. -/
 private theorem ordered_glue {a : α} {l r : BinaryTree α} (ht : Ordered (.node a l r)) :
@@ -135,9 +132,8 @@ private theorem ordered_glue {a : α} {l r : BinaryTree α} (ht : Ordered (.node
   | nil => exact hl
   | node b rl rr =>
     obtain ⟨ho, hlt⟩ := ordered_splitMin hr
-    have hm : a < (splitMin b rl rr).1 :=
-      har _ (elements_splitMin b rl rr ▸ Finset.mem_insert_self _ _)
-    exact ⟨hl, ho, fun y hy => lt_trans (hla y hy) hm, hlt⟩
+    exact ⟨hl, ho, fun y hy => lt_trans (hla y hy)
+      (har _ (elements_splitMin b rl rr ▸ Finset.mem_insert_self _ _)), hlt⟩
 
 /-- Deletion removes exactly the requested key, even when it was absent. -/
 theorem elements_erase {t : BinaryTree α} (ht : Ordered t) (x : α) :
@@ -146,16 +142,12 @@ theorem elements_erase {t : BinaryTree α} (ht : Ordered t) (x : α) :
   | case1 => rfl -- nil
   | case2 a l r hx il => -- x < a: erase from l
     -- `x` lies in no part of the node except possibly `l`.
-    obtain ⟨hl, -, -, har⟩ := ht
-    have hxr : x ∉ elements r := fun h => lt_asymm hx (har x h)
-    rw [elements, il hl, elements, Finset.erase_insert_of_ne (ne_of_gt hx),
-      Finset.erase_union_distrib, Finset.erase_eq_of_notMem hxr]
+    rw [elements, il ht.1, elements, Finset.erase_insert_of_ne (ne_of_gt hx),
+      Finset.erase_union_distrib, Finset.erase_eq_of_notMem fun h => lt_asymm hx (ht.2.2.2 x h)]
   | case3 a l r _ ha ir => -- a < x: erase from r
     -- Symmetrically, `x` can only lie in `r`.
-    obtain ⟨-, hr, hla, -⟩ := ht
-    have hxl : x ∉ elements l := fun h => lt_asymm ha (hla x h)
-    rw [elements, ir hr, elements, Finset.erase_insert_of_ne (ne_of_lt ha),
-      Finset.erase_union_distrib, Finset.erase_eq_of_notMem hxl]
+    rw [elements, ir ht.2.1, elements, Finset.erase_insert_of_ne (ne_of_lt ha),
+      Finset.erase_union_distrib, Finset.erase_eq_of_notMem fun h => lt_asymm ha (ht.2.2.1 x h)]
   | case4 a l r hx ha => -- x = a: glue l r
     obtain rfl : x = a := le_antisymm (le_of_not_gt ha) (le_of_not_gt hx)
     rw [elements_glue, elements, Finset.erase_insert ht.notMem_elements_union]
@@ -167,14 +159,10 @@ theorem ordered_erase {t : BinaryTree α} (ht : Ordered t) (x : α) :
   | case1 => trivial -- nil
   | case2 a l r _ il => -- x < a: erase from l
     obtain ⟨hl, hr, hla, har⟩ := ht
-    refine ⟨il hl, hr, fun y hy => hla y ?_, har⟩
-    rw [elements_erase hl] at hy
-    exact Finset.mem_of_mem_erase hy
+    exact ⟨il hl, hr, fun y hy => hla y (Finset.mem_of_mem_erase (elements_erase hl x ▸ hy)), har⟩
   | case3 a l r _ _ ir => -- a < x: erase from r
     obtain ⟨hl, hr, hla, har⟩ := ht
-    refine ⟨hl, ir hr, hla, fun y hy => har y ?_⟩
-    rw [elements_erase hr] at hy
-    exact Finset.mem_of_mem_erase hy
+    exact ⟨hl, ir hr, hla, fun y hy => har y (Finset.mem_of_mem_erase (elements_erase hr x ▸ hy))⟩
   | case4 => exact ordered_glue ht -- x = a: glue l r
 
 /-- Deleting an absent key preserves the entire tree, not just its represented set. -/
@@ -203,9 +191,7 @@ theorem searchVisits_le_eraseVisits (x : α) (t : BinaryTree α) :
   | nil => rfl
   | node a l r il ir =>
     simp only [searchVisits, eraseVisits]
-    split
-    · omega
-    · split <;> omega
+    split_ifs <;> omega
 
 /-- Deletion visits at most `t.height` internal nodes. -/
 theorem eraseVisits_le_height (x : α) (t : BinaryTree α) :
@@ -215,9 +201,7 @@ theorem eraseVisits_le_height (x : α) (t : BinaryTree α) :
   | node a l r il ir =>
     have := minimumVisits_le_height r
     simp only [eraseVisits, BinaryTree.height]
-    split
-    · omega
-    · split <;> omega
+    split_ifs <;> omega
 
 /-- Unlike insertion, deletion never increases the height. -/
 theorem height_erase_le (x : α) (t : BinaryTree α) : (erase x t).height ≤ t.height := by

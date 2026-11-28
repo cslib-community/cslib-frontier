@@ -109,16 +109,15 @@ theorem isDensityMatrix_pureState [Fintype ι] {ψ : EuclideanSpace ℂ ι} (hψ
 /-- Conjugation by a possibly rectangular isometry preserves density matrices. -/
 theorem IsDensityMatrix.conj_isometry [Fintype ι] [Fintype ι'] [DecidableEq ι]
     {ρ : Matrix ι ι ℂ} (hρ : IsDensityMatrix ρ) {V : Matrix ι' ι ℂ}
-    (hV : Vᴴ * V = 1) : IsDensityMatrix (V * ρ * Vᴴ) := by
-  refine ⟨hρ.posSemidef.mul_mul_conjTranspose_same V, ?_⟩
-  rw [trace_mul_cycle, hV, one_mul, hρ.trace_eq_one]
+    (hV : Vᴴ * V = 1) : IsDensityMatrix (V * ρ * Vᴴ) :=
+  ⟨hρ.posSemidef.mul_mul_conjTranspose_same V,
+    by rw [trace_mul_cycle, hV, one_mul, hρ.trace_eq_one]⟩
 
 /-- **Unitary evolution** `ρ ↦ U ρ Uᴴ` preserves density matrices. -/
 theorem IsDensityMatrix.conj_unitary [Fintype ι] [DecidableEq ι] {ρ : Matrix ι ι ℂ}
     (hρ : IsDensityMatrix ρ) {U : Matrix ι ι ℂ} (hU : U ∈ unitaryGroup ι ℂ) :
-    IsDensityMatrix (U * ρ * Uᴴ) := by
-  apply hρ.conj_isometry
-  simpa only [star_eq_conjTranspose] using mem_unitaryGroup_iff'.mp hU
+    IsDensityMatrix (U * ρ * Uᴴ) :=
+  hρ.conj_isometry (by simpa only [star_eq_conjTranspose] using mem_unitaryGroup_iff'.mp hU)
 
 /-! ### The partial trace -/
 
@@ -206,15 +205,13 @@ theorem partialTraceRight_eq_sum_submatrix [Fintype κ] [AddCommMonoid R]
 
 /-- The partial trace over the first system preserves positive semidefiniteness. -/
 theorem posSemidef_partialTraceLeft [Fintype ι] {ρ : Matrix (ι × κ) (ι × κ) ℂ}
-    (hρ : ρ.PosSemidef) : (partialTraceLeft ρ).PosSemidef := by
-  rw [partialTraceLeft_eq_sum_submatrix]
-  exact posSemidef_sum _ fun i _ => hρ.submatrix _
+    (hρ : ρ.PosSemidef) : (partialTraceLeft ρ).PosSemidef :=
+  partialTraceLeft_eq_sum_submatrix ρ ▸ posSemidef_sum _ fun _ _ => hρ.submatrix _
 
 /-- The partial trace over the second system preserves positive semidefiniteness. -/
 theorem posSemidef_partialTraceRight [Fintype κ] {ρ : Matrix (ι × κ) (ι × κ) ℂ}
-    (hρ : ρ.PosSemidef) : (partialTraceRight ρ).PosSemidef := by
-  rw [partialTraceRight_eq_sum_submatrix]
-  exact posSemidef_sum _ fun k _ => hρ.submatrix _
+    (hρ : ρ.PosSemidef) : (partialTraceRight ρ).PosSemidef :=
+  partialTraceRight_eq_sum_submatrix ρ ▸ posSemidef_sum _ fun _ _ => hρ.submatrix _
 
 /-- The reduced state `Tr_A ρ` of a density matrix is a density matrix. -/
 theorem IsDensityMatrix.partialTraceLeft [Fintype ι] [Fintype κ] {ρ : Matrix (ι × κ) (ι × κ) ℂ}
@@ -244,11 +241,8 @@ theorem partialTraceLeft_pureState_maxEntangled [Fintype ι] [DecidableEq ι] :
   · subst h
     rw [sum_eq_single k (fun i _ hi => by simp [hi]) (by simp)]
     simp [inv_sqrt_card_mul_inv_sqrt_card]
-  · rw [ite_eq_right_iff.mpr fun h' => absurd h' h]
-    exact sum_eq_zero fun i _ => by
-      by_cases hi : i = k
-      · subst hi; simp [h]
-      · simp [hi]
+  · rw [ite_eq_right h]
+    exact sum_eq_zero fun i _ => by by_cases hi : i = k <;> simp [hi, h]
 
 /-- `Tr_B |Φ⟩⟨Φ| = 1 / |ι|` for the maximally entangled state. -/
 theorem partialTraceRight_pureState_maxEntangled [Fintype ι] [DecidableEq ι] :
@@ -257,8 +251,8 @@ theorem partialTraceRight_pureState_maxEntangled [Fintype ι] [DecidableEq ι] :
   rw [← partialTraceLeft_pureState_maxEntangled]
   ext i i'
   simp only [partialTraceRight_apply, partialTraceLeft_apply, pureState_apply, maxEntangled_apply]
-  refine sum_congr rfl fun k _ => ?_
-  by_cases h : i = k <;> by_cases h' : i' = k <;> simp [h, h', eq_comm]
+  exact sum_congr rfl fun k _ => by
+    by_cases h : i = k <;> by_cases h' : i' = k <;> simp [h, h', eq_comm]
 
 /-! ### No-signalling -/
 
@@ -304,9 +298,8 @@ theorem partialTraceLeft_conj_unitary [Fintype ι] [Fintype κ] [DecidableEq ι]
     {U : Matrix ι ι ℂ} (hU : U ∈ unitaryGroup ι ℂ) (ρ : Matrix (ι × κ) (ι × κ) ℂ) :
     partialTraceLeft ((U ⊗ₖ (1 : Matrix κ κ ℂ)) * ρ * (U ⊗ₖ (1 : Matrix κ κ ℂ))ᴴ) =
       partialTraceLeft ρ := by
-  have h := partialTraceLeft_kraus {()} (fun _ => U)
+  simpa only [sum_singleton] using partialTraceLeft_kraus {()} (fun _ => U)
     (by rw [sum_singleton, ← star_eq_conjTranspose, mem_unitaryGroup_iff'.mp hU]) ρ
-  rwa [sum_singleton] at h
 
 /-- **No-signalling for a measurement**: if Alice measures her system in the computational basis
 and the outcome is discarded, `ρ ↦ ∑ᵢ (|i⟩⟨i| ⊗ 1) ρ (|i⟩⟨i| ⊗ 1)`, Bob's reduced state is

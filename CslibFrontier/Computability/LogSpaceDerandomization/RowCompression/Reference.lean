@@ -88,10 +88,8 @@ theorem reference_threshold_le (hη : 0 ≤ η) (hρ : ρ ≤ η) (hK : 0 < K) (
     refine kthLargest_le_of_lt_imp hK hKn hQ0 (fun y hys hy => ?_)
       (kthLargest_le_firstRank.trans hqQ)
     by_contra hfirstQ
-    have hsize : entrySize (w y) ≤ Q :=
-      max_le (abs_le.mpr ⟨by linarith [hfirst y hys], not_lt.mp hfirstQ⟩)
-        ((hsecond y hys).trans hηQ)
-    exact (not_lt_of_ge hsize) hy
+    exact hy.not_ge (max_le (abs_le.mpr ⟨by linarith [hfirst y hys], not_lt.mp hfirstQ⟩)
+      ((hsecond y hys).trans hηQ))
   exact max_le (default_le_firstRank.trans hqQ) (max_le (hρ.trans hηQ) hrank)
 
 /-- The new default is at most the larger of `η` and the old padded rank. -/
@@ -108,14 +106,9 @@ theorem reference_update_bounds (hη : 0 ≤ η) {y : ι}
     -η ≤ update s n K ρ z w y 0 ∧ |update s n K ρ z w y 1| ≤ η := by
   have h0 := update_mem_Icc (s := s) (n := n) (K := K) (ρ := ρ) (z := z) (w := w) y 0
   have h1 := update_mem_Icc (s := s) (n := n) (K := K) (ρ := ρ) (z := z) (w := w) y 1
-  change min (w y 0) (newDefault s n K ρ z w) ≤ update s n K ρ z w y 0 ∧
-    update s n K ρ z w y 0 ≤ max (w y 0) (newDefault s n K ρ z w) at h0
-  change min (w y 1) 0 ≤ update s n K ρ z w y 1 ∧
-    update s n K ρ z w y 1 ≤ max (w y 1) 0 at h1
-  have hznew : 0 ≤ newDefault s n K ρ z w := newDefault_nonneg
-  refine ⟨(le_min hfirst (by linarith)).trans h0.1, abs_le.mpr ⟨?_, ?_⟩⟩
-  · exact (le_min (abs_le.mp hsecond).1 (by linarith)).trans h1.1
-  · exact h1.2.trans (max_le (abs_le.mp hsecond).2 hη)
+  obtain ⟨h1l, h1u⟩ := abs_le.mp hsecond
+  exact ⟨(le_min hfirst ((neg_nonpos.mpr hη).trans newDefault_nonneg)).trans h0.1,
+    abs_le.mpr ⟨(le_min h1l (neg_nonpos.mpr hη)).trans h1.1, h1.2.trans (max_le h1u hη)⟩⟩
 
 /-- The updated padded first rank remains below a common input rank and threshold ceiling.
 No lower bound on raw first entries or upper bound on second entries is needed. -/
@@ -155,17 +148,12 @@ theorem reference_firstRank_eq (hη : 0 ≤ η) (hρ : ρ ≤ η) (hK : 0 < K) (
   · have hb : newDefault s n K ρ z w = firstRank s K z w := by
       change max (threshold s n ρ z w) (min (firstRank s K z w) (3 * threshold s n ρ z w)) = _
       rw [min_eq_left hqu, max_eq_right hu]
-    exact hb ▸ (default_le_firstRank (s := s) (K := K) (z := newDefault s n K ρ z w)
-      (w := update s n K ρ z w))
+    exact hb ▸ default_le_firstRank
   have h3u : 3 * threshold s n ρ z w < firstRank s K z w := lt_of_not_ge hqu
-  have hzq : z < firstRank s K z w := by
-    have hz : z ≤ threshold s n ρ z w := le_threshold
-    have hu0 : 0 ≤ threshold s n ρ z w := threshold_nonneg
-    linarith
-  have hqreal : firstRank s K z w ≤ kthLargest K s (fun y => w y 0) := by
-    have hmax := le_max_iff.mp
-      (show firstRank s K z w ≤ max z (kthLargest K s fun y => w y 0) from le_rfl)
-    exact hmax.resolve_left (not_le.mpr hzq)
+  have hzq : z < firstRank s K z w :=
+    (le_threshold.trans (le_mul_of_one_le_left threshold_nonneg (by norm_num))).trans_lt h3u
+  have hqreal : firstRank s K z w ≤ kthLargest K s (fun y => w y 0) :=
+    (le_max_iff.mp (le_rfl : firstRank s K z w ≤ _)).resolve_left (not_le.mpr hzq)
   have hq0 : 0 < firstRank s K z w := hη.trans_lt hq
   have hcard := (le_kthLargest_iff hK hq0).mp hqreal
   have hsub : ({y ∈ s | firstRank s K z w ≤ w y 0} : Finset ι) ⊆
@@ -173,11 +161,8 @@ theorem reference_firstRank_eq (hη : 0 ≤ η) (hρ : ρ ≤ η) (hK : 0 < K) (
     intro y hy
     obtain ⟨hys, hy⟩ := mem_filter.mp hy
     refine mem_filter.mpr ⟨hys, ?_⟩
-    have hid : update s n K ρ z w y = w y :=
-      update_eq_self_of_three_mul_le
-        (h3u.le.trans ((hy.trans (le_abs_self _)).trans (abs_apply_le_entrySize (w y) 0)))
-    rw [hid]
-    exact hy
+    rwa [update_eq_self_of_three_mul_le
+      (h3u.le.trans ((hy.trans (le_abs_self _)).trans (abs_apply_le_entrySize (w y) 0)))]
   exact ((le_kthLargest_iff hK hq0).mpr (hcard.trans (card_le_card hsub))).trans
     kthLargest_le_firstRank
 
@@ -199,9 +184,9 @@ theorem reference_update_output_eq {H : ℝ → ℝ → ℝ → ℝ} {g e : ℝ}
   let q' := firstRank s K (newDefault s n K ρ z w) (update s n K ρ z w)
   change H (update s n K ρ z w y 0) (update s n K ρ z w y 1) q' = H (w y 0) (w y 1) q
   by_cases hclosed : g ≤ q
-  · have heq : q' = q :=
-      reference_firstRank_eq hη hρ hK hKn hfirst hsecond (hηg.trans_le hclosed)
-    rw [heq, hgate _ _ _ hclosed, hgate _ _ _ hclosed]
+  · dsimp only [q']
+    rw [reference_firstRank_eq hη hρ hK hKn hfirst hsecond (hηg.trans_le hclosed),
+      hgate _ _ _ hclosed, hgate _ _ _ hclosed]
   have hQg : max η q < g := max_lt hηg (lt_of_not_ge hclosed)
   have hg0 : 0 < g := hη.trans_lt hηg
   have hu : threshold s n ρ z w ≤ max η q :=
@@ -210,23 +195,18 @@ theorem reference_update_output_eq {H : ℝ → ℝ → ℝ → ℝ} {g e : ℝ}
     reference_newDefault_le hη hρ hK hKn hfirst hsecond
   have hb_e : newDefault s n K ρ z w ≤ e := by linarith
   by_cases hsmall : w y 0 ≤ e
-  · have hcoord := (update_mem_Icc (s := s) (n := n) (K := K) (ρ := ρ) (z := z)
-      (w := w) y 0).2
-    change update s n K ρ z w y 0 ≤ max (w y 0) (newDefault s n K ρ z w) at hcoord
-    have hnew : update s n K ρ z w y 0 ≤ e := hcoord.trans (max_le hsmall hb_e)
+  · have hnew : update s n K ρ z w y 0 ≤ e :=
+      (update_mem_Icc (s := s) (n := n) (K := K) (ρ := ρ) (z := z) (w := w) y 0).2.trans
+        (max_le hsmall hb_e)
     rw [hentry _ _ _ hnew, hentry _ _ _ hsmall]
   have h3u : 3 * threshold s n ρ z w < e := by linarith
-  have hid : update s n K ρ z w y = w y :=
-    update_eq_self_of_three_mul_le (h3u.le.trans ((lt_of_not_ge hsmall).le.trans
-      ((le_abs_self _).trans (abs_apply_le_entrySize (w y) 0))))
-  rw [hid]
+  rw [update_eq_self_of_three_mul_le (h3u.le.trans ((lt_of_not_ge hsmall).le.trans
+    ((le_abs_self _).trans (abs_apply_le_entrySize (w y) 0))))]
   by_cases hq : η < q
-  · have heq : q' = q := reference_firstRank_eq hη hρ hK hKn hfirst hsecond hq
-    rw [heq]
+  · exact congrArg (H (w y 0) (w y 1)) (reference_firstRank_eq hη hρ hK hKn hfirst hsecond hq)
   have hqη : q ≤ η := not_lt.mp hq
-  have hq'η : q' ≤ η := by
-    have h := reference_firstRank_le (z := z) hη hρ hK hKn hfirst hsecond
-    exact h.trans (max_le le_rfl hqη)
+  have hq'η : q' ≤ η :=
+    (reference_firstRank_le (z := z) hη hρ hK hKn hfirst hsecond).trans (max_le le_rfl hqη)
   exact hflat _ _ _ _ ⟨firstRank_nonneg, hq'η⟩ ⟨firstRank_nonneg, hqη⟩
 
 section Iteration
@@ -245,11 +225,8 @@ theorem reference_iterate_bounds (hη : 0 ≤ η)
     have h (y : ι) (hy : y ∈ s) := reference_update_bounds (s := s) (n := n j) (K := K)
       (ρ := ρ j) (z := (iterate s n (fun _ => K) ρ (fun _ => 0) a j).defaultValue)
       hη (ih.1 y hy) (ih.2 y hy)
-    constructor
-    · intro y hy
-      simpa only [iterate_succ, advance, add_zero] using (h y hy).1
-    · intro y hy
-      simpa only [iterate_succ, advance, add_zero] using (h y hy).2
+    exact ⟨fun y hy => by simpa only [iterate_succ, advance, add_zero] using (h y hy).1,
+      fun y hy => by simpa only [iterate_succ, advance, add_zero] using (h y hy).2⟩
 
 /-- Stationary reference outputs survive any finite zero-increment compression schedule
 whose floors are at most `η` and whose capacities are at least the fixed rank `K`.

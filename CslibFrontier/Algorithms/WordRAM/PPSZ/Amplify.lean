@@ -127,7 +127,7 @@ theorem roundCore_isRoundCore {φ : CNF (Fin n)} {C Tb s w : ℕ}
   law M x hx hS := roundCore_law (by simpa using hS.get 0 (by simp))
     (fun i hi => by
       have h := hS.get (i + 1) (by simp; omega)
-      rw [show Tb + 2 * n + (i + 1) = Tb + 2 * n + 1 + i by omega] at h
+      rw [← Nat.add_assoc, Nat.add_right_comm _ i 1] at h
       simpa [List.getElem_replicate] using h)
     hw hx
 
@@ -202,40 +202,22 @@ theorem ampSetup_exec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
       RoundFrame φ 6 ((s :: a :: b :: c :: encode φ).length + 1) (ampSetupData s a b c φ).mem
         (ampSetupData s a b c φ) := by
   have hL : 5 ≤ (s :: a :: b :: c :: encode φ).length := by simp [encode]
-  have : Fits w 2 := hw.of_le (by omega)
-  have : Fits w 3 := hw.of_le (by omega)
-  have : Fits w 4 := hw.of_le (by omega)
-  have : Fits w 5 := hw.of_le (by omega)
-  have : Fits w 6 := hw.of_le (by omega)
-  have : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n) := hw.of_le (by omega)
-  have : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n + n) := hw.of_le (by omega)
-  have : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n + n + 1) := hw.of_le (by omega)
-  have : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n + n + 1 + s) := hw.of_le (by omega)
-  have : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n + n + 1 + s + s) :=
-    hw.of_le (by omega)
-  have : Fits w (a * n + b) := hw.of_le (by omega)
-  have : Fits w ((a * n + b - 1) / b) := hw.of_le (by
-    have := Nat.div_le_self (a * n + b - 1) b; omega)
-  have hm0 : (Data.init (s :: a :: b :: c :: encode φ) : Data 32).mem 0 =
-      (s :: a :: b :: c :: encode φ).length := rfl
-  have hm1 : (Data.init (s :: a :: b :: c :: encode φ) : Data 32).mem 1 = s := rfl
-  have hm2 : (Data.init (s :: a :: b :: c :: encode φ) : Data 32).mem 2 = a := rfl
-  have hm3 : (Data.init (s :: a :: b :: c :: encode φ) : Data 32).mem 3 = b := rfl
-  have hm4 : (Data.init (s :: a :: b :: c :: encode φ) : Data 32).mem 4 = c := rfl
-  have hm5 : (Data.init (s :: a :: b :: c :: encode φ) : Data 32).mem 5 = n := rfl
+  have hn0 : (encode φ).getD 0 0 = n := rfl
+  have : Fits w ((a * n + b - 1) / b) :=
+    hw.of_le ((Nat.div_le_self _ _).trans (by omega))
   refine ⟨WP.execWithin (by
       unfold ampSetup ampSetupData ppszExp
-      wram_exec [Data.init_regs, hm0, hm1, hm2, hm3, hm4, hm5]; rfl),
-    ⟨by wram_simp [ampSetupData, Data.init_regs], by wram_simp [ampSetupData],
-      by wram_simp [ampSetupData], by wram_simp [ampSetupData], by wram_simp [ampSetupData],
-      by wram_simp [ampSetupData], by wram_simp [ampSetupData], by wram_simp [ampSetupData], ?_,
+      wram_exec [Data.init_regs, Data.init_mem_zero, Data.init_mem_succ, List.getD_cons_zero,
+        List.getD_cons_succ, hn0]
+      rfl),
+    ⟨by wram_simp [ampSetupData, Data.init_regs], ?_, ?_, ?_, ?_, ?_, ?_, ?_, fun i => ?_,
       by simp [length_encode]; omega, fun _ _ => rfl⟩⟩
-  intro i
+  iterate 7 wram_simp [ampSetupData]
   have hi : i.val < (encodeClauses φ).length := i.isLt
+  have h6 : 6 + i.val = i.val + 1 + 1 + 1 + 1 + 1 + 1 := by omega
   change (ampSetupData s a b c φ).mem (6 + i.val) = (encodeClauses φ)[i.val]
-  rw [ampSetupData_mem, ite_eq_right_iff.mpr (fun h => by simp [length_encode] at h; omega),
-    show 6 + i.val = (5 + i.val) + 1 by omega, Data.init_mem_succ]
-  simp [encode, show 5 + i.val = (i.val + 1) + 1 + 1 + 1 + 1 by omega]
+  rw [ampSetupData_mem, ite_eq_right_iff.mpr (fun h => by simp [length_encode] at h; omega), h6]
+  simp [encode, Data.init_mem_succ]
 
 /-! ### The algorithm -/
 
@@ -278,8 +260,7 @@ theorem ampProgram_spec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
       (.init (s :: a :: b :: c :: encode φ))).map RandCfg.accepts =
         repeatRoundWith (implied φ s) φ (ppszRounds a b n c) := by
   set L := (s :: a :: b :: c :: encode φ).length with hL
-  have hE : (encodeClauses φ).length + 5 = L := by
-    simp only [hL, List.length_cons, length_encode]
+  have hE : (encodeClauses φ).length + 5 = L := by simp [hL, length_encode]
   set e := ppszExp a b n with he
   have hlen := PPZ.length_countDigits_le e c
   -- the setup
@@ -302,9 +283,9 @@ theorem ampProgram_spec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
     change y₁.mem (L + 1 + 2 * n + i) = (s :: List.replicate (2 * s) 0)[i]
     rw [hm₁ _ (by omega), ampSetupData_mem]
     rcases i with _ | j
-    · rw [ite_eq_left (by omega)]
-      rfl
-    · rw [ite_eq_right (by omega), show L + 1 + 2 * n + (j + 1) = (L + 2 * n + j + 1) + 1 by omega,
+    · exact ite_eq_left (by omega)
+    · have hidx : L + 1 + 2 * n + (j + 1) = (L + 2 * n + j + 1) + 1 := by omega
+      rw [ite_eq_right (by omega), hidx,
         Data.init_mem_succ, List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega)]
       simp [List.getElem_replicate]
   have hb₁ : y₁.regs bBase = L + 1 + 2 * n + 1 + 2 * s :=
@@ -317,8 +298,7 @@ theorem ampProgram_spec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
       bBase_eq := by simp +decide [hb₁]; omega
       bLen_eq := by simp +decide [hl₁, ppszDigits, he]
       digits := by
-        simpa [ppszDigits, ← he, show L + 1 + 2 * n + 1 + 2 * s =
-          L + 1 + 2 * n + (2 * s + 1) by omega] using hh₁
+        simpa [ppszDigits, ← he, Nat.add_assoc, Nat.add_comm 1 (2 * s)] using hh₁
       binary := PPZ.countDigits_binary _ _
       flag_eq := by simp
       out_eq := by simp +decide [ho₁] }
@@ -340,9 +320,8 @@ theorem ampProgram_spec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
       simp only [ampTime, countSetupTime, ppszCounterLen, ppszDigits, ← he] at hlen hcount ⊢
       omega)
     RandCfg.accepts fun _ _ => rfl
-  refine ⟨hhalt, hcalls, fun cfg hcfg => ?_, hlaw⟩
-  obtain ⟨d, rfl, -, hd⟩ := hpost cfg hcfg
-  exact ⟨_, d, rfl, hd⟩
+  exact ⟨hhalt, hcalls,
+    fun cfg hcfg => (hpost cfg hcfg).elim fun d hd => ⟨_, d, hd.1, hd.2.2⟩, hlaw⟩
 
 /-- **The PPSZ bound for one round** [Hertli][Hertli2011]: on a satisfiable formula with clauses
 of at most `k ≥ 3` literals, one round of PPSZ with `s ≥ ∑ i < h, (k - 1) ^ i` succeeds with
@@ -428,8 +407,7 @@ theorem ampTime_le {s a b : ℕ} (hb : 0 < b) (c n L : ℕ) :
         (2 : ℝ) ^ ((a : ℝ) / b * n) * (c + 1) := by
   set X := (2 : ℝ) ^ ((a : ℝ) / b * n)
   set e := ppszExp a b n with he
-  obtain ⟨N, hN⟩ : ∃ N, n + L + 1 = N := ⟨_, rfl⟩
-  rw [hN]
+  generalize hN : n + L + 1 = N
   have hX1 : 1 ≤ X := Real.one_le_rpow one_le_two (by positivity)
   -- the number of rounds
   have h2e : (2 : ℝ) ^ e ≤ 2 * X := PPZ.two_pow_le_two_mul_rpow (ppszExp_le_add_one hb n)
@@ -457,27 +435,21 @@ theorem ampTime_le {s a b : ℕ} (hb : 0 < b) (c n L : ℕ) :
     have he2 : e + 1 ≤ 2 ^ e := Nat.lt_two_pow_self
     simp only [ppszCounterLen, ← he]
     nlinarith [Nat.mul_le_mul_right (c + 1) he2]
-  have hK1 : (1 : ℝ) ≤ K := by
-    have : 0 < K := by rw [hK]; exact Nat.mul_pos (by positivity) (pow_pos (by omega) _)
-    exact_mod_cast this
+  have hK1 : (1 : ℝ) ≤ K :=
+    Nat.one_le_cast.2 (hK ▸ Nat.mul_pos (by positivity) (pow_pos (by omega) _))
   have hexp : (ampTime s a b c n L : ℝ) =
       (2 : ℝ) ^ e * c * ((n * (impliedTime s L + 25) + 12 * L + 41 : ℕ) : ℝ) +
         ((5 * e + 19 * ppszCounterLen a b n c + 70 : ℕ) : ℝ) := by
     simp only [ampTime, ppszRounds, ← he]; push_cast; ring
-  have hPr : ((n * (impliedTime s L + 25) + 12 * L + 41 : ℕ) : ℝ) ≤ 181 * (K : ℝ) := by
-    exact_mod_cast hP
-  have hSr : ((5 * e + 19 * ppszCounterLen a b n c + 70 : ℕ) : ℝ) ≤
-      89 * (2 : ℝ) ^ e * (c + 1) := by
-    exact_mod_cast hS
   have hc0 : (0 : ℝ) ≤ c := Nat.cast_nonneg c
-  have hKc : ((s + 1) ^ 2 : ℕ) * ((N : ℕ) : ℝ) ^ (2 * s + 1) = (K : ℝ) := by
-    rw [hK]; push_cast; ring
+  have hKc : ((s + 1) ^ 2 : ℕ) * ((N : ℕ) : ℝ) ^ (2 * s + 1) = (K : ℝ) := by push_cast [hK]; ring
   rw [hexp, mul_assoc 600, hKc]
   have h2e0 : (0 : ℝ) ≤ (2 : ℝ) ^ e := by positivity
   calc (2 : ℝ) ^ e * c * ((n * (impliedTime s L + 25) + 12 * L + 41 : ℕ) : ℝ) +
         ((5 * e + 19 * ppszCounterLen a b n c + 70 : ℕ) : ℝ)
       ≤ (2 * X) * c * (181 * K) + 89 * (2 * X) * (c + 1) :=
-        add_le_add (by gcongr) (hSr.trans (by gcongr))
+        add_le_add (by gcongr; exact_mod_cast hP)
+          ((show _ ≤ 89 * (2 : ℝ) ^ e * (c + 1) by exact_mod_cast hS).trans (by gcongr))
     _ ≤ 600 * K * X * (c + 1) := by
         nlinarith [mul_le_mul_of_nonneg_left hK1 (mul_nonneg (by linarith : (0 : ℝ) ≤ X)
           (by linarith : (0 : ℝ) ≤ c + 1)), mul_nonneg (mul_nonneg (by positivity : (0 : ℝ) ≤ K)

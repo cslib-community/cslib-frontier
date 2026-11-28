@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Automata.MPDA.Holes
 public import CslibFrontier.Foundations.Data.List.Splits
 public import Mathlib.Computability.Language
+import CslibFrontier.Computability.Automata.MPDA.OneHole
 import CslibFrontier.Foundations.Data.List.Extract
 
 /-! # Context-, round-, scope- and phase-bounded sequences of multistack pushdown automata
@@ -33,6 +34,7 @@ classes that hole-bounded sequences generalize:
 
 ## Main results
 
+- `MPDA.IsContextOf.wellNested`: a balanced run on one stack is well-nested.
 - `MPDA.RoundBounded.contextBounded`: `K` rounds give at most `K * n` contexts.
 - `MPDA.ContextBounded.scopeBounded`: a sequence with at most `K` contexts is `K`-scope-bounded.
 
@@ -85,6 +87,28 @@ theorem IsContext.of_isInfix {u w : List (α × Op n Γ)} (hu : u <:+: w) (h : I
     IsContext u :=
   let ⟨o, ho⟩ := h
   ⟨o, fun μ hμ => ho μ (hu.subset hμ)⟩
+
+private theorem net_eq_zero_of_isContextOf {i j : Fin n} (hij : i ≠ j) :
+    ∀ {u : List (α × Op n Γ)}, IsContextOf i u → net j u = 0
+  | [], _ => rfl
+  | (a, op) :: u, h => by
+    rw [net_cons, net_eq_zero_of_isContextOf hij fun μ hμ => h μ (List.mem_cons_of_mem _ hμ)]
+    rcases h (a, op) List.mem_cons_self with h' | h' <;> cases op <;>
+      simp_all [Op.stack, Op.net]
+
+/-- A run that uses one stack, never goes below the initial height of that stack and returns to
+it is well-nested. -/
+theorem IsContextOf.wellNested {State : Type*} {M : MPDA n State α Γ} {c c' : Config n State Γ}
+    {v : List (α × Op n Γ)} {i : Fin n} (hv : IsContextOf i v) (hrun : M.configLTS.MTr c v c')
+    (hnet : net i v = 0) (hk : ∀ k, 0 ≤ net i (v.take k)) : WellNested v := by
+  refine wellNested_of_not_crossing hrun (fun j => ?_) ?_
+  · rcases eq_or_ne i j with rfl | hij
+    · exact ⟨hnet, hk⟩
+    · exact ⟨net_eq_zero_of_isContextOf hij hv, fun k =>
+        (net_eq_zero_of_isContextOf hij fun μ hμ => hv μ (List.mem_of_mem_take hμ)).symm.le⟩
+  · rintro ⟨i', j', p, q, z, hij, -, -, ⟨a, γ, hp⟩, ⟨b, δ, hq⟩, -, -⟩
+    exact hij ((by simpa [Op.stack] using hv _ (List.mem_of_getElem? hp) : i' = i).trans
+      (by simpa [Op.stack] using hv _ (List.mem_of_getElem? hq) : j' = i).symm)
 
 private theorem IsRound.contextBounded {w : List (α × Op n Γ)} (h : IsRound w) :
     ContextBounded n w := by

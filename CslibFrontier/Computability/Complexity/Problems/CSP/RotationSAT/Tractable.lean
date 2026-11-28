@@ -72,24 +72,15 @@ theorem mem_P_of_cyclicDifference (encRel : Rel ↪ List Bool) (arity : Rel → 
       IsEvenDeltaMatroid (cyclicDifferenceRelation (booleanRelation arity sem r))) :
     RotationCSPSAT arity sem ∈ P (CSP.encRotationInstance encRel) := by
   classical
-  have hselfAll (r : Rel) : IsSelfComplementary (booleanRelation arity sem r) := by
-    by_cases hne : (booleanRelation arity sem r).Nonempty
-    · exact hself r hne
-    · have he := Set.not_nonempty_iff_eq_empty.mp hne
-      rw [he]
-      exact fun _ => Iff.rfl
+  have hselfAll (r : Rel) : IsSelfComplementary (booleanRelation arity sem r) :=
+    if hne : (booleanRelation arity sem r).Nonempty then hself r hne
+    else Set.not_nonempty_iff_eq_empty.mp hne ▸ fun _ => Iff.rfl
   obtain ⟨hcompile, hcorrect⟩ := CSP.CyclicCompiler.compile_spec encRel arity sem hselfAll hdelta
-  have hinput : ComputableInPolyTime
+  refine PolyTimeReducible.mem_P ⟨_, hcompile.comp (show ComputableInPolyTime
       (fun I : CSP.RotationInstance Rel => (I.constraints, I.rotation))
-      (CSP.encRotationInstance encRel) (CSP.encCSPRotationCertificate encRel encNat) := by fun_prop
-  have hmap := hcompile.comp hinput
-  have hred : PolyTimeReducible (CSP.encRotationInstance encRel) (encCSP encTable encNat)
-      (RotationCSPSAT arity sem) CSP.EdgeSolver.evenEdgeSAT := by
-    refine ⟨fun I => CSP.CyclicCompiler.compile arity sem (I.constraints, I.rotation),
-      hmap, fun I => ?_⟩
-    obtain ⟨hedge, _, heven, hsat⟩ := hcorrect (I.constraints, I.rotation)
-    change (_ ∧ _ ∧ _) ↔ _ ∧ _ ∧ _
-    exact hsat.trans ⟨fun hs => ⟨hedge, heven, hs⟩, fun hs => hs.2.2⟩
-  exact hred.mem_P CSP.EdgeSolver.evenEdgeSAT_mem_P
+      (CSP.encRotationInstance encRel) (CSP.encCSPRotationCertificate encRel encNat) by fun_prop),
+    fun I => ?_⟩ CSP.EdgeSolver.evenEdgeSAT_mem_P
+  obtain ⟨hedge, _, heven, hsat⟩ := hcorrect (I.constraints, I.rotation)
+  exact hsat.trans ⟨fun hs => ⟨hedge, heven, hs⟩, fun hs => hs.2.2⟩
 
 end Cslib.Complexity.RotationCSPSAT
