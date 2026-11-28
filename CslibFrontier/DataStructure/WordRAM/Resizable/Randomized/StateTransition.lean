@@ -216,7 +216,8 @@ private noncomputable def chooseDetStep (C : StateTransitionImpl P D w base para
 /-- Canonical embedding of any deterministic `Resizable.StateTransitionImpl` certificate into
 `Resizable.Randomized.StateTransitionImpl` (`Seed := Unit`, `seedLaw := fun _ => PMF.pure ()`,
 `seedSlack := 1`). -/
-@[expose] noncomputable def toRandomized (C : StateTransitionImpl P D w base params s₀) :
+@[expose, simps -fullyApplied spaceBound peakSpaceBound charge initPotential]
+noncomputable def toRandomized (C : StateTransitionImpl P D w base params s₀) :
     Randomized.StateTransitionImpl P D w base params s₀ where
   Seed := Unit; seedLaw _ := PMF.pure (); seedSlack := 1
   spaceBound := C.spaceBound; peakSpaceBound := C.peakSpaceBound
@@ -271,15 +272,6 @@ private noncomputable def chooseDetStep (C : StateTransitionImpl P D w base para
           ↓reduceDIte]
         exact_mod_cast (pick t ht).amort
       · rw [(PMF.apply_eq_zero_iff _ _).mpr ht_mem, zero_mul, zero_mul]
-
-@[simp] theorem toRandomized_spaceBound (C : StateTransitionImpl P D w base params s₀) :
-    C.toRandomized.spaceBound = C.spaceBound := rfl
-@[simp] theorem toRandomized_peakSpaceBound (C : StateTransitionImpl P D w base params s₀) :
-    C.toRandomized.peakSpaceBound = C.peakSpaceBound := rfl
-@[simp] theorem toRandomized_charge (C : StateTransitionImpl P D w base params s₀) :
-    C.toRandomized.charge = C.charge := rfl
-@[simp] theorem toRandomized_initPotential (C : StateTransitionImpl P D w base params s₀) :
-    C.toRandomized.initPotential = C.initPotential := rfl
 
 end Cslib.DataStructure.WordRAM.Resizable.StateTransitionImpl
 

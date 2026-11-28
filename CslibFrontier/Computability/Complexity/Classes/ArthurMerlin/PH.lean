@@ -73,8 +73,6 @@ namespace Cslib.Complexity
 
 open Finset Turing.MultiTapeTM
 
-attribute [local irreducible] ComputableInPolyTime
-
 variable {α : Type} {enc : α ↪ List Bool} {A : Set α}
 
 namespace ArthurMerlin

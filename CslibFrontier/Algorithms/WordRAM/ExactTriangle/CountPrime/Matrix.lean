@@ -120,8 +120,7 @@ theorem exec_matrix {w n p k source destination table : ℕ} (src dst : Fin 128)
       have := Cslib.Tactic.StrideOmega.mul_add_le_of_lt (s := p) hm
       exact (cellFrame _ (by omega)).trans (memory d hd)
   refine WP.exists_execWithin ?_
-  unfold matrix
-  wram_exec [hsrc, hdst, hdstReg]
+  wram_exec [matrix, hsrc, hdst, hdstReg]
   change WP w _ start _
   wram_call (ExecWithin.loop_invariant I (fun y => 4 ^ k - y.regs Reg.index) body
     ⟨fun _ _ => rfl, Nat.zero_le _, fun _ hj => by simp [start] at hj, fun _ _ => rfl⟩)

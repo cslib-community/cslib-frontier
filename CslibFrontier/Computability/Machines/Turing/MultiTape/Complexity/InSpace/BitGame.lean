@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.IterateUntil
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BitList
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Bool
 
 /-!
 # Evaluating a game of single-bit moves within linear space
@@ -176,10 +177,6 @@ private theorem iterate_stepS (L V P : α × List Bool → Bool) (k : ℕ) (x : 
   induction k generalizing s with
   | zero => rfl
   | succ k ih => rw [Function.iterate_succ_apply, Function.iterate_succ_apply, ← ih]; rfl
-
-private theorem length_encList_encBool (w : List Bool) :
-    (encList encBool w).length = 3 * w.length := by
-  simp [length_encList, encBool_apply, List.sum_replicate, Nat.mul_comm]
 
 /-- A step of the evaluation is computable within the space of the state and of the tests. -/
 private theorem stepS_inSpace {L V P : α × List Bool → Bool} {SL SV SP : α × List Bool → ℕ}

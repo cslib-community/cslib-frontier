@@ -105,8 +105,7 @@ theorem exec_of_separated_or_eq {w : ℕ} (x : Data 7) (h1 : Fits w 1)
     ∃ y, ExecWithin w program x y (7 * x.regs len + 4) ∧
       y.mem = copyPrefix x.mem (x.regs src) (x.regs dst) (x.regs len) ∧
       y.regs src = x.regs src ∧ y.regs dst = x.regs dst ∧ y.regs len = x.regs len := by
-  unfold program
-  wram_exec
+  wram_exec [program]
   let P (j : ℕ) (y : Data 7) : Prop :=
     y.regs src = x.regs src ∧ y.regs dst = x.regs dst ∧ y.regs len = x.regs len ∧
     y.regs one = 1 ∧ y.mem = copyPrefix x.mem (x.regs src) (x.regs dst) j
@@ -115,8 +114,7 @@ theorem exec_of_separated_or_eq {w : ℕ} (x : Data 7) (h1 : Fits w 1)
   · rintro y ⟨hys, hyd, hyl, hyo, hym⟩ hi
     have hread : y.mem (x.regs src + y.regs idx) = x.mem (x.regs src + y.regs idx) := by
       rw [hym]; exact copyPrefix_outside (by rcases hdisj with h | h | h <;> omega)
-    unfold body
-    wram_exec [hys, hyd, hyo, hread]
+    wram_exec [body, hys, hyd, hyo, hread]
     dsimp only [P]
     wram_simp [hys, hyd, hyl, hyo, hym, ← copyPrefix_succ]
   · wram_simp [Nat.zero_le]

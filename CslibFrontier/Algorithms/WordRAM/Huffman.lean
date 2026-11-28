@@ -624,8 +624,7 @@ private theorem mergeTail_exec {w wtb wb pb_init fo_init s u_a wt_a u_b wt_b : �
         (wb + s) (wt_a + wt_b)) (wb + sws.length + s) u_a)
         (wb + 2 * sws.length + s) u_b := by
   refine WP.exists_execWithin ?_
-  unfold mergeTail
-  wram_exec [hy2_o, hy2_n, hy2_wb, hy2_step, huA2, hwA2, huB2, hwB2, hfit_sum]
+  wram_exec [mergeTail, hy2_o, hy2_n, hy2_wb, hy2_step, huA2, hwA2, huB2, hwB2, hfit_sum]
   refine ⟨by wram_simp [hy2_z], by wram_simp [hy2_o], by wram_simp [hy2_n],
     by wram_simp [hy2_wtb], by wram_simp [hy2_wb], by wram_simp [hy2_ns],
     by wram_simp [hy2_pb], by wram_simp [hy2_fo],
@@ -832,8 +831,7 @@ private theorem depthBody_exec {w wb pb_init fo_init : ℕ}
       wb + 2 * sws.length + k by omega]
     exact hym_child _ (by omega) (by omega)
   refine WP.exists_execWithin ?_
-  unfold depthBody
-  wram_exec [hyo, hyn, hywb, hyns, hyout, ← hj_def, hy_dp, hy_lc', hy_rc']
+  wram_exec [depthBody, hyo, hyn, hywb, hyns, hyout, ← hj_def, hy_dp, hy_lc', hy_rc']
   refine ⟨⟨by wram_simp [hyz], by wram_simp [hyo], by wram_simp [hyn],
     by wram_simp [hywb], by wram_simp [hyns], by wram_simp [hypb], by wram_simp [hyfo],
     by wram_simp [hyout], ?_, ?_, ?_, ?_⟩, by wram_simp [← hj_def]⟩
@@ -935,8 +933,7 @@ private theorem twoQueueCore_exec {w wtb wb : ℕ} (sws : List ℕ) (x : Data 23
   by_cases h0 : sws.length = 0
   · have hnil : sws = [] := List.length_eq_zero_iff.mp h0
     refine WP.exists_execWithin ?_
-    unfold twoQueueCore
-    wram_exec [hz, hn, hwb, h0]
+    wram_exec [twoQueueCore, hz, hn, hwb, h0]
     refine ⟨[], ?_, by wram_simp [hz], by wram_simp [ho], by wram_simp [hn],
       by wram_simp, by wram_simp, by wram_simp [hnil], ?_, by simp [hnil], ?_,
       fun _ => rfl, fun hne => absurd hnil hne⟩
@@ -951,8 +948,7 @@ private theorem twoQueueCore_exec {w wtb wb : ℕ} (sws : List ℕ) (x : Data 23
     have hne_sws : sws ≠ [] := List.ne_nil_of_length_pos hn_pos
     let dfltTree : CodeTree (Fin sws.length) := .leaf ⟨0, hn_pos⟩
     refine WP.exists_execWithin ?_
-    unfold twoQueueCore
-    wram_exec [hz, ho, hn, hn_pos]
+    wram_exec [twoQueueCore, hz, ho, hn, hn_pos]
     refine WP.of_spec
       (ExecWithin.loop_count (index := step) (limit := nSub1) (N := sws.length - 1) (T := 35)
         (MergeInv sws hn_pos wtb wb (x.regs permBase) (x.regs finalOut) x.mem)
@@ -1161,8 +1157,7 @@ theorem fromSortedCode_exec {w : ℕ} (ws : List ℕ)
       x₁.regs zero = 0 ∧ x₁.regs one = 1 ∧ x₁.regs len = ws.length ∧
       x₁.regs wtBase = 1 ∧ x₁.regs workBase = ws.length + 1 := by
     refine WP.exists_execWithin ?_
-    unfold fromSortedSetup
-    wram_exec [Data.init_regs, Data.init_mem_zero]
+    wram_exec [fromSortedSetup, Data.init_regs, Data.init_mem_zero]
     exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
   obtain ⟨x₁, hex_s, hmem_s, hz1, ho1, hn1, hwtb1, hwb1⟩ := hsetup
   obtain ⟨y, hex_tq, lens, hmod_tq, _, _, _, _, _, hout_addr, hout_eq, hlens_len, _, hnil, hpos⟩ :=
@@ -1331,8 +1326,7 @@ private theorem gather_exec {w kb pb wtb wb fo : ℕ} (ws perm sws : List ℕ) (
       rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hp_lt_n]
       exact hv_ws.get _ hp_lt_n
     refine WP.exists_execWithin ?_
-    unfold gatherBody
-    wram_exec [hvo, hvkb, hvpb, hvwtb, hread_p, hread_w]
+    wram_exec [gatherBody, hvo, hvkb, hvpb, hvwtb, hread_p, hread_w]
     refine ⟨⟨by wram_simp [hvz], by wram_simp [hvo], by wram_simp [hvn],
       by wram_simp [hvkb], by wram_simp [hvpb], by wram_simp [hvwtb],
       by wram_simp [hvwb], by wram_simp [hvfo],
@@ -1397,8 +1391,7 @@ private theorem scatter_exec {w pb tqOut fo : ℕ} (ws perm sortedLens : List �
         List.getElem?_eq_getElem (by rw [hsorted_out]; exact hs_sl), getElem_outputList]
       rfl
     refine WP.exists_execWithin ?_
-    unfold scatterBody
-    wram_exec [hvo, hvpb, hvout, hvfo, hread_p, hread_d]
+    wram_exec [scatterBody, hvo, hvpb, hvout, hvfo, hread_p, hread_d]
     refine ⟨⟨by wram_simp [hvz], by wram_simp [hvo], by wram_simp [hvn],
       by wram_simp [hvpb], by wram_simp [hvout], by wram_simp [hvfo], ?_, ?_, ?_⟩,
       by wram_simp⟩
@@ -1444,8 +1437,7 @@ private theorem huffmanSetup_exec {w : ℕ} (ws : List ℕ)
       x₁.regs wtBase = 3 * ws.length + 1 ∧ x₁.regs workBase = 4 * ws.length + 1 ∧
       x₁.regs finalOut = 9 * ws.length + 2 := by
   refine WP.exists_execWithin ?_
-  unfold huffmanSetup
-  wram_exec [Data.init_regs, Data.init_mem_zero]
+  wram_exec [huffmanSetup, Data.init_regs, Data.init_mem_zero]
   exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
     by wram_simp, by wram_simp; omega, by wram_simp; omega,
     by wram_simp; omega, by wram_simp; omega⟩

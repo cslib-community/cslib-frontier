@@ -187,8 +187,7 @@ theorem exec_preprocessCode {w d s baseFree rootF rootG qPtr W : ℕ}
     (lowDom.length + lowDom.length)).set Reg.free
       (baseFree + d + (lowDom.length + lowDom.length))).set rStageCutoff 0
   have he_p4 : ExecWithin w solvePreStageCode s₃ s₄ 5 := by
-    unfold solvePreStageCode
-    wram_exec [show s₃.regs rDomPtr = baseFree + d by regs_frame, hs₃_dlen]
+    wram_exec [solvePreStageCode, show s₃.regs rDomPtr = baseFree + d by regs_frame, hs₃_dlen]
   have hbelow₄ : ∀ a < baseFree, s₄.mem a = x.mem a := fun a ha =>
     (hs₃_fr a (Or.inl (by omega))).trans (hs₁_fr a (Or.inl ha))
   obtain ⟨s₅, preFs, preGs, preHs, outBase, he_pre, hs₅_qFs, hs₅_qGs, hs₅_ro, hs₅_fr,
@@ -210,8 +209,7 @@ theorem exec_preprocessCode {w d s baseFree rootF rootG qPtr W : ℕ}
   obtain ⟨s₆, he_p5, hs₆_qi, hs₆P⟩ : ∃ s₆, ExecWithin w preSaveCode s₅ s₆ 8 ∧
       s₆.regs rQueryIdx = 0 ∧
       QueryInv s outBase rootF rootG qPtr preFs preGs preHs f g Cs s₅.mem 0 s₆ := by
-    unfold preSaveCode
-    wram_exec [hs₅_qFs, hs₅_qGs, hs₅_ro, hs₅_fr, show s₅.regs rOne = 1 by regs_frame,
+    wram_exec [preSaveCode, hs₅_qFs, hs₅_qGs, hs₅_ro, hs₅_fr, show s₅.regs rOne = 1 by regs_frame,
       show s₅.regs Reg.queryCount = Cs.length by regs_frame]
     dsimp only [QueryInv]
     refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, fun a ha => ?_, ?_, by simp⟩

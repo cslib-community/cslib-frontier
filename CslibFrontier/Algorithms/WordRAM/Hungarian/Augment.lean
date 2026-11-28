@@ -97,9 +97,8 @@ private theorem exec_augCode {w n bC M : ℕ} {c : Fin n × Fin n → ℤ} {W : 
         (∀ i : Fin 28, i.val < 21 → z.regs i = x.regs i) ∧
         z.regs idx2 = y.mem (bC + n * n + 7 * n + 1 + u.val) := by
       refine WP.exists_execWithin ?_
-      unfold augBody
       have := u.isLt
-      wram_exec [hby.hbaseBestRow, hby.hbaseRowMate, hby.hbaseColMate, hbest_j]
+      wram_exec [augBody, hby.hbaseBestRow, hby.hbaseRowMate, hby.hbaseColMate, hbest_j]
       exact ⟨by wram_simp [dC, hj_eq], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
     have hfz : ∀ a, ¬(dC ≤ a ∧ a < dC + n) → z.mem a = x.mem a := fun a ha => by
       rw [hmz, Function.update_of_ne (by have := j.isLt; omega)]

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.InductiveCounting.Encoding
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BitWord
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 
@@ -40,34 +41,6 @@ namespace Turing.InductiveCounting
 open MultiTapeTM ComputableInSpace Cslib.InductiveCounting
 
 variable {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
-
-/-- Converting a unary counter to binary needs only linear space. -/
-theorem unaryToBinary_inSpace :
-    ComputableInSpace (fun n : ℕ => n) encUnary encNat fun n => (encUnary n).length := by
-  have hlist : ComputableInSpace (fun n : ℕ => List.replicate n true)
-      encUnary encBits fun n => (encUnary n).length :=
-    of_inO (.of_linear (.of_eq fun _ => rfl))
-  have hstep : ComputableInSpace (fun p : ℕ × Bool => p.1 + 1)
-      (encPair encNat encBool) encNat fun p => (encPair encNat encBool p).length :=
-    budget_natSucc (fst _ _)
-  have h := foldl (encA := encBool) (encL := encBits) (step := fun n _ => n + 1)
-    hlist (const 0) hstep
-    (Q := fun n => 2 * n + 2) (B := fun n => n)
-    (fun n i hi => by
-      simp only [List.foldl_const, List.length_take, List.length_replicate,
-        ComputableInO.iterate_succ_eq, zero_add, length_encPair, encBool_apply,
-        List.length_singleton]
-      have := length_encNat_le_self (min i n)
-      omega)
-    (fun n i hi => by
-      simp only [List.foldl_const, List.length_take, List.length_replicate,
-        ComputableInO.iterate_succ_eq, zero_add]
-      exact (length_encNat_le_self _).trans (Nat.min_le_right _ _))
-  refine (h.weaken (.of_le_linear 6 6 fun n => ?_)).of_enc_eq fun n => ?_
-  · simp only [encUnary_apply, encBits_apply, List.length_replicate]
-    have := length_encNat_le_self n
-    omega
-  · simp [List.foldl_const, ComputableInO.iterate_succ_eq]
 
 /-- Binary powers of two from unary exponents, without an exponential unary intermediate. -/
 theorem unaryTwoPow_inSpace :
@@ -275,17 +248,12 @@ theorem accepting_budget {s : α → State}
 
 variable {N width source : α → ℕ} {s : α → State} {answer choice : α → Bool}
 
-/-- A unary width can also be used as a binary register in the same budget. -/
-theorem widthBinary_budget (hw : ComputableInSpace width enc encUnary S) :
-    ComputableInSpace width enc encNat S :=
-  budget_comp_linear (f := width) unaryToBinary_inSpace hw
-
 /-- The complete register bound, with unary width, uses linear space on all inputs. -/
 theorem registerBound_budget (hN : ComputableInSpace N enc encNat S)
     (hw : ComputableInSpace width enc encUnary S) :
     ComputableInSpace (fun a => registerBound (N a) (width a)) enc encNat S :=
   budget_natAdd (budget_natAdd (budget_natAdd hN
-    (budget_comp_linear unaryTwoPow_inSpace hw)) (widthBinary_budget hw))
+    (budget_comp_linear unaryTwoPow_inSpace hw)) (budget_unaryToNat hw))
     (budget_const 2)
 
 /-- A native certificate for the underlying local instruction, with no validity assumption. -/
@@ -501,7 +469,7 @@ theorem advance_budget (hN : ComputableInSpace N enc encNat S)
     ComputableInSpace
       (fun a => advance (N a) (width a) (source a) (s a) (answer a) (choice a))
       enc encState S := by
-  have hw' := widthBinary_budget hw
+  have hw' := budget_unaryToNat hw
   have hi := instruction_budget hN hw' hsource hs hanswer hchoice
   have hb := bounded_budget hN hw hi
   have hr := budget_natLt (rank_budget hN hw' hi) (rank_budget hN hw' hs)

@@ -647,39 +647,6 @@ private theorem clean_pair_convex_mix_le :
 
 /-! ### Concentration of `weightedMatchingCost` and `u2CubicPairBound_gaussian` -/
 
-private theorem ncard_matchedVertices_eq_two_mul {V E : Type*}
-    {G : Multigraph V E} (hloop : G.Loopless) {M : Set E} (hM : G.IsMatching M) :
-    (G.matchedVertices M).ncard = 2 * M.ncard := by
-  classical
-  let f : M × Bool → G.matchedVertices M := fun ⟨e, b⟩ =>
-    if b then ⟨G.src e.1, e.1, e.2, Or.inl rfl⟩ else ⟨G.tgt e.1, e.1, e.2, Or.inr rfl⟩
-  have hbij : Function.Bijective f := by
-    refine ⟨?_, ?_⟩
-    · rintro ⟨e₁, b₁⟩ ⟨e₂, b₂⟩ heq
-      have hval := congrArg Subtype.val heq
-      have he_eq : e₁ = e₂ := by
-        by_contra hne
-        have hdis := hM e₁.2 e₂.2 fun h => hne (Subtype.ext h)
-        have hm₁ : (f ⟨e₁, b₁⟩).1 ∈ ({G.src e₁.1, G.tgt e₁.1} : Set V) := by
-          cases b₁ <;> simp [f]
-        have hm₂ : (f ⟨e₁, b₁⟩).1 ∈ ({G.src e₂.1, G.tgt e₂.1} : Set V) := by
-          rw [hval]; cases b₂ <;> simp [f]
-        exact Set.disjoint_left.mp hdis hm₁ hm₂
-      subst he_eq
-      cases b₁ <;> cases b₂
-      · rfl
-      · exfalso; exact hloop e₁.1 (by simpa [f] using hval.symm)
-      · exfalso; exact hloop e₁.1 (by simpa [f] using hval)
-      · rfl
-    · rintro ⟨v, e, heM, hev⟩
-      rcases hev with rfl | rfl
-      · exact ⟨⟨⟨e, heM⟩, true⟩, rfl⟩
-      · exact ⟨⟨⟨e, heM⟩, false⟩, rfl⟩
-  have hcard := Nat.card_congr (Equiv.ofBijective f hbij)
-  rw [Nat.card_prod, Nat.card_eq_fintype_card (α := Bool), Fintype.card_bool,
-    Nat.card_coe_set_eq, Nat.card_coe_set_eq] at hcard
-  omega
-
 /-- **Unconditional Gaussian `U2CubicPairBound` (`B_{U₂} = 271212 / 1000000`).** Every large cubic
 graph `G` with matching `M` and clean sub-matching `M_clean ⊆ M` admits Gaussian edge scores and a
 `PairNode` threshold layout whose `(2 - log₂ 3)`-discounted cut at every prefix is at most
@@ -801,7 +768,7 @@ theorem u2CubicPairBound_gaussian :
   have hcardV_eq : (Nat.card V : ℝ) = h := by
     dsimp only [h]; exact_mod_cast Nat.card_eq_fintype_card
   have hm_clean_le_half : 2 * (M_clean.ncard : ℝ) ≤ h := by
-    have hmv := ncard_matchedVertices_eq_two_mul hloop (hM.mono hclean)
+    have hmv := G.ncard_matchedVertices_eq_two_mul hloop (hM.mono hclean)
     have hle : (G.matchedVertices M_clean).ncard ≤ Fintype.card V := by
       rw [← Nat.card_eq_fintype_card]
       exact (ncard_le_ncard (subset_univ _) (toFinite _)).trans_eq (ncard_univ V)
@@ -950,7 +917,7 @@ theorem u2CubicPairBound_gaussian :
       ring
     have hcount_id : ({v : V | v ∉ G.matchedVertices M}.ncard : ℝ) +
         2 * ((M \ M_clean).ncard : ℝ) = h - 2 * (M_clean.ncard : ℝ) := by
-      have hmv := ncard_matchedVertices_eq_two_mul hloop hM
+      have hmv := G.ncard_matchedVertices_eq_two_mul hloop hM
       have hcompl : (G.matchedVertices M).ncard + {v : V | v ∉ G.matchedVertices M}.ncard =
           Fintype.card V := by
         have hc : (G.matchedVertices M)ᶜ = {v : V | v ∉ G.matchedVertices M} := rfl

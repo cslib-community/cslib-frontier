@@ -843,8 +843,7 @@ theorem mergeSortPerm_exec {w kb pb bb : ℕ} (keys : List ℕ) (x : Data 18)
         z.regs step = y.regs step + 1 := by
     obtain ⟨hyo, hyn, hykb, hypb, hybb, hmod, hpre⟩ := hy
     refine WP.exists_execWithin ?_
-    unfold initPermBody
-    wram_exec [hyo, hypb]
+    wram_exec [initPermBody, hyo, hypb]
     refine ⟨⟨by wram_simp [hyo], by wram_simp [hyn],
       by wram_simp [hykb], by wram_simp [hypb], by wram_simp [hybb], ?_, ?_⟩, by wram_simp⟩
     · wram_simp [Data.write_mem]
@@ -889,8 +888,7 @@ theorem mergeSortPerm_exec {w kb pb bb : ℕ} (keys : List ℕ) (x : Data 18)
       exact mergePassBody_exec keys L y.mem hL_len hL_bound hL_pw hL_rng hW_pos hW_lt
         hdisj1 hdisj2 hfit u hu_keys hu_L hu hcu
     refine WP.exists_execWithin ?_
-    unfold outerPassBody
-    wram_exec [hfit1]
+    wram_exec [outerPassBody, hfit1]
     refine WP.of_spec
       (ExecWithin.loop_potential (cond := .lt lo len) (body := mergePassBody)
         (MidInv keys L kb pb bb W y.mem)
@@ -966,8 +964,7 @@ theorem mergeSortPerm_exec {w kb pb bb : ℕ} (keys : List ℕ) (x : Data 18)
       · wram_simp [hpow_succ, hwrun, Nat.log_pow Nat.one_lt_two]
         omega
   refine WP.exists_execWithin ?_
-  unfold mergeSortPerm
-  wram_exec [hfit1]
+  wram_exec [mergeSortPerm, hfit1]
   refine WP.of_spec
     (ExecWithin.loop_count (index := step) (limit := len) (N := keys.length) (T := 3)
       (InitPermInv keys kb pb bb x.mem)

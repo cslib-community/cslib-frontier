@@ -183,8 +183,7 @@ theorem sizeLoop_spec {w d : ℕ} (rem : ℕ) {k : ℕ} {s : Data 32} (hk : k + 
         s₁.regs q = universeSize (k + 1) ∧ s₁.regs t = span (k + 1) ∧
         s₁.regs high = k + 1 ∧ s₁.mem = s.mem := by
       apply WP.exists_execWithin
-      unfold sizeBody
-      wram_exec [h1, h5, hq, ht, hhigh]
+      wram_exec [sizeBody, h1, h5, hq, ht, hhigh]
       exact ⟨by wram_simp [h0], by wram_simp [h1], by wram_simp [h2],
         by wram_simp [h3], by wram_simp [h4], by wram_simp [h5],
         by wram_simp, by wram_simp [hdepth], by wram_simp [universeSize_succ],
@@ -251,8 +250,7 @@ theorem tableLoop_spec {w base d : ℕ} (rem : ℕ) {k : ℕ} {s : Data 32} (hk 
         TableInv (base + span d) (k + 1) s₁.mem ∧
         (∀ a, a ≠ sp₀ → a ≠ sp₀ + 1 → s₁.mem a = s.mem a) by
       apply WP.exists_execWithin
-      unfold tableBody
-      wram_exec [h1, h5, hsp, hq, ht, hhigh]
+      wram_exec [tableBody, h1, h5, hsp, hq, ht, hhigh]
       refine ⟨by wram_simp [h0], by wram_simp [h1], by wram_simp [h2],
         by wram_simp [h3], by wram_simp [h4], by wram_simp [h5],
         by wram_simp [hroot], by wram_simp [hdepth], by wram_simp [hpay],

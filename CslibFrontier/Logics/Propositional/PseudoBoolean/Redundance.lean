@@ -3185,232 +3185,217 @@ private theorem inv_addStrengthened {F : List PBConstr} {obj : Option Objective}
     · exact fun e he => hτ e (List.mem_cons_of_mem _ he)
     · exact hτ
 
+/-- Prove a property of a successful top-level step from the checks and state update
+of each branch. -/
+private theorem stepTop_cases {F : List PBConstr} {obj : Option Objective} {s s' : State}
+    {t : TopStep} {P : TopStep → State → Prop} (h : stepTop F obj s t = some s')
+    (step : ∀ st db' n', runStep s.db s.next st = some (db', n') →
+      ¬((s.tcb || s.order.isSome) && s.core.any (fun e => st.delIds.contains e.1)) = true →
+      P (.step st) { s with
+        db := db', next := n',
+        core := s.core.filter (fun e => !st.delIds.contains e.1),
+        chk := s.chk && !s.core.any (fun e => st.delIds.contains e.1) })
+    (red : ∀ c ω (sub : Option (List RedItem)) q n',
+      redCheckP s.pres s.obj s.order s.db (if s.tcb then s.core else s.db) s.next c ω
+        (sub.getD []) q = some n' →
+      P (.red c ω sub q) (s.addStrengthened (if sub.isSome then n' else s.next) c))
+    (sol : ∀ ρ, solves ρ (s.db.map (·.2)) = true → P (.sol ρ) (s.log F obj ρ))
+    (soli : ∀ ρ f, s.obj = some f → (solves ρ (s.db.map (·.2)) && assigns ρ f) = true →
+      P (.soli ρ) ((s.log F obj ρ).improve f (f.eval (assignOf ρ))))
+    (deld : ∀ (ids : List ℕ), (decide ids.Nodup && ids.all (fun i => (lookup s.db i).isSome) &&
+        !s.core.any (fun e => ids.contains e.1)) = true →
+      P (.deld ids) { s with db := s.db.filter fun e => !ids.contains e.1 })
+    (delc : ∀ (ids : List ℕ), (decide ids.Nodup && ids.all (fun i => s.core.any (·.1 == i)) &&
+        (!s.tcb && s.order.isNone || s.db.all (s.core.contains ·))) = true →
+      P (.delc ids) { s with
+        db := s.db.filter (fun e => !ids.contains e.1),
+        core := s.core.filter (fun e => !ids.contains e.1), chk := false })
+    (delcChecked : ∀ i (ω : Witness) (sub : Option (List RedItem)) q c n',
+      lookup s.core i = some c → (!s.tcb || ω.isEmpty && q.isSome) = true →
+      redCheckP s.pres s.obj s.order (s.core.filter (·.1 != i))
+        (s.core.filter (·.1 != i)) s.next c ω (sub.getD []) q = some n' →
+      P (.delcChecked i ω sub q) { s with
+        db := s.db.filter (·.1 != i),
+        core := s.core.filter (·.1 != i), next := if sub.isSome then n' else s.next })
+    (core : ∀ (ids : List ℕ), (!ids.isEmpty && ids.all (fun i => (lookup s.db i).isSome)) = true →
+      P (.core ids) { s with
+        core := s.db.filter (fun e => ids.contains e.1 && !s.core.contains e) ++ s.core })
+    (strengthenToCoreOff : P (.strengthenToCore false) { s with tcb := false })
+    (strengthenToCoreOn : P (.strengthenToCore true) { s with core := s.db, tcb := true })
+    (obji : ∀ v f, s.obj = some f → P (.obji v) (s.improve f v))
+    (obju : ∀ diff g (sub : Option (List RedItem)) f n', s.obj = some f →
+      objuCheck s.core s.next f (if diff then f.add g else g) (sub.getD []) = some n' →
+      P (.obju diff g sub) { s with obj := some (if diff then f.add g else g), next := n' })
+    (solx : ∀ ρ vars, s.pres = some vars → s.obj = none →
+      (s.chk && !s.presChanged && solves ρ (s.db.map (·.2)) && assignsAll ρ vars) = true →
+      P (.solx ρ) { (s.log F obj ρ).addCore (exclusion vars ρ) with
+        logged := proj vars (assignOf ρ) :: s.logged })
+    (defOrder : ∀ name (O : Order) sp w tp rp, O.defCheck sp w tp rp = true →
+      P (.defOrder name O sp w tp rp) { s with orders := (name, O) :: s.orders })
+    (loadOrder : ∀ name (z : List (Literal ℕ)) O, s.orders.lookup name = some O →
+      (z.length == O.left.length && z.all (fun l => !O.aux.contains l.1)) = true →
+      P (.loadOrder name z) { s with core := s.db, order := some ⟨O, z⟩, orderName := some name })
+    (unloadOrder : P .unloadOrder { s with order := none, orderName := none })
+    (presChange : ∀ add x c (sub : Option (List RedItem)) vars n', s.pres = some vars →
+      presChangeCheck s.core s.next vars x c (sub.getD []) = some n' →
+      P (.presChange add x c sub) { s with
+        pres := some (if add then vars.insert x else vars.filter (· != x)), presChanged := true,
+        next := n' })
+    (dom : ∀ c ω (sub : Option (List RedItem)) q L n', s.order = some L →
+      domCheck s.pres s.obj L s.db s.core s.next c ω (sub.getD []) q = some n' →
+      P (.dom c ω sub q) (s.addStrengthened (if sub.isSome then n' else s.next) c))
+    (unchanged : ∀ t, P t s) : P t s' := by
+  revert h
+  induction t using stepTop.fun_cases_unfolding F obj s <;> intro h <;>
+    simp only [Option.some.injEq, reduceCtorEq] at h <;> subst s'
+  case case2 st db' n' hrun htouch => exact step st db' n' hrun htouch
+  case case4 c ω sub q n' hred => exact red c ω sub q n' hred
+  case case6 ρ hρ => exact sol ρ hρ
+  case case8 ρ f hf hρ => exact soli ρ f hf hρ
+  case case11 ids hok => exact deld ids hok
+  case case13 ids hok => exact delc ids hok
+  case case15 i ω sub q c hc hok n' hred => exact delcChecked i ω sub q c n' hc hok hred
+  case case19 ids hok => exact core ids hok
+  case case21 b =>
+    cases b
+    · exact strengthenToCoreOff
+    · exact strengthenToCoreOn
+  case case22 v f hf => exact obji v f hf
+  case case24 diff g sub f hf n' hobj => exact obju diff g sub f n' hf hobj
+  case case27 ρ vars hobj hvars hok => exact solx ρ vars hvars hobj hok
+  case case30 name O sp w tp rp hchk => exact defOrder name O sp w tp rp hchk
+  case case32 name z O hO hz => exact loadOrder name z O hO hz
+  case case35 => exact unloadOrder
+  case case40 add x c sub vars hvars n' hchk => exact presChange add x c sub vars n' hvars hchk
+  case case47 c ω sub q L hL n' hdom => exact dom c ω sub q L n' hL hdom
+  all_goals exact unchanged _
+
+private theorem core_filter_delIds_eq_self {s : State} {st : Step}
+    (h : (s.core.any fun e => st.delIds.contains e.1) = false) :
+    s.core.filter (fun e => !st.delIds.contains e.1) = s.core :=
+  List.filter_eq_self.2 fun e he => by
+    simpa using List.any_eq_false.1 h e he
+
 /-- **Each step keeps the core invariant**, if the loaded order, if any, is good
 (`Cslib.Logic.PL.VeriPB.OrdInv`): a `red` step or a checked deletion proved in `scope leq` relies on
 its specification. -/
 theorem stepTop_inv {F : List PBConstr} {obj : Option Objective} {s s' : State} {t : TopStep}
     (hs : Inv F obj s) (hord : ∀ L ∈ s.order, L.Good) (h : stepTop F obj s t = some s') :
     Inv F obj s' := by
-  cases t with
-  | step st =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i db' n' hrun
-      split at h
-      · cases h
-      · rename_i htouch
-        simp only [Option.some.injEq] at h
-        subst h
-        have hkeep : ∀ (hnt : (s.core.any fun e => st.delIds.contains e.1) = false),
-            s.core.filter (fun e => !st.delIds.contains e.1) = s.core := fun hnt =>
-          List.filter_eq_self.2 fun e he => by
-            have := List.any_eq_false.1 hnt e he
-            simpa using this
-        refine ⟨fun e he => ?_, fun ht τ hτ => ?_, fun hc τ hτ => ?_, hs.wit,
-          hs.ids.runStep hrun⟩
-        · rw [List.mem_filter] at he
-          exact runStep_mem hrun (hs.sub e he.1) (by simpa using he.2)
-        · have ht' : s.tcb = true := ht
-          have hnt : (s.core.any fun e => st.delIds.contains e.1) = false := by
-            simpa [ht'] using htouch
-          rw [hkeep hnt] at hτ
-          exact runStep_sound _ _ _ _ _ (hs.imp ht τ hτ) hrun
-        · simp only [Bool.and_eq_true, Bool.not_eq_true'] at hc
-          rw [hkeep hc.2] at hτ
-          exact hs.chk hc.1 τ hτ
-    · cases h
-  | red c ω items q =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i n' hred
-      simp only [Option.some.injEq] at h
-      subst h
-      exact inv_addStrengthened hs (le_ite_of_le (redCheckP_le hred)) c
-    · cases h
-  | sol ρ =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i hρ
-      simp only [Option.some.injEq] at h
-      subst h
-      exact ⟨hs.sub, hs.imp, hs.chk, wit_log hs hρ, hs.ids⟩
-    · cases h
-  | soli ρ =>
-    simp only [stepTop] at h
-    split at h
-    · split at h
-      · rename_i f hρ
-        simp only [Option.some.injEq] at h
-        subst h
-        simp only [Bool.and_eq_true] at hρ
-        exact inv_improve ⟨hs.sub, hs.imp, hs.chk, wit_log hs hρ.1, hs.ids⟩
-      · cases h
-    · cases h
-  | deld ids =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i hok
-      simp only [Option.some.injEq] at h
-      subst h
-      simp only [Bool.and_eq_true, Bool.not_eq_true', List.any_eq_false] at hok
-      refine ⟨fun e he => List.mem_filter.2 ⟨hs.sub e he, by simpa using hok.2 e he⟩,
-        fun ht τ hτ => allHold_filter (hs.imp ht τ hτ) _, hs.chk, hs.wit, hs.ids.filter _⟩
-    · cases h
-  | delc ids =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i hok
-      simp only [Option.some.injEq] at h
-      subst h
-      simp only [Bool.and_eq_true, Bool.or_eq_true, Bool.not_eq_true'] at hok
-      refine ⟨fun e he => ?_, fun ht τ hτ => ?_, (fun hc => by cases hc), hs.wit,
-        hs.ids.filter _⟩
-      · rw [List.mem_filter] at he ⊢
-        exact ⟨hs.sub e he.1, he.2⟩
-      · rcases hok.2 with hf | hd
+  apply stepTop_cases h
+  case step =>
+    intro st _ _ hrun htouch
+    refine ⟨fun e he => ?_, fun ht τ hτ => ?_, fun hc τ hτ => ?_, hs.wit,
+      hs.ids.runStep hrun⟩
+    · rw [List.mem_filter] at he
+      exact runStep_mem hrun (hs.sub e he.1) (by simpa using he.2)
+    · have ht' : s.tcb = true := ht
+      have hnt : (s.core.any fun e => st.delIds.contains e.1) = false := by
+        simpa [ht'] using htouch
+      rw [core_filter_delIds_eq_self hnt] at hτ
+      exact runStep_sound _ _ _ _ _ (hs.imp ht τ hτ) hrun
+    · simp only [Bool.and_eq_true, Bool.not_eq_true'] at hc
+      rw [core_filter_delIds_eq_self hc.2] at hτ
+      exact hs.chk hc.1 τ hτ
+  case red =>
+    intro c _ _ _ _ hred
+    exact inv_addStrengthened hs (le_ite_of_le (redCheckP_le hred)) c
+  case sol =>
+    intro _ hρ
+    exact ⟨hs.sub, hs.imp, hs.chk, wit_log hs hρ, hs.ids⟩
+  case soli =>
+    intro _ _ _ hρ
+    simp only [Bool.and_eq_true] at hρ
+    exact inv_improve ⟨hs.sub, hs.imp, hs.chk, wit_log hs hρ.1, hs.ids⟩
+  case deld =>
+    intro _ hok
+    simp only [Bool.and_eq_true, Bool.not_eq_true', List.any_eq_false] at hok
+    refine ⟨fun e he => List.mem_filter.2 ⟨hs.sub e he, by simpa using hok.2 e he⟩,
+      fun ht τ hτ => allHold_filter (hs.imp ht τ hτ) _, hs.chk, hs.wit, hs.ids.filter _⟩
+  case delc =>
+    intro _ hok
+    simp only [Bool.and_eq_true, Bool.or_eq_true, Bool.not_eq_true'] at hok
+    refine ⟨fun e he => ?_, fun ht τ hτ => ?_, (fun hc => by cases hc), hs.wit,
+      hs.ids.filter _⟩
+    · rw [List.mem_filter] at he ⊢
+      exact ⟨hs.sub e he.1, he.2⟩
+    · rcases hok.2 with hf | hd
+      · simp [hf] at ht
+      · intro e he
+        rw [List.mem_filter] at he
+        exact hτ e (List.mem_filter.2
+          ⟨List.contains_iff_mem.1 (List.all_eq_true.1 hd e he.1), he.2⟩)
+  case delcChecked =>
+    intro i ω _ _ _ _ hc hok hred
+    simp only [Bool.and_eq_true, Bool.or_eq_true, Bool.not_eq_true'] at hok
+    have hback : ∀ τ, AllHold τ (s.core.filter (·.1 != i)) →
+        ∃ τ', (τ' = τ ∨ τ' = Witness.apply τ ω) ∧ AllHold τ' s.core ∧
+          objValue s.obj τ' ≤ objValue s.obj τ := fun τ hτ => by
+      obtain ⟨τ', hτ', hall, hle, -⟩ :=
+        redCheckOn_sound hord hτ hτ (redCheckOn_of_redCheckP hred).2
+      exact ⟨τ', hτ', allHold_core_of_filter (hs.core_all hc) (fun e he => hall e
+        (List.mem_cons_of_mem _ he)) ((holds_normalize _ _).1 (hall _ List.mem_cons_self)),
+        hle⟩
+    refine ⟨fun e he => ?_, fun ht τ hτ => ?_, fun hc τ hτ => ?_, hs.wit,
+      (hs.ids.filter _).mono (le_ite_of_le (redCheckP_le hred))⟩
+    · rw [List.mem_filter] at he ⊢
+      exact ⟨hs.sub e he.1, he.2⟩
+    · have hω : ω = [] := by
+        rcases hok with hf | hω
         · simp [hf] at ht
-        · intro e he
-          rw [List.mem_filter] at he
-          exact hτ e (List.mem_filter.2
-            ⟨List.contains_iff_mem.1 (List.all_eq_true.1 hd e he.1), he.2⟩)
-    · cases h
-  | delcChecked i ω items q =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i c hc
-      split at h
-      · rename_i hok
-        split at h
-        · rename_i n' hred
-          simp only [Option.some.injEq] at h
-          subst h
-          simp only [Bool.and_eq_true, Bool.or_eq_true, Bool.not_eq_true'] at hok
-          have hback : ∀ τ, AllHold τ (s.core.filter (·.1 != i)) →
-              ∃ τ', (τ' = τ ∨ τ' = Witness.apply τ ω) ∧ AllHold τ' s.core ∧
-                objValue s.obj τ' ≤ objValue s.obj τ := fun τ hτ => by
-            obtain ⟨τ', hτ', hall, hle, -⟩ :=
-              redCheckOn_sound hord hτ hτ (redCheckOn_of_redCheckP hred).2
-            exact ⟨τ', hτ', allHold_core_of_filter (hs.core_all hc) (fun e he => hall e
-              (List.mem_cons_of_mem _ he)) ((holds_normalize _ _).1 (hall _ List.mem_cons_self)),
-              hle⟩
-          refine ⟨fun e he => ?_, fun ht τ hτ => ?_, fun hc τ hτ => ?_, hs.wit,
-            (hs.ids.filter _).mono (le_ite_of_le (redCheckP_le hred))⟩
-          · rw [List.mem_filter] at he ⊢
-            exact ⟨hs.sub e he.1, he.2⟩
-          · have hω : ω = [] := by
-              rcases hok with hf | hω
-              · simp [hf] at ht
-              · exact List.isEmpty_iff.1 hω.1
-            obtain ⟨τ', hτ', hall, -⟩ := hback τ hτ
-            have : τ' = τ := by rcases hτ' with rfl | rfl <;> simp [hω, Witness.apply_nil]
-            subst this
-            exact allHold_filter (hs.imp ht τ' hall) _
-          · obtain ⟨τ', hτ', hall, hle⟩ := hback τ hτ
-            obtain ⟨σ, hσ, hle'⟩ := hs.chk hc τ' hall
-            exact ⟨σ, hσ, hle'.trans hle⟩
-        · cases h
-      · cases h
-    · cases h
-  | core ids =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      refine ⟨fun e he => ?_, fun ht τ hτ => hs.imp ht τ fun e he => hτ e
-        (List.mem_append_right _ he), fun hc τ hτ => hs.chk hc τ fun e he => hτ e
-        (List.mem_append_right _ he), hs.wit, hs.ids⟩
-      rcases List.mem_append.1 he with he | he
-      · exact (List.mem_filter.1 he).1
-      · exact hs.sub e he
-    · cases h
-  | strengthenToCore b =>
-    unfold stepTop at h
-    cases b <;> simp only [Option.some.injEq, Bool.false_eq_true, ↓reduceIte] at h <;> subst h
-    · exact ⟨hs.sub, (fun h => by cases h), hs.chk, hs.wit, hs.ids⟩
-    · exact ⟨fun _ he => he, fun _ _ hτ => hτ,
-        fun hc τ hτ => hs.chk hc τ (allHold_mono hs.sub hτ), hs.wit, hs.ids⟩
-  | obji u =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      exact inv_improve hs
-    · cases h
-  | obju diff g sub =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i f hf
-      split at h
-      · rename_i n' hobj
-        simp only [Option.some.injEq] at h
-        subst h
-        refine ⟨hs.sub, hs.imp, fun hc τ hτ => ?_, hs.wit, hs.ids.mono (objuCheck_le hobj)⟩
-        obtain ⟨σ, hσ, hle⟩ := hs.chk hc τ hτ
-        refine ⟨σ, hσ, ?_⟩
-        rw [hf] at hle
-        simp only [objValue] at hle ⊢
-        rw [objuCheck_sound hτ hobj]
-        exact hle
-      · cases h
-    · cases h
-  | solx ρ =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i P hP hobj
-      split at h
-      · rename_i hok
-        simp only [Option.some.injEq] at h
-        subst h
-        simp only [Bool.and_eq_true] at hok
-        have h := inv_addCore (s := s.log F obj ρ) (c := exclusion P ρ)
-          ⟨hs.sub, hs.imp, hs.chk, wit_log hs hok.1.2, hs.ids⟩
-        exact ⟨h.sub, h.imp, h.chk, h.wit, h.ids⟩
-      · cases h
-    · cases h
-  | defOrder name O w tp rp =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      exact ⟨hs.sub, hs.imp, hs.chk, hs.wit, hs.ids⟩
-    · cases h
-  | loadOrder name z =>
-    simp only [stepTop] at h
-    split at h
-    · split at h
-      · simp only [Option.some.injEq] at h
-        subst h
-        exact ⟨fun _ he => he, fun _ _ hτ => hτ,
-          fun hc τ hτ => hs.chk hc τ (allHold_mono hs.sub hτ), hs.wit, hs.ids⟩
-      · cases h
-    · cases h
-  | unloadOrder =>
-    simp only [stepTop, Option.some.injEq] at h
-    subst h
+        · exact List.isEmpty_iff.1 hω.1
+      obtain ⟨τ', hτ', hall, -⟩ := hback τ hτ
+      have : τ' = τ := by rcases hτ' with rfl | rfl <;> simp [hω, Witness.apply_nil]
+      subst this
+      exact allHold_filter (hs.imp ht τ' hall) _
+    · obtain ⟨τ', hτ', hall, hle⟩ := hback τ hτ
+      obtain ⟨σ, hσ, hle'⟩ := hs.chk hc τ' hall
+      exact ⟨σ, hσ, hle'.trans hle⟩
+  case core =>
+    intro ids _
+    refine ⟨fun e he => ?_, fun ht τ hτ => hs.imp ht τ fun e he => hτ e
+      (List.mem_append_right _ he), fun hc τ hτ => hs.chk hc τ fun e he => hτ e
+      (List.mem_append_right _ he), hs.wit, hs.ids⟩
+    rcases List.mem_append.1 he with he | he
+    · exact (List.mem_filter.1 he).1
+    · exact hs.sub e he
+  case strengthenToCoreOff =>
+    exact ⟨hs.sub, (fun h => by cases h), hs.chk, hs.wit, hs.ids⟩
+  case strengthenToCoreOn =>
+    exact ⟨fun _ he => he, fun _ _ hτ => hτ,
+      fun hc τ hτ => hs.chk hc τ (allHold_mono hs.sub hτ), hs.wit, hs.ids⟩
+  case obji =>
+    intros
+    exact inv_improve hs
+  case obju =>
+    intro _ _ _ _ _ hf hobj
+    refine ⟨hs.sub, hs.imp, fun hc τ hτ => ?_, hs.wit, hs.ids.mono (objuCheck_le hobj)⟩
+    obtain ⟨σ, hσ, hle⟩ := hs.chk hc τ hτ
+    refine ⟨σ, hσ, ?_⟩
+    rw [hf] at hle
+    simp only [objValue] at hle ⊢
+    rw [objuCheck_sound hτ hobj]
+    exact hle
+  case solx =>
+    intro ρ P _ _ hok
+    simp only [Bool.and_eq_true] at hok
+    have h := inv_addCore (s := s.log F obj ρ) (c := exclusion P ρ)
+      ⟨hs.sub, hs.imp, hs.chk, wit_log hs hok.1.2, hs.ids⟩
+    exact ⟨h.sub, h.imp, h.chk, h.wit, h.ids⟩
+  case loadOrder =>
+    intros
+    exact ⟨fun _ he => he, fun _ _ hτ => hτ,
+      fun hc τ hτ => hs.chk hc τ (allHold_mono hs.sub hτ), hs.wit, hs.ids⟩
+  case presChange =>
+    intro _ _ _ _ _ _ _ hchk
+    exact ⟨hs.sub, hs.imp, hs.chk, hs.wit, hs.ids.mono (presChangeCheck_le hchk)⟩
+  case unchanged => exact fun _ => hs
+  case dom =>
+    intro c _ _ _ _ _ _ hdom
+    exact inv_addStrengthened hs (le_ite_of_le (domCheck_le hdom)) c
+  case defOrder | unloadOrder =>
+    intros
     exact ⟨hs.sub, hs.imp, hs.chk, hs.wit, hs.ids⟩
-  | presChange add x c sub =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i P hP
-      split at h
-      · rename_i n' hchk
-        simp only [Option.some.injEq] at h
-        subst h
-        exact ⟨hs.sub, hs.imp, hs.chk, hs.wit, hs.ids.mono (presChangeCheck_le hchk)⟩
-      · cases h
-    · cases h
-  | epreserved _ | eordDef _ _ | eordLoaded _ _ | econstr _ _ =>
-    obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
-    exact hs
-  | dom c ω items q =>
-    simp only [stepTop] at h
-    split at h
-    · split at h
-      · simp only [Option.some.injEq] at h
-        subst h
-        exact inv_addStrengthened hs (le_ite_of_le (domCheck_le ‹_›)) c
-      · cases h
-    · cases h
 
 /-! ### Monotonicity -/
 
@@ -3508,156 +3493,52 @@ private theorem Mono.improve {F : List PBConstr} {obj : Option Objective} {s : S
 /-- **The monotonicity facts of a step** (`Cslib.Logic.PL.VeriPB.Mono`). -/
 theorem stepTop_mono {F : List PBConstr} {obj : Option Objective} {s s' : State} {t : TopStep}
     (h : stepTop F obj s t = some s') : Mono F obj s s' := by
-  cases t with
-  | step st =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i db' n' hrun
-      split at h
-      · cases h
-      · simp only [Option.some.injEq] at h
-        subst h
-        refine .of_le (runStep_le _ _ _ _ _ hrun) rfl rfl (fun h => ?_) rfl
-        simp only [Bool.and_eq_true] at h
-        exact h.1
-    · cases h
-  | red c ω sub q =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i n' hred
-      simp only [Option.some.injEq] at h
-      subst h
-      exact .of_le ((le_ite_of_le (redCheckP_le hred)).trans (Nat.le_succ _)) rfl rfl id rfl
-    · cases h
-  | sol ρ =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      exact .log
-    · cases h
-  | soli ρ =>
-    simp only [stepTop] at h
-    split at h
-    · split at h
-      · simp only [Option.some.injEq] at h
-        subst h
-        exact Mono.log.trans .improve
-      · cases h
-    · cases h
-  | deld ids =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      exact .of_le le_rfl rfl rfl id rfl
-    · cases h
-  | delc ids =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      exact .of_le le_rfl rfl rfl (fun h => by cases h) rfl
-    · cases h
-  | delcChecked i ω sub q =>
-    simp only [stepTop] at h
-    split at h
-    · split at h
-      · split at h
-        · rename_i n' hred
-          simp only [Option.some.injEq] at h
-          subst h
-          exact .of_le (le_ite_of_le (redCheckP_le hred)) rfl rfl id rfl
-        · cases h
-      · cases h
-    · cases h
-  | core ids =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      exact .of_le le_rfl rfl rfl id rfl
-    · cases h
-  | strengthenToCore b =>
-    unfold stepTop at h
-    cases b <;> simp only [Option.some.injEq, Bool.false_eq_true, ↓reduceIte] at h <;> subst h <;>
-      exact .of_le le_rfl rfl rfl id rfl
-  | obji u =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      exact .improve
-    · cases h
-  | obju diff g sub =>
-    simp only [stepTop] at h
-    split at h
-    · split at h
-      · rename_i n' hobj
-        simp only [Option.some.injEq] at h
-        subst h
-        exact .of_le (objuCheck_le hobj) rfl rfl id rfl
-      · cases h
-    · cases h
-  | solx ρ =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i P _ _
-      split at h
-      · rename_i hok
-        simp only [Option.some.injEq] at h
-        subst h
-        simp only [Bool.and_eq_true] at hok
-        have h₁ : Mono F obj s ((s.log F obj ρ).addCore (exclusion P ρ)) :=
-          Mono.log.trans (.of_le (Nat.le_succ _) rfl rfl id rfl)
-        exact { h₁ with
-          logged := List.suffix_cons _ _
-          logged_eq := fun hc => by simp [hc] at hok }
-      · cases h
-    · cases h
-  | defOrder name O sp w tp rp =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      exact .of_le le_rfl rfl rfl id rfl
-    · cases h
-  | loadOrder name z =>
-    simp only [stepTop] at h
-    split at h
-    · split at h
-      · simp only [Option.some.injEq] at h
-        subst h
-        exact .of_le le_rfl rfl rfl id rfl
-      · cases h
-    · cases h
-  | unloadOrder =>
-    simp only [stepTop, Option.some.injEq] at h
-    subst h
+  apply stepTop_cases h
+  case step =>
+    intro _ _ _ hrun _
+    refine .of_le (runStep_le _ _ _ _ _ hrun) rfl rfl (fun h => ?_) rfl
+    simp only [Bool.and_eq_true] at h
+    exact h.1
+  case red =>
+    intro _ _ _ _ _ hred
+    exact .of_le ((le_ite_of_le (redCheckP_le hred)).trans (Nat.le_succ _)) rfl rfl id rfl
+  case sol =>
+    intros
+    exact .log
+  case soli =>
+    intros
+    exact Mono.log.trans .improve
+  case delc =>
+    intros
+    exact .of_le le_rfl rfl rfl (fun h => by cases h) rfl
+  case delcChecked =>
+    intro _ _ _ _ _ _ _ _ hred
+    exact .of_le (le_ite_of_le (redCheckP_le hred)) rfl rfl id rfl
+  case obji =>
+    intros
+    exact .improve
+  case obju =>
+    intro _ _ _ _ _ _ hobj
+    exact .of_le (objuCheck_le hobj) rfl rfl id rfl
+  case solx =>
+    intro ρ P _ _ hok
+    simp only [Bool.and_eq_true] at hok
+    have h₁ : Mono F obj s ((s.log F obj ρ).addCore (exclusion P ρ)) :=
+      Mono.log.trans (.of_le (Nat.le_succ _) rfl rfl id rfl)
+    exact { h₁ with
+      logged := List.suffix_cons _ _
+      logged_eq := fun hc => by simp [hc] at hok }
+  case presChange =>
+    intro _ _ _ _ _ _ _ hchk
+    exact .of_le (presChangeCheck_le hchk) rfl rfl id rfl
+  case unchanged => exact fun _ => .refl s
+  case dom =>
+    intro _ _ _ _ _ _ _ hdom
+    exact .of_le ((le_ite_of_le (domCheck_le hdom)).trans (Nat.le_succ _)) rfl rfl id rfl
+  case deld | core | strengthenToCoreOff | strengthenToCoreOn | defOrder | loadOrder |
+      unloadOrder =>
+    intros
     exact .of_le le_rfl rfl rfl id rfl
-  | presChange add x c sub =>
-    simp only [stepTop] at h
-    split at h
-    · split at h
-      · rename_i n' hchk
-        simp only [Option.some.injEq] at h
-        subst h
-        exact .of_le (presChangeCheck_le hchk) rfl rfl id rfl
-      · cases h
-    · cases h
-  | epreserved _ | eordDef _ _ | eordLoaded _ _ | econstr _ _ =>
-    obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
-    exact .refl s
-  | dom c ω sub q =>
-    simp only [stepTop] at h
-    split at h
-    · split at h
-      · rename_i n' hdom
-        simp only [Option.some.injEq] at h
-        subst h
-        exact .of_le ((le_ite_of_le (domCheck_le hdom)).trans (Nat.le_succ _)) rfl rfl id rfl
-      · cases h
-    · cases h
 
 /-- **The monotonicity facts of a run** (`Cslib.Logic.PL.VeriPB.Mono`), as CakePB's
 `check_csteps_correct` states them. -/
@@ -3735,251 +3616,147 @@ private theorem dom_repair {F : List PBConstr} {obj : Option Objective} {s : Sta
 /-- **Each step keeps the order invariant.** -/
 theorem stepTop_ordInv {F : List PBConstr} {obj : Option Objective} {s s' : State} {t : TopStep}
     (hinv : Inv F obj s) (ho : OrdInv s) (h : stepTop F obj s t = some s') : OrdInv s' := by
-  cases t with
-  | step st =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i db' n' hrun
-      split at h
-      · cases h
-      · rename_i htouch
-        simp only [Option.some.injEq] at h
-        subst h
-        refine ho.of_ord rfl rfl fun L hL _ hsat τ hτ => ?_
-        have hnt : (s.core.any fun e => st.delIds.contains e.1) = false := by
-          simpa [Option.mem_def.1 hL] using htouch
-        have hkeep : s.core.filter (fun e => !st.delIds.contains e.1) = s.core :=
-          List.filter_eq_self.2 fun e he => by simpa using List.any_eq_false.1 hnt e he
-        dsimp only at hτ ⊢
-        rw [hkeep] at hτ
-        obtain ⟨τ', h₁, h₂⟩ := hsat τ hτ
-        exact ⟨τ', runStep_sound _ _ _ _ _ h₁ hrun, h₂⟩
-    · cases h
-  | red c ω items q =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i n' hred
-      simp only [Option.some.injEq] at h
-      subst h
-      obtain ⟨hfree, hred⟩ := redCheckOn_of_redCheckP hred
-      refine ho.of_ord rfl rfl fun L hL hLg hsat τ hτ => ?_
-      simp only [State.addStrengthened] at hτ ⊢
-      generalize (if items.isSome = true then n' else s.next) = m at hτ ⊢
-      cases ht : s.tcb
-      · simp only [ht, Bool.false_eq_true, ↓reduceIte] at hτ hred
-        obtain ⟨τ₁, h₁, hle₁, hobj₁, hp₁⟩ := hsat τ hτ
-        obtain ⟨τ₂, hτ₂, h₂, hobj₂, hle₂⟩ := redCheckOn_sound ho.loaded h₁ h₁ hred
-        refine ⟨τ₂, List.forall_mem_cons.2 ⟨(h₂ _ List.mem_cons_self : c.normalize.Holds τ₂),
-          fun e he => h₂ e (List.mem_cons_of_mem _ he)⟩, hLg.le_trans (hle₂ L hL) hle₁,
-          hobj₂.trans hobj₁, fun P hP => Eq.trans ?_ (hp₁ P hP)⟩
-        rcases hτ₂ with rfl | rfl
-        · rfl
-        · exact proj_apply_of_presFree hfree τ₁ P hP
-      · simp only [ht, ↓reduceIte] at hτ
-        exact SatObjPo.refl hLg (fun τ hτ => List.forall_mem_cons.2 ⟨hτ _ List.mem_cons_self,
-          hinv.imp ht τ fun e he => hτ e (List.mem_cons_of_mem _ he)⟩) τ hτ
-    · cases h
-  | sol ρ =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      exact ho.of_ord rfl rfl fun _ _ _ hsat => hsat
-    · cases h
-  | soli ρ =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i f hf
-      split at h
-      · simp only [Option.some.injEq] at h
-        subst h
-        exact ordInv_improve (ho.of_ord rfl rfl fun _ _ _ hsat => hsat) hf
-      · cases h
-    · cases h
-  | deld ids =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      refine ho.of_ord rfl rfl fun L hL _ hsat τ hτ => ?_
-      obtain ⟨τ₁, h₁, h₂⟩ := hsat τ hτ
-      exact ⟨τ₁, allHold_filter h₁ _, h₂⟩
-    · cases h
-  | delc ids =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i hok
-      simp only [Option.some.injEq] at h
-      subst h
-      simp only [Bool.and_eq_true, Bool.or_eq_true, Bool.not_eq_true'] at hok
-      refine ho.of_ord rfl rfl fun L hL hLg _ => SatObjPo.refl hLg fun τ hτ e he => ?_
-      rw [List.mem_filter] at he
-      rcases hok.2 with hf | hd
-      · rw [Option.mem_def.1 hL] at hf; simp at hf
-      · exact hτ e (List.mem_filter.2
-          ⟨List.contains_iff_mem.1 (List.all_eq_true.1 hd e he.1), he.2⟩)
-    · cases h
-  | delcChecked i ω items q =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i c hc
-      split at h
-      · rename_i hok
-        split at h
-        · rename_i n' hred
-          simp only [Option.some.injEq] at h
-          subst h
-          refine ho.of_ord rfl rfl fun L hL hLg hsat τ hτ => ?_
-          obtain ⟨hfree, hred⟩ := redCheckOn_of_redCheckP hred
-          obtain ⟨τ', hτ', hall, hobj', hle'⟩ := redCheckOn_sound ho.loaded hτ hτ hred
-          obtain ⟨τ₁, h₁, hle₁, hobj₁, hp₁⟩ := hsat τ' (allHold_core_of_filter (hinv.core_all hc)
-            (fun e he => hall e (List.mem_cons_of_mem _ he))
-            ((holds_normalize _ _).1 (hall _ List.mem_cons_self)))
-          refine ⟨τ₁, allHold_filter h₁ _, hLg.le_trans hle₁ (hle' L hL), hobj₁.trans hobj',
-            fun P hP => (hp₁ P hP).trans ?_⟩
-          rcases hτ' with rfl | rfl
-          · rfl
-          · exact proj_apply_of_presFree hfree τ P hP
-        · cases h
-      · cases h
-    · cases h
-  | core ids =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      exact ho.of_ord rfl rfl fun _ _ _ hsat τ hτ =>
-        hsat τ fun e he => hτ e (List.mem_append_right _ he)
-    · cases h
-  | strengthenToCore b =>
-    unfold stepTop at h
-    cases b <;> simp only [Option.some.injEq, Bool.false_eq_true, ↓reduceIte] at h <;> subst h
-    · exact ho.of_ord rfl rfl fun _ _ _ hsat => hsat
-    · exact ho.of_ord rfl rfl fun _ _ hLg _ => SatObjPo.refl hLg fun _ hτ => hτ
-  | obji u =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i f hf
-      simp only [Option.some.injEq] at h
-      subst h
-      exact ordInv_improve ho hf
-    · cases h
-  | obju diff g sub =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i f hf
-      split at h
-      · rename_i n' hobj
-        simp only [Option.some.injEq] at h
-        subst h
-        refine ho.of_ord rfl rfl fun L hL _ hsat τ hτ => ?_
-        obtain ⟨τ₁, h₁, hle₁, hobj₁, hp₁⟩ := hsat τ hτ
-        refine ⟨τ₁, h₁, hle₁, ?_, hp₁⟩
-        simp only [hf, objValue] at hobj₁ ⊢
-        rw [objuCheck_sound hτ hobj, objuCheck_sound (allHold_mono hinv.sub h₁) hobj]
-        exact hobj₁
-      · cases h
-    · cases h
-  | solx ρ =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i P hP hobj
-      split at h
-      · simp only [Option.some.injEq] at h
-        subst h
-        refine ho.of_ord rfl rfl fun L hL _ hsat τ hτ => ?_
-        simp only [State.log] at hτ ⊢
-        have hex := hτ _ List.mem_cons_self
-        obtain ⟨τ₁, h₁, hle₁, hobj₁, hp₁⟩ := hsat τ fun e he => hτ e (List.mem_cons_of_mem _ he)
-        refine ⟨τ₁, List.forall_mem_cons.2 ⟨?_, h₁⟩, hle₁, hobj₁, hp₁⟩
-        have hp := hp₁ P (by rw [hP]; rfl)
-        simp only [holds_exclusion] at hex ⊢
-        rwa [hp]
-      · cases h
-    · cases h
-  | defOrder name O w tp rp =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i hchk
-      simp only [Option.some.injEq] at h
-      subst h
-      refine ⟨fun e he => ?_, ho.loaded, ho.ord⟩
-      rcases List.mem_cons.1 he with rfl | he
-      · exact Order.good_of_defCheck hchk
-      · exact ho.orders e he
-    · cases h
-  | loadOrder name z =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i O hO
-      split at h
-      · rename_i hz
-        simp only [Option.some.injEq] at h
-        subst h
-        simp only [Bool.and_eq_true, beq_iff_eq, List.all_eq_true] at hz
-        have hL : LoadedOrder.Good ⟨O, z⟩ :=
-          ⟨ho.orders (name, O) (by
-            obtain ⟨l₁, l₂, he, -⟩ := List.lookup_eq_some_iff.1 hO
-            simp [he]), hz.1, fun l hl => by simpa using hz.2 l hl⟩
-        refine ⟨ho.orders, fun L hL' => ?_, fun L hL' => ?_⟩ <;>
-          simp only [Option.mem_def, Option.some.injEq] at hL' <;> subst hL'
-        · exact hL
-        · exact SatObjPo.refl hL fun _ hτ => hτ
-      · cases h
-    · cases h
-  | unloadOrder =>
-    simp only [stepTop, Option.some.injEq] at h
-    subst h
+  apply stepTop_cases h
+  case step =>
+    intro st _ _ hrun htouch
+    refine ho.of_ord rfl rfl fun L hL _ hsat τ hτ => ?_
+    have hnt : (s.core.any fun e => st.delIds.contains e.1) = false := by
+      simpa [Option.mem_def.1 hL] using htouch
+    dsimp only at hτ ⊢
+    rw [core_filter_delIds_eq_self hnt] at hτ
+    obtain ⟨τ', h₁, h₂⟩ := hsat τ hτ
+    exact ⟨τ', runStep_sound _ _ _ _ _ h₁ hrun, h₂⟩
+  case red =>
+    intro c _ items _ n' hred
+    obtain ⟨hfree, hred⟩ := redCheckOn_of_redCheckP hred
+    refine ho.of_ord rfl rfl fun L hL hLg hsat τ hτ => ?_
+    simp only [State.addStrengthened] at hτ ⊢
+    generalize (if items.isSome = true then n' else s.next) = m at hτ ⊢
+    cases ht : s.tcb
+    · simp only [ht, Bool.false_eq_true, ↓reduceIte] at hτ hred
+      obtain ⟨τ₁, h₁, hle₁, hobj₁, hp₁⟩ := hsat τ hτ
+      obtain ⟨τ₂, hτ₂, h₂, hobj₂, hle₂⟩ := redCheckOn_sound ho.loaded h₁ h₁ hred
+      refine ⟨τ₂, List.forall_mem_cons.2 ⟨(h₂ _ List.mem_cons_self : c.normalize.Holds τ₂),
+        fun e he => h₂ e (List.mem_cons_of_mem _ he)⟩, hLg.le_trans (hle₂ L hL) hle₁,
+        hobj₂.trans hobj₁, fun P hP => Eq.trans ?_ (hp₁ P hP)⟩
+      rcases hτ₂ with rfl | rfl
+      · rfl
+      · exact proj_apply_of_presFree hfree τ₁ P hP
+    · simp only [ht, ↓reduceIte] at hτ
+      exact SatObjPo.refl hLg (fun τ hτ => List.forall_mem_cons.2 ⟨hτ _ List.mem_cons_self,
+        hinv.imp ht τ fun e he => hτ e (List.mem_cons_of_mem _ he)⟩) τ hτ
+  case sol =>
+    intros
+    exact ho.of_ord rfl rfl fun _ _ _ hsat => hsat
+  case soli =>
+    intro _ _ hf _
+    exact ordInv_improve (ho.of_ord rfl rfl fun _ _ _ hsat => hsat) hf
+  case deld =>
+    intros
+    refine ho.of_ord rfl rfl fun L hL _ hsat τ hτ => ?_
+    obtain ⟨τ₁, h₁, h₂⟩ := hsat τ hτ
+    exact ⟨τ₁, allHold_filter h₁ _, h₂⟩
+  case delc =>
+    intro _ hok
+    simp only [Bool.and_eq_true, Bool.or_eq_true, Bool.not_eq_true'] at hok
+    refine ho.of_ord rfl rfl fun L hL hLg _ => SatObjPo.refl hLg fun τ hτ e he => ?_
+    rw [List.mem_filter] at he
+    rcases hok.2 with hf | hd
+    · rw [Option.mem_def.1 hL] at hf; simp at hf
+    · exact hτ e (List.mem_filter.2
+        ⟨List.contains_iff_mem.1 (List.all_eq_true.1 hd e he.1), he.2⟩)
+  case delcChecked =>
+    intro _ _ _ _ _ _ hc _ hred
+    refine ho.of_ord rfl rfl fun L hL hLg hsat τ hτ => ?_
+    obtain ⟨hfree, hred⟩ := redCheckOn_of_redCheckP hred
+    obtain ⟨τ', hτ', hall, hobj', hle'⟩ := redCheckOn_sound ho.loaded hτ hτ hred
+    obtain ⟨τ₁, h₁, hle₁, hobj₁, hp₁⟩ := hsat τ' (allHold_core_of_filter (hinv.core_all hc)
+      (fun e he => hall e (List.mem_cons_of_mem _ he))
+      ((holds_normalize _ _).1 (hall _ List.mem_cons_self)))
+    refine ⟨τ₁, allHold_filter h₁ _, hLg.le_trans hle₁ (hle' L hL), hobj₁.trans hobj',
+      fun P hP => (hp₁ P hP).trans ?_⟩
+    rcases hτ' with rfl | rfl
+    · rfl
+    · exact proj_apply_of_presFree hfree τ P hP
+  case core =>
+    intros
+    exact ho.of_ord rfl rfl fun _ _ _ hsat τ hτ =>
+      hsat τ fun e he => hτ e (List.mem_append_right _ he)
+  case strengthenToCoreOff =>
+    exact ho.of_ord rfl rfl fun _ _ _ hsat => hsat
+  case strengthenToCoreOn =>
+    exact ho.of_ord rfl rfl fun _ _ hLg _ => SatObjPo.refl hLg fun _ hτ => hτ
+  case obji =>
+    intro _ _ hf
+    exact ordInv_improve ho hf
+  case obju =>
+    intro _ _ _ _ _ hf hobj
+    refine ho.of_ord rfl rfl fun L hL _ hsat τ hτ => ?_
+    obtain ⟨τ₁, h₁, hle₁, hobj₁, hp₁⟩ := hsat τ hτ
+    refine ⟨τ₁, h₁, hle₁, ?_, hp₁⟩
+    simp only [hf, objValue] at hobj₁ ⊢
+    rw [objuCheck_sound hτ hobj, objuCheck_sound (allHold_mono hinv.sub h₁) hobj]
+    exact hobj₁
+  case solx =>
+    intro ρ P hP _ _
+    refine ho.of_ord rfl rfl fun L hL _ hsat τ hτ => ?_
+    simp only [State.log] at hτ ⊢
+    have hex := hτ _ List.mem_cons_self
+    obtain ⟨τ₁, h₁, hle₁, hobj₁, hp₁⟩ := hsat τ fun e he => hτ e (List.mem_cons_of_mem _ he)
+    refine ⟨τ₁, List.forall_mem_cons.2 ⟨?_, h₁⟩, hle₁, hobj₁, hp₁⟩
+    have hp := hp₁ P (by rw [hP]; rfl)
+    simp only [holds_exclusion] at hex ⊢
+    rwa [hp]
+  case defOrder =>
+    intro _ _ _ _ _ _ hchk
+    refine ⟨fun e he => ?_, ho.loaded, ho.ord⟩
+    rcases List.mem_cons.1 he with rfl | he
+    · exact Order.good_of_defCheck hchk
+    · exact ho.orders e he
+  case loadOrder =>
+    intro name z O hO hz
+    simp only [Bool.and_eq_true, beq_iff_eq, List.all_eq_true] at hz
+    have hL : LoadedOrder.Good ⟨O, z⟩ :=
+      ⟨ho.orders (name, O) (by
+        obtain ⟨l₁, l₂, he, -⟩ := List.lookup_eq_some_iff.1 hO
+        simp [he]), hz.1, fun l hl => by simpa using hz.2 l hl⟩
+    refine ⟨ho.orders, fun L hL' => ?_, fun L hL' => ?_⟩ <;>
+      simp only [Option.mem_def, Option.some.injEq] at hL' <;> subst hL'
+    · exact hL
+    · exact SatObjPo.refl hL fun _ hτ => hτ
+  case unloadOrder =>
     exact ⟨ho.orders, fun _ h => by simp at h, fun _ h => by simp at h⟩
-  | presChange add x c sub =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i P hP
-      split at h
-      · rename_i n' hchk
-        simp only [Option.some.injEq] at h
-        subst h
-        obtain ⟨hvars, hiff⟩ := presChangeCheck_sound hchk
-        refine ho.of_ord rfl rfl fun L _ _ hsat τ hτ => ?_
-        obtain ⟨τ', h₁, hle, hobj, hp⟩ := hsat τ hτ
-        refine ⟨τ', h₁, hle, hobj, fun P' hP' => ?_⟩
-        simp only [Option.mem_def, Option.some.injEq] at hP'
-        subst hP'
-        have hag : ∀ v ∈ P, τ' v = τ v := proj_eq_iff.1 (hp P (by simp [hP]))
-        rw [proj_eq_iff]
-        cases add
-        · intro v hv
-          exact hag v (List.mem_filter.1 hv).1
-        · intro v hv
-          rcases List.mem_insert_iff.1 hv with rfl | hv
-          · have hc : c.Holds τ' ↔ c.Holds τ := by
-              rw [← holds_normalize, ← holds_normalize _ c]
-              exact holds_congr fun t ht => hag _ (hvars t ht).1
-            rw [Bool.eq_iff_iff, hiff τ' (allHold_mono hinv.sub h₁), hiff τ hτ, hc]
-          · exact hag v hv
-      · cases h
-    · cases h
-  | epreserved _ | eordDef _ _ | eordLoaded _ _ | econstr _ _ =>
-    obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
-    exact ho
-  | dom c ω items q =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i L hL
-      split at h
-      · rename_i n' hdom
-        simp only [Option.some.injEq] at h
-        subst h
-        refine ho.of_ord rfl rfl fun L' hL' _ _ τ hτ => ?_
-        rw [hL, Option.mem_def, Option.some.injEq] at hL'
-        subst hL'
-        refine dom_repair _ hinv ho hL hdom τ ?_
-        simp only [State.addStrengthened] at hτ
-        split at hτ
-        · exact fun e he => hτ e (List.mem_cons_of_mem _ he)
-        · exact hτ
-      · cases h
-    · cases h
+  case presChange =>
+    intro add x c _ P _ hP hchk
+    obtain ⟨hvars, hiff⟩ := presChangeCheck_sound hchk
+    refine ho.of_ord rfl rfl fun L _ _ hsat τ hτ => ?_
+    obtain ⟨τ', h₁, hle, hobj, hp⟩ := hsat τ hτ
+    refine ⟨τ', h₁, hle, hobj, fun P' hP' => ?_⟩
+    simp only [Option.mem_def, Option.some.injEq] at hP'
+    subst hP'
+    have hag : ∀ v ∈ P, τ' v = τ v := proj_eq_iff.1 (hp P (by simp [hP]))
+    rw [proj_eq_iff]
+    cases add
+    · intro v hv
+      exact hag v (List.mem_filter.1 hv).1
+    · intro v hv
+      rcases List.mem_insert_iff.1 hv with rfl | hv
+      · have hc : c.Holds τ' ↔ c.Holds τ := by
+          rw [← holds_normalize, ← holds_normalize _ c]
+          exact holds_congr fun t ht => hag _ (hvars t ht).1
+        rw [Bool.eq_iff_iff, hiff τ' (allHold_mono hinv.sub h₁), hiff τ hτ, hc]
+      · exact hag v hv
+  case unchanged => exact fun _ => ho
+  case dom =>
+    intro _ _ _ _ _ _ hL hdom
+    refine ho.of_ord rfl rfl fun L' hL' _ _ τ hτ => ?_
+    rw [hL, Option.mem_def, Option.some.injEq] at hL'
+    subst hL'
+    refine dom_repair _ hinv ho hL hdom τ ?_
+    simp only [State.addStrengthened] at hτ
+    split at hτ
+    · exact fun e he => hτ e (List.mem_cons_of_mem _ he)
+    · exact hτ
 
 /-- **The lower-bound invariant** for a value `w`: some solution of the database has objective at
 most `w`, or the bound `dbound` is at most `w`. It is CakePB's `bimp_obj`, the existence half of
@@ -4045,171 +3822,56 @@ theorem stepTop_fwd {F : List PBConstr} {obj : Option Objective} {s s' : State} 
       ∀ P ∈ s.pres, proj P τ' = proj P τ) ∨
     (∃ d ∈ s'.dbound, d ≤ objValue s.obj τ) ∧
       (s.obj = none → ∃ P ∈ s.pres, s'.logged = proj P τ :: s.logged) := by
-  cases t with
-  | step st =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i db₁ n₁ h₁
-      split at h
-      · cases h
-      · simp only [Option.some.injEq] at h
-        subst h
-        exact .inl ⟨τ, runStep_sound _ _ _ _ _ hτ h₁, le_rfl, fun _ _ => rfl⟩
-    · cases h
-  | red c ω items q =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i n₁ h₁
-      simp only [Option.some.injEq] at h
-      subst h
-      generalize (if items.isSome = true then n₁ else s.next) = m
-      obtain ⟨hfree, h₁⟩ := redCheckOn_of_redCheckP h₁
-      obtain ⟨τ', hτ'eq, hτ', hle⟩ := red_repair m hinv hord.loaded hτ h₁
-      refine .inl ⟨τ', hτ', hle, fun P hP => ?_⟩
-      rcases hτ'eq with rfl | rfl
-      · rfl
-      · exact proj_apply_of_presFree hfree τ P hP
-    · cases h
-  | sol ρ =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      exact .inl ⟨τ, hτ, le_rfl, fun _ _ => rfl⟩
-    · cases h
-  | soli ρ =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i f hf
-      split at h
-      · simp only [Option.some.injEq] at h
-        subst h
-        rcases fwd_improve (s := s.log F obj ρ) (u := f.eval (assignOf ρ)) hf hτ with h' | h'
-        · exact .inl h'
-        · exact .inr ⟨h', fun h0 => by simp [hf] at h0⟩
-      · cases h
-    · cases h
-  | deld ids =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      exact .inl ⟨τ, allHold_filter hτ _, le_rfl, fun _ _ => rfl⟩
-    · cases h
-  | delc ids =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      exact .inl ⟨τ, allHold_filter hτ _, le_rfl, fun _ _ => rfl⟩
-    · cases h
-  | delcChecked i ω items q =>
-    simp only [stepTop] at h
-    split at h
-    · split at h
-      · split at h
-        · simp only [Option.some.injEq] at h
-          subst h
-          exact .inl ⟨τ, allHold_filter hτ _, le_rfl, fun _ _ => rfl⟩
-        · cases h
-      · cases h
-    · cases h
-  | core ids =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      exact .inl ⟨τ, hτ, le_rfl, fun _ _ => rfl⟩
-    · cases h
-  | strengthenToCore b =>
-    unfold stepTop at h
-    cases b <;> simp only [Option.some.injEq, Bool.false_eq_true, ↓reduceIte] at h <;> subst h <;>
-      exact .inl ⟨τ, hτ, le_rfl, fun _ _ => rfl⟩
-  | obji u =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i f hf
-      simp only [Option.some.injEq] at h
-      subst h
-      rcases fwd_improve (u := u) hf hτ with h' | h'
-      · exact .inl h'
-      · exact .inr ⟨h', fun h0 => by simp [hf] at h0⟩
-    · cases h
-  | obju diff g sub =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i f hf
-      split at h
-      · rename_i n' hobj
-        simp only [Option.some.injEq] at h
-        subst h
-        refine .inl ⟨τ, hτ, ?_, fun _ _ => rfl⟩
-        simp only [objValue, hf]
-        rw [objuCheck_sound (allHold_mono hinv.sub hτ) hobj]
-      · cases h
-    · cases h
-  | solx ρ =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i Q hQ hobj
-      split at h
-      · simp only [Option.some.injEq] at h
-        subst h
-        by_cases hex : (exclusion Q ρ).Holds τ
-        · exact .inl ⟨τ, List.forall_mem_cons.2 ⟨hex, hτ⟩, le_rfl, fun _ _ => rfl⟩
-        · obtain ⟨v, hv, hle⟩ := lowerTo_le s.dbound (objValue s.obj (assignOf ρ))
-          rw [holds_exclusion, not_not] at hex
-          refine .inr ⟨⟨v, hv, ?_⟩, fun _ => ⟨Q, hQ, ?_⟩⟩
-          · simp only [hobj, objValue] at hle ⊢
-            exact hle
-          · simp only [hex]
-      · cases h
-    · cases h
-  | defOrder name O w tp rp =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      exact .inl ⟨τ, hτ, le_rfl, fun _ _ => rfl⟩
-    · cases h
-  | loadOrder name z =>
-    simp only [stepTop] at h
-    split at h
-    · split at h
-      · simp only [Option.some.injEq] at h
-        subst h
-        exact .inl ⟨τ, hτ, le_rfl, fun _ _ => rfl⟩
-      · cases h
-    · cases h
-  | unloadOrder =>
-    simp only [stepTop, Option.some.injEq] at h
-    subst h
+  apply stepTop_cases h
+  case step =>
+    intro _ _ _ h₁ _
+    exact .inl ⟨τ, runStep_sound _ _ _ _ _ hτ h₁, le_rfl, fun _ _ => rfl⟩
+  case red =>
+    intro _ _ items _ n₁ h₁
+    generalize (if items.isSome = true then n₁ else s.next) = m
+    obtain ⟨hfree, h₁⟩ := redCheckOn_of_redCheckP h₁
+    obtain ⟨τ', hτ'eq, hτ', hle⟩ := red_repair m hinv hord.loaded hτ h₁
+    refine .inl ⟨τ', hτ', hle, fun P hP => ?_⟩
+    rcases hτ'eq with rfl | rfl
+    · rfl
+    · exact proj_apply_of_presFree hfree τ P hP
+  case soli =>
+    intro ρ f hf _
+    rcases fwd_improve (s := s.log F obj ρ) (u := f.eval (assignOf ρ)) hf hτ with h' | h'
+    · exact .inl h'
+    · exact .inr ⟨h', fun h0 => by simp [hf] at h0⟩
+  case obji =>
+    intro u _ hf
+    rcases fwd_improve (u := u) hf hτ with h' | h'
+    · exact .inl h'
+    · exact .inr ⟨h', fun h0 => by simp [hf] at h0⟩
+  case obju =>
+    intro _ _ _ _ _ hf hobj
+    refine .inl ⟨τ, hτ, ?_, fun _ _ => rfl⟩
+    simp only [objValue, hf]
+    rw [objuCheck_sound (allHold_mono hinv.sub hτ) hobj]
+  case solx =>
+    intro ρ Q hQ hobj _
+    by_cases hex : (exclusion Q ρ).Holds τ
+    · exact .inl ⟨τ, List.forall_mem_cons.2 ⟨hex, hτ⟩, le_rfl, fun _ _ => rfl⟩
+    · obtain ⟨v, hv, hle⟩ := lowerTo_le s.dbound (objValue s.obj (assignOf ρ))
+      rw [holds_exclusion, not_not] at hex
+      refine .inr ⟨⟨v, hv, ?_⟩, fun _ => ⟨Q, hQ, ?_⟩⟩
+      · simp only [hobj, objValue] at hle ⊢
+        exact hle
+      · simp only [hex]
+  case dom =>
+    intro _ _ items _ _ n' hL hdom
+    have hd := dom_repair (if items.isSome = true then n' else s.next) hinv hord hL hdom
+    obtain ⟨τ', h', -, hle, hp'⟩ := hd τ (allHold_mono hinv.sub hτ)
+    exact .inl ⟨τ', h', hle, hp'⟩
+  case deld | delc | delcChecked =>
+    intros
+    exact .inl ⟨τ, allHold_filter hτ _, le_rfl, fun _ _ => rfl⟩
+  case sol | core | strengthenToCoreOff | strengthenToCoreOn | defOrder | loadOrder |
+      unloadOrder | presChange | unchanged =>
+    intros
     exact .inl ⟨τ, hτ, le_rfl, fun _ _ => rfl⟩
-  | presChange add x c sub =>
-    simp only [stepTop] at h
-    split at h
-    · split at h
-      · simp only [Option.some.injEq] at h
-        subst h
-        exact .inl ⟨τ, hτ, le_rfl, fun _ _ => rfl⟩
-      · cases h
-    · cases h
-  | epreserved _ | eordDef _ _ | eordLoaded _ _ | econstr _ _ =>
-    obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
-    exact .inl ⟨τ, hτ, le_rfl, fun _ _ => rfl⟩
-  | dom c ω items q =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i L hL
-      split at h
-      · rename_i n' hdom
-        simp only [Option.some.injEq] at h
-        subst h
-        have hd := dom_repair (if items.isSome = true then n' else s.next) hinv hord hL hdom
-        obtain ⟨τ', h', -, hle, hp'⟩ := hd τ (allHold_mono hinv.sub hτ)
-        exact .inl ⟨τ', h', hle, hp'⟩
-      · cases h
-    · cases h
 
 /-- **A step gives back each solution of the core set**, the backward half of CakePB's
 `check_cstep_correct`: while no unchecked deletion has happened, a solution of the core set after
@@ -4223,123 +3885,54 @@ theorem stepTop_back {F : List PBConstr} {obj : Option Objective} {s s' : State}
       ∀ P ∈ s.pres, proj P τ₀ = proj P τ := by
   have cons : ∀ e (τ : ℕ → Bool), AllHold τ (e :: s.core) → AllHold τ s.core :=
     fun _ _ hτ e he => hτ e (List.mem_cons_of_mem _ he)
-  cases t with
-  | step st =>
-    simp only [stepTop] at h
-    split at h
-    · split at h
-      · cases h
-      · simp only [Option.some.injEq] at h
-        subst h
-        simp only [Bool.and_eq_true, Bool.not_eq_true'] at hc
-        have hkeep : s.core.filter (fun e => !st.delIds.contains e.1) = s.core :=
-          List.filter_eq_self.2 fun e he => by
-            have := List.any_eq_false.1 hc.2 e he
-            simpa using this
-        refine ⟨hc.1, τ, ?_, le_rfl, fun _ _ => rfl⟩
-        rw [← hkeep]
-        exact hτ
-    · cases h
-  | red c ω items q | dom c ω items q =>
-    simp only [stepTop] at h
-    repeat' split at h
-    all_goals first
-      | cases h; done
-      | simp only [Option.some.injEq] at h
-        subst h
-        refine ⟨hc, τ, ?_, le_rfl, fun _ _ => rfl⟩
-        simp only [State.addStrengthened] at hτ
-        split at hτ
-        · exact cons _ τ hτ
-        · exact hτ
-  | sol ρ | deld _ | defOrder _ _ _ _ _ | unloadOrder | presChange _ _ _ _ =>
-    simp only [stepTop] at h
-    repeat' split at h
-    all_goals first
-      | cases h; done
-      | simp only [Option.some.injEq] at h
-        subst h
-        exact ⟨hc, τ, hτ, le_rfl, fun _ _ => rfl⟩
-  | soli ρ | obji _ =>
-    simp only [stepTop] at h
-    repeat' split at h
-    all_goals first
-      | cases h; done
-      | simp only [Option.some.injEq] at h
-        subst h
-        exact ⟨hc, τ, cons _ τ hτ, le_rfl, fun _ _ => rfl⟩
-  | delc ids =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      cases hc
-    · cases h
-  | delcChecked i ω items q =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i c hc'
-      split at h
-      · split at h
-        · rename_i n' hred
-          simp only [Option.some.injEq] at h
-          subst h
-          obtain ⟨hfree, hred⟩ := redCheckOn_of_redCheckP hred
-          obtain ⟨τ', hτ', hall, hle, -⟩ := redCheckOn_sound hord hτ hτ hred
-          refine ⟨hc, τ', allHold_core_of_filter (hinv.core_all hc') (fun e he => hall e
-            (List.mem_cons_of_mem _ he)) ((holds_normalize _ _).1 (hall _ List.mem_cons_self)),
-            hle, fun P hP => ?_⟩
-          rcases hτ' with rfl | rfl
-          · rfl
-          · exact proj_apply_of_presFree hfree τ P hP
-        · cases h
-      · cases h
-    · cases h
-  | core ids =>
-    simp only [stepTop] at h
-    split at h
-    · simp only [Option.some.injEq] at h
-      subst h
-      exact ⟨hc, τ, fun e he => hτ e (List.mem_append_right _ he), le_rfl, fun _ _ => rfl⟩
-    · cases h
-  | strengthenToCore b =>
-    unfold stepTop at h
-    cases b <;> simp only [Option.some.injEq, Bool.false_eq_true, ↓reduceIte] at h <;> subst h
-    · exact ⟨hc, τ, hτ, le_rfl, fun _ _ => rfl⟩
-    · exact ⟨hc, τ, allHold_mono hinv.sub hτ, le_rfl, fun _ _ => rfl⟩
-  | obju diff g sub =>
-    simp only [stepTop] at h
-    split at h
-    · rename_i f hf
-      split at h
-      · rename_i n' hobj
-        simp only [Option.some.injEq] at h
-        subst h
-        refine ⟨hc, τ, hτ, ?_, fun _ _ => rfl⟩
-        simp only [objValue, hf]
-        rw [objuCheck_sound hτ hobj]
-      · cases h
-    · cases h
-  | solx ρ =>
-    simp only [stepTop] at h
-    split at h
-    · split at h
-      · simp only [Option.some.injEq] at h
-        subst h
-        exact ⟨hc, τ, cons _ τ hτ, le_rfl, fun _ _ => rfl⟩
-      · cases h
-    · cases h
-  | loadOrder name z =>
-    simp only [stepTop] at h
-    split at h
-    · split at h
-      · simp only [Option.some.injEq] at h
-        subst h
-        exact ⟨hc, τ, allHold_mono hinv.sub hτ, le_rfl, fun _ _ => rfl⟩
-      · cases h
-    · cases h
-  | epreserved _ | eordDef _ _ | eordLoaded _ _ | econstr _ _ =>
-    obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
+  revert hc hτ
+  apply stepTop_cases h
+  case step =>
+    intro _ _ _ _ _ hc hτ
+    simp only [Bool.and_eq_true, Bool.not_eq_true'] at hc
+    refine ⟨hc.1, τ, ?_, le_rfl, fun _ _ => rfl⟩
+    rw [← core_filter_delIds_eq_self hc.2]
+    exact hτ
+  case red | dom =>
+    intros
+    rename_i hc hτ
+    refine ⟨hc, τ, ?_, le_rfl, fun _ _ => rfl⟩
+    simp only [State.addStrengthened] at hτ
+    split at hτ
+    · exact cons _ τ hτ
+    · exact hτ
+  case soli | obji | solx =>
+    intros
+    rename_i hc hτ
+    exact ⟨hc, τ, cons _ τ hτ, le_rfl, fun _ _ => rfl⟩
+  case delc =>
+    intro _ _ hc _
+    cases hc
+  case delcChecked =>
+    intro _ _ _ _ _ _ hc' _ hred hc hτ
+    obtain ⟨hfree, hred⟩ := redCheckOn_of_redCheckP hred
+    obtain ⟨τ', hτ', hall, hle, -⟩ := redCheckOn_sound hord hτ hτ hred
+    refine ⟨hc, τ', allHold_core_of_filter (hinv.core_all hc') (fun e he => hall e
+      (List.mem_cons_of_mem _ he)) ((holds_normalize _ _).1 (hall _ List.mem_cons_self)),
+      hle, fun P hP => ?_⟩
+    rcases hτ' with rfl | rfl
+    · rfl
+    · exact proj_apply_of_presFree hfree τ P hP
+  case core =>
+    intro _ _ hc hτ
+    exact ⟨hc, τ, fun e he => hτ e (List.mem_append_right _ he), le_rfl, fun _ _ => rfl⟩
+  case strengthenToCoreOn | loadOrder =>
+    intros
+    rename_i hc hτ
+    exact ⟨hc, τ, allHold_mono hinv.sub hτ, le_rfl, fun _ _ => rfl⟩
+  case obju =>
+    intro _ _ _ _ _ hf hobj hc hτ
+    refine ⟨hc, τ, hτ, ?_, fun _ _ => rfl⟩
+    simp only [objValue, hf]
+    rw [objuCheck_sound hτ hobj]
+  case sol | deld | defOrder | unloadOrder | presChange | strengthenToCoreOff | unchanged =>
+    intros
+    rename_i hc hτ
     exact ⟨hc, τ, hτ, le_rfl, fun _ _ => rfl⟩
 
 /-- What a step leaves alone, beyond the monotonicity facts (`Cslib.Logic.PL.VeriPB.Mono`): a
@@ -4350,43 +3943,19 @@ private theorem stepTop_frame {F : List PBConstr} {obj : Option Objective} {s s'
     (s.obj = none → s'.obj = none) ∧ ((∃ ρ, t = .solx ρ) ∨ s'.logged = s.logged) ∧
       ((∃ add x c sub, t = .presChange add x c sub) ∨
         s'.pres = s.pres ∧ s'.presChanged = s.presChanged) := by
-  cases t
-  case solx ρ =>
-    simp only [stepTop] at h
-    repeat' split at h
-    all_goals first
-      | cases h; done
-      | simp only [Option.some.injEq] at h
-        subst h
-        exact ⟨id, .inl ⟨ρ, rfl⟩, .inr ⟨rfl, rfl⟩⟩
-  case presChange add x c sub =>
-    simp only [stepTop] at h
-    repeat' split at h
-    all_goals first
-      | cases h; done
-      | simp only [Option.some.injEq] at h
-        subst h
-        exact ⟨id, .inr rfl, .inl ⟨add, x, c, sub, rfl⟩⟩
-  case obju diff g sub =>
-    simp only [stepTop] at h
-    repeat' split at h
-    all_goals first
-      | cases h; done
-      | simp only [Option.some.injEq] at h
-        subst h
-        exact ⟨fun h0 => by simp_all, .inr rfl, .inr ⟨rfl, rfl⟩⟩
-  case strengthenToCore b =>
-    unfold stepTop at h
-    cases b <;> simp only [Option.some.injEq, Bool.false_eq_true, ↓reduceIte] at h <;> subst h <;>
-      exact ⟨id, .inr rfl, .inr ⟨rfl, rfl⟩⟩
+  apply stepTop_cases h
+  case solx =>
+    intro ρ _ _ _ _
+    exact ⟨id, .inl ⟨ρ, rfl⟩, .inr ⟨rfl, rfl⟩⟩
+  case presChange =>
+    intro add x c sub _ _ _ _
+    exact ⟨id, .inr rfl, .inl ⟨add, x, c, sub, rfl⟩⟩
+  case obju =>
+    intro _ _ _ _ _ hf _
+    exact ⟨fun h0 => by simp [hf] at h0, .inr rfl, .inr ⟨rfl, rfl⟩⟩
   all_goals
-    simp only [stepTop] at h
-    repeat' split at h
-    all_goals first
-      | cases h; done
-      | simp only [Option.some.injEq] at h
-        subst h
-        exact ⟨id, .inr rfl, .inr ⟨rfl, rfl⟩⟩
+    intros
+    exact ⟨id, .inr rfl, .inr ⟨rfl, rfl⟩⟩
 
 /-- A property kept by every step is kept by the checker. -/
 theorem runTop_induct {F : List PBConstr} {obj : Option Objective} {P : State → Prop}

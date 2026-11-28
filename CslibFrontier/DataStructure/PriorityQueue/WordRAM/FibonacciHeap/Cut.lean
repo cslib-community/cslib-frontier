@@ -93,8 +93,8 @@ theorem evalCascGuard_exec {n base w : ℕ} {x : Data rFib}
   intro st gval
   have hfit := hbr.fits_of_le hb
   have := cur.isLt
-  unfold evalCascGuard
-  wram_exec [hfit, hbr.regs_parBase, hbr.regs_markBase, hbr.regs_zeroP, hbr.regs_oneP, hz_reg]
+  wram_exec [evalCascGuard,
+    hfit, hbr.regs_parBase, hbr.regs_markBase, hbr.regs_zeroP, hbr.regs_oneP, hz_reg]
   all_goals refine ⟨by wram_simp [BaseRegs.set_iff, hbr], by wram_simp [ofData_set_scratch]; rfl,
     rfl, ?_, fun r h0 h1 h2 h3 => by wram_simp⟩
   all_goals wram_simp [gval, st, RawState.ofData]; split_ifs <;> omega
@@ -206,8 +206,7 @@ theorem cutNodeCode_raw {n base w : ℕ} {x : Data rFib}
   have hcur_lt := cur.isLt
   have hm_lt := m.isLt
   have hdeg_p : x.mem (base + 5 * n + p.val) = st.deg p := rfl
-  unfold cutNodeCode
-  wram_exec -split [hfit, hbr.regs_degBase, hbr.regs_oneP, hp_reg, hdeg_p]
+  wram_exec -split [cutNodeCode, hfit, hbr.regs_degBase, hbr.regs_oneP, hp_reg, hdeg_p]
   refine WP.cut _ (cutUnlink_wp hb hbr hz_reg hp_reg hdp_pos hdp_le hdp2) ?_
   rintro x2 t2 ⟨ht2, hb2, hbr2, hmod2, hx2_reg, left₁, right₁, child₁, hunlink, hst2⟩
   have hx2_z : x2.regs zReg = cur.val := by regs_frame
@@ -311,8 +310,7 @@ private theorem decreaseKeyTail_exec {n base w : ℕ} {x : Data rFib}
   have hmin' : x.regs minRootReg = m.val + 1 := hmin
   have hkm : x.mem (base + m.val) = st.key m := rfl
   refine WP.exists_execWithin (WP.bounded hb ?_)
-  unfold decreaseKeyTail
-  wram_exec [hfit, hbr.regs_oneP, hbr.regs_baseReg, hmin', hkm]
+  wram_exec [decreaseKeyTail, hfit, hbr.regs_oneP, hbr.regs_baseReg, hmin', hkm]
   refine WP.of_execWithin (prioLTFlag_exec (n := n) (base := base)
     (by wram_simp [BaseRegs.set_iff, hbr]) argV argK s1 s2 s3) ?_
   have hlt_iff : IndexedMinPQ.PrioLT (v, st.key v) (m, st.key m) ↔
@@ -437,8 +435,7 @@ private theorem cascLoopBody_step {n K_max w base : ℕ} {s : IndexedMinPQ.State
   obtain ⟨p_c, -, hpar_c⟩ := (hc.valid T_ci hTci).1.par_of_mem_children cur hdesc
   have hcur_lt := cur.isLt; have hpc_lt := p_c.isLt
   have hpar_mem : a.mem (base + n + cur.val) = p_c.val + 1 := hpar_c
-  unfold cascLoopBody
-  wram_exec [hfit, hbra.regs_parBase, hbra.regs_oneP, ha_z, hpar_mem]
+  wram_exec [cascLoopBody, hfit, hbra.regs_parBase, hbra.regs_oneP, ha_z, hpar_mem]
   refine WP.name fun a₃ ha₃ => ?_
   have hst₃ : RawState.ofData n base a₃ = st_a := by
     rw [ha₃]; wram_simp [ofData_set_scratch, ← hst_a_def]
@@ -613,8 +610,8 @@ theorem decreaseKeyCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {
     (CutInv n K_max s' (RawState.ofData n base y) v m none ∨
       (RawState.ofData n base y = { st₀ with key := Function.update st₀.key v k } ∧
         ∃ p₀ : Fin n, st₀.par v = p₀.val + 1 ∧ ¬IndexedMinPQ.PrioLT (v, k) (p₀, st₀.key p₀)))
-  unfold decreaseKeyCode
-  wram_exec -split [hfit, hbr.regs_baseReg, hbr.regs_parBase, hv_reg, hk_reg, hpar_v]
+  wram_exec -split [decreaseKeyCode,
+    hfit, hbr.regs_baseReg, hbr.regs_parBase, hv_reg, hk_reg, hpar_v]
   refine WP.cut preTail ?_ ?_
   · by_cases hpv0 : st₀.par v = 0
     · refine WP.bounded (by wram_bounded <;> exact hfit _ (by omega)) ?_

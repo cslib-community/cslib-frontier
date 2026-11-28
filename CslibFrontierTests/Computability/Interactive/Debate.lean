@@ -19,7 +19,12 @@ Boundary witnesses for `CslibFrontier/Computability/Interactive/Debate.lean`:
   `true` with probability `3 / 4` for the claim `3`, never for the claim `0` and always for the
   claim `4`, so the comparison in `coinBit` is strict and the claim `k` means exactly `k / N`;
 * the Lipschitz hypothesis of the soundness statement is satisfiable: the output of a
-  `(T + 1)`-step computation is `(T + 1)`-Lipschitz in every step law.
+  `(T + 1)`-step computation is `(T + 1)`-Lipschitz in every step law;
+* the two correctness statements applied to concrete step laws: under the step law that always
+  writes `true` the honest proposer is accepted with probability at least `3 / 5` against every
+  challenger, and under the step law that always writes `false`, with the trivial Lipschitz
+  constant, every proposer is accepted with probability at most `2 / 5` against the honest
+  challenger.
 -/
 
 public section
@@ -27,6 +32,7 @@ public section
 namespace CslibFrontierTests.Debate
 
 open Cslib Cslib.Interactive.Debate Cslib.ProbOracleComp Cslib.Probability
+open OracleComp (sumHandler)
 open scoped ENNReal NNReal
 
 /-- A uniform coin from the challenger's copy: the claim `3` on the grid `4`. -/
@@ -65,5 +71,45 @@ output of a `(T + 1)`-step computation is `(T + 1)`-Lipschitz in every step law.
 example (T : ℕ) (law : List Bool → PMF Bool) :
     LipschitzAt ((T + 1 : ℕ) : ℝ≥0) law (output (T + 1)) :=
   (LipschitzAt.of_isQueryBounded (isQueryBounded_transcript (T + 1)) law).map _
+
+/-- Under a constant step law every step writes the same bit. -/
+theorem evalWith_transcript_const (b : Bool) :
+    ∀ n, OracleComp.evalWith (sumHandler ProbComp.unifOracle fun _ => PMF.pure b) (transcript n) =
+      PMF.pure (List.replicate n b)
+  | 0 => rfl
+  | n + 1 => by
+    have hquery (bits : List Bool) :
+        OracleComp.evalWith (sumHandler ProbComp.unifOracle fun _ => PMF.pure b)
+          (ProbOracleComp.query (spec := StepSpec) bits) = PMF.pure b :=
+      OracleComp.evalWith_query _ _
+    simp only [transcript, OracleComp.evalWith_bind, OracleComp.evalWith_pure, hquery,
+      evalWith_transcript_const b n, PMF.pure_bind, List.replicate_succ]
+
+/-- Under a constant step law the output of a computation of at least one step is that bit. -/
+theorem evalWith_output_const (b : Bool) (n : ℕ) :
+    OracleComp.evalWith (sumHandler ProbComp.unifOracle fun _ => PMF.pure b) (output (n + 1)) =
+      PMF.pure b := by
+  rw [output, OracleComp.evalWith_map, evalWith_transcript_const, PMF.pure_map]
+  rfl
+
+/-- Completeness applied: under the step law that always writes `true`, the honest proposer is
+accepted with probability at least `3 / 5` against every challenger. -/
+example {K : ℝ≥0} (hK : 0 < K) (T : ℕ) (B : Challenger (Params.default K T).grid) :
+    3 / 5 ≤ OracleComp.evalWith (sumHandler ProbComp.unifOracle fun _ => PMF.pure true)
+      (run (Params.default K T) (honestProposer (Params.default K T)) B) true :=
+  completeness_stepLaw hK T (by
+    rw [evalWith_output_const, PMF.pure_apply_self]
+    exact ENNReal.div_le_of_le_mul (by norm_num)) B
+
+/-- Soundness applied: under the step law that always writes `false`, with the trivial Lipschitz
+constant `T + 1`, every proposer is accepted with probability at most `2 / 5` against the honest
+challenger. -/
+example (T : ℕ) (A : Proposer (Params.default ((T + 1 : ℕ) : ℝ≥0) T).grid) :
+    OracleComp.evalWith (sumHandler ProbComp.unifOracle fun _ => PMF.pure false)
+      (run (Params.default ((T + 1 : ℕ) : ℝ≥0) T) A
+        (honestChallenger (Params.default ((T + 1 : ℕ) : ℝ≥0) T))) true ≤ 2 / 5 :=
+  soundness_of_lipschitzAt_stepLaw (by positivity) T
+    ((LipschitzAt.of_isQueryBounded (isQueryBounded_transcript (T + 1)) _).map _)
+    (by simp [evalWith_output_const]) A
 
 end CslibFrontierTests.Debate

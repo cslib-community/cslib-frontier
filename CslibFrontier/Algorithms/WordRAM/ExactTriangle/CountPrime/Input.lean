@@ -53,8 +53,7 @@ theorem exec_header {W n p : ℕ} (x : Data 128) (hn : x.mem 1 = n) (hp : x.mem 
       y.regs Reg.side = n ∧ y.regs Reg.modulus = p ∧
       y.regs Reg.inputAB = 3 ∧ y.regs Reg.inputBC = 3 + n * n ∧
       y.regs Reg.inputAC = 3 + 2 * (n * n) ∧ y.regs Reg.scratch = 3 + 3 * (n * n) := by
-  unfold input
-  wram_exec [hn, hp]
+  wram_exec [input, hn, hp]
   exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
     by wram_simp; omega, by wram_simp; omega⟩
 

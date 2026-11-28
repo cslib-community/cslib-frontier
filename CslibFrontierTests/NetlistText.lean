@@ -16,15 +16,19 @@ import Mathlib.Analysis.SpecialFunctions.ExpDeriv
 Every certificate below was produced by an untrusted exact generator and is checked by the
 kernel (`decide +kernel`), together with the reading of the text.
 
-* **RC low-pass filter** (`rcText`): the text, in the form of a schematic editor's SPICE export,
-  is read as the explicit netlist `rcParsed`; the certificate is accepted end to end, so every
-  trajectory of the circuit described by the text converges exponentially to its operating
-  point, and its zero-state response at the probe `v(/out)` to the input port of `V1` is
-  `∫₀ᵗ 1000 e^{-1000 (t - s)} u s ds`: the impulse response `h t = 1000 e^{-1000 t}` of
+* **RC low-pass filter** (`rcText`): the text, with node names of the form a schematic editor
+  writes, is read as the explicit netlist `rcParsed`; the certificate is accepted end to end, so
+  for zero input every trajectory of the circuit described by the text converges exponentially
+  to its operating point, and its zero-state response at the probe `v(/out)` to the input port
+  of `V1` is `∫₀ᵗ 1000 e^{-1000 (t - s)} u s ds`: the impulse response `h t = 1000 e^{-1000 t}` of
   `R = 1 kΩ`, `C = 1 µF`, with no direct feedthrough.
-* **RLC low-pass filter** (`lpText`): `R = 1 kΩ`, `L = 10 mH`, `C = 100 nF`, with node names as
-  such an export writes them and two probes (the capacitor voltage and the inductor current),
+* **RLC low-pass filter** (`lpText`): `R = 1 kΩ`, `L = 10 mH`, `C = 100 nF`, with node names of
+  that form and two probes (the capacitor voltage and the inductor current),
   accepted end to end.
+* **The grammar's boundaries**: comments, blank lines, trailing blanks and `\r\n` line ends are
+  accepted; the first line is the title whatever it contains; a missing `.end`, a `.end` with
+  more words and any nonblank line after `.end` are rejected, as are values such as `1.e2`,
+  `1.` and `.5`, names with `~` or `//`, end-of-line comments and ngspice's own `.probe` syntax.
 * **Rejections**: altered netlists (another resistance, another node, a removed line) and a
   corrupted certificate are not accepted, and unsupported constructs are rejected by the reader
   with a message: other elements (a diode, a subcircuit), directives (`.include`, `.model`),
@@ -55,9 +59,9 @@ theorem eq_ok_of_okOf {e : Except String ParsedNetlist} {P : ParsedNetlist}
 
 /-! ### RC low-pass filter -/
 
-/-- An RC low-pass filter, as a schematic editor's SPICE export writes it. -/
+/-- An RC low-pass filter, with node names of the form a schematic editor writes. -/
 def rcText : String := ".title RC low-pass filter
-* exported from a schematic
+* a comment line
 V1 /in 0 dc 0 ac 1
 R1 /in /out 1k
 C1 /out 0 1u
@@ -198,7 +202,7 @@ example {u : ℝ → Fin rcParsed.netlist.inputs → ℝ} (hu : ContinuousOn u (
 
 /-! ### RLC low-pass filter -/
 
-/-- An RLC low-pass filter with the node names of a schematic editor's SPICE export. -/
+/-- An RLC low-pass filter with node names of the form a schematic editor writes. -/
 def lpText : String := ".title RLC low-pass filter
 V1 /in 0 dc 0 ac 1
 R1 /in Net-_R1-Pad2_ 1k
@@ -276,31 +280,97 @@ example : checkText rcText { rcCert with real := { rcCert.real with B := [[(0, 9
   decide +kernel
 
 /-- Unsupported elements, directives and syntax are rejected by the reader. -/
-example : errorOf (parse "t\nD1 a 0 dmod\n") = some "unsupported element: D1" := by decide +kernel
-example : errorOf (parse "t\nX1 a 0 opamp\n") = some "unsupported element: X1" := by decide +kernel
-example : errorOf (parse "t\n.include models.lib\n") = some "unsupported directive: .include" := by
+example : errorOf (parse "t\nD1 a 0 dmod\n.end\n") = some "unsupported element: D1" := by
   decide +kernel
-example : errorOf (parse "t\n.model dmod D\n") = some "unsupported directive: .model" := by
+example : errorOf (parse "t\nX1 a 0 opamp\n.end\n") = some "unsupported element: X1" := by
   decide +kernel
-example : errorOf (parse "t\nR1 a 0 1k\n+ 2k\n") = some "unsupported element: +" := by
+example : errorOf (parse "t\n.include models.lib\n.end\n") =
+    some "unsupported directive: .include" := by
   decide +kernel
-example : errorOf (parse "t\nR1 a GND 1k\n") = some "malformed nodes" := by decide +kernel
-example : errorOf (parse "t\nR1 a 0 1k\nR2 A 0 1k\n")
+example : errorOf (parse "t\n.model dmod D\n.end\n") = some "unsupported directive: .model" := by
+  decide +kernel
+example : errorOf (parse "t\nR1 a 0 1k\n+ 2k\n.end\n") = some "unsupported element: +" := by
+  decide +kernel
+example : errorOf (parse "t\nR1 a GND 1k\n.end\n") = some "malformed nodes" := by decide +kernel
+example : errorOf (parse "t\nR1 a 0 1k\nR2 A 0 1k\n.end\n")
     = some "node names that differ only in case" := by
   decide +kernel
-example : errorOf (parse "t\nR1 a 0 1k\nr1 a 0 1k\n") = some "duplicate element names" := by
+example : errorOf (parse "t\nR1 a 0 1k\nr1 a 0 1k\n.end\n") = some "duplicate element names" := by
   decide +kernel
-example : errorOf (parse "t\nR1 a 0 1kOhm\n") = some "malformed value: 1kOhm" := by decide +kernel
-example : errorOf (parse "t\nV1 a 0 sin(0 1 1k)\n") = some "malformed source" := by decide +kernel
-example : errorOf (parse "t\nV1 a 0 ac 2\n")
+example : errorOf (parse "t\nR1 a 0 1kOhm\n.end\n") = some "malformed value: 1kOhm" := by
+  decide +kernel
+example : errorOf (parse "t\nV1 a 0 sin(0 1 1k)\n.end\n") = some "malformed source" := by
+  decide +kernel
+example : errorOf (parse "t\nV1 a 0 ac 2\n.end\n")
     = some "unsupported source: only `ac 1` input ports" := by
   decide +kernel
-example : errorOf (parse "t\n.probe v b\nR1 a 0 1k\n") = some "probe of an unknown node" := by
+example : errorOf (parse "t\nV1 a 0 ac 1 90\n.end\n") = some "malformed source" := by
+  decide +kernel
+example : errorOf (parse "t\n.probe v b\nR1 a 0 1k\n.end\n") = some "probe of an unknown node" := by
+  decide +kernel
+
+/-! ### The boundaries of the grammar -/
+
+/-- Accepted: comment lines (also indented), blank lines, trailing blanks, `\r\n` line ends, an
+upper-case `.END`, blank lines after it, and a text ending without a newline. -/
+example : okOf (parse "t\r\n* comment\r\n  * indented comment\r\n\r\nR1 a 0 1k \t\r\n.END\r\n \n") =
+    okOf (parse "t\nR1 a 0 1k\n.end") := by
+  decide +kernel
+example : (okOf (parse "t\nR1 a 0 1k\n.end")).isSome = true := by decide +kernel
+
+/-- The first line is the title whatever it contains: here the netlist is empty. -/
+example : okOf (parse "R1 a 0 1k\n.end\n") =
+    some ⟨⟨0, 0, []⟩, [], [], []⟩ := by
+  decide +kernel
+
+/-- Rejected: no `.end` line (also for the empty text, whose only line is its title). -/
+example : errorOf (parse "") = some "missing .end" := by decide +kernel
+example : errorOf (parse ".end\n") = some "missing .end" := by decide +kernel
+example : errorOf (parse "t\nR1 a 0 1k\n") = some "missing .end" := by decide +kernel
+
+/-- Rejected: a `.end` line with more words, and nonblank lines after `.end`, including
+comments and a second `.end`: nothing after the terminator is silently dropped. -/
+example : errorOf (parse "t\nR1 a 0 1k\n.end junk\n") = some "malformed .end" := by
+  decide +kernel
+example : errorOf (parse "t\nR1 a 0 1k\n.end\nR2 a 0 1k\n") = some "text after .end" := by
+  decide +kernel
+example : errorOf (parse "t\nR1 a 0 1k\n.end\n* comment\n") = some "text after .end" := by
+  decide +kernel
+example : errorOf (parse "t\nR1 a 0 1k\n.end\n.end\n") = some "text after .end" := by
+  decide +kernel
+
+/-- Rejected: end-of-line comments, names with `~` or `//`, a `.title` line after the first,
+`dc` without a value, and ngspice's own `.probe` syntax. -/
+example : errorOf (parse "t\nR1 a 0 1k $ comment\n.end\n") = some "malformed element" := by
+  decide +kernel
+example : errorOf (parse "t\nR1 a 0 1k ; comment\n.end\n") = some "malformed element" := by
+  decide +kernel
+example : errorOf (parse "t\nR1 a //b 1k\n.end\n") = some "malformed nodes" := by
+  decide +kernel
+example : errorOf (parse "t\nR1 a ~b 1k\n.end\n") = some "malformed nodes" := by
+  decide +kernel
+example : errorOf (parse "t\nR1//x a 0 1k\n.end\n") = some "malformed name" := by
+  decide +kernel
+example : errorOf (parse "t\n.title other\n.end\n") = some "unsupported directive: .title" := by
+  decide +kernel
+example : errorOf (parse "t\nV1 a 0 dc\n.end\n") = some "malformed source" := by
+  decide +kernel
+example : errorOf (parse "t\nR1 a 0 1k\n.probe v(a)\n.end\n") = some "malformed probe" := by
+  decide +kernel
+example : errorOf (parse "t\nR1 a 0 1k\n.probe I(R1)\n.end\n") = some "malformed probe" := by
   decide +kernel
 
 /-- Values: suffixes, exponents and fractions are exact; `1F` is `10⁻¹⁵`, as in SPICE. -/
-example : (["4.7k", "2.5e-3meg", "100n", "1F", "-3"].map fun s => value? s.toList) =
-    [some 4700, some 2500, some (1/10000000), some (1/1000000000000000), some (-3)] := by
+example : (["4.7k", "2.5e-3meg", "100n", "1F", "-3", "1.5e2", "1e2k", "+0.25"].map
+    fun s => value? s.toList) =
+    [some 4700, some 2500, some (1/10000000), some (1/1000000000000000), some (-3), some 150,
+      some 100000, some (1/4)] := by
+  decide +kernel
+
+/-- Values: a dot needs digits on both sides, an exponent needs digits, and suffixes other than
+those of the grammar (`mil`, `a`) and units after a value are rejected. -/
+example : (["1.e2", "1.", ".5", "1e", "1e+", "1mil", "1a", "1kOhm", "1..5", ""].map
+    fun s => value? s.toList) = List.replicate 10 none := by
   decide +kernel
 
 end CslibFrontierTests.NetlistText

@@ -154,8 +154,7 @@ theorem exec {w : ℕ} (x : Data 11) {N R : ℕ} (hn : x.regs n = N) (hr : x.reg
     ∃ y, ExecWithin w program x y (time R) ∧ y.regs ok ≤ 1 ∧
       (y.regs ok = 1 ↔ ∀ b, 1 ≤ b → b ≤ R → b.gcd N = 1 ∨ b.gcd N = N) ∧
       y.regs phi = Nat.totient R ∧ y.regs n = N ∧ y.regs r = R := by
-  unfold program
-  wram_exec [hr]
+  wram_exec [program, hr]
   wram_call (ExecWithin.loop_count (Inv N R) (fun _ ⟨_, _, _, hlim, _⟩ => hlim)
     (body_step hfN hfR))
     with y ⟨⟨hyn, hyr, _, _, hyok, hyiff, hyphi⟩, _⟩

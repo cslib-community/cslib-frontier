@@ -138,10 +138,10 @@ def nodeRefIdx (c : Netlist) : List ℕ :=
 def ParsedNetlist.isPrintable (P : ParsedNetlist) : Bool :=
   P.netlist.nodes == P.nodeNames.length &&
     P.nodeNames.all (fun w => isNodeName w && w != ['0']) && (P.nodeNames.map lower).Nodup &&
-    firstOccurrences [] (nodeRefIdx P.netlist) == List.range' 1 P.nodeNames.length &&
+    (nodeRefIdx P.netlist).eraseDups == List.range' 1 P.nodeNames.length &&
     P.branchNames.length == P.netlist.branches.length &&
     (List.zip P.branchNames P.netlist.branches).all (fun nb =>
-      nb.1.all isNameChar && (nb.1.head?.map Char.toLower) == some (elemLetter nb.2.elem)) &&
+      isName nb.1 && (nb.1.head?.map Char.toLower) == some (elemLetter nb.2.elem)) &&
     (P.branchNames.map lower).Nodup &&
     P.netlist.branches.filterMap (fun br => elemInput br.elem) == List.range P.netlist.inputs &&
     P.netlist.branches.all (fun br => isDecimal (elemValue br.elem)) &&
@@ -321,11 +321,11 @@ theorem value?_printValue {q : ℚ} (hq : isDecimal q = true) : value? (printVal
 and nodes, a supported element letter with its number of nodes, an input port only on a
 source, and a decimal value. -/
 private def Card.Printable : Card → Prop
-  | .element name nodes v ac => ∃ c rest, name = c :: rest ∧ name.all isNameChar = true ∧
+  | .element name nodes v ac => ∃ c rest, name = c :: rest ∧ isName name = true ∧
       arity c.toLower = nodes.length ∧ nodes.length ≠ 0 ∧ (∀ n ∈ nodes, isNodeName n = true) ∧
       isDecimal v = true ∧ (ac = true → isSource c.toLower = true)
   | .probeV p q => isNodeName p = true ∧ isNodeName q = true
-  | .probeI n => n ≠ [] ∧ n.all isNameChar = true
+  | .probeI n => isName n = true
 
 private theorem isWord_lit {w : List Char} (hne : w ≠ [])
     (h : w.all (fun c => !isBlank c && c != '\n') = true) : IsWord w :=
@@ -340,13 +340,12 @@ private theorem not_blank_of_isNameChar {c : Char} (h : isNameChar c = true) :
       rcases hb with (rfl | rfl) | rfl <;> exact absurd h (by decide)
   · rintro rfl; exact absurd h (by decide)
 
-private theorem isWord_of_name {w : List Char} (hne : w ≠ []) (h : w.all isNameChar = true) :
-    IsWord w :=
-  ⟨hne, fun c hc => not_blank_of_isNameChar (List.all_eq_true.1 h c hc)⟩
+private theorem isWord_of_name {w : List Char} (h : isName w = true) : IsWord w := by
+  simp only [isName, Bool.and_eq_true, Bool.not_eq_true', List.isEmpty_eq_false_iff] at h
+  exact ⟨h.1.1, fun c hc => not_blank_of_isNameChar (List.all_eq_true.1 h.1.2 c hc)⟩
 
-private theorem isWord_of_isNodeName {w : List Char} (h : isNodeName w = true) : IsWord w := by
-  simp only [isNodeName, Bool.and_eq_true, Bool.not_eq_true', List.isEmpty_eq_false_iff] at h
-  exact isWord_of_name h.1.1 h.1.2
+private theorem isWord_of_isNodeName {w : List Char} (h : isNodeName w = true) : IsWord w :=
+  isWord_of_name (Bool.and_eq_true _ _ ▸ h).1
 
 private theorem printValue_chars {q : ℚ} :
     ∀ c ∈ printValue q, c.isDigit = true ∨ c = '-' ∨ c = 'e' := by
@@ -398,7 +397,7 @@ private theorem isWord_cardWords {c : Card} (hc : c.Printable) : ∀ w ∈ cardW
     intro w hw
     simp only [cardWords, List.cons_append, List.mem_cons, List.mem_append] at hw
     rcases hw with rfl | ((hw | hw) | rfl | hw)
-    · exact isWord_of_name (List.cons_ne_nil _ _) hn
+    · exact isWord_of_name hn
     · exact isWord_of_isNodeName (hnodes w hw)
     · split_ifs at hw
       · simp only [List.mem_singleton] at hw; subst hw
@@ -423,7 +422,7 @@ private theorem isWord_cardWords {c : Card} (hc : c.Printable) : ∀ w ∈ cardW
     rcases hw with rfl | rfl | rfl
     · exact isWord_lit (by simp) (by decide)
     · exact isWord_lit (by simp) (by decide)
-    · exact isWord_of_name hc.1 hc.2
+    · exact isWord_of_name hc
 
 private theorem arity_ne_zero {c : Char} (h : arity c ≠ 0) :
     c ≠ '*' ∧ c ≠ '.' := by
@@ -441,7 +440,7 @@ private theorem elementCard_cardWords {name : List Char} {nodes : List (List Cha
     bne_self_eq_false, Bool.not_true, Bool.or_false, Bool.false_eq_true, ↓reduceIte]
   by_cases hs : isSource c.toLower = true
   · have hdc : (List.map Char.toLower ['d', 'c'] == "dc".toList) = true := by decide
-    simp only [hs, ↓reduceIte, List.singleton_append, sourceSpec, lower, hdc,
+    simp only [hs, ↓reduceIte, List.singleton_append, sourceSpec, sourceValue, lower, hdc,
       value?_printValue hv]
     cases ac <;> rfl
   · have hac' : ac = false := by cases ac <;> simp_all
@@ -452,16 +451,16 @@ private theorem end_toList : ".end".toList = ['.', 'e', 'n', 'd'] := rfl
 
 private theorem probe_toList : ".probe".toList = ['.', 'p', 'r', 'o', 'b', 'e'] := rfl
 
-private theorem cards_cardWords (rest : List (List Char)) :
+private theorem cards_cardWords :
     ∀ {cs : List Card}, (∀ c ∈ cs, c.Printable) →
       cards ((cs.map fun c => [' '].intercalate (cardWords c)) ++
-        [' '].intercalate [".end".toList] :: rest) = .ok cs
+        [' '].intercalate [".end".toList] :: [[]]) = .ok cs
   | [], _ => by
     have h : words ([' '].intercalate [".end".toList]) = [".end".toList] := by decide
     simp only [List.map_nil, List.nil_append, cards, h]
     rfl
   | c :: cs, hcs => by
-    have ih := cards_cardWords rest fun d hd => hcs d (List.mem_cons_of_mem _ hd)
+    have ih := cards_cardWords fun d hd => hcs d (List.mem_cons_of_mem _ hd)
     have hc := hcs c List.mem_cons_self
     rw [List.map_cons, List.cons_append, cards, words_line (isWord_cardWords hc)]
     cases c with
@@ -484,10 +483,11 @@ private theorem cards_cardWords (rest : List (List Char)) :
         hc.1, hc.2]
       simp +decide
     | probeI n =>
+      have hc' : isName n = true := hc
       rw [ih]
       simp only [cardWords, probe_toList, List.head?_cons, beq_iff_eq, Option.some.injEq,
         lower, List.map_cons, List.map_nil, end_toList, List.cons.injEq, ↓reduceIte, probeCard]
-      simp +decide
+      simp +decide [hc']
 
 private theorem lines_flatMap (rest : List Char) :
     ∀ {ls : List (List Char)}, (∀ l ∈ ls, ∀ c ∈ l, (c == '\n') = false) →
@@ -521,55 +521,29 @@ private theorem lines_printCards {cs : List Card} (hcs : ∀ c ∈ cs, c.Printab
 /-- **The reader reads back the printed cards**, before resolving their names. -/
 private theorem parse_printCards {cs : List Card} (hcs : ∀ c ∈ cs, c.Printable) :
     parse (String.ofList (printCards cs)) = resolve cs := by
-  rw [parse, String.toList_ofList, lines_printCards hcs]
-  simp only [cards_cardWords [[]] hcs]
+  rw [parse, String.toList_ofList, lines_printCards hcs, List.tail_cons]
+  simp only [cards_cardWords hcs]
 
 /-! ### Resolving the printed names -/
 
-private theorem firstOccurrences_map {α β : Type} [BEq α] [LawfulBEq α] [BEq β] [LawfulBEq β]
-    (f : α → β) : ∀ (seen l : List α), Set.InjOn f {x | x ∈ seen ∨ x ∈ l} →
-      firstOccurrences (seen.map f) (l.map f) = (firstOccurrences seen l).map f
-  | seen, [], _ => by simp [firstOccurrences, List.map_reverse]
-  | seen, a :: l, hf => by
-    have hc : (seen.map f).contains (f a) = seen.contains a := by
-      rw [Bool.eq_iff_iff, List.contains_iff_mem, List.contains_iff_mem, List.mem_map]
-      exact ⟨fun ⟨x, hx, he⟩ => hf (.inl hx) (.inr List.mem_cons_self) he ▸ hx,
-        fun h => ⟨a, h, rfl⟩⟩
-    rw [List.map_cons, firstOccurrences, firstOccurrences, hc]
-    split_ifs
-    · exact firstOccurrences_map f seen l fun x hx y hy => hf
-        (hx.imp_right (List.mem_cons_of_mem _)) (hy.imp_right (List.mem_cons_of_mem _))
-    · rw [← List.map_cons]
-      refine firstOccurrences_map f (a :: seen) l fun x hx y hy => hf ?_ ?_
-      · rcases hx with hx | hx
-        · rcases List.mem_cons.1 hx with rfl | hx
-          · exact .inr List.mem_cons_self
-          · exact .inl hx
-        · exact .inr (List.mem_cons_of_mem _ hx)
-      · rcases hy with hy | hy
-        · rcases List.mem_cons.1 hy with rfl | hy
-          · exact .inr List.mem_cons_self
-          · exact .inl hy
-        · exact .inr (List.mem_cons_of_mem _ hy)
-
-private theorem mem_firstOccurrences {α : Type} [BEq α] [LawfulBEq α] :
-    ∀ (seen l : List α) (x : α), x ∈ seen ∨ x ∈ l → x ∈ firstOccurrences seen l
-  | seen, [], x, h => by simpa [firstOccurrences] using h
-  | seen, a :: l, x, h => by
-    rw [firstOccurrences]
-    split_ifs with ha
-    · refine mem_firstOccurrences seen l x ?_
-      rcases h with h | h
-      · exact .inl h
-      · rcases List.mem_cons.1 h with rfl | h
-        · exact .inl (List.contains_iff_mem.1 ha)
-        · exact .inr h
-    · refine mem_firstOccurrences (a :: seen) l x ?_
-      rcases h with h | h
-      · exact .inl (List.mem_cons_of_mem _ h)
-      · rcases List.mem_cons.1 h with rfl | h
-        · exact .inl List.mem_cons_self
-        · exact .inr h
+/-- `eraseDups` commutes with a map that is injective on the list. -/
+private theorem eraseDups_map {α β : Type} [BEq α] [LawfulBEq α] [BEq β] [LawfulBEq β]
+    (f : α → β) : ∀ (l : List α), Set.InjOn f {x | x ∈ l} →
+      (l.map f).eraseDups = l.eraseDups.map f
+  | [], _ => rfl
+  | a :: l, hf => by
+    have hfil : (l.map f).filter (fun b => !b == f a) = (l.filter fun b => !b == a).map f := by
+      rw [List.filter_map]
+      congr 1
+      refine List.filter_congr fun x hx => ?_
+      simp only [Function.comp, Bool.not_inj_iff, beq_eq_beq]
+      exact ⟨fun h => hf (List.mem_cons_of_mem _ hx) List.mem_cons_self h, fun h => h ▸ rfl⟩
+    rw [List.map_cons, List.eraseDups_cons, List.eraseDups_cons, List.map_cons, hfil,
+      eraseDups_map f _ fun x hx y hy => hf (List.mem_cons_of_mem _ (List.mem_of_mem_filter hx))
+        (List.mem_cons_of_mem _ (List.mem_of_mem_filter hy))]
+termination_by l => l.length
+decreasing_by
+  exact Nat.lt_succ_of_le (List.length_filter_le _ _)
 
 private theorem map_nodeName_range' (names : List (List Char)) :
     (List.range' 1 names.length).map (nodeName names) = names := by
@@ -800,14 +774,14 @@ private theorem arity_elemLetter (br : Branch) :
   cases elem <;> rfl
 
 private theorem nodeBound {P : ParsedNetlist}
-    (horder : firstOccurrences [] (nodeRefIdx P.netlist) = List.range' 1 P.nodeNames.length)
+    (horder : (nodeRefIdx P.netlist).eraseDups = List.range' 1 P.nodeNames.length)
     {br : Branch} (hbr : br ∈ P.netlist.branches) {j : ℕ} (hj : j ∈ branchNodes br) :
     j ≤ P.nodeNames.length := by
   rcases Nat.eq_zero_or_pos j with rfl | hpos
   · exact Nat.zero_le _
   · have hmem : j ∈ nodeRefIdx P.netlist :=
       List.mem_flatMap.2 ⟨br, hbr, List.mem_filter.2 ⟨hj, by simp; omega⟩⟩
-    have := mem_firstOccurrences [] _ j (.inr hmem)
+    have := List.mem_eraseDups.2 hmem
     rw [horder, List.mem_range'_1] at this
     omega
 
@@ -848,7 +822,7 @@ theorem parse_print {P : ParsedNetlist} (h : P.isPrintable = true) : parse (prin
       obtain ⟨d, rest, hnm, hd⟩ := hzip _ hnb
       have hbr : br ∈ P.netlist.branches := (List.of_mem_zip hnb).2
       dsimp only at hnm hd
-      refine ⟨d, rest, hnm, List.all_eq_true.2 (hbn _ hnb).1, ?_, ?_, ?_, hval br hbr, ?_⟩
+      refine ⟨d, rest, hnm, (hbn _ hnb).1, ?_, ?_, ?_, hval br hbr, ?_⟩
       · rw [hd, arity_elemLetter, List.length_map]
       · rw [List.length_map]; obtain ⟨pos, neg, elem⟩ := br; cases elem <;> simp [branchNodes]
       · intro w hw
@@ -870,22 +844,20 @@ theorem parse_print {P : ParsedNetlist} (h : P.isPrintable = true) : parse (prin
             List.zip P.branchNames P.netlist.branches := by
           rw [List.mem_iff_getElem]
           exact ⟨b, by simp [hpc, ← hl], by simp⟩
-        obtain ⟨d, rest, hnm, -⟩ := hzip _ hmem
         have he : P.branchNames.getD b [] = P.branchNames[b] := by
           simp [List.getD_eq_getElem?_getD, hpc]
-        refine ⟨by rw [he]; dsimp only at hnm; simp [hnm],
-          by rw [he]; exact List.all_eq_true.2 (hbn _ hmem).1⟩
-  have hfo : firstOccurrences [] ((nodeRefIdx P.netlist).map (nodeName P.nodeNames)) =
+        change isName (P.branchNames.getD b []) = true
+        rw [he]
+        exact (hbn _ hmem).1
+  have hfo : ((nodeRefIdx P.netlist).map (nodeName P.nodeNames)).eraseDups =
       P.nodeNames := by
-    have := firstOccurrences_map (nodeName P.nodeNames) [] (nodeRefIdx P.netlist) (by
+    rw [eraseDups_map (nodeName P.nodeNames) (nodeRefIdx P.netlist) (by
       intro x hx y hy hxy
       refine nodeName_injOn hnd ?_ ?_ hxy
-      · have := mem_firstOccurrences [] _ x hx
+      · have := List.mem_eraseDups.2 hx
         rwa [horder] at this
-      · have := mem_firstOccurrences [] _ y hy
-        rwa [horder] at this)
-    rw [List.map_nil] at this
-    rw [this, horder, map_nodeName_range']
+      · have := List.mem_eraseDups.2 hy
+        rwa [horder] at this), horder, map_nodeName_range']
   have hfilter : (toCards P).filter isProbeCard =
       P.probes.map (probeCardOf P) := by
     rw [toCards, List.filter_append, List.filter_eq_nil_iff.2, List.nil_append,

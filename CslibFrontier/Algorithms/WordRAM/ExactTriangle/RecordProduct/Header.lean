@@ -42,8 +42,7 @@ theorem exec_writeHeader {W b m n A Q : ℕ} (x : Data 320)
       ∀ i : Fin 320, i.val < 78 → y.regs i = x.regs i := by
   have hquot : 2 * m / 2 = m := by omega
   refine WP.exists_execWithin_preserves (fun i hi => writeHeader_preserves i hi) ?_
-  unfold writeHeader
-  wram_exec [hb, hm, hA, hQ, hn, h1, h2, h19, h4, hquot]
+  wram_exec [writeHeader, hb, hm, hA, hQ, hn, h1, h2, h19, h4, hquot]
   intro hpres
   refine ⟨?_, fun a ha => by update_simp, hpres⟩
   intro j

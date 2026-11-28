@@ -4,8 +4,13 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.InputBit
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
+import CslibFrontier.Tactic.Space
 
 /-!
 # A loop body that reads the input where its registers point
@@ -15,6 +20,9 @@ written as a function of the registers and the word: it looks up `w[pos]?` with 
 accessor `Turing.MultiTapeTM.ComputableInSpace.inputBit` and returns the next registers. There is
 no reading protocol, no phase and no finished flag in the registers.
 -/
+
+-- This module contains only checked clients.
+set_option linter.privateModule false
 
 open Turing Turing.MultiTapeTM
 
@@ -55,16 +63,7 @@ theorem step_inSpace :
     ComputableInSpace step (encPair encReg encBits) (encOption encReg) budget := by
   have hreg := reg_inSpace
   have hbit := bit_inSpace
-  have hconst {β : Type} (encB : β ↪ List Bool) (b : β) :
-      ComputableInSpace (fun _ : (ℕ × ℕ) × List Bool => b) (encPair encReg encBits) encB budget :=
-    ComputableInSpace.budget_const b
-  exact ComputableInSpace.budget_ite (ComputableInSpace.budget_optionIsSome hbit)
-    (ComputableInSpace.budget_optionSome (ComputableInSpace.budget_prod
-      (ComputableInSpace.budget_natSucc hreg.fst')
-      (ComputableInSpace.budget_natAdd hreg.snd'
-        (ComputableInSpace.budget_ite (ComputableInSpace.budget_optionGetD false hbit)
-          (hconst encNat 1) (hconst encNat 0)))))
-    (hconst (encOption encReg) none)
+  space [step]
 
 /-- **The number of ones of a word**, by a loop whose body reads the word at its stored
 position. -/

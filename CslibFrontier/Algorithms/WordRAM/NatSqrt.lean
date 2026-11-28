@@ -60,8 +60,7 @@ theorem exec {w : ℕ} (x : Data 6) (hfit : Fits w (4 * x.regs arg + 4)) :
       y.regs root = Nat.sqrt (x.regs arg) ∧ y.regs arg = x.regs arg ∧ y.mem = x.mem ∧
       y.regs one = 1 := by
   let n := x.regs arg
-  unfold program
-  wram_exec
+  wram_exec [program]
   let I (y : Data 6) : Prop := y.regs arg = n ∧ y.regs one = 1 ∧ y.regs bound = n + 1 ∧
     y.regs next = y.regs root + 1 ∧ y.regs square = y.regs next * y.regs next ∧
     y.regs root ≤ Nat.sqrt n ∧ y.mem = x.mem
@@ -74,8 +73,7 @@ theorem exec {w : ℕ} (x : Data 6) (hfit : Fits w (4 * x.regs arg + 4)) :
     have hnn : y.regs next ≤ x.regs arg := hnext.trans (Nat.sqrt_le_self n)
     have hsquare : Fits w ((y.regs next + 1) * (y.regs next + 1)) := by
       fits [show (y.regs next + 1) * (y.regs next + 1) ≤ 4 * x.regs arg + 4 by nlinarith]
-    unfold body
-    wram_exec [ho]
+    wram_exec [body, ho]
     dsimp only [I]
     wram_simp [ha, ho, hb, hnext, hm]
     omega

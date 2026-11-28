@@ -13,9 +13,6 @@ import CslibFrontier.Tactic.PolyTime
 
 namespace CslibFrontierTests.FiniteTables
 
--- Search the table programs without unfolding existential machine witnesses.
-attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
-
 open Cslib.Turing Turing.MultiTapeTM
 
 -- All three words may grow with the input; the fixed table length does not bound their sizes.

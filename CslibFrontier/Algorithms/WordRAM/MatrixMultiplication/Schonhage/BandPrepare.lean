@@ -95,8 +95,7 @@ theorem exec_prepareBand {w L m N : ℕ} (side : Bool) (β : ℕ) (x : Data 96)
     · intro b hbb
       wram_simp [htmem, hsmem]
       exact hyout b hbb
-  unfold prepareBand prepareHead
-  wram_exec *
+  wram_exec * [prepareBand, prepareHead]
   wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.cells) hbody
     (by wram_simp; exact Nat.zero_le _) ?_)
     with y ⟨⟨hyp, hyb, hym1, hyin, hyout⟩, hidx⟩

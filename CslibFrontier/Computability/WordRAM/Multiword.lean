@@ -156,8 +156,7 @@ theorem exec {w : ℕ} (x : Data 7) (hbase : x.regs base = radix w)
       radix w < radix w :=
     (Nat.div_lt_iff_lt_mul hβ).mpr (by simpa only [pow_two] using limb_update_lt_sq ha hb hd hc)
   refine WP.exists_execWithin ?_
-  unfold program
-  wram_exec [hbase, hs]
+  wram_exec [program, hbase, hs]
   wram_simp
   exact ⟨Nat.mod_lt _ hβ, hq, (Nat.mod_add_div _ _).symm⟩
 
@@ -176,8 +175,7 @@ theorem exec_initialized {w : ℕ} (x : Data 7) (hw : 2 ≤ w)
     lt_of_lt_of_le (by decide : 2 < 2 ^ 2) (Nat.pow_le_pow_right (by decide) hw)
   have hshift : 1 <<< (w / 2) = radix w := by rw [Nat.shiftLeft_eq, one_mul]; rfl
   refine WP.exists_execWithin ?_
-  unfold initializedProgram setup
-  wram_exec [fits_self w, h2, radix_fits hw, hshift]
+  wram_exec [initializedProgram, setup, fits_self w, h2, radix_fits hw, hshift]
   refine WP.name fun z hzx => ?_
   obtain ⟨y, he, hyd, hyc, hyeq, hym, hyl, hyr, hya, hyb⟩ :=
     exec (w := w) z (by rw [hzx]; wram_simp) (by rw [hzx]; wram_simp [ha])
