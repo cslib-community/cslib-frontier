@@ -125,8 +125,7 @@ ports. -/
 private theorem network_polyTime :
     ComputableInPolyTime (fun ((_, _, _, G) : ℕ × List ℕ × ℕ × DescribedNetwork T) => G)
       (encInput encT) (DescribedNetwork.encDescribed encT) :=
-  (ComputableInPolyTime.snd _ _).comp
-    ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.snd _ _))
+  (ComputableInPolyTime.snd _ _).snd'.snd'
 
 /-- The number of edges of an input, in unary. -/
 private theorem numEdges_polyTime :
@@ -138,23 +137,22 @@ private theorem numEdges_polyTime :
 private theorem rowsNet_polyTime :
     ComputableInPolyTime (fun ((_, _, r, G) : ℕ × List ℕ × ℕ × DescribedNetwork T) => (r, G))
       (encInput encT) (encPair encNat (DescribedNetwork.encDescribed encT)) :=
-  (ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.snd _ _)
+  (ComputableInPolyTime.snd _ _).snd'
 
 /-- **The guard is polynomial-time.** -/
 theorem guard_polyTime : ComputableInPolyTime (guard (T := T)) (encInput encT) encBool := by
   have hm := numEdges_polyTime (encT := encT)
   have hfl : ComputableInPolyTime (fun ((_, fl, _, G) : ℕ × List ℕ × ℕ × DescribedNetwork T) =>
       decide (fl = modulus G.numEdges)) (encInput encT) encBool :=
-    ComputableInPolyTime.decide_eq' ((ComputableInPolyTime.fst _ _).comp
-      (ComputableInPolyTime.snd _ _)) (FastContraction.modulus_polyTime.comp hm)
+    ComputableInPolyTime.decide_eq' (ComputableInPolyTime.snd _ _).fst'
+      (FastContraction.modulus_polyTime.comp hm)
   have hrows := (DescribedNetwork.rowsFirst_polyTime (encT := encT)).comp rowsNet_polyTime
   have hvs := (DescribedNetwork.vertices_polyTime (encT := encT)).comp network_polyTime
   have hdeg : ComputableInPolyTime (fun ((_, _, _, G) : ℕ × List ℕ × ℕ × DescribedNetwork T) =>
       G.vertices.all (fun v => decide (v.1.length ≤ degreeBound G.numEdges)))
-      (encInput encT) encBool :=
-    ComputableInPolyTime.allWithInput hvs <| ComputableInPolyTime.binary_le'
-      (ComputableInPolyTime.unary_to_binary.comp ((ComputableInPolyTime.length_list _).comp
-        ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _))))
+      (encInput encT) encBool := by
+    refine ComputableInPolyTime.allWithInput hvs ?_
+    exact ComputableInPolyTime.binary_le' (ComputableInPolyTime.unary_to_binary.comp (by fun_prop))
       (degreeBound_polyTime.comp (hm.comp (ComputableInPolyTime.fst _ _)))
   refine (ComputableInPolyTime.bool_and.comp (hfl.prod (ComputableInPolyTime.bool_and.comp
     (hrows.prod hdeg)))).of_enc_eq fun ⟨_, _, _, _⟩ => ?_

@@ -145,8 +145,7 @@ theorem computableInPolyTime_to3CNFAssignment :
         (encPair encUnary encUnary)) (encList (encPair encNat encBool)) :=
     (ComputableInPolyTime.dropUnary (encA := encPair encNat encBool)).comp
       ((ComputableInPolyTime.listGetDWithInput
-        ((ComputableInPolyTime.fst encCNF encBits).comp
-          ((ComputableInPolyTime.fst _ _).comp (.fst _ _)))
+        (by fun_prop)
         (ComputableInPolyTime.snd _ _).fst' []).prod
         (f := _) (g := fun p => p.2.2 + 2) (by fun_prop))
   exact SAT.computableInPolyTime_clause.comp
@@ -173,9 +172,9 @@ theorem computableInPolyTime_ofThreeSATWitness :
       (fun p : (CNF ℕ × List Bool) × ℕ =>
         SAT.assignment (toThreeSAT p.1.1) p.1.2 (splitVarToNat (.inl p.2)))
       (encPair (encPair encCNF encBits) encNat) encBool :=
+    let hinput := ComputableInPolyTime.fst (encPair encCNF encBits) encNat
     SAT.computableInPolyTime_assignment.comp
-      (((computableInPolyTime_toThreeSAT.comp ((ComputableInPolyTime.fst _ _).comp (.fst _ _))).prod
-        ((ComputableInPolyTime.snd _ _).comp (.fst _ _))).prod
+      (((computableInPolyTime_toThreeSAT.comp hinput.fst').prod hinput.snd').prod
         (computableInPolyTime_splitVarToNat.comp
           ((ComputableInPolyTime.sumInl _ (encPair encUnary encUnary)).comp (.snd _ _))))
   exact SAT.computableInPolyTime_padCertificate (.fst _ _)

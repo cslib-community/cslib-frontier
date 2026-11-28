@@ -165,7 +165,7 @@ private theorem polyStep_polyTime (h : R.PolyTime encX encA encY) :
     have hy := (ComputableInPolyTime.snd (encState encX encA encY) encY).comp hq
     have hσ := (ComputableInPolyTime.fst (encState encX encA encY) encY).comp hq
     exact (resume_polyTime h).comp
-      ((((ComputableInPolyTime.fst encX encA).comp hf).prod (h.absorb.comp (hf.prod hy))).prod
+      ((hf.fst'.prod (h.absorb.comp (hf.prod hy))).prod
         ((ComputableInPolyTime.tail (encA := encPair encX encA)).comp (hstack.comp hσ)))
   have hreturn := ComputableInPolyTime.optionElimWithInput
     (value := fun p : State X A Y × Y => p.1.1.head?) (fallback := fun p => p.1)

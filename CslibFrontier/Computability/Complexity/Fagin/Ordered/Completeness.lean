@@ -564,10 +564,7 @@ private theorem computableInPolyTime_cnfToOrderedEntry (b : Bool) :
   let encP := encPair (encPair encCNF encUnary) encUnary
   have hfv : ComputableInPolyTime Prod.fst encP (encPair encCNF encUnary) :=
     ComputableInPolyTime.fst _ _
-  have hφ : ComputableInPolyTime (fun p : (PL.CNF ℕ × ℕ) × ℕ => (Prod.fst p).fst) encP encCNF :=
-    (ComputableInPolyTime.fst encCNF encUnary).comp hfv
-  have hv : ComputableInPolyTime (fun p : (PL.CNF ℕ × ℕ) × ℕ => (Prod.fst p).snd) encP encUnary :=
-    (ComputableInPolyTime.snd encCNF encUnary).comp hfv
+  have hφ := hfv.fst'
   have hc : ComputableInPolyTime Prod.snd encP encUnary :=
     ComputableInPolyTime.snd _ _
   have hvs : ComputableInPolyTime
@@ -582,8 +579,7 @@ private theorem computableInPolyTime_cnfToOrderedEntry (b : Bool) :
   have hvar : ComputableInPolyTime
       (fun p : (PL.CNF ℕ × ℕ) × ℕ => (Prod.fst p).fst.distinctVars.getD (Prod.fst p).snd 0)
       encP encNat :=
-    (ComputableInPolyTime.listGetD (encA := encNat) (encL := encList encNat) 0).comp
-      (hvs.prod hv)
+    ComputableInPolyTime.listGetDWithInput hvs hfv.snd' 0
   have hlit : ComputableInPolyTime
       (fun p : (PL.CNF ℕ × ℕ) × ℕ => ((Prod.fst p).fst.distinctVars.getD (Prod.fst p).snd 0, b))
       encP (encPair encNat encBool) :=

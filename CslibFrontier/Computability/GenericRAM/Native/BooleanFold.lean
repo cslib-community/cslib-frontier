@@ -218,10 +218,9 @@ theorem prepare_polyTime :
       ((p.2.1, lowBits p.2.1 p.1), p.2.2))
       (encStreamState encB) (encCallbackInput encB) := by
   have hs := ComputableInPolyTime.snd encNat (encPair encUnary encB)
-  have hn := (ComputableInPolyTime.fst encUnary encB).comp hs
+  have hn := hs.fst'
   have hi := ComputableInPolyTime.fst encNat (encPair encUnary encB)
-  exact (hn.prod (decoder_polyTime.comp (hn.prod hi))).prod
-    ((ComputableInPolyTime.snd encUnary encB).comp hs)
+  exact (hn.prod (decoder_polyTime.comp (hn.prod hi))).prod hs.snd'
 
 /-- Construct the actual native captured callback, retaining width outside the user body.
 Only the supplied body's certificate is assumed; decoder/preparation efficiency is proved here. -/

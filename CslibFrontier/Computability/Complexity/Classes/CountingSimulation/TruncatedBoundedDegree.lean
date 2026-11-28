@@ -42,10 +42,10 @@ variable {T : Type} {encT : T ↪ List Bool} {entry : T → List Bool → List �
   | (_, _, _, G) => decide (G.numEdges < (k + 1) ^ 10 + 2)
 
 theorem truncSmallSize_polyTime (k : ℕ) :
-    ComputableInPolyTime (truncSmallSize (T := T) k) (encTrunc encT) encBool :=
-  ComputableInPolyTime.unary_lt.comp ((DescribedNetwork.numEdges_polyTime.comp
-    ((ComputableInPolyTime.snd _ _).comp ((ComputableInPolyTime.snd _ _).comp
-      (ComputableInPolyTime.snd _ _)))).prod (ComputableInPolyTime.const ((k + 1) ^ 10 + 2)))
+    ComputableInPolyTime (truncSmallSize (T := T) k) (encTrunc encT) encBool := by
+  unfold truncSmallSize
+  exact ComputableInPolyTime.unary_lt' (DescribedNetwork.numEdges_polyTime.comp (by fun_prop))
+    (ComputableInPolyTime.const _)
 
 /-- A native truncated contraction for bounded-degree applications. Both branches compute the
 same contraction on every input; the degree hypothesis is used only for the resource bound. -/

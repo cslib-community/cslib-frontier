@@ -367,9 +367,9 @@ private theorem computableInPolyTime_denseFallbackGuard (k : ℕ) :
 
 private theorem computableInPolyTime_leafExhProj :
     ComputableInPolyTime (fun x : (Unit × ℕ) × CNF ℕ => (x.1.2, x.2))
-      encLeafInput (encPair encUnary encCNF) :=
-  ((ComputableInPolyTime.snd encUnit encUnary).comp
-    (ComputableInPolyTime.fst encLeafCtx encCNF)).prod (ComputableInPolyTime.snd encLeafCtx encCNF)
+      encLeafInput (encPair encUnary encCNF) := by
+  unfold encLeafInput
+  fun_prop
 
 /-- **Uniform `NativeCertificate` for `branchedSparseCNFDeclaredCounter`** (§6.3–6.4). -/
 noncomputable def branchedSparseCNFDeclaredCertificate (k N₀_leaf N₀_top N₀_branch : ℕ)

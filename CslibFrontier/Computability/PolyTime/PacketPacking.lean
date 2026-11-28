@@ -522,8 +522,8 @@ theorem computableInPolyTime_labelWords :
   have ha : ComputableInPolyTime (fun x : PackingInput => x.1.2.2) encPackingInput encUnary := by
     unfold encPackingInput; fun_prop
   unfold labelWords
-  refine (ComputableInPolyTime.mapWithInput ((ComputableInPolyTime.fst _ _).comp hpass) ?_).prod
-    (ComputableInPolyTime.mapWithInput ((ComputableInPolyTime.snd _ _).comp hpass) ?_) <;>
+  refine (ComputableInPolyTime.mapWithInput hpass.fst' ?_).prod
+    (ComputableInPolyTime.mapWithInput hpass.snd' ?_) <;>
     exact ComputableInPolyTime.optionGetDWithInput (by fun_prop) (by fun_prop)
 
 /-! ### Packets and slots -/

@@ -78,8 +78,7 @@ theorem decoder_polyTime :
       (encPair (encPair encUnary encNat) encNat) (encList encIntBin) := by
   let ei := encPair (encPair encUnary encNat) encNat
   have hp := ComputableInPolyTime.fst (encPair encUnary encNat) encNat
-  have hc := (ComputableInPolyTime.fst encUnary encNat).comp hp
-  have hd := (ComputableInPolyTime.snd encUnary encNat).comp hp
+  have hd := hp.snd'
   have hj := ComputableInPolyTime.snd (encPair encUnary encNat) encNat
   have ho := ComputableInPolyTime.fst ei encUnary
   have hi := ComputableInPolyTime.snd ei encUnary
@@ -89,7 +88,7 @@ theorem decoder_polyTime :
   have hm := ComputableInPolyTime.mapWithInput
     (f := fun (p : (ℕ × ℕ) × ℕ) (i : ℕ) =>
       Int.subNatNat (Cslib.Radix.digit (2 * p.1.2 + 1) p.2 i) p.1.2)
-    (ComputableInPolyTime.range.comp hc) hshift
+    (ComputableInPolyTime.range.comp hp.fst') hshift
   convert hm using 1
   funext ⟨⟨c, D⟩, j⟩
   simp only [Cslib.Radix.measurementValues, Int.subNatNat_eq_coe, Function.comp_def]

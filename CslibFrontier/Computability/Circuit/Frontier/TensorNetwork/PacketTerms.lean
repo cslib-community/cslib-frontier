@@ -331,18 +331,11 @@ theorem prodList_polyTime {p : α → ℕ} {fl : α → List ℕ} {cs : α → L
     (hp : ComputableInPolyTime p encIn encUnary)
     (hfl : ComputableInPolyTime fl encIn (encList encNat))
     (hcs : ComputableInPolyTime cs encIn (encList (encList encNat))) :
-    ComputableInPolyTime (fun x => prodList (p x) (fl x) (cs x)) encIn (encList encNat) := by
-  have hstep : ComputableInPolyTime (fun q : (α × List ℕ) × List ℕ => mul (p q.1.1) (fl q.1.1)
-      q.1.2 q.2) (encPair (encPair encIn (encList encNat)) (encList encNat)) (encList encNat) := by
-    have hx := (ComputableInPolyTime.fst encIn (encList encNat)).comp
-      (ComputableInPolyTime.fst (encPair encIn (encList encNat)) (encList encNat))
-    exact computableInPolyTime_mul (hp.comp hx) (hfl.comp hx)
-      ((ComputableInPolyTime.snd encIn (encList encNat)).comp (ComputableInPolyTime.fst _ _))
-      (ComputableInPolyTime.snd _ _)
-  exact ComputableInPolyTime.foldlWithInput_of_bounded_growth
+    ComputableInPolyTime (fun x => prodList (p x) (fl x) (cs x)) encIn (encList encNat) :=
+  ComputableInPolyTime.foldlWithInput_of_bounded_growth
     (encA := encList encNat) (encL := encList (encList encNat))
     (step := fun x acc c => mul (p x) (fl x) acc c) (computableInPolyTime_one hfl)
-    ⟨hcs, hstep, inferInstance, inferInstance⟩
+    ⟨hcs, by fun_prop, inferInstance, inferInstance⟩
     ⟨polyBounded_reducedLength hp hfl, fun x acc c _ => by
       have := length_encList_le (length_mul (p x) (fl x) acc c) fun _ h => lt_of_mem_mul h
       omega⟩
@@ -352,20 +345,13 @@ theorem sumList_polyTime {p : α → ℕ} {fl : α → List ℕ} {cs : α → Li
     (hp : ComputableInPolyTime p encIn encUnary)
     (hfl : ComputableInPolyTime fl encIn (encList encNat))
     (hcs : ComputableInPolyTime cs encIn (encList (encList encNat))) :
-    ComputableInPolyTime (fun x => sumList (p x) (fl x) (cs x)) encIn (encList encNat) := by
-  have hstep : ComputableInPolyTime (fun q : (α × List ℕ) × List ℕ => add (p q.1.1) (fl q.1.1)
-      q.1.2 q.2) (encPair (encPair encIn (encList encNat)) (encList encNat)) (encList encNat) := by
-    have hx := (ComputableInPolyTime.fst encIn (encList encNat)).comp
-      (ComputableInPolyTime.fst (encPair encIn (encList encNat)) (encList encNat))
-    exact computableInPolyTime_add (hp.comp hx) (hfl.comp hx)
-      ((ComputableInPolyTime.snd encIn (encList encNat)).comp (ComputableInPolyTime.fst _ _))
-      (ComputableInPolyTime.snd _ _)
-  exact ComputableInPolyTime.foldlWithInput_of_bounded_growth
+    ComputableInPolyTime (fun x => sumList (p x) (fl x) (cs x)) encIn (encList encNat) :=
+  ComputableInPolyTime.foldlWithInput_of_bounded_growth
     (encA := encList encNat) (encL := encList (encList encNat))
     (step := fun x acc c => add (p x) (fl x) acc c)
     (computableInPolyTime_tabulate (g := fun _ _ => 0)
       ((ComputableInPolyTime.length_list encNat).comp hfl) (ComputableInPolyTime.const 0))
-    ⟨hcs, hstep, inferInstance, inferInstance⟩
+    ⟨hcs, by fun_prop, inferInstance, inferInstance⟩
     ⟨polyBounded_reducedLength hp hfl, fun x acc c _ => by
       have := length_encList_le (length_add (p x) (fl x) acc c) fun _ h => lt_of_mem_add h
       omega⟩

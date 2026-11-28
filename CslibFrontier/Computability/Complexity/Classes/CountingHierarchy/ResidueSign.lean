@@ -95,22 +95,19 @@ theorem residueWindowNumerator_mem (D : Decoder enc) {Y L B : α → ℕ}
     (fun (w, k) => residueWindowNumerator (Y w) (L w) (B w)
       (fun p => residue (w, p)) k) ∈
         CountingFunction (max a 5 + 1) (encPair enc encNat) encNat := by
+  have hw := ComputableInPolyTime.fst (encPair enc encNat) encNat
   have hY' := hY.comp (ComputableInPolyTime.fst enc encNat)
-  have hL' := hL.comp (ComputableInPolyTime.fst enc encNat)
-  have hB' := hB.comp (ComputableInPolyTime.fst enc encNat)
-  have hY'' := hY'.comp (ComputableInPolyTime.fst (encPair enc encNat) encNat)
-  have hL'' := hL'.comp (ComputableInPolyTime.fst (encPair enc encNat) encNat)
+  have hY'' := hY.comp hw.fst'
+  have hL'' := hL.comp hw.fst'
   have hr := preprocess (input := encPair (encPair enc encNat) encNat) hresidue
     (g := fun x : (α × ℕ) × ℕ => (x.1.1, x.2)) (by fun_prop)
   have hc := primeWindowCoefficient_mem (Decoder.pair (Decoder.pair D Decoder.nat) Decoder.nat)
-    hY'' hL'' (ComputableInPolyTime.snd _ _)
-    ((ComputableInPolyTime.snd enc encNat).comp
-      (ComputableInPolyTime.fst (encPair enc encNat) encNat)) hr
+    hY'' hL'' (ComputableInPolyTime.snd _ _) hw.snd' hr
   have hnum := ite (mono (by omega : 1 ≤ max a 5)
     (primeWindowTest_mem hY'' hL'' (ComputableInPolyTime.snd _ _))) hc
     (of_polyTime (ComputableInPolyTime.const 0))
   exact dyadicRangeSum_mem (Decoder.pair D Decoder.nat) hnum
-    (of_polyTime (ComputableInPolyTime.snd _ _)) hB'
+    (of_polyTime (ComputableInPolyTime.snd _ _)) (hB.comp (ComputableInPolyTime.fst _ _))
     (ComputableInPolyTime.binary_add' hY' (ComputableInPolyTime.const 1))
 
 /-- Uniform residue access, binary window/limit preparation and unary precision give the

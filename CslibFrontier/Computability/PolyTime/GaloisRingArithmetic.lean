@@ -589,8 +589,8 @@ theorem computableInPolyTime_mul {p : α → ℕ} {fl c d : α → List ℕ}
       (fun q : (α × (List ℕ × List ℕ)) × ℕ => mulStep (p q.1.1) (fl q.1.1) (c q.1.1) q.1.2 q.2)
       (encPair (encPair encIn encS) encUnary) encS := by
     have hq := ComputableInPolyTime.fst (encPair encIn encS) encUnary
-    have hx := (ComputableInPolyTime.fst encIn encS).comp hq
-    have hs := (ComputableInPolyTime.snd encIn encS).comp hq
+    have hx := hq.fst'
+    have hs := hq.snd'
     have hi := ComputableInPolyTime.snd (encPair encIn encS) encUnary
     have hcur := (ComputableInPolyTime.fst (encList encNat) (encList encNat)).comp hs
     have hacc := (ComputableInPolyTime.snd (encList encNat) (encList encNat)).comp hs
@@ -683,12 +683,11 @@ theorem computableInPolyTime_seed {p : α → ℕ} {fl x : α → List ℕ}
       (fun q : (α × (List ℕ × List ℕ)) × ℕ => seedStep (p q.1.1) (fl q.1.1) q.1.2)
       (encPair (encPair encIn encS) encUnary) encS := by
     have hq := ComputableInPolyTime.fst (encPair encIn encS) encUnary
-    have ha := (ComputableInPolyTime.fst encIn encS).comp hq
-    have hs := (ComputableInPolyTime.snd encIn encS).comp hq
-    have h1 := (ComputableInPolyTime.fst (encList encNat) (encList encNat)).comp hs
-    have h2 := (ComputableInPolyTime.snd (encList encNat) (encList encNat)).comp hs
-    have hsq := computableInPolyTime_mul (hp.comp ha) (hfl.comp ha) h1 h1
-    exact hsq.prod (computableInPolyTime_mul (hp.comp ha) (hfl.comp ha) h2 hsq)
+    have hp' := hp.comp hq.fst'
+    have hfl' := hfl.comp hq.fst'
+    have hs := hq.snd'
+    have hsq := computableInPolyTime_mul hp' hfl' hs.fst' hs.fst'
+    exact hsq.prod (computableInPolyTime_mul hp' hfl' hs.snd' hsq)
   have hfold := ComputableInPolyTime.foldlWithInput_of_bounded_growth
     (encA := encUnary) (encL := encList encUnary)
     (step := fun a s _ => seedStep (p a) (fl a) s)
@@ -696,7 +695,7 @@ theorem computableInPolyTime_seed {p : α → ℕ} {fl x : α → List ℕ}
     ⟨ComputableInPolyTime.range.comp (ComputableInPolyTime.unary_sub' (length_polyTime hfl)
       (ComputableInPolyTime.const 1)), hstep, inferInstance, inferInstance⟩
     ⟨polyBounded_reduced hp hfl, fun a s _ _ => ?_⟩
-  · exact (ComputableInPolyTime.snd (encList encNat) (encList encNat)).comp hfold
+  · exact hfold.snd'
   · have h1 := length_encList_le (length_mul (p a) (fl a) s.1 s.1) fun _ h => lt_of_mem_mul h
     have h2 := length_encList_le (length_mul (p a) (fl a) s.2 (mul (p a) (fl a) s.1 s.1))
       fun _ h => lt_of_mem_mul h

@@ -317,30 +317,24 @@ theorem rootNet_polyTime :
       (DescribedNetwork.encDescribed encT)
       (encPair encUnary (encList (encPair (encList encNat) encT))) :=
     ComputableInPolyTime.of_eq fun _ => rfl
-  have hm := (ComputableInPolyTime.fst _ _).comp hpair
-  have hvs := (ComputableInPolyTime.snd _ _).comp hpair
   have hv : ComputableInPolyTime (fun q : DescribedNetwork T × (List ℕ × T) =>
       (q.2.1, (Sum.inl q.2.2 : VertexDesc T)))
       (encPair (DescribedNetwork.encDescribed encT) (encPair (encList encNat) encT))
-      (encPair (encList encNat) (VertexDesc.enc encT)) :=
-    ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _)).prod
-      ((ComputableInPolyTime.sumInl _ _).comp
-        ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.snd _ _)))
+      (encPair (encList encNat) (VertexDesc.enc encT)) := by fun_prop
   have hmap := ComputableInPolyTime.mapWithInput
-    (f := fun _ v => (v.1, (Sum.inl v.2 : VertexDesc T))) hvs hv
+    (f := fun _ v => (v.1, (Sum.inl v.2 : VertexDesc T))) hpair.snd' hv
   have hout : ComputableInPolyTime (DescribedNetwork.equivProd (T := VertexDesc T)).symm
       (encPair encUnary (encList (encPair (encList encNat) (VertexDesc.enc encT))))
       (DescribedNetwork.encDescribed (VertexDesc.enc encT)) :=
     ComputableInPolyTime.of_eq fun _ => rfl
-  exact (hout.comp (hm.prod hmap)).of_enc_eq fun _ => rfl
+  exact (hout.comp (hpair.fst'.prod hmap)).of_enc_eq fun _ => rfl
 
 /-- **The root call is polynomial-time**, from a capped input. -/
 theorem root_polyTime : ComputableInPolyTime root ExplicitTensorNetwork.encContractionInput
     (encCall (encList encNat)) := by
-  have hp := ComputableInPolyTime.fst encUnary (encPair encNat
-    ExplicitTensorNetwork.encExplicitNetwork)
-  have hr := (ComputableInPolyTime.fst encNat ExplicitTensorNetwork.encExplicitNetwork).comp
-    (ComputableInPolyTime.snd encUnary (encPair encNat ExplicitTensorNetwork.encExplicitNetwork))
+  let encRest := encPair encNat ExplicitTensorNetwork.encExplicitNetwork
+  have hp := ComputableInPolyTime.fst encUnary encRest
+  have hr := (ComputableInPolyTime.snd encUnary encRest).fst'
   exact (ExplicitTensorNetwork.numEdges_polyTime.prod ((ComputableInPolyTime.const 0).prod
     ((ComputableInPolyTime.unary_add' ExplicitTensorNetwork.numEdges_polyTime
         (ComputableInPolyTime.const 1)).prod
@@ -421,14 +415,11 @@ theorem decode_polyTime :
     ComputableInPolyTime (fun q : (ℕ × ℕ × ExplicitTensorNetwork ℕ) × (ℕ × List ℕ) =>
       q.2.2.getD 0 0 % 2 ^ (ExplicitTensorNetwork.capPrecision q.1).1)
       (encPair encInput encValue) encNat := by
-  have hcap := (ComputableInPolyTime.fst _ _).comp
-    (ExplicitTensorNetwork.capPrecision_polyTime.comp (ComputableInPolyTime.fst encInput encValue))
-  have hy := (ComputableInPolyTime.snd encUnary (encList encNat)).comp
-    (ComputableInPolyTime.snd encInput encValue)
+  have hcap := ExplicitTensorNetwork.capPrecision_polyTime.comp
+    (ComputableInPolyTime.fst encInput encValue)
   exact GaloisRingArith.computableInPolyTime_mod_two_pow
-    ((ComputableInPolyTime.listGetD (encA := encNat) 0).comp
-      (hy.prod (ComputableInPolyTime.const 0)))
-    hcap
+    (ComputableInPolyTime.listGetDWithInput (by fun_prop) (ComputableInPolyTime.const 0) 0)
+    hcap.fst'
 
 /-- Whether a value is tagged `0`. -/
 theorem tag_polyTime :

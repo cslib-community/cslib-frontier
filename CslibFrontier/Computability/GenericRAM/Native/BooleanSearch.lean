@@ -205,9 +205,7 @@ private def resultCertificate :
 private theorem word_polyTime :
     ComputableInPolyTime (fun p : (ℕ × List Bool) × (C × Option (List Bool)) => p.1.2)
       (encCallback encC) (encList encBool) :=
-  ComputableInPolyTime.bitsToList.comp
-    ((ComputableInPolyTime.snd encUnary encBits).comp
-      (ComputableInPolyTime.fst (encPair encUnary encBits) (encAccumulator encC)))
+  ComputableInPolyTime.bitsToList.comp (by fun_prop)
 
 private noncomputable def wordCertificate :
     NativeCertificate (fun p : (ℕ × List Bool) × (C × Option (List Bool)) => p.1.2)

@@ -63,9 +63,7 @@ theorem IsPPTOn.replicate {α β : Type} {input : α ↪ List Bool} {output : β
       (encPair input encBits) (encList encBits) := by fun_prop
   have heval : ComputableInPolyTime (fun p : (α × List Bool) × List Bool => evaluate p.1.1 p.2)
       (encPair (encPair input encBits) encBits) output :=
-    hevaluate.comp
-      (((ComputableInPolyTime.fst input encBits).comp (ComputableInPolyTime.fst _ _)).prod
-        (ComputableInPolyTime.snd _ _))
+    hevaluate.comp ((ComputableInPolyTime.fst _ _).fst'.prod (.snd _ _))
   have hmap := ComputableInPolyTime.mapWithInput (f := fun q row => evaluate q.1 row) hrows heval
   have hcoins := (ComputableInPolyTime.unary_mul' hcount hbudget).sampleList
   apply (hcoins.map_with (f := fun a coins =>

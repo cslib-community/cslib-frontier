@@ -59,12 +59,9 @@ private theorem endpoint_polyTime :
 private theorem dartOrigin_polyTime :
     ComputableInPolyTime (fun p : (Graph × OrthogonalDrawing) × ℕ =>
       drawingPosition p.1.1 p.1.2 (endpoint p.1.1 p.2)) encDrawingDart encPoint := by
-  simpa only [Function.comp_def] using computableInPolyTime_drawingPosition.comp
-    ((ComputableInPolyTime.fst encDrawingInput encUnary).prod
-      (endpoint_polyTime.comp
-        (((ComputableInPolyTime.fst encGraph encOrthogonalDrawing).comp
-          (ComputableInPolyTime.fst encDrawingInput encUnary)).prod
-            (ComputableInPolyTime.snd encDrawingInput encUnary))))
+  have hinput := ComputableInPolyTime.fst encDrawingInput encUnary
+  exact computableInPolyTime_drawingPosition.comp
+    (hinput.prod (endpoint_polyTime.comp (hinput.fst'.prod (ComputableInPolyTime.snd _ _))))
 
 private theorem route_polyTime :
     ComputableInPolyTime (fun p : (Graph × OrthogonalDrawing) × ℕ =>
@@ -107,17 +104,16 @@ theorem computableInPolyTime_clockwiseCandidates :
   apply ComputableInPolyTime.flatMapWithInput (encA := encUnary)
     (ComputableInPolyTime.const (List.range 4))
   apply ComputableInPolyTime.filterWithInput (encA := encUnary)
-    (ComputableInPolyTime.range.comp (dartCount_polyTime.comp
-      ((ComputableInPolyTime.fst encDrawingInput encUnary).comp
-        (ComputableInPolyTime.fst encDrawingDart encUnary))))
+    (ComputableInPolyTime.range.comp
+      (dartCount_polyTime.comp (ComputableInPolyTime.fst encDrawingDart encUnary).fst'))
   let encStep := encPair encDrawingDart encUnary
   have hstepInput := ComputableInPolyTime.fst encStep encUnary
-  have hdart := (ComputableInPolyTime.fst encDrawingDart encUnary).comp hstepInput
-  have hinput := (ComputableInPolyTime.fst encDrawingInput encUnary).comp hdart
-  have hi := (ComputableInPolyTime.snd encDrawingInput encUnary).comp hdart
+  have hdart := hstepInput.fst'
+  have hinput := hdart.fst'
+  have hi := hdart.snd'
   have hj := ComputableInPolyTime.snd encStep encUnary
-  have hstep := (ComputableInPolyTime.snd encDrawingDart encUnary).comp hstepInput
-  have hgraph := (ComputableInPolyTime.fst encGraph encOrthogonalDrawing).comp hinput
+  have hstep := hstepInput.snd'
+  have hgraph := hinput.fst'
   have hei := endpoint_polyTime.comp (hgraph.prod hi)
   have hej := endpoint_polyTime.comp (hgraph.prod hj)
   have hri := dartRank_polyTime.comp (hinput.prod hi)
