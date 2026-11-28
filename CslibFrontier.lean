@@ -3726,6 +3726,7 @@ public import CslibFrontier.Crypto.Protocols.PerfectSecrecy.ShannonCiphers
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Characterization
 public import CslibFrontier.MachineLearning.PACLearning.Halfspaces
 public import CslibFrontier.Computability.TreeEval.Reader.Cert.Offset
+public import CslibFrontier.Algorithms.Lean.Palindrome.Eertree
 public import CslibFrontier.Computability.Complexity.Problems.StatisticalDifference
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Native.Fibonacci.Memory
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Contraction

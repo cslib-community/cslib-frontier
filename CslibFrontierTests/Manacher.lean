@@ -9,8 +9,10 @@ module
 
 import CslibFrontier.Init
 import CslibFrontier.Algorithms.Lean.Palindrome.Basic
+import CslibFrontier.Algorithms.Lean.Palindrome.Eertree
 import CslibFrontier.Algorithms.Lean.Palindrome.Manacher
 import CslibFrontier.Algorithms.WordRAM.Manacher
+meta import CslibFrontier.Algorithms.Lean.Palindrome.Eertree
 meta import CslibFrontier.Algorithms.Lean.Palindrome.Manacher
 meta import CslibFrontier.Algorithms.WordRAM.Manacher
 meta import CslibFrontier.Computability.WordRAM.Structured.FastEval
@@ -123,6 +125,27 @@ example : ['a', 'a', 'a'].palindromicFactors = {[], ['a'], ['a', 'a'], ['a', 'a'
 
 -- The final `a` has occurred before and introduces no new palindrome.
 example : ['a', 'b', 'c', 'a'].palindromicFactors.card = 4 := by decide
+
+/-! ## Palindromic tree transitions -/
+
+-- Both roots exist before the first letter. The two roots have different outgoing edges.
+example (w : List Char) : (Eertree.ofList w).suffixLink? (.word []) = some .imaginary :=
+  Eertree.suffixLink?_emptyRoot w
+
+#guard (Eertree.ofList ([] : List Char)).links.keys == [[]]
+#guard (Eertree.ofList ([] : List Char)).suffixLink? .imaginary == some .imaginary
+#guard (Eertree.ofList ['a']).edge? .imaginary 'a' == some (.word ['a'])
+#guard (Eertree.ofList ['a']).edge? (.word []) 'a' == none
+#guard (Eertree.ofList ['a', 'a']).edge? (.word []) 'a' == some (.word ['a', 'a'])
+#guard (Eertree.ofList ['a']).suffixLink? (.word ['a']) == some (.word [])
+
+-- The extension edge and the suffix link of “bab” have different endpoints.
+#guard (Eertree.ofList ['b', 'a', 'b']).edge? (.word ['a']) 'b' == some (.word ['b', 'a', 'b'])
+#guard (Eertree.ofList ['b', 'a', 'b']).suffixLink? (.word ['b', 'a', 'b']) == some (.word ['b'])
+
+-- The last “a” reuses the earlier singleton; the entire suffix-link table is unchanged.
+#guard ((Eertree.ofList ['a', 'b', 'c']).append 'a').links.entries ==
+  (Eertree.ofList ['a', 'b', 'c']).links.entries
 
 /-! ## Word-RAM execution and linear running-time checks -/
 
