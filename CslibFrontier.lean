@@ -7779,6 +7779,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.Probability.RankDecoder.Native
 public import CslibFrontier.Foundations.Data.Seq.Computation
 public import CslibFrontier.Computability.Circuit.Boolean.BinaryField
+public import CslibFrontier.Logics.RealArithmetic.FormulaEquation
 public import CslibFrontier.Logics.FirstOrder.Encoding.Layout
 public import CslibFrontier.DataStructure.CountMin.Probability
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.ACC0.WitnessVerifier

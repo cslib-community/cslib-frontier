@@ -740,6 +740,25 @@ def formulaWordGateValueWithAnswer (word : List Bool) (index : ℕ)
   gateValueWithAnswer (formulaWordTokenAt word index) (formulaWordChildIndices word index)
     answer value
 
+/-- The Boolean gate reads its value function only at the two child lookup positions. -/
+theorem formulaWordGateValueWithAnswer_congr_children (word : List Bool) (index : ℕ)
+    (answer : Bool) {v w : ℕ → Bool}
+    (hl : v ((formulaWordChildIndices word index).getD 0 0) =
+      w ((formulaWordChildIndices word index).getD 0 0))
+    (hr : v ((formulaWordChildIndices word index).getD 1 0) =
+      w ((formulaWordChildIndices word index).getD 1 0)) :
+    formulaWordGateValueWithAnswer word index answer v =
+      formulaWordGateValueWithAnswer word index answer w := by
+  simp only [formulaWordGateValueWithAnswer, gateValueWithAnswer, hl, hr]
+
+/-- Comparison gates use the supplied answer. -/
+theorem formulaWordGateValueWithAnswer_of_request {word : List Bool} {index : ℕ}
+    {request : FormulaComparisonRequest} (h : formulaWordComparisonRequest word index =
+      some request) (answer : Bool) (value : ℕ → Bool) :
+    formulaWordGateValueWithAnswer word index answer value = answer := by
+  change comparisonRequest (formulaWordTokenAt word index) = some request at h
+  simp [formulaWordGateValueWithAnswer, gateValueWithAnswer, h]
+
 /-- Two supplied answers give the same gate value if they agree whenever the gate requests
 a comparison. -/
 theorem formulaWordGateValueWithAnswer_congr (word : List Bool) (index : ℕ)
