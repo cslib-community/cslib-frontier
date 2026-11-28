@@ -20,27 +20,23 @@ Building blocks for circuits over `Unbounded.extSignature` read with `MOD₂` ga
 
 * `Unbounded.parityOnCircuit s`: one `MOD₂` gate on the inputs in `s`, computing `parityOn s`.
 * `Unbounded.andCircuit i j`: one binary conjunction of two inputs.
-* `Unbounded.constsCircuit φ z`: the bits of a fixed string `z`, from one constant gate
-  (`Unbounded.constCircuit`) for each value, so two gates whatever the length of `z`. It is built
-  over any basis containing the unbounded fan-in basis.
 * `Unbounded.innerProductCircuit k`: the inner product `b ⬝ᵥ r` over GF(2) of two strings of `k`
   bits, as `k` conjunctions under one `MOD₂` gate.
 
-The first three have depth at most one and the inner product depth at most two. Gates count
-towards the size; wires do not.
+The first two have depth at most one and the inner product depth at most two. Gates count
+towards the size; wires do not. The bits of a fixed string, `Unbounded.constsCircuit`, are in
+`CslibFrontier.Computability.Circuit.Boolean.AC0`.
 
 ## Main definitions
 
 * `Cslib.Circuits.Boolean.Unbounded.parityOnCircuit`,
-  `Cslib.Circuits.Boolean.Unbounded.andCircuit`,
-  `Cslib.Circuits.Boolean.Unbounded.constsCircuit`: a parity, a conjunction and fixed bits.
+  `Cslib.Circuits.Boolean.Unbounded.andCircuit`: a parity and a conjunction.
 * `Cslib.Circuits.Boolean.Unbounded.innerProductCircuit`: the inner product over GF(2).
 
 ## Main results
 
 * `Cslib.Circuits.Boolean.Unbounded.eval_parityOnCircuit`,
   `Cslib.Circuits.Boolean.Unbounded.eval_andCircuit`,
-  `Cslib.Circuits.Boolean.Unbounded.eval_constsCircuit`,
   `Cslib.Circuits.Boolean.Unbounded.eval_innerProductCircuit`: what they compute.
 * `Cslib.Circuits.Boolean.Unbounded.size_innerProductCircuit`,
   `Cslib.Circuits.Boolean.Unbounded.depth_innerProductCircuit_le`: the inner product has `k + 1`
@@ -99,42 +95,6 @@ gates compute. -/
 @[circuit_bound]
 theorem depth_andCircuit_le (i j : Fin n) : (andCircuit i j).depth ≤ 1 :=
   (depth_binCircuit_le _ _ _ _).trans (by simp)
-
-/-! ### Fixed bits -/
-
-section Consts
-
-variable {σ : Signature} (φ : signature.Hom σ)
-
-/-- The bits of `z`, each wired from one of two constant gates (`Unbounded.constCircuit`), over
-any basis containing the unbounded fan-in basis along `φ`. -/
-def constsCircuit {m : ℕ} (z : BitString m) : Circuit σ n m :=
-  (Circuit.wiring σ fun i => if z i then Fin.castAdd 1 0 else Fin.natAdd 1 0).comp
-    ((constCircuit φ true).append (constCircuit φ false))
-
-variable {φ}
-
-/-- `constsCircuit φ z` outputs `z` on every input. -/
-@[simp] theorem eval_constsCircuit {I : Interpretation σ Bool} [φ.Preserves interpretation I]
-    {m : ℕ} (z : BitString m) (x : BitString n) : (constsCircuit φ z).eval I x = z := by
-  funext i
-  simp only [circuit_simps, constsCircuit]
-  cases z i
-  · exact (Fin.append_right _ _ (0 : Fin 1)).trans (eval_constCircuit _ _ _)
-  · exact (Fin.append_left _ _ (0 : Fin 1)).trans (eval_constCircuit _ _ _)
-
-/-- `constsCircuit φ z` has two gates. -/
-@[simp] theorem size_constsCircuit {m : ℕ} (z : BitString m) :
-    (constsCircuit (n := n) φ z).size = 2 := by
-  simp [constsCircuit]
-
-/-- `constsCircuit φ z` has depth at most one. -/
-@[circuit_bound]
-theorem depth_constsCircuit_le {m : ℕ} (z : BitString m) :
-    (constsCircuit (n := n) φ z).depth ≤ 1 := by
-  circuit_bound [constsCircuit]
-
-end Consts
 
 /-! ### Inner product over GF(2) -/
 

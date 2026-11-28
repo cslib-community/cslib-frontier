@@ -43,6 +43,9 @@ has polynomial-size `AC⁰[m]` circuits of a single uniform depth `d` and modulu
 
 ## Main definitions
 
+* `Cslib.Circuits.Boolean.hardwirePrefix`: fix the first input wires of a circuit to the bits of
+  a prefix, with eval, size and depth lemmas (`eval_hardwirePrefix`, `size_hardwirePrefix`,
+  `depth_hardwirePrefix_le`).
 * `Cslib.Circuits.Boolean.evalPrefix`: the framed prefix encoding a single-output De Morgan
   circuit's gate list and output wire for `circuitEvalLanguage`.
 * `Cslib.Circuits.Boolean.circuitEvalLanguage`: the polynomial-time De Morgan circuit evaluation
@@ -52,7 +55,8 @@ has polynomial-size `AC⁰[m]` circuits of a single uniform depth `d` and modulu
 
 * `Cslib.Circuits.Boolean.circuitEvalLanguage_mem_P`: `circuitEvalLanguage ∈ P encBits`.
 * `Cslib.Circuits.Boolean.length_evalPrefix_le`: `(evalPrefix C).length` is
-  `O((C.size + 1) * (log₂(n + C.size + 1) + 1))`.
+  `O((C.size + 1) * (log₂(n + C.size + 1) + 1))`; `length_evalPrefix_le_of_le` bounds it for at
+  most `M` inputs and `R` gates.
 * `Cslib.Circuits.Boolean.exists_circuit_of_P_circuits`: [Williams2014], Lemma 5.1 — circuits for
   `P` over any basis containing `AC⁰` simulate arbitrary De Morgan circuits with input length
   `n + O((C.size + 1) * log₂(n + C.size + 2))`, additive depth `+ 1`, and additive size `+ 2`.
@@ -180,16 +184,25 @@ theorem length_evalPrefix_le {n : ℕ} (C : Circuit signature n 1) :
     _ ≤ 124 * C.size * L + 124 * L := Nat.add_le_add h4 h5
     _ = 124 * (C.size + 1) * L := by ring
 
+/-- A bound on the length of a circuit code at input length at most `M`, for a circuit of size at
+most `R`. -/
+theorem length_evalPrefix_le_of_le {m R M : ℕ} (hm : m ≤ M) (C : Circuit signature m 1)
+    (hC : C.size ≤ R) : (evalPrefix C).length ≤ 124 * (R + 1) * (M + R + 2) := by
+  refine (length_evalPrefix_le C).trans ?_
+  have hlog := Nat.log_le_self 2 (m + C.size + 1)
+  exact Nat.mul_le_mul (Nat.mul_le_mul_left _ (by omega)) (by omega)
+
 /-! ### Prefix hardwiring and Williams Lemma 5.1 -/
 
 /-- Hardwire the first `p.length` input wires of `U` to the fixed bits of `p`, leaving the last
 `n` wires as live inputs, using two constant gates (`Unbounded.constsCircuit`) and adding at most
 one layer of depth. -/
-private def hardwirePrefix {σ : Signature} (φ : Unbounded.signature.Hom σ) {n : ℕ}
+def hardwirePrefix {σ : Signature} (φ : Unbounded.signature.Hom σ) {n : ℕ}
     (p : List Bool) (U : Circuit σ (p.length + n) 1) : Circuit σ n 1 :=
   U.comp ((Unbounded.constsCircuit φ fun i : Fin p.length => p[i]).append (Circuit.wiring σ id))
 
-private theorem eval_hardwirePrefix {σ : Signature} {φ : Unbounded.signature.Hom σ}
+/-- The hardwired circuit evaluates `U` on the prefix `p` followed by its live inputs. -/
+theorem eval_hardwirePrefix {σ : Signature} {φ : Unbounded.signature.Hom σ}
     {I : Interpretation σ Bool} [φ.Preserves Unbounded.interpretation I] {n : ℕ}
     (p : List Bool) (U : Circuit σ (p.length + n) 1) (x : BitString n) :
     (hardwirePrefix φ p U).eval I x =
@@ -204,17 +217,21 @@ private theorem eval_hardwirePrefix {σ : Signature} {φ : Unbounded.signature.H
   · simp [List.getElem_append_left hk]
   · simp [List.getElem_append_right (Nat.not_lt.1 hk), Fin.subNat]
 
-private theorem size_hardwirePrefix {σ : Signature} (φ : Unbounded.signature.Hom σ) {n : ℕ}
+/-- Hardwiring a prefix adds two constant gates. -/
+theorem size_hardwirePrefix {σ : Signature} (φ : Unbounded.signature.Hom σ) {n : ℕ}
     (p : List Bool) (U : Circuit σ (p.length + n) 1) :
     (hardwirePrefix φ p U).size = U.size + 2 := by
   simp [hardwirePrefix]
   omega
 
-private theorem depth_hardwirePrefix_le {σ : Signature} (φ : Unbounded.signature.Hom σ) {n : ℕ}
+/-- Hardwiring a prefix adds at most one layer of depth. -/
+theorem depth_hardwirePrefix_le {σ : Signature} (φ : Unbounded.signature.Hom σ) {n : ℕ}
     (p : List Bool) (U : Circuit σ (p.length + n) 1) :
     (hardwirePrefix φ p U).depth ≤ U.depth + 1 := by
   circuit_bound [hardwirePrefix]
 
+/-- Hardwiring the prefix `evalPrefix C` into a circuit for `circuitEvalLanguage` gives a circuit
+computing `C`. -/
 private theorem hardwirePrefix_computes_eval {σ : Signature} {φ : Unbounded.signature.Hom σ}
     {I : Interpretation σ Bool} [φ.Preserves Unbounded.interpretation I] {n : ℕ}
     (C : Circuit signature n 1) (U : Circuit σ ((evalPrefix C).length + n) 1)
