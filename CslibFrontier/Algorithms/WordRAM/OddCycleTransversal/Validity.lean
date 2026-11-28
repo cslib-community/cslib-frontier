@@ -90,13 +90,13 @@ private theorem validHistory_bfsProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.Stat
   have hsq := splitCount_sq n
   unfold bfsProg
   dsimp only
+  generalize hL : splitCount n - 1 = L
   refine validHistory_bind_ready hs
     (validHistory_fillRange hs (by wram_omega) (hw.of_le (by wram_omega))) fun _ s1 hs1 => ?_
   refine validHistory_write_bind (by wram_omega [hs1.2]) (fits_zero w)
     (validHistory_write_bind (by wram_omega [hs1.2]) (fits_zero w) ?_)
   refine validHistory_bind_step
-    (validHistory_iterate_nat (Inv := MemReady w n) (splitCount n - 1) 0
-      (fun layer hlayer t ht => ⟨?_, ?_⟩)
+    (validHistory_iterate_nat (Inv := MemReady w n) L 0 (fun layer hlayer t ht => ⟨?_, ?_⟩)
       (memReady_write (memReady_write hs1 _ 0 (fits_zero w)) _ 0 (fits_zero w)))
     (validHistory_pure _ _ _)
   · unfold bfsLayerStep
